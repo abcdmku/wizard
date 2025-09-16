@@ -1,30 +1,25 @@
 export default {
-  index: {
-    title: 'Introduction',
-    type: 'page'
+  index: 'Introduction',
+  'getting-started': 'Getting Started',
+  '-- divider1': {
+    type: 'separator',
+    title: 'Core Concepts'
   },
-  'getting-started': {
-    title: 'Getting Started',
-    type: 'page'
+  concepts: 'Core Concepts',
+  '-- divider2': {
+    type: 'separator',
+    title: 'Framework Integration'
   },
-  concepts: {
-    title: 'Concepts',
-    type: 'page'
+  react: 'React',
+  '-- divider3': {
+    type: 'separator',
+    title: 'Guides'
   },
-  react: {
-    title: 'React',
-    type: 'page'
+  recipes: 'Recipes',
+  examples: 'Examples',
+  '-- divider4': {
+    type: 'separator',
+    title: 'API'
   },
-  recipes: {
-    title: 'Recipes',
-    type: 'page'
-  },
-  examples: {
-    title: 'Examples',
-    type: 'page'
-  },
-  'api-reference': {
-    title: 'API Reference',
-    type: 'page'
-  }
+  'api-reference': 'API Reference'
 }

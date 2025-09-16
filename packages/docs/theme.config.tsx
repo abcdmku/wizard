@@ -14,6 +14,7 @@ const config: DocsThemeConfig = {
       </span>
     )
   },
+  navigation: false,
   head: (
     <>
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -24,8 +25,25 @@ const config: DocsThemeConfig = {
   primaryHue: 220,
   darkMode: true,
   sidebar: {
-    defaultMenuCollapseLevel: 1,
-    toggleButton: true
+    defaultMenuCollapseLevel: 2,
+    toggleButton: true,
+    titleComponent: ({ title, type }) => {
+      if (type === 'separator') {
+        return (
+          <div style={{ 
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            margin: '1.5rem 0 0.5rem 0',
+            opacity: 0.6
+          }}>
+            {title}
+          </div>
+        );
+      }
+      return <>{title}</>;
+    }
   },
   navigation: {
     prev: true,
