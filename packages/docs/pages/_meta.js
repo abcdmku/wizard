@@ -23,7 +23,7 @@ export default {
     title: 'Examples',
     type: 'page'
   },
-  api: {
+  'api-reference': {
     title: 'API Reference',
     type: 'page'
   }
