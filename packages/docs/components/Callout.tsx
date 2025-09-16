@@ -34,13 +34,49 @@ export function Callout({ type = 'info', title, children }: CalloutProps) {
   const Icon = icons[type];
 
   return (
-    <div className={`my-6 flex rounded-lg border-l-4 p-4 ${styles[type]}`}>
-      <Icon className={`h-5 w-5 mt-0.5 mr-3 flex-shrink-0 ${iconStyles[type]}`} />
-      <div className="flex-1">
+    <div 
+      style={{
+        margin: '1.5rem 0',
+        padding: '1rem',
+        borderRadius: '0.5rem',
+        borderLeft: '4px solid',
+        display: 'flex',
+        gap: '0.75rem',
+        backgroundColor: type === 'info' ? 'rgba(59, 130, 246, 0.1)' : 
+                         type === 'warning' ? 'rgba(245, 158, 11, 0.1)' :
+                         type === 'error' ? 'rgba(239, 68, 68, 0.1)' :
+                         'rgba(34, 197, 94, 0.1)',
+        borderLeftColor: type === 'info' ? '#3b82f6' : 
+                        type === 'warning' ? '#f59e0b' :
+                        type === 'error' ? '#ef4444' :
+                        '#22c55e'
+      }}
+    >
+      <Icon 
+        style={{
+          width: '20px',
+          height: '20px',
+          flexShrink: 0,
+          marginTop: '2px',
+          color: type === 'info' ? '#3b82f6' : 
+                 type === 'warning' ? '#f59e0b' :
+                 type === 'error' ? '#ef4444' :
+                 '#22c55e'
+        }}
+      />
+      <div style={{ flex: 1 }}>
         {title && (
-          <div className="mb-1 font-semibold">{title}</div>
+          <div style={{ 
+            fontWeight: 600, 
+            marginBottom: '0.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            {title}
+          </div>
         )}
-        <div className="prose-sm dark:prose-invert">{children}</div>
+        <div style={{ fontSize: '0.95rem', lineHeight: '1.6' }}>{children}</div>
       </div>
     </div>
   );
