@@ -1,6 +1,6 @@
 /* Custom styles for documentation */
 
-/* Override code block background colors */
+/* Light mode code block background */
 .nextra-code-block pre,
 .nextra-code pre,
 pre[class*="language-"],
@@ -9,8 +9,10 @@ pre[class*="lang-"],
 code[class*="language-"],
 .shiki,
 .shiki pre,
-.shiki code {
-  background: #2d2d30 !important; /* Light mode: dark grey */
+.shiki code,
+pre code {
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
 }
 
 /* Dark mode code blocks */
@@ -22,17 +24,26 @@ code[class*="language-"],
 .dark code[class*="language-"],
 .dark .shiki,
 .dark .shiki pre,
-.dark .shiki code {
-  background: #0b0b0b !important; /* Dark mode: #0b0b0b */
+.dark .shiki code,
+.dark pre code {
+  background: #0b0b0b !important;
+  color: #d4d4d4 !important;
 }
 
 /* Code blocks in markdown */
-article pre {
-  background: #2d2d30 !important;
+article pre,
+.prose pre,
+main pre {
+  background: #1e1e1e !important;
+  border-radius: 0 0 0.5rem 0.5rem !important;
+  margin: 0 !important;
+  padding: 1rem !important;
 }
 
 /* Dark mode code blocks in markdown */
-.dark article pre {
+.dark article pre,
+.dark .prose pre,
+.dark main pre {
   background: #0b0b0b !important;
 }
 
@@ -59,7 +70,15 @@ div[class*="code-block"],
   margin: 1.5rem 0 !important;
 }
 
-/* Tab styles for code blocks */
+/* Remove any default margins from pre inside tabs */
+.tabs-panel pre,
+[role="tabpanel"] pre,
+div[class*="tab-panel"] pre {
+  margin: 0 !important;
+  border-radius: 0 0 0.5rem 0.5rem !important;
+}
+
+/* Tab styles for code blocks in general documentation */
 div[data-rehype-pretty-code-fragment] .tabs-header,
 .code-tabs-header {
   background: #f9fafb !important;
@@ -72,7 +91,7 @@ div[data-rehype-pretty-code-fragment] .tabs-header,
 /* Dark mode tab styles */
 .dark div[data-rehype-pretty-code-fragment] .tabs-header,
 .dark .code-tabs-header {
-  background: #1f2937 !important; /* dark:bg-gray-800 equivalent */
+  background: #1f2937 !important;
 }
 
 /* Tab buttons */
@@ -104,35 +123,40 @@ div[data-rehype-pretty-code-fragment] button[data-state="active"] {
 /* Dark mode tab buttons */
 .dark .code-tabs-header button,
 .dark div[data-rehype-pretty-code-fragment] button {
-  color: #9ca3af !important; /* dark:text-gray-400 */
+  color: #9ca3af !important;
 }
 
 .dark .code-tabs-header button:hover,
 .dark div[data-rehype-pretty-code-fragment] button:hover {
-  background: #374151 !important; /* dark:hover:bg-gray-700 */
+  background: #374151 !important;
 }
 
 .dark .code-tabs-header button.active,
 .dark div[data-rehype-pretty-code-fragment] button[data-state="active"] {
-  background: #111827 !important; /* dark:bg-gray-900 */
-  color: #60a5fa !important; /* dark:text-blue-400 */
+  background: #111827 !important;
+  color: #60a5fa !important;
 }
 
 /* Copy button styling */
 .nextra-copy-button,
 button[class*="copy"],
 .copy-button {
-  background: #374151 !important;
-  border: 1px solid #4b5563 !important;
+  background: rgba(55, 65, 81, 0.5) !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(75, 85, 99, 0.3) !important;
   color: #d1d5db !important;
   padding: 0.375rem 0.5rem !important;
   border-radius: 6px !important;
+  position: absolute !important;
+  top: 0.75rem !important;
+  right: 0.75rem !important;
+  z-index: 10 !important;
 }
 
 .nextra-copy-button:hover,
 button[class*="copy"]:hover,
 .copy-button:hover {
-  background: #4b5563 !important;
+  background: rgba(75, 85, 99, 0.8) !important;
   color: white !important;
 }
 
@@ -143,11 +167,7 @@ pre::-webkit-scrollbar {
 }
 
 pre::-webkit-scrollbar-track {
-  background: #1e1e1e;
-}
-
-.dark pre::-webkit-scrollbar-track {
-  background: #000000;
+  background: transparent;
 }
 
 pre::-webkit-scrollbar-thumb {
@@ -159,7 +179,11 @@ pre::-webkit-scrollbar-thumb:hover {
   background: #6b7280;
 }
 
-/* Syntax highlighting adjustments for dark grey background */
+.dark pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Syntax highlighting adjustments */
 .shiki .line {
   display: block;
   padding: 0 1rem;
@@ -174,4 +198,22 @@ pre::-webkit-scrollbar-thumb:hover {
   color: #6b7280;
   padding-right: 1rem;
   user-select: none;
+}
+
+/* Ensure proper styling for code within tabs */
+.bg-white pre,
+.dark\:bg-\[\#0b0b0b\] pre {
+  border-radius: 0 0 0.5rem 0.5rem !important;
+}
+
+/* Override any conflicting Nextra styles */
+[class*="nx-"] pre {
+  margin: 0 !important;
+}
+
+/* Ensure tab content has no padding that conflicts with code blocks */
+div[role="tabpanel"],
+.tab-content,
+.tabs-panel {
+  padding: 0 !important;
 }
