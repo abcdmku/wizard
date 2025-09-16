@@ -17,13 +17,11 @@ export function Tabs({ items, children, defaultIndex = 0 }: TabsProps) {
   const panels = React.Children.toArray(children);
 
   useEffect(() => {
-    // Check if dark mode is active
     const checkDarkMode = () => {
       setIsDark(document.documentElement.classList.contains('dark'));
     };
     
     checkDarkMode();
-    // Watch for dark mode changes
     const observer = new MutationObserver(checkDarkMode);
     observer.observe(document.documentElement, { 
       attributes: true, 
@@ -34,45 +32,58 @@ export function Tabs({ items, children, defaultIndex = 0 }: TabsProps) {
   }, []);
 
   return (
-    <div style={{ margin: '1.5rem 0' }}>
+    <div style={{ 
+      margin: '1.5rem 0',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      border: `1px solid ${isDark ? '#2d2d30' : '#e5e7eb'}`
+    }}>
+      {/* Tab Header */}
       <div style={{ 
         display: 'flex',
-        gap: '4px',
-        padding: '4px',
-        backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#f9fafb',
-        borderBottom: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-        borderRadius: '8px 8px 0 0'
+        gap: '2px',
+        padding: '2px',
+        backgroundColor: isDark ? 'rgba(31, 41, 55, 0.3)' : '#f9fafb',
       }}>
         {items.map((item, index) => (
           <button
             key={index}
             onClick={() => setActiveIndex(index)}
             style={{
-              padding: '8px 16px',
-              fontSize: '14px',
-              fontWeight: 500,
+              flex: 1,
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: activeIndex === index ? 600 : 500,
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
               border: 'none',
-              borderRadius: '6px',
+              borderRadius: '8px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
+              transition: 'all 0.15s ease',
               backgroundColor: activeIndex === index 
-                ? (isDark ? '#111827' : '#ffffff')
+                ? (isDark ? 'rgba(17, 24, 39, 0.8)' : '#ffffff')
                 : 'transparent',
               color: activeIndex === index 
-                ? (isDark ? '#60a5fa' : '#3b82f6')
+                ? (isDark ? '#60a5fa' : '#2563eb')
                 : (isDark ? '#9ca3af' : '#6b7280'),
               boxShadow: activeIndex === index 
-                ? '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
-                : 'none'
+                ? isDark 
+                  ? 'inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.3)'
+                  : '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                : 'none',
+              transform: activeIndex === index ? 'scale(1)' : 'scale(0.98)',
             }}
             onMouseEnter={(e) => {
               if (activeIndex !== index) {
-                e.currentTarget.style.backgroundColor = isDark ? '#374151' : '#f3f4f6';
+                e.currentTarget.style.backgroundColor = isDark 
+                  ? 'rgba(55, 65, 81, 0.3)' 
+                  : 'rgba(243, 244, 246, 0.8)';
+                e.currentTarget.style.transform = 'scale(1)';
               }
             }}
             onMouseLeave={(e) => {
               if (activeIndex !== index) {
                 e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.transform = 'scale(0.98)';
               }
             }}
           >
@@ -80,12 +91,12 @@ export function Tabs({ items, children, defaultIndex = 0 }: TabsProps) {
           </button>
         ))}
       </div>
+      
+      {/* Tab Content */}
       <div style={{
-        backgroundColor: isDark ? '#0b0b0b' : '#ffffff',
-        border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-        borderTop: 'none',
-        borderRadius: '0 0 8px 8px',
-        overflow: 'hidden'
+        backgroundColor: isDark ? '#0b0b0b' : '#1e1e1e',
+        minHeight: '200px',
+        position: 'relative',
       }}>
         {panels[activeIndex]}
       </div>
@@ -94,5 +105,5 @@ export function Tabs({ items, children, defaultIndex = 0 }: TabsProps) {
 }
 
 export function Tab({ label, children }: TabProps) {
-  return <div>{children}</div>;
+  return <>{children}</>;
 }

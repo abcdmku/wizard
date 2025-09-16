@@ -35,7 +35,7 @@ article pre,
 .prose pre,
 main pre {
   background: #1e1e1e !important;
-  border-radius: 0 0 0.5rem 0.5rem !important;
+  border-radius: 0.5rem !important;
   margin: 0 !important;
   padding: 1rem !important;
 }
@@ -70,12 +70,16 @@ div[class*="code-block"],
   margin: 1.5rem 0 !important;
 }
 
-/* Remove any default margins from pre inside tabs */
+/* Remove any default margins and borders from pre inside tabs */
 .tabs-panel pre,
 [role="tabpanel"] pre,
-div[class*="tab-panel"] pre {
+div[class*="tab-panel"] pre,
+div[style*="background"] > div > pre,
+div[style*="#0b0b0b"] pre,
+div[style*="#1e1e1e"] pre {
   margin: 0 !important;
-  border-radius: 0 0 0.5rem 0.5rem !important;
+  border-radius: 0 !important;
+  border: none !important;
 }
 
 /* Tab styles for code blocks in general documentation */
@@ -200,10 +204,13 @@ pre::-webkit-scrollbar-thumb:hover {
   user-select: none;
 }
 
-/* Ensure proper styling for code within tabs */
+/* Ensure proper styling for code within tabs - no borders or radius */
 .bg-white pre,
-.dark\:bg-\[\#0b0b0b\] pre {
-  border-radius: 0 0 0.5rem 0.5rem !important;
+.dark\:bg-\[\#0b0b0b\] pre,
+div[style*="backgroundColor"] pre {
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Override any conflicting Nextra styles */
@@ -216,4 +223,19 @@ div[role="tabpanel"],
 .tab-content,
 .tabs-panel {
   padding: 0 !important;
+}
+
+/* Remove borders from Nextra code blocks inside tabs */
+.nextra-code-block {
+  border: none !important;
+  margin: 0 !important;
+}
+
+/* Specific rule for code blocks that are direct children of tab panels */
+div[style*="minHeight"] > pre,
+div[style*="minHeight"] > div > pre,
+div[style*="minHeight"] .nextra-code-block pre {
+  border: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
 }
