@@ -1,0 +1,33 @@
+{
+  "name": "@wizard/docs",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typedoc": "typedoc --tsconfig ../../tsconfig.json --options typedoc.json",
+    "check": "pnpm run check:links && pnpm run check:examples && pnpm run typedoc",
+    "check:links": "echo 'Link check not yet configured'",
+    "check:examples": "node ./scripts/check-examples-build.mjs"
+  },
+  "dependencies": {
+    "@wizard/core": "workspace:*",
+    "@wizard/react": "workspace:*",
+    "next": "^14.2.0",
+    "nextra": "^3.0.0",
+    "nextra-theme-docs": "^3.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "unist-util-visit": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.13",
+    "@types/react-dom": "^19.0.7",
+    "rehype-pretty-code": "^0.14.0",
+    "remark-gfm": "^4.0.0",
+    "shiki": "^1.0.0",
+    "typedoc": "^0.26.0"
+  }
+}

@@ -1,0 +1,266 @@
+# Core Concepts
+
+import { Callout, Badge } from '../components'
+
+Understanding these core concepts will help you build powerful, type-safe wizards with confidence.
+
+## Wizard State
+
+The wizard maintains a single state object that includes:
+
+- **currentStep**: The currently active step ID
+- **stepData**: Data for each step (validated and typed)
+- **context**: Shared data accessible across all steps
+- **history**: Navigation history for undo/redo
+- **errors**: Validation errors per step
+
+```typescript
+type WizardState<C, S extends string, D> = {
+  currentStep: S;
+  stepData: Partial<D>;
+  context: C;
+  history: Array<{ step: S; timestamp: number }>;
+  errors: Partial<Record<S, Error>>;
+};
+```
+
+## Step Definitions
+
+Each step in your wizard is defined with:
+
+```typescript
+interface StepDefinition<C, S extends string, D, E = never> {
+  // Navigation
+  next: S[];                           // Possible next steps
+  prev?: S[];                          // Possible previous steps
+  
+  // Validation
+  validate?: (data: D) => void | Promise<void>;
+  
+  // Guards
+  canEnter?: (context: C) => boolean | Promise<boolean>;
+  canExit?: (context: C, data: D) => boolean | Promise<boolean>;
+  
+  // Context mutations
+  onEnter?: (context: C) => C;
+  onExit?: (context: C, data: D) => C;
+  
+  // Side effects
+  effects?: (context: C, data: D) => E | Promise<E>;
+}
+```
+
+## Shared Context <Badge>Important</Badge>
+
+The context object is shared across all steps and provides a way to maintain global wizard state:
+
+```typescript
+const wizard = createWizard({
+  initialContext: {
+    user: null,
+    cart: [],
+    discounts: []
+  },
+  steps: {
+    // Steps can read and update context
+    checkout: {
+      onExit: (context, data) => ({
+        ...context,
+        orderTotal: calculateTotal(context.cart, context.discounts)
+      })
+    }
+  }
+});
+```
+
+<Callout type="info">
+  Context updates are immutable - always return a new object rather than mutating the existing one.
+</Callout>
+
+## Validation
+
+Validation can be synchronous or asynchronous:
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    email: {
+      validate: async (data) => {
+        // Sync validation
+        if (!data.email.includes('@')) {
+          throw new Error('Invalid email format');
+        }
+        
+        // Async validation
+        const exists = await checkEmailExists(data.email);
+        if (exists) {
+          throw new Error('Email already registered');
+        }
+      }
+    }
+  }
+});
+```
+
+## Guards
+
+Guards control when steps can be entered or exited:
+
+### canEnter
+
+Prevents entering a step unless conditions are met:
+
+```typescript
+payment: {
+  canEnter: async (context) => {
+    // Only allow if cart has items
+    if (context.cart.length === 0) {
+      return false;
+    }
+    
+    // Check user authentication
+    const isAuthenticated = await checkAuth();
+    return isAuthenticated;
+  }
+}
+```
+
+### canExit
+
+Prevents leaving a step until conditions are satisfied:
+
+```typescript
+terms: {
+  canExit: (context, data) => {
+    // Must accept terms before proceeding
+    return data.acceptedTerms === true;
+  }
+}
+```
+
+## Effects
+
+Effects handle side effects like API calls:
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    submit: {
+      effects: async (context, data) => {
+        const order = await submitOrder({
+          items: context.cart,
+          payment: data
+        });
+        return order.id;
+      }
+    }
+  }
+});
+
+// Access effect results
+const orderId = await wizard.runStepEffects('submit');
+```
+
+## Navigation
+
+The wizard supports various navigation patterns:
+
+```typescript
+// Linear navigation
+wizard.nextStep();
+wizard.prevStep();
+
+// Jump to specific step (if allowed)
+wizard.goToStep('payment');
+
+// Check available next/previous steps
+const canGoNext = wizard.canGoToNext();
+const nextSteps = wizard.getNextSteps();
+
+// History navigation
+wizard.undo();
+wizard.redo();
+```
+
+## Persistence
+
+Save and restore wizard state:
+
+```typescript
+// Save state
+const savedState = wizard.getState();
+localStorage.setItem('wizard', JSON.stringify(savedState));
+
+// Restore state
+const restored = JSON.parse(localStorage.getItem('wizard'));
+wizard.setState(restored);
+```
+
+<Callout type="warning" title="Security Note">
+  Never store sensitive data like passwords or payment information in localStorage. Use secure session storage or encrypt sensitive fields.
+</Callout>
+
+## Type Safety
+
+The wizard is deeply type-safe at every level:
+
+```typescript
+type MySteps = 'user' | 'address' | 'payment';
+type MyData = {
+  user: UserData;
+  address: AddressData;
+  payment: PaymentData;
+};
+
+const wizard = createWizard<MyContext, MySteps, MyData>({
+  // TypeScript enforces correct step names and data shapes
+  initialStep: 'user',
+  steps: {
+    user: { /* ... */ },
+    address: { /* ... */ },
+    payment: { /* ... */ }
+    // TypeScript error if step missing or wrong type
+  }
+});
+
+// Type-safe operations
+wizard.updateStepData('user', userData);  // ✓
+wizard.updateStepData('user', addressData); // ✗ Type error
+wizard.goToStep('invalid'); // ✗ Type error
+```
+
+## Subscriptions
+
+React to state changes with subscriptions:
+
+```typescript
+const unsubscribe = wizard.subscribe((state) => {
+  console.log('Step changed to:', state.currentStep);
+  console.log('Context updated:', state.context);
+});
+
+// Clean up when done
+unsubscribe();
+```
+
+## Error Handling
+
+Errors are captured and accessible per step:
+
+```typescript
+try {
+  wizard.nextStep();
+} catch (error) {
+  // Validation failed
+}
+
+// Check errors
+const errors = wizard.getErrors();
+if (errors.email) {
+  console.error('Email step error:', errors.email.message);
+}
+
+// Clear errors
+wizard.clearErrors();
+wizard.clearStepErrors('email');
+```

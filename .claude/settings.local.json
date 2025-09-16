@@ -105,7 +105,8 @@
       "Bash(npx:*)",
       "Bash(npm exec:*)",
       "Bash(pnpm view:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(pnpm create:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",

@@ -1,0 +1,123 @@
+---
+title: Type-Safe Multi-Step Wizards
+description: A deeply type-safe, isomorphic, headless multi-step wizard library for TypeScript applications
+---
+
+import { Cards, Card } from 'nextra/components'
+
+# Wizard
+
+**A deeply type-safe, isomorphic, headless multi-step wizard library for TypeScript applications.**
+
+## Features at a Glance
+
+<Cards>
+  <Card icon="🎯" title="100% Type-Safe" href="/concepts/wizard-state">
+    Full TypeScript support with deep type inference
+  </Card>
+  <Card icon="🔄" title="Isomorphic" href="/concepts/shared-context">
+    Works in Node.js and browsers
+  </Card>
+  <Card icon="🎨" title="Headless" href="/react">
+    Bring your own UI, no style dependencies
+  </Card>
+  <Card icon="📦" title="Tiny" href="/about/philosophy">
+    ~3-4kb min+gz core (excluding peer deps)
+  </Card>
+</Cards>
+
+## Quick Start
+
+```bash
+npm install @wizard/core
+# or
+pnpm add @wizard/core
+```
+
+```typescript
+import { createWizard } from '@wizard/core';
+import { z } from 'zod';
+
+// Define your wizard
+const wizard = createWizard({
+  initialStep: 'account',
+  initialContext: { total: 0 },
+  steps: {
+    account: {
+      next: ['shipping'],
+      validate: (data) => {
+        // Your validation logic
+      }
+    },
+    shipping: {
+      next: ['payment'],
+    },
+    payment: {
+      next: [],
+    }
+  }
+});
+```
+
+## Why Wizard?
+
+### Deep Type Safety
+
+Every aspect of your wizard is fully typed - from step IDs to data shapes to context mutations. Invalid transitions and data shapes are caught at compile time.
+
+### Shared Context
+
+A single typed context object shared across all steps makes complex flows simple. Update it from any step, access it everywhere.
+
+### Framework Agnostic
+
+The core library has zero UI dependencies. Use it with React, Vue, Svelte, or vanilla JavaScript. We provide first-class React bindings, but the patterns work everywhere.
+
+### Production Ready
+
+Built with TanStack Store for bulletproof state management. Includes async operations, validation, guards, persistence, and history out of the box.
+
+## Core Concepts
+
+- **Steps** - Define your wizard flow with typed step definitions
+- **Context** - Share state across all steps with a single typed context
+- **Validation** - Validate step data with Zod or custom validators  
+- **Guards** - Control step entry/exit with canEnter/canExit hooks
+- **Persistence** - Save and restore wizard state with pluggable adapters
+- **History** - Built-in undo/redo and time-travel debugging
+
+## Examples
+
+Explore our example applications to see the wizard in action:
+
+<Cards>
+  <Card title="Basic Form" href="/examples/basic-form-wizard">
+    Simple multi-step form with validation
+  </Card>
+  <Card title="Router Integration" href="/examples/router-guard-wizard">
+    TanStack Router with URL syncing
+  </Card>
+  <Card title="Dynamic Branching" href="/examples/advanced-branching">
+    Complex flows with conditional steps
+  </Card>
+  <Card title="Node.js Saga" href="/examples/node-saga-wizard">
+    Backend orchestration and workflows
+  </Card>
+</Cards>
+
+## Getting Help
+
+- Read the [Getting Started Guide](/getting-started)
+- Explore [Concepts](/concepts) for deep dives
+- Check out [Recipes](/recipes) for common patterns
+- View the [API Reference](/api) for detailed docs
+- Join our [GitHub Discussions](https://github.com/user/wizard/discussions)
+
+## Philosophy
+
+Wizard follows the TanStack philosophy:
+
+- **Headless** - UI agnostic, bring your own components
+- **Type-first** - TypeScript is a first-class citizen
+- **Minimal** - Small bundle, minimal dependencies
+- **Composable** - Build complex flows from simple primitives

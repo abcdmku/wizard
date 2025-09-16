@@ -1,0 +1,400 @@
+# Recipes
+
+import { Callout, Tabs, Tab } from '../components'
+
+Common patterns and solutions for building wizards.
+
+## Dynamic Step Branching
+
+Create wizards with conditional paths based on user input:
+
+```typescript
+const wizard = createWizard({
+  initialStep: 'userType',
+  steps: {
+    userType: {
+      next: ['individual', 'business'],
+      onExit: (context, data) => ({
+        ...context,
+        userType: data.type
+      })
+    },
+    individual: {
+      next: ['payment'],
+      prev: ['userType'],
+      canEnter: (context) => context.userType === 'individual'
+    },
+    business: {
+      next: ['taxInfo', 'payment'],
+      prev: ['userType'],
+      canEnter: (context) => context.userType === 'business'
+    },
+    taxInfo: {
+      next: ['payment'],
+      prev: ['business']
+    },
+    payment: {
+      next: [],
+      prev: ['individual', 'business', 'taxInfo']
+    }
+  }
+});
+
+// Navigate based on selection
+wizard.updateStepData('userType', { type: 'business' });
+wizard.nextStep(); // Goes to 'business' step
+```
+
+## Form Validation with Zod
+
+Integrate Zod for robust schema validation:
+
+```typescript
+import { z } from 'zod';
+
+const UserSchema = z.object({
+  name: z.string().min(2, 'Name too short'),
+  email: z.string().email('Invalid email'),
+  age: z.number().min(18, 'Must be 18 or older')
+});
+
+const wizard = createWizard({
+  steps: {
+    user: {
+      validate: (data) => {
+        try {
+          UserSchema.parse(data);
+        } catch (error) {
+          if (error instanceof z.ZodError) {
+            throw new Error(error.errors[0].message);
+          }
+          throw error;
+        }
+      }
+    }
+  }
+});
+```
+
+## Auto-save & Recovery
+
+Automatically save wizard state for recovery:
+
+```typescript
+class WizardPersistence {
+  private key: string;
+  
+  constructor(key: string) {
+    this.key = key;
+  }
+  
+  setup(wizard: WizardInstance) {
+    // Auto-save on changes
+    wizard.subscribe((state) => {
+      this.save(state);
+    });
+    
+    // Restore on init
+    const saved = this.load();
+    if (saved) {
+      wizard.setState(saved);
+    }
+  }
+  
+  save(state: WizardState) {
+    localStorage.setItem(this.key, JSON.stringify({
+      ...state,
+      timestamp: Date.now()
+    }));
+  }
+  
+  load(): WizardState | null {
+    const saved = localStorage.getItem(this.key);
+    if (!saved) return null;
+    
+    const data = JSON.parse(saved);
+    const hourAgo = Date.now() - (60 * 60 * 1000);
+    
+    // Only restore if less than 1 hour old
+    if (data.timestamp > hourAgo) {
+      return data;
+    }
+    
+    this.clear();
+    return null;
+  }
+  
+  clear() {
+    localStorage.removeItem(this.key);
+  }
+}
+
+// Usage
+const persistence = new WizardPersistence('checkout-wizard');
+persistence.setup(wizard);
+```
+
+## Progress Tracking
+
+Track and display wizard progress:
+
+```typescript
+function useWizardProgress(wizard: WizardInstance) {
+  const [progress, setProgress] = useState(0);
+  
+  useEffect(() => {
+    const unsubscribe = wizard.subscribe((state) => {
+      const steps = Object.keys(wizard.config.steps);
+      const currentIndex = steps.indexOf(state.currentStep);
+      const percentage = ((currentIndex + 1) / steps.length) * 100;
+      setProgress(percentage);
+    });
+    
+    return unsubscribe;
+  }, [wizard]);
+  
+  return progress;
+}
+
+// Component
+function ProgressBar() {
+  const progress = useWizardProgress(wizard);
+  
+  return (
+    <div className="w-full bg-gray-200 rounded-full h-2">
+      <div 
+        className="bg-blue-600 h-2 rounded-full transition-all"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  );
+}
+```
+
+## Async Data Loading
+
+Load data asynchronously when entering steps:
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    shipping: {
+      onEnter: async (context) => {
+        // Load shipping options
+        const options = await fetchShippingOptions(context.address);
+        return {
+          ...context,
+          shippingOptions: options
+        };
+      }
+    }
+  }
+});
+
+// React hook for loading state
+function useStepLoading() {
+  const [loading, setLoading] = useState(false);
+  const { goToStep } = useWizard();
+  
+  const navigateWithLoading = async (step: string) => {
+    setLoading(true);
+    try {
+      await goToStep(step);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return { loading, navigateWithLoading };
+}
+```
+
+## Multi-page Forms with Router
+
+Sync wizard state with URL routing:
+
+<Tabs items={['TanStack Router', 'Next.js Router']}>
+  <Tab label="TanStack Router">
+    ```typescript
+    import { createRouter } from '@tanstack/react-router';
+    
+    const wizardRoute = createRoute({
+      path: '/checkout/$step',
+      component: WizardStep,
+      beforeLoad: ({ params }) => {
+        // Validate step exists
+        if (!wizard.hasStep(params.step)) {
+          throw redirect({ to: '/checkout/user' });
+        }
+      }
+    });
+    
+    function WizardStep() {
+      const { step } = useParams();
+      const navigate = useNavigate();
+      const { nextStep } = useWizard();
+      
+      const handleNext = async () => {
+        await nextStep();
+        const newStep = wizard.getCurrentStep();
+        navigate({ to: `/checkout/${newStep}` });
+      };
+      
+      return <StepComponent step={step} onNext={handleNext} />;
+    }
+    ```
+  </Tab>
+  
+  <Tab label="Next.js Router">
+    ```typescript
+    import { useRouter } from 'next/router';
+    
+    function WizardPage() {
+      const router = useRouter();
+      const { step } = router.query;
+      const { goToStep, currentStep } = useWizard();
+      
+      useEffect(() => {
+        if (step && step !== currentStep) {
+          goToStep(step as string);
+        }
+      }, [step]);
+      
+      const handleStepChange = (newStep: string) => {
+        router.push(`/wizard/${newStep}`);
+      };
+      
+      return <WizardSteps onStepChange={handleStepChange} />;
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Conditional Validation
+
+Validate based on context or other step data:
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    payment: {
+      validate: (data, { context, getStepData }) => {
+        const shipping = getStepData('shipping');
+        
+        // Different validation for different countries
+        if (shipping?.country === 'US') {
+          if (!data.zipCode || !/^\d{5}(-\d{4})?$/.test(data.zipCode)) {
+            throw new Error('Invalid US ZIP code');
+          }
+        }
+        
+        // Validate based on payment method
+        if (context.paymentMethod === 'card') {
+          if (!data.cardNumber || !data.cvv) {
+            throw new Error('Card details required');
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+## Step Timeouts
+
+Add time limits to steps:
+
+```typescript
+class TimedWizard {
+  private timers = new Map<string, NodeJS.Timeout>();
+  
+  constructor(private wizard: WizardInstance) {
+    wizard.subscribe(this.handleStepChange);
+  }
+  
+  setStepTimeout(step: string, duration: number, callback: () => void) {
+    this.clearStepTimeout(step);
+    
+    const timer = setTimeout(() => {
+      if (this.wizard.getCurrentStep() === step) {
+        callback();
+      }
+    }, duration);
+    
+    this.timers.set(step, timer);
+  }
+  
+  clearStepTimeout(step: string) {
+    const timer = this.timers.get(step);
+    if (timer) {
+      clearTimeout(timer);
+      this.timers.delete(step);
+    }
+  }
+  
+  private handleStepChange = (state: WizardState) => {
+    // Clear timeout when leaving step
+    this.timers.forEach((timer, step) => {
+      if (step !== state.currentStep) {
+        this.clearStepTimeout(step);
+      }
+    });
+  };
+}
+
+// Usage
+const timed = new TimedWizard(wizard);
+timed.setStepTimeout('payment', 5 * 60 * 1000, () => {
+  alert('Session timeout - please complete payment');
+  wizard.reset();
+});
+```
+
+## Analytics Integration
+
+Track wizard interactions:
+
+```typescript
+const analyticsPlugin = {
+  install(wizard: WizardInstance) {
+    wizard.subscribe((state, prevState) => {
+      // Track step changes
+      if (state.currentStep !== prevState?.currentStep) {
+        analytics.track('wizard_step_viewed', {
+          step: state.currentStep,
+          from: prevState?.currentStep
+        });
+      }
+      
+      // Track completions
+      const isLastStep = wizard.getNextSteps().length === 0;
+      if (isLastStep && state.stepData[state.currentStep]) {
+        analytics.track('wizard_completed', {
+          steps: Object.keys(state.stepData)
+        });
+      }
+    });
+    
+    // Track errors
+    const originalValidate = wizard.validateStep;
+    wizard.validateStep = async function(...args) {
+      try {
+        return await originalValidate.apply(this, args);
+      } catch (error) {
+        analytics.track('wizard_validation_error', {
+          step: wizard.getCurrentStep(),
+          error: error.message
+        });
+        throw error;
+      }
+    };
+  }
+};
+
+// Usage
+analyticsPlugin.install(wizard);
+```
+
+<Callout type="info" title="More Examples">
+  Check out the [Examples](/examples) section for complete, runnable implementations of these patterns.
+</Callout>

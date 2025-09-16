@@ -1,0 +1,191 @@
+# Getting Started
+
+import { Callout, Steps, Step, Tabs, Tab } from '../components'
+
+Welcome to Wizard! This guide will help you get up and running with type-safe multi-step wizards in your TypeScript application.
+
+## Installation
+
+<Tabs items={['npm', 'pnpm', 'yarn']}>
+  <Tab label="npm">
+    ```bash
+    npm install @wizard/core
+    ```
+  </Tab>
+  <Tab label="pnpm">
+    ```bash
+    pnpm add @wizard/core
+    ```
+  </Tab>
+  <Tab label="yarn">
+    ```bash
+    yarn add @wizard/core
+    ```
+  </Tab>
+</Tabs>
+
+For React applications, also install the React adapter:
+
+<Tabs items={['npm', 'pnpm', 'yarn']}>
+  <Tab label="npm">
+    ```bash
+    npm install @wizard/react
+    ```
+  </Tab>
+  <Tab label="pnpm">
+    ```bash
+    pnpm add @wizard/react
+    ```
+  </Tab>
+  <Tab label="yarn">
+    ```bash
+    yarn add @wizard/react
+    ```
+  </Tab>
+</Tabs>
+
+## Basic Usage
+
+<Steps>
+  <Step title="Define your step data types">
+    ```typescript
+    interface UserData {
+      name: string;
+      email: string;
+    }
+
+    interface AddressData {
+      street: string;
+      city: string;
+      country: string;
+    }
+
+    interface PaymentData {
+      cardNumber: string;
+      expiryDate: string;
+    }
+    ```
+  </Step>
+
+  <Step title="Define shared context">
+    ```typescript
+    interface CheckoutContext {
+      totalAmount: number;
+      currency: string;
+      items: Array<{ id: string; quantity: number }>;
+    }
+    ```
+  </Step>
+
+  <Step title="Create your wizard configuration">
+    ```typescript
+    import { createWizard } from '@wizard/core';
+
+    const checkoutWizard = createWizard({
+      initialStep: 'user',
+      initialContext: {
+        totalAmount: 0,
+        currency: 'USD',
+        items: []
+      },
+      steps: {
+        user: {
+          next: ['address'],
+          validate: (data: UserData) => {
+            if (!data.email.includes('@')) {
+              throw new Error('Invalid email');
+            }
+          }
+        },
+        address: {
+          next: ['payment'],
+          prev: ['user']
+        },
+        payment: {
+          next: [],
+          prev: ['address'],
+          canEnter: async (context) => {
+            // Check if user is authenticated
+            return context.totalAmount > 0;
+          }
+        }
+      }
+    });
+    ```
+  </Step>
+
+  <Step title="Use the wizard in your application">
+    ```typescript
+    // Get current step
+    const currentStep = checkoutWizard.getCurrentStep();
+
+    // Update step data
+    checkoutWizard.updateStepData('user', {
+      name: 'John Doe',
+      email: 'john@example.com'
+    });
+
+    // Navigate between steps
+    checkoutWizard.nextStep();
+    checkoutWizard.prevStep();
+    checkoutWizard.goToStep('payment');
+
+    // Update shared context
+    checkoutWizard.updateContext(ctx => ({
+      ...ctx,
+      totalAmount: 99.99
+    }));
+
+    // Subscribe to changes
+    const unsubscribe = checkoutWizard.subscribe((state) => {
+      console.log('Current step:', state.currentStep);
+    });
+    ```
+  </Step>
+</Steps>
+
+## React Integration
+
+For React applications, use the provided hooks and provider:
+
+```tsx
+import { WizardProvider, useWizard } from '@wizard/react';
+
+function App() {
+  return (
+    <WizardProvider wizard={checkoutWizard}>
+      <WizardSteps />
+    </WizardProvider>
+  );
+}
+
+function WizardSteps() {
+  const {
+    currentStep,
+    nextStep,
+    prevStep,
+    updateStepData,
+    getStepData,
+    context
+  } = useWizard();
+
+  // Render current step component
+  return (
+    <div>
+      <h2>Step: {currentStep}</h2>
+      {/* Your step components here */}
+    </div>
+  );
+}
+```
+
+<Callout type="info" title="Type Safety">
+  All wizard operations are fully type-safe. TypeScript will catch invalid step names, data shapes, and context mutations at compile time.
+</Callout>
+
+## Next Steps
+
+- Explore [Core Concepts](/concepts) to understand the architecture
+- Check out [Recipes](/recipes) for common patterns
+- Browse [Examples](/examples) for complete implementations
+- Read the [API Reference](/api) for detailed documentation
