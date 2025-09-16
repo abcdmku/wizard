@@ -1,0 +1,79 @@
+# React Integration
+
+import { Callout } from '../components'
+
+Complete guide for using Wizard with React applications.
+
+## Installation
+
+```bash
+npm install @wizard/react
+```
+
+## Basic Setup
+
+```tsx
+import { WizardProvider, useWizard } from '@wizard/react';
+import { createWizard } from '@wizard/core';
+
+const wizard = createWizard({
+  // Your wizard configuration
+});
+
+function App() {
+  return (
+    <WizardProvider wizard={wizard}>
+      <YourWizard />
+    </WizardProvider>
+  );
+}
+```
+
+## Hooks
+
+### useWizard
+
+Access wizard state and methods:
+
+```tsx
+const {
+  currentStep,
+  context,
+  nextStep,
+  prevStep,
+  goToStep,
+  updateStepData,
+  getStepData,
+  updateContext,
+  canGoToNext,
+  canGoToPrev
+} = useWizard();
+```
+
+### useWizardContext
+
+Access only the shared context:
+
+```tsx
+const context = useWizardContext();
+```
+
+### useWizardHistory
+
+Access navigation history:
+
+```tsx
+const { history, undo, redo, canUndo, canRedo } = useWizardHistory();
+```
+
+### useWizardErrors
+
+Access validation errors:
+
+```tsx
+const { errors, clearErrors, clearStepErrors } = useWizardErrors();
+```
+
+<Callout type="info">
+  All hooks are fully type-safe and will infer types from your wizard configuration.
+</Callout>

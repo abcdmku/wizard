@@ -1,0 +1,182 @@
+# API Reference
+
+Complete API documentation for @wizard/core and @wizard/react.
+
+## @wizard/core
+
+### createWizard
+
+Creates a new wizard instance with type-safe configuration.
+
+```typescript
+function createWizard<C, S extends string, D>(
+  config: WizardConfig<C, S, D>
+): WizardInstance<C, S, D>
+```
+
+#### Parameters
+
+- `config` - Wizard configuration object containing:
+  - `initialStep` - Starting step ID
+  - `initialContext` - Initial shared context
+  - `steps` - Step definitions
+  - `persistence` - Optional persistence adapter
+
+#### Returns
+
+A wizard instance with methods for navigation and state management.
+
+### WizardInstance Methods
+
+#### Navigation
+
+- `getCurrentStep(): S` - Get current step ID
+- `nextStep(): void` - Navigate to next step
+- `prevStep(): void` - Navigate to previous step  
+- `goToStep(step: S): void` - Jump to specific step
+- `canGoToNext(): boolean` - Check if next navigation is allowed
+- `canGoToPrev(): boolean` - Check if previous navigation is allowed
+- `getNextSteps(): S[]` - Get available next steps
+- `getPrevSteps(): S[]` - Get available previous steps
+
+#### State Management
+
+- `getState(): WizardState<C, S, D>` - Get full wizard state
+- `setState(state: WizardState<C, S, D>): void` - Set full state
+- `updateStepData(step: S, data: D[S]): void` - Update step data
+- `getStepData(step: S): D[S] | undefined` - Get step data
+- `updateContext(updater: (ctx: C) => C): void` - Update context
+- `getContext(): C` - Get current context
+
+#### Validation
+
+- `validateStep(step: S): Promise<void>` - Validate specific step
+- `getErrors(): Partial<Record<S, Error>>` - Get all errors
+- `clearErrors(): void` - Clear all errors
+- `clearStepErrors(step: S): void` - Clear specific step errors
+
+#### History
+
+- `undo(): void` - Undo last navigation
+- `redo(): void` - Redo navigation
+- `canUndo(): boolean` - Check if undo available
+- `canRedo(): boolean` - Check if redo available
+- `getHistory(): HistoryEntry[]` - Get navigation history
+
+#### Effects
+
+- `runStepEffects(step: S): Promise<E | void>` - Run step side effects
+
+#### Subscription
+
+- `subscribe(listener: (state: WizardState) => void): () => void` - Subscribe to state changes
+- `getSnapshot(): WizardState` - Get current state snapshot
+
+## @wizard/react
+
+### WizardProvider
+
+Context provider for wizard state.
+
+```tsx
+<WizardProvider wizard={wizardInstance}>
+  {children}
+</WizardProvider>
+```
+
+### useWizard
+
+Hook for accessing wizard state and methods.
+
+```tsx
+const {
+  currentStep,
+  context,
+  stepData,
+  errors,
+  nextStep,
+  prevStep,
+  goToStep,
+  updateStepData,
+  getStepData,
+  updateContext,
+  canGoToNext,
+  canGoToPrev,
+  getNextSteps,
+  getPrevSteps
+} = useWizard<C, S, D>()
+```
+
+### useWizardContext
+
+Hook for accessing only the shared context.
+
+```tsx
+const context = useWizardContext<C>()
+```
+
+### useWizardHistory
+
+Hook for history navigation.
+
+```tsx
+const {
+  history,
+  undo,
+  redo,
+  canUndo,
+  canRedo
+} = useWizardHistory()
+```
+
+### useWizardErrors
+
+Hook for error management.
+
+```tsx
+const {
+  errors,
+  clearErrors,
+  clearStepErrors
+} = useWizardErrors<S>()
+```
+
+## Types
+
+### WizardConfig
+
+```typescript
+interface WizardConfig<C, S extends string, D> {
+  initialStep: S
+  initialContext: C
+  steps: Record<S, StepDefinition<C, S, D[S]>>
+  persistence?: PersistenceAdapter<WizardState<C, S, D>>
+}
+```
+
+### StepDefinition
+
+```typescript
+interface StepDefinition<C, S extends string, D, E = never> {
+  next: S[]
+  prev?: S[]
+  validate?: (data: D) => void | Promise<void>
+  canEnter?: (context: C) => boolean | Promise<boolean>
+  canExit?: (context: C, data: D) => boolean | Promise<boolean>
+  onEnter?: (context: C) => C
+  onExit?: (context: C, data: D) => C
+  effects?: (context: C, data: D) => E | Promise<E>
+}
+```
+
+### WizardState
+
+```typescript
+interface WizardState<C, S extends string, D> {
+  currentStep: S
+  stepData: Partial<D>
+  context: C
+  history: HistoryEntry<S>[]
+  errors: Partial<Record<S, Error>>
+}
+```

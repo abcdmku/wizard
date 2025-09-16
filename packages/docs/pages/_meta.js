@@ -26,13 +26,5 @@ export default {
   api: {
     title: 'API Reference',
     type: 'page'
-  },
-  guides: {
-    title: 'Guides',
-    type: 'page'
-  },
-  about: {
-    title: 'About',
-    type: 'page'
   }
 }
