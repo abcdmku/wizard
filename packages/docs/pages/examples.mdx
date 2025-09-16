@@ -1,25 +1,27 @@
 # Examples
 
-import { Cards, Card } from 'nextra/components'
-
 Explore complete example implementations of the Wizard library.
 
 ## Available Examples
 
-<Cards>
-  <Card title="Basic Form Wizard" href="https://github.com/user/wizard/tree/main/examples/basic-form-wizard">
-    A simple multi-step registration form with validation
-  </Card>
-  <Card title="Router Integration" href="https://github.com/user/wizard/tree/main/examples/router-guard-wizard">
-    Wizard with URL routing and navigation guards
-  </Card>
-  <Card title="Dynamic Branching" href="https://github.com/user/wizard/tree/main/examples/advanced-branching">
-    Complex flows with conditional steps
-  </Card>
-  <Card title="With Persistence" href="https://github.com/user/wizard/tree/main/examples/persistence-local">
-    Auto-save and recovery with localStorage
-  </Card>
-</Cards>
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginTop: '2rem' }}>
+  <div style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+    <h3 style={{ margin: '0 0 0.5rem 0' }}>Basic Form Wizard</h3>
+    <p style={{ margin: 0, opacity: 0.8 }}>A simple multi-step registration form with validation</p>
+  </div>
+  <div style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+    <h3 style={{ margin: '0 0 0.5rem 0' }}>Router Integration</h3>
+    <p style={{ margin: 0, opacity: 0.8 }}>Wizard with URL routing and navigation guards</p>
+  </div>
+  <div style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+    <h3 style={{ margin: '0 0 0.5rem 0' }}>Dynamic Branching</h3>
+    <p style={{ margin: 0, opacity: 0.8 }}>Complex flows with conditional steps</p>
+  </div>
+  <div style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+    <h3 style={{ margin: '0 0 0.5rem 0' }}>With Persistence</h3>
+    <p style={{ margin: 0, opacity: 0.8 }}>Auto-save and recovery with localStorage</p>
+  </div>
+</div>
 
 ## Running Examples
 
