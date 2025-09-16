@@ -5,9 +5,6 @@ const withNextra = nextra({
   theme: 'nextra-theme-docs',
   themeConfig: './theme.config.tsx',
   defaultShowCopyCode: true,
-  flexsearch: {
-    codeblocks: false
-  },
   mdxOptions: {
     remarkPlugins: [remarkCodeImport],
     rehypePlugins: []

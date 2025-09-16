@@ -5,8 +5,17 @@
     "allowJs": true,
     "noEmit": true,
     "incremental": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["@types/react", "@types/react-dom", "@types/node"]
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "@types/react",
+      "@types/react-dom",
+      "@types/node"
+    ],
+    "isolatedModules": true
   },
   "include": [
     "**/*.ts",
@@ -17,5 +26,9 @@
     "**/*.mdx",
     "next-env.d.ts"
   ],
-  "exclude": ["node_modules", ".next", "out"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "out"
+  ]
 }
