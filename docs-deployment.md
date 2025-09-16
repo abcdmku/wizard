@@ -46,8 +46,15 @@ npx serve packages/docs/out
 
 The deployment is configured in:
 - `.github/workflows/deploy-docs.yml` - GitHub Actions workflow
-- `packages/docs/next.config.mjs` - Next.js configuration with GitHub Pages support
+- `packages/docs/next.config.mjs` - Next.js configuration with GitHub Pages support (automatically detects repository from GitHub Actions)
 - `packages/docs/public/.nojekyll` - Tells GitHub Pages to not process with Jekyll
+
+### Dynamic Configuration
+
+The repository URL and base path are automatically detected from GitHub Actions environment variables:
+- `GITHUB_REPOSITORY` - Provided by GitHub Actions (format: owner/repo)
+- Base path is automatically set based on the repository name
+- Works with both project pages (`username.github.io/repo`) and user/org pages (`username.github.io`)
 
 ### Access the Documentation
 
@@ -56,10 +63,7 @@ Once deployed, the documentation will be available at:
 https://[username].github.io/[repository-name]/
 ```
 
-For this repository:
-```
-https://miniborg.github.io/wizardOpus/
-```
+The exact URL will be shown in the GitHub Actions workflow output under the deployment step.
 
 ### Troubleshooting
 

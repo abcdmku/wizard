@@ -1,12 +1,17 @@
 import React from 'react';
 import { DocsThemeConfig } from 'nextra-theme-docs';
 
+// Get repository info from environment or use defaults
+const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO_URL || 
+                process.env.GITHUB_REPOSITORY ? `https://github.com/${process.env.GITHUB_REPOSITORY}` : 
+                'https://github.com/user/wizard';
+
 const config: DocsThemeConfig = {
   logo: <span>🧙 Wizard</span>,
   project: {
-    link: 'https://github.com/MiniBorg/wizardOpus'
+    link: repoUrl
   },
-  docsRepositoryBase: 'https://github.com/MiniBorg/wizardOpus/tree/main/packages/docs',
+  docsRepositoryBase: `${repoUrl}/tree/main/packages/docs`,
   footer: {
     text: (
       <span>

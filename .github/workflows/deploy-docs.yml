@@ -58,6 +58,9 @@ jobs:
         run: pnpm --filter @wizard/docs build
         env:
           NODE_ENV: production
+          GITHUB_ACTIONS: true
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NEXT_PUBLIC_GITHUB_REPO_URL: https://github.com/${{ github.repository }}
           
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
