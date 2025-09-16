@@ -19,51 +19,29 @@ export function Tabs({ items, children, defaultIndex = 0 }: TabsProps) {
     <div style={{ margin: '1.5rem 0' }}>
       <div style={{ 
         display: 'flex',
-        borderBottom: '1px solid #e5e7eb',
         marginBottom: '0',
-        background: '#f9fafb',
         borderRadius: '8px 8px 0 0',
         padding: '4px',
         gap: '4px'
-      }}>
+      }}
+      className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         {items.map((item, index) => (
           <button
             key={index}
             onClick={() => setActiveIndex(index)}
-            style={{
-              padding: '0.5rem 1rem',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              background: activeIndex === index ? 'white' : 'transparent',
-              color: activeIndex === index ? '#3b82f6' : '#6b7280',
-              boxShadow: activeIndex === index ? '0 1px 3px 0 rgba(0, 0, 0, 0.1)' : 'none'
-            }}
-            onMouseEnter={(e) => {
-              if (activeIndex !== index) {
-                e.currentTarget.style.background = '#f3f4f6';
+            className={`
+              px-4 py-2 text-sm font-medium border-none rounded-md cursor-pointer transition-all duration-200
+              ${activeIndex === index 
+                ? 'bg-white dark:bg-gray-900 text-blue-500 dark:text-blue-400 shadow-sm' 
+                : 'bg-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
               }
-            }}
-            onMouseLeave={(e) => {
-              if (activeIndex !== index) {
-                e.currentTarget.style.background = 'transparent';
-              }
-            }}
+            `}
           >
             {item}
           </button>
         ))}
       </div>
-      <div style={{ 
-        background: 'white',
-        border: '1px solid #e5e7eb',
-        borderTop: 'none',
-        borderRadius: '0 0 8px 8px',
-        padding: '1rem'
-      }}>
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 border-t-0 rounded-b-lg p-4">
         {panels[activeIndex]}
       </div>
     </div>

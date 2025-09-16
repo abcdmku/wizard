@@ -10,12 +10,30 @@ code[class*="language-"],
 .shiki,
 .shiki pre,
 .shiki code {
-  background: #2d2d30 !important; /* Very dark grey instead of black */
+  background: #2d2d30 !important; /* Light mode: dark grey */
+}
+
+/* Dark mode code blocks */
+.dark .nextra-code-block pre,
+.dark .nextra-code pre,
+.dark pre[class*="language-"],
+.dark pre[class*="lang-"],
+.dark .nx-border-black pre,
+.dark code[class*="language-"],
+.dark .shiki,
+.dark .shiki pre,
+.dark .shiki code {
+  background: #0b0b0b !important; /* Dark mode: #0b0b0b */
 }
 
 /* Code blocks in markdown */
 article pre {
   background: #2d2d30 !important;
+}
+
+/* Dark mode code blocks in markdown */
+.dark article pre {
+  background: #0b0b0b !important;
 }
 
 /* Inline code */
@@ -51,6 +69,12 @@ div[data-rehype-pretty-code-fragment] .tabs-header,
   gap: 4px !important;
 }
 
+/* Dark mode tab styles */
+.dark div[data-rehype-pretty-code-fragment] .tabs-header,
+.dark .code-tabs-header {
+  background: #1f2937 !important; /* dark:bg-gray-800 equivalent */
+}
+
 /* Tab buttons */
 .code-tabs-header button,
 div[data-rehype-pretty-code-fragment] button {
@@ -75,6 +99,23 @@ div[data-rehype-pretty-code-fragment] button[data-state="active"] {
   background: white !important;
   color: #3b82f6 !important;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Dark mode tab buttons */
+.dark .code-tabs-header button,
+.dark div[data-rehype-pretty-code-fragment] button {
+  color: #9ca3af !important; /* dark:text-gray-400 */
+}
+
+.dark .code-tabs-header button:hover,
+.dark div[data-rehype-pretty-code-fragment] button:hover {
+  background: #374151 !important; /* dark:hover:bg-gray-700 */
+}
+
+.dark .code-tabs-header button.active,
+.dark div[data-rehype-pretty-code-fragment] button[data-state="active"] {
+  background: #111827 !important; /* dark:bg-gray-900 */
+  color: #60a5fa !important; /* dark:text-blue-400 */
 }
 
 /* Copy button styling */
@@ -103,6 +144,10 @@ pre::-webkit-scrollbar {
 
 pre::-webkit-scrollbar-track {
   background: #1e1e1e;
+}
+
+.dark pre::-webkit-scrollbar-track {
+  background: #000000;
 }
 
 pre::-webkit-scrollbar-thumb {
