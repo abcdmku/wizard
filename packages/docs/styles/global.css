@@ -1,0 +1,132 @@
+/* Custom styles for documentation */
+
+/* Override code block background colors */
+.nextra-code-block pre,
+.nextra-code pre,
+pre[class*="language-"],
+pre[class*="lang-"],
+.nx-border-black pre,
+code[class*="language-"],
+.shiki,
+.shiki pre,
+.shiki code {
+  background: #2d2d30 !important; /* Very dark grey instead of black */
+}
+
+/* Code blocks in markdown */
+article pre {
+  background: #2d2d30 !important;
+}
+
+/* Inline code */
+:not(pre) > code {
+  background: #f3f4f6 !important;
+  color: #374151 !important;
+  padding: 0.125rem 0.375rem !important;
+  border-radius: 0.25rem !important;
+  font-size: 0.875em !important;
+}
+
+/* Dark mode inline code */
+.dark :not(pre) > code {
+  background: #374151 !important;
+  color: #f3f4f6 !important;
+}
+
+/* Code block container */
+.contains-task-list,
+div[data-rehype-pretty-code-fragment],
+div[class*="code-block"],
+.code-block {
+  margin: 1.5rem 0 !important;
+}
+
+/* Tab styles for code blocks */
+div[data-rehype-pretty-code-fragment] .tabs-header,
+.code-tabs-header {
+  background: #f9fafb !important;
+  border-radius: 8px 8px 0 0 !important;
+  padding: 4px !important;
+  display: flex !important;
+  gap: 4px !important;
+}
+
+/* Tab buttons */
+.code-tabs-header button,
+div[data-rehype-pretty-code-fragment] button {
+  background: transparent !important;
+  border: none !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 6px !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: #6b7280 !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+
+.code-tabs-header button:hover,
+div[data-rehype-pretty-code-fragment] button:hover {
+  background: #f3f4f6 !important;
+}
+
+.code-tabs-header button.active,
+div[data-rehype-pretty-code-fragment] button[data-state="active"] {
+  background: white !important;
+  color: #3b82f6 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Copy button styling */
+.nextra-copy-button,
+button[class*="copy"],
+.copy-button {
+  background: #374151 !important;
+  border: 1px solid #4b5563 !important;
+  color: #d1d5db !important;
+  padding: 0.375rem 0.5rem !important;
+  border-radius: 6px !important;
+}
+
+.nextra-copy-button:hover,
+button[class*="copy"]:hover,
+.copy-button:hover {
+  background: #4b5563 !important;
+  color: white !important;
+}
+
+/* Scrollbar for code blocks */
+pre::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+pre::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+pre::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+pre::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Syntax highlighting adjustments for dark grey background */
+.shiki .line {
+  display: block;
+  padding: 0 1rem;
+}
+
+.shiki .line.highlighted {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Line numbers if present */
+.shiki .line-number {
+  color: #6b7280;
+  padding-right: 1rem;
+  user-select: none;
+}
