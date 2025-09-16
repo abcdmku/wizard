@@ -109,7 +109,9 @@
       "Bash(pnpm create:*)",
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_take_screenshot",
-      "mcp__playwright__browser_snapshot"
+      "mcp__playwright__browser_snapshot",
+      "Bash(timeout:*)",
+      "mcp__playwright__browser_click"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",
