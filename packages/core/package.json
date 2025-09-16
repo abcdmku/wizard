@@ -1,0 +1,66 @@
+{
+  "name": "@wizard/core",
+  "version": "0.0.1",
+  "description": "Deeply type-safe, isomorphic, headless multi-step wizard library",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./zod": {
+      "types": "./dist/zod.d.ts",
+      "import": "./dist/zod.js",
+      "require": "./dist/zod.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@tanstack/store": "^0.7.5"
+  },
+  "peerDependencies": {
+    "zod": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "zod": "^3.24.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/wizard"
+  },
+  "keywords": [
+    "wizard",
+    "multi-step",
+    "form",
+    "stepper",
+    "typescript",
+    "headless",
+    "isomorphic"
+  ],
+  "author": "",
+  "license": "MIT"
+}

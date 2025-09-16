@@ -1,0 +1,30 @@
+{
+  "name": "wizardopus",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test:run",
+    "typecheck": "pnpm -r typecheck",
+    "dev:core": "pnpm --filter @wizard/core dev",
+    "dev:react": "pnpm --filter @wizard/react dev",
+    "dev:example-react": "pnpm --filter react-router-wizard-example dev",
+    "dev:example-node": "pnpm --filter node-saga-wizard-example start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.4",
+    "@nx/js": "^21.5.2",
+    "@nx/react": "^21.5.2",
+    "@nx/vite": "^21.5.2",
+    "@nx/web": "^21.5.2",
+    "nx": "^21.5.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vitest": "^3.2.4"
+  }
+}
