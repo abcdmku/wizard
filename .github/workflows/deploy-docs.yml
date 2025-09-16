@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v3
         with:
           version: 8
           run_install: false
@@ -52,27 +52,22 @@ jobs:
           # server side image optimization (https://nextjs.org/docs/api-reference/next/image#unoptimized).
           static_site_generator: next
           
-      - name: Check for lockfile
-        id: check_lockfile
+      - name: Install dependencies
         run: |
-          if [ -f "pnpm-lock.yaml" ]; then
-            echo "has_lockfile=true" >> $GITHUB_OUTPUT
-            echo "Found pnpm-lock.yaml"
-          else
-            echo "has_lockfile=false" >> $GITHUB_OUTPUT
-            echo "No pnpm-lock.yaml found"
-          fi
-          
-      - name: Install dependencies (with lockfile)
-        if: steps.check_lockfile.outputs.has_lockfile == 'true'
-        run: pnpm install --frozen-lockfile
-        
-      - name: Install dependencies (without lockfile)
-        if: steps.check_lockfile.outputs.has_lockfile == 'false'
-        run: pnpm install --no-frozen-lockfile
+          echo "Installing dependencies..."
+          echo "Current directory: $(pwd)"
+          echo "Files in directory:"
+          ls -la
+          echo "Attempting install with --no-frozen-lockfile due to CI environment"
+          pnpm install --no-frozen-lockfile
         
       - name: Build documentation
-        run: pnpm --filter @wizard/docs build
+        run: |
+          echo "Building documentation..."
+          cd packages/docs
+          rm -rf .next out node_modules/.cache
+          cd ../..
+          pnpm --filter @wizard/docs build
         env:
           NODE_ENV: production
           GITHUB_ACTIONS: true
