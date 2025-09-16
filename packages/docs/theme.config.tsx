@@ -4,9 +4,9 @@ import { DocsThemeConfig } from 'nextra-theme-docs';
 const config: DocsThemeConfig = {
   logo: <span>🧙 Wizard</span>,
   project: {
-    link: 'https://github.com/user/wizard'
+    link: 'https://github.com/MiniBorg/wizardOpus'
   },
-  docsRepositoryBase: 'https://github.com/user/wizard/tree/main/packages/docs',
+  docsRepositoryBase: 'https://github.com/MiniBorg/wizardOpus/tree/main/packages/docs',
   footer: {
     text: (
       <span>
