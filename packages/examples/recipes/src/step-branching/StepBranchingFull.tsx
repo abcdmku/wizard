@@ -55,7 +55,7 @@ export function StepBranchingFull() {
 
   return (
     <div className="max-w-2xl">
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 bg-white dark:bg-gray-900 shadow-sm">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 bg-white dark:bg-gray-800 shadow-sm">
         {/* Account Type Selector - Always Visible */}
         <div className="mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-4">
@@ -136,7 +136,7 @@ export function StepBranchingFull() {
           </div>
 
           {/* Step Content */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 mb-6">
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
               {getStepTitle(currentStep)}
             </h3>
