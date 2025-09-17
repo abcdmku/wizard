@@ -165,7 +165,7 @@ export function CodePlayground({
 }
 
 // Dynamic Step Branching Demo
-export function StepBranchingDemo() {
+export function StepBranchingDemo({ variant = 'full' }: { variant?: string }) {
   const [currentStep, setCurrentStep] = useState('userType');
   const [userType, setUserType] = useState<'individual' | 'business' | null>(null);
   const [stepData, setStepData] = useState<Record<string, any>>({});
@@ -177,9 +177,9 @@ export function StepBranchingDemo() {
     };
     checkDarkMode();
     const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, { 
-      attributes: true, 
-      attributeFilter: ['class'] 
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
     });
     return () => observer.disconnect();
   }, []);
@@ -199,6 +199,12 @@ export function StepBranchingDemo() {
     business: { label: 'Business Info', description: 'Company registration' },
     taxInfo: { label: 'Tax Information', description: 'Tax ID required' },
     payment: { label: 'Payment', description: 'Payment method' }
+  };
+
+  const selectUserType = (type: 'individual' | 'business') => {
+    setUserType(type);
+    setCurrentStep(type);
+    setStepData({ ...stepData, userType: type });
   };
 
   const goToStep = (step: string) => {
@@ -227,11 +233,6 @@ export function StepBranchingDemo() {
     setStepData({});
   };
 
-  const selectUserType = (type: 'individual' | 'business') => {
-    setUserType(type);
-    setStepData({ ...stepData, userType: { type } });
-  };
-
   return (
     <div style={{
       padding: '20px',
@@ -240,7 +241,7 @@ export function StepBranchingDemo() {
       backgroundColor: isDark ? 'rgba(17, 24, 39, 0.5)' : '#f9fafb',
     }}>
       {/* User Type Selection at Top */}
-      <div style={{ 
+      <div style={{
         marginBottom: '20px',
         padding: '12px',
         backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
@@ -293,7 +294,7 @@ export function StepBranchingDemo() {
             {stepFlow.map((step, index) => (
               <React.Fragment key={step}>
                 <div
-                  onClick={() => goToStep(step)}
+                  onClick={() => index <= currentIndex && goToStep(step)}
                   style={{
                     padding: '6px 12px',
                     borderRadius: '16px',
@@ -301,13 +302,13 @@ export function StepBranchingDemo() {
                     fontWeight: currentStep === step ? 600 : 400,
                     backgroundColor: currentStep === step
                       ? '#3b82f6'
-                      : stepData[step]?.completed
+                      : stepData[step]?.completed || index < currentIndex
                         ? (isDark ? '#065f46' : '#10b981')
                         : (isDark ? '#1f2937' : '#f3f4f6'),
-                    color: currentStep === step || stepData[step]?.completed
+                    color: currentStep === step || stepData[step]?.completed || index < currentIndex
                       ? '#ffffff'
                       : (isDark ? '#9ca3af' : '#6b7280'),
-                    cursor: 'pointer',
+                    cursor: index <= currentIndex ? 'pointer' : 'default',
                     transition: 'all 0.2s',
                   }}
                 >
@@ -347,28 +348,28 @@ export function StepBranchingDemo() {
             borderRadius: '6px',
             border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
           }}>
-            <h3 style={{ 
-              margin: '0 0 8px 0', 
-              fontSize: '16px', 
-              fontWeight: 600, 
-              color: isDark ? '#e5e7eb' : '#111827' 
+            <h3 style={{
+              margin: '0 0 8px 0',
+              fontSize: '16px',
+              fontWeight: 600,
+              color: isDark ? '#e5e7eb' : '#111827'
             }}>
               {steps[currentStep as keyof typeof steps].label}
             </h3>
-            <p style={{ 
-              margin: '0 0 16px 0', 
-              fontSize: '13px', 
-              color: isDark ? '#9ca3af' : '#6b7280' 
+            <p style={{
+              margin: '0 0 16px 0',
+              fontSize: '13px',
+              color: isDark ? '#9ca3af' : '#6b7280'
             }}>
               {steps[currentStep as keyof typeof steps].description}
             </p>
-            
+
             {currentStep === 'userType' && (
               <div style={{ fontSize: '13px', color: isDark ? '#9ca3af' : '#6b7280' }}>
                 You selected: <strong>{userType}</strong> account
               </div>
             )}
-            
+
             {currentStep === 'individual' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <input
@@ -382,6 +383,7 @@ export function StepBranchingDemo() {
                     color: isDark ? '#e5e7eb' : '#111827',
                     fontSize: '13px',
                   }}
+                  onChange={(e) => setStepData({ ...stepData, name: e.target.value })}
                 />
                 <input
                   type="email"
@@ -394,10 +396,11 @@ export function StepBranchingDemo() {
                     color: isDark ? '#e5e7eb' : '#111827',
                     fontSize: '13px',
                   }}
+                  onChange={(e) => setStepData({ ...stepData, email: e.target.value })}
                 />
               </div>
             )}
-            
+
             {currentStep === 'business' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <input
@@ -411,6 +414,7 @@ export function StepBranchingDemo() {
                     color: isDark ? '#e5e7eb' : '#111827',
                     fontSize: '13px',
                   }}
+                  onChange={(e) => setStepData({ ...stepData, company: e.target.value })}
                 />
                 <input
                   type="text"
@@ -423,29 +427,72 @@ export function StepBranchingDemo() {
                     color: isDark ? '#e5e7eb' : '#111827',
                     fontSize: '13px',
                   }}
+                  onChange={(e) => setStepData({ ...stepData, regNumber: e.target.value })}
                 />
               </div>
             )}
-            
+
             {currentStep === 'taxInfo' && (
-              <input
-                type="text"
-                placeholder="Tax ID Number"
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '4px',
-                  border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
-                  backgroundColor: isDark ? '#1f2937' : '#ffffff',
-                  color: isDark ? '#e5e7eb' : '#111827',
-                  fontSize: '13px',
-                  width: '100%',
-                }}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <input
+                  type="text"
+                  placeholder="Tax ID Number"
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+                    backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                    color: isDark ? '#e5e7eb' : '#111827',
+                    fontSize: '13px',
+                    width: '100%',
+                  }}
+                  onChange={(e) => setStepData({ ...stepData, taxId: e.target.value })}
+                />
+                <select
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+                    backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                    color: isDark ? '#e5e7eb' : '#111827',
+                    fontSize: '13px',
+                  }}
+                  onChange={(e) => setStepData({ ...stepData, taxType: e.target.value })}
+                >
+                  <option value="">Select tax type</option>
+                  <option value="corporation">Corporation</option>
+                  <option value="llc">LLC</option>
+                  <option value="partnership">Partnership</option>
+                </select>
+              </div>
             )}
-            
+
             {currentStep === 'payment' && (
-              <div style={{ fontSize: '13px', color: isDark ? '#9ca3af' : '#6b7280' }}>
-                Payment setup for {userType} account
+              <div>
+                <p style={{
+                  fontSize: '13px',
+                  color: isDark ? '#9ca3af' : '#6b7280',
+                  marginBottom: '12px'
+                }}>
+                  Complete payment setup for your {userType} account
+                </p>
+                {Object.keys(stepData).length > 0 && (
+                  <div style={{
+                    backgroundColor: isDark ? '#1f2937' : '#f9fafb',
+                    padding: '12px',
+                    borderRadius: '4px',
+                    border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+                  }}>
+                    <pre style={{
+                      fontSize: '11px',
+                      color: isDark ? '#d1d5db' : '#4b5563',
+                      margin: 0,
+                      fontFamily: 'monospace',
+                    }}>
+                      {JSON.stringify(stepData, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -470,7 +517,7 @@ export function StepBranchingDemo() {
           >
             ↺ Start Over
           </button>
-          
+
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={goBack}
@@ -481,7 +528,7 @@ export function StepBranchingDemo() {
                 borderRadius: '4px',
                 border: `1px solid ${isDark ? '#4b5563' : '#e5e7eb'}`,
                 backgroundColor: isDark ? '#1f2937' : '#ffffff',
-                color: currentIndex === 0 
+                color: currentIndex === 0
                   ? (isDark ? '#4b5563' : '#d1d5db')
                   : (isDark ? '#e5e7eb' : '#374151'),
                 cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
@@ -490,7 +537,7 @@ export function StepBranchingDemo() {
             >
               ← Previous
             </button>
-            
+
             <button
               onClick={goNext}
               disabled={currentIndex === stepFlow.length - 1}
