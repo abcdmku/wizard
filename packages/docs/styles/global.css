@@ -40,20 +40,35 @@ code {
 /* Code blocks in markdown */
 article pre,
 .prose pre,
-main pre {
+main pre,
+pre.nextra-focus {
   background: #f6f8fa !important;
   border-radius: 0.5rem !important;
   margin: 0 !important;
   padding: 1rem !important;
-  border: 1px solid #e1e4e8 !important;
+  border: 1px solid #e5e7eb !important;
 }
 
 /* Dark mode code blocks in markdown */
 .dark article pre,
 .dark .prose pre,
-.dark main pre {
+.dark main pre,
+.dark pre.nextra-focus {
   background: #0b0b0b !important;
   border: 1px solid #30363d !important;
+}
+
+/* Specific nextra-focus pre element fixes */
+pre.nextra-focus {
+  background: #f6f8fa !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.dark pre.nextra-focus {
+  background: #0b0b0b !important;
+  border: 1px solid #374151 !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5) !important;
 }
 
 /* Inline code */
