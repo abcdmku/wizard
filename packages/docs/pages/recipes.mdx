@@ -1,12 +1,25 @@
 # Recipes
 
 import { Callout, Tabs, Tab } from '../components'
+import { InlineDemo } from '../components/Demo'
+import { RecipeDemo, StepBranchingDemo } from '../components/RecipeDemo'
+import { 
+  CodePlayground,
+  AutoSaveDemo,
+  ProgressTrackingDemo,
+  AsyncLoadingDemo,
+  RouterDemo,
+  StepTimeoutDemo,
+  AnalyticsDemo
+} from '../components/InteractiveDemos'
 
 Common patterns and solutions for building wizards.
 
 ## Dynamic Step Branching
 
 Create wizards with conditional paths based on user input:
+
+<StepBranchingDemo variant="full" />
 
 ```typescript
 const wizard = createWizard({
@@ -40,14 +53,90 @@ const wizard = createWizard({
   }
 });
 
-// Navigate based on selection
-wizard.updateStepData('userType', { type: 'business' });
-wizard.nextStep(); // Goes to 'business' step
+// Dynamic step flow based on user type
+function getStepFlow(userType: string | null): string[] {
+  if (!userType) return ['userType'];
+  
+  if (userType === 'individual') {
+    // Individual flow: User Type → Individual Info → Payment
+    return ['userType', 'individual', 'payment'];
+  }
+  
+  // Business flow: User Type → Business Info → Tax Info → Payment
+  return ['userType', 'business', 'taxInfo', 'payment'];
+}
+
+// Usage in component
+const [userType, setUserType] = useState<string | null>(null);
+const stepFlow = getStepFlow(userType);
+const currentIndex = stepFlow.indexOf(currentStep);
+
+// Navigate based on dynamic flow
+const goNext = () => {
+  if (currentIndex < stepFlow.length - 1) {
+    wizard.goToStep(stepFlow[currentIndex + 1]);
+  }
+};
+
+const goBack = () => {
+  if (currentIndex > 0) {
+    wizard.goToStep(stepFlow[currentIndex - 1]);
+  }
+};
+
+// Update flow when user type changes
+const selectUserType = (type: 'individual' | 'business') => {
+  setUserType(type);
+  wizard.updateStepData('userType', { type });
+  // Flow automatically updates via getStepFlow()
+};
 ```
 
 ## Form Validation with Zod
 
 Integrate Zod for robust schema validation:
+
+<CodePlayground 
+  title="Form Validation Playground" 
+  height={350}
+  code={`// Click Run to test validation
+const testData = {
+  name: 'Jo',  // Too short!
+  email: 'invalid-email',  // Not valid!
+  age: 16  // Too young!
+};
+
+// Simulate Zod validation
+function validateUser(data) {
+  const errors = [];
+  
+  if (data.name.length < 2) {
+    errors.push('Name too short');
+  }
+  if (!data.email.includes('@')) {
+    errors.push('Invalid email');
+  }
+  if (data.age < 18) {
+    errors.push('Must be 18 or older');
+  }
+  
+  if (errors.length > 0) {
+    return { success: false, errors };
+  }
+  return { success: true, data };
+}
+
+const result = validateUser(testData);
+console.log('Validation result:', result);
+
+// Try with valid data
+const validData = {
+  name: 'John Doe',
+  email: 'john@example.com',
+  age: 25
+};
+console.log('Valid data:', validateUser(validData));`}
+/>
 
 ```typescript
 import { z } from 'zod';
@@ -79,6 +168,8 @@ const wizard = createWizard({
 ## Auto-save & Recovery
 
 Automatically save wizard state for recovery:
+
+<AutoSaveDemo />
 
 ```typescript
 class WizardPersistence {
@@ -138,6 +229,8 @@ persistence.setup(wizard);
 
 Track and display wizard progress:
 
+<ProgressTrackingDemo />
+
 ```typescript
 function useWizardProgress(wizard: WizardInstance) {
   const [progress, setProgress] = useState(0);
@@ -174,6 +267,8 @@ function ProgressBar() {
 ## Async Data Loading
 
 Load data asynchronously when entering steps:
+
+<AsyncLoadingDemo />
 
 ```typescript
 const wizard = createWizard({
@@ -215,6 +310,8 @@ Sync wizard state with URL routing:
 
 <Tabs items={['TanStack Router', 'Next.js Router']}>
   <Tab label="TanStack Router">
+    <RouterDemo />
+    
     ```typescript
     import { createRouter } from '@tanstack/react-router';
     
@@ -246,6 +343,8 @@ Sync wizard state with URL routing:
   </Tab>
   
   <Tab label="Next.js Router">
+    <RouterDemo />
+    
     ```typescript
     import { useRouter } from 'next/router';
     
@@ -273,6 +372,48 @@ Sync wizard state with URL routing:
 ## Conditional Validation
 
 Validate based on context or other step data:
+
+<CodePlayground 
+  title="Conditional Validation Example"
+  height={350}
+  code={`// Test conditional validation
+const shippingData = { country: 'US' };
+const paymentData = { 
+  zipCode: '12345',  // Valid US ZIP
+  paymentMethod: 'card',
+  cardNumber: '4242424242424242',
+  cvv: '123'
+};
+
+function validatePayment(data, shipping) {
+  const errors = [];
+  
+  // Different validation for US
+  if (shipping.country === 'US') {
+    if (!data.zipCode || !/^\\d{5}(-\\d{4})?$/.test(data.zipCode)) {
+      errors.push('Invalid US ZIP code');
+    }
+  }
+  
+  // Validate card payment
+  if (data.paymentMethod === 'card') {
+    if (!data.cardNumber || !data.cvv) {
+      errors.push('Card details required');
+    }
+  }
+  
+  return errors.length === 0 
+    ? { valid: true } 
+    : { valid: false, errors };
+}
+
+const result = validatePayment(paymentData, shippingData);
+console.log('Validation:', result);
+
+// Test with invalid ZIP
+const invalidData = { ...paymentData, zipCode: 'ABC123' };
+console.log('Invalid ZIP:', validatePayment(invalidData, shippingData));`}
+/>
 
 ```typescript
 const wizard = createWizard({
@@ -303,6 +444,8 @@ const wizard = createWizard({
 ## Step Timeouts
 
 Add time limits to steps:
+
+<StepTimeoutDemo />
 
 ```typescript
 class TimedWizard {
@@ -354,6 +497,8 @@ timed.setStepTimeout('payment', 5 * 60 * 1000, () => {
 
 Track wizard interactions:
 
+<AnalyticsDemo />
+
 ```typescript
 const analyticsPlugin = {
   install(wizard: WizardInstance) {
@@ -394,6 +539,16 @@ const analyticsPlugin = {
 // Usage
 analyticsPlugin.install(wizard);
 ```
+
+<style jsx>{`
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+`}</style>
 
 <Callout type="info" title="More Examples">
   Check out the [Examples](/examples) section for complete, runnable implementations of these patterns.

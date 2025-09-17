@@ -1,3 +1,8 @@
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Custom styles for documentation */
 
 /* Light mode code block background */
@@ -10,9 +15,11 @@ code[class*="language-"],
 .shiki,
 .shiki pre,
 .shiki code,
-pre code {
-  background: #1e1e1e !important;
-  color: #d4d4d4 !important;
+pre code,
+pre,
+code {
+  background: #f6f8fa !important;
+  color: #24292e !important;
 }
 
 /* Dark mode code blocks */
@@ -34,10 +41,11 @@ pre code {
 article pre,
 .prose pre,
 main pre {
-  background: #1e1e1e !important;
+  background: #f6f8fa !important;
   border-radius: 0.5rem !important;
   margin: 0 !important;
   padding: 1rem !important;
+  border: 1px solid #e1e4e8 !important;
 }
 
 /* Dark mode code blocks in markdown */
@@ -45,6 +53,7 @@ main pre {
 .dark .prose pre,
 .dark main pre {
   background: #0b0b0b !important;
+  border: 1px solid #30363d !important;
 }
 
 /* Inline code */

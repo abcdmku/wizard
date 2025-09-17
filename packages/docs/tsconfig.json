@@ -25,7 +25,7 @@
     "**/*.mjs",
     "**/*.mdx",
     "next-env.d.ts"
-  ],
+, "../examples/recipes/recipe-registry.tsx"  ],
   "exclude": [
     "node_modules",
     ".next",
