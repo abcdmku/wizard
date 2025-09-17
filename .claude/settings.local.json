@@ -112,7 +112,9 @@
       "mcp__playwright__browser_snapshot",
       "Bash(timeout:*)",
       "mcp__playwright__browser_click",
-      "mcp__playwright__browser_evaluate"
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_tabs",
+      "mcp__playwright__browser_close"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",

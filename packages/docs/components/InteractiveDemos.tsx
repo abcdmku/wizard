@@ -104,7 +104,7 @@ export function CodePlayground({
       }}>
         <div style={{
           position: 'relative',
-          backgroundColor: isDark ? '#0b0b0b' : '#1e1e1e',
+          backgroundColor: isDark ? '#0b0b0b' : '#f6f8fa',
         }}>
           <textarea
             ref={textareaRef}
@@ -119,7 +119,7 @@ export function CodePlayground({
               height: '100%',
               padding: '16px',
               backgroundColor: 'transparent',
-              color: '#d4d4d4',
+              color: isDark ? '#d4d4d4' : '#24292e',
               border: 'none',
               outline: 'none',
               fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
@@ -133,8 +133,8 @@ export function CodePlayground({
         {output && (
           <div style={{
             padding: '16px',
-            backgroundColor: isDark ? '#111827' : '#1e1e1e',
-            borderLeft: `1px solid ${isDark ? '#374151' : '#2d2d30'}`,
+            backgroundColor: isDark ? '#111827' : '#f6f8fa',
+            borderLeft: `1px solid ${isDark ? '#374151' : '#e1e4e8'}`,
             overflow: 'auto',
             position: 'relative',
           }}>
@@ -148,7 +148,7 @@ export function CodePlayground({
             </div>
             <pre style={{
               margin: 0,
-              color: '#10b981',
+              color: isDark ? '#10b981' : '#0969da',
               fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
               fontSize: '13px',
               lineHeight: '1.6',
@@ -1244,19 +1244,19 @@ export function AnalyticsDemo() {
             height: '150px',
             overflowY: 'auto',
             padding: '8px',
-            backgroundColor: isDark ? '#111827' : '#1e1e1e',
+            backgroundColor: isDark ? '#111827' : '#f6f8fa',
             borderRadius: '4px',
             fontSize: '10px',
             fontFamily: 'monospace',
           }}>
             {events.length === 0 ? (
-              <div style={{ color: '#6b7280' }}>No events yet...</div>
+              <div style={{ color: isDark ? '#6b7280' : '#57606a' }}>No events yet...</div>
             ) : (
               events.map((event, i) => (
-                <div key={i} style={{ marginBottom: '8px', color: '#10b981' }}>
-                  <div style={{ color: '#6b7280' }}>[{event.time}]</div>
+                <div key={i} style={{ marginBottom: '8px', color: isDark ? '#10b981' : '#0969da' }}>
+                  <div style={{ color: isDark ? '#6b7280' : '#57606a' }}>[{event.time}]</div>
                   <div>{event.event}</div>
-                  <div style={{ color: '#60a5fa', marginLeft: '8px' }}>
+                  <div style={{ color: isDark ? '#60a5fa' : '#0969da', marginLeft: '8px' }}>
                     {JSON.stringify(event.data)}
                   </div>
                 </div>

@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 
-// Lazy load the recipe components from the examples package
-const StepBranchingDemo = lazy(() => import('../../examples/recipes/src/recipe-registry').then(m => ({ default: m.StepBranchingDemo })));
+// Import the full component directly for StepBranchingDemo
+import { StepBranchingFull } from '../../examples/recipes/src/step-branching/StepBranchingFull';
 
 interface RecipeDemoProps {
   recipe: string;
@@ -11,15 +11,13 @@ interface RecipeDemoProps {
 export function RecipeDemo({ recipe, variant = 'full' }: RecipeDemoProps) {
   // For now, just handle StepBranchingDemo
   if (recipe === 'StepBranchingDemo') {
-    return (
-      <Suspense fallback={<div>Loading demo...</div>}>
-        <StepBranchingDemo variant={variant} />
-      </Suspense>
-    );
+    return <StepBranchingFull />;
   }
   
   return <div>Recipe component not found: {recipe}</div>;
 }
 
-// Export specific demo components for backward compatibility
-export { StepBranchingDemo };
+// Export StepBranchingDemo as the full component
+export function StepBranchingDemo({ variant }: { variant?: string }) {
+  return <StepBranchingFull />;
+}
