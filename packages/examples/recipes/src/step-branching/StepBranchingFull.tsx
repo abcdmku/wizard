@@ -55,9 +55,9 @@ export function StepBranchingFull() {
 
   return (
     <div className="max-w-2xl">
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 bg-white dark:bg-gray-800 shadow-sm">
+      <div className="border border-gray-300 dark:border-gray-700 rounded-lg p-6 bg-white dark:bg-gray-800 shadow-sm">
         {/* Account Type Selector - Always Visible */}
-        <div className="mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="mb-8 pb-6 border-b border-gray-300 dark:border-gray-700">
           <div className="flex items-center gap-4">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Account Type:
