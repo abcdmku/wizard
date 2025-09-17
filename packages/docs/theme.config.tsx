@@ -26,11 +26,18 @@ const config: DocsThemeConfig = {
       <meta property="og:title" content="Wizard - Type-Safe Multi-Step Wizards" />
       <meta property="og:description" content="A deeply type-safe, isomorphic, headless multi-step wizard library for TypeScript applications" />
       <style>{`
-        /* Override code block colors */
+        /* Light mode code block colors */
         pre, pre code, .shiki, .shiki pre, .shiki code {
-          background: #2d2d30 !important;
+          background: #f6f8fa !important;
+          border: 1px solid #e5e7eb !important;
         }
-        
+
+        /* Dark mode code block colors */
+        .dark pre, .dark pre code, .dark .shiki, .dark .shiki pre, .dark .shiki code {
+          background: #1a1a1a !important;
+          border: 1px solid #374151 !important;
+        }
+
         /* Better tab styling for code blocks */
         [data-nextra-code-tabs] > [role="tablist"] {
           background: #f9fafb !important;
@@ -40,7 +47,12 @@ const config: DocsThemeConfig = {
           display: flex !important;
           border-bottom: 1px solid #e5e7eb !important;
         }
-        
+
+        .dark [data-nextra-code-tabs] > [role="tablist"] {
+          background: #1f2937 !important;
+          border-bottom: 1px solid #374151 !important;
+        }
+
         [data-nextra-code-tabs] button[role="tab"] {
           background: transparent !important;
           border: none !important;
@@ -51,38 +63,53 @@ const config: DocsThemeConfig = {
           color: #6b7280 !important;
           transition: all 0.2s !important;
         }
-        
+
         [data-nextra-code-tabs] button[role="tab"]:hover {
           background: #f3f4f6 !important;
         }
-        
+
+        .dark [data-nextra-code-tabs] button[role="tab"]:hover {
+          background: #374151 !important;
+        }
+
         [data-nextra-code-tabs] button[role="tab"][data-state="active"] {
           background: white !important;
           color: #3b82f6 !important;
           box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
         }
-        
+
+        .dark [data-nextra-code-tabs] button[role="tab"][data-state="active"] {
+          background: #111827 !important;
+          color: #60a5fa !important;
+        }
+
         /* Code block container styling */
         [data-nextra-code-tabs] pre {
           border-radius: 0 0 8px 8px !important;
           margin-top: 0 !important;
         }
-        
+
         /* Single code blocks without tabs */
         article pre:not([data-nextra-code-tabs] pre) {
           border-radius: 8px !important;
-          background: #2d2d30 !important;
+          background: #f6f8fa !important;
         }
-        
+
+        .dark article pre:not([data-nextra-code-tabs] pre) {
+          background: #1a1a1a !important;
+        }
+
         /* Inline code */
         :not(pre) > code {
-          background: rgba(0, 0, 0, 0.05) !important;
+          background: #f3f4f6 !important;
+          color: #374151 !important;
           padding: 0.125rem 0.375rem !important;
           border-radius: 0.25rem !important;
         }
-        
+
         .dark :not(pre) > code {
-          background: rgba(255, 255, 255, 0.1) !important;
+          background: #374151 !important;
+          color: #f3f4f6 !important;
         }
       `}</style>
     </>
