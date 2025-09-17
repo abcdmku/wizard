@@ -26,16 +26,44 @@ const config: DocsThemeConfig = {
       <meta property="og:title" content="Wizard - Type-Safe Multi-Step Wizards" />
       <meta property="og:description" content="A deeply type-safe, isomorphic, headless multi-step wizard library for TypeScript applications" />
       <style>{`
+        /* Remove ring effects and ensure light mode styling */
+        pre.nextra-focus,
+        pre[class*="nextra-focus"],
+        pre {
+          --tw-ring-color: transparent !important;
+          --tw-ring-offset-color: transparent !important;
+          --tw-ring-offset-width: 0px !important;
+          --tw-ring-offset-shadow: 0 0 transparent !important;
+          --tw-ring-shadow: 0 0 transparent !important;
+          box-shadow: none !important;
+        }
+
         /* Light mode code block colors */
-        pre, pre code, .shiki, .shiki pre, .shiki code {
+        pre,
+        pre code,
+        .shiki,
+        .shiki pre,
+        .shiki code,
+        pre.nextra-focus,
+        .nextra-code pre {
           background: #f6f8fa !important;
+          background-color: #f6f8fa !important;
           border: 1px solid #e5e7eb !important;
+          border-color: #e5e7eb !important;
         }
 
         /* Dark mode code block colors */
-        .dark pre, .dark pre code, .dark .shiki, .dark .shiki pre, .dark .shiki code {
+        .dark pre,
+        .dark pre code,
+        .dark .shiki,
+        .dark .shiki pre,
+        .dark .shiki code,
+        .dark pre.nextra-focus,
+        .dark .nextra-code pre {
           background: #1a1a1a !important;
+          background-color: #1a1a1a !important;
           border: 1px solid #374151 !important;
+          border-color: #374151 !important;
         }
 
         /* Better tab styling for code blocks */
