@@ -79,20 +79,49 @@ For React applications, also install the React adapter:
 
   <Step title="Create your wizard configuration">
     ```typescript
-    import { createWizard } from '@wizard/core';
+    import { createWizard, type WizardConfig } from '@wizard/core';
 
-    const checkoutWizard = createWizard({
+    type Steps = 'user' | 'address' | 'payment' | 'confirm';
+
+    type StepData = {
+      user: UserData;
+      address: AddressData;
+      payment: PaymentData;
+      confirm: { orderId: string };
+    };
+
+    const config: WizardConfig<CheckoutContext, Steps, StepData> = {
       initialStep: 'user',
       initialContext: {
         totalAmount: 0,
         currency: 'USD',
         items: []
       },
+
+      // Optional: Define prerequisites for automatic ordering
+      prerequisites: {
+        address: ['user'],
+        payment: ['address'],
+        confirm: ['payment']
+      },
+
+      // Optional: Add progress weights
+      weights: {
+        user: 2,
+        address: 3,
+        payment: 4,
+        confirm: 1
+      },
+
       steps: {
         user: {
           next: ['address'],
-          validate: (data: UserData) => {
-            if (!data.email.includes('@')) {
+          validate: (data: unknown): asserts data is UserData => {
+            if (!data || typeof data !== 'object') {
+              throw new Error('Invalid data');
+            }
+            const d = data as any;
+            if (!d.email?.includes('@')) {
               throw new Error('Invalid email');
             }
           }
@@ -102,43 +131,61 @@ For React applications, also install the React adapter:
           prev: ['user']
         },
         payment: {
-          next: [],
-          prev: ['address'],
-          canEnter: async (context) => {
+          next: ['confirm'],
+          canEnter: async ({ ctx }) => {
             // Check if user is authenticated
-            return context.totalAmount > 0;
+            return ctx.totalAmount > 0;
+          }
+        },
+        confirm: {
+          next: [],
+          load: async ({ setStepData }) => {
+            // Generate order ID
+            const orderId = Math.random().toString(36).substring(7);
+            setStepData({ orderId });
           }
         }
       }
-    });
+    };
+
+    const checkoutWizard = createWizard(config);
     ```
   </Step>
 
   <Step title="Use the wizard in your application">
     ```typescript
-    // Get current step
-    const currentStep = checkoutWizard.getCurrentStep();
+    // Get current step and context
+    const current = checkoutWizard.getCurrent();
+    console.log('Current step:', current.step);
+    console.log('Current data:', current.data);
 
     // Update step data
-    checkoutWizard.updateStepData('user', {
+    checkoutWizard.setStepData('user', {
       name: 'John Doe',
       email: 'john@example.com'
     });
 
     // Navigate between steps
-    checkoutWizard.nextStep();
-    checkoutWizard.prevStep();
-    checkoutWizard.goToStep('payment');
+    await checkoutWizard.next({ data: formData });
+    await checkoutWizard.back();
+    await checkoutWizard.goTo('payment');
 
     // Update shared context
-    checkoutWizard.updateContext(ctx => ({
-      ...ctx,
-      totalAmount: 99.99
-    }));
+    checkoutWizard.updateContext(ctx => {
+      ctx.totalAmount = 99.99;
+    });
+
+    // Use helpers
+    const progress = checkoutWizard.helpers.progress();
+    console.log(`Progress: ${progress.percent}%`);
+
+    const canGoNext = checkoutWizard.helpers.canGoNext();
+    const isComplete = checkoutWizard.helpers.isComplete();
 
     // Subscribe to changes
     const unsubscribe = checkoutWizard.subscribe((state) => {
-      console.log('Current step:', state.currentStep);
+      console.log('Current step:', state.step);
+      console.log('Is loading:', state.isLoading);
     });
     ```
   </Step>
@@ -149,7 +196,7 @@ For React applications, also install the React adapter:
 For React applications, use the provided hooks and provider:
 
 ```tsx
-import { WizardProvider, useWizard } from '@wizard/react';
+import { WizardProvider, useWizard, useWizardState, useWizardActions } from '@wizard/react';
 
 function App() {
   return (
@@ -160,20 +207,35 @@ function App() {
 }
 
 function WizardSteps() {
-  const {
-    currentStep,
-    nextStep,
-    prevStep,
-    updateStepData,
-    getStepData,
-    context
-  } = useWizard();
+  const wizard = useWizard();
+  const state = useWizardState();
+  const { next, back, goTo } = useWizardActions();
 
-  // Render current step component
+  // Use helpers for UI state
+  const progress = wizard.helpers.progress();
+  const canGoNext = wizard.helpers.canGoNext();
+  const currentStatus = wizard.helpers.stepStatus(state.step);
+
   return (
     <div>
-      <h2>Step: {currentStep}</h2>
-      {/* Your step components here */}
+      <div className="progress-bar">
+        <div style={{ width: `${progress.percent}%` }} />
+        <span>{progress.label}</span>
+      </div>
+
+      <h2>Step: {state.step}</h2>
+      <p>Status: {currentStatus}</p>
+
+      {/* Render current step component */}
+      {state.step === 'user' && <UserStep />}
+      {state.step === 'address' && <AddressStep />}
+
+      <button onClick={back} disabled={!wizard.helpers.canGoBack()}>
+        Previous
+      </button>
+      <button onClick={() => next()} disabled={!canGoNext}>
+        Next
+      </button>
     </div>
   );
 }
