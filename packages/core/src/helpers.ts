@@ -7,7 +7,10 @@ import type {
 } from './types';
 
 /**
- * Debounce utility
+ * Debounce utility to limit function execution frequency.
+ * @param fn - Function to debounce
+ * @param delay - Delay in milliseconds
+ * @returns Debounced function that returns a promise
  */
 function debounce<T extends (...args: any[]) => any>(
   fn: T,
@@ -34,7 +37,10 @@ function debounce<T extends (...args: any[]) => any>(
 }
 
 /**
- * Compute all steps from config
+ * Compute all steps from config.
+ * Extracts all step IDs from the configuration.
+ * @param config - Wizard configuration
+ * @returns Array of all step IDs
  */
 function computeAllSteps<C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>
@@ -43,7 +49,10 @@ function computeAllSteps<C, S extends string, D extends Record<S, unknown>>(
 }
 
 /**
- * Compute ordered steps - tries explicit order, then topological, then declaration order
+ * Compute ordered steps.
+ * Tries explicit order, then topological sort, then declaration order.
+ * @param config - Wizard configuration
+ * @returns Array of steps in determined order
  */
 function computeOrderedSteps<C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>
@@ -70,7 +79,10 @@ function computeOrderedSteps<C, S extends string, D extends Record<S, unknown>>(
 }
 
 /**
- * Topological sort for DAG
+ * Topological sort for DAG (Directed Acyclic Graph).
+ * Uses Kahn's algorithm to determine valid ordering.
+ * @param prerequisites - Map of step to its prerequisites
+ * @returns Sorted array of steps or null if cycles detected
  */
 function topologicalSort<S extends string>(
   prerequisites: Partial<Record<S, readonly S[]>>
@@ -127,7 +139,12 @@ function topologicalSort<S extends string>(
 }
 
 /**
- * Calculate weighted progress ratio
+ * Calculate weighted progress ratio.
+ * Steps with higher weights contribute more to overall progress.
+ * @param ordered - Ordered list of steps
+ * @param completed - List of completed steps
+ * @param weights - Weight map for steps
+ * @returns Progress ratio between 0 and 1
  */
 function weightedRatio<S extends string>(
   ordered: readonly S[],
@@ -150,7 +167,11 @@ function weightedRatio<S extends string>(
 }
 
 /**
- * Create helpers for wizard functionality
+ * Create helpers for wizard functionality.
+ * Returns an object with extensive helper methods for wizard state management.
+ * @param config - Wizard configuration
+ * @param store - Wizard state store
+ * @returns Object containing all helper methods
  */
 export function createHelpers<
   C,

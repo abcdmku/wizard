@@ -9,11 +9,14 @@ import type {
 import { createHelpers } from './helpers';
 
 /**
- * Creates a deeply type-safe wizard instance
+ * Creates a deeply type-safe wizard instance with advanced features.
+ * Provides step management, status tracking, and extensive helper methods.
  * @template C - Global shared context type
- * @template S - Union of step IDs
+ * @template S - Union of step IDs (string literals)
  * @template D - Per-step data map
- * @template E - Event types
+ * @template E - Event types for orchestration
+ * @param config - Wizard configuration object
+ * @returns Wizard instance with all methods and helpers
  */
 export function createWizard<
   C,

@@ -3,7 +3,8 @@
  */
 
 /**
- * Step status types for progress tracking
+ * Step status types for progress tracking.
+ * Represents the current state of a step in the wizard.
  */
 export type StepStatus =
   | 'unavailable'  // blocked by guards/prereqs; cannot enter now
@@ -109,7 +110,8 @@ export type StepDefinition<C, S extends string, Data, E> = {
 };
 
 /**
- * Runtime marks for step tracking
+ * Runtime marks for step tracking.
+ * Stores metadata about step execution and state changes.
  */
 export type StepRuntime = {
   /** Last explicit status override */
@@ -200,7 +202,8 @@ export type WizardPersistence<
 };
 
 /**
- * Wizard helpers for enhanced functionality
+ * Wizard helpers for enhanced functionality.
+ * Provides extensive utility methods for querying and managing wizard state.
  * @template C - Global shared context type
  * @template S - Union of step IDs
  * @template D - Per-step data map
@@ -255,7 +258,8 @@ export interface WizardHelpers<C, S extends string, D extends Record<S, unknown>
 }
 
 /**
- * Step metadata information
+ * Step metadata information.
+ * Aggregated information about a step's current state and position.
  */
 export type StepMeta = {
   status: StepStatus;

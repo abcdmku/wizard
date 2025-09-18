@@ -1,5 +1,6 @@
 /**
- * Pure selectors for wizard state - tree-shakable utilities
+ * Pure selectors for wizard state - tree-shakable utilities.
+ * These functions can be imported individually for optimal bundle size.
  */
 
 import type {
@@ -9,7 +10,9 @@ import type {
 } from './types';
 
 /**
- * Get all steps from config
+ * Get all steps from config.
+ * @param config - Wizard configuration
+ * @returns Array of all step IDs
  */
 export const allSteps = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>
@@ -18,7 +21,10 @@ export const allSteps = <C, S extends string, D extends Record<S, unknown>>(
 };
 
 /**
- * Get ordered steps from config
+ * Get ordered steps from config.
+ * Uses explicit order if provided, otherwise declaration order.
+ * @param config - Wizard configuration
+ * @returns Array of ordered step IDs
  */
 export const orderedSteps = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>
@@ -30,7 +36,12 @@ export const orderedSteps = <C, S extends string, D extends Record<S, unknown>>(
 };
 
 /**
- * Check if a step is complete
+ * Check if a step is complete.
+ * Uses custom completion check if provided, otherwise checks for data presence.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @param step - Step ID to check
+ * @returns True if step is complete
  */
 export const isStepComplete = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -48,7 +59,10 @@ export const isStepComplete = <C, S extends string, D extends Record<S, unknown>
 };
 
 /**
- * Get completed steps
+ * Get completed steps.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @returns Array of completed step IDs
  */
 export const completedSteps = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -58,7 +72,11 @@ export const completedSteps = <C, S extends string, D extends Record<S, unknown>
 };
 
 /**
- * Check if a step is required
+ * Check if a step is required.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @param step - Step ID to check
+ * @returns True if step is required for completion
  */
 export const isRequired = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -75,7 +93,11 @@ export const isRequired = <C, S extends string, D extends Record<S, unknown>>(
 };
 
 /**
- * Check if a step is optional
+ * Check if a step is optional.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @param step - Step ID to check
+ * @returns True if step can be skipped
  */
 export const isOptional = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -92,7 +114,11 @@ export const isOptional = <C, S extends string, D extends Record<S, unknown>>(
 };
 
 /**
- * Check if prerequisites are met for a step
+ * Check if prerequisites are met for a step.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @param step - Step ID to check
+ * @returns True if all prerequisites are satisfied
  */
 export const prerequisitesMet = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -104,7 +130,12 @@ export const prerequisitesMet = <C, S extends string, D extends Record<S, unknow
 };
 
 /**
- * Get step status
+ * Get step status.
+ * Determines current status based on state, runtime marks, and completion.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @param step - Step ID to check
+ * @returns Current status of the step
  */
 export const stepStatus = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -132,7 +163,11 @@ export const stepStatus = <C, S extends string, D extends Record<S, unknown>>(
 };
 
 /**
- * Calculate progress
+ * Calculate progress.
+ * Supports both linear and weighted progress calculation.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @returns Progress metrics (ratio, percent, label)
  */
 export const progress = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -170,7 +205,11 @@ export const progress = <C, S extends string, D extends Record<S, unknown>>(
 };
 
 /**
- * Check if wizard is complete (all required steps done)
+ * Check if wizard is complete.
+ * Returns true when all required steps are completed.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @returns True if wizard is complete
  */
 export const isComplete = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -182,7 +221,11 @@ export const isComplete = <C, S extends string, D extends Record<S, unknown>>(
 };
 
 /**
- * Get first incomplete step
+ * Get first incomplete step.
+ * Finds the first step that hasn't been completed, skipped, or terminated.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @returns Step ID or null if all complete
  */
 export const firstIncompleteStep = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -198,7 +241,10 @@ export const firstIncompleteStep = <C, S extends string, D extends Record<S, unk
 };
 
 /**
- * Get remaining steps from current position
+ * Get remaining steps from current position.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @returns Array of steps after current
  */
 export const remainingSteps = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -210,7 +256,10 @@ export const remainingSteps = <C, S extends string, D extends Record<S, unknown>
 };
 
 /**
- * Count remaining required steps
+ * Count remaining required steps.
+ * @param config - Wizard configuration
+ * @param state - Current wizard state
+ * @returns Number of required steps not yet completed
  */
 export const remainingRequiredCount = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>,
@@ -223,7 +272,10 @@ export const remainingRequiredCount = <C, S extends string, D extends Record<S, 
 };
 
 /**
- * Get step attempts
+ * Get step attempts.
+ * @param state - Current wizard state
+ * @param step - Step ID to check
+ * @returns Number of times step has been attempted
  */
 export const stepAttempts = <C, S extends string, D extends Record<S, unknown>>(
   state: WizardState<C, S, D>,
@@ -233,7 +285,10 @@ export const stepAttempts = <C, S extends string, D extends Record<S, unknown>>(
 };
 
 /**
- * Get step duration
+ * Get step duration.
+ * @param state - Current wizard state
+ * @param step - Step ID to check
+ * @returns Duration in milliseconds or null if not completed
  */
 export const stepDuration = <C, S extends string, D extends Record<S, unknown>>(
   state: WizardState<C, S, D>,
