@@ -211,6 +211,167 @@ Pluggable persistence interface:
 }
 ```
 
+## Helpers & Status
+
+The wizard provides a rich set of helper methods and status tracking for building advanced UI:
+
+### Step Statuses
+
+Each step can have one of the following statuses:
+
+```typescript
+type StepStatus =
+  | 'unavailable'  // Blocked by guards/prereqs
+  | 'optional'     // Not required for completion
+  | 'current'      // Active step
+  | 'completed'    // Finished successfully
+  | 'required'     // Must be completed
+  | 'skipped'      // Intentionally bypassed
+  | 'error'        // Failed but retryable
+  | 'terminated'   // Permanently failed
+  | 'loading';     // Async work in progress
+```
+
+### Using Helpers
+
+```typescript
+const { helpers } = wizard;
+
+// Progress bar
+const { percent, label } = helpers.progress();
+console.log(`Progress: ${percent}% (${label})`);
+
+// Sidebar navigation
+for (const step of helpers.orderedSteps()) {
+  const status = helpers.stepStatus(step);
+  const required = helpers.isRequired(step);
+  // Render step with appropriate badge/color
+}
+
+// Next button
+if (helpers.canGoNext()) {
+  await wizard.next();
+}
+
+// Jump to next required step
+const nextRequired = helpers.jumpToNextRequired();
+if (nextRequired) {
+  await wizard.goTo(nextRequired);
+}
+
+// Retry after error
+if (helpers.stepStatus('payment') === 'error') {
+  await wizard.goTo('payment');
+}
+```
+
+### Configuration with Prerequisites & Ordering
+
+```typescript
+const wizard = createWizard({
+  // ... base config
+
+  // Explicit step order
+  order: ['intro', 'details', 'payment', 'confirm'],
+
+  // Progress weights
+  weights: {
+    intro: 1,
+    details: 2,
+    payment: 3,
+    confirm: 1,
+  },
+
+  // Prerequisites (DAG)
+  prerequisites: {
+    payment: ['intro', 'details'],
+    confirm: ['payment'],
+  },
+
+  // Custom completion check
+  isStepComplete: ({ step, data }) => {
+    if (step === 'payment') return !!data.payment?.cardLast4;
+    return data[step] != null;
+  },
+
+  // Optional/required meta
+  isOptional: (step, ctx) => step === 'details' && ctx.skipDetails,
+  isRequired: (step, ctx) => step === 'payment' || step === 'confirm',
+
+  // Status change hook
+  onStatusChange: ({ step, prev, next }) => {
+    console.log(`Step ${step}: ${prev} → ${next}`);
+  },
+});
+```
+
+### Mark Methods
+
+Control step statuses programmatically:
+
+```typescript
+// Mark step with retryable error
+wizard.markError('payment', new Error('Card declined'));
+
+// Mark step as permanently failed
+wizard.markTerminated('payment', new Error('Too many attempts'));
+
+// Mark step as loading
+wizard.markLoading('payment');
+
+// Clear loading state
+wizard.markIdle('payment');
+
+// Mark step as skipped
+wizard.markSkipped('details');
+```
+
+### Available Helper Methods
+
+#### Identity & Ordering
+- `allSteps()` - All declared steps
+- `orderedSteps()` - Steps in order
+- `stepCount()` - Total step count
+- `stepIndex(step)` - Index of step
+- `currentIndex()` - Index of current step
+
+#### Status & Classification
+- `stepStatus(step)` - Get step status
+- `isOptional(step)` - Check if optional
+- `isRequired(step)` - Check if required
+
+#### Availability
+- `availableSteps()` - Currently enterable steps
+- `unavailableSteps()` - Blocked steps
+- `refreshAvailability()` - Re-evaluate async guards
+
+#### Progress & Completion
+- `completedSteps()` - Finished steps
+- `remainingSteps()` - Steps after current
+- `firstIncompleteStep()` - First unfinished step
+- `lastCompletedStep()` - Last finished step
+- `remainingRequiredCount()` - Required steps left
+- `isComplete()` - All required done?
+- `progress()` - Progress metrics
+
+#### Navigation
+- `canGoNext()` - Can proceed?
+- `canGoBack()` - Can go back?
+- `canGoTo(step)` - Can jump to step?
+- `findNextAvailable()` - Next valid step
+- `findPrevAvailable()` - Previous valid step
+- `jumpToNextRequired()` - Next required step
+
+#### Graph & Prerequisites
+- `isReachable(step)` - Can reach step?
+- `prerequisitesFor(step)` - Step prerequisites
+- `successorsOf(step)` - Next possible steps
+
+#### Diagnostics
+- `stepAttempts(step)` - Retry count
+- `stepDuration(step)` - Time spent
+- `percentCompletePerStep()` - Completion map
+
 ## API Reference
 
 ### Core (@wizard/core)
@@ -234,7 +395,7 @@ const wizard = createWizard<Context, Steps, DataMap>({
 #### Wizard Instance Methods
 
 - `next(args?)` - Go to next step with optional data
-- `goTo(step, args?)` - Jump to specific step  
+- `goTo(step, args?)` - Jump to specific step
 - `back()` - Go to previous step (if history enabled)
 - `reset()` - Reset to initial state
 - `updateContext(updater)` - Update shared context
@@ -245,6 +406,12 @@ const wizard = createWizard<Context, Steps, DataMap>({
 - `emit(event)` - Emit custom event
 - `snapshot()` - Get state snapshot
 - `restore(snapshot)` - Restore from snapshot
+- `markError(step, err)` - Mark step with retryable error
+- `markTerminated(step, err?)` - Mark step as permanently failed
+- `markLoading(step)` - Mark step as loading
+- `markIdle(step)` - Clear loading state
+- `markSkipped(step)` - Mark step as skipped
+- `helpers` - Access helper methods (see Helpers & Status section)
 
 ### React (@wizard/react)
 

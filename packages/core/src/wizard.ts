@@ -4,7 +4,9 @@ import type {
   WizardConfig,
   WizardState,
   WizardTransitionEvent,
+  StepStatus,
 } from './types';
+import { createHelpers } from './helpers';
 
 /**
  * Creates a deeply type-safe wizard instance
@@ -41,10 +43,14 @@ export function createWizard<
     history: [],
     isLoading: false,
     isTransitioning: false,
+    runtime: {},
   };
 
   // Create reactive store
   const store = new Store<WizardState<C, S, D>>(initialState);
+
+  // Create helpers (cast to remove E type parameter issue)
+  const helpers = createHelpers(config as WizardConfig<C, S, D>, store);
 
   // Load persisted state if available
   if (persistence?.load) {
@@ -251,6 +257,93 @@ export function createWizard<
     return [...stepDef.next];
   };
 
+  // Mark methods
+  const markError = (step: S, err: unknown) => {
+    updateState((state) => ({
+      ...state,
+      runtime: {
+        ...state.runtime,
+        [step]: {
+          ...state.runtime?.[step],
+          status: 'error' as StepStatus,
+        },
+      },
+      errors: {
+        ...state.errors,
+        [step]: err,
+      },
+    }));
+    if (config.onStatusChange) {
+      config.onStatusChange({ step, prev: undefined, next: 'error' });
+    }
+  };
+
+  const markTerminated = (step: S, err?: unknown) => {
+    updateState((state) => ({
+      ...state,
+      runtime: {
+        ...state.runtime,
+        [step]: {
+          ...state.runtime?.[step],
+          status: 'terminated' as StepStatus,
+        },
+      },
+      errors: err ? {
+        ...state.errors,
+        [step]: err,
+      } : state.errors,
+    }));
+    if (config.onStatusChange) {
+      config.onStatusChange({ step, prev: undefined, next: 'terminated' });
+    }
+  };
+
+  const markLoading = (step: S) => {
+    updateState((state) => ({
+      ...state,
+      runtime: {
+        ...state.runtime,
+        [step]: {
+          ...state.runtime?.[step],
+          status: 'loading' as StepStatus,
+        },
+      },
+    }));
+    if (config.onStatusChange) {
+      config.onStatusChange({ step, prev: undefined, next: 'loading' });
+    }
+  };
+
+  const markIdle = (step: S) => {
+    updateState((state) => {
+      const newRuntime = { ...state.runtime } as typeof state.runtime;
+      if (newRuntime && newRuntime[step]) {
+        const { status, ...rest } = newRuntime[step]!;
+        newRuntime[step] = rest;
+      }
+      return {
+        ...state,
+        runtime: newRuntime,
+      };
+    });
+  };
+
+  const markSkipped = (step: S) => {
+    updateState((state) => ({
+      ...state,
+      runtime: {
+        ...state.runtime,
+        [step]: {
+          ...state.runtime?.[step],
+          status: 'skipped' as StepStatus,
+        },
+      },
+    }));
+    if (config.onStatusChange) {
+      config.onStatusChange({ step, prev: undefined, next: 'skipped' });
+    }
+  };
+
   // Transition to a new step
   const transitionTo = async (
     targetStep: S,
@@ -312,11 +405,19 @@ export function createWizard<
         pushHistory();
       }
 
-      // Update step
+      // Update step with runtime tracking
       updateState((state) => ({
         ...state,
         step: targetStep,
         isTransitioning: false,
+        runtime: {
+          ...state.runtime,
+          [targetStep]: {
+            ...(state.runtime?.[targetStep] || {}),
+            startedAt: Date.now(),
+            attempts: ((state.runtime?.[targetStep]?.attempts) ?? 0) + 1,
+          },
+        },
       }));
 
       // Execute load hook for new step
@@ -399,6 +500,7 @@ export function createWizard<
       history: [],
       isLoading: false,
       isTransitioning: false,
+      runtime: {},
     }));
 
     if (persistence?.clear) {
@@ -443,5 +545,11 @@ export function createWizard<
     snapshot,
     restore,
     destroy,
+    markError,
+    markTerminated,
+    markLoading,
+    markIdle,
+    markSkipped,
+    helpers,
   };
 }

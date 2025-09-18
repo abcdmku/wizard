@@ -3,6 +3,9 @@
  */
 
 export { createWizard } from './wizard';
+export { createHelpers } from './helpers';
+export * as selectors from './selectors';
+
 export type {
   Wizard,
   WizardConfig,
@@ -10,4 +13,8 @@ export type {
   WizardTransitionEvent,
   WizardPersistence,
   StepDefinition,
+  StepStatus,
+  StepRuntime,
+  WizardHelpers,
+  StepMeta,
 } from './types';
