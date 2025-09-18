@@ -22,11 +22,5 @@ export default {
     title: 'API'
   },
   'api-reference': 'API Reference',
-  api: {
-    title: 'API Docs',
-    items: {
-      core: '@wizard/core',
-      react: '@wizard/react'
-    }
-  }
+  api: 'API Docs'
 }

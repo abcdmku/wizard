@@ -1,0 +1,73 @@
+# API Documentation
+
+Complete API references for all Wizard packages.
+
+import { Cards, Card } from 'nextra/components'
+
+<Cards>
+  <Card title="@wizard/core" href="/api/core">
+    Core wizard library with type-safe state management, helpers, and advanced features.
+  </Card>
+  <Card title="@wizard/react" href="/api/react">
+    React adapter with hooks, providers, and router integration.
+  </Card>
+</Cards>
+
+## Quick Links
+
+### Core API
+- [Main Functions](/api/core#main-functions) - `createWizard`, `createHelpers`
+- [Core Types](/api/core#core-types) - `WizardConfig`, `StepDefinition`, `WizardState`
+- [Wizard Instance](/api/core#wizard-instance-api) - Navigation, state, and status methods
+- [WizardHelpers](/api/core#wizardhelpers-api) - 30+ utility methods
+- [Pure Selectors](/api/core#pure-selectors) - Tree-shakable state selectors
+
+### React API
+- [Provider Component](/api/react#provider-component) - `WizardProvider`
+- [Core Hooks](/api/react#core-hooks) - State, actions, and data hooks
+- [Router Integration](/api/react#router-integration-hooks) - Sync with routing
+- [Advanced Patterns](/api/react#advanced-patterns) - Custom hooks and optimization
+
+## Package Versions
+
+- `@wizard/core`: 1.0.0
+- `@wizard/react`: 1.0.0
+
+## TypeScript Support
+
+All packages are written in TypeScript and provide full type definitions. The wizard system is deeply type-safe, catching errors at compile time for:
+
+- Invalid step names
+- Incorrect data shapes
+- Context mutations
+- Navigation paths
+- Helper method usage
+
+## Import Examples
+
+```typescript
+// Core library
+import { createWizard, type WizardConfig } from '@wizard/core';
+import { selectors } from '@wizard/core';
+
+// React adapter
+import {
+  WizardProvider,
+  useWizard,
+  useWizardState,
+  useWizardActions
+} from '@wizard/react';
+
+// Router integration
+import {
+  useSyncWizardWithRouter,
+  useTanStackRouterSync
+} from '@wizard/react';
+```
+
+## Need Help?
+
+- Read the [Getting Started](/getting-started) guide
+- Check out [Recipes](/recipes) for common patterns
+- Browse [Examples](/examples) for complete implementations
+- Review [Core Concepts](/concepts) to understand the architecture
