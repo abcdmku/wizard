@@ -8,6 +8,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
 
+const withFrontMatter = (content: string, slug: string, title: string): string => {
+  const normalized = content.trimStart();
+  return ['---', `slug: ${slug}`, `title: ${title}`, '---', '', normalized].join('\n');
+};
 interface APIItem {
   name: string;
   kind: string;
@@ -330,8 +334,8 @@ async function main() {
   );
 
   fs.writeFileSync(
-    path.join(rootDir, 'docs/pages/api/core.mdx'),
-    coreDocs
+    path.join(rootDir, 'docs/pages/api-docs/core.mdx'),
+    withFrontMatter(coreDocs, '/api/core', '@wizard/core API Reference')
   );
 
   // Generate React API docs
@@ -342,11 +346,17 @@ async function main() {
   );
 
   fs.writeFileSync(
-    path.join(rootDir, 'docs/pages/api/react.mdx'),
-    reactDocs
+    path.join(rootDir, 'docs/pages/api-docs/react.mdx'),
+    withFrontMatter(reactDocs, '/api/react', '@wizard/react API Reference')
   );
 
   console.log('✅ API documentation generated successfully!');
 }
 
 main().catch(console.error);
+
+
+
+
+
+

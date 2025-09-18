@@ -22,5 +22,9 @@ export default {
     title: 'API'
   },
   'api-reference': 'API Reference',
-  api: 'API Docs'
+  'api-docs': {
+    title: 'API Docs',
+    type: 'page',
+    href: '/api'
+  }
 }
