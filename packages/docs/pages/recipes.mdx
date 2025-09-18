@@ -10,10 +10,14 @@ import {
   AsyncLoadingDemo,
   RouterDemo,
   StepTimeoutDemo,
-  AnalyticsDemo
+  AnalyticsDemo,
+  StatusSystemDemo,
+  HelpersShowcaseDemo,
+  DAGPrerequisitesDemo,
+  WeightedProgressDemo
 } from '../components/InteractiveDemos'
 
-Common patterns and solutions for building wizards.
+Common patterns and solutions for building wizards with the new advanced features.
 
 ## Dynamic Step Branching
 
@@ -491,6 +495,348 @@ timed.setStepTimeout('payment', 5 * 60 * 1000, () => {
   alert('Session timeout - please complete payment');
   wizard.reset();
 });
+```
+
+## Step Status Management
+
+Comprehensive status system with 9 distinct states for granular control:
+
+<StatusSystemDemo />
+
+### Using Status System
+
+```typescript
+const wizard = createWizard(config);
+
+// Check step status
+const paymentStatus = wizard.helpers.stepStatus('payment');
+switch (paymentStatus) {
+  case 'unavailable':
+    // Step is blocked by prerequisites
+    showMessage('Complete previous steps first');
+    break;
+  case 'error':
+    // Step failed but can be retried
+    const attempts = wizard.helpers.stepAttempts('payment');
+    if (attempts < 3) {
+      showRetryButton();
+    } else {
+      wizard.markTerminated('payment');
+    }
+    break;
+  case 'loading':
+    // Async operation in progress
+    showSpinner();
+    break;
+  case 'completed':
+    // Step finished successfully
+    showCheckmark();
+    break;
+}
+
+// React to status changes
+config.onStatusChange = ({ step, prev, next }) => {
+  analytics.track('step_status_changed', {
+    step,
+    previousStatus: prev,
+    newStatus: next,
+    timestamp: Date.now()
+  });
+};
+```
+
+## Advanced Navigation with Helpers
+
+30+ helper methods for intelligent wizard navigation:
+
+<HelpersShowcaseDemo />
+
+### Smart Navigation Pattern
+
+```typescript
+function SmartWizardNavigation() {
+  const wizard = useWizard();
+  const helpers = wizard.helpers;
+
+  const handleNext = async () => {
+    // Skip optional steps if user wants
+    if (userWantsToSkip && helpers.isOptional(currentStep)) {
+      const nextRequired = helpers.jumpToNextRequired();
+      if (nextRequired) {
+        await wizard.goTo(nextRequired);
+        return;
+      }
+    }
+
+    // Normal navigation
+    if (helpers.canGoNext()) {
+      const next = helpers.findNextAvailable();
+      await wizard.goTo(next);
+    }
+  };
+
+  const handleSkipToEnd = async () => {
+    // Mark all optional steps as skipped
+    const remaining = helpers.remainingSteps();
+    for (const step of remaining) {
+      if (helpers.isOptional(step)) {
+        wizard.markSkipped(step);
+      }
+    }
+
+    // Jump to last required step
+    const lastRequired = [...helpers.orderedSteps()]
+      .reverse()
+      .find(s => helpers.isRequired(s));
+
+    if (lastRequired && helpers.canGoTo(lastRequired)) {
+      await wizard.goTo(lastRequired);
+    }
+  };
+
+  return {
+    canSkip: helpers.isOptional(currentStep),
+    canGoBack: helpers.canGoBack(),
+    canGoNext: helpers.canGoNext(),
+    progress: helpers.progress(),
+    handleNext,
+    handleSkipToEnd
+  };
+}
+```
+
+## DAG Prerequisites & Topological Sorting
+
+Define complex step dependencies with automatic ordering:
+
+<DAGPrerequisitesDemo />
+
+### Complex Flow with Prerequisites
+
+```typescript
+const config: WizardConfig = {
+  // Define prerequisites - creates a DAG
+  prerequisites: {
+    'account': [],                           // No prerequisites
+    'personal-info': ['account'],            // Requires account
+    'business-info': ['account'],            // Also requires account
+    'verification': ['personal-info'],       // Requires personal info
+    'tax-setup': ['business-info'],          // Requires business info
+    'payment': ['verification', 'tax-setup'], // Requires both paths
+    'review': ['payment'],                   // Final review
+    'complete': ['review']                   // Completion
+  },
+
+  // Steps will be automatically ordered via topological sort
+  // No need to specify order manually!
+
+  steps: {
+    // Step definitions...
+  }
+};
+
+// Check if prerequisites are met
+function canProceedToPayment() {
+  const prereqsMet = wizard.helpers.isReachable('payment');
+  if (!prereqsMet) {
+    const missing = wizard.helpers.prerequisitesFor('payment')
+      .filter(p => wizard.helpers.stepStatus(p) !== 'completed');
+
+    showMessage(`Complete these steps first: ${missing.join(', ')}`);
+    return false;
+  }
+  return true;
+}
+```
+
+## Weighted Progress Calculation
+
+More accurate progress tracking with step weights:
+
+<WeightedProgressDemo />
+
+### Implementing Weighted Progress
+
+```typescript
+const config: WizardConfig = {
+  // Assign weights based on complexity/importance
+  weights: {
+    'intro': 1,          // Quick intro
+    'terms': 1,          // Simple agreement
+    'identity': 5,       // Complex verification
+    'documents': 4,      // Document upload
+    'review': 2,         // Review step
+    'payment': 3,        // Payment processing
+    'confirmation': 1    // Final confirmation
+  },
+
+  // Use weighted progress
+  steps: { /* ... */ }
+};
+
+// Display progress
+function ProgressDisplay() {
+  const { ratio, percent, label } = wizard.helpers.progress();
+
+  return (
+    <div>
+      {/* Weighted progress bar */}
+      <div className="progress-bar">
+        <div
+          className="progress-fill"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+
+      {/* Show both metrics */}
+      <div className="progress-info">
+        <span>Progress: {percent}%</span>
+        <span>Steps: {label}</span>
+
+        {/* Time estimate based on weights */}
+        <span>
+          Est. time remaining: {calculateTimeRemaining(ratio)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function calculateTimeRemaining(completionRatio: number) {
+  const avgTimePerWeight = 2; // minutes
+  const remainingWeight = (1 - completionRatio) * totalWeight;
+  const minutes = Math.ceil(remainingWeight * avgTimePerWeight);
+  return `${minutes} min`;
+}
+```
+
+## Error Recovery with Retry Logic
+
+Handle errors gracefully with automatic retry:
+
+```typescript
+async function handleStepWithRetry(
+  step: string,
+  data: any,
+  maxAttempts = 3
+) {
+  const attempts = wizard.helpers.stepAttempts(step);
+
+  try {
+    wizard.markLoading(step);
+
+    // Attempt to process step
+    await processStepData(step, data);
+
+    // Success - mark complete
+    wizard.markIdle(step);
+    await wizard.next();
+
+  } catch (error) {
+    wizard.markIdle(step);
+
+    if (attempts >= maxAttempts) {
+      // Max attempts reached
+      wizard.markTerminated(step, error);
+
+      // Check if step is optional
+      if (wizard.helpers.isOptional(step)) {
+        // Skip and continue
+        wizard.markSkipped(step);
+        const next = wizard.helpers.findNextAvailable();
+        if (next) {
+          await wizard.goTo(next);
+        }
+      } else {
+        // Required step failed - show error UI
+        showErrorDialog({
+          title: 'Step Failed',
+          message: `Unable to complete ${step} after ${maxAttempts} attempts`,
+          actions: ['Contact Support', 'Start Over']
+        });
+      }
+    } else {
+      // Mark as error and allow retry
+      wizard.markError(step, error);
+
+      // Show retry UI with attempt count
+      showRetryPrompt({
+        step,
+        attempt: attempts + 1,
+        maxAttempts,
+        onRetry: () => handleStepWithRetry(step, data, maxAttempts)
+      });
+    }
+  }
+}
+```
+
+## Runtime Performance Tracking
+
+Monitor step performance and optimize UX:
+
+```typescript
+// Track step performance
+function useStepMetrics() {
+  const wizard = useWizard();
+  const [metrics, setMetrics] = useState<StepMetrics[]>([]);
+
+  useEffect(() => {
+    return wizard.subscribe((state) => {
+      const currentMetrics = wizard.helpers.orderedSteps().map(step => ({
+        step,
+        status: wizard.helpers.stepStatus(step),
+        attempts: wizard.helpers.stepAttempts(step),
+        duration: wizard.helpers.stepDuration(step),
+        isBottleneck: false
+      }));
+
+      // Identify bottlenecks
+      const avgDuration = currentMetrics
+        .filter(m => m.duration)
+        .reduce((sum, m) => sum + m.duration!, 0) / currentMetrics.length;
+
+      currentMetrics.forEach(m => {
+        if (m.duration && m.duration > avgDuration * 2) {
+          m.isBottleneck = true;
+        }
+      });
+
+      setMetrics(currentMetrics);
+    });
+  }, [wizard]);
+
+  return metrics;
+}
+
+// Performance dashboard
+function PerformanceDashboard() {
+  const metrics = useStepMetrics();
+
+  return (
+    <div className="metrics-dashboard">
+      <h3>Step Performance</h3>
+
+      {metrics.map(metric => (
+        <div key={metric.step} className={metric.isBottleneck ? 'bottleneck' : ''}>
+          <span>{metric.step}</span>
+          <span>{metric.duration ? `${metric.duration}ms` : '-'}</span>
+          <span>{metric.attempts} attempts</span>
+
+          {metric.isBottleneck && (
+            <span className="warning">⚠️ Bottleneck detected</span>
+          )}
+        </div>
+      ))}
+
+      <div className="summary">
+        <div>Total time: {calculateTotalTime(metrics)}ms</div>
+        <div>Retry rate: {calculateRetryRate(metrics)}%</div>
+        <div>Completion rate: {calculateCompletionRate(metrics)}%</div>
+      </div>
+    </div>
+  );
+}
 ```
 
 ## Analytics Integration
