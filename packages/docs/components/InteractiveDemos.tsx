@@ -1181,6 +1181,343 @@ export function StepTimeoutDemo() {
   );
 }
 
+// Status System Demo - Showcases all 9 status states
+export function StatusSystemDemo() {
+  const [isDark, setIsDark] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>('current');
+  const [attempts, setAttempts] = useState(1);
+  const [showCode, setShowCode] = useState(false);
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const statuses = [
+    {
+      name: 'unavailable',
+      color: '#6b7280',
+      description: 'Blocked by guards/prerequisites',
+      icon: '🔒',
+      example: 'Cannot enter payment until shipping is complete'
+    },
+    {
+      name: 'optional',
+      color: '#8b5cf6',
+      description: 'Step can be skipped',
+      icon: '⭕',
+      example: 'Newsletter signup is optional'
+    },
+    {
+      name: 'current',
+      color: '#3b82f6',
+      description: 'Active step',
+      icon: '▶️',
+      example: 'User is currently on this step'
+    },
+    {
+      name: 'completed',
+      color: '#10b981',
+      description: 'Finished successfully',
+      icon: '✅',
+      example: 'User info has been saved'
+    },
+    {
+      name: 'required',
+      color: '#f59e0b',
+      description: 'Must be completed',
+      icon: '❗',
+      example: 'Payment is required for checkout'
+    },
+    {
+      name: 'skipped',
+      color: '#8b5cf6',
+      description: 'Intentionally bypassed',
+      icon: '↩️',
+      example: 'User skipped optional tutorial'
+    },
+    {
+      name: 'error',
+      color: '#ef4444',
+      description: 'Failed but retryable',
+      icon: '⚠️',
+      example: 'Payment failed - retry available'
+    },
+    {
+      name: 'terminated',
+      color: '#991b1b',
+      description: 'Permanently failed',
+      icon: '❌',
+      example: 'Max retries exceeded - step blocked'
+    },
+    {
+      name: 'loading',
+      color: '#06b6d4',
+      description: 'Async work in progress',
+      icon: '⏳',
+      example: 'Validating credit card...'
+    }
+  ];
+
+  const selectedStatusInfo = statuses.find(s => s.name === selectedStatus);
+
+  const codeExample = `// Using status system in your wizard
+const wizard = createWizard(config);
+
+// Check current status of any step
+const paymentStatus = wizard.helpers.stepStatus('payment');
+console.log(paymentStatus); // 'unavailable' | 'optional' | 'current' | etc.
+
+// Programmatically mark status
+wizard.markError('payment', new Error('Card declined'));
+wizard.markLoading('shipping');
+wizard.markTerminated('verification', 'Max attempts exceeded');
+wizard.markSkipped('tutorial');
+
+// React to status changes
+config.onStatusChange = ({ step, prev, next }) => {
+  console.log(\`Step \${step}: \${prev} → \${next}\`);
+  analytics.track('step_status_changed', { step, status: next });
+};
+
+// Check if step had errors after ${attempts} attempts
+const attempts = wizard.helpers.stepAttempts('payment');
+if (attempts >= 3) {
+  wizard.markTerminated('payment');
+}`;
+
+  return (
+    <div style={{
+      padding: '20px',
+      borderRadius: '8px',
+      border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+      backgroundColor: isDark ? 'rgba(17, 24, 39, 0.5)' : '#f9fafb',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h3 style={{
+          margin: 0,
+          fontSize: '16px',
+          fontWeight: 600,
+          color: isDark ? '#e5e7eb' : '#111827'
+        }}>
+          Step Status System
+        </h3>
+        <button
+          onClick={() => setShowCode(!showCode)}
+          style={{
+            padding: '6px 12px',
+            fontSize: '11px',
+            borderRadius: '4px',
+            border: `1px solid ${isDark ? '#4b5563' : '#e5e7eb'}`,
+            backgroundColor: isDark ? '#1f2937' : '#ffffff',
+            color: isDark ? '#9ca3af' : '#6b7280',
+            cursor: 'pointer',
+          }}
+        >
+          {showCode ? 'Hide' : 'Show'} Code
+        </button>
+      </div>
+
+      {!showCode ? (
+        <>
+          {/* Status Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '8px',
+            marginBottom: '20px'
+          }}>
+            {statuses.map(status => (
+              <button
+                key={status.name}
+                onClick={() => setSelectedStatus(status.name)}
+                style={{
+                  padding: '12px',
+                  borderRadius: '6px',
+                  border: selectedStatus === status.name
+                    ? `2px solid ${status.color}`
+                    : `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+                  backgroundColor: selectedStatus === status.name
+                    ? isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)'
+                    : isDark ? '#1f2937' : '#ffffff',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '14px' }}>{status.icon}</span>
+                  <span style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: status.color
+                  }}>
+                    {status.name}
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: '10px',
+                  color: isDark ? '#9ca3af' : '#6b7280',
+                  lineHeight: 1.3
+                }}>
+                  {status.description}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Selected Status Details */}
+          {selectedStatusInfo && (
+            <div style={{
+              padding: '16px',
+              backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
+              borderRadius: '6px',
+              border: `2px solid ${selectedStatusInfo.color}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <span style={{ fontSize: '24px' }}>{selectedStatusInfo.icon}</span>
+                <div>
+                  <h4 style={{
+                    margin: 0,
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: selectedStatusInfo.color
+                  }}>
+                    {selectedStatusInfo.name}
+                  </h4>
+                  <p style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '12px',
+                    color: isDark ? '#9ca3af' : '#6b7280'
+                  }}>
+                    {selectedStatusInfo.description}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{
+                padding: '12px',
+                backgroundColor: isDark ? 'rgba(17, 24, 39, 0.5)' : '#f9fafb',
+                borderRadius: '4px',
+                marginBottom: '12px'
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, marginBottom: '6px', color: isDark ? '#e5e7eb' : '#374151' }}>
+                  Example:
+                </div>
+                <div style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                  {selectedStatusInfo.example}
+                </div>
+              </div>
+
+              {/* Status-specific actions */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {selectedStatus === 'error' && (
+                  <>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                        Attempts:
+                        <input
+                          type="number"
+                          min="1"
+                          max="5"
+                          value={attempts}
+                          onChange={(e) => setAttempts(Number(e.target.value))}
+                          style={{
+                            marginLeft: '8px',
+                            width: '50px',
+                            padding: '2px 4px',
+                            borderRadius: '4px',
+                            border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+                            backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                            color: isDark ? '#e5e7eb' : '#111827',
+                            fontSize: '11px',
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <button
+                      onClick={() => attempts >= 3 && setSelectedStatus('terminated')}
+                      disabled={attempts < 3}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        borderRadius: '4px',
+                        backgroundColor: attempts >= 3 ? '#ef4444' : (isDark ? '#374151' : '#e5e7eb'),
+                        color: attempts >= 3 ? '#ffffff' : (isDark ? '#6b7280' : '#9ca3af'),
+                        border: 'none',
+                        cursor: attempts >= 3 ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      {attempts >= 3 ? 'Terminate after 3 attempts' : `${3 - attempts} more attempts before termination`}
+                    </button>
+                  </>
+                )}
+                {selectedStatus === 'optional' && (
+                  <button
+                    onClick={() => setSelectedStatus('skipped')}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      backgroundColor: '#8b5cf6',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Skip this step
+                  </button>
+                )}
+                {selectedStatus === 'loading' && (
+                  <button
+                    onClick={() => setSelectedStatus('completed')}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      backgroundColor: '#10b981',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Complete loading
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{
+          backgroundColor: isDark ? '#111827' : '#f6f8fa',
+          padding: '16px',
+          borderRadius: '6px',
+          overflow: 'auto',
+        }}>
+          <pre style={{
+            margin: 0,
+            fontSize: '11px',
+            color: isDark ? '#d4d4d4' : '#24292e',
+            fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+            lineHeight: '1.6',
+          }}>
+            {codeExample}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Analytics Demo
 export function AnalyticsDemo() {
   const [events, setEvents] = useState<Array<{ time: string; event: string; data: any }>>([]);
@@ -1312,6 +1649,866 @@ export function AnalyticsDemo() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Helpers Showcase Demo - Showcases all 30+ helper methods
+export function HelpersShowcaseDemo() {
+  const [isDark, setIsDark] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('navigation');
+  const [mockState, setMockState] = useState({
+    currentStep: 'payment',
+    completedSteps: ['user', 'shipping'],
+    totalSteps: 5,
+    requiredSteps: 4,
+    optionalSteps: 1
+  });
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const categories = {
+    navigation: {
+      title: 'Navigation Helpers',
+      icon: '🧭',
+      helpers: [
+        { name: 'canGoNext()', desc: 'Check if next step is available', result: 'true' },
+        { name: 'canGoBack()', desc: 'Check if can go to previous', result: 'true' },
+        { name: 'canGoTo("review")', desc: 'Check if can jump to step', result: 'false' },
+        { name: 'findNextAvailable()', desc: 'Find next available step', result: '"review"' },
+        { name: 'findPrevAvailable()', desc: 'Find previous available step', result: '"shipping"' },
+        { name: 'jumpToNextRequired()', desc: 'Skip to next required step', result: '"review"' }
+      ]
+    },
+    progress: {
+      title: 'Progress & Completion',
+      icon: '📊',
+      helpers: [
+        { name: 'progress()', desc: 'Get progress metrics', result: '{ ratio: 0.4, percent: 40, label: "2/5" }' },
+        { name: 'isComplete()', desc: 'Check if wizard complete', result: 'false' },
+        { name: 'completedSteps()', desc: 'Get completed step IDs', result: '["user", "shipping"]' },
+        { name: 'remainingSteps()', desc: 'Get remaining step IDs', result: '["review", "confirm"]' },
+        { name: 'remainingRequiredCount()', desc: 'Count required steps left', result: '2' },
+        { name: 'firstIncompleteStep()', desc: 'Find first incomplete', result: '"payment"' },
+        { name: 'lastCompletedStep()', desc: 'Find last completed', result: '"shipping"' }
+      ]
+    },
+    status: {
+      title: 'Status & Classification',
+      icon: '🏷️',
+      helpers: [
+        { name: 'stepStatus("payment")', desc: 'Get status of step', result: '"current"' },
+        { name: 'isOptional("newsletter")', desc: 'Check if step optional', result: 'true' },
+        { name: 'isRequired("payment")', desc: 'Check if step required', result: 'true' },
+        { name: 'availableSteps()', desc: 'Get all available steps', result: '["payment", "review"]' },
+        { name: 'unavailableSteps()', desc: 'Get blocked steps', result: '["confirm"]' }
+      ]
+    },
+    ordering: {
+      title: 'Identity & Ordering',
+      icon: '📝',
+      helpers: [
+        { name: 'allSteps()', desc: 'Get all step IDs', result: '["user", "shipping", "payment", "review", "confirm"]' },
+        { name: 'orderedSteps()', desc: 'Get ordered step IDs', result: '["user", "shipping", "payment", "review", "confirm"]' },
+        { name: 'stepCount()', desc: 'Count total steps', result: '5' },
+        { name: 'stepIndex("payment")', desc: 'Get step position', result: '2' },
+        { name: 'currentIndex()', desc: 'Get current position', result: '2' }
+      ]
+    },
+    graph: {
+      title: 'Graph & Reachability',
+      icon: '🔗',
+      helpers: [
+        { name: 'isReachable("review")', desc: 'Check if step reachable', result: 'true' },
+        { name: 'prerequisitesFor("payment")', desc: 'Get step prerequisites', result: '["shipping"]' },
+        { name: 'successorsOf("payment")', desc: 'Get possible next steps', result: '["review", "confirm"]' }
+      ]
+    },
+    diagnostics: {
+      title: 'Diagnostics & Metrics',
+      icon: '🔍',
+      helpers: [
+        { name: 'stepAttempts("payment")', desc: 'Get retry count', result: '2' },
+        { name: 'stepDuration("user")', desc: 'Get time spent (ms)', result: '45200' },
+        { name: 'percentCompletePerStep()', desc: 'Get completion map', result: '{ user: 100, shipping: 100, payment: 0, ... }' },
+        { name: 'refreshAvailability()', desc: 'Re-check all guards', result: 'Promise<void>' },
+        { name: 'snapshot()', desc: 'Get full state snapshot', result: 'WizardState<...>' }
+      ]
+    }
+  };
+
+  const selectedHelpers = categories[selectedCategory as keyof typeof categories];
+
+  const codeExample = `// Using wizard helpers for smart navigation
+const wizard = createWizard(config);
+const helpers = wizard.helpers;
+
+// Navigation decisions
+if (helpers.canGoNext()) {
+  const nextStep = helpers.findNextAvailable();
+  await wizard.goTo(nextStep);
+}
+
+// Skip optional steps
+if (helpers.isOptional(currentStep)) {
+  const nextRequired = helpers.jumpToNextRequired();
+  if (nextRequired) {
+    await wizard.goTo(nextRequired);
+  }
+}
+
+// Progress tracking
+const { percent, label } = helpers.progress();
+console.log(\`Progress: \${percent}% (\${label})\`);
+
+// Check completion
+if (helpers.isComplete()) {
+  submitForm();
+} else {
+  const remaining = helpers.remainingRequiredCount();
+  console.log(\`\${remaining} required steps remaining\`);
+}
+
+// Error recovery with attempts
+const attempts = helpers.stepAttempts('payment');
+if (attempts >= 3) {
+  // Find alternative path
+  const alternativeStep = helpers.successorsOf('shipping')[1];
+  if (alternativeStep && helpers.canGoTo(alternativeStep)) {
+    await wizard.goTo(alternativeStep);
+  }
+}
+
+// Performance tracking
+const duration = helpers.stepDuration('checkout');
+analytics.track('step_duration', {
+  step: 'checkout',
+  duration,
+  attempts: helpers.stepAttempts('checkout')
+});`;
+
+  return (
+    <div style={{
+      padding: '20px',
+      borderRadius: '8px',
+      border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+      backgroundColor: isDark ? 'rgba(17, 24, 39, 0.5)' : '#f9fafb',
+    }}>
+      <h3 style={{
+        margin: '0 0 16px 0',
+        fontSize: '16px',
+        fontWeight: 600,
+        color: isDark ? '#e5e7eb' : '#111827'
+      }}>
+        Wizard Helpers - 30+ Utility Methods
+      </h3>
+
+      {/* Category Tabs */}
+      <div style={{
+        display: 'flex',
+        gap: '4px',
+        marginBottom: '20px',
+        overflowX: 'auto',
+      }}>
+        {Object.entries(categories).map(([key, cat]) => (
+          <button
+            key={key}
+            onClick={() => setSelectedCategory(key)}
+            style={{
+              padding: '8px 12px',
+              fontSize: '12px',
+              borderRadius: '6px',
+              border: selectedCategory === key
+                ? '2px solid #3b82f6'
+                : `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+              backgroundColor: selectedCategory === key
+                ? isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)'
+                : isDark ? '#1f2937' : '#ffffff',
+              color: selectedCategory === key
+                ? '#3b82f6'
+                : isDark ? '#9ca3af' : '#6b7280',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span>{cat.icon}</span>
+            <span>{cat.title}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Mock State Display */}
+      <div style={{
+        padding: '12px',
+        backgroundColor: isDark ? 'rgba(17, 24, 39, 0.5)' : '#f3f4f6',
+        borderRadius: '6px',
+        marginBottom: '16px',
+        fontSize: '11px',
+        color: isDark ? '#9ca3af' : '#6b7280'
+      }}>
+        <strong>Mock State:</strong> Current: {mockState.currentStep} | Completed: {mockState.completedSteps.join(', ')} | Total: {mockState.totalSteps} steps
+      </div>
+
+      {/* Helper Methods List */}
+      <div style={{
+        display: 'grid',
+        gap: '8px',
+        marginBottom: '16px'
+      }}>
+        {selectedHelpers.helpers.map((helper, i) => (
+          <div
+            key={i}
+            style={{
+              padding: '12px',
+              backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
+              borderRadius: '6px',
+              border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'start',
+              gap: '12px'
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <code style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#3b82f6',
+                fontFamily: 'monospace'
+              }}>
+                {helper.name}
+              </code>
+              <div style={{
+                fontSize: '11px',
+                color: isDark ? '#9ca3af' : '#6b7280',
+                marginTop: '4px'
+              }}>
+                {helper.desc}
+              </div>
+            </div>
+            <code style={{
+              fontSize: '11px',
+              padding: '4px 8px',
+              backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
+              color: '#10b981',
+              borderRadius: '4px',
+              fontFamily: 'monospace',
+              whiteSpace: 'pre'
+            }}>
+              {helper.result}
+            </code>
+          </div>
+        ))}
+      </div>
+
+      {/* Code Example */}
+      <details style={{ marginTop: '16px' }}>
+        <summary style={{
+          cursor: 'pointer',
+          fontSize: '12px',
+          fontWeight: 600,
+          color: isDark ? '#9ca3af' : '#6b7280',
+          marginBottom: '8px'
+        }}>
+          View Code Example
+        </summary>
+        <div style={{
+          backgroundColor: isDark ? '#111827' : '#f6f8fa',
+          padding: '12px',
+          borderRadius: '6px',
+          overflow: 'auto',
+        }}>
+          <pre style={{
+            margin: 0,
+            fontSize: '10px',
+            color: isDark ? '#d4d4d4' : '#24292e',
+            fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+            lineHeight: '1.5',
+          }}>
+            {codeExample}
+          </pre>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+// Weighted Progress Demo - Shows weighted progress calculation
+export function WeightedProgressDemo() {
+  const [isDark, setIsDark] = useState(false);
+  const [steps, setSteps] = useState([
+    { id: 'intro', label: 'Introduction', weight: 1, completed: true },
+    { id: 'user', label: 'User Info', weight: 3, completed: true },
+    { id: 'verification', label: 'Verification', weight: 5, completed: true },
+    { id: 'payment', label: 'Payment', weight: 4, completed: false },
+    { id: 'review', label: 'Review', weight: 2, completed: false },
+    { id: 'confirm', label: 'Confirm', weight: 1, completed: false }
+  ]);
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const toggleStep = (id: string) => {
+    setSteps(steps.map(step =>
+      step.id === id ? { ...step, completed: !step.completed } : step
+    ));
+  };
+
+  const updateWeight = (id: string, weight: number) => {
+    setSteps(steps.map(step =>
+      step.id === id ? { ...step, weight } : step
+    ));
+  };
+
+  // Calculate progress
+  const totalWeight = steps.reduce((sum, step) => sum + step.weight, 0);
+  const completedWeight = steps.reduce((sum, step) => step.completed ? sum + step.weight : sum, 0);
+  const weightedProgress = (completedWeight / totalWeight) * 100;
+
+  const simpleProgress = (steps.filter(s => s.completed).length / steps.length) * 100;
+
+  const codeExample = `// Configure weighted progress for your wizard
+const config: WizardConfig = {
+  // Define step weights - higher values = more important
+  weights: {
+    'intro': 1,        // Quick intro - low weight
+    'user': 3,         // Important user details
+    'verification': 5, // Critical verification step
+    'payment': 4,      // Important payment info
+    'review': 2,       // Review step
+    'confirm': 1       // Simple confirmation
+  },
+
+  // Other config...
+};
+
+// Get weighted progress
+const { ratio, percent, label } = wizard.helpers.progress();
+// ratio: 0.5625 (9 completed weight / 16 total weight)
+// percent: 56
+// label: "3 / 6"
+
+// Compare with simple progress
+const simplePercent = (completedSteps / totalSteps) * 100;
+// Result: 50% (3 / 6 steps)
+
+// Weighted gives more accurate progress!`;
+
+  return (
+    <div style={{
+      padding: '20px',
+      borderRadius: '8px',
+      border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+      backgroundColor: isDark ? 'rgba(17, 24, 39, 0.5)' : '#f9fafb',
+    }}>
+      <h3 style={{
+        margin: '0 0 16px 0',
+        fontSize: '16px',
+        fontWeight: 600,
+        color: isDark ? '#e5e7eb' : '#111827'
+      }}>
+        Weighted Progress Calculation
+      </h3>
+
+      {/* Progress Comparison */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={{
+          padding: '16px',
+          backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
+          borderRadius: '6px',
+          border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+        }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+            📊 Simple Progress
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: '#6b7280', marginBottom: '8px' }}>
+            {Math.round(simpleProgress)}%
+          </div>
+          <div style={{
+            height: '8px',
+            backgroundColor: isDark ? '#374151' : '#e5e7eb',
+            borderRadius: '4px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              width: `${simpleProgress}%`,
+              height: '100%',
+              backgroundColor: '#6b7280',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+          <div style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280', marginTop: '8px' }}>
+            {steps.filter(s => s.completed).length} of {steps.length} steps completed
+          </div>
+        </div>
+
+        <div style={{
+          padding: '16px',
+          backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
+          borderRadius: '6px',
+          border: `2px solid #3b82f6`,
+        }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px', color: '#3b82f6' }}>
+            ⚖️ Weighted Progress
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: '#3b82f6', marginBottom: '8px' }}>
+            {Math.round(weightedProgress)}%
+          </div>
+          <div style={{
+            height: '8px',
+            backgroundColor: isDark ? '#374151' : '#e5e7eb',
+            borderRadius: '4px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              width: `${weightedProgress}%`,
+              height: '100%',
+              backgroundColor: '#3b82f6',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+          <div style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280', marginTop: '8px' }}>
+            {completedWeight} of {totalWeight} weight units completed
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Steps */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px', color: isDark ? '#e5e7eb' : '#374151' }}>
+          Click steps to toggle completion, adjust weights to see impact:
+        </div>
+        <div style={{ display: 'grid', gap: '8px' }}>
+          {steps.map(step => (
+            <div
+              key={step.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                backgroundColor: isDark ? 'rgba(31, 41, 55, 0.3)' : '#ffffff',
+                borderRadius: '6px',
+                border: `1px solid ${step.completed ? '#10b981' : isDark ? '#374151' : '#e5e7eb'}`,
+              }}
+            >
+              <button
+                onClick={() => toggleStep(step.id)}
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '4px',
+                  border: `2px solid ${step.completed ? '#10b981' : isDark ? '#4b5563' : '#d1d5db'}`,
+                  backgroundColor: step.completed ? '#10b981' : 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontSize: '14px'
+                }}
+              >
+                {step.completed && '✓'}
+              </button>
+
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  color: step.completed ? '#10b981' : isDark ? '#e5e7eb' : '#374151'
+                }}>
+                  {step.label}
+                </div>
+                <div style={{ fontSize: '10px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                  Impact: {((step.weight / totalWeight) * 100).toFixed(1)}% of total
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                  Weight:
+                </span>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={step.weight}
+                  onChange={(e) => updateWeight(step.id, Number(e.target.value))}
+                  style={{
+                    width: '60px',
+                    height: '4px',
+                    cursor: 'pointer'
+                  }}
+                />
+                <span style={{
+                  minWidth: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#3b82f6'
+                }}>
+                  {step.weight}
+                </span>
+              </div>
+
+              <div style={{
+                width: '60px',
+                height: '4px',
+                backgroundColor: isDark ? '#374151' : '#e5e7eb',
+                borderRadius: '2px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  width: `${(step.weight / 10) * 100}%`,
+                  height: '100%',
+                  backgroundColor: step.completed ? '#10b981' : '#6b7280'
+                }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Insight Box */}
+      <div style={{
+        padding: '12px',
+        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
+        borderRadius: '6px',
+        border: `1px solid #3b82f6`,
+        marginBottom: '16px'
+      }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: '#3b82f6', marginBottom: '4px' }}>
+          💡 Why Weighted Progress?
+        </div>
+        <div style={{ fontSize: '11px', color: isDark ? '#93c5fd' : '#2563eb' }}>
+          Critical steps like "Verification" (weight: {steps.find(s => s.id === 'verification')?.weight}) have more impact on overall progress than simple steps like "Introduction" (weight: {steps.find(s => s.id === 'intro')?.weight}). This gives users a more accurate sense of how much work remains.
+        </div>
+      </div>
+
+      {/* Code Example */}
+      <details>
+        <summary style={{
+          cursor: 'pointer',
+          fontSize: '12px',
+          fontWeight: 600,
+          color: isDark ? '#9ca3af' : '#6b7280',
+          marginBottom: '8px'
+        }}>
+          View Code Example
+        </summary>
+        <div style={{
+          backgroundColor: isDark ? '#111827' : '#f6f8fa',
+          padding: '12px',
+          borderRadius: '6px',
+          overflow: 'auto',
+        }}>
+          <pre style={{
+            margin: 0,
+            fontSize: '10px',
+            color: isDark ? '#d4d4d4' : '#24292e',
+            fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+            lineHeight: '1.5',
+          }}>
+            {codeExample}
+          </pre>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+// DAG Prerequisites Demo - Shows topological sorting and prerequisites
+export function DAGPrerequisitesDemo() {
+  const [isDark, setIsDark] = useState(false);
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const nodes = {
+    'intro': { x: 50, y: 50, label: 'Introduction', deps: [] },
+    'basics': { x: 50, y: 150, label: 'Basics', deps: ['intro'] },
+    'user': { x: 200, y: 100, label: 'User Info', deps: ['intro'] },
+    'address': { x: 200, y: 200, label: 'Address', deps: ['user'] },
+    'shipping': { x: 350, y: 100, label: 'Shipping', deps: ['address'] },
+    'billing': { x: 350, y: 200, label: 'Billing', deps: ['address'] },
+    'payment': { x: 500, y: 150, label: 'Payment', deps: ['shipping', 'billing'] },
+    'review': { x: 650, y: 150, label: 'Review', deps: ['payment'] },
+    'complete': { x: 800, y: 150, label: 'Complete', deps: ['review'] }
+  };
+
+  const getConnectionPath = (from: string, to: string) => {
+    const fromNode = nodes[from as keyof typeof nodes];
+    const toNode = nodes[to as keyof typeof nodes];
+    return `M ${fromNode.x + 60} ${fromNode.y + 20} L ${toNode.x} ${toNode.y + 20}`;
+  };
+
+  const isHighlighted = (nodeName: string) => {
+    if (!hoveredNode) return false;
+    if (nodeName === hoveredNode) return true;
+    const node = nodes[hoveredNode as keyof typeof nodes];
+    if (!node) return false;
+    return node.deps.includes(nodeName) ||
+           Object.entries(nodes).some(([key, n]) => n.deps.includes(hoveredNode) && key === nodeName);
+  };
+
+  const codeExample = `// Define prerequisites for complex wizard flow
+const config: WizardConfig = {
+  prerequisites: {
+    'user': [],                        // No prerequisites
+    'address': ['user'],               // Requires user info
+    'shipping': ['address'],           // Requires address
+    'billing': ['address'],            // Also requires address
+    'payment': ['shipping', 'billing'], // Requires both
+    'review': ['payment'],             // Requires payment
+    'complete': ['review']             // Final step
+  },
+
+  // Order will be computed via topological sort
+  // Result: ['user', 'address', 'shipping', 'billing', 'payment', 'review', 'complete']
+};
+
+// Check if prerequisites are met
+const canEnterPayment = wizard.helpers.isReachable('payment');
+const paymentPrereqs = wizard.helpers.prerequisitesFor('payment');
+
+// Find available steps based on completed prerequisites
+const available = wizard.helpers.availableSteps();`;
+
+  return (
+    <div style={{
+      padding: '20px',
+      borderRadius: '8px',
+      border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+      backgroundColor: isDark ? 'rgba(17, 24, 39, 0.5)' : '#f9fafb',
+    }}>
+      <h3 style={{
+        margin: '0 0 16px 0',
+        fontSize: '16px',
+        fontWeight: 600,
+        color: isDark ? '#e5e7eb' : '#111827'
+      }}>
+        DAG Prerequisites & Topological Sorting
+      </h3>
+
+      {/* Interactive DAG Visualization */}
+      <div style={{
+        position: 'relative',
+        height: '300px',
+        backgroundColor: isDark ? 'rgba(17, 24, 39, 0.5)' : '#ffffff',
+        borderRadius: '8px',
+        border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+        marginBottom: '16px',
+        overflow: 'hidden'
+      }}>
+        <svg width="900" height="300" style={{ position: 'absolute', top: 0, left: 0 }}>
+          {/* Draw connections */}
+          {Object.entries(nodes).map(([key, node]) =>
+            node.deps.map(dep => (
+              <path
+                key={`${dep}-${key}`}
+                d={getConnectionPath(dep, key)}
+                stroke={isHighlighted(key) && isHighlighted(dep) ? '#3b82f6' : isDark ? '#374151' : '#e5e7eb'}
+                strokeWidth={isHighlighted(key) && isHighlighted(dep) ? 2 : 1}
+                fill="none"
+                markerEnd="url(#arrowhead)"
+              />
+            ))
+          )}
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" fill={isDark ? '#6b7280' : '#9ca3af'} />
+            </marker>
+          </defs>
+        </svg>
+
+        {/* Draw nodes */}
+        {Object.entries(nodes).map(([key, node]) => (
+          <div
+            key={key}
+            onMouseEnter={() => setHoveredNode(key)}
+            onMouseLeave={() => setHoveredNode(null)}
+            style={{
+              position: 'absolute',
+              left: `${node.x}px`,
+              top: `${node.y}px`,
+              padding: '8px 16px',
+              backgroundColor: isHighlighted(key)
+                ? '#3b82f6'
+                : isDark ? '#1f2937' : '#f3f4f6',
+              color: isHighlighted(key)
+                ? '#ffffff'
+                : isDark ? '#e5e7eb' : '#374151',
+              borderRadius: '6px',
+              border: `1px solid ${isHighlighted(key) ? '#3b82f6' : isDark ? '#374151' : '#d1d5db'}`,
+              fontSize: '11px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              zIndex: isHighlighted(key) ? 10 : 1
+            }}
+          >
+            {node.label}
+            {node.deps.length > 0 && (
+              <div style={{
+                fontSize: '9px',
+                marginTop: '2px',
+                opacity: 0.8
+              }}>
+                Requires: {node.deps.length}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {hoveredNode && (
+          <div style={{
+            position: 'absolute',
+            bottom: '10px',
+            left: '10px',
+            padding: '8px',
+            backgroundColor: isDark ? 'rgba(17, 24, 39, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+            borderRadius: '4px',
+            border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+            fontSize: '11px'
+          }}>
+            <strong>{nodes[hoveredNode as keyof typeof nodes].label}</strong>
+            {nodes[hoveredNode as keyof typeof nodes].deps.length > 0 && (
+              <div style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+                Prerequisites: {nodes[hoveredNode as keyof typeof nodes].deps.join(', ')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Features */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: '12px',
+        marginBottom: '16px'
+      }}>
+        <div style={{
+          padding: '12px',
+          backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
+          borderRadius: '6px',
+          border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+        }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: isDark ? '#e5e7eb' : '#374151' }}>
+            🔄 Automatic Ordering
+          </div>
+          <div style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+            Steps are automatically ordered using topological sort when prerequisites are defined
+          </div>
+        </div>
+        <div style={{
+          padding: '12px',
+          backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
+          borderRadius: '6px',
+          border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+        }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: isDark ? '#e5e7eb' : '#374151' }}>
+            🚫 Cycle Detection
+          </div>
+          <div style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+            Circular dependencies are detected and prevent invalid configurations
+          </div>
+        </div>
+        <div style={{
+          padding: '12px',
+          backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
+          borderRadius: '6px',
+          border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+        }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: isDark ? '#e5e7eb' : '#374151' }}>
+            ✅ Smart Navigation
+          </div>
+          <div style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+            Steps become available only when all prerequisites are completed
+          </div>
+        </div>
+        <div style={{
+          padding: '12px',
+          backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#ffffff',
+          borderRadius: '6px',
+          border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+        }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: isDark ? '#e5e7eb' : '#374151' }}>
+            🎯 Reachability Check
+          </div>
+          <div style={{ fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280' }}>
+            Check if any step is reachable based on current progress
+          </div>
+        </div>
+      </div>
+
+      {/* Code Example */}
+      <details>
+        <summary style={{
+          cursor: 'pointer',
+          fontSize: '12px',
+          fontWeight: 600,
+          color: isDark ? '#9ca3af' : '#6b7280',
+          marginBottom: '8px'
+        }}>
+          View Code Example
+        </summary>
+        <div style={{
+          backgroundColor: isDark ? '#111827' : '#f6f8fa',
+          padding: '12px',
+          borderRadius: '6px',
+          overflow: 'auto',
+        }}>
+          <pre style={{
+            margin: 0,
+            fontSize: '10px',
+            color: isDark ? '#d4d4d4' : '#24292e',
+            fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+            lineHeight: '1.5',
+          }}>
+            {codeExample}
+          </pre>
+        </div>
+      </details>
     </div>
   );
 }
