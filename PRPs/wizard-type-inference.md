@@ -37,7 +37,6 @@ Enhance the `@wizard/core` library to support automatic type inference from step
    - Return type of `load` function
    - Type assertion in step definition
 4. Maintain full type safety and autocomplete
-5. No breaking changes to existing API
 
 ## Implementation Blueprint
 
@@ -175,7 +174,7 @@ export function inferData<T>(data: T): T {
 
 ### Task 6: Update Documentation
 1. Add inference examples to README
-2. Create migration guide
+2. Create new or update existing docs in the docs package
 3. Document best practices
 
 ## Example Usage After Implementation
