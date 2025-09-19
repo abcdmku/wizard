@@ -50,17 +50,36 @@ export type WizardConfig<
   // New optional fields for helpers
   /** Explicit linear order for steps */
   order?: readonly S[];
-  /** Progress weighting for steps */
+
+  /**
+   * Progress weighting for steps
+   * @deprecated Use step.weight instead - will be removed in next major version
+   */
   weights?: Partial<Record<S, number>>;
-  /** Simple DAG prerequisites */
+
+  /**
+   * Simple DAG prerequisites
+   * @deprecated Use step.prerequisites instead - will be removed in next major version
+   */
   prerequisites?: Partial<Record<S, readonly S[]>>;
-  /** Custom completion check for steps */
+
+  /**
+   * Custom completion check for steps
+   * @deprecated Use step.complete instead - will be removed in next major version
+   */
   isStepComplete?: (args: { step: S; data: Partial<D>; ctx: Readonly<C> }) => boolean;
 
   // Status/meta hints (do not set state; used by helpers):
-  /** Check if a step is optional */
+  /**
+   * Check if a step is optional
+   * @deprecated Use step.required instead (with inverted logic) - will be removed in next major version
+   */
   isOptional?: (step: S, ctx: Readonly<C>) => boolean;
-  /** Check if a step is required (default true unless optional) */
+
+  /**
+   * Check if a step is required (default true unless optional)
+   * @deprecated Use step.required instead - will be removed in next major version
+   */
   isRequired?: (step: S, ctx: Readonly<C>) => boolean;
 
   // Lifecycle/error hooks (optional):
@@ -78,12 +97,12 @@ export type WizardConfig<
 export type StepDefinition<C, S extends string, Data, E> = {
   /** Optional schema validator for step data */
   validate?: (data: unknown, ctx: Readonly<C>) => asserts data is Data;
-  
+
   /** Allowed next steps - can be static list or function based on context/data */
   next:
     | S[]
     | ((args: { ctx: Readonly<C>; data: Readonly<Data> }) => S | readonly S[]);
-  
+
   /** Side effects before leaving the step */
   beforeExit?: (args: {
     ctx: Readonly<C>;
@@ -91,22 +110,35 @@ export type StepDefinition<C, S extends string, Data, E> = {
     updateContext: (updater: (ctx: C) => void) => void;
     emit: (event: E) => void;
   }) => void | Promise<void>;
-  
+
   /** Optional async loader for the step */
   load?: (args: {
     ctx: Readonly<C>;
     setStepData: (data: Data) => void;
     updateContext: (updater: (ctx: C) => void) => void;
   }) => void | Promise<void>;
-  
+
   /** Optional guard to allow entry */
   canEnter?: (args: { ctx: Readonly<C> }) => boolean | Promise<boolean>;
-  
+
   /** Optional guard to allow leaving */
   canExit?: (args: {
     ctx: Readonly<C>;
     data: Readonly<Data>
   }) => boolean | Promise<boolean>;
+
+  // NEW step-level attributes
+  /** Whether this step is required (default: true) */
+  required?: boolean | ((ctx: Readonly<C>) => boolean);
+
+  /** Custom completion check or static state */
+  complete?: boolean | ((data: Data | undefined, ctx: Readonly<C>) => boolean);
+
+  /** Steps that must be completed before this step */
+  prerequisites?: S[];
+
+  /** Weight for progress calculation (default: 1) */
+  weight?: number | ((ctx: Readonly<C>) => number);
 };
 
 /**
@@ -134,6 +166,19 @@ export type StepDefinitionInfer<_C = any, S extends string = string, _E = any> =
 
   /** Optional guard to allow leaving */
   canExit?: (args: any) => boolean | Promise<boolean>;
+
+  // NEW step-level attributes
+  /** Whether this step is required (default: true) */
+  required?: boolean | ((ctx: any) => boolean);
+
+  /** Custom completion check or static state */
+  complete?: boolean | ((data: any, ctx: any) => boolean);
+
+  /** Steps that must be completed before this step */
+  prerequisites?: S[];
+
+  /** Weight for progress calculation (default: 1) */
+  weight?: number | ((ctx: any) => number);
 };
 
 /**

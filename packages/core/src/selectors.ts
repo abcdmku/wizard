@@ -42,14 +42,33 @@ export const isStepComplete = <C, S extends string, D extends Record<S, unknown>
   state: WizardState<C, S, D>,
   step: S
 ): boolean => {
+  const stepDef = config.steps[step];
+  const stepData = state.data[step];
+
+  // Check new step-level property
+  if (stepDef && 'complete' in stepDef) {
+    if (typeof stepDef.complete === 'boolean') {
+      return stepDef.complete;
+    }
+    if (typeof stepDef.complete === 'function') {
+      return stepDef.complete(stepData, state.context);
+    }
+  }
+
+  // Fallback to deprecated wizard-level (with warning in dev)
   if (config.isStepComplete) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[Wizard] isStepComplete at wizard level is deprecated. Use step.complete instead for step '${step}'`);
+    }
     return config.isStepComplete({
       step,
       data: state.data,
       ctx: state.context,
     });
   }
-  return state.data[step] != null;
+
+  // Default: check if data exists
+  return stepData != null;
 };
 
 /**
@@ -77,13 +96,32 @@ export const isRequired = <C, S extends string, D extends Record<S, unknown>>(
   state: WizardState<C, S, D>,
   step: S
 ): boolean => {
+  const stepDef = config.steps[step];
+
+  // Check new step-level property first
+  if (stepDef && 'required' in stepDef) {
+    const required = stepDef.required;
+    if (typeof required === 'function') {
+      return required(state.context);
+    }
+    return required !== false; // Default true for boolean
+  }
+
+  // Fallback to deprecated wizard-level (with warning in dev)
   if (config.isRequired) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[Wizard] isRequired at wizard level is deprecated. Use step.required instead for step '${step}'`);
+    }
     return config.isRequired(step, state.context);
   }
   if (config.isOptional) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[Wizard] isOptional at wizard level is deprecated. Use step.required instead for step '${step}'`);
+    }
     return !config.isOptional(step, state.context);
   }
-  return true;
+
+  return true; // Default: required
 };
 
 /**
@@ -98,13 +136,8 @@ export const isOptional = <C, S extends string, D extends Record<S, unknown>>(
   state: WizardState<C, S, D>,
   step: S
 ): boolean => {
-  if (config.isOptional) {
-    return config.isOptional(step, state.context);
-  }
-  if (config.isRequired) {
-    return !config.isRequired(step, state.context);
-  }
-  return false;
+  // Use isRequired and invert the logic
+  return !isRequired(config, state, step);
 };
 
 /**
@@ -119,8 +152,23 @@ export const prerequisitesMet = <C, S extends string, D extends Record<S, unknow
   state: WizardState<C, S, D>,
   step: S
 ): boolean => {
-  const prereqs = config.prerequisites?.[step] ?? [];
-  return prereqs.every(p => isStepComplete(config, state, p));
+  const stepDef = config.steps[step];
+
+  // Check new step-level prerequisites
+  if (stepDef?.prerequisites) {
+    return stepDef.prerequisites.every(p => isStepComplete(config, state, p));
+  }
+
+  // Fallback to deprecated wizard-level (with warning in dev)
+  const prereqs = config.prerequisites?.[step];
+  if (prereqs) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[Wizard] prerequisites at wizard level is deprecated. Use step.prerequisites instead for step '${step}'`);
+    }
+    return prereqs.every(p => isStepComplete(config, state, p));
+  }
+
+  return true; // No prerequisites
 };
 
 /**
@@ -174,14 +222,33 @@ export const progress = <C, S extends string, D extends Record<S, unknown>>(
 
   let ratio = done / total;
 
-  // If weights are provided, calculate weighted ratio
-  if (config.weights) {
+  // Calculate weighted ratio if any weights are defined
+  const hasStepWeights = ordered.some(step => 'weight' in (config.steps[step] || {}));
+  const hasWizardWeights = config.weights && Object.keys(config.weights).length > 0;
+
+  if (hasStepWeights || hasWizardWeights) {
     let totalWeight = 0;
     let completedWeight = 0;
     const completedSet = new Set(completed);
 
     for (const step of ordered) {
-      const weight = config.weights[step] ?? 1;
+      const stepDef = config.steps[step];
+      let weight = 1; // Default weight
+
+      // Check new step-level weight first
+      if (stepDef?.weight !== undefined) {
+        weight = typeof stepDef.weight === 'function'
+          ? stepDef.weight(state.context)
+          : stepDef.weight;
+      }
+      // Fallback to deprecated wizard-level weights
+      else if (config.weights?.[step] !== undefined) {
+        if (process.env.NODE_ENV !== 'production' && !hasStepWeights) {
+          console.warn(`[Wizard] weights at wizard level is deprecated. Use step.weight instead for step '${step}'`);
+        }
+        weight = config.weights[step];
+      }
+
       totalWeight += weight;
       if (completedSet.has(step)) {
         completedWeight += weight;

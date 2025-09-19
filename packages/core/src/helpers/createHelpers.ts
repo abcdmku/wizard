@@ -63,7 +63,7 @@ export function createHelpers<
     return requirements.isOptional(step) ? 'optional' : 'required';
   };
 
-  const progress = createProgressApi(config, ordered, requirements, (step: S) => isStepSatisfied(step));
+  const progress = createProgressApi(config, ordered, requirements, (step: S) => isStepSatisfied(step), state);
   const navigation = createNavigationApi(ordered, state, availability, resolveStatus, (step: S) => isStepSatisfied(step));
   const diagnostics = createDiagnosticsApi(state);
 
@@ -119,7 +119,15 @@ export function createHelpers<
     jumpToNextRequired: availability.jumpToNextRequired,
 
     isReachable: (step) => requirements.prerequisitesMet(step),
-    prerequisitesFor: (step) => config.prerequisites?.[step] ?? [],
+    prerequisitesFor: (step) => {
+      const stepDef = config.steps[step];
+      // Check new step-level prerequisites first
+      if (stepDef?.prerequisites) {
+        return stepDef.prerequisites;
+      }
+      // Fallback to deprecated wizard-level
+      return config.prerequisites?.[step] ?? [];
+    },
     successorsOf,
 
     stepAttempts: diagnostics.stepAttempts,

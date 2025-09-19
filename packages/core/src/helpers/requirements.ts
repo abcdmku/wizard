@@ -16,36 +16,67 @@ export function createRequirementChecks<C, S extends string, D extends Record<S,
 ): RequirementChecks<S> {
   const isRequired = (step: S): boolean => {
     const ctx = state.get().context;
+    const stepDef = config.steps[step];
+
+    // Check new step-level property first
+    if (stepDef && 'required' in stepDef) {
+      const required = stepDef.required;
+      if (typeof required === 'function') {
+        return required(ctx);
+      }
+      return required !== false; // Default true for boolean
+    }
+
+    // Fallback to deprecated wizard-level (with warning in dev)
     if (config.isRequired) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[Wizard] isRequired at wizard level is deprecated. Use step.required instead for step '${step}'`);
+      }
       return !!config.isRequired(step, ctx);
     }
     if (config.isOptional) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[Wizard] isOptional at wizard level is deprecated. Use step.required instead for step '${step}'`);
+      }
       return !config.isOptional(step, ctx);
     }
-    return true;
+    return true; // Default: required
   };
 
   const isOptional = (step: S): boolean => {
-    const ctx = state.get().context;
-    if (config.isOptional) {
-      return config.isOptional(step, ctx);
-    }
-    if (config.isRequired) {
-      return !config.isRequired(step, ctx);
-    }
-    return false;
+    // Use isRequired and invert the logic
+    return !isRequired(step);
   };
 
   const isStepComplete = (step: S): boolean => {
     const snapshot = state.get();
+    const stepDef = config.steps[step];
+    const stepData = snapshot.data[step];
+
+    // Check new step-level property
+    if (stepDef && 'complete' in stepDef) {
+      if (typeof stepDef.complete === 'boolean') {
+        return stepDef.complete;
+      }
+      if (typeof stepDef.complete === 'function') {
+        return stepDef.complete(stepData, snapshot.context);
+      }
+    }
+
+    // Fallback to deprecated wizard-level
     if (config.isStepComplete) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[Wizard] isStepComplete at wizard level is deprecated. Use step.complete instead for step '${step}'`);
+      }
       return config.isStepComplete({
         step,
         data: snapshot.data,
         ctx: snapshot.context,
       });
     }
-    return snapshot.data[step] != null;
+
+    // Default: check if data exists
+    return stepData != null;
   };
 
   const completed = (): readonly S[] => {
@@ -53,8 +84,23 @@ export function createRequirementChecks<C, S extends string, D extends Record<S,
   };
 
   const prerequisitesMet = (step: S): boolean => {
-    const prereqs = config.prerequisites?.[step] ?? [];
-    return prereqs.every(isStepComplete);
+    const stepDef = config.steps[step];
+
+    // Check new step-level prerequisites
+    if (stepDef?.prerequisites) {
+      return stepDef.prerequisites.every(isStepComplete);
+    }
+
+    // Fallback to deprecated wizard-level
+    const prereqs = config.prerequisites?.[step];
+    if (prereqs) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[Wizard] prerequisites at wizard level is deprecated. Use step.prerequisites instead for step '${step}'`);
+      }
+      return prereqs.every(isStepComplete);
+    }
+
+    return true; // No prerequisites
   };
 
   return {

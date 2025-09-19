@@ -74,7 +74,7 @@ const formWizard = createWizard({
 
 // Step Components
 function AccountStep() {
-  const { currentStep, nextStep, updateStepData, getStepData } = useWizard<
+  const { currentStep, nextStep, updateStepData, getStepadData } = useWizard<
     FormContext,
     'account' | 'personal' | 'address',
     { account: AccountData; personal: PersonalData; address: AddressData }

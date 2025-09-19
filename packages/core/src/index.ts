@@ -5,6 +5,11 @@
 export { createWizard } from './wizard';
 export { createHelpers } from './helpers';
 export * as selectors from './selectors';
+export {
+  migrateWizardConfig,
+  hasDeprecatedProperties,
+  getDeprecationReport
+} from './utils/migrate';
 
 export type {
   Wizard,
