@@ -32,25 +32,30 @@ export function createWizard<
   }
 >(config: T): Wizard<
   InferContext<T>,
-  InferSteps<T>,
-  InferDataMap<T>,
+  InferSteps<T> extends string ? InferSteps<T> : string,
+  InferDataMap<T> extends Record<string, unknown> ? InferDataMap<T> : Record<string, unknown>,
   never
 >;
 
 // Implementation
-export function createWizard(config: any): any {
+export function createWizard<
+  C = any,
+  S extends string = any,
+  D extends Record<S, unknown> = any,
+  E = never
+>(config: any): any {
   const {
     initialStep,
-    initialContext = {},
+    initialContext = {} as C,
     persistence,
     keepHistory = true,
     maxHistorySize = 10,
   } = config;
 
-  const initialState: WizardState<any, any, any> = {
+  const initialState: WizardState<C, S, D> = {
     step: initialStep,
     context: structuredClone(initialContext),
-    data: {} as Partial<any>,
+    data: {} as Partial<D>,
     errors: {},
     history: [],
     isLoading: false,
@@ -70,7 +75,7 @@ export function createWizard(config: any): any {
   const statusMarkers = createStatusMarkers(config, stateManager);
 
   const eventListeners = new Set<(event: any) => void>();
-  const emit = (event: any) => {
+  const emit = (event: E): void => {
     for (const listener of eventListeners) {
       listener(event);
     }
@@ -92,7 +97,7 @@ export function createWizard(config: any): any {
     onTransition,
   });
 
-  const helpers = createHelpers(config, stateManager.store);
+  const helpers = createHelpers<C, S, D, E>(config, stateManager.store);
 
   const reset = () => {
     stateManager.replace({
@@ -109,12 +114,12 @@ export function createWizard(config: any): any {
     stateManager.clearPersistence();
   };
 
-  const subscribe = (listener: (state: WizardState<any, any, any>) => void) => {
+  const subscribe = (listener: (state: WizardState<C, S, D>) => void) => {
     return stateManager.subscribe(listener);
   };
 
-  const getStepData = (step: any): any | undefined => {
-    return stateManager.store.state.data[step];
+  const getStepData = (step: any): any => {
+    return (stateManager.store.state.data as any)[step];
   };
 
   return {
@@ -127,7 +132,7 @@ export function createWizard(config: any): any {
     setStepData: contextManager.setStepData,
     getContext: contextManager.getContext,
     getCurrent: contextManager.getCurrent,
-    getStepData,
+    getStepData: getStepData as <K extends S>(step: K) => D[K] | undefined,
     subscribe,
     emit,
     snapshot: stateManager.snapshot,
