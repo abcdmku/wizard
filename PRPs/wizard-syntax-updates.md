@@ -24,10 +24,10 @@ type WizardConfig = {
 ```typescript
 type StepDefinition = {
   // NEW step-level attributes
-  required?: boolean;        // Default: true
-  complete?: boolean | ((data: Data, ctx: C) => boolean);  // Default: check if data exists
+  required?: boolean | ((ctx: C) => boolean);        // Default: true
+  complete?: boolean | ((data: Data | undefined, ctx: C) => boolean);  // Default: check if data exists
   prerequisites?: S[];        // Default: []
-  weight?: number;           // Default: 1
+  weight?: number | ((ctx: C) => number);           // Default: 1
 }
 ```
 
@@ -52,9 +52,10 @@ type StepDefinition = {
 
 ### Design Decisions
 
-1. **Boolean vs Function for `complete`**: Support both for flexibility
-   - Boolean: Simple static completion state
-   - Function: Dynamic completion based on data/context
+1. **Static vs Dynamic Values**: Support both boolean/number and function types for flexibility
+   - `required`: Boolean for static requirement, function for context-dependent
+   - `complete`: Boolean for static state, function for dynamic validation
+   - `weight`: Number for static weight, function for context-dependent weighting
 
 2. **Default Values**:
    - `required`: true (most steps are required by default)
@@ -62,7 +63,12 @@ type StepDefinition = {
    - `prerequisites`: [] (no dependencies by default)
    - `weight`: 1 (equal weight by default)
 
-3. **Migration Strategy**: Support both old and new syntax temporarily with deprecation warnings
+3. **Function Evaluation Timing**:
+   - `required`: Evaluated when checking step requirements
+   - `complete`: Evaluated when checking step completion status
+   - `weight`: Evaluated when calculating progress
+
+4. **Migration Strategy**: Support both old and new syntax temporarily with deprecation warnings
 
 ## Requirements
 
@@ -90,7 +96,7 @@ export type StepDefinition<C, S extends string, Data, E> = {
   // Existing properties...
 
   /** Whether this step is required (default: true) */
-  required?: boolean;
+  required?: boolean | ((ctx: Readonly<C>) => boolean);
 
   /** Custom completion check or static state */
   complete?: boolean | ((data: Data | undefined, ctx: Readonly<C>) => boolean);
@@ -99,7 +105,7 @@ export type StepDefinition<C, S extends string, Data, E> = {
   prerequisites?: S[];
 
   /** Weight for progress calculation (default: 1) */
-  weight?: number;
+  weight?: number | ((ctx: Readonly<C>) => number);
 }
 
 // Mark old wizard-level properties as deprecated
@@ -133,7 +139,11 @@ export const isRequired = <...>(config, state, step) => {
 
   // Check new step-level property first
   if (stepDef && 'required' in stepDef) {
-    return stepDef.required !== false; // Default true
+    const required = stepDef.required;
+    if (typeof required === 'function') {
+      return required(state.context);
+    }
+    return required !== false; // Default true for boolean
   }
 
   // Fallback to deprecated wizard-level (with warning)
@@ -199,12 +209,16 @@ const prerequisitesMet = (step: S): boolean => {
 
 // packages/core/src/helpers/progress.ts
 
-const getStepWeight = (step: S): number => {
+const getStepWeight = (step: S, context: C): number => {
   const stepDef = config.steps[step];
 
   // Check new step-level weight
   if (stepDef?.weight !== undefined) {
-    return stepDef.weight;
+    const weight = stepDef.weight;
+    if (typeof weight === 'function') {
+      return weight(context);
+    }
+    return weight;
   }
 
   // Fallback to deprecated wizard-level
@@ -314,7 +328,7 @@ export function migrateWizardConfig<C, S extends string, D extends Record<S, unk
 ### Unit Tests
 ```typescript
 describe('Step-level attributes', () => {
-  it('should use step.required when defined', () => {
+  it('should use step.required when defined as boolean', () => {
     const wizard = createWizard({
       steps: {
         step1: {
@@ -324,6 +338,46 @@ describe('Step-level attributes', () => {
       }
     });
     expect(wizard.helpers.isRequired('step1')).toBe(false);
+  });
+
+  it('should use step.required when defined as function', () => {
+    const wizard = createWizard({
+      initialContext: { userRole: 'admin' },
+      steps: {
+        step1: {
+          next: ['step2'],
+          required: (ctx) => ctx.userRole !== 'admin'
+        }
+      }
+    });
+    expect(wizard.helpers.isRequired('step1')).toBe(false);
+  });
+
+  it('should use step.complete as function', () => {
+    const wizard = createWizard({
+      steps: {
+        step1: {
+          next: [],
+          complete: (data, ctx) => !!data && data.value > ctx.threshold
+        }
+      }
+    });
+    wizard.setStepData('step1', { value: 10 });
+    expect(wizard.helpers.isStepComplete('step1')).toBe(true);
+  });
+
+  it('should use step.weight as function', () => {
+    const wizard = createWizard({
+      initialContext: { priority: 'high' },
+      steps: {
+        step1: {
+          next: [],
+          weight: (ctx) => ctx.priority === 'high' ? 3 : 1
+        }
+      }
+    });
+    const progress = wizard.helpers.progress();
+    // Weight should be 3 for high priority
   });
 
   it('should support backward compatibility with isOptional', () => {
@@ -411,6 +465,37 @@ const wizard = createWizard({
 });
 ```
 
+### Dynamic Values Example
+```typescript
+const wizard = createWizard({
+  initialStep: 'step1',
+  initialContext: { userRole: 'guest', difficulty: 'hard' },
+  steps: {
+    step1: {
+      next: ['step2'],
+      // Required only for non-admin users
+      required: (ctx) => ctx.userRole !== 'admin',
+      // Weight based on difficulty
+      weight: (ctx) => ctx.difficulty === 'hard' ? 3 : 1
+    },
+    step2: {
+      next: ['step3'],
+      // Complete when all fields are filled
+      complete: (data, ctx) => {
+        return data?.name && data?.email &&
+               (ctx.userRole === 'admin' || data?.verified);
+      }
+    },
+    step3: {
+      next: [],
+      prerequisites: ['step1', 'step2'],
+      // Dynamic weight based on context
+      weight: (ctx) => ctx.userRole === 'premium' ? 2 : 1
+    }
+  }
+});
+```
+
 ## Risk Mitigation
 
 1. **Breaking Changes**: Provide backward compatibility with deprecation warnings
@@ -437,6 +522,10 @@ const wizard = createWizard({
 - The selectors and helpers are the most critical parts to update carefully
 - Remember to handle undefined/null checks for optional properties
 - Default values are important: `required: true`, `weight: 1`, `prerequisites: []`
+- When checking function types, use `typeof value === 'function'` before calling
+- Pass the correct context when evaluating functions (`state.context` for most cases)
+- For `complete` function, pass both `data` (which may be undefined) and `context`
+- For `required` and `weight` functions, pass only `context`
 
 ## External Resources
 
