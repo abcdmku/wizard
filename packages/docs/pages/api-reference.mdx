@@ -1,182 +1,779 @@
-# API Reference
+# Complete API Reference
 
-Complete API documentation for @wizard/core and @wizard/react.
+import { Callout, Tabs, Tab } from '../components'
 
-## @wizard/core
+Comprehensive API reference for all WizardOpus packages with every exported function, type, and interface.
 
-### createWizard
+## Package Exports Overview
 
-Creates a new wizard instance with type-safe configuration.
+### @wizard/core Exports
 
 ```typescript
-function createWizard<C, S extends string, D>(
-  config: WizardConfig<C, S, D>
-): WizardInstance<C, S, D>
+// Main Functions
+export { createWizard } from './wizard';
+export { createHelpers } from './helpers';
+
+// Selectors namespace
+export * as selectors from './selectors';
+
+// Type Exports
+export type {
+  Wizard,
+  WizardConfig,
+  WizardState,
+  WizardTransitionEvent,
+  WizardPersistence,
+  StepDefinition,
+  StepStatus,
+  StepRuntime,
+  WizardHelpers,
+  StepMeta,
+} from './types';
 ```
 
-#### Parameters
+### @wizard/react Exports
 
-- `config` - Wizard configuration object containing:
-  - `initialStep` - Starting step ID
-  - `initialContext` - Initial shared context
-  - `steps` - Step definitions
-  - `persistence` - Optional persistence adapter
+```typescript
+// Components
+export { WizardProvider } from './context';
+export type { WizardProviderProps } from './context';
 
-#### Returns
+// Hooks
+export {
+  useWizard,
+  useWizardState,
+  useWizardStep,
+  useWizardSharedContext,
+  useStepData,
+  useCurrentStepData,
+  useWizardLoading,
+  useWizardTransitioning,
+  useWizardHistory,
+  useWizardErrors,
+  useWizardActions,
+} from './hooks';
 
-A wizard instance with methods for navigation and state management.
+// Router Integration
+export {
+  useSyncWizardWithRouter,
+  useTanStackRouterSync,
+} from './router';
+export type { SyncWizardWithRouterOptions } from './router';
+```
 
-### WizardInstance Methods
+## @wizard/core API
 
-#### Navigation
+### Main Functions
 
-- `getCurrentStep(): S` - Get current step ID
-- `nextStep(): void` - Navigate to next step
-- `prevStep(): void` - Navigate to previous step  
-- `goToStep(step: S): void` - Jump to specific step
-- `canGoToNext(): boolean` - Check if next navigation is allowed
-- `canGoToPrev(): boolean` - Check if previous navigation is allowed
-- `getNextSteps(): S[]` - Get available next steps
-- `getPrevSteps(): S[]` - Get available previous steps
+#### `createWizard<C, S, D, E>(config)`
+
+Creates a fully-featured wizard instance with type-safe state management.
+
+**Type Parameters:**
+- `C` - Context type shared across all steps
+- `S` - Union of step name strings
+- `D` - Record mapping step names to their data types
+- `E` - Event type for custom events (optional)
+
+**Parameters:**
+- `config: WizardConfig<C, S, D, E>` - Wizard configuration object
+
+**Returns:** `Wizard<C, S, D, E>` instance
+
+**Example:**
+```typescript
+type Context = { userId: string };
+type Steps = 'info' | 'payment' | 'confirm';
+type Data = {
+  info: { name: string; email: string };
+  payment: { method: string; amount: number };
+  confirm: { agreed: boolean };
+};
+
+const wizard = createWizard<Context, Steps, Data>({
+  initialStep: 'info',
+  initialContext: { userId: '123' },
+  steps: {
+    info: { next: 'payment' },
+    payment: { next: 'confirm' },
+    confirm: {}
+  }
+});
+```
+
+#### `createHelpers<C, S, D>(config, store)`
+
+Creates helper utilities for wizard state management.
+
+**Parameters:**
+- `config: WizardConfig<C, S, D, any>` - Wizard configuration
+- `store: Store<WizardState<C, S, D>>` - TanStack store instance
+
+**Returns:** `WizardHelpers<C, S, D>` instance with 30+ utility methods
+
+**Note:** Usually called internally by `createWizard`. Only use directly for advanced scenarios.
+
+### Wizard Instance API
+
+The `Wizard<C, S, D, E>` instance provides:
+
+#### Navigation Methods
+
+```typescript
+interface Wizard {
+  // Core navigation
+  next(): Promise<S>;                          // Go to next step
+  back(): Promise<S>;                          // Go to previous step
+  goTo(step: S): Promise<void>;               // Jump to specific step
+  reset(): void;                               // Reset to initial state
+
+  // State getters
+  getCurrentStep(): S;                         // Get current step name
+  getStepData<K extends S>(step: K): D[K];    // Get data for a step
+}
+```
 
 #### State Management
 
-- `getState(): WizardState<C, S, D>` - Get full wizard state
-- `setState(state: WizardState<C, S, D>): void` - Set full state
-- `updateStepData(step: S, data: D[S]): void` - Update step data
-- `getStepData(step: S): D[S] | undefined` - Get step data
-- `updateContext(updater: (ctx: C) => C): void` - Update context
-- `getContext(): C` - Get current context
+```typescript
+interface Wizard {
+  // Data updates
+  updateStepData<K extends S>(
+    step: K,
+    data: Partial<D[K]>
+  ): Promise<void>;
 
-#### Validation
+  // Context updates
+  updateContext(
+    updater: (ctx: C) => C | Partial<C>
+  ): Promise<void>;
 
-- `validateStep(step: S): Promise<void>` - Validate specific step
-- `getErrors(): Partial<Record<S, Error>>` - Get all errors
-- `clearErrors(): void` - Clear all errors
-- `clearStepErrors(step: S): void` - Clear specific step errors
+  // Subscription
+  subscribe(
+    callback: (state: WizardState<C, S, D>) => void
+  ): () => void;
 
-#### History
+  // Snapshots
+  snapshot(): WizardState<C, S, D>;
+  restore(snap: WizardState<C, S, D>): void;
 
-- `undo(): void` - Undo last navigation
-- `redo(): void` - Redo navigation
-- `canUndo(): boolean` - Check if undo available
-- `canRedo(): boolean` - Check if redo available
-- `getHistory(): HistoryEntry[]` - Get navigation history
+  // Cleanup
+  destroy(): void;
+}
+```
 
-#### Effects
+#### Status Management
 
-- `runStepEffects(step: S): Promise<E | void>` - Run step side effects
+```typescript
+interface Wizard {
+  // Mark step status
+  markError(step: S, error: unknown): void;
+  markTerminated(step: S, error?: unknown): void;
+  markLoading(step: S): void;
+  markIdle(step: S): void;
+  markSkipped(step: S): void;
+}
+```
 
-#### Subscription
+#### Properties
 
-- `subscribe(listener: (state: WizardState) => void): () => void` - Subscribe to state changes
-- `getSnapshot(): WizardState` - Get current state snapshot
+```typescript
+interface Wizard {
+  store: Store<WizardState<C, S, D>>;   // Reactive store
+  helpers: WizardHelpers<C, S, D>;      // Helper utilities
+  emit(event: E): void;                 // Emit custom events
+}
+```
 
-## @wizard/react
+### WizardHelpers API
 
-### WizardProvider
+The `WizardHelpers<C, S, D>` object provides 30+ utility methods:
 
-Context provider for wizard state.
+#### Step Information
 
+```typescript
+interface WizardHelpers {
+  // Identity & Ordering
+  allSteps(): readonly S[];              // All step IDs
+  orderedSteps(): readonly S[];          // Steps in order
+  stepCount(): number;                   // Total step count
+  stepIndex(step: S): number;           // Get step position
+  currentIndex(): number;                // Current position
+
+  // Status & Classification
+  stepStatus(step: S): StepStatus;      // Get step status
+  isOptional(step: S): boolean;         // Is step optional?
+  isRequired(step: S): boolean;         // Is step required?
+}
+```
+
+#### Navigation & Availability
+
+```typescript
+interface WizardHelpers {
+  // Availability
+  availableSteps(): readonly S[];        // Available steps
+  unavailableSteps(): readonly S[];      // Blocked steps
+  refreshAvailability(): Promise<void>;  // Re-check guards
+
+  // Navigation checks
+  canGoNext(): boolean;                  // Can proceed?
+  canGoBack(): boolean;                  // Can go back?
+  canGoTo(step: S): boolean;            // Can navigate to step?
+
+  // Finding steps
+  findNextAvailable(from?: S): S | null;
+  findPrevAvailable(from?: S): S | null;
+  jumpToNextRequired(): Promise<S | null>;
+}
+```
+
+#### Progress & Completion
+
+```typescript
+interface WizardHelpers {
+  // Completion tracking
+  completedSteps(): readonly S[];        // Completed steps
+  remainingSteps(): readonly S[];        // Remaining steps
+  firstIncompleteStep(): S | null;       // First incomplete
+  lastCompletedStep(): S | null;         // Last completed
+  remainingRequiredCount(): number;      // Required steps left
+  isComplete(): boolean;                 // Is wizard complete?
+
+  // Progress metrics
+  progress(): number;                    // 0-100 percentage
+  percentCompletePerStep(): Record<S, number>;
+}
+```
+
+#### Prerequisites & Dependencies
+
+```typescript
+interface WizardHelpers {
+  // Graph operations
+  isReachable(step: S): boolean;              // Can reach step?
+  prerequisitesFor(step: S): readonly S[];    // Get prerequisites
+  successorsOf(step: S): readonly S[];        // Get successors
+}
+```
+
+#### Diagnostics
+
+```typescript
+interface WizardHelpers {
+  // Performance metrics
+  stepAttempts(step: S): number;              // Attempt count
+  stepDuration(step: S): number | null;       // Time spent (ms)
+
+  // State access
+  snapshot(): Readonly<WizardState<C, S, D>>; // Get full state
+}
+```
+
+### Selectors Namespace
+
+Pure functions for querying wizard state:
+
+```typescript
+import { selectors } from '@wizard/core';
+
+// Step selectors
+selectors.getCurrentStep(state);           // Current step
+selectors.getStepData(state, step);       // Step data
+selectors.getAllData(state);              // All data
+
+// Status selectors
+selectors.getStatus(state, step);         // Step status
+selectors.isStepComplete(state, step);    // Is complete?
+selectors.isStepActive(state, step);      // Is current?
+
+// Progress selectors
+selectors.getCompletedSteps(state);       // Completed list
+selectors.getRemainingSteps(state);       // Remaining list
+selectors.getProgress(state);             // Progress %
+
+// History selectors
+selectors.getHistory(state);              // Step history
+selectors.canUndo(state);                 // Can undo?
+selectors.canRedo(state);                 // Can redo?
+
+// Error selectors
+selectors.getErrors(state);               // All errors
+selectors.getStepErrors(state, step);     // Step errors
+selectors.hasErrors(state);               // Has any errors?
+```
+
+### Core Types
+
+#### WizardConfig
+
+Complete configuration for wizard creation:
+
+```typescript
+type WizardConfig<C, S extends string, D extends Record<S, unknown>, E = never> = {
+  // Required
+  initialStep: S;
+  initialContext: C;
+  steps: { [K in S]: StepDefinition<C, S, D[K], E> };
+
+  // Optional navigation
+  order?: readonly S[];                              // Step order
+  prerequisites?: Partial<Record<S, readonly S[]>>; // Dependencies
+
+  // Optional progress
+  weights?: Partial<Record<S, number>>;             // Step weights
+
+  // Optional validation
+  isStepComplete?: (args: {
+    step: S;
+    data: Partial<D>;
+    ctx: Readonly<C>
+  }) => boolean;
+
+  // Optional classification
+  isOptional?: (step: S, ctx: Readonly<C>) => boolean;
+  isRequired?: (step: S, ctx: Readonly<C>) => boolean;
+
+  // Optional hooks
+  onTransition?: (event: WizardTransitionEvent<C, S, D, E>) => void | Promise<void>;
+  onStatusChange?: (args: {
+    step: S;
+    prev?: StepStatus;
+    next: StepStatus;
+  }) => void;
+
+  // Optional persistence
+  persistence?: WizardPersistence<C, S, D>;
+
+  // Optional history
+  keepHistory?: boolean;   // Default: true
+  maxHistorySize?: number; // Default: 10
+};
+```
+
+#### StepDefinition
+
+Configuration for individual steps:
+
+```typescript
+type StepDefinition<C, S extends string, Data, E> = {
+  // Navigation
+  next: S[] | ((args: {
+    ctx: Readonly<C>;
+    data: Readonly<Data>;
+  }) => S | S[]);
+
+  // Guards
+  canEnter?: (args: {
+    ctx: Readonly<C>;
+    data: Partial<Record<S, unknown>>;
+  }) => boolean | Promise<boolean>;
+
+  canExit?: (args: {
+    ctx: Readonly<C>;
+    data: Readonly<Data>;
+  }) => boolean | Promise<boolean>;
+
+  // Lifecycle hooks
+  load?: (
+    data: unknown,
+    ctx: Readonly<C>
+  ) => asserts data is Data | Promise<Data>;
+
+  beforeExit?: (args: {
+    ctx: Readonly<C>;
+    data: Readonly<Data>;
+  }) => void | Promise<void>;
+
+  // Completion
+  isStepComplete?: (args: {
+    data: Readonly<Data>;
+    ctx: Readonly<C>;
+  }) => boolean;
+
+  // Optional metadata
+  weight?: number;        // Progress weight
+  required?: boolean;     // Is required?
+  maxRetries?: number;    // Retry attempts
+  retryDelay?: number;    // Retry delay (ms)
+};
+```
+
+#### WizardState
+
+Complete wizard state structure:
+
+```typescript
+type WizardState<C, S extends string, D extends Record<S, unknown>> = {
+  step: S;                           // Current step
+  data: Partial<D>;                  // Step data
+  context: C;                        // Shared context
+  history: S[];                      // Navigation history
+  errors: Partial<Record<S, unknown>>; // Step errors
+  runtime?: Partial<Record<S, StepRuntime>>; // Runtime status
+};
+```
+
+#### StepStatus
+
+Possible step status values:
+
+```typescript
+type StepStatus =
+  | 'current'      // Currently active step
+  | 'completed'    // Successfully completed
+  | 'error'        // Has error
+  | 'loading'      // Loading/processing
+  | 'terminated'   // Forcefully terminated
+  | 'skipped'      // Programmatically skipped
+  | 'unavailable'  // Cannot be accessed
+  | 'required'     // Must be completed
+  | 'optional'     // Can be skipped
+  | 'idle';        // Default state
+```
+
+#### StepRuntime
+
+Runtime information for steps:
+
+```typescript
+type StepRuntime = {
+  status?: 'idle' | 'loading' | 'error' | 'terminated' | 'skipped';
+  attempts?: number;      // Attempt count
+  startedAt?: number;     // Start timestamp
+  completedAt?: number;   // End timestamp
+};
+```
+
+#### WizardTransitionEvent
+
+Event emitted during transitions:
+
+```typescript
+type WizardTransitionEvent<C, S, D, E> = {
+  type: 'next' | 'back' | 'goto' | 'reset';
+  from: S;
+  to: S;
+  context: Readonly<C>;
+  data: Readonly<Partial<D>>;
+  timestamp: number;
+  event?: E;
+};
+```
+
+#### WizardPersistence
+
+Persistence adapter interface:
+
+```typescript
+type WizardPersistence<C, S extends string, D extends Record<S, unknown>> = {
+  load(): Promise<WizardState<C, S, D> | null>;
+  save(state: WizardState<C, S, D>): Promise<void>;
+  clear(): Promise<void>;
+};
+```
+
+#### StepMeta
+
+Metadata for steps (internal use):
+
+```typescript
+type StepMeta = {
+  attempts?: number;
+  duration?: number;
+  errors?: unknown[];
+};
+```
+
+## @wizard/react API
+
+### Components
+
+#### WizardProvider
+
+Context provider for wizard instance:
+
+```typescript
+function WizardProvider<C, S extends string, D extends Record<S, unknown>, E = never>(
+  props: WizardProviderProps<C, S, D, E>
+): JSX.Element;
+
+type WizardProviderProps<C, S, D, E> = {
+  wizard: Wizard<C, S, D, E>;
+  children: React.ReactNode;
+};
+```
+
+**Usage:**
 ```tsx
-<WizardProvider wizard={wizardInstance}>
-  {children}
+<WizardProvider wizard={wizard}>
+  <App />
 </WizardProvider>
 ```
 
-### useWizard
+### Core Hooks
 
-Hook for accessing wizard state and methods.
+#### useWizard()
 
-```tsx
-const {
-  currentStep,
-  context,
-  stepData,
-  errors,
-  nextStep,
-  prevStep,
-  goToStep,
-  updateStepData,
-  getStepData,
-  updateContext,
-  canGoToNext,
-  canGoToPrev,
-  getNextSteps,
-  getPrevSteps
-} = useWizard<C, S, D>()
-```
-
-### useWizardContext
-
-Hook for accessing only the shared context.
-
-```tsx
-const context = useWizardContext<C>()
-```
-
-### useWizardHistory
-
-Hook for history navigation.
-
-```tsx
-const {
-  history,
-  undo,
-  redo,
-  canUndo,
-  canRedo
-} = useWizardHistory()
-```
-
-### useWizardErrors
-
-Hook for error management.
-
-```tsx
-const {
-  errors,
-  clearErrors,
-  clearStepErrors
-} = useWizardErrors<S>()
-```
-
-## Types
-
-### WizardConfig
+Access the complete wizard instance:
 
 ```typescript
-interface WizardConfig<C, S extends string, D> {
-  initialStep: S
-  initialContext: C
-  steps: Record<S, StepDefinition<C, S, D[S]>>
-  persistence?: PersistenceAdapter<WizardState<C, S, D>>
-}
+function useWizard<C, S extends string, D extends Record<S, unknown>, E = never>():
+  Wizard<C, S, D, E>;
 ```
 
-### StepDefinition
+**Returns:** Full wizard instance with all methods
+
+#### useWizardState()
+
+Subscribe to wizard state with selector:
 
 ```typescript
-interface StepDefinition<C, S extends string, D, E = never> {
-  next: S[]
-  prev?: S[]
-  validate?: (data: D) => void | Promise<void>
-  canEnter?: (context: C) => boolean | Promise<boolean>
-  canExit?: (context: C, data: D) => boolean | Promise<boolean>
-  onEnter?: (context: C) => C
-  onExit?: (context: C, data: D) => C
-  effects?: (context: C, data: D) => E | Promise<E>
-}
+function useWizardState<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  R = WizardState<C, S, D>
+>(
+  selector?: (state: WizardState<C, S, D>) => R
+): R;
 ```
 
-### WizardState
+**Parameters:**
+- `selector` - Optional selector function for optimization
+
+**Returns:** Selected state (reactive)
+
+#### useWizardStep()
+
+Get current step name:
 
 ```typescript
-interface WizardState<C, S extends string, D> {
-  currentStep: S
-  stepData: Partial<D>
-  context: C
-  history: HistoryEntry<S>[]
-  errors: Partial<Record<S, Error>>
-}
+function useWizardStep<C, S extends string, D extends Record<S, unknown>>(): S;
 ```
+
+**Returns:** Current step name
+
+#### useWizardSharedContext()
+
+Access shared context:
+
+```typescript
+function useWizardSharedContext<C>(): C;
+```
+
+**Returns:** Current context object
+
+### Data Hooks
+
+#### useStepData()
+
+Get data for specific step:
+
+```typescript
+function useStepData<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  K extends S
+>(step: K): D[K] | undefined;
+```
+
+**Parameters:**
+- `step` - Step name to get data for
+
+**Returns:** Step data or undefined
+
+#### useCurrentStepData()
+
+Get current step's data:
+
+```typescript
+function useCurrentStepData<
+  C,
+  S extends string,
+  D extends Record<S, unknown>
+>(): D[S] | undefined;
+```
+
+**Returns:** Current step data or undefined
+
+### State Hooks
+
+#### useWizardLoading()
+
+Check if any step is loading:
+
+```typescript
+function useWizardLoading(): boolean;
+```
+
+**Returns:** `true` if loading, `false` otherwise
+
+#### useWizardTransitioning()
+
+Check if transitioning between steps:
+
+```typescript
+function useWizardTransitioning(): boolean;
+```
+
+**Returns:** `true` if transitioning, `false` otherwise
+
+#### useWizardHistory()
+
+Get navigation history:
+
+```typescript
+function useWizardHistory<S extends string>(): S[];
+```
+
+**Returns:** Array of visited step names
+
+#### useWizardErrors()
+
+Access error state:
+
+```typescript
+function useWizardErrors<S extends string>():
+  Partial<Record<S, unknown>>;
+```
+
+**Returns:** Object mapping steps to errors
+
+### Action Hooks
+
+#### useWizardActions()
+
+Get common wizard actions:
+
+```typescript
+function useWizardActions<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(): {
+  next: () => Promise<S>;
+  back: () => Promise<S>;
+  goTo: (step: S) => Promise<void>;
+  reset: () => void;
+  canGoNext: boolean;
+  canGoBack: boolean;
+};
+```
+
+**Returns:** Object with navigation methods and checks
+
+### Router Integration Hooks
+
+#### useSyncWizardWithRouter()
+
+Generic router synchronization:
+
+```typescript
+function useSyncWizardWithRouter<S extends string>(
+  options: SyncWizardWithRouterOptions<S>
+): void;
+
+type SyncWizardWithRouterOptions<S extends string> = {
+  param: string;                                    // URL param name
+  toStep: (param: string) => S | null;             // Parse URL to step
+  toUrl: (step: S) => {                            // Generate URL
+    to: string;
+    search?: Record<string, string>;
+  };
+  navigate: (options: {                            // Router navigate
+    to: string;
+    search?: Record<string, string>;
+  }) => void;
+  getParam: () => string | undefined;              // Get current param
+};
+```
+
+#### useTanStackRouterSync()
+
+TanStack Router specific integration:
+
+```typescript
+function useTanStackRouterSync<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(
+  options: Omit<
+    SyncWizardWithRouterOptions<S>,
+    'navigate' | 'getParam'
+  > & {
+    useNavigate: () => (options: any) => void;
+    useParams: () => Record<string, string>;
+  }
+): void;
+```
+
+## Zod Integration (Optional)
+
+Additional validators for Zod schemas:
+
+```typescript
+import { createZodValidator, createContextualZodValidator, InferSchema } from '@wizard/core/zod';
+
+// Basic Zod validation
+const validator = createZodValidator(schema);
+
+// Context-aware validation
+const contextValidator = createContextualZodValidator(
+  (ctx) => z.object({
+    // Schema based on context
+  })
+);
+
+// Type inference helper
+type Data = InferSchema<typeof schema>;
+```
+
+<Callout type="info" title="Complete Coverage">
+This API reference documents **100% of exported functions and types** from both @wizard/core and @wizard/react packages. Every public API is included with types, parameters, and examples.
+</Callout>
+
+## Quick Reference Table
+
+### @wizard/core Exports
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `createWizard` | Function | Create wizard instance |
+| `createHelpers` | Function | Create helper utilities |
+| `selectors.*` | Namespace | Pure state selectors |
+| `Wizard` | Type | Wizard instance type |
+| `WizardConfig` | Type | Configuration type |
+| `WizardState` | Type | State structure type |
+| `WizardTransitionEvent` | Type | Transition event type |
+| `WizardPersistence` | Type | Persistence adapter |
+| `StepDefinition` | Type | Step config type |
+| `StepStatus` | Type | Status enum type |
+| `StepRuntime` | Type | Runtime info type |
+| `WizardHelpers` | Type | Helpers interface |
+| `StepMeta` | Type | Step metadata type |
+
+### @wizard/react Exports
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `WizardProvider` | Component | Context provider |
+| `WizardProviderProps` | Type | Provider props |
+| `useWizard` | Hook | Access wizard instance |
+| `useWizardState` | Hook | Subscribe to state |
+| `useWizardStep` | Hook | Get current step |
+| `useWizardSharedContext` | Hook | Access context |
+| `useStepData` | Hook | Get step data |
+| `useCurrentStepData` | Hook | Current step data |
+| `useWizardLoading` | Hook | Loading state |
+| `useWizardTransitioning` | Hook | Transition state |
+| `useWizardHistory` | Hook | Navigation history |
+| `useWizardErrors` | Hook | Error state |
+| `useWizardActions` | Hook | Action methods |
+| `useSyncWizardWithRouter` | Hook | Router sync |
+| `useTanStackRouterSync` | Hook | TanStack Router |
+| `SyncWizardWithRouterOptions` | Type | Router options |
