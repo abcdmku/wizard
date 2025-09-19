@@ -1,0 +1,569 @@
+# Zod Integration
+
+import { Callout, Tabs, Tab } from '../../components'
+
+WizardOpus provides first-class integration with [Zod](https://zod.dev), a TypeScript-first schema validation library. This integration enables type-safe validation with automatic type inference.
+
+<Callout type="info" title="Why Zod?">
+  Zod provides:
+  - **TypeScript inference** - Automatically infer types from schemas
+  - **Composable schemas** - Build complex validations from simple parts
+  - **Runtime safety** - Validate data at runtime with compile-time type safety
+  - **Great DX** - Excellent error messages and developer experience
+</Callout>
+
+## Installation
+
+First, install Zod as a peer dependency:
+
+<Tabs items={['npm', 'pnpm', 'yarn']}>
+  <Tab label="npm">
+    ```bash
+    npm install zod
+    ```
+  </Tab>
+  <Tab label="pnpm">
+    ```bash
+    pnpm add zod
+    ```
+  </Tab>
+  <Tab label="yarn">
+    ```bash
+    yarn add zod
+    ```
+  </Tab>
+</Tabs>
+
+## Basic Usage
+
+### Import Zod Validators
+
+```typescript
+import { createWizard, createZodValidator } from '@wizard/core';
+import { z } from 'zod';
+```
+
+### Simple Schema Validation
+
+```typescript
+// Define your schema
+const UserInfoSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Invalid email address'),
+  age: z.number().min(18, 'Must be 18 or older').max(120, 'Invalid age')
+});
+
+// Use in wizard
+const wizard = createWizard({
+  steps: {
+    userInfo: {
+      // Apply Zod validation
+      load: createZodValidator(UserInfoSchema),
+
+      // TypeScript knows the type!
+      next: ({ data }) => {
+        // data is typed as:
+        // { firstName: string, lastName: string, email: string, age: number }
+        console.log(data.email); // ✓ TypeScript knows this exists
+        return 'nextStep';
+      }
+    }
+  }
+});
+```
+
+## Advanced Zod Schemas
+
+### Nested Objects
+
+```typescript
+const AddressSchema = z.object({
+  street: z.string().min(1),
+  city: z.string().min(1),
+  state: z.string().length(2, 'State must be 2 characters'),
+  zipCode: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code'),
+  country: z.string().default('US')
+});
+
+const ShippingSchema = z.object({
+  fullName: z.string().min(1),
+  address: AddressSchema,
+  phoneNumber: z.string().regex(/^\+?[\d\s-()]+$/, 'Invalid phone number'),
+  deliveryInstructions: z.string().optional()
+});
+
+const wizard = createWizard({
+  steps: {
+    shipping: {
+      load: createZodValidator(ShippingSchema),
+      next: ({ data }) => {
+        // TypeScript knows the full nested structure
+        console.log(data.address.zipCode);
+        return 'payment';
+      }
+    }
+  }
+});
+```
+
+### Union Types and Discriminated Unions
+
+```typescript
+// Payment method with discriminated union
+const CreditCardSchema = z.object({
+  type: z.literal('credit_card'),
+  cardNumber: z.string().regex(/^\d{16}$/, 'Card number must be 16 digits'),
+  expiryMonth: z.number().min(1).max(12),
+  expiryYear: z.number().min(new Date().getFullYear()),
+  cvv: z.string().regex(/^\d{3,4}$/, 'CVV must be 3-4 digits')
+});
+
+const PayPalSchema = z.object({
+  type: z.literal('paypal'),
+  email: z.string().email('Invalid PayPal email')
+});
+
+const BankTransferSchema = z.object({
+  type: z.literal('bank_transfer'),
+  accountNumber: z.string().min(8),
+  routingNumber: z.string().length(9)
+});
+
+const PaymentMethodSchema = z.discriminatedUnion('type', [
+  CreditCardSchema,
+  PayPalSchema,
+  BankTransferSchema
+]);
+
+const wizard = createWizard({
+  steps: {
+    payment: {
+      load: createZodValidator(PaymentMethodSchema),
+      next: ({ data }) => {
+        // TypeScript narrows the type based on discriminator
+        switch (data.type) {
+          case 'credit_card':
+            console.log(data.cardNumber); // ✓ Available
+            break;
+          case 'paypal':
+            console.log(data.email); // ✓ Available
+            break;
+          case 'bank_transfer':
+            console.log(data.accountNumber); // ✓ Available
+            break;
+        }
+        return 'confirmation';
+      }
+    }
+  }
+});
+```
+
+### Arrays and Tuples
+
+```typescript
+const ItemSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  quantity: z.number().positive(),
+  price: z.number().positive()
+});
+
+const CartSchema = z.object({
+  items: z.array(ItemSchema).min(1, 'Cart cannot be empty'),
+  couponCode: z.string().optional(),
+  giftMessage: z.string().max(500).optional()
+});
+
+const wizard = createWizard({
+  steps: {
+    cart: {
+      load: createZodValidator(CartSchema),
+      next: ({ data }) => {
+        // Calculate total
+        const total = data.items.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        );
+        return total > 100 ? 'freeShipping' : 'standardShipping';
+      }
+    }
+  }
+});
+```
+
+## Context-Aware Validation
+
+Use `createContextualZodValidator` for validation that depends on wizard context:
+
+```typescript
+interface WizardContext {
+  country: string;
+  userType: 'individual' | 'business';
+  locale: string;
+}
+
+// Schema factory that uses context
+const createAddressSchema = (ctx: WizardContext) => {
+  if (ctx.country === 'US') {
+    return z.object({
+      street: z.string(),
+      city: z.string(),
+      state: z.string().length(2),
+      zipCode: z.string().regex(/^\d{5}(-\d{4})?$/)
+    });
+  } else if (ctx.country === 'UK') {
+    return z.object({
+      street: z.string(),
+      city: z.string(),
+      county: z.string().optional(),
+      postcode: z.string().regex(/^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$/i)
+    });
+  } else {
+    return z.object({
+      addressLine1: z.string(),
+      addressLine2: z.string().optional(),
+      city: z.string(),
+      region: z.string(),
+      postalCode: z.string()
+    });
+  }
+};
+
+const wizard = createWizard<WizardContext, Steps, Data>({
+  initialContext: {
+    country: 'US',
+    userType: 'individual',
+    locale: 'en-US'
+  },
+  steps: {
+    address: {
+      // Validation changes based on context
+      load: createContextualZodValidator(createAddressSchema),
+      next: 'payment'
+    }
+  }
+});
+
+// Later, when context changes
+await wizard.updateContext({ country: 'UK' });
+// Now the address validation uses UK schema!
+```
+
+### Dynamic Schema Refinements
+
+```typescript
+const createOrderSchema = (ctx: WizardContext) => {
+  const baseSchema = z.object({
+    items: z.array(z.object({
+      id: z.string(),
+      quantity: z.number().positive()
+    })),
+    shippingMethod: z.enum(['standard', 'express', 'overnight'])
+  });
+
+  // Add refinements based on context
+  if (ctx.userType === 'business') {
+    return baseSchema.extend({
+      purchaseOrderNumber: z.string().min(1, 'PO number required for business'),
+      taxExemptId: z.string().optional()
+    });
+  }
+
+  return baseSchema;
+};
+```
+
+## Type Inference
+
+### Extracting Types from Schemas
+
+```typescript
+import { InferSchema } from '@wizard/core';
+
+const UserSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+  preferences: z.object({
+    newsletter: z.boolean(),
+    notifications: z.boolean()
+  })
+});
+
+// Extract the type
+type UserData = z.infer<typeof UserSchema>;
+// or using the helper
+type UserData2 = InferSchema<typeof UserSchema>;
+
+// Use in step data types
+type StepData = {
+  userInfo: UserData;
+  shipping: z.infer<typeof ShippingSchema>;
+  payment: z.infer<typeof PaymentSchema>;
+};
+
+const wizard = createWizard<Context, Steps, StepData>({
+  steps: {
+    userInfo: {
+      load: createZodValidator(UserSchema),
+      // data is fully typed!
+    }
+  }
+});
+```
+
+## Complex Validation Patterns
+
+### Custom Refinements
+
+```typescript
+const PasswordSchema = z.object({
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain uppercase letter')
+    .regex(/[a-z]/, 'Password must contain lowercase letter')
+    .regex(/\d/, 'Password must contain number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain special character'),
+  confirmPassword: z.string()
+}).refine(
+  (data) => data.password === data.confirmPassword,
+  {
+    message: "Passwords don't match",
+    path: ["confirmPassword"] // Error will be on confirmPassword field
+  }
+);
+```
+
+### Async Refinements
+
+```typescript
+const UsernameSchema = z.object({
+  username: z.string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(20, 'Username must be at most 20 characters')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores')
+}).refine(
+  async (data) => {
+    // Check username availability with API
+    const response = await fetch(`/api/check-username/${data.username}`);
+    const { available } = await response.json();
+    return available;
+  },
+  {
+    message: 'Username is already taken',
+    path: ['username']
+  }
+);
+
+const wizard = createWizard({
+  steps: {
+    account: {
+      load: createZodValidator(UsernameSchema),
+      // Validation will be async due to refinement
+    }
+  }
+});
+```
+
+### Transform and Preprocess
+
+```typescript
+const DateRangeSchema = z.object({
+  // Parse string dates to Date objects
+  startDate: z.string().transform(str => new Date(str)),
+  endDate: z.string().transform(str => new Date(str))
+}).refine(
+  (data) => data.endDate > data.startDate,
+  {
+    message: 'End date must be after start date',
+    path: ['endDate']
+  }
+);
+
+const PhoneSchema = z.object({
+  // Normalize phone number format
+  phone: z.string()
+    .transform(val => val.replace(/\D/g, '')) // Remove non-digits
+    .refine(val => val.length === 10, 'Phone number must be 10 digits')
+    .transform(val => `(${val.slice(0,3)}) ${val.slice(3,6)}-${val.slice(6)}`)
+});
+```
+
+## Error Handling
+
+### Handling Zod Errors
+
+```typescript
+import { ZodError } from 'zod';
+
+try {
+  await wizard.updateStepData('userInfo', formData);
+} catch (error) {
+  if (error instanceof ZodError) {
+    // Zod validation failed
+    const fieldErrors = error.errors.reduce((acc, err) => {
+      const field = err.path.join('.');
+      acc[field] = err.message;
+      return acc;
+    }, {} as Record<string, string>);
+
+    console.log('Validation errors:', fieldErrors);
+    // { "email": "Invalid email address", "age": "Must be 18 or older" }
+  }
+}
+```
+
+### Custom Error Messages
+
+```typescript
+const CustomMessageSchema = z.object({
+  email: z.string().email({
+    message: 'Please enter a valid email address (e.g., user@example.com)'
+  }),
+  age: z.number({
+    required_error: 'Age is required',
+    invalid_type_error: 'Age must be a number'
+  }).min(18, {
+    message: 'You must be at least 18 years old to continue'
+  })
+});
+```
+
+## React Integration
+
+### Form Validation Hook
+
+```typescript
+function useZodForm<T extends z.ZodSchema>(
+  schema: T,
+  onSuccess: (data: z.infer<T>) => void
+) {
+  const [values, setValues] = useState<Partial<z.infer<T>>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    try {
+      const validated = schema.parse(values);
+      setErrors({});
+      onSuccess(validated);
+      return true;
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const fieldErrors = error.errors.reduce((acc, err) => {
+          const field = err.path.join('.');
+          acc[field] = err.message;
+          return acc;
+        }, {} as Record<string, string>);
+        setErrors(fieldErrors);
+      }
+      return false;
+    }
+  };
+
+  const setValue = (field: string, value: any) => {
+    setValues(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    // Clear error for this field
+    setErrors(prev => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  return {
+    values,
+    errors,
+    setValue,
+    validate
+  };
+}
+
+// Usage
+function UserForm() {
+  const wizard = useWizard();
+  const { values, errors, setValue, validate } = useZodForm(
+    UserInfoSchema,
+    (data) => wizard.updateStepData('userInfo', data)
+  );
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); validate(); }}>
+      <input
+        value={values.email || ''}
+        onChange={(e) => setValue('email', e.target.value)}
+        className={errors.email ? 'error' : ''}
+      />
+      {errors.email && <span>{errors.email}</span>}
+
+      <button type="submit">Next</button>
+    </form>
+  );
+}
+```
+
+## Performance Tips
+
+<Callout type="info" title="Zod Performance">
+1. **Parse once** - Don't re-parse the same data multiple times
+2. **Use `.passthrough()`** - If you don't need strict object validation
+3. **Avoid deep nesting** - Flatten schemas when possible
+4. **Cache schemas** - Don't recreate schemas on every render
+5. **Use `.partial()`** - For progressive form validation
+</Callout>
+
+## Common Patterns
+
+### Optional Fields with Defaults
+
+```typescript
+const ProfileSchema = z.object({
+  name: z.string(),
+  bio: z.string().optional().default(''),
+  age: z.number().optional(),
+  preferences: z.object({
+    theme: z.enum(['light', 'dark']).default('light'),
+    language: z.string().default('en')
+  }).default({})
+});
+```
+
+### Conditional Required Fields
+
+```typescript
+const ConditionalSchema = z.object({
+  hasShipping: z.boolean(),
+  shippingAddress: z.string().optional()
+}).refine(
+  (data) => {
+    if (data.hasShipping) {
+      return !!data.shippingAddress;
+    }
+    return true;
+  },
+  {
+    message: 'Shipping address is required when shipping is enabled',
+    path: ['shippingAddress']
+  }
+);
+```
+
+## Best Practices
+
+<Callout type="success" title="Zod Best Practices">
+1. **Define schemas once** - Reuse schemas across your app
+2. **Use type inference** - Let TypeScript infer types from schemas
+3. **Compose schemas** - Build complex schemas from simple ones
+4. **Handle errors gracefully** - Provide user-friendly error messages
+5. **Validate at the edge** - Parse untrusted data as early as possible
+6. **Keep schemas close to usage** - Co-locate schemas with components
+</Callout>
+
+## Next Steps
+
+- Learn about [Custom Validators](/validation/custom-validators) for non-Zod validation
+- Explore [Error Handling](/advanced/error-handling) patterns
+- See [Examples](/examples) for complete implementations

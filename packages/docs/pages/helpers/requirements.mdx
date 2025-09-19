@@ -1,0 +1,534 @@
+# Requirements Helpers
+
+import { Callout, Tabs, Tab } from '../../components'
+
+Requirements helpers manage step dependencies, prerequisites, and validation to ensure proper wizard flow.
+
+## Overview
+
+Requirements helpers enable you to:
+- Check if step prerequisites are met
+- Validate step completion status
+- Manage complex dependency graphs
+- Detect circular dependencies
+- Enforce step order and requirements
+
+## Core Requirements Methods
+
+### Checking Prerequisites
+
+```typescript
+const helpers = createHelpers(wizard);
+
+// Check if a step's prerequisites are met
+const canAccessPayment = helpers.isReachable('payment');
+if (!canAccessPayment) {
+  console.log('Complete previous steps first');
+}
+
+// Get prerequisites for a specific step
+const paymentPrereqs = helpers.prerequisitesFor('payment');
+console.log('Required before payment:', paymentPrereqs);
+// Output: ['userInfo', 'shipping']
+
+// Get steps that depend on current step
+const dependents = helpers.successorsOf('shipping');
+console.log('Steps after shipping:', dependents);
+// Output: ['payment', 'giftWrap']
+```
+
+### Completion Validation
+
+```typescript
+// Check if specific step is complete
+const isUserInfoComplete = helpers.stepStatus('userInfo') === 'completed';
+
+// Get all completed steps
+const completed = helpers.completedSteps();
+console.log('Completed:', completed);
+
+// Check if step is required or optional
+const isPaymentRequired = helpers.isRequired('payment');
+const isGiftWrapOptional = helpers.isOptional('giftWrap');
+
+console.log(`Payment required: ${isPaymentRequired}`);
+console.log(`Gift wrap optional: ${isGiftWrapOptional}`);
+```
+
+## Prerequisite Configuration
+
+### Simple Prerequisites
+
+```typescript
+const wizard = createWizard({
+  prerequisites: {
+    // shipping requires userInfo
+    shipping: ['userInfo'],
+    // payment requires both userInfo and shipping
+    payment: ['userInfo', 'shipping'],
+    // confirmation requires payment
+    confirmation: ['payment']
+  },
+  steps: {
+    userInfo: {},
+    shipping: {},
+    payment: {},
+    confirmation: {}
+  }
+});
+```
+
+### Complex DAG (Directed Acyclic Graph)
+
+```typescript
+const wizard = createWizard({
+  prerequisites: {
+    // Multiple paths to reach a step
+    review: ['productSelection', 'userProfile'],
+
+    // Branching prerequisites
+    premiumCheckout: ['subscription', 'payment'],
+    standardCheckout: ['payment'],
+
+    // Deep dependency chains
+    finalApproval: ['review'],
+    review: ['qualityCheck'],
+    qualityCheck: ['initialSubmission']
+  },
+  steps: {
+    // Step definitions...
+  }
+});
+
+const helpers = createHelpers(wizard);
+
+// Check complex prerequisite chains
+if (!helpers.isReachable('finalApproval')) {
+  // Find what's blocking
+  const chain = ['initialSubmission', 'qualityCheck', 'review'];
+  const incomplete = chain.filter(
+    step => helpers.stepStatus(step) !== 'completed'
+  );
+  console.log('Complete these steps:', incomplete);
+}
+```
+
+### Dynamic Prerequisites
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    userType: {},
+
+    // Business-specific steps
+    businessInfo: {
+      // Only required for business users
+      canEnter: ({ data }) => data.userType?.type === 'business'
+    },
+    taxId: {
+      canEnter: ({ data }) => data.userType?.type === 'business'
+    },
+
+    // Individual-specific steps
+    personalId: {
+      canEnter: ({ data }) => data.userType?.type === 'individual'
+    },
+
+    // Common final step
+    confirmation: {}
+  },
+
+  // Dynamic prerequisites based on user type
+  prerequisites: {
+    confirmation: ['userType'], // Base requirement
+
+    // Additional requirements added dynamically
+    // (handled in step logic)
+  }
+});
+
+// Helper to check dynamic requirements
+function getDynamicPrerequisites(userType: string): string[] {
+  const base = ['userType'];
+
+  if (userType === 'business') {
+    return [...base, 'businessInfo', 'taxId'];
+  } else if (userType === 'individual') {
+    return [...base, 'personalId'];
+  }
+
+  return base;
+}
+```
+
+## Advanced Patterns
+
+### Circular Dependency Detection
+
+```typescript
+// The wizard will detect and prevent circular dependencies
+const wizard = createWizard({
+  prerequisites: {
+    stepA: ['stepB'], // stepA requires stepB
+    stepB: ['stepC'], // stepB requires stepC
+    stepC: ['stepA'], // stepC requires stepA - CIRCULAR!
+  },
+  steps: {
+    stepA: {},
+    stepB: {},
+    stepC: {}
+  }
+});
+// This will throw an error during creation
+
+// Helper function to validate prerequisites
+function validatePrerequisites(prereqs: Record<string, string[]>) {
+  const visited = new Set<string>();
+  const recursionStack = new Set<string>();
+
+  function hasCycle(step: string): boolean {
+    visited.add(step);
+    recursionStack.add(step);
+
+    const dependencies = prereqs[step] || [];
+    for (const dep of dependencies) {
+      if (!visited.has(dep)) {
+        if (hasCycle(dep)) return true;
+      } else if (recursionStack.has(dep)) {
+        return true; // Circular dependency detected
+      }
+    }
+
+    recursionStack.delete(step);
+    return false;
+  }
+
+  for (const step in prereqs) {
+    if (!visited.has(step)) {
+      if (hasCycle(step)) {
+        throw new Error(`Circular dependency detected involving ${step}`);
+      }
+    }
+  }
+}
+```
+
+### Multi-Path Requirements
+
+```typescript
+interface StepRequirements {
+  allOf?: string[];  // All must be complete
+  oneOf?: string[];  // At least one must be complete
+  noneOf?: string[]; // None can be complete (mutual exclusion)
+}
+
+class AdvancedRequirements {
+  constructor(
+    private helpers: WizardHelpers<C, S, D>,
+    private requirements: Record<string, StepRequirements>
+  ) {}
+
+  checkRequirements(step: string): boolean {
+    const req = this.requirements[step];
+    if (!req) return true;
+
+    // Check allOf requirements
+    if (req.allOf) {
+      const allMet = req.allOf.every(
+        s => this.helpers.stepStatus(s) === 'completed'
+      );
+      if (!allMet) return false;
+    }
+
+    // Check oneOf requirements
+    if (req.oneOf) {
+      const oneMet = req.oneOf.some(
+        s => this.helpers.stepStatus(s) === 'completed'
+      );
+      if (!oneMet) return false;
+    }
+
+    // Check noneOf requirements
+    if (req.noneOf) {
+      const noneMet = req.noneOf.every(
+        s => this.helpers.stepStatus(s) !== 'completed'
+      );
+      if (!noneMet) return false;
+    }
+
+    return true;
+  }
+
+  getMissingRequirements(step: string): string[] {
+    const req = this.requirements[step];
+    if (!req) return [];
+
+    const missing: string[] = [];
+
+    if (req.allOf) {
+      missing.push(
+        ...req.allOf.filter(
+          s => this.helpers.stepStatus(s) !== 'completed'
+        )
+      );
+    }
+
+    if (req.oneOf && !req.oneOf.some(
+      s => this.helpers.stepStatus(s) === 'completed'
+    )) {
+      missing.push(`One of: ${req.oneOf.join(', ')}`);
+    }
+
+    return missing;
+  }
+}
+```
+
+### Conditional Requirements
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    age: {},
+    parentalConsent: {
+      // Only required if under 18
+      canEnter: ({ data }) => {
+        const age = data.age?.value;
+        return age < 18;
+      }
+    },
+    terms: {}
+  }
+});
+
+// Dynamic requirement checking
+function getRequirementsForUser(age: number): string[] {
+  const requirements = ['age', 'terms'];
+
+  if (age < 18) {
+    requirements.splice(1, 0, 'parentalConsent'); // Insert after age
+  }
+
+  return requirements;
+}
+
+// Validate all requirements are met
+function validateUserRequirements(helpers: WizardHelpers, age: number) {
+  const required = getRequirementsForUser(age);
+  const completed = helpers.completedSteps();
+
+  const missing = required.filter(step => !completed.includes(step));
+
+  if (missing.length > 0) {
+    throw new Error(`Missing requirements: ${missing.join(', ')}`);
+  }
+}
+```
+
+## Validation Patterns
+
+### Custom Validation Logic
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    userInfo: {
+      isStepComplete: ({ data }) => {
+        // Custom completion logic
+        const info = data.userInfo;
+        return !!(
+          info?.name &&
+          info?.email &&
+          info?.phone &&
+          info?.email.includes('@')
+        );
+      }
+    },
+    shipping: {
+      isStepComplete: ({ data }) => {
+        const addr = data.shipping;
+        return !!(
+          addr?.street &&
+          addr?.city &&
+          addr?.postalCode &&
+          addr?.country
+        );
+      }
+    }
+  }
+});
+
+const helpers = createHelpers(wizard);
+
+// Check custom completion
+const userInfoComplete = helpers.stepStatus('userInfo') === 'completed';
+if (!userInfoComplete) {
+  console.log('Please complete all required fields in user info');
+}
+```
+
+### Async Validation
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    email: {
+      isStepComplete: async ({ data }) => {
+        if (!data.email?.value) return false;
+
+        // Async validation
+        try {
+          const isValid = await validateEmailWithService(data.email.value);
+          return isValid;
+        } catch {
+          return false;
+        }
+      }
+    }
+  }
+});
+
+// Check async validation result
+async function checkEmailValidation() {
+  const helpers = createHelpers(wizard);
+
+  // This will trigger async validation
+  await helpers.refreshAvailability();
+
+  const emailStatus = helpers.stepStatus('email');
+  return emailStatus === 'completed';
+}
+```
+
+## UI Components
+
+### Requirements Checklist
+
+```tsx
+function RequirementsChecklist({ targetStep }: { targetStep: string }) {
+  const helpers = createHelpers(wizard);
+  const prerequisites = helpers.prerequisitesFor(targetStep);
+
+  return (
+    <div className="requirements-checklist">
+      <h3>Requirements for {targetStep}:</h3>
+      <ul>
+        {prerequisites.map(step => {
+          const isComplete = helpers.stepStatus(step) === 'completed';
+          return (
+            <li key={step} className={isComplete ? 'complete' : 'pending'}>
+              <span className="checkbox">
+                {isComplete ? '✓' : '○'}
+              </span>
+              <span className="step-name">{step}</span>
+              {!isComplete && (
+                <button onClick={() => wizard.goTo(step)}>
+                  Complete Now
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {prerequisites.every(
+        step => helpers.stepStatus(step) === 'completed'
+      ) && (
+        <button
+          className="proceed-button"
+          onClick={() => wizard.goTo(targetStep)}
+        >
+          Proceed to {targetStep}
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+### Dependency Graph Visualizer
+
+```tsx
+function DependencyGraph() {
+  const helpers = createHelpers(wizard);
+  const allSteps = helpers.allSteps();
+
+  const nodes = allSteps.map(step => ({
+    id: step,
+    label: step,
+    status: helpers.stepStatus(step),
+    isRequired: helpers.isRequired(step)
+  }));
+
+  const edges = allSteps.flatMap(step => {
+    const prereqs = helpers.prerequisitesFor(step);
+    return prereqs.map(prereq => ({
+      from: prereq,
+      to: step
+    }));
+  });
+
+  return (
+    <div className="dependency-graph">
+      {/* Render using a graph library like vis.js or d3 */}
+      <svg>
+        {/* Nodes */}
+        {nodes.map(node => (
+          <g key={node.id}>
+            <circle
+              cx={getX(node.id)}
+              cy={getY(node.id)}
+              r="30"
+              className={`node-${node.status}`}
+              fill={node.isRequired ? '#3b82f6' : '#9ca3af'}
+            />
+            <text x={getX(node.id)} y={getY(node.id)}>
+              {node.label}
+            </text>
+          </g>
+        ))}
+
+        {/* Edges */}
+        {edges.map((edge, i) => (
+          <line
+            key={i}
+            x1={getX(edge.from)}
+            y1={getY(edge.from)}
+            x2={getX(edge.to)}
+            y2={getY(edge.to)}
+            stroke="#cbd5e1"
+            strokeWidth="2"
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
+```
+
+## Best Practices
+
+<Callout type="success" title="Best Practices">
+1. **Keep prerequisites simple** - Avoid deep nesting when possible
+2. **Document requirements** - Make dependencies clear to users
+3. **Validate early** - Check requirements before navigation attempts
+4. **Handle edge cases** - Account for optional steps and branching
+5. **Test thoroughly** - Ensure all paths through prerequisites work
+6. **Avoid circular dependencies** - Use validation to detect cycles
+7. **Cache validation results** - Don't re-validate unnecessarily
+</Callout>
+
+## Common Pitfalls
+
+<Callout type="warning" title="Common Issues">
+1. **Circular dependencies** - Always validate prerequisite graphs
+2. **Overly complex requirements** - Keep dependency chains manageable
+3. **Missing edge cases** - Test optional and conditional requirements
+4. **Performance issues** - Cache validation results when possible
+5. **Unclear error messages** - Provide specific feedback about missing requirements
+</Callout>
+
+## Next Steps
+
+- Explore [Diagnostics Helpers](/helpers/diagnostics) for performance tracking
+- Learn about [Navigation Helpers](/helpers/navigation) for flow control
+- Master [Progress Helpers](/helpers/progress) for completion tracking

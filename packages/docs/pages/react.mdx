@@ -1,14 +1,28 @@
 # React Integration
 
-import { Callout } from '../components'
+import { Callout, Tabs, Tab } from '../components'
 
-Complete guide for using Wizard with React applications.
+Complete guide for using WizardOpus with React applications, including hooks, context providers, and router integration.
 
 ## Installation
 
-```bash
-npm install @wizard/react
-```
+<Tabs items={['npm', 'pnpm', 'yarn']}>
+  <Tab label="npm">
+    ```bash
+    npm install @wizard/react @wizard/core
+    ```
+  </Tab>
+  <Tab label="pnpm">
+    ```bash
+    pnpm add @wizard/react @wizard/core
+    ```
+  </Tab>
+  <Tab label="yarn">
+    ```bash
+    yarn add @wizard/react @wizard/core
+    ```
+  </Tab>
+</Tabs>
 
 ## Basic Setup
 
@@ -16,64 +30,410 @@ npm install @wizard/react
 import { WizardProvider, useWizard } from '@wizard/react';
 import { createWizard } from '@wizard/core';
 
+// Create your wizard instance
 const wizard = createWizard({
-  // Your wizard configuration
+  steps: {
+    welcome: { next: 'details' },
+    details: { next: 'confirm' },
+    confirm: {}
+  }
 });
 
+// Wrap your app with WizardProvider
 function App() {
   return (
     <WizardProvider wizard={wizard}>
-      <YourWizard />
+      <YourWizardComponent />
+    </WizardProvider>
+  );
+}
+
+// Use hooks in your components
+function YourWizardComponent() {
+  const wizard = useWizard();
+  const currentStep = useWizardStep();
+
+  return (
+    <div>
+      <h1>Step: {currentStep}</h1>
+      <button onClick={() => wizard.next()}>Next</button>
+    </div>
+  );
+}
+```
+
+## React Hooks API
+
+### Core Hooks
+
+#### useWizard()
+
+Access the wizard instance directly:
+
+```tsx
+const wizard = useWizard<Context, Steps, Data, Events>();
+
+// Available methods:
+wizard.next()              // Go to next step
+wizard.back()              // Go to previous step
+wizard.goTo(step)          // Navigate to specific step
+wizard.reset()             // Reset wizard to initial state
+wizard.updateStepData(step, data)  // Update step data
+wizard.updateContext(ctx)  // Update shared context
+wizard.getCurrentStep()    // Get current step name
+wizard.getStepData(step)   // Get data for a step
+wizard.subscribe(callback) // Subscribe to state changes
+```
+
+#### useWizardState()
+
+Subscribe to wizard state with a selector for optimized re-renders:
+
+```tsx
+// Subscribe to specific part of state
+const currentStep = useWizardState(state => state.step);
+const allData = useWizardState(state => state.data);
+const errors = useWizardState(state => state.errors);
+
+// Subscribe to multiple values
+const { step, context } = useWizardState(state => ({
+  step: state.step,
+  context: state.context
+}));
+```
+
+#### useWizardStep()
+
+Get the current step name:
+
+```tsx
+const currentStep = useWizardStep();
+// Returns: 'welcome' | 'details' | 'confirm'
+```
+
+### Data Management Hooks
+
+#### useStepData()
+
+Get data for a specific step:
+
+```tsx
+// Get data for specific step
+const userInfo = useStepData('userInfo');
+
+// With TypeScript type
+interface UserData {
+  name: string;
+  email: string;
+}
+const userInfo = useStepData<UserData>('userInfo');
+```
+
+#### useCurrentStepData()
+
+Get data for the current step:
+
+```tsx
+const currentData = useCurrentStepData();
+
+// Update current step data
+const wizard = useWizard();
+const updateCurrentData = (data: any) => {
+  const currentStep = wizard.getCurrentStep();
+  wizard.updateStepData(currentStep, data);
+};
+```
+
+#### useWizardSharedContext()
+
+Access and update shared context:
+
+```tsx
+const context = useWizardSharedContext();
+
+// With TypeScript
+interface WizardContext {
+  user: { id: string; role: string };
+  settings: { theme: string };
+}
+const context = useWizardSharedContext<WizardContext>();
+```
+
+### State Hooks
+
+#### useWizardLoading()
+
+Check if any step is loading:
+
+```tsx
+const isLoading = useWizardLoading();
+
+if (isLoading) {
+  return <LoadingSpinner />;
+}
+```
+
+#### useWizardTransitioning()
+
+Check if wizard is transitioning between steps:
+
+```tsx
+const isTransitioning = useWizardTransitioning();
+
+return (
+  <div className={isTransitioning ? 'transitioning' : ''}>
+    {/* Your content */}
+  </div>
+);
+```
+
+#### useWizardHistory()
+
+Access navigation history:
+
+```tsx
+const history = useWizardHistory();
+// Returns: ['welcome', 'details', 'welcome', 'details', 'confirm']
+
+// Use for breadcrumbs or navigation tracking
+const visitedSteps = [...new Set(history)];
+```
+
+#### useWizardErrors()
+
+Access error state:
+
+```tsx
+const errors = useWizardErrors();
+
+// Check for errors on specific step
+const userInfoErrors = errors?.userInfo;
+
+if (userInfoErrors) {
+  console.error('User info step has errors:', userInfoErrors);
+}
+```
+
+### Action Hooks
+
+#### useWizardActions()
+
+Get common wizard actions:
+
+```tsx
+const { next, back, goTo, reset, canGoNext, canGoBack } = useWizardActions();
+
+return (
+  <div>
+    <button onClick={back} disabled={!canGoBack}>
+      Previous
+    </button>
+    <button onClick={next} disabled={!canGoNext}>
+      Next
+    </button>
+    <button onClick={reset}>Start Over</button>
+  </div>
+);
+```
+
+## Router Integration
+
+### Generic Router Sync
+
+Use `useSyncWizardWithRouter` for any router:
+
+```tsx
+import { useSyncWizardWithRouter } from '@wizard/react';
+
+function WizardWithRouter() {
+  // Example with React Router v6
+  const navigate = useNavigate();
+  const { step } = useParams();
+
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (param) => {
+      // Convert URL param to step
+      const stepMap = {
+        'user-info': 'userInfo',
+        'shipping': 'shipping',
+        'payment': 'payment'
+      };
+      return stepMap[param] || null;
+    },
+    toUrl: (step) => {
+      // Convert step to URL
+      const urlMap = {
+        userInfo: 'user-info',
+        shipping: 'shipping',
+        payment: 'payment'
+      };
+      return {
+        to: `/wizard/${urlMap[step]}`,
+        search: {} // Optional query params
+      };
+    },
+    navigate: ({ to, search }) => {
+      // Your router's navigation function
+      navigate(to, { state: search });
+    },
+    getParam: () => step // Get current param from router
+  });
+
+  return <YourWizardUI />;
+}
+```
+
+### TanStack Router Integration
+
+```tsx
+import { useTanStackRouterSync } from '@wizard/react';
+import { useNavigate, useParams } from '@tanstack/react-router';
+
+function WizardWithTanStackRouter() {
+  const navigate = useNavigate();
+  const params = useParams();
+
+  useTanStackRouterSync({
+    param: 'step',
+    toStep: (param) => {
+      // Your step mapping logic
+      return param as Steps;
+    },
+    toUrl: (step) => ({
+      to: '/wizard/$step',
+      search: { step }
+    }),
+    useNavigate: () => navigate,
+    useParams: () => params
+  });
+
+  return <YourWizardUI />;
+}
+```
+
+## Complete Example
+
+```tsx
+import React from 'react';
+import { WizardProvider, useWizard, useWizardStep, useWizardActions } from '@wizard/react';
+import { createWizard, createHelpers } from '@wizard/core';
+
+// Define your wizard
+const checkoutWizard = createWizard({
+  steps: {
+    cart: { next: 'shipping' },
+    shipping: { next: 'payment' },
+    payment: { next: 'review' },
+    review: { next: 'confirmation' },
+    confirmation: {}
+  }
+});
+
+// Step components
+function CartStep() {
+  const { next } = useWizardActions();
+  const data = useCurrentStepData();
+
+  return (
+    <div>
+      <h2>Shopping Cart</h2>
+      {/* Cart content */}
+      <button onClick={next}>Continue to Shipping</button>
+    </div>
+  );
+}
+
+function WizardProgress() {
+  const currentStep = useWizardStep();
+  const helpers = createHelpers(checkoutWizard);
+  const progress = helpers.progress();
+
+  return (
+    <div>
+      <div>Current: {currentStep}</div>
+      <div>Progress: {progress}%</div>
+      <div className="progress-bar">
+        <div style={{ width: `${progress}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// Main wizard component
+function CheckoutWizard() {
+  const currentStep = useWizardStep();
+
+  const stepComponents = {
+    cart: <CartStep />,
+    shipping: <ShippingStep />,
+    payment: <PaymentStep />,
+    review: <ReviewStep />,
+    confirmation: <ConfirmationStep />
+  };
+
+  return (
+    <div>
+      <WizardProgress />
+      {stepComponents[currentStep]}
+    </div>
+  );
+}
+
+// App
+export default function App() {
+  return (
+    <WizardProvider wizard={checkoutWizard}>
+      <CheckoutWizard />
     </WizardProvider>
   );
 }
 ```
 
-## Hooks
+## TypeScript Support
 
-### useWizard
-
-Access wizard state and methods:
+All hooks are fully type-safe with automatic inference:
 
 ```tsx
-const {
-  currentStep,
-  context,
-  nextStep,
-  prevStep,
-  goToStep,
-  updateStepData,
-  getStepData,
-  updateContext,
-  canGoToNext,
-  canGoToPrev
-} = useWizard();
-```
+interface Context {
+  user: { id: string; name: string };
+}
 
-### useWizardContext
+type Steps = 'info' | 'details' | 'confirm';
 
-Access only the shared context:
+interface Data {
+  info: { email: string };
+  details: { address: string };
+  confirm: { agreed: boolean };
+}
 
-```tsx
-const context = useWizardContext();
-```
+const wizard = createWizard<Context, Steps, Data>({
+  // Configuration with full type safety
+});
 
-### useWizardHistory
-
-Access navigation history:
-
-```tsx
-const { history, undo, redo, canUndo, canRedo } = useWizardHistory();
-```
-
-### useWizardErrors
-
-Access validation errors:
-
-```tsx
-const { errors, clearErrors, clearStepErrors } = useWizardErrors();
+function Component() {
+  // All hooks have proper types
+  const wizard = useWizard<Context, Steps, Data>();
+  const step = useWizardStep(); // Type: Steps
+  const infoData = useStepData('info'); // Type: { email: string }
+  const context = useWizardSharedContext(); // Type: Context
+}
 ```
 
 <Callout type="info" title="Type Safety">
-  All hooks are fully type-safe and will infer types from your wizard configuration.
+  All hooks automatically infer types from your wizard configuration, providing excellent IDE support and compile-time safety.
 </Callout>
+
+## Best Practices
+
+1. **Create wizard outside components** - Define wizard instances at module level
+2. **Use selectors in useWizardState** - Only subscribe to needed state slices
+3. **Memoize callbacks** - Use useCallback for event handlers
+4. **Handle loading states** - Show appropriate UI during transitions
+5. **Validate before navigation** - Check data before allowing step changes
+
+## Next Steps
+
+- Explore [Helpers API](/helpers) for advanced navigation
+- Learn about [Validation](/validation) with React forms
+- See [Examples](/examples) for complete implementations

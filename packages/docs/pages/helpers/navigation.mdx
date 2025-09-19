@@ -1,0 +1,423 @@
+# Navigation Helpers
+
+import { Callout, Tabs, Tab } from '../../components'
+
+Navigation helpers provide methods to check navigation availability, find available steps, and control wizard flow intelligently.
+
+## Overview
+
+Navigation helpers allow you to:
+- Check if navigation actions are possible before attempting them
+- Find available steps in any direction
+- Jump to specific types of steps (required, optional)
+- Handle complex navigation patterns safely
+
+## Core Navigation Methods
+
+### Checking Navigation Availability
+
+```typescript
+const helpers = createHelpers(wizard);
+
+// Check if can go to next step
+const canProceed = helpers.canGoNext();
+// Returns: true if there's a valid next step
+
+// Check if can go back
+const canGoBack = helpers.canGoBack();
+// Returns: true if there's a valid previous step
+
+// Check if can navigate to specific step
+const canNavigate = helpers.canGoTo('payment');
+// Returns: true if step is reachable and available
+```
+
+### Finding Available Steps
+
+```typescript
+// Find next available step from current position
+const nextStep = helpers.findNextAvailable();
+// Returns: 'shipping' | null
+
+// Find next available from specific step
+const nextFromPayment = helpers.findNextAvailable('payment');
+// Returns: 'confirmation' | null
+
+// Find previous available step
+const prevStep = helpers.findPrevAvailable();
+// Returns: 'userInfo' | null
+
+// Find previous from specific step
+const prevFromShipping = helpers.findPrevAvailable('shipping');
+// Returns: 'userInfo' | null
+```
+
+### Jump to Required Steps
+
+```typescript
+// Jump directly to the next required step, skipping optional ones
+const jumpedTo = await helpers.jumpToNextRequired();
+// Returns: 'payment' | null (null if no required steps remain)
+
+if (jumpedTo) {
+  console.log(`Skipped optional steps, now at: ${jumpedTo}`);
+}
+```
+
+## Advanced Navigation Patterns
+
+### Conditional Navigation
+
+```typescript
+async function smartNext() {
+  const helpers = createHelpers(wizard);
+
+  // Check if we can proceed
+  if (!helpers.canGoNext()) {
+    // Find out why we can't proceed
+    const current = wizard.getCurrentStep();
+    const status = helpers.stepStatus(current);
+
+    if (status === 'error') {
+      console.log('Fix errors before proceeding');
+      return;
+    }
+
+    if (status === 'loading') {
+      console.log('Wait for current operation to complete');
+      return;
+    }
+
+    console.log('No more steps available');
+    return;
+  }
+
+  // Find next step
+  const nextStep = helpers.findNextAvailable();
+  if (nextStep) {
+    await wizard.goTo(nextStep);
+  }
+}
+```
+
+### Skip Optional Steps Pattern
+
+```typescript
+async function skipToRequired() {
+  const helpers = createHelpers(wizard);
+  const currentStep = wizard.getCurrentStep();
+
+  // Check if current step is optional
+  if (helpers.isOptional(currentStep)) {
+    // User can skip this step
+    const nextRequired = await helpers.jumpToNextRequired();
+
+    if (nextRequired) {
+      console.log(`Skipped to required step: ${nextRequired}`);
+    } else {
+      console.log('No more required steps');
+      // Maybe complete the wizard
+    }
+  }
+}
+```
+
+### Intelligent Back Navigation
+
+```typescript
+async function smartBack() {
+  const helpers = createHelpers(wizard);
+
+  if (!helpers.canGoBack()) {
+    console.log('Already at first step');
+    return;
+  }
+
+  // Find previous available step
+  const prevStep = helpers.findPrevAvailable();
+
+  if (!prevStep) {
+    console.log('No previous step available');
+    return;
+  }
+
+  // Check if previous step is completed
+  const prevStatus = helpers.stepStatus(prevStep);
+
+  if (prevStatus === 'completed') {
+    // Safe to go back
+    await wizard.goTo(prevStep);
+  } else if (prevStatus === 'skipped') {
+    // Was skipped, find the one before it
+    const beforeSkipped = helpers.findPrevAvailable(prevStep);
+    if (beforeSkipped) {
+      await wizard.goTo(beforeSkipped);
+    }
+  }
+}
+```
+
+## Navigation with Prerequisites
+
+### Checking Step Reachability
+
+```typescript
+const helpers = createHelpers(wizard);
+
+// Check if prerequisites are met
+const canReachPayment = helpers.isReachable('payment');
+
+if (!canReachPayment) {
+  // Find what's blocking
+  const prerequisites = helpers.prerequisitesFor('payment');
+  const incomplete = prerequisites.filter(
+    step => helpers.stepStatus(step) !== 'completed'
+  );
+
+  console.log('Complete these first:', incomplete);
+}
+```
+
+### Dynamic Navigation Flow
+
+```typescript
+async function navigateToStep(targetStep: string) {
+  const helpers = createHelpers(wizard);
+
+  // Check direct navigation
+  if (helpers.canGoTo(targetStep)) {
+    await wizard.goTo(targetStep);
+    return;
+  }
+
+  // Check if reachable but not available
+  if (helpers.isReachable(targetStep)) {
+    console.log('Step is reachable but not currently available');
+
+    // Maybe refresh availability
+    await helpers.refreshAvailability();
+
+    // Try again
+    if (helpers.canGoTo(targetStep)) {
+      await wizard.goTo(targetStep);
+    }
+    return;
+  }
+
+  // Prerequisites not met
+  const missing = helpers.prerequisitesFor(targetStep)
+    .filter(step => helpers.stepStatus(step) !== 'completed');
+
+  console.log('Complete prerequisites first:', missing);
+}
+```
+
+## Completion Tracking
+
+### Finding Incomplete Steps
+
+```typescript
+const helpers = createHelpers(wizard);
+
+// Get first incomplete step
+const firstIncomplete = helpers.firstIncompleteStep();
+// Returns: 'shipping' | null
+
+// Get last completed step
+const lastCompleted = helpers.lastCompletedStep();
+// Returns: 'userInfo' | null
+
+// Get all remaining steps
+const remaining = helpers.remainingSteps();
+// Returns: ['shipping', 'payment', 'confirmation']
+
+// Get count of remaining required steps
+const requiredLeft = helpers.remainingRequiredCount();
+// Returns: 2
+```
+
+### Navigation Based on Completion
+
+```typescript
+async function resumeWizard() {
+  const helpers = createHelpers(wizard);
+
+  // Find where user left off
+  const incomplete = helpers.firstIncompleteStep();
+
+  if (incomplete) {
+    // Check if we can go there
+    if (helpers.canGoTo(incomplete)) {
+      await wizard.goTo(incomplete);
+      console.log(`Resumed at: ${incomplete}`);
+    } else {
+      // Find the last step we can go to
+      const lastValid = helpers.lastCompletedStep();
+      if (lastValid) {
+        await wizard.goTo(lastValid);
+        console.log(`Resumed at last valid: ${lastValid}`);
+      }
+    }
+  } else {
+    console.log('Wizard is complete!');
+  }
+}
+```
+
+## Examples
+
+### Complete Navigation Controller
+
+```typescript
+class WizardNavigationController {
+  constructor(
+    private wizard: Wizard<Context, Steps, Data>,
+    private helpers: WizardHelpers<Context, Steps, Data>
+  ) {}
+
+  async next() {
+    if (!this.helpers.canGoNext()) {
+      throw new Error('Cannot go to next step');
+    }
+
+    const next = this.helpers.findNextAvailable();
+    if (next) {
+      await this.wizard.goTo(next);
+    }
+  }
+
+  async previous() {
+    if (!this.helpers.canGoBack()) {
+      throw new Error('Cannot go to previous step');
+    }
+
+    const prev = this.helpers.findPrevAvailable();
+    if (prev) {
+      await this.wizard.goTo(prev);
+    }
+  }
+
+  async skipOptional() {
+    const current = this.wizard.getCurrentStep();
+
+    if (this.helpers.isOptional(current)) {
+      await this.helpers.jumpToNextRequired();
+    }
+  }
+
+  async jumpTo(step: Steps) {
+    if (!this.helpers.canGoTo(step)) {
+      const prereqs = this.helpers.prerequisitesFor(step);
+      throw new Error(
+        `Cannot navigate to ${step}. ` +
+        `Prerequisites: ${prereqs.join(', ')}`
+      );
+    }
+
+    await this.wizard.goTo(step);
+  }
+
+  getNavigationState() {
+    return {
+      canGoNext: this.helpers.canGoNext(),
+      canGoBack: this.helpers.canGoBack(),
+      nextStep: this.helpers.findNextAvailable(),
+      prevStep: this.helpers.findPrevAvailable(),
+      isComplete: this.helpers.isComplete(),
+    };
+  }
+}
+```
+
+### React Navigation Hook
+
+```typescript
+function useWizardNavigation() {
+  const wizard = useWizard();
+  const helpers = createHelpers(wizard);
+
+  return {
+    next: useCallback(async () => {
+      if (helpers.canGoNext()) {
+        await wizard.next();
+      }
+    }, [wizard, helpers]),
+
+    back: useCallback(async () => {
+      if (helpers.canGoBack()) {
+        await wizard.back();
+      }
+    }, [wizard, helpers]),
+
+    skipToRequired: useCallback(async () => {
+      await helpers.jumpToNextRequired();
+    }, [helpers]),
+
+    canNavigate: useCallback((step: string) => {
+      return helpers.canGoTo(step);
+    }, [helpers]),
+
+    navigationState: {
+      canGoNext: helpers.canGoNext(),
+      canGoBack: helpers.canGoBack(),
+      nextAvailable: helpers.findNextAvailable(),
+      prevAvailable: helpers.findPrevAvailable(),
+    }
+  };
+}
+```
+
+## Best Practices
+
+<Callout type="info" title="Best Practices">
+1. **Always check before navigating** - Use `canGoTo()` before calling `goTo()`
+2. **Handle navigation failures** - Wrap navigation calls in try/catch
+3. **Provide user feedback** - Explain why navigation is blocked
+4. **Consider skip patterns** - Allow skipping optional steps for better UX
+5. **Cache helper instance** - Don't recreate helpers on every render
+</Callout>
+
+## Common Patterns
+
+### Pattern: Progressive Disclosure
+
+```typescript
+// Show steps as they become available
+function useProgressiveSteps() {
+  const helpers = createHelpers(wizard);
+  const allSteps = helpers.allSteps();
+
+  return allSteps.map(step => ({
+    id: step,
+    status: helpers.stepStatus(step),
+    available: helpers.canGoTo(step),
+    completed: helpers.stepStatus(step) === 'completed',
+    current: helpers.stepStatus(step) === 'current',
+  }));
+}
+```
+
+### Pattern: Breadcrumb Navigation
+
+```typescript
+function useBreadcrumbs() {
+  const helpers = createHelpers(wizard);
+  const completed = helpers.completedSteps();
+  const current = wizard.getCurrentStep();
+
+  return [
+    ...completed.map(step => ({
+      step,
+      clickable: true,
+      onClick: () => wizard.goTo(step),
+    })),
+    { step: current, clickable: false },
+  ];
+}
+```
+
+## Next Steps
+
+- Learn about [Progress Helpers](/helpers/progress) for tracking completion
+- Explore [Availability Helpers](/helpers/availability) for dynamic workflows
+- Master [Requirements Helpers](/helpers/requirements) for prerequisites

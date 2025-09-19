@@ -1,0 +1,604 @@
+# Custom Validators
+
+import { Callout, Tabs, Tab } from '../../components'
+
+While Zod provides excellent validation capabilities, sometimes you need custom validation logic for complex business rules, external API checks, or integration with other validation libraries.
+
+## Creating Custom Validators
+
+Custom validators in WizardOpus are functions that validate and potentially transform step data. They can be synchronous or asynchronous.
+
+### Basic Custom Validator
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    userInfo: {
+      load: (data: unknown, ctx: Context): asserts data is UserData => {
+        // Type guard validation
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid data format');
+        }
+
+        const userData = data as any;
+
+        if (!userData.name || typeof userData.name !== 'string') {
+          throw new Error('Name is required and must be a string');
+        }
+
+        if (!userData.email || !userData.email.includes('@')) {
+          throw new Error('Valid email is required');
+        }
+
+        // If we get here, data is valid
+        // TypeScript now knows data is UserData
+      }
+    }
+  }
+});
+```
+
+### Async Custom Validator
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    email: {
+      load: async (data: unknown, ctx: Context) => {
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid data');
+        }
+
+        const { email } = data as any;
+
+        // Basic format check
+        if (!email || !email.includes('@')) {
+          throw new Error('Invalid email format');
+        }
+
+        // External API validation
+        try {
+          const response = await fetch('/api/validate-email', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          const result = await response.json();
+
+          if (!result.valid) {
+            throw new Error(result.error || 'Email validation failed');
+          }
+
+          // Return validated/transformed data
+          return {
+            email: result.normalizedEmail || email,
+            emailVerified: true
+          };
+        } catch (error) {
+          throw new Error(`Email validation failed: ${error.message}`);
+        }
+      }
+    }
+  }
+});
+```
+
+## Validator Composition
+
+### Combining Multiple Validators
+
+```typescript
+// Create reusable validators
+const requiredString = (field: string) => (value: any) => {
+  if (!value || typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${field} is required`);
+  }
+  return value.trim();
+};
+
+const minLength = (field: string, min: number) => (value: string) => {
+  if (value.length < min) {
+    throw new Error(`${field} must be at least ${min} characters`);
+  }
+  return value;
+};
+
+const emailFormat = (value: string) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(value)) {
+    throw new Error('Invalid email format');
+  }
+  return value.toLowerCase();
+};
+
+// Compose validators
+function composeValidators<T>(...validators: Array<(value: any) => any>) {
+  return (value: T) => {
+    return validators.reduce((val, validator) => validator(val), value);
+  };
+}
+
+// Use in wizard
+const wizard = createWizard({
+  steps: {
+    account: {
+      load: (data: any) => {
+        return {
+          username: composeValidators(
+            requiredString('Username'),
+            minLength('Username', 3)
+          )(data.username),
+          email: composeValidators(
+            requiredString('Email'),
+            emailFormat
+          )(data.email)
+        };
+      }
+    }
+  }
+});
+```
+
+### Validator Factory Pattern
+
+```typescript
+interface ValidatorOptions {
+  required?: boolean;
+  min?: number;
+  max?: number;
+  pattern?: RegExp;
+  custom?: (value: any) => boolean;
+  message?: string;
+}
+
+function createValidator(options: ValidatorOptions) {
+  return (value: any) => {
+    if (options.required && !value) {
+      throw new Error(options.message || 'Field is required');
+    }
+
+    if (value == null) return value;
+
+    if (options.min !== undefined && value.length < options.min) {
+      throw new Error(
+        options.message || `Minimum length is ${options.min}`
+      );
+    }
+
+    if (options.max !== undefined && value.length > options.max) {
+      throw new Error(
+        options.message || `Maximum length is ${options.max}`
+      );
+    }
+
+    if (options.pattern && !options.pattern.test(value)) {
+      throw new Error(options.message || 'Invalid format');
+    }
+
+    if (options.custom && !options.custom(value)) {
+      throw new Error(options.message || 'Validation failed');
+    }
+
+    return value;
+  };
+}
+
+// Usage
+const wizard = createWizard({
+  steps: {
+    profile: {
+      load: (data: any) => {
+        const validators = {
+          username: createValidator({
+            required: true,
+            min: 3,
+            max: 20,
+            pattern: /^[a-zA-Z0-9_]+$/,
+            message: 'Username must be 3-20 alphanumeric characters'
+          }),
+          bio: createValidator({
+            max: 500,
+            message: 'Bio cannot exceed 500 characters'
+          })
+        };
+
+        return {
+          username: validators.username(data.username),
+          bio: validators.bio(data.bio)
+        };
+      }
+    }
+  }
+});
+```
+
+## Integration with Other Libraries
+
+### Yup Integration
+
+```typescript
+import * as yup from 'yup';
+
+function createYupValidator<T>(schema: yup.Schema<T>) {
+  return async (data: unknown): Promise<T> => {
+    try {
+      return await schema.validate(data, { abortEarly: false });
+    } catch (error) {
+      if (error instanceof yup.ValidationError) {
+        // Convert Yup errors to a format your app expects
+        const errors = error.inner.reduce((acc, err) => {
+          if (err.path) {
+            acc[err.path] = err.message;
+          }
+          return acc;
+        }, {} as Record<string, string>);
+
+        throw new ValidationError('Validation failed', errors);
+      }
+      throw error;
+    }
+  };
+}
+
+// Usage
+const userSchema = yup.object({
+  name: yup.string().required('Name is required'),
+  email: yup.string().email('Invalid email').required('Email is required'),
+  age: yup.number().min(18, 'Must be 18+').required()
+});
+
+const wizard = createWizard({
+  steps: {
+    userInfo: {
+      load: createYupValidator(userSchema)
+    }
+  }
+});
+```
+
+### Joi Integration
+
+```typescript
+import Joi from 'joi';
+
+function createJoiValidator(schema: Joi.Schema) {
+  return (data: unknown) => {
+    const { error, value } = schema.validate(data, {
+      abortEarly: false,
+      stripUnknown: true
+    });
+
+    if (error) {
+      const errors = error.details.reduce((acc, detail) => {
+        const path = detail.path.join('.');
+        acc[path] = detail.message;
+        return acc;
+      }, {} as Record<string, string>);
+
+      throw new ValidationError('Validation failed', errors);
+    }
+
+    return value;
+  };
+}
+
+// Usage
+const addressSchema = Joi.object({
+  street: Joi.string().required(),
+  city: Joi.string().required(),
+  zipCode: Joi.string().pattern(/^\d{5}$/).required()
+});
+
+const wizard = createWizard({
+  steps: {
+    address: {
+      load: createJoiValidator(addressSchema)
+    }
+  }
+});
+```
+
+## Complex Business Rules
+
+### Cross-Field Validation
+
+```typescript
+interface ShippingData {
+  country: string;
+  state?: string;
+  province?: string;
+  postalCode: string;
+}
+
+const validateShipping = (data: unknown): ShippingData => {
+  const shipping = data as any;
+
+  if (!shipping.country) {
+    throw new Error('Country is required');
+  }
+
+  // Country-specific validation
+  switch (shipping.country) {
+    case 'US':
+      if (!shipping.state) {
+        throw new Error('State is required for US addresses');
+      }
+      if (!/^\d{5}(-\d{4})?$/.test(shipping.postalCode)) {
+        throw new Error('Invalid US ZIP code format');
+      }
+      break;
+
+    case 'CA':
+      if (!shipping.province) {
+        throw new Error('Province is required for Canadian addresses');
+      }
+      if (!/^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i.test(shipping.postalCode)) {
+        throw new Error('Invalid Canadian postal code format');
+      }
+      break;
+
+    default:
+      if (!shipping.postalCode) {
+        throw new Error('Postal code is required');
+      }
+  }
+
+  return shipping;
+};
+
+const wizard = createWizard({
+  steps: {
+    shipping: {
+      load: validateShipping
+    }
+  }
+});
+```
+
+### Dependent Validation
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    payment: {
+      load: (data: any, ctx: Context) => {
+        // Get previous step data
+        const orderData = ctx.wizard?.getStepData('order');
+        const orderTotal = orderData?.total || 0;
+
+        // Different validation based on order amount
+        if (orderTotal > 1000) {
+          // Require additional verification for large orders
+          if (!data.verificationCode) {
+            throw new Error('Verification code required for orders over $1000');
+          }
+
+          if (!data.authorizedBy) {
+            throw new Error('Manager authorization required for large orders');
+          }
+        }
+
+        // Validate payment method based on amount
+        if (orderTotal < 10 && data.paymentMethod === 'financing') {
+          throw new Error('Financing not available for orders under $10');
+        }
+
+        return data;
+      }
+    }
+  }
+});
+```
+
+## Custom Validation Classes
+
+### ValidationError Class
+
+```typescript
+export class ValidationError extends Error {
+  constructor(
+    message: string,
+    public errors: Record<string, string | string[]> = {},
+    public code?: string
+  ) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+
+  hasFieldError(field: string): boolean {
+    return field in this.errors;
+  }
+
+  getFieldError(field: string): string | string[] | undefined {
+    return this.errors[field];
+  }
+
+  getAllErrors(): string[] {
+    return Object.values(this.errors).flat();
+  }
+}
+
+// Usage
+const validateUserProfile = (data: any) => {
+  const errors: Record<string, string> = {};
+
+  if (!data.username) {
+    errors.username = 'Username is required';
+  } else if (data.username.length < 3) {
+    errors.username = 'Username must be at least 3 characters';
+  }
+
+  if (!data.email) {
+    errors.email = 'Email is required';
+  } else if (!data.email.includes('@')) {
+    errors.email = 'Invalid email format';
+  }
+
+  if (Object.keys(errors).length > 0) {
+    throw new ValidationError('Profile validation failed', errors);
+  }
+
+  return data;
+};
+```
+
+### Validator Service
+
+```typescript
+class ValidatorService {
+  private validators = new Map<string, (data: any) => any>();
+
+  register(name: string, validator: (data: any) => any) {
+    this.validators.set(name, validator);
+  }
+
+  validate(name: string, data: any) {
+    const validator = this.validators.get(name);
+    if (!validator) {
+      throw new Error(`Validator '${name}' not found`);
+    }
+    return validator(data);
+  }
+
+  async validateAsync(name: string, data: any) {
+    const validator = this.validators.get(name);
+    if (!validator) {
+      throw new Error(`Validator '${name}' not found`);
+    }
+    return await validator(data);
+  }
+
+  createStepValidator(validatorName: string) {
+    return (data: any) => this.validate(validatorName, data);
+  }
+}
+
+// Setup validators
+const validatorService = new ValidatorService();
+
+validatorService.register('email', (data) => {
+  if (!data.email || !data.email.includes('@')) {
+    throw new Error('Invalid email');
+  }
+  return data;
+});
+
+validatorService.register('phone', (data) => {
+  const phoneRegex = /^\+?[\d\s-()]+$/;
+  if (!data.phone || !phoneRegex.test(data.phone)) {
+    throw new Error('Invalid phone number');
+  }
+  return data;
+});
+
+// Use in wizard
+const wizard = createWizard({
+  steps: {
+    contact: {
+      load: (data) => {
+        validatorService.validate('email', data);
+        validatorService.validate('phone', data);
+        return data;
+      }
+    }
+  }
+});
+```
+
+## Testing Custom Validators
+
+```typescript
+import { describe, it, expect } from 'vitest';
+
+describe('Custom Validators', () => {
+  describe('validateUserProfile', () => {
+    it('should validate required fields', () => {
+      expect(() => validateUserProfile({}))
+        .toThrow(ValidationError);
+
+      expect(() => validateUserProfile({ username: 'ab' }))
+        .toThrow('Username must be at least 3 characters');
+    });
+
+    it('should pass with valid data', () => {
+      const data = {
+        username: 'john_doe',
+        email: 'john@example.com'
+      };
+
+      expect(validateUserProfile(data)).toEqual(data);
+    });
+  });
+
+  describe('async email validator', () => {
+    it('should validate email with API', async () => {
+      const validator = createEmailValidator();
+
+      await expect(validator('invalid'))
+        .rejects.toThrow('Invalid email format');
+
+      await expect(validator('test@example.com'))
+        .resolves.toBeTruthy();
+    });
+  });
+});
+```
+
+## Performance Optimization
+
+<Callout type="info" title="Performance Tips">
+1. **Cache validation results** - Don't re-validate unchanged data
+2. **Debounce async validators** - Avoid too many API calls
+3. **Fail fast** - Return on first error if appropriate
+4. **Batch validation** - Validate related fields together
+5. **Use Web Workers** - For CPU-intensive validation
+</Callout>
+
+### Cached Validator
+
+```typescript
+function createCachedValidator<T>(
+  validator: (data: T) => T,
+  keyFn: (data: T) => string = JSON.stringify
+) {
+  const cache = new Map<string, T>();
+
+  return (data: T): T => {
+    const key = keyFn(data);
+
+    if (cache.has(key)) {
+      return cache.get(key)!;
+    }
+
+    const validated = validator(data);
+    cache.set(key, validated);
+
+    // Optional: Limit cache size
+    if (cache.size > 100) {
+      const firstKey = cache.keys().next().value;
+      cache.delete(firstKey);
+    }
+
+    return validated;
+  };
+}
+```
+
+## Best Practices
+
+<Callout type="success" title="Best Practices">
+1. **Keep validators pure** - No side effects in validation logic
+2. **Return helpful errors** - Include field names and clear messages
+3. **Type your validators** - Use TypeScript for type safety
+4. **Test thoroughly** - Unit test all validation logic
+5. **Handle edge cases** - null, undefined, empty strings
+6. **Compose validators** - Build complex validators from simple ones
+7. **Document requirements** - Make validation rules clear
+</Callout>
+
+## Next Steps
+
+- Learn about [Zod Integration](/validation/zod-integration) for schema validation
+- Explore [Error Handling](/advanced/error-handling) patterns
+- See [Examples](/examples) for complete implementations

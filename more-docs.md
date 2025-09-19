@@ -1,0 +1,1 @@
+go through the core wizard package and find all functionality that does not exist in the docs and come up with a plan to document every feature in detail with many examples form basic to complex. the helpers is a section that i think is not documented. go though the entire core package and react package and cross reference with the docs package to ensure all code is documented.
