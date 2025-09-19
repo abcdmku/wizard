@@ -1,0 +1,477 @@
+# Runtime Status System
+
+import { Callout, Tabs, Tab } from '../../components'
+
+The runtime status system provides fine-grained control over step states, error handling, and retry mechanisms.
+
+## Understanding Status Types
+
+WizardOpus distinguishes between **runtime status** (explicitly set) and **computed status** (derived from state).
+
+### Runtime Status
+
+Runtime status is explicitly set during step execution:
+
+- `idle` - Default state, no operation in progress
+- `loading` - Async operation in progress
+- `error` - Step encountered an error
+- `terminated` - Step was forcefully terminated
+- `skipped` - Step was programmatically skipped
+
+### Computed Status
+
+Computed status is derived from wizard state:
+
+- `current` - The currently active step
+- `completed` - Step has been successfully completed
+- `unavailable` - Step cannot be accessed (prerequisites not met)
+- `required` - Step must be completed
+- `optional` - Step can be skipped
+
+## Status Lifecycle
+
+```typescript
+const wizard = createWizard({
+  onStatusChange: ({ step, prev, next }) => {
+    console.log(`Step ${step}: ${prev} → ${next}`);
+
+    // Track status changes
+    analytics.track('step_status_change', {
+      step,
+      from: prev,
+      to: next,
+      timestamp: Date.now()
+    });
+  },
+  steps: {
+    payment: {
+      load: async (data) => {
+        // Status automatically changes:
+        // idle → loading (when async starts)
+        try {
+          const result = await processPayment(data);
+          // loading → idle (on success)
+          return result;
+        } catch (error) {
+          // loading → error (on failure)
+          throw error;
+        }
+      }
+    }
+  }
+});
+```
+
+## Error Handling with Status
+
+### Basic Error Handling
+
+```typescript
+const wizard = createWizard({
+  onStatusChange: ({ step, next }) => {
+    if (next === 'error') {
+      // Handle error status
+      console.error(`Step ${step} failed`);
+    }
+  },
+  steps: {
+    userVerification: {
+      load: async (data) => {
+        const isValid = await verifyUser(data.userId);
+        if (!isValid) {
+          throw new Error('User verification failed');
+          // Status becomes 'error'
+        }
+        return data;
+      }
+    }
+  }
+});
+
+// Check error status
+const helpers = createHelpers(wizard);
+const status = helpers.stepStatus('userVerification');
+if (status === 'error') {
+  // Show error UI
+}
+```
+
+### Retry Mechanism
+
+```typescript
+interface RetryConfig {
+  maxRetries?: number;
+  retryDelay?: number;
+  backoff?: 'linear' | 'exponential';
+}
+
+class RetryableWizard {
+  private attempts = new Map<string, number>();
+
+  constructor(
+    private wizard: Wizard<C, S, D>,
+    private config: RetryConfig = {}
+  ) {
+    this.setupRetryLogic();
+  }
+
+  private setupRetryLogic() {
+    // Track status changes
+    this.wizard.subscribe(() => {
+      const helpers = createHelpers(this.wizard);
+      const currentStep = this.wizard.getCurrentStep();
+      const status = helpers.stepStatus(currentStep);
+
+      if (status === 'error') {
+        this.handleError(currentStep);
+      }
+    });
+  }
+
+  private async handleError(step: string) {
+    const attempts = this.attempts.get(step) || 0;
+    const maxRetries = this.config.maxRetries || 3;
+
+    if (attempts < maxRetries) {
+      const delay = this.calculateDelay(attempts);
+      console.log(`Retrying ${step} in ${delay}ms (attempt ${attempts + 1}/${maxRetries})`);
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      this.attempts.set(step, attempts + 1);
+
+      // Retry the step
+      try {
+        await this.wizard.goTo(step);
+      } catch (error) {
+        // Will trigger another retry if attempts remain
+      }
+    } else {
+      console.error(`Step ${step} failed after ${maxRetries} attempts`);
+      // Mark as terminated
+      this.markTerminated(step);
+    }
+  }
+
+  private calculateDelay(attempt: number): number {
+    const baseDelay = this.config.retryDelay || 1000;
+
+    if (this.config.backoff === 'exponential') {
+      return baseDelay * Math.pow(2, attempt);
+    }
+
+    return baseDelay * (attempt + 1);
+  }
+
+  private markTerminated(step: string) {
+    // This would use internal APIs to mark as terminated
+    console.log(`Step ${step} terminated after max retries`);
+  }
+}
+```
+
+## Manual Status Control
+
+### Using Status Markers
+
+```typescript
+import { createStatusMarkers } from '@wizard/core/internal';
+
+class CustomWizardController {
+  private markers: StatusMarkers<Steps>;
+
+  constructor(wizard: Wizard<C, Steps, D>) {
+    // Note: This uses internal APIs - be careful with updates
+    this.markers = createStatusMarkers(wizard.config, wizard.state);
+  }
+
+  // Manually mark step as loading
+  setLoading(step: Steps) {
+    this.markers.markLoading(step);
+  }
+
+  // Mark step as errored
+  setError(step: Steps, error: Error) {
+    this.markers.markError(step, error);
+  }
+
+  // Mark step as terminated
+  terminate(step: Steps, reason?: string) {
+    this.markers.markTerminated(step, new Error(reason || 'Terminated'));
+  }
+
+  // Mark step as skipped
+  skip(step: Steps) {
+    this.markers.markSkipped(step);
+  }
+
+  // Clear status (back to idle)
+  clearStatus(step: Steps) {
+    this.markers.markIdle(step);
+  }
+}
+```
+
+### Programmatic Skip Pattern
+
+```typescript
+const wizard = createWizard({
+  onStatusChange: ({ step, next }) => {
+    if (next === 'skipped') {
+      console.log(`Step ${step} was skipped`);
+    }
+  },
+  steps: {
+    optionalSurvey: {
+      canEnter: ({ ctx }) => {
+        // Skip if user opted out
+        if (ctx.skipSurvey) {
+          // Mark as skipped and move on
+          return false;
+        }
+        return true;
+      }
+    }
+  }
+});
+
+// Helper to skip optional steps
+function skipOptionalSteps(wizard: Wizard, helpers: WizardHelpers) {
+  const optionalSteps = helpers.allSteps().filter(
+    step => helpers.isOptional(step)
+  );
+
+  optionalSteps.forEach(step => {
+    // Mark as skipped in your tracking
+    console.log(`Skipping optional step: ${step}`);
+  });
+
+  // Jump to next required
+  helpers.jumpToNextRequired();
+}
+```
+
+## Status-Based UI
+
+### Status Indicator Component
+
+```tsx
+function StepStatusIndicator({ step }: { step: string }) {
+  const helpers = createHelpers(wizard);
+  const status = helpers.stepStatus(step);
+
+  const statusConfig = {
+    current: { icon: '→', color: 'blue', label: 'Current' },
+    completed: { icon: '✓', color: 'green', label: 'Complete' },
+    error: { icon: '✗', color: 'red', label: 'Error' },
+    loading: { icon: '⟳', color: 'orange', label: 'Loading' },
+    skipped: { icon: '⤳', color: 'gray', label: 'Skipped' },
+    unavailable: { icon: '🔒', color: 'gray', label: 'Locked' },
+    required: { icon: '●', color: 'yellow', label: 'Required' },
+    optional: { icon: '○', color: 'gray', label: 'Optional' },
+    terminated: { icon: '⊗', color: 'red', label: 'Terminated' }
+  };
+
+  const config = statusConfig[status] || statusConfig.unavailable;
+
+  return (
+    <div className={`status-indicator status-${status}`}>
+      <span className={`icon text-${config.color}-500`}>
+        {config.icon}
+      </span>
+      <span className="label">{config.label}</span>
+    </div>
+  );
+}
+```
+
+### Progress with Status
+
+```tsx
+function DetailedProgress() {
+  const helpers = createHelpers(wizard);
+  const allSteps = helpers.allSteps();
+
+  const statusCounts = allSteps.reduce((acc, step) => {
+    const status = helpers.stepStatus(step);
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return (
+    <div className="detailed-progress">
+      <div className="status-summary">
+        <div>✓ Completed: {statusCounts.completed || 0}</div>
+        <div>⟳ In Progress: {statusCounts.loading || 0}</div>
+        <div>✗ Errors: {statusCounts.error || 0}</div>
+        <div>⤳ Skipped: {statusCounts.skipped || 0}</div>
+      </div>
+
+      <div className="step-list">
+        {allSteps.map(step => (
+          <div key={step} className="step-item">
+            <StepStatusIndicator step={step} />
+            <span className="step-name">{step}</span>
+            {helpers.stepAttempts(step) > 1 && (
+              <span className="attempts">
+                ({helpers.stepAttempts(step)} attempts)
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## Advanced Status Patterns
+
+### Auto-Recovery System
+
+```typescript
+class AutoRecoveryWizard {
+  private errorHandlers = new Map<string, () => Promise<void>>();
+
+  constructor(private wizard: Wizard<C, S, D>) {
+    this.setupAutoRecovery();
+  }
+
+  registerRecovery(step: string, handler: () => Promise<void>) {
+    this.errorHandlers.set(step, handler);
+  }
+
+  private setupAutoRecovery() {
+    this.wizard.subscribe(async () => {
+      const helpers = createHelpers(this.wizard);
+      const currentStep = this.wizard.getCurrentStep();
+      const status = helpers.stepStatus(currentStep);
+
+      if (status === 'error') {
+        const handler = this.errorHandlers.get(currentStep);
+        if (handler) {
+          console.log(`Attempting auto-recovery for ${currentStep}`);
+          try {
+            await handler();
+            // Retry the step
+            await this.wizard.goTo(currentStep);
+          } catch (recoveryError) {
+            console.error(`Auto-recovery failed for ${currentStep}:`, recoveryError);
+          }
+        }
+      }
+    });
+  }
+}
+
+// Usage
+const recovery = new AutoRecoveryWizard(wizard);
+
+// Register recovery handlers
+recovery.registerRecovery('payment', async () => {
+  // Clear payment cache
+  await clearPaymentCache();
+  // Reset payment gateway
+  await resetPaymentGateway();
+});
+
+recovery.registerRecovery('userVerification', async () => {
+  // Refresh auth token
+  await refreshAuthToken();
+});
+```
+
+### Status History Tracking
+
+```typescript
+interface StatusHistoryEntry {
+  step: string;
+  status: StepStatus;
+  timestamp: number;
+  duration?: number;
+}
+
+class StatusHistoryTracker {
+  private history: StatusHistoryEntry[] = [];
+  private statusStartTimes = new Map<string, number>();
+
+  constructor(wizard: Wizard<C, S, D>) {
+    wizard.subscribe(() => {
+      this.trackStatusChange(wizard);
+    });
+  }
+
+  private trackStatusChange(wizard: Wizard<C, S, D>) {
+    const helpers = createHelpers(wizard);
+    const currentStep = wizard.getCurrentStep();
+    const status = helpers.stepStatus(currentStep);
+    const now = Date.now();
+
+    // Calculate duration if we have a start time
+    const startTime = this.statusStartTimes.get(`${currentStep}-${status}`);
+    const duration = startTime ? now - startTime : undefined;
+
+    // Record entry
+    this.history.push({
+      step: currentStep,
+      status,
+      timestamp: now,
+      duration
+    });
+
+    // Set new start time
+    this.statusStartTimes.set(`${currentStep}-${status}`, now);
+  }
+
+  getHistory(): StatusHistoryEntry[] {
+    return [...this.history];
+  }
+
+  getStepHistory(step: string): StatusHistoryEntry[] {
+    return this.history.filter(entry => entry.step === step);
+  }
+
+  getAverageStatusDuration(status: StepStatus): number {
+    const entries = this.history.filter(
+      entry => entry.status === status && entry.duration
+    );
+
+    if (entries.length === 0) return 0;
+
+    const total = entries.reduce(
+      (sum, entry) => sum + (entry.duration || 0),
+      0
+    );
+
+    return total / entries.length;
+  }
+}
+```
+
+## Best Practices
+
+<Callout type="success" title="Status System Best Practices">
+1. **Use onStatusChange for tracking** - Monitor all status transitions
+2. **Handle errors gracefully** - Implement retry logic for transient failures
+3. **Provide clear feedback** - Show status indicators in UI
+4. **Track attempts** - Monitor retry patterns to identify issues
+5. **Implement recovery** - Auto-recover from known error states
+6. **Log status changes** - Keep audit trail for debugging
+7. **Set appropriate timeouts** - Don't let steps hang indefinitely
+</Callout>
+
+## Common Pitfalls
+
+<Callout type="warning" title="Avoid These Issues">
+1. **Not handling all status types** - Account for every possible status
+2. **Infinite retry loops** - Always set max retry limits
+3. **Ignoring terminated status** - Handle forced terminations
+4. **Missing error boundaries** - Wrap components in error boundaries
+5. **Not clearing error state** - Reset errors when retrying
+</Callout>
+
+## Next Steps
+
+- Learn about [Error Handling](/advanced/error-handling) patterns
+- Explore [DAG Prerequisites](/advanced/dag-prerequisites) for complex flows
+- Master [Dynamic Flows](/advanced/dynamic-flow) for conditional logic

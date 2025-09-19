@@ -1,0 +1,632 @@
+# Diagnostics Helpers
+
+import { Callout } from '../../components'
+
+Diagnostics helpers provide performance metrics, usage analytics, and debugging information for your wizard.
+
+## Overview
+
+Diagnostics helpers enable you to:
+- Track step attempt counts
+- Measure time spent on each step
+- Monitor user behavior patterns
+- Identify performance bottlenecks
+- Debug wizard state issues
+- Generate analytics data
+
+## Core Diagnostics Methods
+
+### Step Attempts Tracking
+
+```typescript
+const helpers = createHelpers(wizard);
+
+// Get number of attempts for a specific step
+const paymentAttempts = helpers.stepAttempts('payment');
+console.log(`Payment attempted ${paymentAttempts} times`);
+
+// Check if user is struggling
+if (paymentAttempts > 3) {
+  console.log('User may need help with payment');
+  // Show help tooltip or offer assistance
+}
+
+// Track attempts across all steps
+const allSteps = helpers.allSteps();
+const attemptData = allSteps.map(step => ({
+  step,
+  attempts: helpers.stepAttempts(step)
+}));
+
+console.log('Step attempts:', attemptData);
+```
+
+### Step Duration Measurement
+
+```typescript
+// Get time spent on a specific step (in milliseconds)
+const userInfoDuration = helpers.stepDuration('userInfo');
+
+if (userInfoDuration) {
+  const minutes = Math.floor(userInfoDuration / 60000);
+  const seconds = Math.floor((userInfoDuration % 60000) / 1000);
+  console.log(`Time on user info: ${minutes}m ${seconds}s`);
+}
+
+// Track total wizard duration
+function getTotalDuration() {
+  const allSteps = helpers.allSteps();
+  let totalMs = 0;
+
+  allSteps.forEach(step => {
+    const duration = helpers.stepDuration(step);
+    if (duration) totalMs += duration;
+  });
+
+  return totalMs;
+}
+
+const totalTime = getTotalDuration();
+console.log(`Total wizard time: ${totalTime / 1000}s`);
+```
+
+### Per-Step Completion Metrics
+
+```typescript
+// Get completion percentage for each step
+const stepProgress = helpers.percentCompletePerStep();
+
+console.log('Step completion breakdown:');
+Object.entries(stepProgress).forEach(([step, percent]) => {
+  console.log(`  ${step}: ${percent}%`);
+});
+
+// Example output:
+// userInfo: 100%
+// shipping: 100%
+// payment: 75%
+// confirmation: 0%
+```
+
+### State Snapshot
+
+```typescript
+// Get complete wizard state snapshot for debugging
+const snapshot = helpers.snapshot();
+
+console.log('Current state:', {
+  currentStep: snapshot.step,
+  context: snapshot.context,
+  history: snapshot.history,
+  errors: snapshot.errors,
+  runtime: snapshot.runtime
+});
+
+// Use for debugging or analytics
+function captureStateForAnalytics() {
+  const snapshot = helpers.snapshot();
+
+  return {
+    step: snapshot.step,
+    completedSteps: helpers.completedSteps().length,
+    totalSteps: helpers.stepCount(),
+    hasErrors: Object.keys(snapshot.errors || {}).length > 0,
+    timestamp: Date.now()
+  };
+}
+```
+
+## Advanced Diagnostics Patterns
+
+### Performance Analytics
+
+```typescript
+class WizardAnalytics {
+  constructor(
+    private helpers: WizardHelpers<C, S, D>
+  ) {}
+
+  getPerformanceMetrics() {
+    const allSteps = this.helpers.allSteps();
+
+    return {
+      avgTimePerStep: this.getAverageStepTime(),
+      longestStep: this.getLongestStep(),
+      shortestStep: this.getShortestStep(),
+      totalAttempts: this.getTotalAttempts(),
+      abandonmentRisk: this.calculateAbandonmentRisk(),
+      completionRate: this.helpers.progress()
+    };
+  }
+
+  private getAverageStepTime(): number {
+    const allSteps = this.helpers.allSteps();
+    const durations = allSteps
+      .map(step => this.helpers.stepDuration(step))
+      .filter((d): d is number => d !== null);
+
+    if (durations.length === 0) return 0;
+
+    const total = durations.reduce((sum, d) => sum + d, 0);
+    return total / durations.length;
+  }
+
+  private getLongestStep(): { step: string; duration: number } | null {
+    const allSteps = this.helpers.allSteps();
+    let longest = { step: '', duration: 0 };
+
+    allSteps.forEach(step => {
+      const duration = this.helpers.stepDuration(step);
+      if (duration && duration > longest.duration) {
+        longest = { step, duration };
+      }
+    });
+
+    return longest.step ? longest : null;
+  }
+
+  private getShortestStep(): { step: string; duration: number } | null {
+    const allSteps = this.helpers.allSteps();
+    let shortest = { step: '', duration: Infinity };
+
+    allSteps.forEach(step => {
+      const duration = this.helpers.stepDuration(step);
+      if (duration && duration < shortest.duration) {
+        shortest = { step, duration };
+      }
+    });
+
+    return shortest.duration !== Infinity ? shortest : null;
+  }
+
+  private getTotalAttempts(): number {
+    const allSteps = this.helpers.allSteps();
+    return allSteps.reduce(
+      (total, step) => total + this.helpers.stepAttempts(step),
+      0
+    );
+  }
+
+  private calculateAbandonmentRisk(): 'low' | 'medium' | 'high' {
+    const current = this.helpers.snapshot().step;
+    const attempts = this.helpers.stepAttempts(current);
+    const duration = this.helpers.stepDuration(current);
+
+    // High risk if many attempts or long duration
+    if (attempts > 5 || (duration && duration > 300000)) {
+      return 'high';
+    }
+
+    if (attempts > 3 || (duration && duration > 180000)) {
+      return 'medium';
+    }
+
+    return 'low';
+  }
+}
+```
+
+### User Behavior Tracking
+
+```typescript
+class UserBehaviorTracker {
+  private events: BehaviorEvent[] = [];
+
+  constructor(
+    private wizard: Wizard<C, S, D>,
+    private helpers: WizardHelpers<C, S, D>
+  ) {
+    this.setupTracking();
+  }
+
+  private setupTracking() {
+    // Track navigation events
+    this.wizard.subscribe(() => {
+      const snapshot = this.helpers.snapshot();
+      this.recordEvent({
+        type: 'navigation',
+        step: snapshot.step,
+        timestamp: Date.now(),
+        metadata: {
+          attempts: this.helpers.stepAttempts(snapshot.step),
+          fromStep: snapshot.history[snapshot.history.length - 2]
+        }
+      });
+    });
+  }
+
+  private recordEvent(event: BehaviorEvent) {
+    this.events.push(event);
+  }
+
+  getPattern(): UserPattern {
+    const backNavigations = this.events.filter(
+      e => e.type === 'navigation' && this.isBackNavigation(e)
+    ).length;
+
+    const totalNavigations = this.events.filter(
+      e => e.type === 'navigation'
+    ).length;
+
+    const avgTimePerStep = this.calculateAverageTime();
+
+    if (backNavigations / totalNavigations > 0.3) {
+      return 'confused';
+    }
+
+    if (avgTimePerStep < 10000) {
+      return 'speedy';
+    }
+
+    if (avgTimePerStep > 60000) {
+      return 'careful';
+    }
+
+    return 'normal';
+  }
+
+  private isBackNavigation(event: BehaviorEvent): boolean {
+    const currentIndex = this.helpers.stepIndex(event.step);
+    const fromIndex = event.metadata?.fromStep
+      ? this.helpers.stepIndex(event.metadata.fromStep)
+      : -1;
+
+    return currentIndex < fromIndex;
+  }
+
+  private calculateAverageTime(): number {
+    // Implementation details...
+    return 30000; // placeholder
+  }
+
+  getInsights(): UserInsights {
+    const pattern = this.getPattern();
+    const problematicSteps = this.getProblematicSteps();
+
+    return {
+      pattern,
+      problematicSteps,
+      recommendations: this.getRecommendations(pattern, problematicSteps)
+    };
+  }
+
+  private getProblematicSteps(): string[] {
+    const allSteps = this.helpers.allSteps();
+
+    return allSteps.filter(step => {
+      const attempts = this.helpers.stepAttempts(step);
+      const duration = this.helpers.stepDuration(step);
+
+      return attempts > 3 || (duration && duration > 180000);
+    });
+  }
+
+  private getRecommendations(
+    pattern: UserPattern,
+    problematicSteps: string[]
+  ): string[] {
+    const recommendations: string[] = [];
+
+    if (pattern === 'confused') {
+      recommendations.push('Consider simplifying the flow');
+      recommendations.push('Add better navigation indicators');
+    }
+
+    if (pattern === 'careful') {
+      recommendations.push('User taking time - ensure save progress');
+    }
+
+    if (problematicSteps.length > 0) {
+      recommendations.push(
+        `Review these steps: ${problematicSteps.join(', ')}`
+      );
+    }
+
+    return recommendations;
+  }
+}
+
+type UserPattern = 'speedy' | 'careful' | 'confused' | 'normal';
+
+interface BehaviorEvent {
+  type: string;
+  step: string;
+  timestamp: number;
+  metadata?: any;
+}
+
+interface UserInsights {
+  pattern: UserPattern;
+  problematicSteps: string[];
+  recommendations: string[];
+}
+```
+
+### Debug Dashboard
+
+```typescript
+function DebugDashboard() {
+  const helpers = createHelpers(wizard);
+  const [metrics, setMetrics] = useState(calculateMetrics());
+
+  function calculateMetrics() {
+    const snapshot = helpers.snapshot();
+    const allSteps = helpers.allSteps();
+
+    return {
+      currentStep: snapshot.step,
+      completedCount: helpers.completedSteps().length,
+      totalSteps: helpers.stepCount(),
+      progress: helpers.progress(),
+      attempts: allSteps.map(step => ({
+        step,
+        count: helpers.stepAttempts(step)
+      })),
+      durations: allSteps.map(step => ({
+        step,
+        time: helpers.stepDuration(step)
+      })),
+      errors: snapshot.errors,
+      context: snapshot.context,
+      history: snapshot.history
+    };
+  }
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMetrics(calculateMetrics());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="debug-dashboard">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="card">
+          <h4>Progress</h4>
+          <div>{metrics.progress}%</div>
+          <div className="text-sm">
+            {metrics.completedCount}/{metrics.totalSteps} steps
+          </div>
+        </div>
+
+        <div className="card">
+          <h4>Current Step</h4>
+          <div>{metrics.currentStep}</div>
+          <div className="text-sm">
+            Attempts: {
+              metrics.attempts.find(a => a.step === metrics.currentStep)?.count || 0
+            }
+          </div>
+        </div>
+
+        <div className="card">
+          <h4>Time Spent</h4>
+          <div>
+            {metrics.durations
+              .filter(d => d.time)
+              .reduce((sum, d) => sum + (d.time || 0), 0) / 1000}s
+          </div>
+        </div>
+
+        <div className="card">
+          <h4>Errors</h4>
+          <div>{Object.keys(metrics.errors || {}).length}</div>
+        </div>
+      </div>
+
+      <div className="step-details">
+        <h3>Step Details</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Step</th>
+              <th>Status</th>
+              <th>Attempts</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allSteps.map(step => (
+              <tr key={step}>
+                <td>{step}</td>
+                <td>{helpers.stepStatus(step)}</td>
+                <td>{helpers.stepAttempts(step)}</td>
+                <td>
+                  {helpers.stepDuration(step)
+                    ? `${(helpers.stepDuration(step)! / 1000).toFixed(1)}s`
+                    : '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="state-snapshot">
+        <h3>State Snapshot</h3>
+        <pre>{JSON.stringify(metrics.context, null, 2)}</pre>
+      </div>
+
+      <div className="navigation-history">
+        <h3>Navigation History</h3>
+        <ol>
+          {metrics.history.map((step, i) => (
+            <li key={i}>{step}</li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+```
+
+## Performance Monitoring
+
+### Real-time Metrics Hook
+
+```typescript
+function useWizardMetrics(updateInterval = 1000) {
+  const wizard = useWizard();
+  const helpers = useMemo(() => createHelpers(wizard), [wizard]);
+
+  const [metrics, setMetrics] = useState(() => ({
+    attempts: {} as Record<string, number>,
+    durations: {} as Record<string, number | null>,
+    progress: helpers.progress(),
+    currentStep: wizard.getCurrentStep()
+  }));
+
+  useEffect(() => {
+    const updateMetrics = () => {
+      const allSteps = helpers.allSteps();
+      const attempts: Record<string, number> = {};
+      const durations: Record<string, number | null> = {};
+
+      allSteps.forEach(step => {
+        attempts[step] = helpers.stepAttempts(step);
+        durations[step] = helpers.stepDuration(step);
+      });
+
+      setMetrics({
+        attempts,
+        durations,
+        progress: helpers.progress(),
+        currentStep: wizard.getCurrentStep()
+      });
+    };
+
+    const interval = setInterval(updateMetrics, updateInterval);
+    updateMetrics(); // Initial update
+
+    return () => clearInterval(interval);
+  }, [wizard, helpers, updateInterval]);
+
+  return metrics;
+}
+```
+
+### Analytics Integration
+
+```typescript
+class AnalyticsAdapter {
+  constructor(
+    private wizard: Wizard<C, S, D>,
+    private helpers: WizardHelpers<C, S, D>,
+    private analyticsProvider: any // Google Analytics, Mixpanel, etc.
+  ) {
+    this.setupTracking();
+  }
+
+  private setupTracking() {
+    // Track step transitions
+    this.wizard.subscribe(() => {
+      const snapshot = this.helpers.snapshot();
+      const currentStep = snapshot.step;
+      const previousStep = snapshot.history[snapshot.history.length - 2];
+
+      this.analyticsProvider.track('wizard_step_change', {
+        from: previousStep,
+        to: currentStep,
+        attempts: this.helpers.stepAttempts(currentStep),
+        progress: this.helpers.progress(),
+        timestamp: Date.now()
+      });
+    });
+
+    // Track completion
+    this.wizard.on('complete', () => {
+      const totalDuration = this.getTotalDuration();
+      const totalAttempts = this.getTotalAttempts();
+
+      this.analyticsProvider.track('wizard_complete', {
+        duration_ms: totalDuration,
+        total_attempts: totalAttempts,
+        step_count: this.helpers.stepCount()
+      });
+    });
+  }
+
+  private getTotalDuration(): number {
+    const allSteps = this.helpers.allSteps();
+    return allSteps.reduce((total, step) => {
+      const duration = this.helpers.stepDuration(step);
+      return total + (duration || 0);
+    }, 0);
+  }
+
+  private getTotalAttempts(): number {
+    const allSteps = this.helpers.allSteps();
+    return allSteps.reduce(
+      (total, step) => total + this.helpers.stepAttempts(step),
+      0
+    );
+  }
+
+  trackCustomEvent(eventName: string, metadata?: any) {
+    this.analyticsProvider.track(eventName, {
+      ...metadata,
+      wizard_progress: this.helpers.progress(),
+      current_step: this.helpers.snapshot().step
+    });
+  }
+}
+```
+
+## Best Practices
+
+<Callout type="success" title="Best Practices">
+1. **Track meaningful metrics** - Focus on data that improves UX
+2. **Respect privacy** - Only collect necessary diagnostic data
+3. **Set thresholds** - Define what constitutes problematic behavior
+4. **Act on insights** - Use diagnostics to improve the wizard
+5. **Monitor performance** - Keep diagnostics lightweight
+6. **Aggregate data** - Look for patterns across users
+</Callout>
+
+## Common Use Cases
+
+### Identifying Drop-off Points
+
+```typescript
+function findDropOffPoints() {
+  const helpers = createHelpers(wizard);
+  const allSteps = helpers.orderedSteps();
+
+  const dropOffData = allSteps.map(step => {
+    const attempts = helpers.stepAttempts(step);
+    const duration = helpers.stepDuration(step);
+    const status = helpers.stepStatus(step);
+
+    const risk = calculateDropOffRisk(attempts, duration, status);
+
+    return { step, attempts, duration, status, risk };
+  });
+
+  return dropOffData
+    .filter(d => d.risk > 0.5)
+    .sort((a, b) => b.risk - a.risk);
+}
+
+function calculateDropOffRisk(
+  attempts: number,
+  duration: number | null,
+  status: string
+): number {
+  let risk = 0;
+
+  if (attempts > 3) risk += 0.3;
+  if (attempts > 5) risk += 0.3;
+  if (duration && duration > 300000) risk += 0.2;
+  if (status === 'error') risk += 0.4;
+
+  return Math.min(risk, 1);
+}
+```
+
+## Next Steps
+
+- Learn about [Navigation Helpers](/helpers/navigation) for flow control
+- Explore [Progress Helpers](/helpers/progress) for completion tracking
+- Master [Availability Helpers](/helpers/availability) for dynamic workflows

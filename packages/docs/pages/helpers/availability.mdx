@@ -1,0 +1,535 @@
+# Availability Helpers
+
+import { Callout } from '../../components'
+
+Availability helpers manage dynamic step availability based on guards, prerequisites, and runtime conditions.
+
+## Overview
+
+Availability helpers enable you to:
+- Check which steps are currently available or unavailable
+- Refresh availability when conditions change
+- Find next/previous available steps for navigation
+- Jump to next required step automatically
+- Handle dynamic workflows with conditional steps
+
+## Core Availability Methods
+
+### Checking Step Availability
+
+```typescript
+const helpers = createHelpers(wizard);
+
+// Get all currently available steps
+const available = helpers.availableSteps();
+console.log('Available steps:', available);
+// Output: ['userInfo', 'shipping']
+
+// Get all unavailable steps
+const unavailable = helpers.unavailableSteps();
+console.log('Blocked steps:', unavailable);
+// Output: ['payment', 'confirmation']
+
+// Refresh availability (re-runs all guards)
+await helpers.refreshAvailability();
+console.log('Availability refreshed');
+```
+
+### Finding Available Steps
+
+```typescript
+// Find next available step from current position
+const nextAvailable = helpers.findNextAvailable();
+if (nextAvailable) {
+  console.log(`Next available: ${nextAvailable}`);
+  await wizard.goTo(nextAvailable);
+}
+
+// Find next available from specific step
+const afterShipping = helpers.findNextAvailable('shipping');
+console.log(`After shipping: ${afterShipping}`);
+
+// Find previous available step
+const prevAvailable = helpers.findPrevAvailable();
+if (prevAvailable) {
+  console.log(`Previous available: ${prevAvailable}`);
+}
+
+// Find previous from specific step
+const beforePayment = helpers.findPrevAvailable('payment');
+console.log(`Before payment: ${beforePayment}`);
+```
+
+### Jump to Required Steps
+
+```typescript
+// Skip optional steps and jump to next required
+const nextRequired = await helpers.jumpToNextRequired();
+
+if (nextRequired) {
+  console.log(`Jumped to required step: ${nextRequired}`);
+} else {
+  console.log('No more required steps');
+}
+```
+
+## Guards and Availability
+
+Guards determine whether a step can be entered. They can be synchronous or asynchronous:
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    userInfo: {
+      // Always available
+    },
+    ageVerification: {
+      canEnter: ({ ctx, data }) => {
+        // Only available for users under 18
+        return data.userInfo?.age < 18;
+      }
+    },
+    payment: {
+      canEnter: async ({ ctx, data }) => {
+        // Check with external service
+        const canPay = await checkPaymentEligibility(data.userInfo);
+        return canPay;
+      }
+    }
+  }
+});
+
+const helpers = createHelpers(wizard);
+
+// Refresh runs all guards again
+await helpers.refreshAvailability();
+
+// Check what's available now
+const available = helpers.availableSteps();
+```
+
+## Advanced Availability Patterns
+
+### Dynamic Feature Flags
+
+```typescript
+interface Context {
+  features: {
+    premiumEnabled: boolean;
+    betaAccess: boolean;
+    experimentalUI: boolean;
+  };
+}
+
+const wizard = createWizard<Context, Steps, Data>({
+  initialContext: {
+    features: {
+      premiumEnabled: false,
+      betaAccess: false,
+      experimentalUI: false
+    }
+  },
+  steps: {
+    basic: {
+      // Always available
+    },
+    premium: {
+      canEnter: ({ ctx }) => ctx.features.premiumEnabled
+    },
+    beta: {
+      canEnter: ({ ctx }) => ctx.features.betaAccess
+    },
+    experimental: {
+      canEnter: ({ ctx }) => ctx.features.experimentalUI
+    }
+  }
+});
+
+// Update features dynamically
+async function enablePremium() {
+  await wizard.updateContext(ctx => ({
+    ...ctx,
+    features: { ...ctx.features, premiumEnabled: true }
+  }));
+
+  // Refresh to make premium steps available
+  const helpers = createHelpers(wizard);
+  await helpers.refreshAvailability();
+
+  // Now premium steps are available
+  const available = helpers.availableSteps();
+  console.log('Now available:', available);
+}
+```
+
+### Time-Based Availability
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    registration: {
+      // Always available
+    },
+    earlyBird: {
+      canEnter: () => {
+        const now = new Date();
+        const deadline = new Date('2024-12-31');
+        return now < deadline;
+      }
+    },
+    regularPricing: {
+      canEnter: () => {
+        const now = new Date();
+        const earlyBirdEnd = new Date('2024-12-31');
+        return now >= earlyBirdEnd;
+      }
+    }
+  }
+});
+
+// Periodically refresh availability for time-based conditions
+setInterval(async () => {
+  const helpers = createHelpers(wizard);
+  await helpers.refreshAvailability();
+}, 60000); // Check every minute
+```
+
+### User Role-Based Availability
+
+```typescript
+type UserRole = 'guest' | 'user' | 'admin' | 'superadmin';
+
+interface Context {
+  currentUser: {
+    role: UserRole;
+    permissions: string[];
+  };
+}
+
+const wizard = createWizard<Context, Steps, Data>({
+  initialContext: {
+    currentUser: {
+      role: 'guest',
+      permissions: []
+    }
+  },
+  steps: {
+    public: {
+      // Available to all
+    },
+    authenticated: {
+      canEnter: ({ ctx }) => ctx.currentUser.role !== 'guest'
+    },
+    adminOnly: {
+      canEnter: ({ ctx }) =>
+        ctx.currentUser.role === 'admin' ||
+        ctx.currentUser.role === 'superadmin'
+    },
+    specialFeature: {
+      canEnter: ({ ctx }) =>
+        ctx.currentUser.permissions.includes('special_feature')
+    }
+  }
+});
+
+// After user logs in
+async function onUserLogin(user: User) {
+  await wizard.updateContext(ctx => ({
+    ...ctx,
+    currentUser: {
+      role: user.role,
+      permissions: user.permissions
+    }
+  }));
+
+  const helpers = createHelpers(wizard);
+  await helpers.refreshAvailability();
+
+  // Navigate to first newly available step
+  const nextAvailable = helpers.findNextAvailable();
+  if (nextAvailable) {
+    await wizard.goTo(nextAvailable);
+  }
+}
+```
+
+### Progressive Disclosure Pattern
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    basic: {
+      // Always available
+    },
+    advanced: {
+      canEnter: ({ data }) => {
+        // Only show if user completed basic with certain options
+        return data.basic?.wantsAdvanced === true;
+      }
+    },
+    expert: {
+      canEnter: ({ data }) => {
+        // Only show if user demonstrated expertise
+        return data.advanced?.score >= 80;
+      }
+    }
+  }
+});
+
+function ProgressiveWizard() {
+  const helpers = createHelpers(wizard);
+  const [visibleSteps, setVisibleSteps] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Update visible steps when availability changes
+    const updateVisible = async () => {
+      await helpers.refreshAvailability();
+      setVisibleSteps(helpers.availableSteps());
+    };
+
+    const unsubscribe = wizard.subscribe(updateVisible);
+    updateVisible();
+
+    return unsubscribe;
+  }, []);
+
+  return (
+    <div>
+      {visibleSteps.map(step => (
+        <StepComponent key={step} step={step} />
+      ))}
+    </div>
+  );
+}
+```
+
+## Caching and Performance
+
+The availability system includes built-in caching to avoid redundant guard executions:
+
+```typescript
+const helpers = createHelpers(wizard);
+
+// First call executes guards
+const available1 = helpers.availableSteps(); // Runs guards
+
+// Subsequent calls use cache
+const available2 = helpers.availableSteps(); // Uses cache
+
+// Force refresh to clear cache and re-run guards
+await helpers.refreshAvailability(); // Clears cache, runs guards
+
+// Now uses new cache
+const available3 = helpers.availableSteps(); // Uses new cache
+```
+
+<Callout type="info" title="Cache Invalidation">
+  The availability cache is automatically cleared when:
+  - Context is updated
+  - Step data changes
+  - Navigation occurs
+  - `refreshAvailability()` is called explicitly
+</Callout>
+
+### Manual Cache Management
+
+```typescript
+class AvailabilityManager {
+  private helpers: WizardHelpers<C, S, D>;
+  private refreshTimer?: NodeJS.Timer;
+
+  constructor(wizard: Wizard<C, S, D>) {
+    this.helpers = createHelpers(wizard);
+  }
+
+  // Auto-refresh at intervals
+  startAutoRefresh(intervalMs: number = 30000) {
+    this.stopAutoRefresh();
+    this.refreshTimer = setInterval(async () => {
+      await this.helpers.refreshAvailability();
+    }, intervalMs);
+  }
+
+  stopAutoRefresh() {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
+  }
+
+  // Refresh when specific events occur
+  async onExternalChange() {
+    await this.helpers.refreshAvailability();
+  }
+
+  // Get availability with optional refresh
+  async getAvailability(forceRefresh = false) {
+    if (forceRefresh) {
+      await this.helpers.refreshAvailability();
+    }
+    return {
+      available: this.helpers.availableSteps(),
+      unavailable: this.helpers.unavailableSteps()
+    };
+  }
+}
+```
+
+## React Integration
+
+### useAvailability Hook
+
+```typescript
+function useAvailability() {
+  const wizard = useWizard();
+  const helpers = useMemo(() => createHelpers(wizard), [wizard]);
+
+  const [availability, setAvailability] = useState({
+    available: helpers.availableSteps(),
+    unavailable: helpers.unavailableSteps()
+  });
+
+  useEffect(() => {
+    const updateAvailability = () => {
+      setAvailability({
+        available: helpers.availableSteps(),
+        unavailable: helpers.unavailableSteps()
+      });
+    };
+
+    const unsubscribe = wizard.subscribe(updateAvailability);
+    return unsubscribe;
+  }, [wizard, helpers]);
+
+  const refresh = useCallback(async () => {
+    await helpers.refreshAvailability();
+    setAvailability({
+      available: helpers.availableSteps(),
+      unavailable: helpers.unavailableSteps()
+    });
+  }, [helpers]);
+
+  return { ...availability, refresh };
+}
+```
+
+### Conditional Step Renderer
+
+```tsx
+function ConditionalSteps() {
+  const { available, unavailable, refresh } = useAvailability();
+  const currentStep = useWizardStep();
+
+  return (
+    <div>
+      <div className="steps-container">
+        {available.map(step => (
+          <div
+            key={step}
+            className={`step available ${
+              step === currentStep ? 'current' : ''
+            }`}
+          >
+            {step}
+          </div>
+        ))}
+        {unavailable.map(step => (
+          <div key={step} className="step unavailable">
+            {step} (Locked)
+          </div>
+        ))}
+      </div>
+
+      <button onClick={refresh}>
+        Check Availability
+      </button>
+    </div>
+  );
+}
+```
+
+## Common Use Cases
+
+### Payment Method Selection
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    cart: {},
+    shipping: {},
+    paymentMethod: {},
+    creditCard: {
+      canEnter: ({ data }) =>
+        data.paymentMethod?.method === 'credit_card'
+    },
+    paypal: {
+      canEnter: ({ data }) =>
+        data.paymentMethod?.method === 'paypal'
+    },
+    bankTransfer: {
+      canEnter: ({ data }) =>
+        data.paymentMethod?.method === 'bank_transfer'
+    },
+    confirmation: {}
+  }
+});
+
+// After payment method selection
+async function onPaymentMethodSelect(method: string) {
+  await wizard.updateStepData('paymentMethod', { method });
+
+  const helpers = createHelpers(wizard);
+  await helpers.refreshAvailability();
+
+  // Navigate to the appropriate payment step
+  const nextStep = helpers.findNextAvailable();
+  if (nextStep) {
+    await wizard.goTo(nextStep);
+  }
+}
+```
+
+### A/B Testing Flows
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    start: {},
+    // Variant A steps
+    variantA_step1: {
+      canEnter: ({ ctx }) => ctx.experiment === 'A'
+    },
+    variantA_step2: {
+      canEnter: ({ ctx }) => ctx.experiment === 'A'
+    },
+    // Variant B steps
+    variantB_combined: {
+      canEnter: ({ ctx }) => ctx.experiment === 'B'
+    },
+    end: {}
+  }
+});
+
+// Set experiment variant
+const variant = Math.random() > 0.5 ? 'A' : 'B';
+await wizard.updateContext({ experiment: variant });
+
+const helpers = createHelpers(wizard);
+await helpers.refreshAvailability();
+```
+
+## Best Practices
+
+<Callout type="success" title="Best Practices">
+1. **Keep guards simple** - Complex logic should be extracted to separate functions
+2. **Handle async guards carefully** - Show loading states during availability checks
+3. **Cache when possible** - Don't refresh unnecessarily
+4. **Provide feedback** - Tell users why steps are unavailable
+5. **Test edge cases** - Ensure guards handle all scenarios
+</Callout>
+
+## Next Steps
+
+- Learn about [Requirements Helpers](/helpers/requirements) for prerequisite management
+- Explore [Diagnostics Helpers](/helpers/diagnostics) for performance tracking
+- Master [Navigation Helpers](/helpers/navigation) for advanced navigation patterns

@@ -1,0 +1,437 @@
+# Validation
+
+import { Callout } from '../../components'
+
+WizardOpus provides powerful validation capabilities to ensure data integrity throughout your multi-step flows. With built-in Zod integration and custom validation support, you can create robust, type-safe wizards.
+
+## Overview
+
+WizardOpus validation features:
+- **Runtime validation** - Validate data at each step
+- **Type safety** - Full TypeScript inference with Zod schemas
+- **Context-aware validation** - Validate based on wizard state
+- **Async validation** - Support for API-based validation
+- **Custom validators** - Create your own validation logic
+- **Error handling** - Comprehensive error management
+
+### Validation Methods
+
+- **[Zod Integration](/validation/zod-integration)** - Complete guide to using Zod schemas for type-safe validation with automatic type inference.
+- **[Custom Validators](/validation/custom-validators)** - Build custom validation logic for complex business rules and async validation.
+
+## Validation Points
+
+Validation can occur at multiple points in the wizard lifecycle:
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    userInfo: {
+      // Validate when entering step
+      canEnter: ({ ctx, data }) => {
+        // Return boolean or throw error
+        return true;
+      },
+
+      // Validate when loading step data
+      load: (data, ctx) => {
+        // Validate and transform data
+        if (!data.email) throw new Error('Email required');
+        return data;
+      },
+
+      // Validate before exiting step
+      canExit: ({ ctx, data }) => {
+        // Ensure data is complete before proceeding
+        return !!data.email && !!data.name;
+      },
+
+      // Custom completion validation
+      isStepComplete: ({ data }) => {
+        // Define what makes this step "complete"
+        return data.email?.includes('@');
+      }
+    }
+  }
+});
+```
+
+## Quick Start with Zod
+
+```typescript
+import { createWizard, createZodValidator } from '@wizard/core';
+import { z } from 'zod';
+
+// Define your schema
+const UserSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  age: z.number().min(18, 'Must be 18 or older')
+});
+
+// Create wizard with Zod validation
+const wizard = createWizard({
+  steps: {
+    userInfo: {
+      // Use Zod validator
+      load: createZodValidator(UserSchema),
+
+      // TypeScript knows the data type!
+      next: ({ data }) => {
+        // data is typed as z.infer<typeof UserSchema>
+        return data.age >= 65 ? 'seniorDiscount' : 'standard';
+      }
+    },
+    standard: {
+      // ...
+    },
+    seniorDiscount: {
+      // ...
+    }
+  }
+});
+```
+
+## Basic Validation Examples
+
+### Required Fields
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    contact: {
+      load: (data) => {
+        if (!data.email) {
+          throw new Error('Email is required');
+        }
+        if (!data.phone) {
+          throw new Error('Phone is required');
+        }
+        return data;
+      }
+    }
+  }
+});
+```
+
+### Format Validation
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    account: {
+      load: (data) => {
+        // Email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(data.email)) {
+          throw new Error('Invalid email format');
+        }
+
+        // Phone format
+        const phoneRegex = /^\+?[\d\s-()]+$/;
+        if (!phoneRegex.test(data.phone)) {
+          throw new Error('Invalid phone format');
+        }
+
+        return data;
+      }
+    }
+  }
+});
+```
+
+### Cross-Field Validation
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    dateRange: {
+      load: (data) => {
+        const startDate = new Date(data.startDate);
+        const endDate = new Date(data.endDate);
+
+        if (endDate <= startDate) {
+          throw new Error('End date must be after start date');
+        }
+
+        const daysDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+        if (daysDiff > 30) {
+          throw new Error('Date range cannot exceed 30 days');
+        }
+
+        return data;
+      }
+    }
+  }
+});
+```
+
+## Async Validation
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    username: {
+      load: async (data) => {
+        // Check username availability
+        const isAvailable = await checkUsernameAvailability(data.username);
+
+        if (!isAvailable) {
+          throw new Error('Username is already taken');
+        }
+
+        return data;
+      }
+    },
+    email: {
+      canExit: async ({ data }) => {
+        // Verify email with external service
+        try {
+          await verifyEmailAddress(data.email);
+          return true;
+        } catch (error) {
+          console.error('Email verification failed:', error);
+          return false;
+        }
+      }
+    }
+  }
+});
+```
+
+## Context-Aware Validation
+
+Validation can depend on the wizard's context or other step data:
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    shipping: {
+      load: (data, ctx) => {
+        // Different validation for different regions
+        if (ctx.region === 'US') {
+          if (!data.zipCode || !/^\d{5}(-\d{4})?$/.test(data.zipCode)) {
+            throw new Error('Invalid US ZIP code');
+          }
+        } else if (ctx.region === 'UK') {
+          if (!data.postcode || !/^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$/i.test(data.postcode)) {
+            throw new Error('Invalid UK postcode');
+          }
+        }
+
+        return data;
+      }
+    },
+    billing: {
+      load: (data, ctx) => {
+        // Validate based on previous step
+        const shippingData = ctx.wizard.getStepData('shipping');
+
+        if (data.sameAsShipping && !shippingData) {
+          throw new Error('Shipping address required when using same address');
+        }
+
+        return data;
+      }
+    }
+  }
+});
+```
+
+## Error Handling
+
+### Structured Error Messages
+
+```typescript
+class ValidationError extends Error {
+  constructor(
+    message: string,
+    public field?: string,
+    public code?: string
+  ) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+const wizard = createWizard({
+  steps: {
+    profile: {
+      load: (data) => {
+        const errors: ValidationError[] = [];
+
+        if (!data.firstName) {
+          errors.push(new ValidationError(
+            'First name is required',
+            'firstName',
+            'REQUIRED'
+          ));
+        }
+
+        if (!data.lastName) {
+          errors.push(new ValidationError(
+            'Last name is required',
+            'lastName',
+            'REQUIRED'
+          ));
+        }
+
+        if (errors.length > 0) {
+          throw errors;
+        }
+
+        return data;
+      }
+    }
+  }
+});
+```
+
+### Handling Validation Errors
+
+```typescript
+try {
+  await wizard.updateStepData('profile', formData);
+} catch (error) {
+  if (Array.isArray(error)) {
+    // Multiple validation errors
+    error.forEach(err => {
+      console.error(`${err.field}: ${err.message}`);
+    });
+  } else if (error instanceof Error) {
+    // Single validation error
+    console.error(error.message);
+  }
+}
+```
+
+## Validation Strategies
+
+### Progressive Validation
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    basicInfo: {
+      // Light validation for basic info
+      load: (data) => {
+        if (!data.name) throw new Error('Name required');
+        return data;
+      }
+    },
+    detailedInfo: {
+      // Stricter validation as user progresses
+      load: (data) => {
+        if (!data.name || data.name.length < 2) {
+          throw new Error('Name must be at least 2 characters');
+        }
+        if (!data.email || !data.email.includes('@')) {
+          throw new Error('Valid email required');
+        }
+        if (!data.phone || data.phone.length < 10) {
+          throw new Error('Valid phone number required');
+        }
+        return data;
+      }
+    }
+  }
+});
+```
+
+### Conditional Validation
+
+```typescript
+const wizard = createWizard({
+  steps: {
+    accountType: {
+      // No validation needed
+    },
+    businessDetails: {
+      load: (data, ctx) => {
+        const accountType = ctx.wizard.getStepData('accountType');
+
+        if (accountType?.type === 'business') {
+          // Validate business fields
+          if (!data.companyName) {
+            throw new Error('Company name required for business accounts');
+          }
+          if (!data.taxId) {
+            throw new Error('Tax ID required for business accounts');
+          }
+        }
+
+        return data;
+      }
+    }
+  }
+});
+```
+
+## Performance Considerations
+
+<Callout type="info" title="Validation Performance">
+1. **Cache validation results** - Avoid re-validating unchanged data
+2. **Debounce async validation** - Don't validate on every keystroke
+3. **Validate incrementally** - Check fields as user completes them
+4. **Show validation state** - Indicate when validation is in progress
+5. **Fail fast** - Stop at first error when appropriate
+</Callout>
+
+### Optimized Validation Hook
+
+```typescript
+function useValidatedField(
+  fieldName: string,
+  validator: (value: any) => Promise<boolean>,
+  debounceMs = 500
+) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+
+  const validate = useMemo(
+    () => debounce(async (val: string) => {
+      setIsValidating(true);
+      try {
+        const isValid = await validator(val);
+        setError(isValid ? null : `Invalid ${fieldName}`);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setIsValidating(false);
+      }
+    }, debounceMs),
+    [fieldName, validator, debounceMs]
+  );
+
+  useEffect(() => {
+    if (value) validate(value);
+  }, [value, validate]);
+
+  return {
+    value,
+    setValue,
+    error,
+    isValidating,
+    isValid: !error && !isValidating && value !== ''
+  };
+}
+```
+
+## Best Practices
+
+<Callout type="success" title="Validation Best Practices">
+1. **Validate early and often** - Don't wait until submission
+2. **Provide clear error messages** - Tell users how to fix issues
+3. **Use type-safe validation** - Leverage TypeScript and Zod
+4. **Handle edge cases** - Test with empty, null, and invalid data
+5. **Consider UX** - Don't block users unnecessarily
+6. **Validate on client and server** - Never trust client-only validation
+7. **Make validation testable** - Extract complex logic into functions
+</Callout>
+
+## Next Steps
+
+- Deep dive into [Zod Integration](/validation/zod-integration) for type-safe validation
+- Learn about [Custom Validators](/validation/custom-validators) for complex rules
+- Explore [Advanced Patterns](/advanced/error-handling) for error handling

@@ -1,0 +1,233 @@
+# Helpers API
+
+import { Callout } from '../../components'
+
+The Helpers API provides a comprehensive set of utility functions for working with your wizard's state, navigation, and progress tracking. These helpers make it easy to build complex wizard workflows without directly manipulating the state.
+
+<Callout type="info" title="Type Safety">
+  All helper methods are fully type-safe and will infer types from your wizard configuration, providing excellent IDE support and compile-time safety.
+</Callout>
+
+## Getting Started
+
+The helpers API is accessed through the `createHelpers` function:
+
+```typescript
+import { createWizard, createHelpers } from '@wizard/core';
+
+const wizard = createWizard({
+  // Your wizard configuration
+});
+
+const helpers = createHelpers(wizard);
+```
+
+## Helper Categories
+
+### Helper Categories
+
+- **[Navigation](/helpers/navigation)** - Methods for navigating between steps, checking navigation availability, and finding available steps.
+- **[Progress](/helpers/progress)** - Track completion progress, calculate percentages, and determine remaining work.
+- **[Availability](/helpers/availability)** - Check step availability, refresh availability status, and find available navigation paths.
+- **[Requirements](/helpers/requirements)** - Validate prerequisites, check completion status, and manage step dependencies.
+- **[Diagnostics](/helpers/diagnostics)** - Performance metrics, step attempts tracking, and duration measurements.
+
+## Core Methods
+
+### Step Information
+
+```typescript
+// Get all steps in the wizard
+const allSteps = helpers.allSteps();
+// Returns: ['step1', 'step2', 'step3', ...]
+
+// Get steps in order (respecting prerequisites)
+const orderedSteps = helpers.orderedSteps();
+// Returns: ['step1', 'step2', 'step3', ...]
+
+// Get total step count
+const count = helpers.stepCount();
+// Returns: 5
+
+// Get index of a specific step
+const index = helpers.stepIndex('payment');
+// Returns: 3
+
+// Get current step index
+const currentIdx = helpers.currentIndex();
+// Returns: 2
+```
+
+### Step Status
+
+Every step in the wizard has a runtime status that reflects its current state:
+
+```typescript
+// Get the status of any step
+const status = helpers.stepStatus('userInfo');
+// Returns: 'current' | 'completed' | 'error' | 'loading' |
+//          'terminated' | 'skipped' | 'unavailable' |
+//          'required' | 'optional'
+
+// Check if a step is optional
+const isOptional = helpers.isOptional('preferences');
+// Returns: true | false
+
+// Check if a step is required
+const isRequired = helpers.isRequired('payment');
+// Returns: true | false
+```
+
+### Step Relationships
+
+```typescript
+// Check if a step is reachable (prerequisites met)
+const canReach = helpers.isReachable('checkout');
+// Returns: true | false
+
+// Get prerequisites for a step
+const prereqs = helpers.prerequisitesFor('checkout');
+// Returns: ['userInfo', 'shipping']
+
+// Get successors of a step (what comes next)
+const nextSteps = helpers.successorsOf('payment');
+// Returns: ['confirmation'] or multiple if branching
+```
+
+## Complete API Reference
+
+```typescript
+interface WizardHelpers<C, S extends string, D extends Record<S, unknown>> {
+  // Step Information
+  allSteps(): readonly S[];
+  orderedSteps(): readonly S[];
+  stepCount(): number;
+  stepIndex(step: S): number;
+  currentIndex(): number;
+
+  // Step Status
+  stepStatus(step: S): StepStatus;
+  isOptional(step: S): boolean;
+  isRequired(step: S): boolean;
+
+  // Availability
+  availableSteps(): readonly S[];
+  unavailableSteps(): readonly S[];
+  refreshAvailability(): Promise<void>;
+
+  // Completion Status
+  completedSteps(): readonly S[];
+  remainingSteps(): readonly S[];
+  firstIncompleteStep(): S | null;
+  lastCompletedStep(): S | null;
+  remainingRequiredCount(): number;
+  isComplete(): boolean;
+  progress(): number;
+
+  // Navigation Helpers
+  canGoNext(): boolean;
+  canGoBack(): boolean;
+  canGoTo(step: S): boolean;
+  findNextAvailable(from?: S): S | null;
+  findPrevAvailable(from?: S): S | null;
+  jumpToNextRequired(): Promise<S | null>;
+
+  // Step Relationships
+  isReachable(step: S): boolean;
+  prerequisitesFor(step: S): readonly S[];
+  successorsOf(step: S): readonly S[];
+
+  // Diagnostics
+  stepAttempts(step: S): number;
+  stepDuration(step: S): number | null;
+  percentCompletePerStep(): Record<S, number>;
+
+  // State Access
+  snapshot(): Readonly<WizardState<C, S, D>>;
+}
+```
+
+## Examples
+
+### Basic Navigation Control
+
+```typescript
+const helpers = createHelpers(wizard);
+
+// Check if can proceed
+if (helpers.canGoNext()) {
+  await wizard.next();
+}
+
+// Find and jump to next required step
+const nextRequired = await helpers.jumpToNextRequired();
+if (nextRequired) {
+  console.log(`Jumped to required step: ${nextRequired}`);
+}
+```
+
+### Progress Tracking
+
+```typescript
+// Get overall progress
+const progress = helpers.progress(); // 0-100
+
+// Get per-step completion percentage
+const stepProgress = helpers.percentCompletePerStep();
+console.log(stepProgress);
+// { userInfo: 100, shipping: 100, payment: 50, confirmation: 0 }
+
+// Check remaining work
+const remaining = helpers.remainingRequiredCount();
+console.log(`${remaining} required steps remaining`);
+```
+
+### Dynamic Step Management
+
+```typescript
+// Refresh availability when external conditions change
+await helpers.refreshAvailability();
+
+// Get current available/unavailable steps
+const available = helpers.availableSteps();
+const unavailable = helpers.unavailableSteps();
+
+console.log('Available:', available);
+console.log('Blocked:', unavailable);
+```
+
+### Performance Monitoring
+
+```typescript
+// Track how many times user attempted a step
+const attempts = helpers.stepAttempts('payment');
+if (attempts > 3) {
+  console.log('User struggling with payment step');
+}
+
+// Measure time spent on steps
+const duration = helpers.stepDuration('userForm');
+if (duration && duration > 300000) { // 5 minutes
+  console.log('User spending a lot of time on form');
+}
+```
+
+## Best Practices
+
+1. **Use helpers for read operations** - Helpers provide safe, read-only access to wizard state
+2. **Combine with wizard methods** - Use helpers to check before calling wizard methods
+3. **Cache helper instance** - Create once and reuse throughout your application
+4. **Monitor performance** - Use diagnostic helpers to identify UX improvements
+5. **Handle async operations** - Some methods like `refreshAvailability()` are async
+
+<Callout type="warning" title="Important">
+  Helpers provide read-only access to state. To modify the wizard state, use the main wizard instance methods like `next()`, `back()`, `goTo()`, etc.
+</Callout>
+
+## Next Steps
+
+- Learn about [Navigation Helpers](/helpers/navigation) for advanced navigation
+- Explore [Progress Tracking](/helpers/progress) for completion metrics
+- Understand [Availability Management](/helpers/availability) for dynamic workflows
+- Master [Requirements Validation](/helpers/requirements) for complex dependencies
+- Monitor with [Diagnostics](/helpers/diagnostics) for performance insights
