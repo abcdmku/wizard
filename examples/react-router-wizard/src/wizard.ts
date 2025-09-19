@@ -39,7 +39,7 @@ export const checkoutWizard = createWizard<
       canEnter: ({ ctx }) => Boolean(ctx.userId),
       load: async ({ setStepData }) => {
         // Simulate loading saved address
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         // Could pre-populate from saved data
       },
     },

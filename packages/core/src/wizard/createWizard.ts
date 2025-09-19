@@ -92,6 +92,10 @@ export function createWizard<
     return stateManager.subscribe(listener);
   };
 
+  const getStepData = <K extends S>(step: K): D[K] | undefined => {
+    return stateManager.store.state.data[step] as D[K] | undefined;
+  };
+
   return {
     store: stateManager.store,
     next: transitions.next,
@@ -102,6 +106,7 @@ export function createWizard<
     setStepData: contextManager.setStepData,
     getContext: contextManager.getContext,
     getCurrent: contextManager.getCurrent,
+    getStepData,
     subscribe,
     emit,
     snapshot: stateManager.snapshot,

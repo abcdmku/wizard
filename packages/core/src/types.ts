@@ -314,6 +314,9 @@ export type Wizard<
     ctx: Readonly<C>;
   };
 
+  /** Get data for a specific step */
+  getStepData: <K extends S>(step: K) => D[K] | undefined;
+
   /** Subscribe to state changes */
   subscribe: (cb: (state: WizardState<C, S, D>) => void) => () => void;
 
