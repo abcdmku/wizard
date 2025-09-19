@@ -52,9 +52,17 @@ type InferSteps<T> = T extends { steps: infer S }
 
 // Extract data type from step definition
 type InferStepData<T> =
-  T extends { validate: (data: unknown) => asserts data is infer D } ? D :
+  T extends { validate: infer V } ? InferValidatorData<V> :
   T extends { load: () => infer D | Promise<infer D> } ? D :
   T extends { data?: infer D } ? D :
+  unknown;
+
+// Infer data from various validator patterns
+type InferValidatorData<V> =
+  V extends (data: unknown) => asserts data is infer D ? D :
+  V extends (data: unknown) => data is infer D ? D :
+  V extends { parse: (data: unknown) => infer D } ? D :
+  V extends { safeParse: (data: unknown) => { success: true, data: infer D } | any } ? D :
   unknown;
 
 // Build data map from steps
@@ -122,26 +130,30 @@ export function createWizard(config: any): any {
 }
 ```
 
-### Phase 4: Zod Integration Enhancement
+### Phase 4: Validator Type Inference
 
 ```typescript
-// packages/core/src/zod.ts
+// Enhanced validator type inference
 
-// Helper to create step with Zod validation
-export function zodStep<T>(
-  schema: z.ZodSchema<T>,
-  definition: Omit<StepDefinitionInfer<T>, 'validate'>
-): StepDefinitionInfer<T> {
-  return {
-    ...definition,
-    validate: createZodValidator(schema)
-  };
-}
+// Detect validator return type (works with Zod, custom validators, etc.)
+type InferValidatorData<V> =
+  V extends (data: unknown) => asserts data is infer D ? D :
+  V extends { parse: (data: unknown) => infer D } ? D :
+  V extends { safeParse: (data: unknown) => { success: true, data: infer D } | any } ? D :
+  unknown;
 
-// Type extractor for use in step definitions
-export function inferData<T>(data: T): T {
-  return data;
-}
+// Step definition automatically infers from validator
+type StepDefinitionInfer<V = unknown> = {
+  // Any validator that returns typed data
+  validate?: V;
+
+  // Other properties remain the same
+  next: string[] | ((args: any) => string | string[]);
+  load?: () => any;
+  // ...
+};
+
+// The step's data type is inferred from the validator automatically
 ```
 
 ## Implementation Tasks
@@ -161,10 +173,11 @@ export function inferData<T>(data: T): T {
 2. Test inference with different configurations
 3. Verify autocomplete works correctly
 
-### Task 4: Improve Zod Integration
-1. Create `zodStep` helper function
-2. Add `inferData` utility
-3. Update documentation with examples
+### Task 4: Enhance Validator Type Inference
+1. Implement `InferValidatorData` type utility
+2. Support Zod's `parse` and `safeParse` methods
+3. Support custom validator functions
+4. Update documentation with validator examples
 
 ### Task 5: Add Comprehensive Tests
 1. Test explicit type mode (existing tests should pass)
@@ -180,7 +193,17 @@ export function inferData<T>(data: T): T {
 ## Example Usage After Implementation
 
 ```typescript
-// Fully inferred types
+import { z } from 'zod';
+
+// Define schemas/types
+type InfoData = { name: string; email: string };
+
+const paymentSchema = z.object({
+  method: z.string(),
+  amount: z.number().positive(),
+});
+
+// Create wizard - types are fully inferred!
 const wizard = createWizard({
   initialStep: 'info',
   initialContext: { userId: '123' },
@@ -189,12 +212,17 @@ const wizard = createWizard({
       next: ['payment'],
       load: () => ({ name: '', email: '' } as InfoData)
     },
-    payment: zodStep(paymentSchema, {
-      next: ['confirm']
-    }),
+    payment: {
+      next: ['confirm'],
+      validate: paymentSchema.parse  // Just pass the parse method directly!
+      // TypeScript infers the step data type from the validator
+    },
     confirm: {
       next: [],
-      data: {} as { agreed: boolean }
+      validate: (data): data is { agreed: boolean } => {
+        // Custom type guard validator also works
+        return typeof data === 'object' && 'agreed' in data;
+      }
     }
   }
 });
@@ -202,7 +230,8 @@ const wizard = createWizard({
 // TypeScript knows:
 // - Steps are: 'info' | 'payment' | 'confirm'
 // - wizard.getStepData('info') returns InfoData
-// - wizard.getStepData('payment') returns z.infer<typeof paymentSchema>
+// - wizard.getStepData('payment') returns { method: string; amount: number }
+// - wizard.getStepData('confirm') returns { agreed: boolean }
 ```
 
 ## Validation Gates
