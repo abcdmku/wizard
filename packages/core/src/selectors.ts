@@ -1,7 +1,4 @@
-/**
- * Pure selectors for wizard state - tree-shakable utilities.
- * These functions can be imported individually for optimal bundle size.
- */
+import { computeAllSteps, computeOrderedSteps } from './utils/stepGraph';
 
 import type {
   WizardConfig,
@@ -17,7 +14,7 @@ import type {
 export const allSteps = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>
 ): readonly S[] => {
-  return Object.keys(config.steps) as S[];
+  return computeAllSteps(config);
 };
 
 /**
@@ -29,10 +26,7 @@ export const allSteps = <C, S extends string, D extends Record<S, unknown>>(
 export const orderedSteps = <C, S extends string, D extends Record<S, unknown>>(
   config: WizardConfig<C, S, D>
 ): readonly S[] => {
-  if (config.order) {
-    return config.order;
-  }
-  return allSteps(config);
+  return computeOrderedSteps(config);
 };
 
 /**
@@ -300,3 +294,6 @@ export const stepDuration = <C, S extends string, D extends Record<S, unknown>>(
   }
   return null;
 };
+
+
+
