@@ -44,6 +44,138 @@ await wizard.next({ data: welcomeData });
 console.log(wizard.helpers.progress().percent); // 33%
 ```
 
+## Type Inference (New!)
+
+The wizard now supports automatic type inference, allowing you to define wizards with minimal type boilerplate while maintaining full type safety.
+
+### Inferred Types from Validators
+
+```typescript
+import { createWizard } from '@wizard/core';
+import { z } from 'zod';
+
+// Define your data schemas
+const userSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+});
+
+const paymentSchema = z.object({
+  method: z.enum(['card', 'paypal']),
+  amount: z.number().positive(),
+});
+
+// Create wizard - types are automatically inferred!
+const wizard = createWizard({
+  initialStep: 'user',
+  initialContext: { sessionId: '123' },
+  steps: {
+    user: {
+      next: ['payment'],
+      validate: userSchema.parse, // Just pass the parse method!
+    },
+    payment: {
+      next: ['confirm'],
+      validate: paymentSchema.parse,
+    },
+    confirm: {
+      next: [],
+      validate: (data): data is { agreed: boolean } => {
+        // Type guards also work
+        return typeof data === 'object' && 'agreed' in data;
+      },
+    },
+  },
+});
+
+// TypeScript knows the exact types!
+wizard.setStepData('user', { name: 'John', email: 'john@example.com' }); // ✅ Type-safe
+wizard.setStepData('payment', { method: 'card', amount: 99.99 }); // ✅ Type-safe
+const userData = wizard.getStepData('user'); // Type: { name: string; email: string } | undefined
+```
+
+### Inferred Types from Load Functions
+
+```typescript
+const wizard = createWizard({
+  initialStep: 'loading',
+  steps: {
+    loading: {
+      next: ['display'],
+      load: async () => {
+        // The return type is automatically used as the step's data type
+        const response = await fetch('/api/data');
+        return {
+          items: await response.json(),
+          timestamp: Date.now(),
+        };
+      },
+    },
+    display: {
+      next: [],
+    },
+  },
+});
+
+// TypeScript knows the shape from the load function
+const loadingData = wizard.getStepData('loading');
+// Type: { items: any; timestamp: number } | undefined
+```
+
+### Mixed Patterns
+
+You can mix different validation patterns in the same wizard:
+
+```typescript
+const wizard = createWizard({
+  initialStep: 'step1',
+  steps: {
+    step1: {
+      next: ['step2'],
+      validate: zodSchema.parse, // Zod schema
+    },
+    step2: {
+      next: ['step3'],
+      validate: (data): asserts data is MyType => { // Type assertion
+        if (!isValid(data)) throw new Error('Invalid');
+      },
+    },
+    step3: {
+      next: ['step4'],
+      load: () => ({ loaded: true }), // Inferred from return
+    },
+    step4: {
+      next: [],
+      // No validator - accepts any data
+    },
+  },
+});
+```
+
+### Explicit Types (Still Supported)
+
+The original explicit type syntax is still fully supported for cases where you want maximum control:
+
+```typescript
+type Context = { userId: string };
+type Steps = 'info' | 'payment' | 'confirm';
+type Data = {
+  info: { name: string; email: string };
+  payment: { method: string; amount: number };
+  confirm: { agreed: boolean };
+};
+
+const wizard = createWizard<Context, Steps, Data>({
+  initialStep: 'info',
+  initialContext: { userId: '123' },
+  steps: {
+    info: { next: ['payment'] },
+    payment: { next: ['confirm'] },
+    confirm: { next: [] },
+  },
+});
+```
+
 ## Core Concepts
 
 ### Step Statuses

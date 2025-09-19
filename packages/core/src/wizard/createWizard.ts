@@ -3,6 +3,9 @@ import type {
   WizardConfig,
   WizardState,
   WizardTransitionEvent,
+  InferContext,
+  InferSteps,
+  InferDataMap,
 } from '../types';
 import { createHelpers } from '../helpers';
 import { createStateManager } from './stateManager';
@@ -12,24 +15,42 @@ import { createStatusMarkers } from './runtimeMarkers';
 import { createStepLifecycle } from './stepLifecycle';
 import { createTransitionController } from './transitionController';
 
+// Overload 1: Explicit types (backward compatible)
 export function createWizard<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(config: WizardConfig<C, S, D, E>): Wizard<C, S, D, E> {
+>(config: WizardConfig<C, S, D, E>): Wizard<C, S, D, E>;
+
+// Overload 2: Inferred types
+export function createWizard<
+  T extends {
+    initialStep: string;
+    initialContext?: any;
+    steps: Record<string, any>;
+  }
+>(config: T): Wizard<
+  InferContext<T>,
+  InferSteps<T>,
+  InferDataMap<T>,
+  never
+>;
+
+// Implementation
+export function createWizard(config: any): any {
   const {
     initialStep,
-    initialContext,
+    initialContext = {},
     persistence,
     keepHistory = true,
     maxHistorySize = 10,
   } = config;
 
-  const initialState: WizardState<C, S, D> = {
+  const initialState: WizardState<any, any, any> = {
     step: initialStep,
     context: structuredClone(initialContext),
-    data: {} as Partial<D>,
+    data: {} as Partial<any>,
     errors: {},
     history: [],
     isLoading: false,
@@ -48,8 +69,8 @@ export function createWizard<
   );
   const statusMarkers = createStatusMarkers(config, stateManager);
 
-  const eventListeners = new Set<(event: E) => void>();
-  const emit = (event: E) => {
+  const eventListeners = new Set<(event: any) => void>();
+  const emit = (event: any) => {
     for (const listener of eventListeners) {
       listener(event);
     }
@@ -58,7 +79,7 @@ export function createWizard<
   const lifecycle = createStepLifecycle(config, stateManager, contextManager, emit);
 
   const onTransition = config.onTransition
-    ? async (event: WizardTransitionEvent<C, S, D, E>) => {
+    ? async (event: WizardTransitionEvent<any, any, any, any>) => {
         await config.onTransition!(event);
       }
     : undefined;
@@ -77,7 +98,7 @@ export function createWizard<
     stateManager.replace({
       step: initialStep,
       context: contextManager.cloneContext(initialContext),
-      data: {} as Partial<D>,
+      data: {} as Partial<any>,
       errors: {},
       history: [],
       isLoading: false,
@@ -88,12 +109,12 @@ export function createWizard<
     stateManager.clearPersistence();
   };
 
-  const subscribe = (listener: (state: WizardState<C, S, D>) => void) => {
+  const subscribe = (listener: (state: WizardState<any, any, any>) => void) => {
     return stateManager.subscribe(listener);
   };
 
-  const getStepData = <K extends S>(step: K): D[K] | undefined => {
-    return stateManager.store.state.data[step] as D[K] | undefined;
+  const getStepData = (step: any): any | undefined => {
+    return stateManager.store.state.data[step];
   };
 
   return {

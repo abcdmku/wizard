@@ -13,8 +13,15 @@ export type {
   WizardTransitionEvent,
   WizardPersistence,
   StepDefinition,
+  StepDefinitionInfer,
   StepStatus,
   StepRuntime,
   WizardHelpers,
   StepMeta,
+  // Type inference utilities
+  InferSteps,
+  InferDataMap,
+  InferContext,
+  InferStepData,
+  InferValidatorData,
 } from './types';

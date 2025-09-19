@@ -27,8 +27,46 @@ export function createStepLifecycle<C, S extends string, D extends Record<S, unk
     }
 
     try {
-      const validator: NonNullable<typeof stepDef.validate> = stepDef.validate;
-      validator(data, context.getContext());
+      const validator = stepDef.validate;
+
+      // Support different validator patterns
+      if (typeof validator === 'function') {
+        // Check if it's a Zod-like parse function or a traditional validator
+        const validatorFunc = validator as any;
+
+        // If the function has a length of 1, it's likely a Zod parse or similar
+        // Otherwise, it expects context as second parameter
+        if (validatorFunc.length <= 1) {
+          // Zod-style parse function or type guard without context
+          const result = validatorFunc(data);
+          // If it returns a boolean (type guard), check it
+          if (typeof result === 'boolean') {
+            return result ? { valid: true } : { valid: false, error: new Error('Validation failed') };
+          }
+          // Otherwise assume it returns validated data (like Zod parse)
+          return { valid: true };
+        } else {
+          // Traditional validator with context
+          validatorFunc(data, context.getContext());
+          return { valid: true };
+        }
+      } else if (validator && typeof validator === 'object') {
+        // Handle objects with parse method (Zod schemas)
+        if ('parse' in validator && typeof (validator as any).parse === 'function') {
+          (validator as any).parse(data);
+          return { valid: true };
+        } else if ('safeParse' in validator && typeof (validator as any).safeParse === 'function') {
+          const result = (validator as any).safeParse(data);
+          if (result.success) {
+            return { valid: true };
+          } else {
+            return { valid: false, error: result.error };
+          }
+        }
+      }
+
+      // Fallback to calling validator as-is
+      (validator as any)(data, context.getContext());
       return { valid: true };
     } catch (error) {
       return { valid: false, error };

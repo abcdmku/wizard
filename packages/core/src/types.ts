@@ -103,10 +103,37 @@ export type StepDefinition<C, S extends string, Data, E> = {
   canEnter?: (args: { ctx: Readonly<C> }) => boolean | Promise<boolean>;
   
   /** Optional guard to allow leaving */
-  canExit?: (args: { 
-    ctx: Readonly<C>; 
-    data: Readonly<Data> 
+  canExit?: (args: {
+    ctx: Readonly<C>;
+    data: Readonly<Data>
   }) => boolean | Promise<boolean>;
+};
+
+/**
+ * Flexible step definition that supports type inference
+ * This variant allows validators and loaders to define the data type
+ */
+export type StepDefinitionInfer<_C = any, S extends string = string, _E = any> = {
+  /** Optional validator - can be any function or object with parse method */
+  validate?: any;
+
+  /** Allowed next steps */
+  next: S[] | ((args: any) => S | readonly S[]);
+
+  /** Optional loader that returns data */
+  load?: (args: any) => any | Promise<any>;
+
+  /** Explicit data type hint */
+  data?: any;
+
+  /** Side effects before leaving the step */
+  beforeExit?: (args: any) => void | Promise<void>;
+
+  /** Optional guard to allow entry */
+  canEnter?: (args: any) => boolean | Promise<boolean>;
+
+  /** Optional guard to allow leaving */
+  canExit?: (args: any) => boolean | Promise<boolean>;
 };
 
 /**
@@ -342,3 +369,36 @@ export type Wizard<
   // Helpers instance
   helpers: WizardHelpers<C, S, D>;
 };
+
+/**
+ * Type inference utilities for automatic type extraction from wizard configurations
+ */
+
+// Extract step names from config
+export type InferSteps<T> = T extends { steps: infer S }
+  ? keyof S extends string ? keyof S : never
+  : never;
+
+// Infer data from various validator patterns
+export type InferValidatorData<V> =
+  V extends (data: unknown, ctx?: any) => asserts data is infer D ? D :
+  V extends (data: unknown) => asserts data is infer D ? D :
+  V extends (data: unknown) => data is infer D ? D :
+  V extends { parse: (data: unknown) => infer D } ? D :
+  V extends { safeParse: (data: unknown) => { success: true, data: infer D } | any } ? D :
+  unknown;
+
+// Extract data type from step definition
+export type InferStepData<T> =
+  T extends { validate: infer V } ? InferValidatorData<V> :
+  T extends { load: (...args: any[]) => infer D | Promise<infer D> } ? Awaited<D> :
+  T extends { data?: infer D } ? D :
+  unknown;
+
+// Build data map from steps
+export type InferDataMap<T> = T extends { steps: infer S }
+  ? { [K in keyof S]: InferStepData<S[K]> }
+  : never;
+
+// Extract context from config
+export type InferContext<T> = T extends { initialContext: infer C } ? C : {};
