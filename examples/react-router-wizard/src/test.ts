@@ -27,7 +27,7 @@ const wizard = createWizard({
     confirm: {
       next: [],
       // Can add completion logic if needed
-      complete: (data) => !!data,
+      complete: (data: unknown) => !!data,
     },
   },
 });
@@ -43,3 +43,5 @@ const info = wizard.getStepData("info"); // Correctly typed as { name: string; e
 
 // You can also extract the inferred type if needed:
 type PaymentData = z.infer<typeof paymentDataSchema>;
+
+void (payment satisfies { method: string; amount: number } | undefined);

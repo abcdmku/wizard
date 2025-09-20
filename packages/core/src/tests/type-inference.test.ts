@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, expectTypeOf } from 'vitest';
 import { z } from 'zod';
 import { createWizard } from '../wizard';
 import type { Wizard } from '../types';
@@ -234,6 +234,29 @@ describe('Type Inference', () => {
       if (data) {
         expect(data.value).toBe(42);
       }
+    });
+
+    it('direct parse validators infer data types', () => {
+      const paymentSchema = z.object({
+        method: z.enum(['card', 'paypal']),
+        amount: z.number().positive(),
+      });
+
+      const wizard = createWizard({
+        initialStep: 'info',
+        initialContext: { userId: '123' },
+        steps: {
+          info: {
+            next: ['payment'],
+          },
+          payment: {
+            next: [],
+            validate: paymentSchema.parse,
+          },
+        },
+      });
+
+      expectTypeOf(wizard.getStepData('payment')).toEqualTypeOf<{ method: 'card' | 'paypal'; amount: number } | undefined>();
     });
 
     it('should handle complex nested types', () => {

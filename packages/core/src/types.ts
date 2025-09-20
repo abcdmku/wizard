@@ -425,13 +425,82 @@ export type InferSteps<T> = T extends { steps: infer S }
   : never;
 
 // Infer data from various validator patterns
+type UnwrapPromise<T> = T extends PromiseLike<infer U> ? UnwrapPromise<U> : T;
+
+type ExtractCallableResult<R> =
+  UnwrapPromise<R> extends { success: true; data: infer D }
+    ? D
+    : [UnwrapPromise<R>] extends [void | never]
+      ? unknown
+      : [unknown] extends [UnwrapPromise<R>]
+        ? unknown
+        : UnwrapPromise<R>;
+
+type FirstNonNever<A, B> = [A] extends [never] ? B : A;
+
+type AssertionWithContext<V> = V extends (data: unknown, ctx?: any) => asserts data is infer D
+  ? ReturnType<V> extends void ? D : never
+  : never;
+
+type AssertionWithoutContext<V> = V extends (data: unknown) => asserts data is infer D
+  ? ReturnType<V> extends void ? D : never
+  : never;
+
+type AssertionWithThisAndContext<V> = V extends (this: any, data: unknown, ctx?: any) => asserts data is infer D
+  ? ReturnType<V> extends void ? D : never
+  : never;
+
+type AssertionWithThis<V> = V extends (this: any, data: unknown) => asserts data is infer D
+  ? ReturnType<V> extends void ? D : never
+  : never;
+
+type TypeGuardWithThis<V> =
+  V extends (this: any, data: unknown, ...args: any[]) => data is infer D ? D : never;
+
+type TypeGuard<V> =
+  V extends (data: unknown, ...args: any[]) => data is infer D ? D : never;
+
+type ParseResult<V> =
+  V extends { parse: (data: unknown, ...args: any[]) => infer R } ? ExtractCallableResult<R> : never;
+
+type SafeParseResult<V> =
+  V extends { safeParse: (data: unknown, ...args: any[]) => infer R } ? ExtractCallableResult<R> : never;
+
+type FunctionWithThisResult<V> =
+  V extends (this: any, ...args: any[]) => any ? ExtractCallableResult<ReturnType<V>> : never;
+
+type FunctionResult<V> =
+  V extends (...args: any[]) => any ? ExtractCallableResult<ReturnType<V>> : never;
+
 export type InferValidatorData<V> =
-  V extends (data: unknown, ctx?: any) => asserts data is infer D ? D :
-  V extends (data: unknown) => asserts data is infer D ? D :
-  V extends (data: unknown) => data is infer D ? D :
-  V extends { parse: (data: unknown) => infer D } ? D :
-  V extends { safeParse: (data: unknown) => { success: true, data: infer D } | any } ? D :
-  unknown;
+  FirstNonNever<
+    AssertionWithContext<V>,
+    FirstNonNever<
+      AssertionWithoutContext<V>,
+      FirstNonNever<
+        AssertionWithThisAndContext<V>,
+        FirstNonNever<
+          AssertionWithThis<V>,
+          FirstNonNever<
+            TypeGuardWithThis<V>,
+            FirstNonNever<
+              TypeGuard<V>,
+              FirstNonNever<
+                ParseResult<V>,
+                FirstNonNever<
+                  SafeParseResult<V>,
+                  FirstNonNever<
+                    FunctionWithThisResult<V>,
+                    FirstNonNever<FunctionResult<V>, unknown>
+                  >
+                >
+              >
+            >
+          >
+        >
+      >
+    >
+  >;
 
 // Extract data type from step definition
 export type InferStepData<T> =
