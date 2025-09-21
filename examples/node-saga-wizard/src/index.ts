@@ -62,7 +62,10 @@ const steps = defineSteps({
     validate: validateInit,
     data: { orderId: '', customerId: '', totalAmount: 0 },
     next: ['reserve'],
-    beforeExit: ({ data, updateContext }: { data: any; updateContext: any }) => {
+    beforeExit: ({ data, updateContext }: {
+      data: { orderId: string; customerId: string; totalAmount: number };
+      updateContext: (fn: (ctx: any) => void) => void;
+    }) => {
       updateContext((ctx: any) => {
         ctx.orderId = data.orderId;
         ctx.customerId = data.customerId;
