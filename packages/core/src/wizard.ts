@@ -418,15 +418,15 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       });
     },
 
-    setStepData(step: S, data: D[S]) {
+    setStepData<K extends S>(step: K, data: D[K]) {
       store.setState(state => ({
         ...state,
         data: { ...state.data, [step]: data },
       }));
     },
 
-    getStepData(step: S): D[S] | undefined {
-      return store.state.data[step] as D[S] | undefined;
+    getStepData<K extends S>(step: K): D[K] | undefined {
+      return store.state.data[step] as D[K] | undefined;
     },
 
     getContext: () => store.state.context,
