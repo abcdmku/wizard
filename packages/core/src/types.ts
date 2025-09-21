@@ -121,21 +121,35 @@ export type StepDefinition<C,S extends string,Data,E = never> = {
 
 // Infer Data from validate() → beforeEnter() return → data initializer
 type InferFromValidate<TDef> =
-  TDef extends { validate: (a: infer A) => any }
-    ? A extends { data: infer D } ? D : never : never;
+  TDef extends { validate: (args: { data: infer Data }) => any }
+    ? Data
+    : never;
 
 type InferFromBeforeEnter<TDef> =
-  TDef extends { beforeEnter: (...a: any[]) => infer R | Promise<infer R> }
-    ? (R extends void ? never : R) : never;
+  TDef extends { beforeEnter: (...args: any[]) => infer R | Promise<infer R> }
+    ? R extends void
+      ? never
+      : R extends Partial<infer D>
+        ? D
+        : R
+    : never;
 
 type InferFromData<TDef> =
-  TDef extends { data: infer D } ? (D extends ValOrFn<infer X, any> ? X : D) : never;
+  TDef extends { data: infer D }
+    ? D extends ValOrFn<infer X, any>
+      ? X
+      : D
+    : never;
 
-type OrNeverToUnknown<T> = [T] extends [never] ? unknown : T;
-
-export type InferStepData<TDef> = OrNeverToUnknown<
-  InferFromValidate<TDef> | InferFromBeforeEnter<TDef> | InferFromData<TDef>
->;
+// IMPROVED: Better union handling with priority-based selection
+export type InferStepData<TDef> =
+  InferFromValidate<TDef> extends never
+    ? InferFromBeforeEnter<TDef> extends never
+      ? InferFromData<TDef> extends never
+        ? unknown  // Fallback to unknown if no inference possible
+        : InferFromData<TDef>
+      : InferFromBeforeEnter<TDef>
+    : InferFromValidate<TDef>;
 
 // Authoring surface (callbacks see inferred Data)
 export type PartialStepDefinition<C,S extends string,E,TDef> = {
@@ -253,4 +267,40 @@ export type CreateWizardOptions<C, _E, TDefs extends Record<string, any>> = {
 
 export declare function createWizard<C, E, TDefs extends Record<string, any>>(
   opts: CreateWizardOptions<C, E, TDefs>
-): Wizard<StepIds<TDefs>, StepIds<TDefs>, DataMapFromDefs<TDefs>, E>;
+): Wizard<C, StepIds<TDefs>, DataMapFromDefs<TDefs>, E>;
+
+// ===== 9. Compatibility Layer - Legacy Type Exports =====
+
+// Legacy 4-parameter WizardConfig for backward compatibility
+export type WizardConfig<C, S extends string, D extends Record<S, unknown>, E = never> = {
+  steps: Record<S, StepDefinition<C, S, D[S], E>>;
+  order?: readonly S[];
+  weights?: Partial<Record<S, number>>;
+  prerequisites?: Partial<Record<S, readonly S[]>>;
+  isStepComplete?: (a: { step: S; data: Partial<D>; ctx: Readonly<C> }) => boolean;
+  isOptional?: (step: S, ctx: Readonly<C>) => boolean;
+  isRequired?: (step: S, ctx: Readonly<C>) => boolean;
+  onStatusChange?: (a: { step: S; prev?: StepStatus; next: StepStatus }) => void;
+};
+
+// New API type alias for convenience
+export type WizardCreateOptions<C, E, TDefs extends Record<string, any>> = CreateWizardOptions<C, E, TDefs>;
+export type WizardTransitionEvent = {
+  step: string;
+  prev?: StepStatus;
+  next: StepStatus;
+};
+export type InferContext<T> = T extends { context: infer C } ? C : unknown;
+export type InferSteps<T> = T extends { steps: infer S } ? keyof S & string : string;
+export type InferDataMap<T> = T extends { steps: infer S } ? DataMapFromDefs<S> : Record<string, unknown>;
+export type StepRuntime = {
+  status?: StepStatus;
+  attempts?: number;
+  startedAt?: number;
+  finishedAt?: number;
+};
+export type WizardPersistence<T = any> = {
+  save: (key: string, value: T) => void | Promise<void>;
+  load: (key: string) => T | null | Promise<T | null>;
+  remove: (key: string) => void | Promise<void>;
+};
