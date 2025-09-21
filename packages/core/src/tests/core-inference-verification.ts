@@ -12,6 +12,12 @@ const testSteps = defineSteps({
       if (!data.method || data.amount <= 0) throw new Error('Invalid payment');
     },
     data: { method: 'card', amount: 100 },
+    beforeExit: ({ data }) => {
+      // Test callback typing - should be properly typed now!
+      const method: string = data.method; // This should work!
+      const amount: number = data.amount;  // This should work!
+      console.log(`Payment: ${method} for $${amount}`);
+    },
     next: ['confirmation'],
   },
   confirmation: {
@@ -19,6 +25,11 @@ const testSteps = defineSteps({
       // validation logic
     },
     data: { confirmed: false },
+    beforeExit: ({ data }) => {
+      // Test callback typing from validate function
+      const confirmed: boolean = data.confirmed; // This should work!
+      console.log(`Confirmed: ${confirmed}`);
+    },
     next: [],
   },
 });
