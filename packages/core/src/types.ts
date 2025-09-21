@@ -241,8 +241,8 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   reset(): void;
 
   updateContext(fn: (ctx: C) => void): void;
-  setStepData(step: S, data: D[S]): void;
-  getStepData(step: S): D[S] | undefined;
+  setStepData<K extends S>(step: K, data: D[K]): void;
+  getStepData<K extends S>(step: K): D[K] | undefined;
   getContext(): Readonly<C>;
   getCurrent(): { step: S; data: Readonly<D[S]> | undefined; ctx: Readonly<C> };
 
