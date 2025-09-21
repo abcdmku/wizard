@@ -177,38 +177,52 @@ export type DataMapFromDefs<TDefs> = { [K in keyof TDefs & string]: InferStepDat
 
 
 
-// Extract data type from step definition for callback inference
-type ExtractCallbackDataType<T> =
-  T extends { validate: (args: { data: infer ValidateData }) => any; data: infer DataProp }
-    ? ValidateData extends unknown ? DataProp : ValidateData
-  : T extends { validate: (args: { data: infer ValidateData }) => any }
-    ? ValidateData
-  : T extends { data: infer DataProp }
-    ? DataProp
-  : T extends { beforeEnter: (...args: any[]) => infer ReturnType }
-    ? ReturnType extends void ? unknown : ReturnType
-  : unknown;
+// FINAL FIX: Direct approach using intersection types and proper data extraction
 
-// Transform step definition with proper callback typing
-type TypedStepDef<T, K extends string> = Omit<T,
-  'beforeExit' | 'beforeEnter' | 'canEnter' | 'canExit' | 'complete' | 'weight' | 'required' | 'maxRetries' | 'retryDelay'
-> & {
-  beforeExit?: (args: StepExitArgs<unknown, K, ExtractCallbackDataType<T>, never>) => void | Promise<void>;
-  beforeEnter?: (args: StepEnterArgs<unknown, K, ExtractCallbackDataType<T>, never>) => void | Partial<ExtractCallbackDataType<T>> | ExtractCallbackDataType<T> | Promise<void | Partial<ExtractCallbackDataType<T>> | ExtractCallbackDataType<T>>;
-  canEnter?: ValOrFn<boolean, StepEnterArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
-  canExit?: ValOrFn<boolean, StepExitArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
-  complete?: ValOrFn<boolean, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
-  weight?: ValOrFn<number, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
-  required?: ValOrFn<boolean, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
-  maxRetries?: ValOrFn<number, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
-  retryDelay?: ValOrFn<number, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
+// Extract data type from step definition
+type ExtractDataType<T> =
+  T extends { validate: (args: { data: infer D }) => any }
+    ? D
+    : T extends { data: infer D }
+      ? D
+      : unknown;
+
+// Define properly typed step args for callbacks
+type TypedStepArgs<StepName extends string, Data> = {
+  step: StepName;
+  ctx: Readonly<unknown>;
+  data: Readonly<Data>;
+  updateContext: (fn: (ctx: unknown) => void) => void;
+  setStepData: (data: Data) => void;
+  emit: (event: never) => void;
 };
 
-// Core defineSteps function with working type inference
-export function defineSteps<T extends Record<string, any>>(
-  defs: T
-): { [K in keyof T]: TypedStepDef<T[K], K & string> } {
-  return defs as { [K in keyof T]: TypedStepDef<T[K], K & string> };
+type TypedStepEnterArgs<StepName extends string, Data> = TypedStepArgs<StepName, Data> & {
+  from?: StepName | null;
+};
+
+type TypedStepExitArgs<StepName extends string, Data> = TypedStepArgs<StepName, Data> & {
+  to?: StepName | null;
+};
+
+// The ACTUAL fix: overload defineSteps to directly type the input properly
+export function defineSteps<T extends Record<string, any>>(defs: T): {
+  [K in keyof T]: T[K] extends {
+    data: infer Data;
+    validate?: (args: { data: infer ValidateData }) => any;
+  } ? T[K] & {
+    beforeExit?: (args: TypedStepExitArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => void | Promise<void>;
+    beforeEnter?: (args: TypedStepEnterArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => void | Partial<T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data> | (T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data) | Promise<void | Partial<T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data> | (T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data)>;
+    canEnter?: boolean | ((args: TypedStepEnterArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => boolean);
+    canExit?: boolean | ((args: TypedStepExitArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => boolean);
+    complete?: boolean | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => boolean);
+    weight?: number | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => number);
+    required?: boolean | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => boolean);
+    maxRetries?: number | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => number);
+    retryDelay?: number | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => number);
+  } : T[K]
+} {
+  return defs;
 }
 
 
