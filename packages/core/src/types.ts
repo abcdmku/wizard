@@ -173,8 +173,72 @@ export type PartialStepDefinition<C,S extends string,E,TDef> = {
 export type StepIds<T> = keyof T & string;
 export type DataMapFromDefs<TDefs> = { [K in keyof TDefs & string]: InferStepData<TDefs[K]> };
 
-export function defineSteps<T extends Record<string, any>>(defs: T): T {
-  return defs; // runtime normalization in factory; typing leverages T
+// ===== 6.5. Advanced Type Transformation for Callback Inference =====
+
+// Input type that users write (with flexible callback signatures)
+type StepDefInput<S extends string = string> = {
+  data?: any;
+  validate?: (args: { data: any }) => void;
+  beforeEnter?: (args: any) => any;
+  beforeExit?: (args: any) => any;
+  canEnter?: any;
+  canExit?: any;
+  complete?: any;
+  next: readonly S[] | ((args: any) => S | readonly S[]);
+  meta?: any;
+  weight?: any;
+  required?: any;
+  maxRetries?: any;
+  retryDelay?: any;
+};
+
+// Transform each step definition to use proper callback constraints
+type TransformStepDef<TDef, S extends string> = TDef extends StepDefInput<S> ? {
+  data?: InferStepData<TDef>;
+  validate?: TDef['validate']; // Keep validate as-is (already properly typed)
+  beforeEnter?: TDef extends { beforeEnter: any }
+    ? (args: StepEnterArgs<unknown, S, InferStepData<TDef>, never>) =>
+        void | Partial<InferStepData<TDef>> | InferStepData<TDef> |
+        Promise<void | Partial<InferStepData<TDef>> | InferStepData<TDef>>
+    : never;
+  beforeExit?: TDef extends { beforeExit: any }
+    ? (args: StepExitArgs<unknown, S, InferStepData<TDef>, never>) => void | Promise<void>
+    : never;
+  canEnter?: TDef extends { canEnter: any }
+    ? ValOrFn<boolean, StepEnterArgs<unknown, S, InferStepData<TDef>, never>>
+    : never;
+  canExit?: TDef extends { canExit: any }
+    ? ValOrFn<boolean, StepExitArgs<unknown, S, InferStepData<TDef>, never>>
+    : never;
+  complete?: TDef extends { complete: any }
+    ? ValOrFn<boolean, StepArgs<unknown, S, InferStepData<TDef>, never>>
+    : never;
+  weight?: TDef extends { weight: any }
+    ? ValOrFn<number, StepArgs<unknown, S, InferStepData<TDef>, never>>
+    : never;
+  required?: TDef extends { required: any }
+    ? ValOrFn<boolean, StepArgs<unknown, S, InferStepData<TDef>, never>>
+    : never;
+  maxRetries?: TDef extends { maxRetries: any }
+    ? ValOrFn<number, StepArgs<unknown, S, InferStepData<TDef>, never>>
+    : never;
+  retryDelay?: TDef extends { retryDelay: any }
+    ? ValOrFn<number, StepArgs<unknown, S, InferStepData<TDef>, never>>
+    : never;
+  next: TDef['next'];
+  meta?: TDef['meta'];
+} : TDef;
+
+// Transform the entire steps object to apply proper constraints
+type TransformStepDefs<T extends Record<string, StepDefInput>> = {
+  [K in keyof T]: TransformStepDef<T[K], K & string>
+};
+
+// Enhanced defineSteps with proper callback argument typing
+export function defineSteps<T extends Record<string, StepDefInput>>(
+  defs: T
+): TransformStepDefs<T> {
+  return defs as TransformStepDefs<T>; // Runtime normalization; typing enforces constraints
 }
 
 

@@ -62,10 +62,7 @@ const steps = defineSteps({
     validate: validateInit,
     data: { orderId: '', customerId: '', totalAmount: 0 },
     next: ['reserve'],
-    beforeExit: ({ data, updateContext }: {
-      data: { orderId: string; customerId: string; totalAmount: number };
-      updateContext: (fn: (ctx: any) => void) => void;
-    }) => {
+    beforeExit: ({ data, updateContext }) => {
       updateContext((ctx: any) => {
         ctx.orderId = data.orderId;
         ctx.customerId = data.customerId;
@@ -84,7 +81,7 @@ const steps = defineSteps({
     data: { items: [] as Array<{ sku: string; quantity: number }> },
     next: ['charge'],
     canEnter: ({ ctx }: { ctx: any }) => Boolean(ctx.orderId),
-    beforeExit: async ({ data, updateContext }: { data: any; updateContext: any }) => {
+    beforeExit: async ({ data, updateContext }) => {
       // Simulate inventory reservation
       console.log('  Reserving inventory for items:', data.items);
       await new Promise(resolve => setTimeout(resolve, 1000));
