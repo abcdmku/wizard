@@ -1,32 +1,42 @@
 /**
- * @wizard/core - Deeply type-safe, isomorphic, headless multi-step wizard library
+ * @wizard/core - Isomorphic, deeply-typed wizard with inference-first authoring
  */
 
+// Main factory and step definition
 export { createWizard } from './wizard';
-export { createHelpers } from './helpers';
-export * as selectors from './selectors';
-export {
-  migrateWizardConfig,
-  hasDeprecatedProperties,
-  getDeprecationReport
-} from './utils/migrate';
+export { defineSteps } from './types';
 
+// Utility functions
+export { resolve, resolveMetaCore } from './types';
+
+// Core types
 export type {
+  // Factory types
+  CreateWizardOptions,
+
+  // Core wizard types
   Wizard,
-  WizardConfig,
   WizardState,
-  WizardTransitionEvent,
-  WizardPersistence,
-  StepDefinition,
-  StepDefinitionInfer,
-  StepStatus,
-  StepRuntime,
   WizardHelpers,
-  StepMeta,
-  // Type inference utilities
-  InferSteps,
-  InferDataMap,
-  InferContext,
+
+  // Step types
+  StepDefinition,
+  PartialStepDefinition,
+  StepStatus,
+  StepArgs,
+  StepEnterArgs,
+  StepExitArgs,
+  ValidateArgs,
+
+  // Meta types
+  StepMetaCore,
+
+  // Utility types
+  JSONValue,
+  ValOrFn,
+
+  // Inference types
   InferStepData,
-  InferValidatorData,
+  StepIds,
+  DataMapFromDefs,
 } from './types';

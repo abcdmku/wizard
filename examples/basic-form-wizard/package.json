@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
     "@wizard/core": "workspace:*",
     "@wizard/react": "workspace:*",
     "autoprefixer": "^10.4.21",
