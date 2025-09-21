@@ -177,36 +177,38 @@ export type DataMapFromDefs<TDefs> = { [K in keyof TDefs & string]: InferStepDat
 
 
 
-// Enhanced defineSteps with proper callback argument typing
+// Extract data type from step definition for callback inference
+type ExtractCallbackDataType<T> =
+  T extends { validate: (args: { data: infer ValidateData }) => any; data: infer DataProp }
+    ? ValidateData extends unknown ? DataProp : ValidateData
+  : T extends { validate: (args: { data: infer ValidateData }) => any }
+    ? ValidateData
+  : T extends { data: infer DataProp }
+    ? DataProp
+  : T extends { beforeEnter: (...args: any[]) => infer ReturnType }
+    ? ReturnType extends void ? unknown : ReturnType
+  : unknown;
+
+// Transform step definition with proper callback typing
+type TypedStepDef<T, K extends string> = Omit<T,
+  'beforeExit' | 'beforeEnter' | 'canEnter' | 'canExit' | 'complete' | 'weight' | 'required' | 'maxRetries' | 'retryDelay'
+> & {
+  beforeExit?: (args: StepExitArgs<unknown, K, ExtractCallbackDataType<T>, never>) => void | Promise<void>;
+  beforeEnter?: (args: StepEnterArgs<unknown, K, ExtractCallbackDataType<T>, never>) => void | Partial<ExtractCallbackDataType<T>> | ExtractCallbackDataType<T> | Promise<void | Partial<ExtractCallbackDataType<T>> | ExtractCallbackDataType<T>>;
+  canEnter?: ValOrFn<boolean, StepEnterArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
+  canExit?: ValOrFn<boolean, StepExitArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
+  complete?: ValOrFn<boolean, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
+  weight?: ValOrFn<number, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
+  required?: ValOrFn<boolean, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
+  maxRetries?: ValOrFn<number, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
+  retryDelay?: ValOrFn<number, StepArgs<unknown, K, ExtractCallbackDataType<T>, never>>;
+};
+
+// Core defineSteps function with working type inference
 export function defineSteps<T extends Record<string, any>>(
   defs: T
-): {
-  [K in keyof T]: T[K] extends { validate: (args: { data: infer Data }) => any }
-    ? T[K] & {
-        beforeExit?: (args: StepExitArgs<unknown, K & string, Data, never>) => void | Promise<void>;
-        beforeEnter?: (args: StepEnterArgs<unknown, K & string, Data, never>) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
-        canEnter?: ValOrFn<boolean, StepEnterArgs<unknown, K & string, Data, never>>;
-        canExit?: ValOrFn<boolean, StepExitArgs<unknown, K & string, Data, never>>;
-        complete?: ValOrFn<boolean, StepArgs<unknown, K & string, Data, never>>;
-      }
-    : T[K] extends { data: infer Data }
-    ? T[K] & {
-        beforeExit?: (args: StepExitArgs<unknown, K & string, Data, never>) => void | Promise<void>;
-        beforeEnter?: (args: StepEnterArgs<unknown, K & string, Data, never>) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
-        canEnter?: ValOrFn<boolean, StepEnterArgs<unknown, K & string, Data, never>>;
-        canExit?: ValOrFn<boolean, StepExitArgs<unknown, K & string, Data, never>>;
-        complete?: ValOrFn<boolean, StepArgs<unknown, K & string, Data, never>>;
-      }
-    : T[K] extends { beforeEnter: (...args: any[]) => infer R }
-    ? T[K] & {
-        beforeExit?: (args: StepExitArgs<unknown, K & string, R extends void ? unknown : R extends Partial<infer D> ? D : R, never>) => void | Promise<void>;
-        canEnter?: ValOrFn<boolean, StepEnterArgs<unknown, K & string, R extends void ? unknown : R extends Partial<infer D> ? D : R, never>>;
-        canExit?: ValOrFn<boolean, StepExitArgs<unknown, K & string, R extends void ? unknown : R extends Partial<infer D> ? D : R, never>>;
-        complete?: ValOrFn<boolean, StepArgs<unknown, K & string, R extends void ? unknown : R extends Partial<infer D> ? D : R, never>>;
-      }
-    : T[K]
-} {
-  return defs as any; // Runtime normalization; typing enforces constraints
+): { [K in keyof T]: TypedStepDef<T[K], K & string> } {
+  return defs as { [K in keyof T]: TypedStepDef<T[K], K & string> };
 }
 
 

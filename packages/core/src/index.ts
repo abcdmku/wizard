@@ -6,6 +6,9 @@
 export { createWizard } from './wizard';
 export { defineSteps } from './types';
 
+// Step helper functions for proper type inference
+export { step, stepWithValidation, dataStep, transitionStep, conditionalStep } from './step-helpers';
+
 // Utility functions
 export { resolve, resolveMetaCore } from './types';
 
