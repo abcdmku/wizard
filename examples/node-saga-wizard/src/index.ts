@@ -1,26 +1,12 @@
 #!/usr/bin/env node
 /**
  * Node.js CLI wizard example - demonstrates usage without React
- * Simulates an order processing saga with multiple steps
+ * Simulates an order processing saga with multiple steps using new PRP API
  */
 
-import { createWizard } from '@wizard/core';
-import { createZodValidator } from '@wizard/core/zod';
+import { createWizard, defineSteps } from '@wizard/core';
 import { z } from 'zod';
 import readline from 'readline/promises';
-
-// Types
-type OrderContext = {
-  orderId: string;
-  customerId?: string;
-  inventoryReserved: boolean;
-  paymentId?: string;
-  emailSent: boolean;
-  totalAmount: number;
-  error?: string;
-};
-
-type OrderSteps = 'init' | 'reserve' | 'charge' | 'notify' | 'complete';
 
 // Validation schemas
 const initSchema = z.object({
@@ -49,106 +35,154 @@ const completeSchema = z.object({
   confirmed: z.boolean(),
 });
 
-type OrderDataMap = {
-  init: z.infer<typeof initSchema>;
-  reserve: z.infer<typeof reserveSchema>;
-  charge: z.infer<typeof chargeSchema>;
-  notify: z.infer<typeof notifySchema>;
-  complete: z.infer<typeof completeSchema>;
+// Validation functions using the new pattern
+const validateInit = ({ data }: { data: unknown }) => {
+  initSchema.parse(data);
 };
 
-// Create the wizard
-const orderWizard = createWizard<OrderContext, OrderSteps, OrderDataMap>({
-  initialStep: 'init',
-  initialContext: {
+const validateReserve = ({ data }: { data: unknown }) => {
+  reserveSchema.parse(data);
+};
+
+const validateCharge = ({ data }: { data: unknown }) => {
+  chargeSchema.parse(data);
+};
+
+const validateNotify = ({ data }: { data: unknown }) => {
+  notifySchema.parse(data);
+};
+
+const validateComplete = ({ data }: { data: unknown }) => {
+  completeSchema.parse(data);
+};
+
+// Define steps with inference-first pattern
+const steps = defineSteps({
+  init: {
+    validate: validateInit,
+    data: { orderId: '', customerId: '', totalAmount: 0 },
+    next: ['reserve'],
+    beforeExit: ({ data, updateContext }: { data: any; updateContext: any }) => {
+      updateContext((ctx: any) => {
+        ctx.orderId = data.orderId;
+        ctx.customerId = data.customerId;
+        ctx.totalAmount = data.totalAmount;
+      });
+      console.log('✓ Order initialized:', data.orderId);
+    },
+    meta: {
+      label: 'Initialize Order',
+      category: 'order-management',
+      description: 'Create a new order with customer and amount details',
+    },
+  },
+  reserve: {
+    validate: validateReserve,
+    data: { items: [] as Array<{ sku: string; quantity: number }> },
+    next: ['charge'],
+    canEnter: ({ ctx }: { ctx: any }) => Boolean(ctx.orderId),
+    beforeExit: async ({ data, updateContext }: { data: any; updateContext: any }) => {
+      // Simulate inventory reservation
+      console.log('  Reserving inventory for items:', data.items);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      updateContext((ctx: any) => {
+        ctx.inventoryReserved = true;
+      });
+      console.log('✓ Inventory reserved');
+    },
+    meta: {
+      label: 'Reserve Inventory',
+      category: 'inventory-management',
+      description: 'Reserve inventory for order items',
+    },
+  },
+  charge: {
+    validate: validateCharge,
+    data: { paymentMethod: 'card' as 'card' | 'paypal', confirmed: false },
+    next: ['notify'],
+    canEnter: ({ ctx }: { ctx: any }) => ctx.inventoryReserved,
+    beforeExit: async ({ data, ctx, updateContext }: { data: any; ctx: any; updateContext: any }) => {
+      if (!data.confirmed) {
+        throw new Error('Payment not confirmed');
+      }
+
+      // Simulate payment processing
+      console.log(`  Processing ${data.paymentMethod} payment for $${ctx.totalAmount}`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const paymentId = `PAY-${Date.now()}`;
+      updateContext((ctx: any) => {
+        ctx.paymentId = paymentId;
+      });
+      console.log('✓ Payment processed:', paymentId);
+    },
+    meta: {
+      label: 'Process Payment',
+      category: 'payment-processing',
+      description: 'Charge customer payment method',
+    },
+  },
+  notify: {
+    validate: validateNotify,
+    data: { email: '' },
+    next: ['complete'],
+    canEnter: ({ ctx }: { ctx: any }) => Boolean(ctx.paymentId),
+    beforeExit: async ({ data, updateContext }: { data: any; updateContext: any }) => {
+      // Simulate sending email
+      console.log(`  Sending order confirmation to ${data.email}`);
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      updateContext((ctx: any) => {
+        ctx.emailSent = true;
+      });
+      console.log('✓ Notification sent');
+    },
+    meta: {
+      label: 'Send Notification',
+      category: 'communication',
+      description: 'Send order confirmation email to customer',
+    },
+  },
+  complete: {
+    validate: validateComplete,
+    data: { confirmed: false },
+    next: [],
+    canEnter: ({ ctx }: { ctx: any }) => ctx.emailSent,
+    beforeExit: ({ data, ctx }: { data: any; ctx: any }) => {
+      if (!data.confirmed) {
+        throw new Error('Order not confirmed');
+      }
+      console.log('✓ Order completed successfully!');
+      console.log('  Final state:', {
+        orderId: ctx.orderId,
+        customerId: ctx.customerId,
+        paymentId: ctx.paymentId,
+        totalAmount: ctx.totalAmount,
+      });
+    },
+    meta: {
+      label: 'Complete Order',
+      category: 'order-management',
+      description: 'Finalize the order processing',
+    },
+  },
+});
+
+// Create wizard with inference
+const orderWizard = createWizard({
+  context: {
     orderId: '',
+    customerId: '',
     inventoryReserved: false,
+    paymentId: '',
     emailSent: false,
     totalAmount: 0,
+    error: '',
   },
-  steps: {
-    init: {
-      validate: createZodValidator(initSchema),
-      next: ['reserve'],
-      beforeExit: ({ data, updateContext }) => {
-        updateContext((ctx) => {
-          ctx.orderId = data.orderId;
-          ctx.customerId = data.customerId;
-          ctx.totalAmount = data.totalAmount;
-        });
-        console.log('✓ Order initialized:', data.orderId);
-      },
-    },
-    reserve: {
-      validate: createZodValidator(reserveSchema),
-      next: ['charge'],
-      canEnter: ({ ctx }) => Boolean(ctx.orderId),
-      beforeExit: async ({ data, updateContext }) => {
-        // Simulate inventory reservation
-        console.log('  Reserving inventory for items:', data.items);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        updateContext((ctx) => {
-          ctx.inventoryReserved = true;
-        });
-        console.log('✓ Inventory reserved');
-      },
-    },
-    charge: {
-      validate: createZodValidator(chargeSchema),
-      next: ['notify'],
-      canEnter: ({ ctx }) => ctx.inventoryReserved,
-      beforeExit: async ({ data, ctx, updateContext }) => {
-        if (!data.confirmed) {
-          throw new Error('Payment not confirmed');
-        }
-        
-        // Simulate payment processing
-        console.log(`  Processing ${data.paymentMethod} payment for $${ctx.totalAmount}`);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        const paymentId = `PAY-${Date.now()}`;
-        updateContext((ctx) => {
-          ctx.paymentId = paymentId;
-        });
-        console.log('✓ Payment processed:', paymentId);
-      },
-    },
-    notify: {
-      validate: createZodValidator(notifySchema),
-      next: ['complete'],
-      canEnter: ({ ctx }) => Boolean(ctx.paymentId),
-      beforeExit: async ({ data, updateContext }) => {
-        // Simulate sending email
-        console.log(`  Sending order confirmation to ${data.email}`);
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        updateContext((ctx) => {
-          ctx.emailSent = true;
-        });
-        console.log('✓ Notification sent');
-      },
-    },
-    complete: {
-      validate: createZodValidator(completeSchema),
-      next: [],
-      canEnter: ({ ctx }) => ctx.emailSent,
-      beforeExit: ({ data, ctx }) => {
-        if (!data.confirmed) {
-          throw new Error('Order not confirmed');
-        }
-        console.log('✓ Order completed successfully!');
-        console.log('  Final state:', {
-          orderId: ctx.orderId,
-          customerId: ctx.customerId,
-          paymentId: ctx.paymentId,
-          totalAmount: ctx.totalAmount,
-        });
-      },
-    },
-  },
-  onTransition: (event) => {
-    console.log(`\n→ Moving from ${event.from} to ${event.to}`);
+  steps,
+  onStatusChange: ({ step, next }) => {
+    console.log(`\n→ Step ${step} status: ${next}`);
   },
 });
 
@@ -192,9 +226,9 @@ async function runCLI() {
     const paymentConfirm = await rl.question('Confirm payment? (yes/no): ');
 
     await orderWizard.next({
-      data: { 
-        paymentMethod, 
-        confirmed: paymentConfirm.toLowerCase() === 'yes' 
+      data: {
+        paymentMethod,
+        confirmed: paymentConfirm.toLowerCase() === 'yes'
       },
     });
 
@@ -216,9 +250,21 @@ async function runCLI() {
 
     console.log('\n=== Wizard Complete ===\n');
 
+    // Show progress using new helpers
+    const progress = orderWizard.helpers.progress();
+    console.log(`Progress: ${progress.label} (${progress.percent}%)`);
+
   } catch (error) {
     console.error('\n❌ Error:', error);
     console.log('\nCurrent state:', orderWizard.getCurrent());
+
+    // Show helpful information using new helpers
+    const currentStep = orderWizard.getCurrent().step;
+    const status = orderWizard.helpers.stepStatus(currentStep);
+    const canGoNext = orderWizard.helpers.canGoNext();
+
+    console.log(`Current step status: ${status}`);
+    console.log(`Can proceed: ${canGoNext}`);
   } finally {
     rl.close();
   }
@@ -227,8 +273,12 @@ async function runCLI() {
 // Automated saga mode (no user input)
 async function runAutomatedSaga() {
   console.log('\n=== Automated Order Saga ===\n');
-  
+
   try {
+    // Show initial state using helpers
+    console.log('Available steps:', orderWizard.helpers.availableSteps());
+    console.log('Step count:', orderWizard.helpers.stepCount());
+
     // Initialize
     await orderWizard.next({
       data: {
@@ -271,13 +321,26 @@ async function runAutomatedSaga() {
     });
 
     console.log('\n=== Saga Complete ===\n');
-    
+
+    // Show final progress
+    const progress = orderWizard.helpers.progress();
+    const completedSteps = orderWizard.helpers.completedSteps();
+    console.log(`Final progress: ${progress.label} (${progress.percent}%)`);
+    console.log('Completed steps:', completedSteps);
+
   } catch (error) {
     console.error('\n❌ Saga failed:', error);
-    
+
+    // Use helpers to show state
+    const current = orderWizard.getCurrent();
+    const completedSteps = orderWizard.helpers.completedSteps();
+    const remainingSteps = orderWizard.helpers.remainingSteps();
+
+    console.log('Completed steps:', completedSteps);
+    console.log('Remaining steps:', remainingSteps);
+
     // In a real saga, we might implement compensations here
-    const state = orderWizard.getCurrent();
-    if (state.ctx.inventoryReserved && !state.ctx.paymentId) {
+    if (current.ctx.inventoryReserved && !current.ctx.paymentId) {
       console.log('  → Rolling back inventory reservation...');
     }
   }

@@ -1,4 +1,4 @@
-import { createWizard } from "@wizard/core";
+import { createWizard, defineSteps } from "@wizard/core";
 import { z } from "zod";
 
 // Define schemas for validation and type inference
@@ -7,29 +7,44 @@ const paymentDataSchema = z.object({
   amount: z.number().positive(),
 });
 
+const infoDataSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+});
+
+// Validation functions
+const validatePayment = ({ data }: { data: unknown }) => {
+  paymentDataSchema.parse(data);
+};
+
+const validateInfo = ({ data }: { data: unknown }) => {
+  infoDataSchema.parse(data);
+};
+
 // Method 1: Use the type inference version (no explicit types needed!)
-const wizard = createWizard({
-  initialStep: "info",
-  initialContext: { userId: "123" },
-  steps: {
-    info: {
-      next: ["payment"],
-      // The load function return type automatically defines the step's data type
-      load: () => ({ name: "", email: "" }),
-      required: true,  // Use new step-level attributes
-    },
-    payment: {
-      next: ["confirm"],
-      // The Zod schema defines both validation AND the data type
-      validate: paymentDataSchema.parse,
-      required: true,
-    },
-    confirm: {
-      next: [],
-      // Can add completion logic if needed
-      complete: (data: unknown) => !!data,
-    },
+const steps = defineSteps({
+  info: {
+    validate: validateInfo,
+    data: { name: '', email: '' },
+    next: ["payment"],
+    required: true,
   },
+  payment: {
+    validate: validatePayment,
+    data: { method: '', amount: 0 },
+    next: ["confirm"],
+    required: true,
+  },
+  confirm: {
+    data: { confirmed: false },
+    next: [],
+    complete: ({ data }) => !!data?.confirmed,
+  },
+});
+
+const wizard = createWizard({
+  context: { userId: "123" },
+  steps,
 });
 
 // TypeScript now properly infers types!
@@ -37,11 +52,13 @@ const payment = wizard.getStepData("payment"); // Correctly typed as { method: s
 const info = wizard.getStepData("info"); // Correctly typed as { name: string; email: string; } | undefined
 
 // The types are fully inferred from:
-// - "info": from the load function's return type
-// - "payment": from the Zod schema via paymentDataSchema.parse
-// - "confirm": unknown (no validator or load function)
+// - "info": from the validate function and data initializer
+// - "payment": from the validate function and data initializer
+// - "confirm": from the data initializer
 
 // You can also extract the inferred type if needed:
 type PaymentData = z.infer<typeof paymentDataSchema>;
+type InfoData = z.infer<typeof infoDataSchema>;
 
 void (payment satisfies { method: string; amount: number } | undefined);
+void (info satisfies { name: string; email: string } | undefined);

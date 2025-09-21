@@ -1,12 +1,26 @@
-/**
- * @wizard/core - Core Types
- * Server-safe isomorphic types with inference-first authoring
- */
+# PRP: Isomorphic, Deeply-Typed Wizard — Core + React + Inference + Helpers + Docs
 
-import { Store } from '@tanstack/store';
+## High-Level Goals
 
-// ===== 1. Utility Types & Resolvers =====
+* REFACTOR CURRENT CODE STRUCTURE TO MATCH WHATS DEFINED HERE
+* Monorepo with **core** (isomorphic/headless) and **react** adapter.
+* Nextra docs: pages for helpers + inference patterns, embedding examples.
 
+## Repo Layout
+
+```
+/packages/core           @wizard/core
+/packages/react          @wizard/react
+/packages/docs           @wizard/docs (Nextra)
+```
+
+---
+
+## Core Package (@wizard/core)
+
+### 1) refactor or add Utility Types (server-safe + tiny resolvers)
+
+```ts
 export type JSONValue =
   | string | number | boolean | null
   | { [k: string]: JSONValue }
@@ -16,9 +30,11 @@ export type ValOrFn<T, A> = T | ((args: A) => T);
 
 export const resolve = <T, A>(v: ValOrFn<T, A>, a: A): T =>
   typeof v === 'function' ? (v as any)(a) : v;
+```
 
-// ===== 2. Callback Args (use inferred Data) =====
+### 2) Callback Args (use *inferred* Data)
 
+```ts
 export type StepArgs<C, S extends string, Data, E> = {
   step: S;
   ctx: Readonly<C>;
@@ -38,9 +54,11 @@ export type ValidateArgs<C> = {
   ctx: Readonly<C>;
   data: unknown; // to be narrowed by validate
 };
+```
 
-// ===== 3. Server-Safe Meta (core) + Resolver =====
+### 3) Server-Safe Meta (core) + Resolver
 
+```ts
 export type StepMetaCore<C, S extends string, Data, E> = {
   id?: string;
   label?: ValOrFn<string, StepArgs<C,S,Data,E>>;
@@ -77,9 +95,11 @@ export function resolveMetaCore<C,S extends string,Data,E>(
     extra: meta?.extra ?? {},
   };
 }
+```
 
-// ===== 4. Status Vocabulary =====
+### 4) Status Vocabulary
 
+```ts
 export type StepStatus =
   | 'unavailable'  // guards/prereqs fail
   | 'optional'     // meta classification
@@ -90,9 +110,11 @@ export type StepStatus =
   | 'error'        // retryable failure
   | 'terminated'   // terminal failure
   | 'loading';     // async in progress
+```
 
-// ===== 5. Step Definition (value-or-fn, typed via inference) =====
+### 5) Step Definition (value-or-fn, typed via inference)
 
+```ts
 export type StepDefinition<C,S extends string,Data,E = never> = {
   next: readonly S[] | ((args: StepArgs<C,S,Data,E>) => S | readonly S[]);
   data?: ValOrFn<Data, StepEnterArgs<C,S,Data,E>>;
@@ -101,7 +123,7 @@ export type StepDefinition<C,S extends string,Data,E = never> = {
     args: StepEnterArgs<C,S,Data,E>
   ) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
 
-  validate?: (args: ValidateArgs<C>) => void;
+  validate?: (args: ValidateArgs<C>) => asserts args.data is Data;
 
   complete?: ValOrFn<boolean, StepArgs<C,S,Data,E>>;
   canEnter?: ValOrFn<boolean, StepEnterArgs<C,S,Data,E>>;
@@ -116,9 +138,11 @@ export type StepDefinition<C,S extends string,Data,E = never> = {
 
   meta?: StepMetaCore<C,S,Data,E>;
 };
+```
 
-// ===== 6. Inference Engine (defineSteps → infer Data per step) =====
+### 6) Inference Engine (defineSteps → infer Data per step)
 
+```ts
 // Infer Data from validate() → beforeEnter() return → data initializer
 type InferFromValidate<TDef> =
   TDef extends { validate: (a: infer A) => any }
@@ -144,7 +168,7 @@ export type PartialStepDefinition<C,S extends string,E,TDef> = {
   beforeEnter?: (
     args: StepEnterArgs<C,S,InferStepData<TDef>,E>
   ) => void | Partial<InferStepData<TDef>> | InferStepData<TDef> | Promise<void | Partial<InferStepData<TDef>> | InferStepData<TDef>>;
-  validate?: (args: ValidateArgs<C>) => void;
+  validate?: (args: ValidateArgs<C>) => asserts args.data is InferStepData<TDef>;
   complete?: ValOrFn<boolean, StepArgs<C,S,InferStepData<TDef>,E>>;
   canEnter?: ValOrFn<boolean, StepEnterArgs<C,S,InferStepData<TDef>,E>>;
   canExit?: ValOrFn<boolean, StepExitArgs<C,S,InferStepData<TDef>,E>>;
@@ -159,11 +183,15 @@ export type PartialStepDefinition<C,S extends string,E,TDef> = {
 export type StepIds<T> = keyof T & string;
 export type DataMapFromDefs<TDefs> = { [K in keyof TDefs & string]: InferStepData<TDefs[K]> };
 
-export function defineSteps<_C, _E, T extends Record<string, any>>(defs: T) {
+export function defineSteps<C, E, T extends Record<string, any>>(defs: T) {
   return defs as T; // runtime normalization in factory; typing leverages T
 }
+```
 
-// ===== 7. Wizard State + Store + Helpers =====
+### 7) Wizard State + Store + Helpers
+
+```ts
+import { Store } from '@tanstack/store';
 
 export type WizardState<C,S extends string,D extends Record<S, unknown>> = {
   step: S;
@@ -171,8 +199,6 @@ export type WizardState<C,S extends string,D extends Record<S, unknown>> = {
   data: Partial<D>;
   errors: Partial<Record<S, unknown>>;
   history: Array<{ step: S; context: C; data: Partial<D> }>;
-  isLoading: boolean;
-  isTransitioning: boolean;
   runtime?: Partial<Record<S, {
     status?: StepStatus; attempts?: number; startedAt?: number; finishedAt?: number;
   }>>;
@@ -219,7 +245,7 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
   snapshot(): WizardState<C,S,D>;
 };
 
-export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
+export type Wizard<C,S extends string,D extends Record<S, unknown>,E> = {
   store: Store<WizardState<C,S,D>>;
   next(args?: { data?: D[S] }): Promise<void>;
   goTo(step: S, args?: { data?: D[S] }): Promise<void>;
@@ -228,7 +254,6 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
 
   updateContext(fn: (ctx: C) => void): void;
   setStepData(step: S, data: D[S]): void;
-  getStepData(step: S): D[S] | undefined;
   getContext(): Readonly<C>;
   getCurrent(): { step: S; data: Readonly<D[S]> | undefined; ctx: Readonly<C> };
 
@@ -240,17 +265,137 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
 
   helpers: WizardHelpers<C,S,D>;
 };
+```
 
-// ===== 8. Factory: createWizard (keeps inference) =====
-// Implementation is in ./wizard.ts
+### 8) Factory: createWizard (keeps inference)
 
-export type CreateWizardOptions<C, _E, TDefs extends Record<string, any>> = {
+```ts
+export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
   context: C;
   steps: TDefs;                   // from defineSteps()
   order?: readonly (keyof TDefs & string)[];
   onStatusChange?: (a: { step: keyof TDefs & string; prev?: StepStatus; next: StepStatus }) => void;
+}) {
+  type S = StepIds<TDefs>;
+  type D = DataMapFromDefs<TDefs>;
+  // Implement store, guards cache, ordering (order → topo → declaration), helpers, transitions.
+  return {} as Wizard<C, S, D, E>;
+}
+```
+
+---
+
+## React Package (@wizard/react)
+
+### 1) UI Meta + Component (value-or-fn) + Resolver
+
+```ts
+import * as React from 'react';
+import { ValOrFn, StepArgs } from '@wizard/core';
+
+export type ComponentLike = React.ComponentType<any> | React.ReactElement;
+
+export type StepMetaUI<C,S extends string,Data,E> = {
+  icon?: ValOrFn<React.ReactNode, StepArgs<C,S,Data,E>>;
+  renderBadge?: ValOrFn<React.ReactNode, StepArgs<C,S,Data,E>>;
+  uiExtra?: Record<string, unknown>;
 };
 
-export declare function createWizard<C, E, TDefs extends Record<string, any>>(
-  opts: CreateWizardOptions<C, E, TDefs>
-): Wizard<StepIds<TDefs>, StepIds<TDefs>, DataMapFromDefs<TDefs>, E>;
+export function resolveMetaUI<C,S extends string,Data,E>(
+  meta: StepMetaUI<C,S,Data,E> | undefined,
+  args: StepArgs<C,S,Data,E>
+) {
+  const r = <T>(v: ValOrFn<T, typeof args> | undefined): T | undefined =>
+    typeof v === 'function' ? (v as any)(args) : v;
+  return { icon: r(meta?.icon), renderBadge: r(meta?.renderBadge), uiExtra: meta?.uiExtra };
+}
+
+export type ReactStepDefinition<C,S extends string,E,TDef> =
+  import('@wizard/core').PartialStepDefinition<C,S,E,TDef> & {
+    component?: ValOrFn<ComponentLike, StepArgs<C,S,import('@wizard/core').InferStepData<TDef>,E>>;
+    uiMeta?: StepMetaUI<C,S,import('@wizard/core').InferStepData<TDef>,E>;
+  };
+
+export function resolveStepComponent<C,S extends string,Data,E>(
+  comp: ValOrFn<ComponentLike, StepArgs<C,S,Data,E>> | undefined,
+  args: StepArgs<C,S,Data,E>
+): React.ReactElement | null {
+  if (!comp) return null;
+  const value = typeof comp === 'function' ? (comp as any)(args) : comp;
+  if (React.isValidElement(value)) return value;
+  if (typeof value === 'function') return React.createElement(value as React.ComponentType<any>, { args });
+  return null;
+}
+```
+
+### 2) Provider + Hooks
+
+```ts
+// WizardProvider(wizard), useWizard(), useWizardState(selector)
+// Thin bindings around @tanstack/store + core Wizard type.
+```
+
+---
+
+## Helpers & Status Docs (Nextra hooks)
+
+* Add `/content/api/helpers.mdx`: list + detail for each helper: signature, semantics, example, cross-links.
+* Include **Status Reference Table** for the 9 statuses + semantics.
+* Embed code from examples via a `<CodeFrom path="...">` component (docs utility).
+* Pages on **inference-first authoring**: show `validate → beforeEnter → data` priority, hover types.
+
+---
+
+## Examples (must compile)
+
+* `basic-form-wizard`: minimal 3-step with validate/data inference; progress bar using helpers.
+* `router-guard-wizard`: TanStack Router v1 sync + `canEnter/canExit` + `unavailable` visuals.
+* `advanced-branching`: dynamic next(), `optional/required`, error vs terminated & retry.
+* `node-saga-wizard`: CLI/server flow; server-safe meta logging; snapshots/persistence.
+
+---
+
+## Acceptance Criteria
+
+* Author can write:
+
+  ```ts
+  const steps = defineSteps<Ctx, Ev>({
+    account: {
+      validate: ({ data }) => schema.parse(data),
+      data: { name:'', email:'' },
+      next: () => 'shipping',
+      component: ({ data, setStepData }) => <Form .../>,
+      meta: { label: 'Account', iconKey: 'user' },
+    },
+    shipping: { beforeEnter: () => ({ address:'' }), next: () => 'review' },
+    review:   { data: { agreed:false }, next: () => 'done' },
+    done:     { next: [] },
+  });
+
+  const wizard = createWizard({ context: { userId:null }, steps });
+  ```
+
+  without generics; **callbacks see correct per-step `data` types.**
+* Core meta is **JSON-serializable**; UI meta & `component` live in react pkg.
+* Helpers expose all functions listed; status semantics match; progress monotone; availability refresh works.
+* Tests: type tests (inference), unit tests (helpers/status/guards), react smoke test.
+* Docs render helper/API pages and embed examples.
+
+---
+
+## Build & CI
+
+* Core: `@tanstack/store`, optional Zod adapter (peer/optional).
+* `tsup` builds (esm/cjs/types), `strict` TS, `sideEffects:false`.
+* Vitest for unit + type tests.
+* Size budget checks.
+
+---
+
+## Implementation Notes
+
+* Order resolution: `config.order` → topo from static `next` graph (if acyclic) → declaration order.
+* Guard cache + `refreshAvailability()` (debounced).
+* Runtime marks for `loading/error/terminated/skipped` optional but supported with `mark*` APIs.
+* SSR-safe core (no DOM), React adapter only in `/react`.

@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useSyncExternalStore } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useStore } from '@tanstack/react-store';
 import { useWizardContext } from './context';
 import type { Wizard, WizardState } from '@wizard/core';
 
@@ -32,34 +33,25 @@ export function useWizardState<
   equals?: (a: T, b: T) => boolean
 ): T {
   const { wizard } = useWizardContext<C, S, D>();
-  
+
   // Default selector returns entire state
   const actualSelector = selector || ((state) => state as unknown as T);
-  
-  // Default equality check
-  const actualEquals = equals || ((a, b) => Object.is(a, b));
-  
-  // Use React 18's useSyncExternalStore for optimal performance
-  const state = useSyncExternalStore(
-    (onStoreChange) => {
-      return wizard.subscribe(() => {
-        onStoreChange();
-      });
-    },
-    () => actualSelector(wizard.store.state),
-    () => actualSelector(wizard.store.state) // Server snapshot
-  );
-  
-  // Memoize result with custom equality
+
+  // Use @tanstack/react-store for subscription
+  const state = useStore(wizard.store, actualSelector);
+
+  // Memoize result with custom equality if provided
   const [memoizedState, setMemoizedState] = useState(state);
-  
+
   useEffect(() => {
-    if (!actualEquals(memoizedState, state)) {
+    if (equals && !equals(memoizedState, state)) {
+      setMemoizedState(state);
+    } else if (!equals && !Object.is(memoizedState, state)) {
       setMemoizedState(state);
     }
-  }, [state, memoizedState, actualEquals]);
-  
-  return memoizedState;
+  }, [state, memoizedState, equals]);
+
+  return equals ? memoizedState : state;
 }
 
 /**

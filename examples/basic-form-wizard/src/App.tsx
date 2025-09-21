@@ -1,94 +1,80 @@
 import { useState } from 'react';
-import { createWizard } from '@wizard/core';
-import { WizardProvider, useWizard, useWizardContext } from '@wizard/react';
+import { createWizard, defineSteps } from '@wizard/core';
+import { WizardProvider, useWizardActions, useWizardStep, useCurrentStepData, useWizardState } from '@wizard/react';
 
-// Define step data types
-interface AccountData {
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
-
-interface PersonalData {
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
-}
-
-interface AddressData {
-  street: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-}
-
-// Define shared context
-interface FormContext {
-  totalSteps: number;
-  completedSteps: string[];
-}
-
-// Create wizard configuration
-const formWizard = createWizard({
-  initialStep: 'account',
-  initialContext: { totalSteps: 3, completedSteps: [] },
-  steps: {
-    account: {
-      next: ['personal'],
-      validate: (data: AccountData) => {
-        if (!data.email || !data.email.includes('@')) {
-          throw new Error('Please enter a valid email');
-        }
-        if (!data.password || data.password.length < 8) {
-          throw new Error('Password must be at least 8 characters');
-        }
-        if (data.password !== data.confirmPassword) {
-          throw new Error('Passwords do not match');
-        }
-      }
-    },
-    personal: {
-      next: ['address'],
-      prev: ['account'],
-      validate: (data: PersonalData) => {
-        if (!data.firstName || !data.lastName) {
-          throw new Error('Please enter your full name');
-        }
-        if (!data.dateOfBirth) {
-          throw new Error('Please enter your date of birth');
-        }
-      }
-    },
-    address: {
-      next: [],
-      prev: ['personal'],
-      validate: (data: AddressData) => {
-        if (!data.street || !data.city || !data.state || !data.zipCode || !data.country) {
-          throw new Error('Please fill in all address fields');
-        }
-      }
-    }
+// Step data validation schemas (Zod-like validation)
+const validateAccount = ({ data }: { data: unknown }) => {
+  const account = data as any;
+  if (!account?.email || !account.email.includes('@')) {
+    throw new Error('Please enter a valid email');
   }
+  if (!account?.password || account.password.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+  if (account.password !== account.confirmPassword) {
+    throw new Error('Passwords do not match');
+  }
+};
+
+const validatePersonal = ({ data }: { data: unknown }) => {
+  const personal = data as any;
+  if (!personal?.firstName || !personal?.lastName) {
+    throw new Error('Please enter your full name');
+  }
+  if (!personal?.dateOfBirth) {
+    throw new Error('Please enter your date of birth');
+  }
+};
+
+const validateAddress = ({ data }: { data: unknown }) => {
+  const address = data as any;
+  if (!address?.street || !address?.city || !address?.state || !address?.zipCode || !address?.country) {
+    throw new Error('Please fill in all address fields');
+  }
+};
+
+// Define steps with inference-first pattern
+const steps = defineSteps({
+  account: {
+    validate: validateAccount,
+    data: { email: '', password: '', confirmPassword: '' },
+    next: ['personal'],
+    meta: { label: 'Account', iconKey: 'user' },
+  },
+  personal: {
+    validate: validatePersonal,
+    data: { firstName: '', lastName: '', dateOfBirth: '' },
+    next: ['address'],
+    meta: { label: 'Personal', iconKey: 'person' },
+  },
+  address: {
+    validate: validateAddress,
+    data: { street: '', city: '', state: '', zipCode: '', country: '' },
+    next: [],
+    meta: { label: 'Address', iconKey: 'location' },
+  },
+});
+
+// Create wizard with inference
+const wizard = createWizard({
+  context: { totalSteps: 3, completedSteps: [] as string[] },
+  steps,
 });
 
 // Step Components
 function AccountStep() {
-  const { currentStep, nextStep, updateStepData, getStepadData } = useWizard<
-    FormContext,
-    'account' | 'personal' | 'address',
-    { account: AccountData; personal: PersonalData; address: AddressData }
-  >();
+  const currentData = useCurrentStepData() as { email: string; password: string; confirmPassword: string } | undefined;
+  const { next, setStepData } = useWizardActions();
 
-  const [data, setData] = useState<AccountData>(() => 
-    getStepData('account') || { email: '', password: '', confirmPassword: '' }
+  const [data, setData] = useState(() =>
+    currentData || { email: '', password: '', confirmPassword: '' }
   );
   const [error, setError] = useState<string>('');
 
-  const handleNext = () => {
+  const handleNext = async () => {
     try {
-      updateStepData('account', data);
-      nextStep();
+      setStepData('account', data);
+      await next();
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Validation failed');
@@ -98,7 +84,7 @@ function AccountStep() {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Create Account</h2>
-      
+
       <div>
         <label className="block text-sm font-medium mb-2">Email</label>
         <input
@@ -149,21 +135,18 @@ function AccountStep() {
 }
 
 function PersonalStep() {
-  const { currentStep, nextStep, prevStep, updateStepData, getStepData } = useWizard<
-    FormContext,
-    'account' | 'personal' | 'address',
-    { account: AccountData; personal: PersonalData; address: AddressData }
-  >();
+  const currentData = useCurrentStepData() as { firstName: string; lastName: string; dateOfBirth: string } | undefined;
+  const { next, back, setStepData } = useWizardActions();
 
-  const [data, setData] = useState<PersonalData>(() => 
-    getStepData('personal') || { firstName: '', lastName: '', dateOfBirth: '' }
+  const [data, setData] = useState(() =>
+    currentData || { firstName: '', lastName: '', dateOfBirth: '' }
   );
   const [error, setError] = useState<string>('');
 
-  const handleNext = () => {
+  const handleNext = async () => {
     try {
-      updateStepData('personal', data);
-      nextStep();
+      setStepData('personal', data);
+      await next();
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Validation failed');
@@ -173,7 +156,7 @@ function PersonalStep() {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Personal Information</h2>
-      
+
       <div>
         <label className="block text-sm font-medium mb-2">First Name</label>
         <input
@@ -214,7 +197,7 @@ function PersonalStep() {
 
       <div className="flex gap-3">
         <button
-          onClick={prevStep}
+          onClick={back}
           className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
         >
           Previous
@@ -231,21 +214,19 @@ function PersonalStep() {
 }
 
 function AddressStep() {
-  const { currentStep, prevStep, updateStepData, getStepData } = useWizard<
-    FormContext,
-    'account' | 'personal' | 'address',
-    { account: AccountData; personal: PersonalData; address: AddressData }
-  >();
+  const currentData = useCurrentStepData() as { street: string; city: string; state: string; zipCode: string; country: string } | undefined;
+  const { back, setStepData } = useWizardActions();
+  const wizardState = useWizardState();
 
-  const [data, setData] = useState<AddressData>(() => 
-    getStepData('address') || { street: '', city: '', state: '', zipCode: '', country: '' }
+  const [data, setData] = useState(() =>
+    currentData || { street: '', city: '', state: '', zipCode: '', country: '' }
   );
   const [error, setError] = useState<string>('');
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     try {
-      updateStepData('address', data);
+      setStepData('address', data);
       setSubmitted(true);
       setError('');
     } catch (err) {
@@ -254,14 +235,14 @@ function AddressStep() {
   };
 
   if (submitted) {
-    const accountData = getStepData('account');
-    const personalData = getStepData('personal');
-    
+    const accountData = wizardState.data.account as { email: string; password: string; confirmPassword: string } | undefined;
+    const personalData = wizardState.data.personal as { firstName: string; lastName: string; dateOfBirth: string } | undefined;
+
     return (
       <div className="space-y-4">
         <h2 className="text-2xl font-bold text-green-600">Registration Complete!</h2>
         <p className="text-gray-600">Thank you for registering. Here's a summary of your information:</p>
-        
+
         <div className="bg-gray-50 p-4 rounded-md space-y-2">
           <h3 className="font-semibold">Account</h3>
           <p className="text-sm">Email: {accountData?.email}</p>
@@ -286,7 +267,7 @@ function AddressStep() {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Address Information</h2>
-      
+
       <div>
         <label className="block text-sm font-medium mb-2">Street Address</label>
         <input
@@ -309,7 +290,7 @@ function AddressStep() {
             placeholder="New York"
           />
         </div>
-        
+
         <div>
           <label className="block text-sm font-medium mb-2">State</label>
           <input
@@ -333,7 +314,7 @@ function AddressStep() {
             placeholder="10001"
           />
         </div>
-        
+
         <div>
           <label className="block text-sm font-medium mb-2">Country</label>
           <input
@@ -354,7 +335,7 @@ function AddressStep() {
 
       <div className="flex gap-3">
         <button
-          onClick={prevStep}
+          onClick={back}
           className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
         >
           Previous
@@ -370,33 +351,13 @@ function AddressStep() {
   );
 }
 
-// Main App Component
-function App() {
-  return (
-    <WizardProvider wizard={formWizard}>
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
-          <StepIndicator />
-          <div className="mt-6">
-            <CurrentStepComponent />
-          </div>
-        </div>
-      </div>
-    </WizardProvider>
-  );
-}
-
 // Step Indicator Component
 function StepIndicator() {
-  const { currentStep } = useWizard<
-    FormContext,
-    'account' | 'personal' | 'address',
-    { account: AccountData; personal: PersonalData; address: AddressData }
-  >();
-  
+  const currentStep = useWizardStep();
+
   const steps = ['account', 'personal', 'address'];
   const stepLabels = ['Account', 'Personal', 'Address'];
-  
+
   return (
     <div className="flex justify-between">
       {steps.map((step, index) => (
@@ -430,11 +391,7 @@ function StepIndicator() {
 
 // Dynamic step component renderer
 function CurrentStepComponent() {
-  const { currentStep } = useWizard<
-    FormContext,
-    'account' | 'personal' | 'address',
-    { account: AccountData; personal: PersonalData; address: AddressData }
-  >();
+  const currentStep = useWizardStep();
 
   switch (currentStep) {
     case 'account':
@@ -446,6 +403,22 @@ function CurrentStepComponent() {
     default:
       return null;
   }
+}
+
+// Main App Component
+function App() {
+  return (
+    <WizardProvider wizard={wizard}>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+          <StepIndicator />
+          <div className="mt-6">
+            <CurrentStepComponent />
+          </div>
+        </div>
+      </div>
+    </WizardProvider>
+  );
 }
 
 export default App;

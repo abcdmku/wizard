@@ -22,6 +22,17 @@ export {
   useWizardActions,
 } from './hooks';
 
+// React-specific types and utilities
+export {
+  resolveMetaUI,
+  resolveStepComponent,
+} from './types';
+export type {
+  ComponentLike,
+  StepMetaUI,
+  ReactStepDefinition,
+} from './types';
+
 // Router integration
 export {
   useSyncWizardWithRouter,
@@ -32,9 +43,17 @@ export type { SyncWizardWithRouterOptions } from './router';
 // Re-export core types for convenience
 export type {
   Wizard,
-  WizardConfig,
   WizardState,
-  WizardTransitionEvent,
-  WizardPersistence,
   StepDefinition,
+  StepStatus,
+  StepArgs,
+  StepEnterArgs,
+  StepExitArgs,
+  ValidateArgs,
+  StepMetaCore,
+  JSONValue,
+  ValOrFn,
+  InferStepData,
+  StepIds,
+  DataMapFromDefs,
 } from '@wizard/core';
