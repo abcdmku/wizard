@@ -173,9 +173,10 @@ export type PartialStepDefinition<C,S extends string,E,TDef> = {
 export type StepIds<T> = keyof T & string;
 export type DataMapFromDefs<TDefs> = { [K in keyof TDefs & string]: InferStepData<TDefs[K]> };
 
-export function defineSteps<_C, _E, T extends Record<string, any>>(defs: T) {
-  return defs as T; // runtime normalization in factory; typing leverages T
+export function defineSteps<T extends Record<string, any>>(defs: T): T {
+  return defs; // runtime normalization in factory; typing leverages T
 }
+
 
 // ===== 7. Wizard State + Store + Helpers =====
 
