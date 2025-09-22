@@ -70,42 +70,42 @@ export class WizardStepImpl<
   // ===== Fluent Step Operations =====
 
   markIdle(): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    this.wizard.markIdle(this.name as AllSteps);
+    this.wizard.markIdle(this.name as unknown as AllSteps);
     return this.createFreshInstance();
   }
 
   markLoading(): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    this.wizard.markLoading(this.name as AllSteps);
+    this.wizard.markLoading(this.name as unknown as AllSteps);
     return this.createFreshInstance();
   }
 
   markSkipped(): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    this.wizard.markSkipped(this.name as AllSteps);
+    this.wizard.markSkipped(this.name as unknown as AllSteps);
     return this.createFreshInstance();
   }
 
   markError(error: unknown): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    this.wizard.markError(this.name as AllSteps, error);
+    this.wizard.markError(this.name as unknown as AllSteps, error);
     return this.createFreshInstance();
   }
 
   markTerminated(error?: unknown): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    this.wizard.markTerminated(this.name as AllSteps, error);
+    this.wizard.markTerminated(this.name as unknown as AllSteps, error);
     return this.createFreshInstance();
   }
 
   // ===== Data Operations =====
 
   setData(data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    this.wizard.setStepData(this.name as AllSteps, data as DataMap[AllSteps]);
+    this.wizard.setStepData(this.name as unknown as AllSteps, data as DataMap[AllSteps]);
     return this.createFreshInstanceWithData(data);
   }
 
   updateData(updater: (data: Data | undefined) => Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    const currentData = this.wizard.getStepData(this.name as AllSteps) as Data | undefined;
+    const currentData = this.wizard.getStepData(this.name as unknown as AllSteps) as Data | undefined;
     const updates = updater(currentData);
     const newData = { ...currentData, ...updates } as Data;
-    this.wizard.setStepData(this.name as AllSteps, newData as DataMap[AllSteps]);
+    this.wizard.setStepData(this.name as unknown as AllSteps, newData as DataMap[AllSteps]);
     return this.createFreshInstanceWithData(newData);
   }
 
@@ -161,13 +161,13 @@ export class WizardStepImpl<
   }
 
   getStatus(): import('./types').StepStatus {
-    return this.wizard.helpers.stepStatus(this.name);
+    return this.wizard.helpers.stepStatus(this.name as unknown as AllSteps);
   }
 
   // ===== Private Helper Methods =====
 
   private createFreshInstance(): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    const currentData = this.wizard.getStepData(this.name as AllSteps) as Data | undefined;
+    const currentData = this.wizard.getStepData(this.name as unknown as AllSteps) as Data | undefined;
     return new WizardStepImpl(
       this.wizard,
       this.name,
