@@ -10,8 +10,10 @@ import type {
   ValidateArgs,
   ValOrFn,
   Wizard,
+  EnhancedWizard,
   WizardState,
-  CreateWizardOptions
+  CreateWizardOptions,
+  EnhancedDataMapFromDefs
 } from './types';
 import { createWizard as createWizardImpl } from './wizard';
 
@@ -101,12 +103,12 @@ export function createWizardFactory<C, E = never>() {
       context: C,
       steps: TDefs,
       options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
-    ) {
+    ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> {
       return createWizardImpl({
         context,
         steps,
         ...options
-      });
+      }) as EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
     }
   };
 }
@@ -123,6 +125,7 @@ export function wizardWithContext<C, E = never>(context: C) {
     createWizard: <TDefs extends Record<string, any>>(
       steps: TDefs,
       options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
-    ) => factory.createWizard(context, steps, options)
+    ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> =>
+      factory.createWizard(context, steps, options)
   };
 }

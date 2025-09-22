@@ -1,69 +1,70 @@
 /**
- * Debug: Test what ExtractCallbackDataType is actually extracting
+ * Debug Type Extraction
+ * Let's test exactly what types are being extracted
  */
 
-// Test step definition
-type TestStepDef = {
-  validate: (args: { data: { method: string; amount: number } }) => void;
-  data: { method: string; amount: number };
-  beforeExit: (args: any) => void;
-  next: string[];
+import { wizardWithContext } from '../wizard-factory';
+import type { ExtractStepDataType, EnhancedDataMapFromDefs } from '../types';
+
+// Test type extraction directly
+type TestDefs = {
+  step1: {
+    data: { value: number };
+    next: string[];
+  };
 };
 
-// What does ExtractCallbackDataType extract?
-type ExtractCallbackDataType<T> =
-  T extends { validate: (args: { data: infer ValidateData }) => any; data: infer DataProp }
-    ? ValidateData extends unknown ? DataProp : ValidateData
-    : T extends { validate: (args: { data: infer ValidateData }) => any }
-    ? ValidateData
-    : T extends { data: infer DataProp }
-    ? DataProp
-    : T extends { beforeEnter: (...args: any[]) => infer ReturnType }
-    ? ReturnType extends void ? unknown : ReturnType
-    : unknown;
+// Test our type extraction
+type ExtractedDataType = ExtractStepDataType<TestDefs, 'step1'>;
+type DataMap = EnhancedDataMapFromDefs<TestDefs>;
 
-// Test the extraction
-type Extracted = ExtractCallbackDataType<TestStepDef>;
-// This should be { method: string; amount: number } but let's see what it actually is
+// This should resolve to { value: number }
+const test1: ExtractedDataType = { value: 42 };
+const test2: DataMap['step1'] = { value: 42 };
 
-// Let's test each branch individually
-type TestValidateAndData = TestStepDef extends { validate: (args: { data: infer ValidateData }) => any; data: infer DataProp }
-  ? ValidateData extends unknown ? DataProp : ValidateData
-  : never;
+console.log('Type extraction tests:');
+console.log('test1:', test1);
+console.log('test2:', test2);
 
-type TestValidateOnly = TestStepDef extends { validate: (args: { data: infer ValidateData }) => any }
-  ? ValidateData
-  : never;
+// Now test the actual wizard factory
+const { defineSteps, createWizard, step } = wizardWithContext({
+  globalFlag: true,
+  userId: 'user123',
+  permissions: ['read'],
+  theme: 'light'
+});
 
-type TestDataOnly = TestStepDef extends { data: infer DataProp }
-  ? DataProp
-  : never;
+const steps = defineSteps({
+  step1: step({
+    data: { value: 42 },
+    canEnter: ({ context, data }) => {
+      return context.globalFlag && Boolean(data?.value);
+    },
+    next: []
+  })
+});
 
-// DEBUG: Let's see what happens with the validate condition
-type DebugValidate = TestStepDef extends { validate: (args: { data: infer ValidateData }) => any }
-  ? ValidateData
-  : 'NO_MATCH';
+const wizard = createWizard(steps);
 
-type DebugData = TestStepDef extends { data: infer DataProp }
-  ? DataProp
-  : 'NO_MATCH';
+// Debug what we actually get
+console.log('Debug wizard creation:');
+console.log('Current step:', wizard.getCurrent());
 
-// Test with a simpler case - just data property
-type SimpleStepDef = {
-  data: { name: string; age: number };
-  beforeExit: (args: any) => void;
-  next: string[];
-};
+const currentStep = wizard.getCurrentStep();
+console.log('Current step wrapper:', currentStep);
+console.log('Current step name:', currentStep.name);
+console.log('Current step data:', currentStep.data);
 
-type SimpleExtracted = ExtractCallbackDataType<SimpleStepDef>;
+// Test the type by accessing the property
+try {
+  // This should work if types are correct
+  const value = (currentStep.data as any)?.value;
+  console.log('Accessed value:', value);
+} catch (error) {
+  console.log('Type access error:', error);
+}
 
-// Export types for inspection
-export type {
-  Extracted,
-  TestValidateAndData,
-  TestValidateOnly,
-  TestDataOnly,
-  DebugValidate,
-  DebugData,
-  SimpleExtracted
-};
+// Debug the step definitions themselves
+console.log('Steps object:', steps);
+console.log('Step1 definition:', steps.step1);
+console.log('Step1 data:', steps.step1.data);

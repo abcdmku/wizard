@@ -284,9 +284,9 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
 
 export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   store: Store<WizardState<C,S,D>>;
-  next(args?: { data?: D[S] }): Promise<void>;
-  goTo(step: S, args?: { data?: D[S] }): Promise<void>;
-  back(): Promise<void>;
+  next(args?: { data?: D[S] }): Promise<import('./step-wrapper').WizardStep<S, unknown, C, S, D>>;
+  goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<import('./step-wrapper').WizardStep<K, D[K], C, S, D>>;
+  back(): Promise<import('./step-wrapper').WizardStep<S, unknown, C, S, D>>;
   reset(): void;
 
   updateContext(fn: (context: C) => void): void;
@@ -295,11 +295,15 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   getContext(): Readonly<C>;
   getCurrent(): { step: S; data: Readonly<D[S]> | undefined; context: Readonly<C> };
 
-  markError(step: S, err: unknown): void;
-  markTerminated(step: S, err?: unknown): void;
-  markLoading(step: S): void;
-  markIdle(step: S): void;
-  markSkipped(step: S): void;
+  // Enhanced step access methods
+  getStep<K extends S>(step: K): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
+  getCurrentStep(): import('./step-wrapper').WizardStep<S, D[S], C, S, D>;
+
+  markError<K extends S>(step: K, err: unknown): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
+  markTerminated<K extends S>(step: K, err?: unknown): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
+  markLoading<K extends S>(step: K): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
+  markIdle<K extends S>(step: K): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
+  markSkipped<K extends S>(step: K): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
 
   helpers: WizardHelpers<C,S,D>;
 };
@@ -352,4 +356,81 @@ export type WizardPersistence<T = any> = {
   save: (key: string, value: T) => void | Promise<void>;
   load: (key: string) => T | null | Promise<T | null>;
   remove: (key: string) => void | Promise<void>;
+};
+
+// ===== 10. Enhanced Wizard API with Fluent Interface =====
+
+// Import step wrapper types
+import type { WizardStep } from './step-wrapper';
+
+// Type extraction utilities for proper step data inference
+export type ExtractStepDataType<TDefs, StepName extends keyof TDefs> =
+  TDefs[StepName] extends { validate: (args: { data: infer ValidateData }) => any }
+    ? ValidateData
+    : TDefs[StepName] extends { data: infer DataProp }
+      ? DataProp extends ValOrFn<infer DataType, any>
+        ? DataType
+        : DataProp
+      : TDefs[StepName] extends { beforeEnter: (...args: any[]) => infer ReturnType }
+        ? ReturnType extends void ? never : ReturnType
+        : unknown;
+
+// Enhanced data map that preserves step-specific types
+export type EnhancedDataMapFromDefs<TDefs> = {
+  [K in keyof TDefs & string]: ExtractStepDataType<TDefs, K>;
+};
+
+/**
+ * Enhanced Wizard interface that extends the base Wizard with fluent API capabilities
+ */
+export type EnhancedWizard<C, S extends string, D extends Record<S, unknown>, E> =
+  Wizard<C, S, D, E> & {
+
+  // Enhanced methods with proper return types
+  getStep<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
+  getCurrentStep(): WizardStep<S, D[S], C, S, D>;
+
+  // Navigation methods that return step objects
+  next(args?: { data?: D[S] }): Promise<WizardStep<S, unknown, C, S, D>>;
+  goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<WizardStep<K, D[K], C, S, D>>;
+  back(): Promise<WizardStep<S, unknown, C, S, D>>;
+
+  // Enhanced data access with proper typing
+  getStepData<K extends S>(step: K): D[K] | undefined;
+  getCurrent(): { step: S; data: Readonly<D[S]> | undefined; context: Readonly<C> };
+
+  // Fluent step operations
+  markIdle<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
+  markLoading<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
+  markSkipped<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
+  markError<K extends S>(step: K, err: unknown): WizardStep<K, D[K], C, S, D>;
+  markTerminated<K extends S>(step: K, err?: unknown): WizardStep<K, D[K], C, S, D>;
+};
+
+// Factory function type for creating enhanced wizards
+export type EnhancedWizardFactory<C, E = never> = {
+  defineSteps<T extends Record<string, any>>(defs: T): T;
+  step<Data>(definition: any): any;
+  createWizard<TDefs extends Record<string, any>>(
+    context: C,
+    steps: TDefs,
+    options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
+  ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
+};
+
+// Helper type for step creation with proper data inference
+export type StepWithData<Data> = {
+  data?: Data;
+  next: readonly string[] | ((args: any) => string | readonly string[]);
+  beforeExit?: (args: any) => void | Promise<void>;
+  beforeEnter?: (args: any) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
+  canEnter?: boolean | ((args: any) => boolean);
+  canExit?: boolean | ((args: any) => boolean);
+  complete?: boolean | ((args: any) => boolean);
+  validate?: (args: any) => void;
+  weight?: number | ((args: any) => number);
+  required?: boolean | ((args: any) => boolean);
+  maxRetries?: number | ((args: any) => number);
+  retryDelay?: number | ((args: any) => number);
+  meta?: any;
 };
