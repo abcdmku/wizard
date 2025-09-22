@@ -4,14 +4,9 @@
  */
 
 import type {
-  StepArgs,
-  StepEnterArgs,
-  StepExitArgs,
   ValidateArgs,
   ValOrFn,
-  Wizard,
   EnhancedWizard,
-  WizardState,
   CreateWizardOptions,
   EnhancedDataMapFromDefs
 } from './types';
@@ -52,13 +47,6 @@ type ContextAwareStepDefinition<C, S extends string, Data, E> = {
   meta?: any;
 };
 
-// Extract data type from step definition
-type ExtractDataType<T> =
-  T extends { validate: (args: { data: infer D }) => any }
-    ? D
-    : T extends { data: infer D }
-      ? D
-      : unknown;
 
 /**
  * Creates a wizard factory with context-aware step definitions
