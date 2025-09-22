@@ -21,7 +21,7 @@ export function remarkCodeImport() {
             (async () => {
               try {
                 let fullPath;
-                
+
                 if (filePath.startsWith('@examples/')) {
                   const examplePath = filePath.replace('@examples/', '');
                   fullPath = path.join(EXAMPLES_DIR, examplePath);
@@ -30,6 +30,13 @@ export function remarkCodeImport() {
                   fullPath = path.join(PACKAGES_DIR, packagePath);
                 } else {
                   fullPath = path.join(process.cwd(), filePath);
+                }
+
+                // Check if file exists before reading
+                try {
+                  await fs.access(fullPath);
+                } catch (accessError) {
+                  throw new Error(`File not found: ${fullPath}`);
                 }
 
                 let content = await fs.readFile(fullPath, 'utf-8');
