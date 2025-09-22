@@ -61,6 +61,10 @@ div[class*="nextra"] pre > code {
   --shiki-token-string-expression: #a31515;
   --shiki-token-punctuation: #000000;
   --shiki-token-link: #0000ff;
+  /* TypeScript types */
+  --shiki-token-class-name: #267f99;
+  --shiki-token-type: #267f99;
+  --shiki-token-interface: #267f99;
 }
 
 /* Override Shiki CSS variables with VSCode colors - Dark Theme */
@@ -76,6 +80,10 @@ div[class*="nextra"] pre > code {
   --shiki-token-string-expression: #ce9178;
   --shiki-token-punctuation: #d4d4d4;
   --shiki-token-link: #569cd6;
+  /* TypeScript types */
+  --shiki-token-class-name: #4ec9b0;
+  --shiki-token-type: #4ec9b0;
+  --shiki-token-interface: #4ec9b0;
 }
 
 /* ========== LEGACY TOKEN CLASS SUPPORT ========== */
@@ -233,8 +241,10 @@ pre code .hljs-built_in,
 pre code .hljs-type,
 pre code .hljs-class,
 pre > code .token.builtin,
-pre > code .token.class-name {
-  color: #267f99 !important; /* VSCode light type/class blue */
+pre > code .token.class-name,
+pre > code .token.type-annotation,
+pre > code .token.type {
+  color: #267f99 !important; /* VSCode light type/class teal */
 }
 
 pre code .hljs-attr,
@@ -253,7 +263,9 @@ pre > code .token.tag {
 .dark pre code .hljs-type,
 .dark pre code .hljs-class,
 .dark pre > code .token.builtin,
-.dark pre > code .token.class-name {
+.dark pre > code .token.class-name,
+.dark pre > code .token.type-annotation,
+.dark pre > code .token.type {
   color: #4ec9b0 !important; /* VSCode dark type/class cyan */
 }
 
