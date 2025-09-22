@@ -7,22 +7,22 @@ import type { StepArgs, StepEnterArgs, StepExitArgs, ValidateArgs, ValOrFn } fro
 
 // ===== Helper Types =====
 
-type StepCallbacks<Data> = {
-  beforeExit?: (args: StepExitArgs<unknown, string, Data | undefined, never>) => void | Promise<void>;
-  beforeEnter?: (args: StepEnterArgs<unknown, string, Data | undefined, never>) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
-  canEnter?: ValOrFn<boolean, StepEnterArgs<unknown, string, Data | undefined, never>>;
-  canExit?: ValOrFn<boolean, StepExitArgs<unknown, string, Data | undefined, never>>;
-  complete?: ValOrFn<boolean, StepArgs<unknown, string, Data | undefined, never>>;
-  weight?: ValOrFn<number, StepArgs<unknown, string, Data | undefined, never>>;
-  required?: ValOrFn<boolean, StepArgs<unknown, string, Data | undefined, never>>;
-  maxRetries?: ValOrFn<number, StepArgs<unknown, string, Data | undefined, never>>;
-  retryDelay?: ValOrFn<number, StepArgs<unknown, string, Data | undefined, never>>;
+type StepCallbacks<Data, Context = unknown> = {
+  beforeExit?: (args: StepExitArgs<Context, string, Data | undefined, never>) => void | Promise<void>;
+  beforeEnter?: (args: StepEnterArgs<Context, string, Data | undefined, never>) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
+  canEnter?: ValOrFn<boolean, StepEnterArgs<Context, string, Data | undefined, never>>;
+  canExit?: ValOrFn<boolean, StepExitArgs<Context, string, Data | undefined, never>>;
+  complete?: ValOrFn<boolean, StepArgs<Context, string, Data | undefined, never>>;
+  weight?: ValOrFn<number, StepArgs<Context, string, Data | undefined, never>>;
+  required?: ValOrFn<boolean, StepArgs<Context, string, Data | undefined, never>>;
+  maxRetries?: ValOrFn<number, StepArgs<Context, string, Data | undefined, never>>;
+  retryDelay?: ValOrFn<number, StepArgs<Context, string, Data | undefined, never>>;
 };
 
-type StepDefinitionInput<Data> = {
-  next: readonly string[] | ((args: StepArgs<unknown, string, Data | undefined, never>) => string | readonly string[]);
-  data?: ValOrFn<Data, StepEnterArgs<unknown, string, Data | undefined, never>>;
-} & StepCallbacks<Data>;
+type StepDefinitionInput<Data, Context = unknown> = {
+  next: readonly string[] | ((args: StepArgs<Context, string, Data | undefined, never>) => string | readonly string[]);
+  data?: ValOrFn<Data, StepEnterArgs<Context, string, Data | undefined, never>>;
+} & StepCallbacks<Data, Context>;
 
 // ===== Core Helper Functions =====
 
@@ -42,7 +42,7 @@ type StepDefinitionInput<Data> = {
  * });
  * ```
  */
-export function step<Data>(definition: StepDefinitionInput<Data>): StepDefinitionInput<Data> {
+export function step<Data, Context = unknown>(definition: StepDefinitionInput<Data, Context>): StepDefinitionInput<Data, Context> {
   return definition;
 }
 
@@ -69,15 +69,15 @@ export function step<Data>(definition: StepDefinitionInput<Data>): StepDefinitio
  * });
  * ```
  */
-export function stepWithValidation<Data>(
+export function stepWithValidation<Data, Context = unknown>(
   validateFn: (args: { data: Data }) => void,
-  definition: Omit<StepDefinitionInput<Data>, 'validate'> & {
-    validate?: (args: ValidateArgs<unknown>) => void;
+  definition: Omit<StepDefinitionInput<Data, Context>, 'validate'> & {
+    validate?: (args: ValidateArgs<Context>) => void;
   }
-): StepDefinitionInput<Data> & { validate: (args: ValidateArgs<unknown>) => void } {
+): StepDefinitionInput<Data, Context> & { validate: (args: ValidateArgs<Context>) => void } {
   return {
     ...definition,
-    validate: validateFn as (args: ValidateArgs<unknown>) => void,
+    validate: validateFn as (args: ValidateArgs<Context>) => void,
   };
 }
 
@@ -86,24 +86,24 @@ export function stepWithValidation<Data>(
 /**
  * Helper for steps that only need data initialization (no callbacks)
  */
-export function dataStep<Data>(data: Data, next: readonly string[]): StepDefinitionInput<Data> {
+export function dataStep<Data, Context = unknown>(data: Data, next: readonly string[]): StepDefinitionInput<Data, Context> {
   return { data, next };
 }
 
 /**
  * Helper for steps that are just transitions (no data, minimal logic)
  */
-export function transitionStep(next: readonly string[]): StepDefinitionInput<unknown> {
+export function transitionStep<Context = unknown>(next: readonly string[]): StepDefinitionInput<unknown, Context> {
   return { next };
 }
 
 /**
  * Helper for conditional steps with dynamic next logic
  */
-export function conditionalStep<Data>(
-  definition: StepDefinitionInput<Data> & {
-    next: (args: StepArgs<unknown, string, Data, never>) => string | readonly string[];
+export function conditionalStep<Data, Context = unknown>(
+  definition: StepDefinitionInput<Data, Context> & {
+    next: (args: StepArgs<Context, string, Data, never>) => string | readonly string[];
   }
-): StepDefinitionInput<Data> {
+): StepDefinitionInput<Data, Context> {
   return definition;
 }

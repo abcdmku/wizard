@@ -15,22 +15,54 @@ Use **explicit type annotations** in callback parameters:
 ### ✅ Working Approach
 
 ```typescript
+// Define your context type
+type AppContext = {
+  userId: string;
+  permissions: string[];
+  theme: 'light' | 'dark';
+};
+
 const steps = defineSteps({
   payment: {
     validate: ({ data }: { data: { method: string; amount: number } }) => {
       if (!data.method || data.amount <= 0) throw new Error('Invalid payment');
     },
     data: { method: 'card', amount: 100 },
-    beforeExit: ({ data }: { data: { method: string; amount: number } }) => {
+    beforeExit: ({
+      data,
+      context,
+      updateContext
+    }: {
+      data: { method: string; amount: number };
+      context: AppContext;
+      updateContext: (fn: (context: AppContext) => void) => void;
+    }) => {
       // ✅ data is properly typed as { method: string; amount: number }
       const method: string = data.method;
       const amount: number = data.amount;
-      console.log(`Payment: ${method} for $${amount}`);
+
+      // ✅ context is properly typed as AppContext
+      const userId: string = context.userId;
+      const permissions: string[] = context.permissions;
+
+      console.log(`Payment: ${method} for $${amount} by user ${userId}`);
+
+      // ✅ updateContext is properly typed
+      updateContext((ctx) => {
+        ctx.permissions.push('payment:completed');
+      });
     },
-    canExit: ({ data }: { data: { method: string; amount: number } }) => {
-      // ✅ data is properly typed
+    canExit: ({
+      data,
+      context
+    }: {
+      data: { method: string; amount: number };
+      context: AppContext;
+    }) => {
+      // ✅ Both data and context properly typed
       const amount: number = data.amount;
-      return amount > 0;
+      const hasPermission = context.permissions.includes('payment:create');
+      return amount > 0 && hasPermission;
     },
     next: ['confirmation'],
   }
@@ -76,16 +108,38 @@ This is a fundamental language limitation, not a bug in our implementation.
 
 ## Best Practice
 
-**Always explicitly type callback parameters** based on your step's data type:
+**Always explicitly type callback parameters** including context:
 
 ```typescript
+// Define your context type
+type YourContextType = { userId: string; /* other properties */ };
+
 // If you have validation:
 validate: ({ data }: { data: YourDataType }) => { ... }
-beforeExit: ({ data }: { data: YourDataType }) => { ... }
+beforeExit: ({
+  data,
+  context,
+  updateContext
+}: {
+  data: YourDataType;
+  context: YourContextType;
+  updateContext: (fn: (context: YourContextType) => void) => void;
+}) => { ... }
 
 // If you only have data property:
 data: yourDataValue,
-beforeExit: ({ data }: { data: typeof yourDataValue }) => { ... }
+beforeExit: ({
+  data,
+  context
+}: {
+  data: typeof yourDataValue;
+  context: YourContextType;
+}) => { ... }
 ```
 
-This provides full type safety, IntelliSense, and is explicit about the expected data shape.
+### Key Changes
+- ✅ **Renamed**: `ctx` → `context` for clarity
+- ✅ **Fixed**: Context typing from `unknown` to proper generic type
+- ✅ **Enhanced**: All callback arguments properly typed
+
+This provides full type safety, IntelliSense, and is explicit about both data and context shapes.

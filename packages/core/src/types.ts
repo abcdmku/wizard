@@ -21,9 +21,9 @@ export const resolve = <T, A>(v: ValOrFn<T, A>, a: A): T =>
 
 export type StepArgs<C, S extends string, Data, E> = {
   step: S;
-  ctx: Readonly<C>;
+  context: Readonly<C>;
   data: Readonly<Data> | undefined;
-  updateContext: (fn: (ctx: C) => void) => void;
+  updateContext: (fn: (context: C) => void) => void;
   setStepData: (data: Data) => void;
   emit: (event: E) => void;
 };
@@ -35,7 +35,7 @@ export type StepExitArgs<C, S extends string, Data, E> =
   StepArgs<C, S, Data, E> & { to?: S | null };
 
 export type ValidateArgs<C> = {
-  ctx: Readonly<C>;
+  context: Readonly<C>;
   data: unknown; // to be narrowed by validate
 };
 
@@ -188,20 +188,20 @@ type ExtractDataType<T> =
       : unknown;
 
 // Define properly typed step args for callbacks
-type TypedStepArgs<StepName extends string, Data> = {
+type TypedStepArgs<StepName extends string, Data, Context = unknown> = {
   step: StepName;
-  ctx: Readonly<unknown>;
+  context: Readonly<Context>;
   data: Readonly<Data>;
-  updateContext: (fn: (ctx: unknown) => void) => void;
+  updateContext: (fn: (context: Context) => void) => void;
   setStepData: (data: Data) => void;
   emit: (event: never) => void;
 };
 
-type TypedStepEnterArgs<StepName extends string, Data> = TypedStepArgs<StepName, Data> & {
+type TypedStepEnterArgs<StepName extends string, Data, Context = unknown> = TypedStepArgs<StepName, Data, Context> & {
   from?: StepName | null;
 };
 
-type TypedStepExitArgs<StepName extends string, Data> = TypedStepArgs<StepName, Data> & {
+type TypedStepExitArgs<StepName extends string, Data, Context = unknown> = TypedStepArgs<StepName, Data, Context> & {
   to?: StepName | null;
 };
 
@@ -289,11 +289,11 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   back(): Promise<void>;
   reset(): void;
 
-  updateContext(fn: (ctx: C) => void): void;
+  updateContext(fn: (context: C) => void): void;
   setStepData<K extends S>(step: K, data: D[K]): void;
   getStepData<K extends S>(step: K): D[K] | undefined;
   getContext(): Readonly<C>;
-  getCurrent(): { step: S; data: Readonly<D[S]> | undefined; ctx: Readonly<C> };
+  getCurrent(): { step: S; data: Readonly<D[S]> | undefined; context: Readonly<C> };
 
   markError(step: S, err: unknown): void;
   markTerminated(step: S, err?: unknown): void;
@@ -326,9 +326,9 @@ export type WizardConfig<C, S extends string, D extends Record<S, unknown>, E = 
   order?: readonly S[];
   weights?: Partial<Record<S, number>>;
   prerequisites?: Partial<Record<S, readonly S[]>>;
-  isStepComplete?: (a: { step: S; data: Partial<D>; ctx: Readonly<C> }) => boolean;
-  isOptional?: (step: S, ctx: Readonly<C>) => boolean;
-  isRequired?: (step: S, ctx: Readonly<C>) => boolean;
+  isStepComplete?: (a: { step: S; data: Partial<D>; context: Readonly<C> }) => boolean;
+  isOptional?: (step: S, context: Readonly<C>) => boolean;
+  isRequired?: (step: S, context: Readonly<C>) => boolean;
   onStatusChange?: (a: { step: S; prev?: StepStatus; next: StepStatus }) => void;
 };
 

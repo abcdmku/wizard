@@ -52,9 +52,9 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
   // Helper to create step arguments
   const createStepArgs = <Data>(step: S, data: Data): StepArgs<C, S, Data, E> => ({
     step,
-    ctx: store.state.context,
+    context: store.state.context,
     data,
-    updateContext: (fn: (ctx: C) => void) => {
+    updateContext: (fn: (context: C) => void) => {
       store.setState((state) => {
         const newContext = structuredClone(state.context);
         fn(newContext);
@@ -410,7 +410,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       });
     },
 
-    updateContext(fn: (ctx: C) => void) {
+    updateContext(fn: (context: C) => void) {
       store.setState(state => {
         const newContext = structuredClone(state.context);
         fn(newContext);
@@ -434,7 +434,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     getCurrent: () => ({
       step: store.state.step,
       data: store.state.data[store.state.step] as D[S] | undefined,
-      ctx: store.state.context,
+      context: store.state.context,
     }),
 
     markError(step: S, err: unknown) {
