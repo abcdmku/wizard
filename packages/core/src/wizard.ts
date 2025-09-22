@@ -15,6 +15,7 @@ import type {
   StepEnterArgs,
   StepExitArgs,
   EnhancedWizard,
+  EnhancedDataMapFromDefs,
 } from './types';
 import { resolve } from './types';
 import { createStepWrapper, createCurrentStepWrapper, type WizardStep } from './step-wrapper';
@@ -24,9 +25,9 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
   steps: TDefs;
   order?: readonly (keyof TDefs & string)[];
   onStatusChange?: (a: { step: keyof TDefs & string; prev?: StepStatus; next: StepStatus }) => void;
-}): Wizard<C, StepIds<TDefs>, DataMapFromDefs<TDefs>, E> {
+}): Wizard<C, StepIds<TDefs>, EnhancedDataMapFromDefs<TDefs>, E> {
   type S = StepIds<TDefs>;
-  type D = DataMapFromDefs<TDefs>;
+  type D = EnhancedDataMapFromDefs<TDefs>;
 
   const { context: initialContext, steps, order, onStatusChange } = opts;
 

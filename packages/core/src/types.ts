@@ -376,8 +376,16 @@ export type ExtractStepDataType<TDefs, StepName extends keyof TDefs> =
         : unknown;
 
 // Enhanced data map that preserves step-specific types
+// Using direct data extraction for better compatibility with step() helper
+type DirectExtractDataType<T> =
+  T extends { validate: (args: { data: infer D }) => any }
+    ? D
+    : T extends { data: infer D }
+      ? D
+      : unknown;
+
 export type EnhancedDataMapFromDefs<TDefs> = {
-  [K in keyof TDefs & string]: ExtractStepDataType<TDefs, K>;
+  [K in keyof TDefs & string]: DirectExtractDataType<TDefs[K]>;
 };
 
 /**
