@@ -69,10 +69,8 @@ export function createWizardFactory<C, E = never>() {
      * Define steps with proper context typing
      * Note: Due to TypeScript limitations, you still need explicit typing in callback parameters
      */
-    defineSteps<T extends Record<string, any>>(defs: T): {
-      [K in keyof T]: ContextAwareStepDefinition<C, K & string, ExtractDataType<T[K]>, E>
-    } {
-      return defs as any;
+    defineSteps<T extends Record<string, any>>(defs: T): T {
+      return defs;
     },
 
     /**

@@ -1,4 +1,3 @@
-
 import { wizardWithContext } from '../wizard-factory';
 
 const { defineSteps, createWizard, step} = wizardWithContext({
@@ -12,7 +11,6 @@ const steps = defineSteps({
   step1: step({
     data: { value: 42 },
     canEnter: ({ context, data }) => {
-      // ✅ context automatically typed as AppContext
       return context.globalFlag && Boolean(data?.value);
     },
     next: []
@@ -21,5 +19,9 @@ const steps = defineSteps({
 
 const wizard = createWizard(steps);
 
-const currentStep = wizard.markError('step1', new Error('Test error'));
-const nextStep = wizard.next();
+const currentStep = wizard.getStep('step1');
+
+// This should show the specific error about data.value access
+const value = currentStep.data.value;
+
+console.log('Value:', value);
