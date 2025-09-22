@@ -8,7 +8,7 @@
 /* Base code block styling - remove overflow from pre */
 pre {
   background: transparent !important;
-  color: #d4d4d4 !important;
+  color: #334155 !important;
   border-radius: 0 !important;
   border: none !important;
   margin: 0 !important;
@@ -22,7 +22,7 @@ pre {
 /* Dark mode code blocks */
 .dark pre {
   background: transparent !important;
-  color: #e2e8f0 !important;
+  color: #d4d4d4 !important;
   border: none !important;
 }
 
@@ -33,7 +33,7 @@ pre > code {
   margin: 8px 0 !important;
   overflow-x: auto !important;
   overflow-y: visible !important;
-  background: #0a0a0a !important;
+  background: #f8fafc !important;
   width: 100% !important;
 }
 
@@ -44,15 +44,19 @@ pre > code {
 
 /* ========== VS CODE SYNTAX HIGHLIGHTING ========== */
 
-/* VS Code Dark Theme Colors */
+/* VS Code Dark Theme Colors - Multiple selectors for compatibility */
 .dark pre > code .token.comment,
 .dark pre > code .token.prolog,
 .dark pre > code .token.doctype,
-.dark pre > code .token.cdata {
+.dark pre > code .token.cdata,
+.dark pre code [data-theme="dark"] .token.comment,
+.dark pre code .hljs-comment {
   color: #6a9955 !important; /* VS Code comment green */
 }
 
-.dark pre > code .token.punctuation {
+.dark pre > code .token.punctuation,
+.dark pre code [data-theme="dark"] .token.punctuation,
+.dark pre code .hljs-punctuation {
   color: #d4d4d4 !important; /* VS Code punctuation */
 }
 
@@ -62,7 +66,10 @@ pre > code {
 .dark pre > code .token.number,
 .dark pre > code .token.constant,
 .dark pre > code .token.symbol,
-.dark pre > code .token.deleted {
+.dark pre > code .token.deleted,
+.dark pre code [data-theme="dark"] .token.number,
+.dark pre code .hljs-number,
+.dark pre code .hljs-literal {
   color: #b5cea8 !important; /* VS Code number/constant green */
 }
 
@@ -71,7 +78,9 @@ pre > code {
 .dark pre > code .token.string,
 .dark pre > code .token.char,
 .dark pre > code .token.builtin,
-.dark pre > code .token.inserted {
+.dark pre > code .token.inserted,
+.dark pre code [data-theme="dark"] .token.string,
+.dark pre code .hljs-string {
   color: #ce9178 !important; /* VS Code string orange */
 }
 
@@ -79,37 +88,50 @@ pre > code {
 .dark pre > code .token.entity,
 .dark pre > code .token.url,
 .dark pre > code .language-css .token.string,
-.dark pre > code .style .token.string {
+.dark pre > code .style .token.string,
+.dark pre code [data-theme="dark"] .token.operator,
+.dark pre code .hljs-operator {
   color: #d4d4d4 !important; /* VS Code operator */
 }
 
 .dark pre > code .token.atrule,
 .dark pre > code .token.attr-value,
-.dark pre > code .token.keyword {
+.dark pre > code .token.keyword,
+.dark pre code [data-theme="dark"] .token.keyword,
+.dark pre code .hljs-keyword {
   color: #569cd6 !important; /* VS Code keyword blue */
 }
 
 .dark pre > code .token.function,
-.dark pre > code .token.class-name {
+.dark pre > code .token.class-name,
+.dark pre code [data-theme="dark"] .token.function,
+.dark pre code .hljs-function,
+.dark pre code .hljs-title {
   color: #dcdcaa !important; /* VS Code function yellow */
 }
 
 .dark pre > code .token.regex,
 .dark pre > code .token.important,
-.dark pre > code .token.variable {
+.dark pre > code .token.variable,
+.dark pre code [data-theme="dark"] .token.variable,
+.dark pre code .hljs-variable {
   color: #d16969 !important; /* VS Code variable red */
 }
 
-/* Light theme syntax highlighting - VSCode Dark Theme (since using dark background) */
+/* Light theme syntax highlighting - VSCode Light Theme - Multiple selectors for compatibility */
 pre > code .token.comment,
 pre > code .token.prolog,
 pre > code .token.doctype,
-pre > code .token.cdata {
-  color: #6a9955 !important; /* VSCode dark comment green */
+pre > code .token.cdata,
+pre code [data-theme="light"] .token.comment,
+pre code .hljs-comment {
+  color: #008000 !important; /* VSCode light comment green */
 }
 
-pre > code .token.punctuation {
-  color: #d4d4d4 !important; /* VSCode dark punctuation */
+pre > code .token.punctuation,
+pre code [data-theme="light"] .token.punctuation,
+pre code .hljs-punctuation {
+  color: #000000 !important; /* VSCode light punctuation */
 }
 
 pre > code .token.property,
@@ -118,8 +140,11 @@ pre > code .token.boolean,
 pre > code .token.number,
 pre > code .token.constant,
 pre > code .token.symbol,
-pre > code .token.deleted {
-  color: #b5cea8 !important; /* VSCode dark number/constant green */
+pre > code .token.deleted,
+pre code [data-theme="light"] .token.number,
+pre code .hljs-number,
+pre code .hljs-literal {
+  color: #098658 !important; /* VSCode light number/constant green */
 }
 
 pre > code .token.selector,
@@ -127,33 +152,84 @@ pre > code .token.attr-name,
 pre > code .token.string,
 pre > code .token.char,
 pre > code .token.builtin,
-pre > code .token.inserted {
-  color: #ce9178 !important; /* VSCode dark string orange */
+pre > code .token.inserted,
+pre code [data-theme="light"] .token.string,
+pre code .hljs-string {
+  color: #a31515 !important; /* VSCode light string red */
 }
 
 pre > code .token.operator,
 pre > code .token.entity,
 pre > code .token.url,
 pre > code .language-css .token.string,
-pre > code .style .token.string {
-  color: #d4d4d4 !important; /* VSCode dark operator */
+pre > code .style .token.string,
+pre code [data-theme="light"] .token.operator,
+pre code .hljs-operator {
+  color: #000000 !important; /* VSCode light operator */
 }
 
 pre > code .token.atrule,
 pre > code .token.attr-value,
-pre > code .token.keyword {
-  color: #569cd6 !important; /* VSCode dark keyword blue */
+pre > code .token.keyword,
+pre code [data-theme="light"] .token.keyword,
+pre code .hljs-keyword {
+  color: #0000ff !important; /* VSCode light keyword blue */
 }
 
 pre > code .token.function,
-pre > code .token.class-name {
-  color: #dcdcaa !important; /* VSCode dark function yellow */
+pre > code .token.class-name,
+pre code [data-theme="light"] .token.function,
+pre code .hljs-function,
+pre code .hljs-title {
+  color: #795e26 !important; /* VSCode light function brown */
 }
 
 pre > code .token.regex,
 pre > code .token.important,
-pre > code .token.variable {
-  color: #d16969 !important; /* VSCode dark variable red */
+pre > code .token.variable,
+pre code [data-theme="light"] .token.variable,
+pre code .hljs-variable {
+  color: #001080 !important; /* VSCode light variable blue */
+}
+
+/* Additional comprehensive syntax highlighting - Light Theme */
+pre code .hljs-built_in,
+pre code .hljs-type,
+pre code .hljs-class,
+pre > code .token.builtin,
+pre > code .token.class-name {
+  color: #267f99 !important; /* VSCode light type/class blue */
+}
+
+pre code .hljs-attr,
+pre code .hljs-attribute,
+pre > code .token.attr-name {
+  color: #0451a5 !important; /* VSCode light attribute blue */
+}
+
+pre code .hljs-tag,
+pre > code .token.tag {
+  color: #800000 !important; /* VSCode light tag red */
+}
+
+/* Additional comprehensive syntax highlighting - Dark Theme */
+.dark pre code .hljs-built_in,
+.dark pre code .hljs-type,
+.dark pre code .hljs-class,
+.dark pre > code .token.builtin,
+.dark pre > code .token.class-name {
+  color: #4ec9b0 !important; /* VSCode dark type/class cyan */
+}
+
+.dark pre code .hljs-attr,
+.dark pre code .hljs-attribute,
+.dark pre > code .token.attr-name {
+  color: #92c5f8 !important; /* VSCode dark attribute light blue */
+}
+
+.dark pre code .hljs-tag,
+.dark pre > code .token.tag {
+  color: #569cd6 !important; /* VSCode dark tag blue */
 }
 
 /* Inline code */
