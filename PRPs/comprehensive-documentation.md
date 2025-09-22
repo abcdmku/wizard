@@ -1,4 +1,4 @@
-# PRP: Comprehensive Documentation for WizardOpus
+# PRP: Comprehensive Documentation for Wziard
 
 ## Mission
 Document all undocumented functionality in @wizard/core and @wizard/react packages with detailed examples ranging from basic to complex usage patterns.
@@ -369,4 +369,4 @@ npx tsx scripts/validate-examples.ts
 - ⚠️ May need minor adjustments based on Nextra theme specifics
 - ⚠️ Interactive component implementation details may vary
 
-This PRP provides comprehensive context for documenting all undocumented features in WizardOpus with clear implementation steps and validation criteria.
+This PRP provides comprehensive context for documenting all undocumented features in Wziard with clear implementation steps and validation criteria.

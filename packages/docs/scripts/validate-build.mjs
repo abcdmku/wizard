@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Build validation script for WizardOpus documentation
+ * Build validation script for Wziard documentation
  * Validates that the build output contains all expected files and content
  */
 
@@ -94,7 +94,7 @@ async function validateTypeDocBuild() {
 
   // Check for key content
   const expectedContent = [
-    'WizardOpus API Documentation',
+    'Wziard API Documentation',
     'wizardWithContext',
     '@wizard/core',
     '@wizard/react'
@@ -260,7 +260,7 @@ async function generateBuildReport() {
 
 async function main() {
   try {
-    log(colors.cyan, '\n🚀 Starting WizardOpus documentation build validation...');
+    log(colors.cyan, '\n🚀 Starting Wziard documentation build validation...');
 
     await validateNextBuild();
     await validateTypeDocBuild();

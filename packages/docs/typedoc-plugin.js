@@ -1,5 +1,5 @@
 /**
- * Custom TypeDoc plugin for WizardOpus
+ * Custom TypeDoc plugin for Wziard
  * Adds enhanced functionality and custom processing
  */
 
@@ -24,7 +24,7 @@ export function load(app) {
 
   // Custom converter for better organization
   app.converter.on('resolveBegin', (context) => {
-    console.log('Starting TypeDoc generation for WizardOpus...');
+    console.log('Starting TypeDoc generation for Wziard...');
 
     // Add custom metadata to reflections
     for (const reflection of context.project.getReflectionsByKind(ReflectionKind.All)) {
@@ -111,10 +111,10 @@ export function load(app) {
       const welcomeContent = `
         <div class="tsd-panel tsd-welcome-panel">
           <div class="tsd-panel-group">
-            <h2>Welcome to WizardOpus API Documentation</h2>
+            <h2>Welcome to Wziard API Documentation</h2>
             <p>
               This API documentation covers all public interfaces, functions, and types
-              available in WizardOpus. Use the navigation on the left to explore different
+              available in Wziard. Use the navigation on the left to explore different
               modules and their functionality.
             </p>
             <div class="tsd-quick-links">
@@ -138,5 +138,5 @@ export function load(app) {
     }
   });
 
-  console.log('WizardOpus TypeDoc plugin loaded successfully');
+  console.log('Wziard TypeDoc plugin loaded successfully');
 }

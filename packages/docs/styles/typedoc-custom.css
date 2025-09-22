@@ -1,4 +1,4 @@
-/* WizardOpus TypeDoc Custom Styles */
+/* Wziard TypeDoc Custom Styles */
 
 :root {
   --color-primary: #007bff;
@@ -400,7 +400,7 @@ pre code {
 }
 
 .tsd-generator::before {
-  content: "Generated with ❤️ for WizardOpus";
+  content: "Generated with ❤️ for Wziard";
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 600;
