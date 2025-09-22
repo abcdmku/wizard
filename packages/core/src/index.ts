@@ -9,6 +9,9 @@ export { defineSteps } from './types';
 // Step helper functions for proper type inference
 export { step, stepWithValidation, dataStep, transitionStep, conditionalStep } from './step-helpers';
 
+// Context-aware wizard factory for automatic context type inference
+export { createWizardFactory, wizardWithContext } from './wizard-factory';
+
 // Utility functions
 export { resolve, resolveMetaCore } from './types';
 
