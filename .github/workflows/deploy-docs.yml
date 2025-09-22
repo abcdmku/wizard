@@ -34,15 +34,15 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
           run_install: false
           
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: 'pnpm'
           
       - name: Setup Pages
@@ -60,20 +60,36 @@ jobs:
           ls -la
           echo "Attempting install with --no-frozen-lockfile due to CI environment"
           pnpm install --no-frozen-lockfile
-        
+
+      - name: Build core packages
+        run: |
+          echo "Building core packages first..."
+          pnpm --filter @wizard/core build
+          pnpm --filter @wizard/react build
+
       - name: Build documentation
         run: |
           echo "Building documentation..."
           cd packages/docs
-          rm -rf .next out node_modules/.cache
+          rm -rf .next out node_modules/.cache public/api
           cd ../..
+          echo "Running docs build with API generation..."
           pnpm --filter @wizard/docs build
         env:
           NODE_ENV: production
           GITHUB_ACTIONS: true
           GITHUB_REPOSITORY: ${{ github.repository }}
           NEXT_PUBLIC_GITHUB_REPO_URL: https://github.com/${{ github.repository }}
-          
+
+      - name: Verify build output
+        run: |
+          echo "Verifying build output..."
+          ls -la packages/docs/out/
+          echo "Files in out directory:"
+          find packages/docs/out -type f | head -10
+          echo "Checking for API documentation:"
+          ls -la packages/docs/out/api/ || echo "API docs directory not found in output"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
