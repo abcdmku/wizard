@@ -1,0 +1,513 @@
+# Step Helpers
+
+import { Callout, Tabs, Tab } from '../../components'
+
+Step helpers provide powerful utilities for creating type-safe step definitions with automatic type inference and enhanced developer experience.
+
+## Overview
+
+WizardOpus includes five essential step helpers that simplify step creation while maintaining strict TypeScript typing:
+
+- **`step()`** - Basic step definition with automatic type inference
+- **`stepWithValidation()`** - Validation-first approach with schema-driven typing
+- **`dataStep()`** - Pure data steps with minimal boilerplate
+- **`transitionStep()`** - Navigation-only steps without data requirements
+- **`conditionalStep()`** - Dynamic navigation with conditional logic
+
+## Basic Step Helper
+
+The `step()` helper is the foundation for creating type-safe step definitions.
+
+### Usage
+
+```typescript
+import { step } from '@wizard/core';
+
+const userStep = step({
+  data: { name: '', email: '', age: 0 },
+  beforeEnter: ({ context, data }) => {
+    // ✅ data is automatically typed as { name: string; email: string; age: number } | undefined
+    // ✅ context is properly typed based on your wizard context
+    console.log('Entering user step');
+  },
+  canEnter: ({ context, data }) => {
+    // ✅ Full type safety for both context and data
+    return context.isAuthenticated && Boolean(data?.name);
+  },
+  beforeExit: ({ context, data }) => {
+    // ✅ data is guaranteed to exist and properly typed
+    console.log(`User ${data.name} completed step`);
+  },
+  next: ['address']
+});
+```
+
+### Type Inference Benefits
+
+```typescript
+// The step helper automatically infers types from your data definition
+const profileStep = step({
+  data: {
+    firstName: '',
+    lastName: '',
+    preferences: [] as string[],
+    settings: { theme: 'light' as 'light' | 'dark', notifications: true }
+  },
+  beforeExit: ({ data }) => {
+    // ✅ TypeScript knows exactly what data contains:
+    // data: {
+    //   firstName: string;
+    //   lastName: string;
+    //   preferences: string[];
+    //   settings: { theme: 'light' | 'dark'; notifications: boolean; }
+    // }
+    if (data.firstName && data.lastName) {
+      console.log(`Profile complete for ${data.firstName} ${data.lastName}`);
+    }
+  },
+  next: ['confirmation']
+});
+```
+
+## Validation-First Helper
+
+The `stepWithValidation()` helper lets you define data types through validation functions.
+
+### Usage
+
+```typescript
+import { stepWithValidation } from '@wizard/core';
+
+// Define validation function with explicit typing
+const validatePayment = ({ data }: { data: { cardNumber: string; amount: number; cvv: string } }) => {
+  if (!data.cardNumber || data.cardNumber.length !== 16) {
+    throw new Error('Invalid card number');
+  }
+  if (data.amount <= 0) {
+    throw new Error('Amount must be positive');
+  }
+  if (!data.cvv || data.cvv.length !== 3) {
+    throw new Error('Invalid CVV');
+  }
+};
+
+const paymentStep = stepWithValidation(validatePayment, {
+  data: { cardNumber: '', amount: 0, cvv: '' },
+  beforeExit: ({ data }) => {
+    // ✅ data is typed as { cardNumber: string; amount: number; cvv: string }
+    console.log(`Processing payment of $${data.amount}`);
+  },
+  canExit: ({ data }) => {
+    // ✅ Validation ensures data integrity
+    return data.cardNumber.length === 16 && data.amount > 0;
+  },
+  next: ['confirmation']
+});
+```
+
+### Integration with Schema Libraries
+
+```typescript
+// Works great with Zod or other validation libraries
+import { z } from 'zod';
+
+const AddressSchema = z.object({
+  street: z.string().min(1),
+  city: z.string().min(1),
+  zipCode: z.string().regex(/^\d{5}$/),
+  country: z.string().min(2)
+});
+
+type AddressData = z.infer<typeof AddressSchema>;
+
+const validateAddress = ({ data }: { data: AddressData }) => {
+  AddressSchema.parse(data);
+};
+
+const addressStep = stepWithValidation(validateAddress, {
+  data: { street: '', city: '', zipCode: '', country: 'US' },
+  canExit: ({ data }) => {
+    // ✅ All validation logic is centralized
+    try {
+      AddressSchema.parse(data);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  next: ['payment']
+});
+```
+
+## Data-Only Steps
+
+The `dataStep()` helper creates simple steps that only hold data without complex logic.
+
+### Usage
+
+```typescript
+import { dataStep } from '@wizard/core';
+
+// Perfect for configuration or settings steps
+const settingsStep = dataStep(
+  {
+    theme: 'light' as 'light' | 'dark',
+    language: 'en',
+    notifications: true,
+    autoSave: false
+  },
+  ['summary']
+);
+
+// Great for initial data collection
+const initialDataStep = dataStep(
+  {
+    sessionId: '',
+    timestamp: Date.now(),
+    source: 'web'
+  },
+  ['userInput']
+);
+```
+
+### When to Use Data Steps
+
+<Callout type="info" title="Best Use Cases">
+Data steps are ideal for:
+- Configuration or settings collection
+- Initial state setup
+- Simple data containers without validation
+- Steps that don't require conditional logic
+</Callout>
+
+```typescript
+// Example: Multi-step form with mixed step types
+const formSteps = defineSteps({
+  // Data step for initial setup
+  init: dataStep({ sessionId: generateId(), startTime: Date.now() }, ['personal']),
+
+  // Regular step with validation
+  personal: step({
+    data: { firstName: '', lastName: '', email: '' },
+    canExit: ({ data }) => Boolean(data.firstName && data.lastName && data.email),
+    next: ['address']
+  }),
+
+  // Another data step for simple collection
+  preferences: dataStep({ newsletter: false, marketing: false }, ['summary'])
+});
+```
+
+## Transition Steps
+
+The `transitionStep()` helper creates navigation-only steps without data requirements.
+
+### Usage
+
+```typescript
+import { transitionStep } from '@wizard/core';
+
+const steps = defineSteps({
+  start: step({
+    data: { acknowledged: false },
+    next: ['terms']
+  }),
+
+  // Transition step for T&C acceptance
+  terms: transitionStep(['userType']),
+
+  // Conditional transition based on user choice
+  userType: step({
+    data: { type: '' as 'individual' | 'business' | '' },
+    next: ['individual', 'business']
+  }),
+
+  // More transition logic
+  individual: transitionStep(['personalInfo']),
+  business: transitionStep(['businessInfo']),
+
+  personalInfo: step({
+    data: { name: '', dateOfBirth: '' },
+    next: ['verification']
+  })
+});
+```
+
+### Router Integration
+
+Transition steps work excellently with routing systems:
+
+```typescript
+// Example with React Router integration
+const routingSteps = defineSteps({
+  welcome: transitionStep(['/onboarding/user-type']),
+  userType: transitionStep(['/onboarding/details']),
+  details: step({
+    data: { /* actual form data */ },
+    next: ['/onboarding/complete']
+  })
+});
+```
+
+## Conditional Steps
+
+The `conditionalStep()` helper enables dynamic navigation based on runtime conditions.
+
+### Usage
+
+```typescript
+import { conditionalStep } from '@wizard/core';
+
+const paymentFlow = defineSteps({
+  cart: step({
+    data: { items: [], total: 0, currency: 'USD' },
+    next: ['payment']
+  }),
+
+  payment: conditionalStep({
+    data: { method: '' as 'card' | 'paypal' | 'bank' | '' },
+    next: ({ data, context }) => {
+      // ✅ Dynamic navigation based on payment method
+      switch (data.method) {
+        case 'card':
+          return ['cardDetails'];
+        case 'paypal':
+          return ['paypalAuth'];
+        case 'bank':
+          return ['bankTransfer'];
+        default:
+          return ['payment']; // Stay on current step
+      }
+    }
+  }),
+
+  cardDetails: step({
+    data: { cardNumber: '', expiry: '', cvv: '' },
+    next: ['confirmation']
+  }),
+
+  paypalAuth: conditionalStep({
+    data: { authToken: '', status: 'pending' as 'pending' | 'authorized' | 'failed' },
+    next: ({ data }) => {
+      return data.status === 'authorized' ? ['confirmation'] : ['payment'];
+    }
+  })
+});
+```
+
+### Complex Conditional Logic
+
+```typescript
+const onboardingFlow = defineSteps({
+  userType: conditionalStep({
+    data: {
+      type: '' as 'individual' | 'business' | '',
+      hasExistingAccount: false,
+      needsVerification: false
+    },
+    next: ({ data, context }) => {
+      // Multi-factor conditional navigation
+      if (data.hasExistingAccount) {
+        return ['login'];
+      }
+
+      if (data.type === 'business') {
+        return data.needsVerification ? ['businessVerification'] : ['businessDetails'];
+      }
+
+      if (data.type === 'individual') {
+        return context.isUnderage ? ['parentalConsent'] : ['personalDetails'];
+      }
+
+      return ['userType']; // Invalid state, stay here
+    }
+  }),
+
+  // Different paths based on conditions
+  login: step({ /* existing user flow */ }),
+  businessVerification: step({ /* business verification */ }),
+  businessDetails: step({ /* business info collection */ }),
+  parentalConsent: step({ /* minor user flow */ }),
+  personalDetails: step({ /* individual user flow */ })
+});
+```
+
+## Combining Helpers
+
+Different helpers can be combined effectively in the same wizard:
+
+```typescript
+const comprehensiveWizard = defineSteps({
+  // Data step for initialization
+  init: dataStep({ sessionId: generateId(), startTime: Date.now() }, ['welcome']),
+
+  // Transition step for welcome
+  welcome: transitionStep(['userInfo']),
+
+  // Regular step with validation
+  userInfo: step({
+    data: { name: '', email: '', phone: '' },
+    canExit: ({ data }) => Boolean(data.name && data.email),
+    next: ['preferences']
+  }),
+
+  // Validation-first step
+  preferences: stepWithValidation(
+    ({ data }: { data: { notifications: boolean; theme: string } }) => {
+      if (!['light', 'dark'].includes(data.theme)) {
+        throw new Error('Invalid theme');
+      }
+    },
+    {
+      data: { notifications: true, theme: 'light' },
+      next: ['paymentMethod']
+    }
+  ),
+
+  // Conditional step for payment routing
+  paymentMethod: conditionalStep({
+    data: { method: '' as 'free' | 'paid' | '' },
+    next: ({ data }) => {
+      return data.method === 'paid' ? ['billing'] : ['confirmation'];
+    }
+  }),
+
+  // Final data step
+  billing: dataStep({ plan: 'pro', billing: 'monthly' }, ['confirmation']),
+
+  confirmation: transitionStep([])
+});
+```
+
+## Best Practices
+
+### 1. Choose the Right Helper
+
+```typescript
+// ✅ Good: Use appropriate helpers for different purposes
+const steps = defineSteps({
+  config: dataStep({ theme: 'light' }, ['user']),           // Simple data
+  user: step({ data: { name: '' }, next: ['payment'] }),    // With validation/logic
+  redirect: transitionStep(['confirmation']),               // Navigation only
+  payment: conditionalStep({ /* dynamic routing */ })       // Complex navigation
+});
+
+// ❌ Avoid: Using step() for everything when simpler helpers exist
+const steps = defineSteps({
+  config: step({ data: { theme: 'light' }, next: ['user'] }),     // Unnecessarily complex
+  redirect: step({ data: undefined, next: ['confirmation'] })      // No data needed
+});
+```
+
+### 2. Leverage Type Inference
+
+```typescript
+// ✅ Good: Let TypeScript infer complex types
+const userStep = step({
+  data: {
+    profile: { name: '', avatar: null as string | null },
+    settings: { notifications: true, theme: 'light' as const },
+    permissions: [] as string[]
+  },
+  beforeExit: ({ data }) => {
+    // ✅ All types automatically inferred correctly
+    if (data.profile.avatar) {
+      console.log('Avatar set:', data.profile.avatar);
+    }
+  },
+  next: ['next']
+});
+
+// ❌ Avoid: Manual type assertions that can become stale
+const userStep = step({
+  data: { profile: { name: '', avatar: null }, settings: { notifications: true, theme: 'light' } },
+  beforeExit: ({ data }) => {
+    const typedData = data as { profile: { name: string; avatar: string | null } }; // ❌ Manual
+  },
+  next: ['next']
+});
+```
+
+### 3. Validation Consistency
+
+```typescript
+// ✅ Good: Consistent validation approach
+const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const emailStep = stepWithValidation(
+  ({ data }: { data: { email: string; confirmed: boolean } }) => {
+    if (!validateEmail(data.email)) throw new Error('Invalid email');
+    if (!data.confirmed) throw new Error('Email confirmation required');
+  },
+  {
+    data: { email: '', confirmed: false },
+    canExit: ({ data }) => validateEmail(data.email) && data.confirmed,
+    next: ['next']
+  }
+);
+```
+
+## Migration from Manual Definitions
+
+<Tabs items={['Before (Manual)', 'After (Helpers)']}>
+  <Tab label="Before (Manual)">
+    ```typescript
+    // ❌ Old pattern: Manual type definitions
+    const steps = defineSteps({
+      user: {
+        data: { name: '', email: '' },
+        beforeExit: ({ data }: { data: { name: string; email: string } }) => {
+          // Manual typing required
+          console.log(data.name);
+        },
+        canExit: ({ data }: { data: { name: string; email: string } | undefined }) => {
+          return Boolean(data?.name && data?.email);
+        },
+        next: ['address']
+      },
+      transition: {
+        next: ['final']
+      },
+      settings: {
+        data: { theme: 'light', notifications: true },
+        next: ['done']
+      }
+    });
+    ```
+  </Tab>
+  <Tab label="After (Helpers)">
+    ```typescript
+    // ✅ New pattern: Helper functions with automatic typing
+    const steps = defineSteps({
+      user: step({
+        data: { name: '', email: '' },
+        beforeExit: ({ data }) => {
+          // ✅ Automatic typing - no manual annotations needed
+          console.log(data.name);
+        },
+        canExit: ({ data }) => {
+          // ✅ Automatic typing handles undefined correctly
+          return Boolean(data?.name && data?.email);
+        },
+        next: ['address']
+      }),
+
+      transition: transitionStep(['final']),
+
+      settings: dataStep({ theme: 'light', notifications: true }, ['done'])
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Helper Function Reference
+
+| Helper | Purpose | Best For |
+|--------|---------|----------|
+| `step()` | General-purpose step creation | Steps with validation logic, callbacks, or complex requirements |
+| `stepWithValidation()` | Validation-first approach | Steps requiring schema validation or complex data validation |
+| `dataStep()` | Simple data containers | Configuration, settings, or simple data collection |
+| `transitionStep()` | Navigation-only steps | Route transitions, flow control, or logic-free navigation |
+| `conditionalStep()` | Dynamic navigation | Complex branching logic or runtime-determined paths |
+
+The step helpers provide a clean, type-safe foundation for building complex wizards while maintaining excellent developer experience and TypeScript integration.

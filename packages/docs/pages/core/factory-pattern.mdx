@@ -1,0 +1,433 @@
+# Factory Pattern
+
+import { Callout, Tabs, Tab } from '../../components'
+
+The `wizardWithContext` factory pattern is the recommended way to create type-safe wizards with automatic context type inference throughout your application.
+
+## Overview
+
+The factory pattern provides several key benefits:
+
+- **🎯 Automatic Type Inference**: Context types are automatically inferred in all step callbacks
+- **🔒 Type Safety**: Compile-time validation of step names, data shapes, and context access
+- **🚀 Developer Experience**: Excellent IDE support with autocomplete and type hints
+- **⚡ Performance**: Optimized type system with recent inference improvements
+- **🔄 Consistency**: Ensures consistent typing patterns across your entire wizard
+
+## Basic Usage
+
+### Creating a Factory
+
+```typescript
+import { wizardWithContext } from '@wizard/core';
+
+// Define your context type
+interface AppContext {
+  userId: string;
+  permissions: string[];
+  theme: 'light' | 'dark';
+  isAuthenticated: boolean;
+}
+
+// Create the factory with initial context
+const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
+  userId: '',
+  permissions: [],
+  theme: 'light',
+  isAuthenticated: false
+});
+```
+
+### Automatic Context Typing
+
+The factory automatically provides typed context in all step callbacks:
+
+```typescript
+const steps = defineSteps({
+  login: step({
+    data: { username: '', password: '' },
+    canEnter: ({ context }) => {
+      // ✅ context is automatically typed as AppContext
+      return !context.isAuthenticated;
+    },
+    beforeEnter: ({ context, updateContext }) => {
+      // ✅ Both context and updateContext are properly typed
+      if (context.theme === 'dark') {
+        // Apply dark theme logic
+      }
+    },
+    next: ['dashboard']
+  }),
+
+  dashboard: step({
+    data: { notifications: [], unreadCount: 0 },
+    canEnter: ({ context }) => {
+      // ✅ TypeScript validates context properties
+      return context.isAuthenticated && context.permissions.includes('dashboard');
+    },
+    beforeEnter: ({ context, data, setStepData }) => {
+      // ✅ All parameters are properly typed
+      if (context.permissions.includes('admin')) {
+        setStepData({
+          notifications: ['Admin notification'],
+          unreadCount: 1
+        });
+      }
+    },
+    next: []
+  })
+});
+```
+
+## Enhanced Type Inference
+
+Recent improvements ensure that step data is properly typed throughout the wizard:
+
+```typescript
+const wizard = createWizard(steps);
+
+// ✅ Get step with full type safety
+const loginStep = wizard.getStep('login');
+
+// ✅ Data is properly typed as { username: string; password: string } | undefined
+const loginData = loginStep.data;
+if (loginData) {
+  console.log('Username:', loginData.username); // ✅ Fully typed!
+  console.log('Password length:', loginData.password.length); // ✅ Fully typed!
+}
+
+// ✅ Navigation with step name validation
+await wizard.goTo('dashboard'); // ✅ TypeScript validates step names
+```
+
+<Callout type="info" title="Type Inference Improvements">
+  Recent fixes ensure that `wizard.getStep('stepName').data.property` returns properly typed values instead of `unknown`. This improvement makes the factory pattern significantly more powerful for TypeScript development.
+</Callout>
+
+## Factory vs. Direct Creation
+
+### Factory Pattern (Recommended)
+
+```typescript
+// ✅ Recommended: Factory pattern with automatic typing
+const { defineSteps, createWizard, step } = wizardWithContext({
+  totalAmount: 0,
+  currency: 'USD'
+});
+
+const steps = defineSteps({
+  payment: step({
+    data: { cardNumber: '', amount: 0 },
+    canEnter: ({ context, data }) => {
+      // ✅ context and data are automatically typed
+      return context.totalAmount > 0 && Boolean(data?.cardNumber);
+    },
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
+```
+
+### Direct Creation (Alternative)
+
+```typescript
+// Alternative: Direct creation with explicit typing
+import { createWizard, defineSteps } from '@wizard/core';
+
+const steps = defineSteps({
+  payment: {
+    data: { cardNumber: '', amount: 0 },
+    canEnter: ({ context, data }: {
+      context: { totalAmount: number; currency: string };
+      data?: { cardNumber: string; amount: number };
+    }) => {
+      // ⚠️ Must manually type parameters
+      return context.totalAmount > 0 && Boolean(data?.cardNumber);
+    },
+    next: []
+  }
+});
+
+const wizard = createWizard({
+  context: { totalAmount: 0, currency: 'USD' },
+  steps
+});
+```
+
+## Advanced Patterns
+
+### Complex Context Updates
+
+```typescript
+interface ShoppingContext {
+  cart: Array<{ id: string; quantity: number; price: number }>;
+  total: number;
+  couponCode?: string;
+  shippingMethod: 'standard' | 'express';
+}
+
+const { defineSteps, createWizard, step } = wizardWithContext<ShoppingContext>({
+  cart: [],
+  total: 0,
+  shippingMethod: 'standard'
+});
+
+const steps = defineSteps({
+  checkout: step({
+    data: { billingAddress: '', shippingAddress: '' },
+    beforeEnter: ({ context, updateContext }) => {
+      // ✅ Complex context updates with type safety
+      updateContext(ctx => {
+        // Calculate total with shipping
+        const subtotal = ctx.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const shipping = ctx.shippingMethod === 'express' ? 15 : 5;
+        ctx.total = subtotal + shipping;
+
+        // Apply coupon if available
+        if (ctx.couponCode === 'SAVE10') {
+          ctx.total *= 0.9;
+        }
+      });
+    },
+    next: ['confirmation']
+  }),
+
+  confirmation: step({
+    data: { orderId: '', confirmed: false },
+    canEnter: ({ context }) => {
+      // ✅ Access calculated total with type safety
+      return context.total > 0 && context.cart.length > 0;
+    },
+    next: []
+  })
+});
+```
+
+### Conditional Step Navigation
+
+```typescript
+interface OnboardingContext {
+  userType: 'individual' | 'business' | null;
+  hasExistingAccount: boolean;
+  completedSteps: string[];
+}
+
+const { defineSteps, createWizard, step } = wizardWithContext<OnboardingContext>({
+  userType: null,
+  hasExistingAccount: false,
+  completedSteps: []
+});
+
+const steps = defineSteps({
+  userType: step({
+    data: { selectedType: '' as 'individual' | 'business' | '' },
+    beforeExit: ({ context, data, updateContext }) => {
+      if (data?.selectedType) {
+        updateContext(ctx => {
+          ctx.userType = data.selectedType as 'individual' | 'business';
+          ctx.completedSteps.push('userType');
+        });
+      }
+    },
+    next: ['individual', 'business'] // Conditional based on selection
+  }),
+
+  individual: step({
+    data: { name: '', dateOfBirth: '' },
+    canEnter: ({ context }) => {
+      // ✅ Type-safe context access for conditional entry
+      return context.userType === 'individual';
+    },
+    next: ['verification']
+  }),
+
+  business: step({
+    data: { companyName: '', taxId: '', employeeCount: 0 },
+    canEnter: ({ context }) => {
+      // ✅ Type-safe context access for conditional entry
+      return context.userType === 'business';
+    },
+    next: ['businessVerification']
+  })
+});
+```
+
+## Best Practices
+
+### 1. Define Strong Context Types
+
+```typescript
+// ✅ Good: Specific, strongly-typed context
+interface UserRegistrationContext {
+  email: string;
+  verificationStatus: 'pending' | 'verified' | 'failed';
+  selectedPlan: 'free' | 'pro' | 'enterprise';
+  features: string[];
+  onboardingProgress: number; // 0-100
+}
+
+// ❌ Avoid: Weak or overly generic types
+interface GenericContext {
+  data: any;
+  state: Record<string, unknown>;
+  flags: boolean[];
+}
+```
+
+### 2. Use Meaningful Step Names
+
+```typescript
+// ✅ Good: Descriptive step names
+const steps = defineSteps({
+  emailVerification: step({ /* ... */ }),
+  profileSetup: step({ /* ... */ }),
+  planSelection: step({ /* ... */ }),
+  paymentSetup: step({ /* ... */ }),
+  onboardingComplete: step({ /* ... */ })
+});
+
+// ❌ Avoid: Generic or unclear names
+const steps = defineSteps({
+  step1: step({ /* ... */ }),
+  step2: step({ /* ... */ }),
+  final: step({ /* ... */ })
+});
+```
+
+### 3. Leverage Type Inference
+
+```typescript
+// ✅ Let TypeScript infer data types from step definitions
+const steps = defineSteps({
+  userInfo: step({
+    data: {
+      firstName: '',
+      lastName: '',
+      age: 0,
+      preferences: [] as string[]
+    },
+    // TypeScript automatically infers data type in callbacks
+    canEnter: ({ data }) => {
+      // data is { firstName: string; lastName: string; age: number; preferences: string[] } | undefined
+      return Boolean(data?.firstName && data?.lastName);
+    },
+    next: []
+  })
+});
+```
+
+### 4. Use Context for Shared State
+
+```typescript
+// ✅ Store shared state in context, step-specific data in step data
+const { defineSteps, createWizard, step } = wizardWithContext({
+  // Shared across all steps
+  userId: '',
+  sessionId: '',
+  isAuthenticated: false,
+  globalSettings: { theme: 'light', language: 'en' }
+});
+
+const steps = defineSteps({
+  login: step({
+    // Step-specific data
+    data: { username: '', password: '', rememberMe: false },
+    next: ['dashboard']
+  })
+});
+```
+
+## Migration from Legacy Patterns
+
+If you're migrating from the old `WizardConfig` pattern:
+
+<Tabs items={['Before (Legacy)', 'After (Modern)']}>
+  <Tab label="Before (Legacy)">
+    ```typescript
+    // ❌ Old pattern: Manual type definitions and WizardConfig
+    import { createWizard, type WizardConfig } from '@wizard/core';
+
+    type Steps = 'login' | 'dashboard';
+    type Context = { userId: string; isAuthenticated: boolean };
+    type StepData = {
+      login: { username: string; password: string };
+      dashboard: { notifications: string[] };
+    };
+
+    const config: WizardConfig<Context, Steps, StepData> = {
+      initialStep: 'login',
+      initialContext: { userId: '', isAuthenticated: false },
+      steps: {
+        login: {
+          next: ['dashboard'],
+          canEnter: ({ ctx }) => !ctx.isAuthenticated // ⚠️ Untyped ctx
+        },
+        dashboard: {
+          next: [],
+          canEnter: ({ ctx }) => ctx.isAuthenticated // ⚠️ Untyped ctx
+        }
+      }
+    };
+
+    const wizard = createWizard(config);
+    ```
+  </Tab>
+  <Tab label="After (Modern)">
+    ```typescript
+    // ✅ New pattern: Automatic type inference with factory
+    import { wizardWithContext } from '@wizard/core';
+
+    interface AppContext {
+      userId: string;
+      isAuthenticated: boolean;
+    }
+
+    const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
+      userId: '',
+      isAuthenticated: false
+    });
+
+    const steps = defineSteps({
+      login: step({
+        data: { username: '', password: '' },
+        canEnter: ({ context }) => !context.isAuthenticated, // ✅ Fully typed
+        next: ['dashboard']
+      }),
+      dashboard: step({
+        data: { notifications: [] as string[] },
+        canEnter: ({ context }) => context.isAuthenticated, // ✅ Fully typed
+        next: []
+      })
+    });
+
+    const wizard = createWizard(steps);
+    ```
+  </Tab>
+</Tabs>
+
+## Type Safety Benefits
+
+The factory pattern provides comprehensive type safety:
+
+```typescript
+const wizard = createWizard(steps);
+
+// ✅ Step name validation
+wizard.goTo('invalidStep'); // ❌ TypeScript error: Argument of type '"invalidStep"' is not assignable
+
+// ✅ Data type validation
+const loginStep = wizard.getStep('login');
+loginStep.setData({ username: 'user', invalidField: 'value' }); // ❌ TypeScript error
+
+// ✅ Context type validation
+wizard.updateContext(ctx => {
+  ctx.invalidProperty = 'value'; // ❌ TypeScript error
+  ctx.isAuthenticated = 'not a boolean'; // ❌ TypeScript error
+});
+
+// ✅ Proper return types
+const userData = wizard.getStep('login').data; // Type: { username: string; password: string } | undefined
+```
+
+This comprehensive type safety catches errors at compile time and provides excellent IDE support for development.

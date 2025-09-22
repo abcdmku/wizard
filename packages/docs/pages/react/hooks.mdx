@@ -1,0 +1,928 @@
+# React Hooks
+
+import { Callout, Tabs, Tab } from '../../components'
+
+Comprehensive guide to WizardOpus React hooks with full TypeScript support and modern patterns integration.
+
+## Overview
+
+WizardOpus provides a rich set of React hooks that integrate seamlessly with the factory pattern and fluent API, delivering excellent TypeScript support and developer experience.
+
+### Available Hooks
+
+- **Core Hooks**: `useWizard`, `useWizardState`, `useWizardStep`
+- **Data Hooks**: `useStepData`, `useCurrentStepData`, `useWizardContext`
+- **Action Hooks**: `useWizardActions`, `useStepActions`
+- **State Hooks**: `useWizardLoading`, `useWizardErrors`, `useWizardHistory`
+- **Utility Hooks**: `useStepValidator`, `useWizardProgress`, `useConditionalStep`
+
+## Core Hooks
+
+### useWizard()
+
+Access the complete wizard instance with full type safety:
+
+```tsx
+import { useWizard } from '@wizard/react';
+import { wizardWithContext } from '@wizard/core';
+
+interface AppContext {
+  userId: string;
+  permissions: string[];
+  theme: 'light' | 'dark';
+}
+
+// Factory setup (usually in separate module)
+const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
+  userId: '',
+  permissions: [],
+  theme: 'light'
+});
+
+function MyComponent() {
+  const wizard = useWizard(); // Automatically typed with AppContext
+
+  // ✅ All methods are fully typed
+  const context = wizard.getContext(); // Type: AppContext
+  const currentStep = wizard.getCurrentStep(); // Returns WizardStep instance
+  const canProceed = wizard.helpers.canGoNext(); // Type: boolean
+
+  // ✅ Fluent API integration
+  const handleUpdate = () => {
+    wizard
+      .getStep('userProfile')
+      .setData({ name: 'John', email: 'john@example.com' })
+      .markIdle();
+  };
+
+  return (
+    <div>
+      <p>User ID: {context.userId}</p>
+      <p>Theme: {context.theme}</p>
+      <button onClick={handleUpdate}>Update Profile</button>
+    </div>
+  );
+}
+```
+
+### useWizardState()
+
+Subscribe to specific parts of wizard state with optimized re-renders:
+
+```tsx
+import { useWizardState } from '@wizard/react';
+
+function ProgressIndicator() {
+  // ✅ Subscribe only to progress - prevents unnecessary re-renders
+  const progress = useWizardState(state => state.helpers.progress());
+
+  // ✅ Subscribe to multiple values efficiently
+  const { currentStep, canGoNext, canGoBack } = useWizardState(state => ({
+    currentStep: state.step,
+    canGoNext: state.helpers.canGoNext(),
+    canGoBack: state.helpers.canGoBack()
+  }));
+
+  return (
+    <div>
+      <div>Current: {currentStep}</div>
+      <div>Progress: {Math.round(progress)}%</div>
+      <div>
+        <button disabled={!canGoBack}>Previous</button>
+        <button disabled={!canGoNext}>Next</button>
+      </div>
+    </div>
+  );
+}
+
+// Advanced selector patterns
+function OptimizedComponent() {
+  // ✅ Memoized selector for complex computations
+  const completedSteps = useWizardState(
+    React.useCallback(state => {
+      return state.helpers.orderedSteps().filter(step =>
+        state.helpers.stepStatus(step) === 'completed'
+      );
+    }, [])
+  );
+
+  // ✅ Conditional subscriptions
+  const errorState = useWizardState(state =>
+    state.errors ? Object.keys(state.errors).length : 0
+  );
+
+  return <div>Completed: {completedSteps.length}, Errors: {errorState}</div>;
+}
+```
+
+### useWizardStep()
+
+Get the current step name with full type inference:
+
+```tsx
+function StepRenderer() {
+  const currentStep = useWizardStep(); // Type: union of all step names
+
+  // ✅ TypeScript provides exhaustive checking
+  switch (currentStep) {
+    case 'userInfo':
+      return <UserInfoStep />;
+    case 'preferences':
+      return <PreferencesStep />;
+    case 'confirmation':
+      return <ConfirmationStep />;
+    default:
+      // TypeScript ensures this is never reached
+      const _exhaustive: never = currentStep;
+      return null;
+  }
+}
+
+// ✅ Conditional rendering with type safety
+function ConditionalRenderer() {
+  const currentStep = useWizardStep();
+
+  const isInitialStep = currentStep === 'welcome';
+  const isFinalStep = currentStep === 'confirmation';
+
+  return (
+    <div>
+      {isInitialStep && <WelcomeMessage />}
+      <StepContent />
+      {isFinalStep && <CompletionActions />}
+    </div>
+  );
+}
+```
+
+## Data Hooks
+
+### useStepData()
+
+Access typed data for specific steps:
+
+```tsx
+interface UserData {
+  name: string;
+  email: string;
+  phone?: string;
+}
+
+interface PreferencesData {
+  notifications: boolean;
+  theme: 'light' | 'dark';
+  language: string;
+}
+
+function DataExample() {
+  // ✅ Automatically typed based on step definition
+  const userData = useStepData('userInfo'); // Type: UserData | undefined
+  const preferences = useStepData('preferences'); // Type: PreferencesData | undefined
+
+  // ✅ Type-safe data access
+  const displayName = userData?.name || 'Anonymous';
+  const preferredTheme = preferences?.theme || 'light';
+
+  return (
+    <div>
+      <p>Welcome, {displayName}!</p>
+      <p>Theme: {preferredTheme}</p>
+    </div>
+  );
+}
+
+// ✅ Generic hook for step data access
+function useTypedStepData<T>(stepName: string): T | undefined {
+  return useStepData(stepName) as T | undefined;
+}
+
+function GenericDataComponent() {
+  const userData = useTypedStepData<UserData>('userInfo');
+
+  return <div>{userData?.email}</div>;
+}
+```
+
+### useCurrentStepData()
+
+Access data for the currently active step:
+
+```tsx
+function CurrentStepForm() {
+  const currentData = useCurrentStepData();
+  const wizard = useWizard();
+  const currentStep = useWizardStep();
+
+  // ✅ Update current step data with type safety
+  const handleUpdate = (newData: any) => {
+    wizard.setStepData(currentStep, { ...currentData, ...newData });
+  };
+
+  // ✅ Form handling with current step data
+  const handleSubmit = (formData: Record<string, any>) => {
+    wizard
+      .getCurrentStep()
+      .setData(formData)
+      .markLoading();
+  };
+
+  return (
+    <form onSubmit={e => {
+      e.preventDefault();
+      const formData = new FormData(e.currentTarget);
+      handleSubmit(Object.fromEntries(formData));
+    }}>
+      {/* Form fields based on current step data */}
+      <input name="field1" defaultValue={currentData?.field1 || ''} />
+      <button type="submit">Save</button>
+    </form>
+  );
+}
+```
+
+### useWizardContext()
+
+Access and update the shared wizard context:
+
+```tsx
+interface SessionContext {
+  user: { id: string; name: string; role: 'admin' | 'user' };
+  session: { token: string; expires: Date };
+  preferences: { language: string; timezone: string };
+}
+
+function ContextExample() {
+  const { context, updateContext } = useWizardContext<SessionContext>();
+
+  // ✅ Type-safe context access
+  const isAdmin = context.user.role === 'admin';
+  const isSessionValid = context.session.expires > new Date();
+
+  // ✅ Context updates with validation
+  const handleLanguageChange = (language: string) => {
+    updateContext(ctx => {
+      ctx.preferences.language = language;
+    });
+  };
+
+  const handleLogin = (user: SessionContext['user'], token: string) => {
+    updateContext(ctx => {
+      ctx.user = user;
+      ctx.session = { token, expires: new Date(Date.now() + 86400000) };
+    });
+  };
+
+  return (
+    <div>
+      <p>Welcome, {context.user.name}!</p>
+      <p>Role: {context.user.role}</p>
+      <p>Session Valid: {isSessionValid ? 'Yes' : 'No'}</p>
+
+      {isAdmin && (
+        <AdminPanel onLanguageChange={handleLanguageChange} />
+      )}
+
+      {!isSessionValid && (
+        <LoginForm onLogin={handleLogin} />
+      )}
+    </div>
+  );
+}
+```
+
+## Action Hooks
+
+### useWizardActions()
+
+Get common wizard navigation actions:
+
+```tsx
+function NavigationControls() {
+  const {
+    next,
+    back,
+    goTo,
+    reset,
+    canGoNext,
+    canGoBack,
+    canGoTo
+  } = useWizardActions();
+
+  const [targetStep, setTargetStep] = React.useState('');
+
+  return (
+    <div>
+      <button onClick={back} disabled={!canGoBack}>
+        ← Previous
+      </button>
+
+      <button onClick={next} disabled={!canGoNext}>
+        Next →
+      </button>
+
+      <div>
+        <input
+          value={targetStep}
+          onChange={e => setTargetStep(e.target.value)}
+          placeholder="Step name"
+        />
+        <button
+          onClick={() => goTo(targetStep)}
+          disabled={!canGoTo(targetStep)}
+        >
+          Go To Step
+        </button>
+      </div>
+
+      <button onClick={reset} style={{ marginLeft: '1rem' }}>
+        Start Over
+      </button>
+    </div>
+  );
+}
+
+// ✅ Custom action hook with async support
+function useAsyncWizardActions() {
+  const baseActions = useWizardActions();
+  const wizard = useWizard();
+
+  return React.useMemo(() => ({
+    ...baseActions,
+    nextWithSave: async (data?: any) => {
+      if (data) {
+        wizard.getCurrentStep().setData(data);
+      }
+
+      wizard.getCurrentStep().markLoading();
+
+      try {
+        await baseActions.next();
+        wizard.getCurrentStep().markIdle();
+      } catch (error) {
+        wizard.getCurrentStep().markError(error);
+        throw error;
+      }
+    },
+    goToWithValidation: async (step: string, validator?: () => Promise<boolean>) => {
+      if (validator && !(await validator())) {
+        throw new Error('Validation failed');
+      }
+
+      return baseActions.goTo(step);
+    }
+  }), [baseActions, wizard]);
+}
+```
+
+### useStepActions()
+
+Get actions specific to a step:
+
+```tsx
+function StepSpecificActions({ stepName }: { stepName: string }) {
+  const stepActions = useStepActions(stepName);
+  const wizard = useWizard();
+
+  const handleMarkComplete = () => {
+    stepActions.markCompleted();
+  };
+
+  const handleSkip = () => {
+    stepActions.markSkipped();
+  };
+
+  const handleRetry = () => {
+    stepActions.retry();
+  };
+
+  // ✅ Combine with fluent API
+  const handleCompleteAndNavigate = async () => {
+    const result = await wizard
+      .getStep(stepName)
+      .markLoading()
+      .setData({ completed: true, completedAt: Date.now() })
+      .next()
+      .then(nextStep => nextStep.markIdle());
+
+    console.log('Navigated to:', result.name);
+  };
+
+  return (
+    <div>
+      <button onClick={handleMarkComplete}>Mark Complete</button>
+      <button onClick={handleSkip}>Skip Step</button>
+      <button onClick={handleRetry}>Retry</button>
+      <button onClick={handleCompleteAndNavigate}>Complete & Continue</button>
+    </div>
+  );
+}
+```
+
+## State Hooks
+
+### useWizardLoading()
+
+Monitor loading state across the wizard:
+
+```tsx
+function LoadingStates() {
+  const globalLoading = useWizardLoading();
+  const stepLoading = useWizardLoading('specificStep');
+  const multipleSteps = useWizardLoading(['step1', 'step2', 'step3']);
+
+  return (
+    <div>
+      {globalLoading && <GlobalSpinner />}
+      {stepLoading && <p>Step is loading...</p>}
+      {multipleSteps && <p>Multiple steps are processing...</p>}
+    </div>
+  );
+}
+
+// ✅ Custom loading hook with timeout
+function useWizardLoadingWithTimeout(timeout: number = 30000) {
+  const isLoading = useWizardLoading();
+  const [hasTimedOut, setHasTimedOut] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isLoading) {
+      setHasTimedOut(false);
+      return;
+    }
+
+    const timer = setTimeout(() => setHasTimedOut(true), timeout);
+    return () => clearTimeout(timer);
+  }, [isLoading, timeout]);
+
+  return { isLoading, hasTimedOut };
+}
+```
+
+### useWizardErrors()
+
+Handle error states with type safety:
+
+```tsx
+interface ValidationError {
+  field: string;
+  message: string;
+  code: string;
+}
+
+function ErrorHandler() {
+  const errors = useWizardErrors();
+  const { clearError, clearAllErrors } = useWizardActions();
+
+  // ✅ Type-safe error handling
+  const stepErrors = errors?.currentStep as ValidationError[] | undefined;
+  const hasErrors = Boolean(stepErrors && stepErrors.length > 0);
+
+  const handleClearError = (index: number) => {
+    if (stepErrors) {
+      const updatedErrors = stepErrors.filter((_, i) => i !== index);
+      clearError('currentStep', updatedErrors);
+    }
+  };
+
+  return (
+    <div>
+      {hasErrors && (
+        <div className="error-container">
+          <h3>Please fix the following errors:</h3>
+          {stepErrors?.map((error, index) => (
+            <div key={index} className="error-item">
+              <p>{error.message}</p>
+              <button onClick={() => handleClearError(index)}>
+                Clear
+              </button>
+            </div>
+          ))}
+          <button onClick={clearAllErrors}>
+            Clear All Errors
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ✅ Error boundary hook
+function useWizardErrorBoundary() {
+  const [error, setError] = React.useState<Error | null>(null);
+  const errors = useWizardErrors();
+
+  React.useEffect(() => {
+    if (errors && Object.keys(errors).length > 0) {
+      const firstError = Object.values(errors)[0];
+      if (firstError instanceof Error) {
+        setError(firstError);
+      }
+    }
+  }, [errors]);
+
+  const clearError = () => setError(null);
+
+  return { error, clearError };
+}
+```
+
+### useWizardHistory()
+
+Track navigation history with type-safe step names:
+
+```tsx
+function NavigationHistory() {
+  const history = useWizardHistory();
+  const wizard = useWizard();
+
+  // ✅ Type-safe history operations
+  const visitedSteps = React.useMemo(() => {
+    return [...new Set(history)]; // Remove duplicates
+  }, [history]);
+
+  const canReturnToStep = (step: string) => {
+    return visitedSteps.includes(step) && wizard.helpers.canGoTo(step);
+  };
+
+  return (
+    <div>
+      <h3>Navigation History</h3>
+      <ol>
+        {history.map((step, index) => (
+          <li key={index}>
+            {step}
+            {canReturnToStep(step) && (
+              <button onClick={() => wizard.goTo(step)}>
+                Return
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+
+      <p>Unique steps visited: {visitedSteps.length}</p>
+    </div>
+  );
+}
+
+// ✅ Breadcrumb navigation
+function BreadcrumbNavigation() {
+  const history = useWizardHistory();
+  const currentStep = useWizardStep();
+  const wizard = useWizard();
+
+  const breadcrumbs = React.useMemo(() => {
+    const unique = [...new Set(history)];
+    const currentIndex = unique.indexOf(currentStep);
+    return unique.slice(0, currentIndex + 1);
+  }, [history, currentStep]);
+
+  return (
+    <nav>
+      {breadcrumbs.map((step, index) => (
+        <React.Fragment key={step}>
+          <button
+            onClick={() => wizard.goTo(step)}
+            disabled={step === currentStep}
+            className={step === currentStep ? 'current' : ''}
+          >
+            {step}
+          </button>
+          {index < breadcrumbs.length - 1 && <span> → </span>}
+        </React.Fragment>
+      ))}
+    </nav>
+  );
+}
+```
+
+## Utility Hooks
+
+### useStepValidator()
+
+Create reusable step validation logic:
+
+```tsx
+interface ValidationRule<T> {
+  field: keyof T;
+  validator: (value: any) => boolean;
+  message: string;
+}
+
+function useStepValidator<T>(
+  stepName: string,
+  rules: ValidationRule<T>[]
+) {
+  const stepData = useStepData(stepName) as T | undefined;
+  const wizard = useWizard();
+
+  const validate = React.useCallback(() => {
+    if (!stepData) return { isValid: false, errors: ['No data'] };
+
+    const errors: string[] = [];
+
+    for (const rule of rules) {
+      const value = stepData[rule.field];
+      if (!rule.validator(value)) {
+        errors.push(rule.message);
+      }
+    }
+
+    return { isValid: errors.length === 0, errors };
+  }, [stepData, rules]);
+
+  const validateAndUpdate = React.useCallback(() => {
+    const result = validate();
+
+    if (!result.isValid) {
+      wizard.getStep(stepName).markError(new Error(result.errors.join(', ')));
+    } else {
+      wizard.getStep(stepName).markIdle();
+    }
+
+    return result;
+  }, [validate, wizard, stepName]);
+
+  return { validate, validateAndUpdate, stepData };
+}
+
+// Usage example
+function UserInfoStep() {
+  const { validate, validateAndUpdate, stepData } = useStepValidator('userInfo', [
+    {
+      field: 'email',
+      validator: (value: string) => value.includes('@'),
+      message: 'Email must contain @'
+    },
+    {
+      field: 'name',
+      validator: (value: string) => value.length >= 2,
+      message: 'Name must be at least 2 characters'
+    }
+  ]);
+
+  const { isValid, errors } = validate();
+
+  return (
+    <div>
+      <input name="name" defaultValue={stepData?.name || ''} />
+      <input name="email" defaultValue={stepData?.email || ''} />
+
+      {errors.map((error, index) => (
+        <p key={index} className="error">{error}</p>
+      ))}
+
+      <button onClick={validateAndUpdate} disabled={!isValid}>
+        Validate & Continue
+      </button>
+    </div>
+  );
+}
+```
+
+### useWizardProgress()
+
+Advanced progress tracking with customization:
+
+```tsx
+function useWizardProgress() {
+  const wizard = useWizard();
+
+  return React.useMemo(() => {
+    const totalSteps = wizard.helpers.orderedSteps().length;
+    const completedSteps = wizard.helpers.orderedSteps().filter(step =>
+      wizard.helpers.stepStatus(step) === 'completed'
+    ).length;
+
+    const currentIndex = wizard.helpers.orderedSteps().indexOf(wizard.getCurrentStep().name);
+
+    return {
+      totalSteps,
+      completedSteps,
+      currentIndex,
+      percentage: wizard.helpers.progress(),
+      stepsRemaining: totalSteps - completedSteps,
+      isComplete: completedSteps === totalSteps
+    };
+  }, [wizard]);
+}
+
+function AdvancedProgressIndicator() {
+  const {
+    totalSteps,
+    completedSteps,
+    currentIndex,
+    percentage,
+    stepsRemaining,
+    isComplete
+  } = useWizardProgress();
+
+  return (
+    <div>
+      <div className="progress-bar">
+        <div style={{ width: `${percentage}%` }} />
+      </div>
+
+      <p>
+        Step {currentIndex + 1} of {totalSteps}
+        ({completedSteps} completed, {stepsRemaining} remaining)
+      </p>
+
+      {isComplete && (
+        <p className="success">🎉 Wizard completed!</p>
+      )}
+    </div>
+  );
+}
+```
+
+### useConditionalStep()
+
+Handle conditional step logic with hooks:
+
+```tsx
+function useConditionalStep(
+  condition: boolean,
+  trueStep: string,
+  falseStep: string
+) {
+  const wizard = useWizard();
+  const { goTo } = useWizardActions();
+
+  const navigate = React.useCallback(async () => {
+    const targetStep = condition ? trueStep : falseStep;
+    return await goTo(targetStep);
+  }, [condition, trueStep, falseStep, goTo]);
+
+  const canNavigate = React.useMemo(() => {
+    const targetStep = condition ? trueStep : falseStep;
+    return wizard.helpers.canGoTo(targetStep);
+  }, [condition, trueStep, falseStep, wizard]);
+
+  return { navigate, canNavigate, targetStep: condition ? trueStep : falseStep };
+}
+
+function ConditionalNavigationExample() {
+  const [userType, setUserType] = React.useState<'admin' | 'user' | null>(null);
+
+  const { navigate, canNavigate, targetStep } = useConditionalStep(
+    userType === 'admin',
+    'adminDashboard',
+    'userDashboard'
+  );
+
+  return (
+    <div>
+      <h2>Select User Type</h2>
+
+      <button onClick={() => setUserType('admin')}>
+        Admin User
+      </button>
+      <button onClick={() => setUserType('user')}>
+        Regular User
+      </button>
+
+      {userType && (
+        <div>
+          <p>Will navigate to: {targetStep}</p>
+          <button onClick={navigate} disabled={!canNavigate}>
+            Continue as {userType}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Custom Hook Patterns
+
+### Combining Multiple Hooks
+
+```tsx
+// ✅ Composite hook for common wizard operations
+function useWizardManager() {
+  const wizard = useWizard();
+  const currentStep = useWizardStep();
+  const actions = useWizardActions();
+  const isLoading = useWizardLoading();
+  const errors = useWizardErrors();
+  const progress = useWizardProgress();
+
+  const state = React.useMemo(() => ({
+    wizard,
+    currentStep,
+    isLoading,
+    errors,
+    progress,
+    hasErrors: Boolean(errors && Object.keys(errors).length > 0),
+    isComplete: progress.isComplete
+  }), [wizard, currentStep, isLoading, errors, progress]);
+
+  return { ...state, actions };
+}
+
+// ✅ Form integration hook
+function useWizardForm<T extends Record<string, any>>(
+  stepName: string,
+  initialData?: T
+) {
+  const stepData = useStepData(stepName) as T | undefined;
+  const wizard = useWizard();
+
+  const [formData, setFormData] = React.useState<T>(
+    stepData || initialData || {} as T
+  );
+
+  const updateField = React.useCallback((field: keyof T, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const saveToStep = React.useCallback(() => {
+    wizard.setStepData(stepName, formData);
+  }, [wizard, stepName, formData]);
+
+  const resetForm = React.useCallback(() => {
+    setFormData(stepData || initialData || {} as T);
+  }, [stepData, initialData]);
+
+  return {
+    formData,
+    updateField,
+    saveToStep,
+    resetForm,
+    isDirty: JSON.stringify(formData) !== JSON.stringify(stepData)
+  };
+}
+```
+
+### Performance Optimization
+
+```tsx
+// ✅ Memoized hook for expensive computations
+function useOptimizedWizardState<T>(
+  selector: (state: any) => T,
+  deps: React.DependencyList = []
+) {
+  const memoizedSelector = React.useCallback(selector, deps);
+  return useWizardState(memoizedSelector);
+}
+
+// ✅ Debounced step data updates
+function useDebouncedStepData(stepName: string, delay: number = 300) {
+  const stepData = useStepData(stepName);
+  const [debouncedData, setDebouncedData] = React.useState(stepData);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setDebouncedData(stepData), delay);
+    return () => clearTimeout(timer);
+  }, [stepData, delay]);
+
+  return debouncedData;
+}
+```
+
+## Best Practices for Hooks
+
+### 1. Use Specific Selectors
+
+```tsx
+// ✅ Good: Specific selectors prevent unnecessary re-renders
+const currentStep = useWizardStep();
+const canProceed = useWizardState(state => state.helpers.canGoNext());
+
+// ❌ Avoid: Subscribing to entire state
+const entireState = useWizardState(state => state);
+```
+
+### 2. Memoize Expensive Operations
+
+```tsx
+// ✅ Good: Memoize complex calculations
+const completedSteps = useWizardState(
+  React.useCallback(state =>
+    state.helpers.orderedSteps().filter(step =>
+      state.helpers.stepStatus(step) === 'completed'
+    ), []
+  )
+);
+```
+
+### 3. Combine Hooks Effectively
+
+```tsx
+// ✅ Good: Custom hooks that combine related functionality
+function useStepManagement(stepName: string) {
+  const data = useStepData(stepName);
+  const actions = useStepActions(stepName);
+  const isLoading = useWizardLoading(stepName);
+
+  return { data, actions, isLoading };
+}
+```
+
+<Callout type="info" title="TypeScript Integration">
+All hooks provide full TypeScript support with automatic type inference when used with the factory pattern, ensuring excellent developer experience and compile-time safety.
+</Callout>
+
+The React hooks system provides a powerful, type-safe way to integrate WizardOpus with React applications, supporting both simple and complex use cases with optimal performance.

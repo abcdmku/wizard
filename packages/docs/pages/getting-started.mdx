@@ -2,7 +2,7 @@
 
 import { Callout, Steps, Step, Tabs, Tab } from '../components'
 
-Welcome to Wizard! This guide will help you get up and running with type-safe multi-step wizards in your TypeScript application.
+Welcome to Wizard! This guide will help you get up and running with type-safe multi-step wizards in your TypeScript application using modern factory patterns with automatic type inference.
 
 ## Installation
 
@@ -44,206 +44,285 @@ For React applications, also install the React adapter:
   </Tab>
 </Tabs>
 
-## Basic Usage
+## Modern Factory Pattern (Recommended)
+
+The easiest way to create type-safe wizards is using the `wizardWithContext` factory pattern:
 
 <Steps>
-  <Step title="Define your step data types">
+  <Step title="Define your shared context">
     ```typescript
-    interface UserData {
-      name: string;
-      email: string;
-    }
-
-    interface AddressData {
-      street: string;
-      city: string;
-      country: string;
-    }
-
-    interface PaymentData {
-      cardNumber: string;
-      expiryDate: string;
-    }
-    ```
-  </Step>
-
-  <Step title="Define shared context">
-    ```typescript
+    // Define the shared context that's available across all steps
     interface CheckoutContext {
       totalAmount: number;
       currency: string;
-      items: Array<{ id: string; quantity: number }>;
+      customerId?: string;
+      isAuthenticated: boolean;
     }
     ```
   </Step>
 
-  <Step title="Create your wizard configuration">
+  <Step title="Create your wizard factory">
     ```typescript
-    import { createWizard, type WizardConfig } from '@wizard/core';
+    import { wizardWithContext } from '@wizard/core';
 
-    type Steps = 'user' | 'address' | 'payment' | 'confirm';
-
-    type StepData = {
-      user: UserData;
-      address: AddressData;
-      payment: PaymentData;
-      confirm: { orderId: string };
-    };
-
-    const config: WizardConfig<CheckoutContext, Steps, StepData> = {
-      initialStep: 'user',
-      initialContext: {
-        totalAmount: 0,
-        currency: 'USD',
-        items: []
-      },
-
-      // Optional: Define prerequisites for automatic ordering
-      prerequisites: {
-        address: ['user'],
-        payment: ['address'],
-        confirm: ['payment']
-      },
-
-      // Optional: Add progress weights
-      weights: {
-        user: 2,
-        address: 3,
-        payment: 4,
-        confirm: 1
-      },
-
-      steps: {
-        user: {
-          next: ['address'],
-          validate: (data: unknown): asserts data is UserData => {
-            if (!data || typeof data !== 'object') {
-              throw new Error('Invalid data');
-            }
-            const d = data as any;
-            if (!d.email?.includes('@')) {
-              throw new Error('Invalid email');
-            }
-          }
-        },
-        address: {
-          next: ['payment'],
-          prev: ['user']
-        },
-        payment: {
-          next: ['confirm'],
-          canEnter: async ({ ctx }) => {
-            // Check if user is authenticated
-            return ctx.totalAmount > 0;
-          }
-        },
-        confirm: {
-          next: [],
-          load: async ({ setStepData }) => {
-            // Generate order ID
-            const orderId = Math.random().toString(36).substring(7);
-            setStepData({ orderId });
-          }
-        }
-      }
-    };
-
-    const checkoutWizard = createWizard(config);
+    // Create the factory with your context - TypeScript will automatically
+    // infer context types in all step callbacks
+    const { defineSteps, createWizard, step } = wizardWithContext<CheckoutContext>({
+      totalAmount: 0,
+      currency: 'USD',
+      isAuthenticated: false
+    });
     ```
   </Step>
 
-  <Step title="Use the wizard in your application">
+  <Step title="Define your steps with type inference">
     ```typescript
-    // Get current step and context
-    const current = checkoutWizard.getCurrent();
-    console.log('Current step:', current.step);
-    console.log('Current data:', current.data);
+    const steps = defineSteps({
+      // User information step
+      user: step({
+        data: {
+          name: '',
+          email: '',
+          password: ''
+        },
+        canEnter: ({ context, data }) => {
+          // ✅ context is automatically typed as CheckoutContext
+          // ✅ data is automatically typed as { name: string; email: string; password: string } | undefined
+          return !context.isAuthenticated || Boolean(data?.email);
+        },
+        next: ['address']
+      }),
 
-    // Update step data
-    checkoutWizard.setStepData('user', {
+      // Address step
+      address: step({
+        data: {
+          street: '',
+          city: '',
+          country: '',
+          zipCode: ''
+        },
+        canEnter: ({ context }) => {
+          // Authentication check with proper typing
+          return context.isAuthenticated && context.totalAmount > 0;
+        },
+        next: ['payment']
+      }),
+
+      // Payment step
+      payment: step({
+        data: {
+          cardNumber: '',
+          expiryDate: '',
+          cvv: ''
+        },
+        beforeEnter: ({ updateContext }) => {
+          // Update context when entering payment
+          updateContext(ctx => {
+            ctx.totalAmount = 99.99; // Calculate total
+          });
+        },
+        next: ['confirm']
+      }),
+
+      // Confirmation step
+      confirm: step({
+        data: {
+          orderId: '',
+          confirmed: false
+        },
+        beforeEnter: async ({ setStepData }) => {
+          // Generate order ID when entering confirmation
+          const orderId = Math.random().toString(36).substring(7);
+          setStepData({ orderId, confirmed: false });
+        },
+        next: []
+      })
+    });
+    ```
+  </Step>
+
+  <Step title="Create and use your wizard">
+    ```typescript
+    const wizard = createWizard(steps);
+
+    // Get current step with full type safety
+    const currentStep = wizard.getStep('user');
+
+    // ✅ TypeScript knows this is { name: string; email: string; password: string } | undefined
+    const userData = currentStep.data;
+    if (userData) {
+      console.log('User email:', userData.email); // ✅ Fully typed!
+    }
+
+    // Navigate with type-safe step names
+    await wizard.next();
+    await wizard.goTo('payment'); // ✅ TypeScript validates step names
+    await wizard.back();
+
+    // Update step data with type safety
+    wizard.setStepData('user', {
       name: 'John Doe',
-      email: 'john@example.com'
+      email: 'john@example.com',
+      password: 'secure123'
     });
 
-    // Navigate between steps
-    await checkoutWizard.next({ data: formData });
-    await checkoutWizard.back();
-    await checkoutWizard.goTo('payment');
+    // Access wizard helpers
+    const progress = wizard.helpers.progress();
+    const canGoNext = wizard.helpers.canGoNext();
+    const isComplete = wizard.helpers.isComplete();
 
-    // Update shared context
-    checkoutWizard.updateContext(ctx => {
-      ctx.totalAmount = 99.99;
-    });
-
-    // Use helpers
-    const progress = checkoutWizard.helpers.progress();
     console.log(`Progress: ${progress.percent}%`);
-
-    const canGoNext = checkoutWizard.helpers.canGoNext();
-    const isComplete = checkoutWizard.helpers.isComplete();
-
-    // Subscribe to changes
-    const unsubscribe = checkoutWizard.subscribe((state) => {
-      console.log('Current step:', state.step);
-      console.log('Is loading:', state.isLoading);
-    });
     ```
   </Step>
 </Steps>
 
 ## React Integration
 
-For React applications, use the provided hooks and provider:
+For React applications, use the modern hooks and provider with your wizard:
 
 ```tsx
-import { WizardProvider, useWizard, useWizardState, useWizardActions } from '@wizard/react';
+import { WizardProvider, useWizard, useWizardState, useCurrentStepData } from '@wizard/react';
 
 function App() {
   return (
-    <WizardProvider wizard={checkoutWizard}>
-      <WizardSteps />
+    <WizardProvider wizard={wizard}>
+      <CheckoutWizard />
     </WizardProvider>
   );
 }
 
-function WizardSteps() {
+function CheckoutWizard() {
   const wizard = useWizard();
-  const state = useWizardState();
-  const { next, back, goTo } = useWizardActions();
+  const { step } = useWizardState();
 
-  // Use helpers for UI state
+  // Get current step data with full type safety
+  const currentStepData = useCurrentStepData();
+
   const progress = wizard.helpers.progress();
   const canGoNext = wizard.helpers.canGoNext();
-  const currentStatus = wizard.helpers.stepStatus(state.step);
+  const canGoBack = wizard.helpers.canGoBack();
 
   return (
-    <div>
+    <div className="wizard-container">
+      {/* Progress indicator */}
       <div className="progress-bar">
-        <div style={{ width: `${progress.percent}%` }} />
+        <div
+          className="progress-fill"
+          style={{ width: `${progress.percent}%` }}
+        />
         <span>{progress.label}</span>
       </div>
 
-      <h2>Step: {state.step}</h2>
-      <p>Status: {currentStatus}</p>
+      {/* Current step content */}
+      <div className="step-content">
+        <h2>Step: {step}</h2>
 
-      {/* Render current step component */}
-      {state.step === 'user' && <UserStep />}
-      {state.step === 'address' && <AddressStep />}
+        {step === 'user' && <UserStep />}
+        {step === 'address' && <AddressStep />}
+        {step === 'payment' && <PaymentStep />}
+        {step === 'confirm' && <ConfirmStep />}
+      </div>
 
-      <button onClick={back} disabled={!wizard.helpers.canGoBack()}>
-        Previous
-      </button>
-      <button onClick={() => next()} disabled={!canGoNext}>
-        Next
-      </button>
+      {/* Navigation */}
+      <div className="navigation">
+        <button
+          onClick={() => wizard.back()}
+          disabled={!canGoBack}
+        >
+          Previous
+        </button>
+
+        <button
+          onClick={() => wizard.next()}
+          disabled={!canGoNext}
+        >
+          Next
+        </button>
+      </div>
     </div>
+  );
+}
+
+// Example step component with typed data access
+function UserStep() {
+  const wizard = useWizard();
+  const userData = useCurrentStepData(); // ✅ Typed as user step data
+
+  const handleSubmit = (formData: any) => {
+    // Update step data with type safety
+    wizard.setStepData('user', {
+      name: formData.name,
+      email: formData.email,
+      password: formData.password
+    });
+
+    // Navigate to next step
+    wizard.next();
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        placeholder="Name"
+        defaultValue={userData?.name || ''}
+      />
+      <input
+        type="email"
+        placeholder="Email"
+        defaultValue={userData?.email || ''}
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        defaultValue={userData?.password || ''}
+      />
+    </form>
   );
 }
 ```
 
-<Callout type="info" title="Type Safety">
-  All wizard operations are fully type-safe. TypeScript will catch invalid step names, data shapes, and context mutations at compile time.
+## Direct Creation Pattern (Alternative)
+
+If you prefer more explicit control, you can also use the direct creation pattern:
+
+```typescript
+import { createWizard, defineSteps } from '@wizard/core';
+
+// Define steps first
+const steps = defineSteps({
+  welcome: {
+    data: { userName: '' },
+    next: ['details']
+  },
+  details: {
+    data: { age: 0, preferences: [] },
+    next: ['confirm']
+  },
+  confirm: {
+    data: { confirmed: false },
+    next: []
+  }
+});
+
+// Create wizard with explicit context
+const wizard = createWizard({
+  context: { appName: 'My App', version: '1.0' },
+  steps
+});
+```
+
+<Callout type="info" title="Enhanced Type Safety">
+  With the modern factory pattern, all wizard operations are fully type-safe. TypeScript automatically infers step names, data shapes, and context types throughout your application. The recent type inference improvements ensure that `wizard.getStep('stepName').data.property` returns properly typed values instead of `unknown`.
 </Callout>
+
+## Key Benefits
+
+- **🎯 Automatic Type Inference**: Context and step data types are automatically inferred throughout your application
+- **🔒 Compile-time Safety**: Invalid step names, data shapes, and context mutations are caught at compile time
+- **🚀 Modern Patterns**: Uses the latest factory pattern with `wizardWithContext` for the best developer experience
+- **⚡ Performance**: Optimized type system provides excellent IDE support and fast compilation
+- **🔄 Fluent API**: Method chaining with `.getStep('name').setData().markLoading()` patterns
 
 ## Next Steps
 
