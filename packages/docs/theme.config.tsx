@@ -7,24 +7,29 @@ const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO_URL ||
                 'https://github.com/user/wizard';
 
 const config: DocsThemeConfig = {
-  logo: <span>🧙 Wizard</span>,
+  logo: <span style={{ fontWeight: 600, fontSize: '1.125rem' }}>🧙‍♂️ WizardOpus</span>,
   project: {
     link: repoUrl
+  },
+  chat: {
+    link: 'https://discord.gg/wizardopus'
   },
   docsRepositoryBase: `${repoUrl}/tree/main/packages/docs`,
   footer: {
     text: (
       <span>
-        {new Date().getFullYear()} © Wizard - Type-Safe Multi-Step Wizards
+        {new Date().getFullYear()} © WizardOpus - Type-Safe Multi-Step Wizards for TypeScript
       </span>
     )
   },
-  navigation: false,
   head: (
     <>
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <meta property="og:title" content="Wizard - Type-Safe Multi-Step Wizards" />
+      <meta property="og:title" content="WizardOpus - Type-Safe Multi-Step Wizards" />
       <meta property="og:description" content="A deeply type-safe, isomorphic, headless multi-step wizard library for TypeScript applications" />
+      <meta name="keywords" content="typescript, react, wizard, multi-step, form, state management, type-safe" />
+      <meta name="author" content="WizardOpus Team" />
+      <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧙‍♂️</text></svg>" />
       <style>{`
         /* Remove ring effects and ensure light mode styling */
         pre.nextra-focus,
@@ -147,10 +152,10 @@ const config: DocsThemeConfig = {
   sidebar: {
     defaultMenuCollapseLevel: 2,
     toggleButton: true,
-    titleComponent: ({ title, type }) => {
+    titleComponent: ({ title, type }: { title: any; type: any }) => {
       if (type === 'separator') {
         return (
-          <div style={{ 
+          <div style={{
             fontSize: '0.75rem',
             fontWeight: 600,
             letterSpacing: '0.05em',
@@ -170,7 +175,7 @@ const config: DocsThemeConfig = {
     next: true
   },
   editLink: {
-    text: 'Edit this page on GitHub →'
+    component: 'Edit this page on GitHub →'
   },
   feedback: {
     content: 'Questions? Give us feedback →',
@@ -178,7 +183,8 @@ const config: DocsThemeConfig = {
   },
   useNextSeoProps() {
     return {
-      titleTemplate: '%s – Wizard Docs'
+      titleTemplate: '%s – WizardOpus Documentation',
+      description: 'Type-safe multi-step wizards for TypeScript applications'
     };
   },
   toc: {

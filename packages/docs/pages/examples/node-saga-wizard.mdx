@@ -1,0 +1,750 @@
+# Node.js Server-Side Wizard Example
+
+import { Callout, Tabs, Tab } from '../../components'
+
+A comprehensive server-side wizard implementation using Node.js, demonstrating API-driven flows, database persistence, and background task processing.
+
+## Overview
+
+This example showcases a server-side wizard that manages complex business processes:
+
+- **User Onboarding Flow** - Multi-step account setup process
+- **Document Processing** - File upload and verification workflow
+- **Background Tasks** - Asynchronous processing with job queues
+- **Database Integration** - Persistent state management
+- **API Endpoints** - RESTful wizard step management
+
+## Features
+
+- **Server-Side State Management** - Wizard state persisted in database
+- **API-Driven Navigation** - RESTful endpoints for step transitions
+- **Background Processing** - Async tasks with job queues
+- **Database Persistence** - PostgreSQL integration with Prisma
+- **File Upload Handling** - Document processing workflow
+- **Email Notifications** - Step completion notifications
+- **Audit Trail** - Complete process history tracking
+
+## Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Client App    │    │   API Server    │    │    Database     │
+│                 │    │                 │    │                 │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
+│ │   React     │◄┼────┼►│   Express   │◄┼────┼►│ PostgreSQL  │ │
+│ │   Frontend  │ │    │ │   + Wizard  │ │    │ │   + Prisma  │ │
+│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │   Job Queue     │
+                       │                 │
+                       │ ┌─────────────┐ │
+                       │ │   Redis     │ │
+                       │ │   + Bull    │ │
+                       │ └─────────────┘ │
+                       └─────────────────┘
+```
+
+## Live Demo
+
+```bash
+cd examples/node-saga-wizard
+pnpm install
+pnpm dev
+```
+
+The server will start on `http://localhost:3000` with API endpoints available.
+
+## Code Structure
+
+### Server Setup
+
+<Callout type="warning" title="Legacy API Pattern">
+This example uses legacy wizard patterns and should be modernized to use `wizardWithContext` factory pattern for better type safety.
+</Callout>
+
+```typescript
+// server.ts - Express server setup
+import express from 'express';
+import { createWizard, defineSteps } from '@wizard/core';
+import { PrismaClient } from '@prisma/client';
+import { Queue } from 'bullmq';
+
+const app = express();
+const prisma = new PrismaClient();
+const processQueue = new Queue('document-processing');
+
+// Wizard configuration
+const onboardingSteps = defineSteps({
+  registration: {
+    data: { email: '', company: '', industry: '' },
+    next: ['verification'],
+    meta: { title: 'Company Registration' }
+  },
+  verification: {
+    data: { documents: [], verificationStatus: 'pending' },
+    next: ['setup'],
+    meta: { title: 'Document Verification' }
+  },
+  setup: {
+    data: { preferences: {}, integrations: [] },
+    next: ['activation'],
+    meta: { title: 'Account Setup' }
+  },
+  activation: {
+    data: { activated: false, activatedAt: null },
+    next: [],
+    meta: { title: 'Account Activation' }
+  }
+});
+
+// Server-side wizard instance factory
+function createServerWizard(sessionId: string) {
+  return createWizard({
+    context: {
+      sessionId,
+      userId: '',
+      companyId: '',
+      createdAt: new Date(),
+      lastActivity: new Date()
+    },
+    steps: onboardingSteps
+  });
+}
+```
+
+### API Endpoints
+
+```typescript
+// routes/wizard.ts - RESTful wizard endpoints
+import { Router } from 'express';
+import { z } from 'zod';
+
+const router = Router();
+
+// Get current wizard state
+router.get('/wizard/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Load wizard state from database
+    const wizardState = await prisma.wizardSession.findUnique({
+      where: { sessionId },
+      include: { stepData: true }
+    });
+
+    if (!wizardState) {
+      return res.status(404).json({ error: 'Wizard session not found' });
+    }
+
+    // Reconstruct wizard instance
+    const wizard = createServerWizard(sessionId);
+
+    // Restore state
+    await restoreWizardState(wizard, wizardState);
+
+    res.json({
+      currentStep: wizard.getCurrentStep().name,
+      progress: wizard.helpers.progress(),
+      availableSteps: wizard.helpers.availableSteps(),
+      canGoNext: wizard.helpers.canGoNext(),
+      canGoBack: wizard.helpers.canGoBack(),
+      context: wizard.getContext(),
+      stepData: wizard.getAllStepData()
+    });
+  } catch (error) {
+    console.error('Error fetching wizard state:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Navigate to next step
+router.post('/wizard/:sessionId/next', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { data } = req.body;
+
+    const wizard = await loadWizardFromDB(sessionId);
+
+    if (!wizard) {
+      return res.status(404).json({ error: 'Wizard session not found' });
+    }
+
+    // Update current step data if provided
+    if (data) {
+      wizard.getCurrentStep().setData(data);
+    }
+
+    // Attempt navigation
+    if (!wizard.helpers.canGoNext()) {
+      return res.status(400).json({ error: 'Cannot proceed to next step' });
+    }
+
+    await wizard.next();
+
+    // Persist state
+    await persistWizardState(wizard);
+
+    // Trigger background tasks if needed
+    await triggerStepTasks(wizard);
+
+    res.json({
+      success: true,
+      currentStep: wizard.getCurrentStep().name,
+      message: 'Navigated to next step successfully'
+    });
+  } catch (error) {
+    console.error('Error navigating to next step:', error);
+    res.status(500).json({ error: 'Navigation failed' });
+  }
+});
+
+// Update step data
+router.put('/wizard/:sessionId/step/:stepName', async (req, res) => {
+  try {
+    const { sessionId, stepName } = req.params;
+    const { data } = req.body;
+
+    // Validate step data based on step schema
+    const validatedData = await validateStepData(stepName, data);
+
+    const wizard = await loadWizardFromDB(sessionId);
+
+    if (!wizard) {
+      return res.status(404).json({ error: 'Wizard session not found' });
+    }
+
+    // Update step data
+    wizard.setStepData(stepName, validatedData);
+
+    // Persist changes
+    await persistWizardState(wizard);
+
+    res.json({
+      success: true,
+      stepData: wizard.getStepData(stepName),
+      message: 'Step data updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating step data:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+```
+
+### Database Schema
+
+```sql
+-- prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model WizardSession {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  userId      String?
+  companyId   String?
+  currentStep String
+  context     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+
+  stepData    WizardStepData[]
+  auditLog    WizardAuditLog[]
+
+  @@map("wizard_sessions")
+}
+
+model WizardStepData {
+  id        String   @id @default(cuid())
+  sessionId String
+  stepName  String
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session   WizardSession @relation(fields: [sessionId], references: [sessionId])
+
+  @@unique([sessionId, stepName])
+  @@map("wizard_step_data")
+}
+
+model WizardAuditLog {
+  id        String   @id @default(cuid())
+  sessionId String
+  action    String   // 'step_entered', 'step_exited', 'data_updated', etc.
+  stepName  String?
+  oldValue  Json?
+  newValue  Json?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  session   WizardSession @relation(fields: [sessionId], references: [sessionId])
+
+  @@map("wizard_audit_log")
+}
+```
+
+### Background Task Processing
+
+```typescript
+// workers/documentProcessor.ts - Background job processing
+import { Worker, Job } from 'bullmq';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Document verification worker
+const documentWorker = new Worker('document-processing', async (job: Job) => {
+  const { sessionId, stepName, documentId } = job.data;
+
+  try {
+    console.log(`Processing document ${documentId} for session ${sessionId}`);
+
+    // Simulate document verification process
+    await simulateDocumentVerification(documentId);
+
+    // Load wizard and update verification status
+    const wizard = await loadWizardFromDB(sessionId);
+
+    if (wizard && wizard.getCurrentStep().name === 'verification') {
+      const currentData = wizard.getStepData('verification');
+      const updatedData = {
+        ...currentData,
+        verificationStatus: 'verified',
+        verifiedAt: new Date(),
+        verifiedDocuments: [...(currentData.verifiedDocuments || []), documentId]
+      };
+
+      wizard.setStepData('verification', updatedData);
+      await persistWizardState(wizard);
+
+      // Send notification email
+      await sendVerificationCompleteEmail(wizard.getContext().userId);
+
+      // Check if all documents are verified
+      if (allDocumentsVerified(updatedData)) {
+        // Automatically advance to next step
+        if (wizard.helpers.canGoNext()) {
+          await wizard.next();
+          await persistWizardState(wizard);
+
+          // Send setup instructions email
+          await sendSetupInstructionsEmail(wizard.getContext().userId);
+        }
+      }
+    }
+
+    return { success: true, documentId, status: 'verified' };
+  } catch (error) {
+    console.error('Document processing failed:', error);
+
+    // Update wizard with error status
+    const wizard = await loadWizardFromDB(sessionId);
+    if (wizard) {
+      const currentData = wizard.getStepData('verification');
+      wizard.setStepData('verification', {
+        ...currentData,
+        verificationStatus: 'failed',
+        errorMessage: error.message
+      });
+      await persistWizardState(wizard);
+    }
+
+    throw error;
+  }
+});
+
+// File upload processing
+async function simulateDocumentVerification(documentId: string): Promise<void> {
+  // Simulate AI-powered document verification
+  await new Promise(resolve => setTimeout(resolve, 5000));
+
+  // Simulate random verification result
+  if (Math.random() < 0.1) {
+    throw new Error('Document verification failed: Invalid format');
+  }
+}
+```
+
+### Modern Implementation (Recommended)
+
+Here's how this should be implemented with modern patterns:
+
+```typescript
+// Modern server-side wizard with factory pattern
+import { wizardWithContext } from '@wizard/core';
+
+interface OnboardingContext {
+  sessionId: string;
+  userId: string;
+  companyId: string;
+  createdAt: Date;
+  lastActivity: Date;
+  completionProgress: number;
+}
+
+const { defineSteps, createWizard, step } = wizardWithContext<OnboardingContext>({
+  sessionId: '',
+  userId: '',
+  companyId: '',
+  createdAt: new Date(),
+  lastActivity: new Date(),
+  completionProgress: 0
+});
+
+const steps = defineSteps({
+  registration: step({
+    data: { email: '', company: '', industry: '' },
+    canExit: ({ data }) => {
+      return Boolean(data?.email && data?.company && data?.industry);
+    },
+    beforeExit: async ({ context, data, updateContext }) => {
+      // Create company record
+      const company = await prisma.company.create({
+        data: {
+          name: data.company,
+          industry: data.industry,
+          email: data.email
+        }
+      });
+
+      updateContext(ctx => {
+        ctx.companyId = company.id;
+        ctx.completionProgress = 25;
+      });
+    },
+    next: ['verification']
+  }),
+
+  verification: step({
+    data: { documents: [], verificationStatus: 'pending' as const },
+    canExit: ({ data }) => {
+      return data?.verificationStatus === 'verified';
+    },
+    beforeExit: ({ context, updateContext }) => {
+      updateContext(ctx => {
+        ctx.completionProgress = 50;
+      });
+    },
+    next: ['setup']
+  }),
+
+  setup: step({
+    data: { preferences: {}, integrations: [] },
+    canExit: ({ data }) => {
+      return Boolean(data?.preferences && Object.keys(data.preferences).length > 0);
+    },
+    beforeExit: ({ context, updateContext }) => {
+      updateContext(ctx => {
+        ctx.completionProgress = 75;
+      });
+    },
+    next: ['activation']
+  }),
+
+  activation: step({
+    data: { activated: false, activatedAt: null },
+    beforeEnter: async ({ context, data, setStepData }) => {
+      // Automatically activate account
+      const activatedData = {
+        activated: true,
+        activatedAt: new Date()
+      };
+
+      setStepData(activatedData);
+
+      // Send welcome email
+      await sendWelcomeEmail(context.userId);
+    },
+    next: []
+  })
+});
+
+// Factory function for server wizards
+export function createServerWizard(sessionId: string) {
+  return createWizard(steps);
+}
+```
+
+## API Usage Examples
+
+### Client-Side Integration
+
+```typescript
+// client/wizardApi.ts - Client API integration
+class WizardAPI {
+  private baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
+
+  async getWizardState(sessionId: string) {
+    const response = await fetch(`${this.baseUrl}/wizard/${sessionId}`);
+    if (!response.ok) throw new Error('Failed to fetch wizard state');
+    return response.json();
+  }
+
+  async updateStepData(sessionId: string, stepName: string, data: any) {
+    const response = await fetch(`${this.baseUrl}/wizard/${sessionId}/step/${stepName}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data })
+    });
+    if (!response.ok) throw new Error('Failed to update step data');
+    return response.json();
+  }
+
+  async nextStep(sessionId: string, data?: any) {
+    const response = await fetch(`${this.baseUrl}/wizard/${sessionId}/next`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data })
+    });
+    if (!response.ok) throw new Error('Failed to navigate to next step');
+    return response.json();
+  }
+
+  async uploadDocument(sessionId: string, file: File) {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('sessionId', sessionId);
+
+    const response = await fetch(`${this.baseUrl}/wizard/${sessionId}/documents`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!response.ok) throw new Error('Failed to upload document');
+    return response.json();
+  }
+}
+
+// Usage in React component
+function DocumentUploadStep({ sessionId }: { sessionId: string }) {
+  const [uploading, setUploading] = useState(false);
+  const wizardApi = new WizardAPI('/api');
+
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const result = await wizardApi.uploadDocument(sessionId, file);
+      console.log('Document uploaded:', result);
+
+      // Refresh wizard state
+      const state = await wizardApi.getWizardState(sessionId);
+      // Update UI with new state
+    } catch (error) {
+      console.error('Upload failed:', error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Document Verification</h2>
+      <FileUploader onUpload={handleFileUpload} disabled={uploading} />
+      {uploading && <p>Uploading and processing document...</p>}
+    </div>
+  );
+}
+```
+
+## Key Features Demonstrated
+
+### 1. Server-Side State Management
+
+```typescript
+// Persistent wizard state in database
+async function persistWizardState(wizard: any) {
+  const sessionId = wizard.getContext().sessionId;
+
+  await prisma.wizardSession.upsert({
+    where: { sessionId },
+    create: {
+      sessionId,
+      currentStep: wizard.getCurrentStep().name,
+      context: wizard.getContext(),
+      stepData: {
+        create: Object.entries(wizard.getAllStepData()).map(([stepName, data]) => ({
+          stepName,
+          data: data as any
+        }))
+      }
+    },
+    update: {
+      currentStep: wizard.getCurrentStep().name,
+      context: wizard.getContext(),
+      updatedAt: new Date()
+    }
+  });
+}
+```
+
+### 2. Background Task Integration
+
+```typescript
+// Trigger tasks based on step progression
+async function triggerStepTasks(wizard: any) {
+  const currentStep = wizard.getCurrentStep().name;
+  const context = wizard.getContext();
+
+  switch (currentStep) {
+    case 'verification':
+      // Start document processing jobs
+      const documents = wizard.getStepData('verification').documents;
+      for (const doc of documents) {
+        await processQueue.add('verify-document', {
+          sessionId: context.sessionId,
+          documentId: doc.id,
+          stepName: 'verification'
+        });
+      }
+      break;
+
+    case 'activation':
+      // Send activation emails
+      await processQueue.add('send-activation-email', {
+        userId: context.userId,
+        sessionId: context.sessionId
+      });
+      break;
+  }
+}
+```
+
+### 3. Audit Trail
+
+```typescript
+// Track all wizard actions
+async function logWizardAction(sessionId: string, action: string, metadata: any) {
+  await prisma.wizardAuditLog.create({
+    data: {
+      sessionId,
+      action,
+      stepName: metadata.stepName,
+      oldValue: metadata.oldValue,
+      newValue: metadata.newValue,
+      metadata: metadata.extra || {}
+    }
+  });
+}
+```
+
+## Running the Example
+
+1. **Setup database:**
+   ```bash
+   # Start PostgreSQL and Redis
+   docker-compose up -d
+
+   # Run migrations
+   npx prisma migrate dev
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   cd examples/node-saga-wizard
+   pnpm install
+   ```
+
+3. **Start development server:**
+   ```bash
+   pnpm dev
+   ```
+
+4. **Test API endpoints:**
+   ```bash
+   # Create new wizard session
+   curl -X POST http://localhost:3000/api/wizard/sessions
+
+   # Get wizard state
+   curl http://localhost:3000/api/wizard/{sessionId}
+
+   # Update step data
+   curl -X PUT http://localhost:3000/api/wizard/{sessionId}/step/registration \
+     -H "Content-Type: application/json" \
+     -d '{"data": {"email": "test@example.com", "company": "Test Co"}}'
+   ```
+
+## Performance Considerations
+
+### 1. Database Optimization
+
+```typescript
+// Efficient wizard state loading with minimal queries
+async function loadWizardFromDB(sessionId: string) {
+  const session = await prisma.wizardSession.findUnique({
+    where: { sessionId },
+    include: {
+      stepData: true
+    }
+  });
+
+  if (!session) return null;
+
+  const wizard = createServerWizard(sessionId);
+
+  // Restore context
+  wizard.updateContext(ctx => Object.assign(ctx, session.context));
+
+  // Restore step data
+  session.stepData.forEach(({ stepName, data }) => {
+    wizard.setStepData(stepName, data);
+  });
+
+  // Navigate to current step
+  if (session.currentStep !== wizard.getCurrentStep().name) {
+    await wizard.goTo(session.currentStep);
+  }
+
+  return wizard;
+}
+```
+
+### 2. Caching Strategy
+
+```typescript
+// Redis caching for frequently accessed wizard states
+import Redis from 'ioredis';
+
+const redis = new Redis(process.env.REDIS_URL);
+
+async function getCachedWizardState(sessionId: string) {
+  const cached = await redis.get(`wizard:${sessionId}`);
+  return cached ? JSON.parse(cached) : null;
+}
+
+async function cacheWizardState(sessionId: string, state: any) {
+  await redis.setex(`wizard:${sessionId}`, 3600, JSON.stringify(state)); // 1 hour TTL
+}
+```
+
+## Modernization Roadmap
+
+To bring this example to current standards:
+
+1. **Factory Pattern**: Implement `wizardWithContext` throughout
+2. **Type Safety**: Add comprehensive TypeScript definitions
+3. **Step Helpers**: Use `step()`, `stepWithValidation()` helpers
+4. **Error Handling**: Implement robust error boundaries
+5. **Testing**: Add comprehensive test suite
+6. **Monitoring**: Add logging, metrics, and health checks
+
+## Related Examples
+
+- [Basic Form Wizard](/examples/basic-form-wizard) - Client-side patterns
+- [React Router Integration](/examples/react-router-wizard) - URL synchronization
+- [Persistence](/examples/persistence-local) - State management
+
+This example demonstrates the power of WizardOpus for server-side workflows, enabling complex business processes with proper state management, background processing, and API integration.

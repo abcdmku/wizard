@@ -5,12 +5,23 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm run build:api && next build",
+    "build:api": "pnpm run clean:api && pnpm run typedoc",
+    "build:docs": "next build",
     "start": "next start",
-    "typedoc": "typedoc --tsconfig ../../tsconfig.json --options typedoc.json",
-    "check": "pnpm run check:links && pnpm run check:examples && pnpm run typedoc",
+    "clean:api": "rimraf public/api",
+    "typedoc": "typedoc --tsconfig ./tsconfig.typedoc.json --options typedoc.json",
+    "typedoc:watch": "pnpm run typedoc -- --watch",
+    "prebuild": "pnpm run validate:core",
+    "postbuild": "pnpm run validate:build",
+    "validate:core": "pnpm run --filter @wizard/core build",
+    "validate:react": "pnpm run --filter @wizard/react build",
+    "validate:build": "node ./scripts/validate-build.mjs",
+    "check": "pnpm run check:links && pnpm run check:examples && pnpm run check:api",
+    "check:api": "pnpm run typedoc -- --dry-run",
     "check:links": "echo 'Link check not yet configured'",
-    "check:examples": "node ./scripts/check-examples-build.mjs"
+    "check:examples": "node ./scripts/check-examples-build.mjs",
+    "preview": "pnpm run build && pnpm run start"
   },
   "dependencies": {
     "@wizard/core": "workspace:*",
@@ -31,8 +42,11 @@
     "postcss": "^8.5.6",
     "rehype-pretty-code": "^0.14.0",
     "remark-gfm": "^4.0.0",
+    "rimraf": "^6.0.1",
     "shiki": "^1.0.0",
     "tailwindcss": "^3.4.17",
-    "typedoc": "^0.26.0"
+    "typedoc": "^0.26.0",
+    "typedoc-plugin-mdn-links": "^3.0.0",
+    "typedoc-plugin-missing-exports": "^3.0.0"
   }
 }

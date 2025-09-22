@@ -9,12 +9,10 @@ import type {
   WizardState,
   WizardHelpers,
   StepIds,
-  DataMapFromDefs,
   StepStatus,
   StepArgs,
   StepEnterArgs,
   StepExitArgs,
-  EnhancedWizard,
   EnhancedDataMapFromDefs,
 } from './types';
 import { resolve } from './types';
@@ -29,7 +27,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
   type S = StepIds<TDefs>;
   type D = EnhancedDataMapFromDefs<TDefs>;
 
-  const { context: initialContext, steps, order, onStatusChange } = opts;
+  const { context: initialContext, steps, order } = opts;
 
   // Determine step order: explicit order → topological → declaration order
   const allStepIds = Object.keys(steps) as S[];
