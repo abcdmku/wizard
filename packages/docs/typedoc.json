@@ -1,6 +1,6 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "name": "WizardOpus API Documentation",
+  "name": "Wziard API Documentation",
   "entryPoints": [
     "../../packages/core/src/index.ts",
     "../../packages/react/src/index.ts"
