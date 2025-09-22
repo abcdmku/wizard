@@ -87,6 +87,9 @@ web_modules/
 .next
 out
 
+# Generated documentation
+packages/docs/public/api/
+
 # Nuxt.js build / generate output
 .nuxt
 dist
