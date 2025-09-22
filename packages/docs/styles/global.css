@@ -26,8 +26,10 @@ pre {
   border: none !important;
 }
 
-/* Code element styling - handle overflow and padding */
-pre > code {
+/* Code element styling - handle overflow and padding with high specificity */
+pre > code,
+pre[class*="nx-"] > code[class*="nx-"],
+div[class*="nextra"] pre > code {
   display: block !important;
   padding: 8px 0 16px 0 !important;
   margin: 8px 0 !important;
@@ -37,12 +39,46 @@ pre > code {
   width: 100% !important;
 }
 
-/* Dark mode code element */
-.dark pre > code {
+/* Dark mode code element with high specificity */
+.dark pre > code,
+.dark pre[class*="nx-"] > code[class*="nx-"],
+.dark div[class*="nextra"] pre > code {
   background: #0a0a0a !important;
 }
 
-/* ========== VS CODE SYNTAX HIGHLIGHTING ========== */
+/* ========== SHIKI VSCODE SYNTAX HIGHLIGHTING ========== */
+
+/* Override Shiki CSS variables with VSCode colors - Light Theme */
+:root {
+  --shiki-color-text: #334155;
+  --shiki-color-background: transparent;
+  --shiki-token-constant: #098658;
+  --shiki-token-string: #a31515;
+  --shiki-token-comment: #008000;
+  --shiki-token-keyword: #0000ff;
+  --shiki-token-parameter: #001080;
+  --shiki-token-function: #795e26;
+  --shiki-token-string-expression: #a31515;
+  --shiki-token-punctuation: #000000;
+  --shiki-token-link: #0000ff;
+}
+
+/* Override Shiki CSS variables with VSCode colors - Dark Theme */
+.dark {
+  --shiki-color-text: #d4d4d4;
+  --shiki-color-background: transparent;
+  --shiki-token-constant: #b5cea8;
+  --shiki-token-string: #ce9178;
+  --shiki-token-comment: #6a9955;
+  --shiki-token-keyword: #569cd6;
+  --shiki-token-parameter: #d16969;
+  --shiki-token-function: #dcdcaa;
+  --shiki-token-string-expression: #ce9178;
+  --shiki-token-punctuation: #d4d4d4;
+  --shiki-token-link: #569cd6;
+}
+
+/* ========== LEGACY TOKEN CLASS SUPPORT ========== */
 
 /* VS Code Dark Theme Colors - Multiple selectors for compatibility */
 .dark pre > code .token.comment,
