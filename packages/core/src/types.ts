@@ -179,13 +179,6 @@ export type DataMapFromDefs<TDefs> = { [K in keyof TDefs & string]: InferStepDat
 
 // FINAL FIX: Direct approach using intersection types and proper data extraction
 
-// Extract data type from step definition
-type ExtractDataType<T> =
-  T extends { validate: (args: { data: infer D }) => any }
-    ? D
-    : T extends { data: infer D }
-      ? D
-      : unknown;
 
 // Define properly typed step args for callbacks
 type TypedStepArgs<StepName extends string, Data, Context = unknown> = {
@@ -209,7 +202,7 @@ type TypedStepExitArgs<StepName extends string, Data, Context = unknown> = Typed
 export function defineSteps<T extends Record<string, any>>(defs: T): {
   [K in keyof T]: T[K] extends {
     data: infer Data;
-    validate?: (args: { data: infer ValidateData }) => any;
+    validate?: (args: { data: any }) => any;
   } ? T[K] & {
     beforeExit?: (args: TypedStepExitArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => void | Promise<void>;
     beforeEnter?: (args: TypedStepEnterArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => void | Partial<T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data> | (T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data) | Promise<void | Partial<T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data> | (T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data)>;
@@ -380,9 +373,15 @@ export type ExtractStepDataType<TDefs, StepName extends keyof TDefs> =
 type DirectExtractDataType<T> =
   T extends { validate: (args: { data: infer D }) => any }
     ? D
-    : T extends { data: infer D }
-      ? D
-      : unknown;
+    : T extends { data?: infer D }
+      ? D extends ValOrFn<infer U, any>
+        ? U
+        : D
+      : T extends { data: infer D }
+        ? D extends ValOrFn<infer U, any>
+          ? U
+          : D
+        : unknown;
 
 export type EnhancedDataMapFromDefs<TDefs> = {
   [K in keyof TDefs & string]: DirectExtractDataType<TDefs[K]>;
@@ -418,7 +417,7 @@ export type EnhancedWizard<C, S extends string, D extends Record<S, unknown>, E>
 // Factory function type for creating enhanced wizards
 export type EnhancedWizardFactory<C, E = never> = {
   defineSteps<T extends Record<string, any>>(defs: T): T;
-  step<Data>(definition: any): any;
+  step(definition: any): any;
   createWizard<TDefs extends Record<string, any>>(
     context: C,
     steps: TDefs,

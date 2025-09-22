@@ -1,0 +1,153 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "WizardOpus API Documentation",
+  "entryPoints": [
+    "../../packages/core/src/index.ts",
+    "../../packages/react/src/index.ts"
+  ],
+  "out": "./public/api",
+  "theme": "default",
+  "categoryOrder": [
+    "Factory",
+    "Core",
+    "Types",
+    "Helpers",
+    "React Hooks",
+    "React Components",
+    "Utilities",
+    "*"
+  ],
+  "categorizeByGroup": true,
+  "groupOrder": [
+    "Factory Pattern",
+    "Core Wizard",
+    "Step Management",
+    "Type System",
+    "Helper Functions",
+    "React Integration",
+    "Fluent API",
+    "Utilities"
+  ],
+  "sort": [
+    "static-first",
+    "instance-first",
+    "visibility",
+    "alphabetical"
+  ],
+  "kindSortOrder": [
+    "Reference",
+    "Project",
+    "Module",
+    "Namespace",
+    "Enum",
+    "EnumMember",
+    "Class",
+    "Interface",
+    "TypeAlias",
+    "Constructor",
+    "Property",
+    "Variable",
+    "Function",
+    "Accessor",
+    "Method"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/tests/**/*",
+    "**/test/**/*",
+    "**/__tests__/**/*",
+    "**/node_modules/**/*",
+    "**/dist/**/*",
+    "**/build/**/*",
+    "**/examples/**/*",
+    "**/packages/docs/**/*",
+    "../../test-wizard-types.ts",
+    "../../theme.config.tsx"
+  ],
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeExternals": true,
+  "excludeInternal": false,
+  "includeVersion": true,
+  "disableSources": false,
+  "sourceLinkTemplate": "https://github.com/your-org/wizardopus/blob/main/{path}#L{line}",
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true,
+    "includeFolders": true
+  },
+  "searchInComments": true,
+  "searchInDocuments": true,
+  "cleanOutputDir": true,
+  "titleLink": "https://wizardopus.dev",
+  "navigationLinks": {
+    "Documentation": "https://wizardopus.dev",
+    "GitHub": "https://github.com/your-org/wizardopus",
+    "Examples": "https://wizardopus.dev/examples"
+  },
+  "sidebarLinks": {
+    "Getting Started": "https://wizardopus.dev/getting-started",
+    "Core Concepts": "https://wizardopus.dev/concepts",
+    "React Integration": "https://wizardopus.dev/react",
+    "Examples": "https://wizardopus.dev/examples"
+  },
+  "hideGenerator": false,
+  "customCss": "./styles/typedoc-custom.css",
+  "plugin": [
+    "typedoc-plugin-missing-exports",
+    "typedoc-plugin-mdn-links"
+  ],
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  },
+  "treatWarningsAsErrors": false,
+  "treatValidationWarningsAsErrors": false,
+  "lightHighlightTheme": "github-light",
+  "darkHighlightTheme": "github-dark",
+  "readme": "../../README.md",
+  "logLevel": "Info",
+  "preserveWatchOutput": false,
+  "pretty": true,
+  "emit": "docs",
+  "cacheBust": true,
+  "watch": false,
+  "blockTags": [
+    "@alpha",
+    "@beta",
+    "@deprecated",
+    "@example",
+    "@experimental",
+    "@internal",
+    "@override",
+    "@param",
+    "@privateRemarks",
+    "@public",
+    "@readonly",
+    "@remarks",
+    "@returns",
+    "@sealed",
+    "@throws",
+    "@virtual"
+  ],
+  "inlineTags": [
+    "@inheritDoc",
+    "@label",
+    "@link",
+    "@linkcode",
+    "@linkplain"
+  ],
+  "modifierTags": [
+    "@alpha",
+    "@beta",
+    "@deprecated",
+    "@experimental",
+    "@internal",
+    "@override",
+    "@readonly",
+    "@sealed",
+    "@virtual"
+  ]
+}

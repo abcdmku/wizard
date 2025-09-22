@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "noErrorTruncation": true
+  },
+  "include": [
+    "../../packages/core/src/index.ts",
+    "../../packages/core/src/types.ts",
+    "../../packages/core/src/wizard.ts",
+    "../../packages/core/src/step-wrapper.ts",
+    "../../packages/core/src/factory.ts",
+    "../../packages/core/src/zod.ts",
+    "../../packages/react/src/index.ts",
+    "../../packages/react/src/types.ts",
+    "../../packages/react/src/hooks/**/*.ts",
+    "../../packages/react/src/utils/**/*.ts"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/tests/**/*",
+    "**/test/**/*",
+    "**/__tests__/**/*",
+    "**/node_modules/**/*",
+    "**/dist/**/*",
+    "**/build/**/*",
+    "**/examples/**/*",
+    "../../test-wizard-types.ts"
+  ]
+}

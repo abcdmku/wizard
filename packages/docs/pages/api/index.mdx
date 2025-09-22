@@ -1,0 +1,212 @@
+# API Reference
+
+import { Callout } from '../../components'
+
+Complete API documentation for all WizardOpus packages, generated automatically from TypeScript source code.
+
+## Overview
+
+The WizardOpus API is organized into several key modules:
+
+- **[@wizard/core](/api/modules/_wizard_core.html)** - Core wizard functionality and factory patterns
+- **[@wizard/react](/api/modules/_wizard_react.html)** - React hooks and components for wizard integration
+
+## Quick Reference
+
+### Factory Pattern
+
+The modern way to create type-safe wizards:
+
+```typescript
+import { wizardWithContext } from '@wizard/core';
+
+const { defineSteps, createWizard, step } = wizardWithContext<YourContext>({
+  // Initial context
+});
+```
+
+**Key Functions:**
+- [`wizardWithContext`](/api/modules/_wizard_core.html#wizardWithContext) - Main factory function
+- [`defineSteps`](/api/modules/_wizard_core.html#defineSteps) - Define wizard steps with type inference
+- [`createWizard`](/api/modules/_wizard_core.html#createWizard) - Create wizard instance
+
+### Step Helpers
+
+Functions for creating type-safe step definitions:
+
+```typescript
+import { step, stepWithValidation, dataStep } from '@wizard/core';
+```
+
+**Available Helpers:**
+- [`step`](/api/modules/_wizard_core.html#step) - Basic step definition
+- [`stepWithValidation`](/api/modules/_wizard_core.html#stepWithValidation) - Validation-first approach
+- [`dataStep`](/api/modules/_wizard_core.html#dataStep) - Simple data-only steps
+- [`transitionStep`](/api/modules/_wizard_core.html#transitionStep) - Navigation-only steps
+- [`conditionalStep`](/api/modules/_wizard_core.html#conditionalStep) - Dynamic navigation logic
+
+### React Hooks
+
+Hooks for integrating wizards with React applications:
+
+```typescript
+import { useWizard, useWizardStep, useWizardActions } from '@wizard/react';
+```
+
+**Core Hooks:**
+- [`useWizard`](/api/modules/_wizard_react.html#useWizard) - Access wizard instance
+- [`useWizardStep`](/api/modules/_wizard_react.html#useWizardStep) - Get current step name
+- [`useWizardState`](/api/modules/_wizard_react.html#useWizardState) - Subscribe to state changes
+- [`useWizardActions`](/api/modules/_wizard_react.html#useWizardActions) - Navigation actions
+
+**Data Hooks:**
+- [`useStepData`](/api/modules/_wizard_react.html#useStepData) - Access step data
+- [`useCurrentStepData`](/api/modules/_wizard_react.html#useCurrentStepData) - Current step data
+- [`useWizardContext`](/api/modules/_wizard_react.html#useWizardContext) - Shared context
+
+**Utility Hooks:**
+- [`useSyncWizardWithRouter`](/api/modules/_wizard_react.html#useSyncWizardWithRouter) - Router integration
+- [`useWizardProgress`](/api/modules/_wizard_react.html#useWizardProgress) - Progress tracking
+- [`useWizardErrors`](/api/modules/_wizard_react.html#useWizardErrors) - Error handling
+
+## Type System
+
+### Core Types
+
+The type system provides comprehensive type safety:
+
+- [`Wizard`](/api/interfaces/_wizard_core.Wizard.html) - Main wizard interface
+- [`WizardStep`](/api/interfaces/_wizard_core.WizardStep.html) - Fluent step interface
+- [`StepDefinition`](/api/interfaces/_wizard_core.StepDefinition.html) - Step configuration
+- [`WizardConfig`](/api/interfaces/_wizard_core.WizardConfig.html) - Wizard configuration
+
+### Helper Types
+
+Utility types for advanced usage:
+
+- [`StepArgs`](/api/types/_wizard_core.StepArgs.html) - Step callback arguments
+- [`StepEnterArgs`](/api/types/_wizard_core.StepEnterArgs.html) - Step entry arguments
+- [`StepExitArgs`](/api/types/_wizard_core.StepExitArgs.html) - Step exit arguments
+- [`WizardState`](/api/interfaces/_wizard_core.WizardState.html) - Complete wizard state
+
+## Generated Documentation
+
+<Callout type="info" title="Auto-Generated API Docs">
+The complete API documentation is automatically generated from TypeScript source code using TypeDoc. It includes all public functions, interfaces, types, and their documentation comments.
+</Callout>
+
+### Navigation
+
+Use the sidebar navigation to explore:
+
+1. **Modules** - Organized by package (@wizard/core, @wizard/react)
+2. **Interfaces** - Type definitions and contracts
+3. **Functions** - All exported functions with signatures
+4. **Types** - Type aliases and utility types
+5. **Classes** - Class definitions (if any)
+
+### Search
+
+The API documentation includes full-text search functionality:
+- Search by function name, type name, or description
+- Filter by module or category
+- Jump directly to relevant documentation
+
+## Integration Examples
+
+### Basic Wizard
+
+```typescript
+import { wizardWithContext } from '@wizard/core';
+
+interface MyContext {
+  userId: string;
+  step_count: number;
+}
+
+const { defineSteps, createWizard, step } = wizardWithContext<MyContext>({
+  userId: '',
+  step_count: 0
+});
+
+const steps = defineSteps({
+  welcome: step({
+    data: { acknowledged: false },
+    next: ['profile']
+  }),
+  profile: step({
+    data: { name: '', email: '' },
+    canExit: ({ data }) => Boolean(data?.name && data?.email),
+    next: ['complete']
+  }),
+  complete: step({
+    data: { timestamp: 0 },
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
+```
+
+### React Integration
+
+```tsx
+import { WizardProvider, useWizard, useWizardStep } from '@wizard/react';
+
+function MyWizardComponent() {
+  const wizard = useWizard();
+  const currentStep = useWizardStep();
+
+  return (
+    <div>
+      <h1>Current Step: {currentStep}</h1>
+      <button onClick={() => wizard.next()}>
+        Next Step
+      </button>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <WizardProvider wizard={wizard}>
+      <MyWizardComponent />
+    </WizardProvider>
+  );
+}
+```
+
+## Migration Guide
+
+### From Legacy Patterns
+
+If you're migrating from older WizardOpus versions:
+
+```typescript
+// Old pattern (deprecated)
+const wizard = createWizard({
+  context: { /* ... */ },
+  steps: defineSteps({ /* ... */ })
+});
+
+// New pattern (recommended)
+const { defineSteps, createWizard, step } = wizardWithContext({
+  // Initial context
+});
+
+const steps = defineSteps({
+  // Steps with automatic type inference
+});
+
+const wizard = createWizard(steps);
+```
+
+## Support
+
+For additional help:
+
+- [Getting Started Guide](/getting-started) - Basic concepts and setup
+- [Core Concepts](/concepts) - Understanding the wizard pattern
+- [React Integration](/react) - Detailed React usage
+- [Examples](/examples) - Working code examples
+- [GitHub Issues](https://github.com/your-org/wizardopus/issues) - Bug reports and feature requests

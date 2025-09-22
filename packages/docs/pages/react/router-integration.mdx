@@ -1,0 +1,830 @@
+# Router Integration
+
+import { Callout, Tabs, Tab } from '../../components'
+
+Complete guide for integrating WizardOpus with popular React routing libraries, including React Router, Next.js Router, and custom routing solutions.
+
+## Overview
+
+WizardOpus provides flexible router integration that allows you to synchronize wizard steps with URL routing, enabling:
+
+- **Deep Linking**: Direct access to specific wizard steps via URL
+- **Browser Navigation**: Back/forward button support
+- **URL State**: Persistent wizard state through browser refresh
+- **SEO Benefits**: Search engine indexable wizard flows
+- **Shareable Steps**: Users can share specific wizard step URLs
+
+## React Router Integration
+
+### Basic Setup with React Router v6
+
+```tsx
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
+import { WizardProvider, useWizard, useSyncWizardWithRouter } from '@wizard/react';
+import { wizardWithContext } from '@wizard/core';
+
+interface OnboardingContext {
+  userId: string;
+  progress: number;
+  completedSteps: string[];
+}
+
+const { defineSteps, createWizard, step } = wizardWithContext<OnboardingContext>({
+  userId: '',
+  progress: 0,
+  completedSteps: []
+});
+
+const steps = defineSteps({
+  welcome: step({
+    data: { acknowledged: false },
+    next: ['profile']
+  }),
+  profile: step({
+    data: { name: '', email: '', avatar: '' },
+    canExit: ({ data }) => Boolean(data?.name && data?.email),
+    next: ['preferences']
+  }),
+  preferences: step({
+    data: { theme: 'light' as const, notifications: true },
+    next: ['review']
+  }),
+  review: step({
+    data: { confirmed: false },
+    canExit: ({ data }) => Boolean(data?.confirmed),
+    next: ['complete']
+  }),
+  complete: step({
+    data: { completedAt: 0 },
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
+
+// Wizard component with router sync
+function OnboardingWizard() {
+  const navigate = useNavigate();
+  const { step } = useParams<{ step: string }>();
+
+  // Synchronize wizard with React Router
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (urlStep) => {
+      // Map URL segments to wizard steps
+      const stepMap: Record<string, string> = {
+        'get-started': 'welcome',
+        'your-profile': 'profile',
+        'your-preferences': 'preferences',
+        'review-details': 'review',
+        'all-done': 'complete'
+      };
+
+      return stepMap[urlStep || ''] || 'welcome';
+    },
+    toUrl: (wizardStep) => {
+      // Map wizard steps to URL segments
+      const urlMap: Record<string, string> = {
+        welcome: 'get-started',
+        profile: 'your-profile',
+        preferences: 'your-preferences',
+        review: 'review-details',
+        complete: 'all-done'
+      };
+
+      return {
+        to: `/onboarding/${urlMap[wizardStep]}`,
+        search: {} // Optional query parameters
+      };
+    },
+    navigate: ({ to, search }) => {
+      navigate(to, { state: search });
+    },
+    getParam: () => step || 'get-started'
+  });
+
+  return <WizardStepRenderer />;
+}
+
+// App with routing
+function App() {
+  return (
+    <BrowserRouter>
+      <WizardProvider wizard={wizard}>
+        <Routes>
+          <Route path="/onboarding/:step" element={<OnboardingWizard />} />
+          <Route path="/onboarding" element={<Navigate to="/onboarding/get-started" replace />} />
+          <Route path="/" element={<Navigate to="/onboarding" replace />} />
+        </Routes>
+      </WizardProvider>
+    </BrowserRouter>
+  );
+}
+```
+
+### Advanced React Router Integration
+
+```tsx
+import { useLocation, useSearchParams } from 'react-router-dom';
+
+function AdvancedOnboardingWizard() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { step } = useParams<{ step: string }>();
+
+  // Enhanced router sync with query parameters and state
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (urlStep) => {
+      const stepMap: Record<string, string> = {
+        'welcome': 'welcome',
+        'profile': 'profile',
+        'preferences': 'preferences',
+        'review': 'review',
+        'complete': 'complete'
+      };
+
+      return stepMap[urlStep || ''] || 'welcome';
+    },
+    toUrl: (wizardStep) => {
+      const wizard = useWizard();
+      const context = wizard.getContext();
+
+      return {
+        to: `/onboarding/${wizardStep}`,
+        search: {
+          // Persist important state in URL
+          userId: context.userId,
+          progress: context.progress.toString(),
+          // Add step-specific query params
+          ...(wizardStep === 'profile' && { edit: 'true' }),
+          ...(wizardStep === 'review' && { validate: 'true' })
+        }
+      };
+    },
+    navigate: ({ to, search }) => {
+      // Update both path and search params
+      navigate(to);
+      if (search && Object.keys(search).length > 0) {
+        setSearchParams(new URLSearchParams(search));
+      }
+    },
+    getParam: () => step || 'welcome',
+
+    // Advanced options
+    onStepChange: (newStep, oldStep) => {
+      // Analytics tracking
+      analytics.track('wizard_step_changed', {
+        from: oldStep,
+        to: newStep,
+        path: location.pathname
+      });
+    },
+
+    onNavigationBlocked: (targetStep, reason) => {
+      // Handle blocked navigation
+      console.warn(`Navigation to ${targetStep} blocked: ${reason}`);
+
+      // Show modal or notification
+      showNavigationBlockedModal(targetStep, reason);
+    }
+  });
+
+  // Access query parameters in wizard
+  const isEditMode = searchParams.get('edit') === 'true';
+  const shouldValidate = searchParams.get('validate') === 'true';
+
+  return (
+    <div>
+      {isEditMode && <EditModeIndicator />}
+      {shouldValidate && <ValidationIndicator />}
+      <WizardStepRenderer />
+    </div>
+  );
+}
+```
+
+### Route Guards and Protection
+
+```tsx
+import { Navigate } from 'react-router-dom';
+
+function ProtectedWizardRoute() {
+  const wizard = useWizard();
+  const { step } = useParams<{ step: string }>();
+  const currentStep = useWizardStep();
+
+  // Implement route guards
+  const canAccessStep = React.useMemo(() => {
+    if (!step) return false;
+
+    // Check if user can access this step
+    const stepMap: Record<string, string> = {
+      'welcome': 'welcome',
+      'profile': 'profile',
+      'preferences': 'preferences',
+      'review': 'review',
+      'complete': 'complete'
+    };
+
+    const wizardStepName = stepMap[step];
+    if (!wizardStepName) return false;
+
+    // Use wizard helpers to check accessibility
+    return wizard.helpers.canGoTo(wizardStepName);
+  }, [step, wizard]);
+
+  // Redirect if step is not accessible
+  if (!canAccessStep) {
+    const firstAccessibleStep = wizard.helpers.availableSteps()[0];
+    const urlMap: Record<string, string> = {
+      welcome: 'welcome',
+      profile: 'profile',
+      preferences: 'preferences',
+      review: 'review',
+      complete: 'complete'
+    };
+
+    return <Navigate to={`/onboarding/${urlMap[firstAccessibleStep]}`} replace />;
+  }
+
+  return <WizardStepRenderer />;
+}
+
+// Authentication guard
+function AuthenticatedWizardRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ returnTo: location.pathname }} />;
+  }
+
+  return <ProtectedWizardRoute />;
+}
+```
+
+## Next.js Router Integration
+
+### App Router (Next.js 13+)
+
+```tsx
+// app/onboarding/[step]/page.tsx
+'use client';
+
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { WizardProvider, useSyncWizardWithRouter } from '@wizard/react';
+
+interface OnboardingPageProps {
+  params: { step: string };
+}
+
+function OnboardingPage({ params }: OnboardingPageProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (urlStep) => {
+      const stepMap: Record<string, string> = {
+        'start': 'welcome',
+        'info': 'profile',
+        'settings': 'preferences',
+        'confirm': 'review',
+        'done': 'complete'
+      };
+
+      return stepMap[urlStep] || 'welcome';
+    },
+    toUrl: (wizardStep) => {
+      const urlMap: Record<string, string> = {
+        welcome: 'start',
+        profile: 'info',
+        preferences: 'settings',
+        review: 'confirm',
+        complete: 'done'
+      };
+
+      return {
+        to: `/onboarding/${urlMap[wizardStep]}`,
+        search: Object.fromEntries(searchParams.entries())
+      };
+    },
+    navigate: ({ to, search }) => {
+      const url = new URL(to, window.location.origin);
+
+      // Add search parameters
+      if (search) {
+        Object.entries(search).forEach(([key, value]) => {
+          url.searchParams.set(key, value);
+        });
+      }
+
+      router.push(url.pathname + url.search);
+    },
+    getParam: () => params.step
+  });
+
+  return <WizardStepRenderer />;
+}
+
+// Wrap with wizard provider
+export default function OnboardingPageWithProvider(props: OnboardingPageProps) {
+  return (
+    <WizardProvider wizard={wizard}>
+      <OnboardingPage {...props} />
+    </WizardProvider>
+  );
+}
+```
+
+### Pages Router (Next.js 12 and below)
+
+```tsx
+// pages/onboarding/[step].tsx
+import { useRouter } from 'next/router';
+import { GetServerSideProps } from 'next';
+
+interface OnboardingPageProps {
+  step: string;
+  initialData?: any;
+}
+
+function OnboardingPage({ step, initialData }: OnboardingPageProps) {
+  const router = useRouter();
+
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (urlStep) => {
+      // Step mapping logic
+      return stepMap[urlStep] || 'welcome';
+    },
+    toUrl: (wizardStep) => ({
+      to: `/onboarding/${urlMap[wizardStep]}`,
+      search: router.query as Record<string, string>
+    }),
+    navigate: ({ to, search }) => {
+      router.push({
+        pathname: to,
+        query: search
+      });
+    },
+    getParam: () => step,
+
+    // Next.js specific options
+    onRouteChangeStart: (url) => {
+      console.log('Route change starting to:', url);
+    },
+
+    onRouteChangeComplete: (url) => {
+      console.log('Route change completed to:', url);
+    }
+  });
+
+  // Pre-populate wizard with server data
+  React.useEffect(() => {
+    if (initialData) {
+      wizard.updateContext(ctx => {
+        Object.assign(ctx, initialData);
+      });
+    }
+  }, [initialData]);
+
+  return <WizardStepRenderer />;
+}
+
+// Server-side props for SEO and initial data
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { step } = context.params!;
+
+  // Validate step
+  const validSteps = ['start', 'info', 'settings', 'confirm', 'done'];
+  if (!validSteps.includes(step as string)) {
+    return {
+      redirect: {
+        destination: '/onboarding/start',
+        permanent: false
+      }
+    };
+  }
+
+  // Fetch initial data based on step
+  const initialData = await fetchInitialDataForStep(step as string);
+
+  return {
+    props: {
+      step,
+      initialData
+    }
+  };
+};
+
+export default OnboardingPage;
+```
+
+## Custom Router Integration
+
+### Generic Router Adapter
+
+```tsx
+interface RouterAdapter {
+  getCurrentPath: () => string;
+  navigate: (path: string, options?: any) => void;
+  getSearchParams: () => Record<string, string>;
+  setSearchParams: (params: Record<string, string>) => void;
+  onNavigate: (callback: (path: string) => void) => () => void;
+}
+
+function createRouterAdapter(routerType: 'react-router' | 'next' | 'reach' | 'custom'): RouterAdapter {
+  switch (routerType) {
+    case 'react-router':
+      return {
+        getCurrentPath: () => window.location.pathname,
+        navigate: (path, options) => {
+          const navigate = useNavigate();
+          navigate(path, options);
+        },
+        getSearchParams: () => {
+          const [searchParams] = useSearchParams();
+          return Object.fromEntries(searchParams.entries());
+        },
+        setSearchParams: (params) => {
+          const [, setSearchParams] = useSearchParams();
+          setSearchParams(new URLSearchParams(params));
+        },
+        onNavigate: (callback) => {
+          // Implementation for React Router
+          const unlisten = history.listen(({ location }) => {
+            callback(location.pathname);
+          });
+          return unlisten;
+        }
+      };
+
+    case 'next':
+      return {
+        getCurrentPath: () => {
+          const router = useRouter();
+          return router.asPath;
+        },
+        navigate: (path, options) => {
+          const router = useRouter();
+          router.push(path, undefined, options);
+        },
+        getSearchParams: () => {
+          const router = useRouter();
+          return router.query as Record<string, string>;
+        },
+        setSearchParams: (params) => {
+          const router = useRouter();
+          router.push({
+            pathname: router.pathname,
+            query: { ...router.query, ...params }
+          });
+        },
+        onNavigate: (callback) => {
+          const router = useRouter();
+          router.events.on('routeChangeComplete', callback);
+          return () => router.events.off('routeChangeComplete', callback);
+        }
+      };
+
+    default:
+      throw new Error(`Unsupported router type: ${routerType}`);
+  }
+}
+
+// Usage with custom adapter
+function UniversalWizardRouter({ routerType }: { routerType: 'react-router' | 'next' }) {
+  const adapter = createRouterAdapter(routerType);
+
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (urlStep) => stepMapping[urlStep] || 'default',
+    toUrl: (wizardStep) => ({
+      to: `/wizard/${urlStep}`,
+      search: adapter.getSearchParams()
+    }),
+    navigate: ({ to, search }) => {
+      adapter.navigate(to);
+      if (search) adapter.setSearchParams(search);
+    },
+    getParam: () => {
+      const path = adapter.getCurrentPath();
+      return path.split('/').pop() || 'default';
+    }
+  });
+
+  return <WizardStepRenderer />;
+}
+```
+
+## Advanced Router Features
+
+### Deep Linking with State Restoration
+
+```tsx
+function StatefulWizardRouter() {
+  const wizard = useWizard();
+
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (urlStep) => stepMapping[urlStep] || 'welcome',
+    toUrl: (wizardStep) => {
+      // Include relevant wizard state in URL
+      const context = wizard.getContext();
+      const currentStepData = wizard.getStepData(wizardStep);
+
+      return {
+        to: `/wizard/${wizardStep}`,
+        search: {
+          // Context state
+          userId: context.userId,
+          sessionId: context.sessionId,
+
+          // Step-specific state (serialized)
+          stepData: btoa(JSON.stringify(currentStepData || {})),
+
+          // Navigation history
+          fromStep: wizard.helpers.previousStep() || '',
+
+          // Timestamp for cache busting
+          t: Date.now().toString()
+        }
+      };
+    },
+    navigate: ({ to, search }) => {
+      navigate(to + '?' + new URLSearchParams(search).toString());
+    },
+    getParam: () => params.step,
+
+    // Restore state from URL
+    onMount: () => {
+      const searchParams = new URLSearchParams(location.search);
+      const stepData = searchParams.get('stepData');
+      const userId = searchParams.get('userId');
+
+      if (stepData) {
+        try {
+          const data = JSON.parse(atob(stepData));
+          wizard.setStepData(wizard.getCurrentStep().name, data);
+        } catch (error) {
+          console.warn('Failed to restore step data from URL');
+        }
+      }
+
+      if (userId) {
+        wizard.updateContext(ctx => {
+          ctx.userId = userId;
+        });
+      }
+    }
+  });
+
+  return <WizardStepRenderer />;
+}
+```
+
+### SEO-Optimized Wizard Routes
+
+```tsx
+// Generate static pages for SEO
+export async function generateStaticParams() {
+  const steps = ['welcome', 'profile', 'preferences', 'review', 'complete'];
+
+  return steps.map((step) => ({
+    step
+  }));
+}
+
+// Metadata for each step
+export async function generateMetadata({ params }: { params: { step: string } }) {
+  const stepMetadata: Record<string, any> = {
+    welcome: {
+      title: 'Welcome - Getting Started',
+      description: 'Begin your onboarding journey with our step-by-step wizard.',
+      openGraph: {
+        title: 'Welcome to Our Platform',
+        description: 'Start your journey today',
+      }
+    },
+    profile: {
+      title: 'Profile Setup - Onboarding',
+      description: 'Set up your profile information to personalize your experience.',
+    },
+    preferences: {
+      title: 'Preferences - Customize Your Experience',
+      description: 'Configure your preferences and settings.',
+    },
+    review: {
+      title: 'Review Your Information',
+      description: 'Review and confirm your information before completing setup.',
+    },
+    complete: {
+      title: 'Setup Complete - Welcome!',
+      description: 'Your account setup is complete. Welcome to our platform!',
+    }
+  };
+
+  return stepMetadata[params.step] || {
+    title: 'Onboarding Wizard',
+    description: 'Complete your account setup with our guided wizard.'
+  };
+}
+
+// Schema.org structured data
+function WizardStructuredData({ currentStep }: { currentStep: string }) {
+  const steps = ['welcome', 'profile', 'preferences', 'review', 'complete'];
+  const currentIndex = steps.indexOf(currentStep);
+
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'Account Setup Wizard',
+    description: 'Complete your account setup process',
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: steps.slice(0, currentIndex + 1).map((step, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: step.charAt(0).toUpperCase() + step.slice(1),
+        item: `${process.env.NEXT_PUBLIC_BASE_URL}/onboarding/${step}`
+      }))
+    },
+    mainEntity: {
+      '@type': 'WebPageElement',
+      name: `Step ${currentIndex + 1}: ${currentStep}`,
+      description: `Complete step ${currentIndex + 1} of the setup process`
+    }
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+    />
+  );
+}
+```
+
+### Error Handling and Fallbacks
+
+```tsx
+function RobustWizardRouter() {
+  const [routerError, setRouterError] = React.useState<Error | null>(null);
+
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (urlStep) => {
+      try {
+        return stepMapping[urlStep] || 'welcome';
+      } catch (error) {
+        setRouterError(error as Error);
+        return 'welcome';
+      }
+    },
+    toUrl: (wizardStep) => ({
+      to: `/wizard/${wizardStep}`,
+      search: {}
+    }),
+    navigate: ({ to, search }) => {
+      try {
+        navigate(to);
+        setRouterError(null);
+      } catch (error) {
+        setRouterError(error as Error);
+        console.error('Navigation failed:', error);
+      }
+    },
+    getParam: () => params.step,
+
+    // Error handling
+    onError: (error, context) => {
+      console.error('Router sync error:', error);
+      setRouterError(error);
+
+      // Send to error reporting service
+      errorReporting.captureException(error, {
+        extra: { context, currentStep: wizard.getCurrentStep().name }
+      });
+
+      // Fallback navigation
+      navigate('/wizard/welcome', { replace: true });
+    },
+
+    // Retry logic
+    retry: {
+      attempts: 3,
+      delay: 1000,
+      backoff: 'exponential'
+    }
+  });
+
+  if (routerError) {
+    return (
+      <div className="error-boundary">
+        <h2>Navigation Error</h2>
+        <p>Something went wrong with the navigation. Please try again.</p>
+        <button onClick={() => {
+          setRouterError(null);
+          navigate('/wizard/welcome', { replace: true });
+        }}>
+          Return to Start
+        </button>
+      </div>
+    );
+  }
+
+  return <WizardStepRenderer />;
+}
+```
+
+## Best Practices
+
+### 1. URL Design
+
+```tsx
+// ✅ Good: Descriptive, SEO-friendly URLs
+/onboarding/welcome
+/onboarding/profile-setup
+/onboarding/preferences
+/onboarding/review-details
+/onboarding/complete
+
+// ❌ Avoid: Generic or unclear URLs
+/wizard/1
+/step/a
+/flow/next
+```
+
+### 2. State Management
+
+```tsx
+// ✅ Good: Minimal URL state, important context only
+const urlState = {
+  userId: context.userId,
+  step: currentStep,
+  returnTo: previousPage
+};
+
+// ❌ Avoid: Excessive URL state
+const urlState = {
+  allWizardData: JSON.stringify(wizard.getAllData()),
+  entireContext: JSON.stringify(context),
+  fullHistory: wizard.getHistory()
+};
+```
+
+### 3. Error Boundaries
+
+```tsx
+// ✅ Good: Comprehensive error handling
+function WizardRouterErrorBoundary({ children }: { children: React.ReactNode }) {
+  return (
+    <ErrorBoundary
+      fallback={<RouterErrorFallback />}
+      onError={(error, errorInfo) => {
+        console.error('Router error:', error, errorInfo);
+        // Report to monitoring service
+      }}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+```
+
+### 4. Performance Optimization
+
+```tsx
+// ✅ Good: Memoized route calculations
+const routeConfig = React.useMemo(() => ({
+  stepToUrl: new Map(Object.entries(stepMapping)),
+  urlToStep: new Map(Object.entries(stepMapping).map(([url, step]) => [step, url]))
+}), []);
+
+// ✅ Good: Debounced navigation for rapid changes
+const debouncedNavigate = React.useMemo(
+  () => debounce(navigate, 300),
+  [navigate]
+);
+```
+
+<Callout type="info" title="Router Integration Benefits">
+Router integration enables deep linking, browser navigation support, and SEO optimization while maintaining wizard state consistency across page refreshes and navigation events.
+</Callout>
+
+## Troubleshooting
+
+### Common Issues
+
+1. **State Desynchronization**: Use the `onMount` callback to restore state from URL parameters
+2. **Navigation Loops**: Implement proper route guards and validation
+3. **SEO Issues**: Use `generateMetadata` and structured data for better indexing
+4. **Performance**: Memoize route configurations and debounce rapid navigation changes
+
+Router integration transforms your wizard into a first-class web application with full browser support and SEO benefits.

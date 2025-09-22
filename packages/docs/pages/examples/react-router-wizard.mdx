@@ -1,0 +1,586 @@
+# React Router Integration Example
+
+import { Callout, Tabs, Tab } from '../../components'
+
+A comprehensive example demonstrating URL synchronization with React Router, including deep linking, browser history integration, and route-based navigation.
+
+## Overview
+
+This example showcases a checkout wizard that synchronizes with React Router, enabling:
+
+- **URL-based Navigation** - Each wizard step has its own URL
+- **Deep Linking** - Direct access to specific steps via URL
+- **Browser History** - Back/forward button support
+- **Route Guards** - Step access validation
+- **State Persistence** - Wizard state maintained through navigation
+
+## Features
+
+- **React Router v6 Integration** - Modern routing patterns
+- **URL Synchronization** - Wizard steps mapped to routes
+- **Route Protection** - Access control for wizard steps
+- **Browser Navigation** - Full browser history support
+- **State Recovery** - Wizard state preserved across page refreshes
+- **SEO Friendly** - Each step has unique URLs for indexing
+
+## Live Demo
+
+```bash
+cd examples/react-router-wizard
+pnpm install
+pnpm dev
+```
+
+Navigate to `http://localhost:5173` and observe how the URL changes as you progress through the wizard steps.
+
+## Code Structure
+
+### Router Setup
+
+<Callout type="warning" title="Legacy API Pattern">
+This example uses legacy wizard patterns and should be modernized to use `wizardWithContext` factory pattern for better type safety.
+</Callout>
+
+```tsx
+// App.tsx - Router configuration
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { WizardProvider } from '@wizard/react';
+import { checkoutWizard } from './wizard';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <WizardProvider wizard={checkoutWizard}>
+        <Routes>
+          {/* Wizard routes */}
+          <Route path="/checkout/:step" element={<CheckoutFlow />} />
+          <Route path="/checkout" element={<Navigate to="/checkout/cart" replace />} />
+          <Route path="/" element={<Navigate to="/checkout" replace />} />
+        </Routes>
+      </WizardProvider>
+    </BrowserRouter>
+  );
+}
+```
+
+### Wizard Configuration
+
+```tsx
+// wizard.ts - Wizard definition
+import { createWizard, defineSteps } from '@wizard/core';
+
+const steps = defineSteps({
+  cart: {
+    data: { items: [], total: 0 },
+    next: ['shipping'],
+    meta: { url: 'cart', title: 'Shopping Cart' }
+  },
+  shipping: {
+    data: { address: '', method: '' },
+    next: ['payment'],
+    meta: { url: 'shipping', title: 'Shipping Information' }
+  },
+  payment: {
+    data: { cardNumber: '', expiry: '', cvv: '' },
+    next: ['review'],
+    meta: { url: 'payment', title: 'Payment Details' }
+  },
+  review: {
+    data: { confirmed: false },
+    next: ['confirmation'],
+    meta: { url: 'review', title: 'Order Review' }
+  },
+  confirmation: {
+    data: { orderId: '', timestamp: 0 },
+    next: [],
+    meta: { url: 'confirmation', title: 'Order Confirmed' }
+  }
+});
+
+export const checkoutWizard = createWizard({
+  context: {
+    orderId: '',
+    customerId: '',
+    currency: 'USD'
+  },
+  steps
+});
+```
+
+## URL Synchronization
+
+### Router Integration Hook
+
+```tsx
+// hooks/useRouterSync.ts
+import { useParams, useNavigate } from 'react-router-dom';
+import { useWizard, useWizardStep } from '@wizard/react';
+import { useEffect } from 'react';
+
+export function useRouterSync() {
+  const { step: urlStep } = useParams<{ step: string }>();
+  const navigate = useNavigate();
+  const wizard = useWizard();
+  const currentWizardStep = useWizardStep();
+
+  // Map URL segments to wizard steps
+  const urlToStepMap: Record<string, string> = {
+    'cart': 'cart',
+    'shipping': 'shipping',
+    'payment': 'payment',
+    'review': 'review',
+    'confirmation': 'confirmation'
+  };
+
+  const stepToUrlMap: Record<string, string> = {
+    'cart': 'cart',
+    'shipping': 'shipping',
+    'payment': 'payment',
+    'review': 'review',
+    'confirmation': 'confirmation'
+  };
+
+  // Sync URL changes to wizard
+  useEffect(() => {
+    if (urlStep && urlToStepMap[urlStep]) {
+      const targetStep = urlToStepMap[urlStep];
+      if (targetStep !== currentWizardStep) {
+        // Check if user can access this step
+        if (wizard.helpers.canGoTo(targetStep)) {
+          wizard.goTo(targetStep);
+        } else {
+          // Redirect to first available step
+          const availableStep = wizard.helpers.availableSteps()[0];
+          navigate(`/checkout/${stepToUrlMap[availableStep]}`, { replace: true });
+        }
+      }
+    }
+  }, [urlStep, currentWizardStep, wizard, navigate]);
+
+  // Sync wizard changes to URL
+  useEffect(() => {
+    const currentUrl = stepToUrlMap[currentWizardStep];
+    if (urlStep !== currentUrl) {
+      navigate(`/checkout/${currentUrl}`, { replace: true });
+    }
+  }, [currentWizardStep, urlStep, navigate]);
+
+  return { currentStep: currentWizardStep, urlStep };
+}
+```
+
+### Modern Router Sync (Recommended)
+
+Using the modern `useSyncWizardWithRouter` hook:
+
+```tsx
+import { useSyncWizardWithRouter } from '@wizard/react';
+import { useParams, useNavigate } from 'react-router-dom';
+
+function CheckoutFlow() {
+  const navigate = useNavigate();
+  const { step } = useParams<{ step: string }>();
+
+  useSyncWizardWithRouter({
+    param: 'step',
+    toStep: (urlStep) => {
+      const stepMap: Record<string, string> = {
+        'cart': 'cart',
+        'shipping-info': 'shipping',
+        'payment-details': 'payment',
+        'order-review': 'review',
+        'order-confirmed': 'confirmation'
+      };
+      return stepMap[urlStep || ''] || 'cart';
+    },
+    toUrl: (wizardStep) => {
+      const urlMap: Record<string, string> = {
+        'cart': 'cart',
+        'shipping': 'shipping-info',
+        'payment': 'payment-details',
+        'review': 'order-review',
+        'confirmation': 'order-confirmed'
+      };
+      return {
+        to: `/checkout/${urlMap[wizardStep]}`,
+        search: {}
+      };
+    },
+    navigate: ({ to }) => navigate(to),
+    getParam: () => step || 'cart'
+  });
+
+  return <CheckoutStepRenderer />;
+}
+```
+
+## Route Guards
+
+### Step Access Protection
+
+```tsx
+// components/ProtectedStep.tsx
+import { Navigate } from 'react-router-dom';
+import { useWizard } from '@wizard/react';
+
+interface ProtectedStepProps {
+  stepName: string;
+  children: React.ReactNode;
+}
+
+export function ProtectedStep({ stepName, children }: ProtectedStepProps) {
+  const wizard = useWizard();
+
+  // Check if user can access this step
+  const canAccess = wizard.helpers.canGoTo(stepName);
+
+  if (!canAccess) {
+    // Find the furthest accessible step
+    const orderedSteps = wizard.helpers.orderedSteps();
+    const availableSteps = wizard.helpers.availableSteps();
+
+    const furthestStep = orderedSteps
+      .filter(step => availableSteps.includes(step))
+      .slice(-1)[0];
+
+    const stepUrls: Record<string, string> = {
+      cart: 'cart',
+      shipping: 'shipping-info',
+      payment: 'payment-details',
+      review: 'order-review',
+      confirmation: 'order-confirmed'
+    };
+
+    return <Navigate to={`/checkout/${stepUrls[furthestStep]}`} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Usage in routes
+function CheckoutStepRenderer() {
+  const currentStep = useWizardStep();
+
+  return (
+    <ProtectedStep stepName={currentStep}>
+      <StepContent />
+    </ProtectedStep>
+  );
+}
+```
+
+## State Persistence
+
+### Local Storage Integration
+
+```tsx
+// hooks/useWizardPersistence.ts
+import { useEffect } from 'react';
+import { useWizard } from '@wizard/react';
+
+export function useWizardPersistence(key: string = 'wizard-state') {
+  const wizard = useWizard();
+
+  // Save state to localStorage on changes
+  useEffect(() => {
+    const unsubscribe = wizard.subscribe((state) => {
+      try {
+        localStorage.setItem(key, JSON.stringify({
+          currentStep: state.step,
+          data: state.data,
+          context: state.context,
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        console.warn('Failed to save wizard state:', error);
+      }
+    });
+
+    return unsubscribe;
+  }, [wizard, key]);
+
+  // Restore state from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedState = localStorage.getItem(key);
+      if (savedState) {
+        const { currentStep, data, context, timestamp } = JSON.parse(savedState);
+
+        // Check if state is not too old (e.g., 24 hours)
+        if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
+          // Restore context
+          wizard.updateContext(ctx => Object.assign(ctx, context));
+
+          // Restore step data
+          Object.entries(data).forEach(([step, stepData]) => {
+            wizard.setStepData(step, stepData);
+          });
+
+          // Navigate to saved step if different from current
+          if (currentStep !== wizard.getCurrentStep().name) {
+            wizard.goTo(currentStep);
+          }
+        } else {
+          // Clear old state
+          localStorage.removeItem(key);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to restore wizard state:', error);
+    }
+  }, [wizard, key]);
+}
+```
+
+## Step Components
+
+### Cart Step with URL Awareness
+
+```tsx
+function CartStep() {
+  const wizard = useWizard();
+  const { next } = useWizardActions();
+  const [items, setItems] = useState([]);
+
+  // Handle adding items and updating URL state
+  const handleAddItem = (item: any) => {
+    const newItems = [...items, item];
+    setItems(newItems);
+
+    // Update wizard state
+    wizard
+      .getCurrentStep()
+      .setData({ items: newItems, total: calculateTotal(newItems) })
+      .markIdle();
+  };
+
+  const handleContinue = async () => {
+    if (items.length === 0) {
+      alert('Please add items to your cart');
+      return;
+    }
+
+    try {
+      await next(); // This will trigger URL change via router sync
+    } catch (error) {
+      console.error('Navigation failed:', error);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Shopping Cart</h2>
+
+      <CartItemList items={items} onRemove={handleRemoveItem} />
+
+      <button onClick={() => handleAddItem({ id: 1, name: 'Product', price: 29.99 })}>
+        Add Sample Item
+      </button>
+
+      <div className="cart-total">
+        Total: ${calculateTotal(items).toFixed(2)}
+      </div>
+
+      <button
+        onClick={handleContinue}
+        disabled={items.length === 0}
+        className="continue-button"
+      >
+        Continue to Shipping
+      </button>
+    </div>
+  );
+}
+```
+
+## SEO and Meta Tags
+
+### Dynamic Page Metadata
+
+```tsx
+// hooks/usePageMetadata.ts
+import { useEffect } from 'react';
+import { useWizardStep } from '@wizard/react';
+
+const stepMetadata: Record<string, { title: string; description: string }> = {
+  cart: {
+    title: 'Shopping Cart - Checkout',
+    description: 'Review your cart items before proceeding to checkout'
+  },
+  shipping: {
+    title: 'Shipping Information - Checkout',
+    description: 'Enter your shipping address and delivery preferences'
+  },
+  payment: {
+    title: 'Payment Details - Checkout',
+    description: 'Secure payment processing for your order'
+  },
+  review: {
+    title: 'Order Review - Checkout',
+    description: 'Review your order details before completing purchase'
+  },
+  confirmation: {
+    title: 'Order Confirmed - Thank You',
+    description: 'Your order has been successfully placed'
+  }
+};
+
+export function usePageMetadata() {
+  const currentStep = useWizardStep();
+
+  useEffect(() => {
+    const metadata = stepMetadata[currentStep];
+    if (metadata) {
+      document.title = metadata.title;
+
+      // Update meta description
+      const metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) {
+        metaDescription.setAttribute('content', metadata.description);
+      }
+    }
+  }, [currentStep]);
+}
+```
+
+## Error Handling
+
+### Navigation Error Boundaries
+
+```tsx
+// components/NavigationErrorBoundary.tsx
+import { Component, ReactNode } from 'react';
+import { Navigate } from 'react-router-dom';
+
+interface Props {
+  children: ReactNode;
+  fallbackRoute?: string;
+}
+
+interface State {
+  hasError: boolean;
+  error?: Error;
+}
+
+export class NavigationErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Navigation error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <Navigate to={this.props.fallbackRoute || '/checkout/cart'} replace />;
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+## Performance Optimization
+
+### Lazy Loading Step Components
+
+```tsx
+// components/LazyStepLoader.tsx
+import { lazy, Suspense } from 'react';
+import { useWizardStep } from '@wizard/react';
+
+const CartStep = lazy(() => import('./steps/CartStep'));
+const ShippingStep = lazy(() => import('./steps/ShippingStep'));
+const PaymentStep = lazy(() => import('./steps/PaymentStep'));
+const ReviewStep = lazy(() => import('./steps/ReviewStep'));
+const ConfirmationStep = lazy(() => import('./steps/ConfirmationStep'));
+
+const stepComponents: Record<string, React.ComponentType> = {
+  cart: CartStep,
+  shipping: ShippingStep,
+  payment: PaymentStep,
+  review: ReviewStep,
+  confirmation: ConfirmationStep
+};
+
+export function LazyStepLoader() {
+  const currentStep = useWizardStep();
+  const StepComponent = stepComponents[currentStep];
+
+  if (!StepComponent) {
+    return <div>Unknown step: {currentStep}</div>;
+  }
+
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <StepComponent />
+    </Suspense>
+  );
+}
+```
+
+## Running the Example
+
+1. **Clone and setup:**
+   ```bash
+   git clone https://github.com/your-org/wizardopus.git
+   cd wizardopus/examples/react-router-wizard
+   pnpm install
+   ```
+
+2. **Start development:**
+   ```bash
+   pnpm dev
+   ```
+
+3. **Test navigation:**
+   - Visit `http://localhost:5173/checkout/cart`
+   - Navigate through steps using the UI
+   - Use browser back/forward buttons
+   - Try direct URLs like `/checkout/payment`
+
+## Key Learning Points
+
+### 1. URL Synchronization
+- Wizard steps automatically sync with browser URLs
+- Direct navigation to specific steps via URLs
+- Browser history integration for back/forward navigation
+
+### 2. Route Protection
+- Access control based on wizard step availability
+- Automatic redirection for unauthorized step access
+- Graceful handling of invalid URLs
+
+### 3. State Persistence
+- Wizard state preserved across page refreshes
+- localStorage integration for session recovery
+- Configurable state expiration
+
+### 4. SEO Benefits
+- Each step has unique URL for search indexing
+- Dynamic metadata updates for better SEO
+- Social sharing support with step-specific URLs
+
+## Modernization Notes
+
+To bring this example to current standards:
+
+1. **Factory Pattern**: Use `wizardWithContext` for type safety
+2. **Router Hook**: Use built-in `useSyncWizardWithRouter`
+3. **Step Helpers**: Leverage `step()` and validation helpers
+4. **TypeScript**: Add comprehensive type definitions
+5. **Testing**: Add router integration tests
+
+## Related Examples
+
+- [Basic Form Wizard](/examples/basic-form-wizard) - Core wizard patterns
+- [Router Guards](/examples/router-guard-wizard) - Advanced route protection
+- [Persistence](/examples/persistence-local) - State management patterns
+
+This example demonstrates the power of combining WizardOpus with React Router for creating sophisticated, URL-driven wizard experiences.
