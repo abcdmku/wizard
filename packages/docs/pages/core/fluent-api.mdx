@@ -1,0 +1,643 @@
+# Fluent API
+
+import { Callout, Tabs, Tab } from '../../components'
+
+The fluent API provides an elegant method chaining interface for wizard operations, enabling intuitive and type-safe interactions with wizard steps and data.
+
+## Overview
+
+WizardOpus implements a comprehensive fluent API through the `WizardStep` interface, allowing you to chain operations seamlessly while maintaining full TypeScript type safety.
+
+### Key Benefits
+
+- **🔗 Method Chaining**: Chain multiple operations in a single expression
+- **🎯 Type Safety**: Full TypeScript inference throughout the chain
+- **🚀 Intuitive API**: Natural, readable code that expresses intent clearly
+- **⚡ Performance**: Efficient step wrapper system with minimal overhead
+- **🔄 Immutable Pattern**: Each operation returns a fresh step instance
+
+## Basic Method Chaining
+
+### Getting Started with Fluent Operations
+
+```typescript
+import { wizardWithContext } from '@wizard/core';
+
+interface UserContext {
+  isAuthenticated: boolean;
+  userId: string;
+}
+
+const { defineSteps, createWizard, step } = wizardWithContext<UserContext>({
+  isAuthenticated: false,
+  userId: ''
+});
+
+const steps = defineSteps({
+  login: step({
+    data: { username: '', password: '', rememberMe: false },
+    next: ['dashboard']
+  }),
+  dashboard: step({
+    data: { notifications: [], theme: 'light' as 'light' | 'dark' },
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
+
+// ✅ Basic fluent operations
+const loginStep = wizard
+  .getStep('login')
+  .setData({ username: 'john', password: 'secret123', rememberMe: true })
+  .markLoading();
+
+console.log('Login step data:', loginStep.data);
+// Type: { username: string; password: string; rememberMe: boolean } | undefined
+```
+
+### Fluent Step Operations
+
+The fluent API provides several step state operations that can be chained:
+
+```typescript
+// Chain multiple step state operations
+const processedStep = wizard
+  .getStep('login')
+  .markLoading()              // Set step to loading state
+  .setData({ username: 'user', password: 'pass', rememberMe: false })
+  .markIdle();                // Complete processing, set to idle
+
+// Error handling with fluent API
+const errorStep = wizard
+  .getStep('dashboard')
+  .markError(new Error('Network failure'))
+  .setData({ notifications: ['Error occurred'], theme: 'light' });
+```
+
+## Step State Management
+
+### Available State Operations
+
+```typescript
+// All state operations return a fresh WizardStep instance
+const step = wizard.getStep('login');
+
+// State management operations
+const idleStep = step.markIdle();           // Mark step as idle
+const loadingStep = step.markLoading();     // Mark step as loading
+const skippedStep = step.markSkipped();     // Mark step as skipped
+const errorStep = step.markError(error);    // Mark step with error
+const terminatedStep = step.markTerminated(); // Terminate step (optional error)
+
+// ✅ All operations are chainable
+const chainedStep = step
+  .markLoading()
+  .markIdle()
+  .markLoading();
+```
+
+### Error Handling Patterns
+
+```typescript
+interface ApiError {
+  code: string;
+  message: string;
+  details?: any;
+}
+
+// Fluent error handling with typed errors
+const handleApiError = (step: WizardStep<any, any, any>) => {
+  return step
+    .markError(new Error('API call failed'))
+    .setData(prevData => ({
+      ...prevData,
+      errorMessage: 'Please try again later',
+      lastError: Date.now()
+    }));
+};
+
+// Conditional error recovery
+const recoverFromError = async (step: WizardStep<any, any, any>) => {
+  if (step.getStatus() === 'error') {
+    return step
+      .markLoading()
+      .setData(prevData => ({ ...prevData, retryCount: (prevData?.retryCount || 0) + 1 }))
+      .markIdle();
+  }
+  return step;
+};
+```
+
+## Data Operations
+
+### Setting and Updating Data
+
+```typescript
+const userStep = wizard.getStep('dashboard');
+
+// ✅ Direct data setting with full type safety
+const updatedStep = userStep.setData({
+  notifications: ['Welcome back!', 'You have 3 new messages'],
+  theme: 'dark'
+});
+
+// ✅ Functional data updates
+const functionalUpdate = userStep.updateData(currentData => ({
+  // currentData is properly typed as the step's data type or undefined
+  notifications: [
+    ...(currentData?.notifications || []),
+    'New notification added'
+  ],
+  theme: currentData?.theme === 'light' ? 'dark' : 'light'
+}));
+
+// ✅ Chaining data operations
+const chainedDataOps = userStep
+  .setData({ notifications: [], theme: 'light' })
+  .updateData(data => ({ theme: 'dark' }))
+  .markLoading()
+  .updateData(data => ({
+    notifications: [...(data?.notifications || []), 'Loading complete']
+  }))
+  .markIdle();
+```
+
+### Complex Data Transformations
+
+```typescript
+interface ShoppingCartData {
+  items: Array<{ id: string; quantity: number; price: number }>;
+  total: number;
+  currency: string;
+  discountCode?: string;
+}
+
+const cartStep = wizard.getStep('cart');
+
+// Complex fluent data transformation
+const processCart = cartStep
+  .updateData(data => {
+    const items = data?.items || [];
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    return {
+      items,
+      total: data?.discountCode === 'SAVE10' ? subtotal * 0.9 : subtotal,
+      currency: data?.currency || 'USD'
+    };
+  })
+  .markLoading()
+  .updateData(data => ({
+    ...data,
+    lastUpdated: Date.now()
+  }))
+  .markIdle();
+```
+
+## Navigation with Fluent API
+
+### Fluent Navigation Methods
+
+All navigation methods in the fluent API return properly typed step objects:
+
+```typescript
+// ✅ Navigation methods return step objects for continued chaining
+const navigationChain = await wizard
+  .getCurrentStep()
+  .setData({ username: 'john', password: 'secret', rememberMe: true })
+  .markLoading()
+  .next()                     // Returns Promise<WizardStep>
+  .then(nextStep =>
+    nextStep.setData({ notifications: ['Login successful'], theme: 'light' })
+  );
+
+// ✅ Direct navigation with immediate data operations
+const directNavigation = await wizard
+  .getStep('login')
+  .setData({ username: 'jane', password: 'pass123', rememberMe: false })
+  .goTo('dashboard')          // Navigate and return dashboard step
+  .then(dashboardStep =>
+    dashboardStep
+      .setData({ notifications: ['Welcome!'], theme: 'dark' })
+      .markIdle()
+  );
+```
+
+### Advanced Navigation Patterns
+
+```typescript
+// Conditional navigation with fluent chaining
+const conditionalNavigation = async (userType: 'admin' | 'user') => {
+  const currentStep = wizard.getCurrentStep();
+
+  if (userType === 'admin') {
+    return await currentStep
+      .setData({ userType, permissions: ['read', 'write', 'admin'] })
+      .goTo('adminDashboard')
+      .then(adminStep => adminStep.markLoading());
+  } else {
+    return await currentStep
+      .setData({ userType, permissions: ['read'] })
+      .goTo('userDashboard')
+      .then(userStep => userStep.markIdle());
+  }
+};
+
+// Navigation with error handling
+const safeNavigation = async (targetStep: string) => {
+  try {
+    return await wizard
+      .getCurrentStep()
+      .markLoading()
+      .goTo(targetStep)
+      .then(step => step.markIdle());
+  } catch (error) {
+    return wizard
+      .getCurrentStep()
+      .markError(error)
+      .setData(data => ({ ...data, navigationError: error.message }));
+  }
+};
+```
+
+### Back Navigation
+
+```typescript
+// Fluent back navigation
+const backNavigation = await wizard
+  .getCurrentStep()
+  .setData({ savedProgress: true, timestamp: Date.now() })
+  .back()                     // Navigate back and return previous step
+  .then(previousStep =>
+    previousStep
+      .updateData(data => ({ ...data, returnedFrom: 'next-step' }))
+      .markIdle()
+  );
+
+// Conditional back navigation
+const conditionalBack = async () => {
+  const currentStep = wizard.getCurrentStep();
+
+  if (currentStep.canNavigateBack()) {
+    return await currentStep
+      .setData(data => ({ ...data, exitReason: 'back-button' }))
+      .back()
+      .then(prevStep => prevStep.markIdle());
+  } else {
+    return currentStep.markError(new Error('Cannot navigate back'));
+  }
+};
+```
+
+## Utility Methods
+
+### Navigation Guards
+
+```typescript
+const step = wizard.getStep('dashboard');
+
+// ✅ Check navigation capabilities
+const canProceed = step.canNavigateNext();
+const canGoBack = step.canNavigateBack();
+const canGoToStep = step.canNavigateTo('settings');
+
+// ✅ Use guards in fluent chains
+const guarded FluentOps = step
+  .setData({ attemptedNavigation: true })
+  .markLoading()
+  // Navigation will only happen if allowed
+  .updateData(data => ({
+    ...data,
+    canProceed: step.canNavigateNext(),
+    navigationChecked: true
+  }))
+  .markIdle();
+```
+
+### Step Status Checking
+
+```typescript
+// Get current step status in fluent chains
+const statusCheck = wizard
+  .getStep('login')
+  .setData({ username: 'test', password: 'test', rememberMe: false })
+  .markLoading()
+  .updateData(data => ({
+    ...data,
+    currentStatus: wizard.getStep('login').getStatus(),
+    statusCheckedAt: Date.now()
+  }))
+  .markIdle();
+
+// Conditional operations based on status
+const conditionalOps = (step: WizardStep<any, any, any>) => {
+  const status = step.getStatus();
+
+  switch (status) {
+    case 'current':
+      return step.markLoading();
+    case 'completed':
+      return step.markIdle();
+    case 'error':
+      return step.markIdle().updateData(data => ({ ...data, recovered: true }));
+    default:
+      return step;
+  }
+};
+```
+
+## Advanced Patterns
+
+### Fluent Middleware Pattern
+
+```typescript
+// Create reusable fluent middleware
+const withLogging = <T extends WizardStep<any, any, any>>(step: T) => {
+  console.log(`Operating on step: ${step.name}`);
+  return step.updateData(data => ({
+    ...data,
+    lastOperation: Date.now(),
+    operationLog: [...(data?.operationLog || []), `Operation at ${Date.now()}`]
+  }));
+};
+
+const withValidation = <T extends WizardStep<any, any, any>>(step: T) => {
+  const isValid = step.data && Object.keys(step.data).length > 0;
+  return isValid
+    ? step.markIdle()
+    : step.markError(new Error('Invalid step data'));
+};
+
+// Use middleware in fluent chains
+const processedStep = wizard
+  .getStep('user')
+  .setData({ name: 'John', email: 'john@example.com' })
+  .let(withLogging)           // Apply logging middleware
+  .let(withValidation)        // Apply validation middleware
+  .markIdle();
+
+// Note: The .let() method would need to be added to the WizardStep interface
+// This is a conceptual example of how middleware could work
+```
+
+### Conditional Fluent Chains
+
+```typescript
+// Conditional fluent operations
+const conditionalChain = (condition: boolean) => {
+  let chain = wizard
+    .getStep('user')
+    .setData({ name: 'John', email: 'john@example.com' });
+
+  if (condition) {
+    chain = chain
+      .markLoading()
+      .updateData(data => ({ ...data, specialFlag: true }));
+  }
+
+  return chain.markIdle();
+};
+
+// Builder pattern with fluent API
+class StepBuilder {
+  constructor(private step: WizardStep<any, any, any>) {}
+
+  withData(data: any) {
+    this.step = this.step.setData(data);
+    return this;
+  }
+
+  withLoading() {
+    this.step = this.step.markLoading();
+    return this;
+  }
+
+  withError(error: Error) {
+    this.step = this.step.markError(error);
+    return this;
+  }
+
+  build() {
+    return this.step.markIdle();
+  }
+}
+
+// Usage
+const builtStep = new StepBuilder(wizard.getStep('user'))
+  .withData({ name: 'Jane', email: 'jane@example.com' })
+  .withLoading()
+  .build();
+```
+
+### Async Fluent Patterns
+
+```typescript
+// Async operations in fluent chains
+const asyncFluentOps = async () => {
+  // Start with synchronous operations
+  const step = wizard
+    .getStep('user')
+    .setData({ name: 'Processing...', status: 'loading' })
+    .markLoading();
+
+  // Transition to async operations
+  const processedStep = await step
+    .goTo('processing')
+    .then(async processingStep => {
+      // Simulate async work
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      return processingStep
+        .setData({ name: 'Processing complete', status: 'done' })
+        .markIdle();
+    });
+
+  // Continue with more async operations
+  return await processedStep
+    .goTo('completed')
+    .then(completedStep =>
+      completedStep.setData({ finalMessage: 'All done!' })
+    );
+};
+```
+
+## Integration with Factory Pattern
+
+### Fluent API with wizardWithContext
+
+```typescript
+interface AppContext {
+  userId: string;
+  sessionId: string;
+  preferences: {
+    theme: 'light' | 'dark';
+    language: string;
+  };
+}
+
+const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
+  userId: '',
+  sessionId: '',
+  preferences: { theme: 'light', language: 'en' }
+});
+
+const steps = defineSteps({
+  setup: step({
+    data: { completed: false, progress: 0 },
+    next: ['configuration']
+  }),
+  configuration: step({
+    data: { theme: 'light' as const, language: 'en', notifications: true },
+    next: ['summary']
+  }),
+  summary: step({
+    data: { confirmed: false, timestamp: 0 },
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
+
+// ✅ Factory pattern provides automatic context typing
+const contextAwareChain = wizard
+  .getStep('configuration')
+  .setData({ theme: 'dark', language: 'es', notifications: false })
+  .updateData(data => ({
+    ...data,
+    // ✅ context is automatically typed as AppContext
+    appliedAt: Date.now(),
+    userId: wizard.getContext().userId  // Full type safety
+  }))
+  .markIdle();
+```
+
+## Best Practices
+
+### 1. Prefer Fluent API for Complex Operations
+
+<Tabs items={['❌ Imperative Style', '✅ Fluent Style']}>
+  <Tab label="❌ Imperative Style">
+    ```typescript
+    // Imperative approach - more verbose, error-prone
+    const step = wizard.getStep('user');
+    wizard.setStepData('user', { name: 'John', email: 'john@example.com' });
+    wizard.markLoading('user');
+
+    const updatedData = wizard.getStepData('user');
+    wizard.setStepData('user', {
+      ...updatedData,
+      processedAt: Date.now()
+    });
+    wizard.markIdle('user');
+
+    await wizard.goTo('dashboard');
+    wizard.setStepData('dashboard', { welcome: true });
+    ```
+  </Tab>
+  <Tab label="✅ Fluent Style">
+    ```typescript
+    // Fluent approach - concise, type-safe, readable
+    const result = await wizard
+      .getStep('user')
+      .setData({ name: 'John', email: 'john@example.com' })
+      .markLoading()
+      .updateData(data => ({ ...data, processedAt: Date.now() }))
+      .markIdle()
+      .goTo('dashboard')
+      .then(dashboardStep =>
+        dashboardStep.setData({ welcome: true })
+      );
+    ```
+  </Tab>
+</Tabs>
+
+### 2. Use Type-Safe Data Operations
+
+```typescript
+// ✅ Good: Leverage TypeScript inference
+const typedChain = wizard
+  .getStep('user')
+  .setData({ name: 'John', age: 30, email: 'john@example.com' })
+  .updateData(data => ({
+    // ✅ data is properly typed, IDE provides full autocomplete
+    ...data,
+    displayName: `${data?.name} (${data?.age})`,
+    emailDomain: data?.email.split('@')[1]
+  }));
+
+// ❌ Avoid: Manual type assertions
+const unsafeChain = wizard
+  .getStep('user')
+  .updateData(data => {
+    const typedData = data as { name: string; age: number; email: string }; // ❌
+    return { ...typedData, displayName: `${typedData.name} (${typedData.age})` };
+  });
+```
+
+### 3. Handle Async Operations Properly
+
+```typescript
+// ✅ Good: Proper async handling with fluent API
+const handleAsync = async () => {
+  try {
+    const result = await wizard
+      .getStep('user')
+      .setData({ name: 'John', processing: true })
+      .markLoading()
+      .goTo('processing')
+      .then(async step => {
+        // Async work here
+        await apiCall();
+        return step.setData({ result: 'success' });
+      });
+
+    return result.markIdle();
+  } catch (error) {
+    return wizard
+      .getCurrentStep()
+      .markError(error)
+      .setData(data => ({ ...data, error: error.message }));
+  }
+};
+
+// ❌ Avoid: Mixing async and sync incorrectly
+const badAsync = wizard
+  .getStep('user')
+  .markLoading()
+  .goTo('processing')  // Returns Promise, but not awaited
+  .setData({ result: 'success' }); // ❌ This won't work as expected
+```
+
+### 4. Maintain Immutability
+
+```typescript
+// ✅ Good: Each operation returns a new step instance
+const step1 = wizard.getStep('user');
+const step2 = step1.setData({ name: 'John' });
+const step3 = step2.markLoading();
+
+// step1, step2, and step3 are different instances
+console.log(step1 !== step2); // true
+console.log(step2 !== step3); // true
+
+// ✅ All previous instances remain unchanged
+console.log(step1.data); // undefined (original state)
+console.log(step2.data); // { name: 'John' }
+console.log(step3.data); // { name: 'John' } (but with loading state)
+```
+
+## Performance Considerations
+
+The fluent API is designed for performance:
+
+- **Lazy Evaluation**: Operations are applied immediately but step instances are created efficiently
+- **Type Inference**: Compile-time type checking with no runtime overhead
+- **Memory Efficient**: Step instances are lightweight wrappers around wizard state
+- **Immutable**: Operations don't mutate existing instances, enabling safe sharing
+
+<Callout type="info" title="Performance Tip">
+Long fluent chains are optimized by the TypeScript compiler and have minimal runtime overhead. The step wrapper system reuses wizard state efficiently.
+</Callout>
+
+The fluent API provides an elegant, type-safe way to work with wizard state and navigation, making complex wizard operations both readable and maintainable.

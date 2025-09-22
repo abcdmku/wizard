@@ -6,24 +6,28 @@ export default {
     title: 'Core Concepts'
   },
   concepts: 'Core Concepts',
+  core: 'Core API',
   '-- divider2': {
     type: 'separator',
     title: 'Framework Integration'
   },
   react: 'React',
+  validation: 'Validation',
   '-- divider3': {
     type: 'separator',
-    title: 'Guides'
+    title: 'Guides & Examples'
   },
   recipes: 'Recipes',
   examples: 'Examples',
+  helpers: 'Helper Functions',
+  advanced: 'Advanced Features',
   '-- divider4': {
     type: 'separator',
-    title: 'API'
+    title: 'API Reference'
   },
   'api-reference': 'API Reference',
   'api-docs': {
-    title: 'API Docs',
+    title: 'Generated API Docs',
     type: 'page',
     href: '/api'
   }

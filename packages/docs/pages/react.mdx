@@ -26,18 +26,47 @@ Complete guide for using WizardOpus with React applications, including hooks, co
 
 ## Basic Setup
 
+### Modern Factory Pattern
+
 ```tsx
 import { WizardProvider, useWizard } from '@wizard/react';
-import { createWizard } from '@wizard/core';
+import { wizardWithContext } from '@wizard/core';
 
-// Create your wizard instance
-const wizard = createWizard({
-  steps: {
-    welcome: { next: 'details' },
-    details: { next: 'confirm' },
-    confirm: {}
-  }
+// Define your context type
+interface AppContext {
+  userId: string;
+  isAuthenticated: boolean;
+  preferences: {
+    theme: 'light' | 'dark';
+    language: string;
+  };
+}
+
+// Create wizard using factory pattern
+const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
+  userId: '',
+  isAuthenticated: false,
+  preferences: { theme: 'light', language: 'en' }
 });
+
+const steps = defineSteps({
+  welcome: step({
+    data: { acknowledged: false },
+    next: ['details']
+  }),
+  details: step({
+    data: { name: '', email: '', phone: '' },
+    canExit: ({ data }) => Boolean(data?.name && data?.email),
+    next: ['confirm']
+  }),
+  confirm: step({
+    data: { confirmed: false, terms: false },
+    canExit: ({ data }) => Boolean(data?.confirmed && data?.terms),
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
 
 // Wrap your app with WizardProvider
 function App() {
@@ -62,27 +91,86 @@ function YourWizardComponent() {
 }
 ```
 
+### Legacy Pattern (Still Supported)
+
+```tsx
+import { WizardProvider, useWizard } from '@wizard/react';
+import { createWizard, defineSteps } from '@wizard/core';
+
+// Legacy approach for migration compatibility
+const steps = defineSteps({
+  welcome: { next: ['details'] },
+  details: { next: ['confirm'] },
+  confirm: { next: [] }
+});
+
+const wizard = createWizard({
+  context: { userId: '', isAuthenticated: false },
+  steps
+});
+```
+
 ## React Hooks API
 
 ### Core Hooks
 
 #### useWizard()
 
-Access the wizard instance directly:
+Access the wizard instance with full factory pattern integration:
 
 ```tsx
 const wizard = useWizard<Context, Steps, Data, Events>();
 
-// Available methods:
-wizard.next()              // Go to next step
-wizard.back()              // Go to previous step
+// Core navigation methods
+wizard.next()              // Navigate to next step
+wizard.back()              // Navigate to previous step
 wizard.goTo(step)          // Navigate to specific step
 wizard.reset()             // Reset wizard to initial state
-wizard.updateStepData(step, data)  // Update step data
+
+// Modern data access (with proper type inference)
+wizard.getStepData(step)   // Get typed data for a step
+wizard.setStepData(step, data)  // Set step data with validation
 wizard.updateContext(ctx)  // Update shared context
-wizard.getCurrentStep()    // Get current step name
-wizard.getStepData(step)   // Get data for a step
-wizard.subscribe(callback) // Subscribe to state changes
+wizard.getContext()        // Get current context
+
+// Fluent API integration
+wizard.getStep(step)       // Returns WizardStep instance for chaining
+wizard.getCurrentStep()    // Returns current WizardStep for chaining
+
+// Helper methods
+wizard.helpers.canGoNext() // Check if next navigation is allowed
+wizard.helpers.canGoBack() // Check if back navigation is allowed
+wizard.helpers.progress()  // Get completion progress (0-100)
+```
+
+### Fluent API Integration
+
+The React hooks work seamlessly with the fluent API:
+
+```tsx
+function StepComponent() {
+  const wizard = useWizard();
+
+  const handleUpdateAndNavigate = async () => {
+    // Use fluent API with React hooks
+    const result = await wizard
+      .getStep('current')
+      .setData({ completed: true, timestamp: Date.now() })
+      .markLoading()
+      .next()
+      .then(nextStep => nextStep.markIdle());
+
+    console.log('Navigation completed to:', result.name);
+  };
+
+  return (
+    <div>
+      <button onClick={handleUpdateAndNavigate}>
+        Complete & Continue
+      </button>
+    </div>
+  );
+}
 ```
 
 #### useWizardState()
@@ -317,45 +405,158 @@ function WizardWithTanStackRouter() {
 ```tsx
 import React from 'react';
 import { WizardProvider, useWizard, useWizardStep, useWizardActions } from '@wizard/react';
-import { createWizard, createHelpers } from '@wizard/core';
+import { wizardWithContext } from '@wizard/core';
 
-// Define your wizard
-const checkoutWizard = createWizard({
-  steps: {
-    cart: { next: 'shipping' },
-    shipping: { next: 'payment' },
-    payment: { next: 'review' },
-    review: { next: 'confirmation' },
-    confirmation: {}
-  }
+// Define context and wizard using modern factory pattern
+interface CheckoutContext {
+  customerId: string;
+  sessionId: string;
+  currency: 'USD' | 'EUR' | 'GBP';
+  totalAmount: number;
+}
+
+const { defineSteps, createWizard, step } = wizardWithContext<CheckoutContext>({
+  customerId: '',
+  sessionId: crypto.randomUUID(),
+  currency: 'USD',
+  totalAmount: 0
 });
 
-// Step components
+const steps = defineSteps({
+  cart: step({
+    data: { items: [], subtotal: 0, tax: 0 },
+    canExit: ({ data }) => Boolean(data?.items.length > 0),
+    next: ['shipping']
+  }),
+  shipping: step({
+    data: { address: '', method: '', cost: 0 },
+    canExit: ({ data }) => Boolean(data?.address && data?.method),
+    beforeExit: ({ context, data, updateContext }) => {
+      // Update total when shipping is selected
+      updateContext(ctx => {
+        ctx.totalAmount = (data?.cost || 0) + ctx.totalAmount;
+      });
+    },
+    next: ['payment']
+  }),
+  payment: step({
+    data: { method: '', cardNumber: '', validated: false },
+    canExit: ({ data }) => Boolean(data?.validated),
+    next: ['review']
+  }),
+  review: step({
+    data: { confirmed: false, terms: false },
+    canExit: ({ data }) => Boolean(data?.confirmed && data?.terms),
+    next: ['confirmation']
+  }),
+  confirmation: step({
+    data: { orderId: '', timestamp: 0 },
+    next: []
+  })
+});
+
+const checkoutWizard = createWizard(steps);
+
+// Step components with modern patterns
 function CartStep() {
-  const { next } = useWizardActions();
-  const data = useCurrentStepData();
+  const wizard = useWizard();
+  const { next, canGoNext } = useWizardActions();
+  const currentStep = wizard.getCurrentStep();
+
+  const handleAddItem = (item: any) => {
+    // Use fluent API for data updates
+    currentStep
+      .updateData(data => ({
+        ...data,
+        items: [...(data?.items || []), item],
+        subtotal: (data?.subtotal || 0) + item.price
+      }))
+      .markIdle();
+  };
 
   return (
     <div>
       <h2>Shopping Cart</h2>
       {/* Cart content */}
-      <button onClick={next}>Continue to Shipping</button>
+      <button onClick={next} disabled={!canGoNext}>
+        Continue to Shipping
+      </button>
     </div>
   );
 }
 
 function WizardProgress() {
+  const wizard = useWizard();
   const currentStep = useWizardStep();
-  const helpers = createHelpers(checkoutWizard);
-  const progress = helpers.progress();
+  const progress = wizard.helpers.progress();
 
   return (
     <div>
       <div>Current: {currentStep}</div>
-      <div>Progress: {progress}%</div>
-      <div className="progress-bar">
-        <div style={{ width: `${progress}%` }} />
+      <div>Progress: {Math.round(progress)}%</div>
+      <div className="progress-bar" style={{ background: '#f0f0f0', width: '100%', height: '8px' }}>
+        <div
+          style={{
+            width: `${progress}%`,
+            height: '100%',
+            background: '#007bff',
+            transition: 'width 0.3s ease'
+          }}
+        />
       </div>
+    </div>
+  );
+}
+
+// Context-aware component
+function CheckoutSummary() {
+  const wizard = useWizard();
+  const context = wizard.getContext();
+
+  return (
+    <div>
+      <h3>Order Summary</h3>
+      <p>Customer: {context.customerId}</p>
+      <p>Total: {context.currency} {context.totalAmount.toFixed(2)}</p>
+      <p>Session: {context.sessionId}</p>
+    </div>
+  );
+}
+
+// Enhanced step with validation
+function PaymentStep() {
+  const wizard = useWizard();
+  const { next, back } = useWizardActions();
+  const [isValidating, setIsValidating] = React.useState(false);
+
+  const handleValidatePayment = async () => {
+    setIsValidating(true);
+
+    try {
+      // Use fluent API for async operations
+      const result = await wizard
+        .getCurrentStep()
+        .markLoading()
+        .setData(data => ({ ...data, validated: true }))
+        .markIdle();
+
+      console.log('Payment validated:', result.data);
+    } catch (error) {
+      wizard.getCurrentStep().markError(error);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Payment Information</h2>
+      {/* Payment form */}
+      <button onClick={back}>Back</button>
+      <button onClick={handleValidatePayment} disabled={isValidating}>
+        {isValidating ? 'Validating...' : 'Validate Payment'}
+      </button>
+      <button onClick={next}>Continue</button>
     </div>
   );
 }
@@ -375,48 +576,184 @@ function CheckoutWizard() {
   return (
     <div>
       <WizardProgress />
+      <CheckoutSummary />
       {stepComponents[currentStep]}
     </div>
   );
 }
 
+// App with error boundary
+function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  const [hasError, setHasError] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleError = (error: any) => {
+      console.error('Wizard error:', error);
+      setHasError(true);
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  if (hasError) {
+    return <div>Something went wrong with the checkout process.</div>;
+  }
+
+  return <>{children}</>;
+}
+
 // App
 export default function App() {
   return (
-    <WizardProvider wizard={checkoutWizard}>
-      <CheckoutWizard />
-    </WizardProvider>
+    <ErrorBoundary>
+      <WizardProvider wizard={checkoutWizard}>
+        <CheckoutWizard />
+      </WizardProvider>
+    </ErrorBoundary>
   );
 }
 ```
 
 ## TypeScript Support
 
-All hooks are fully type-safe with automatic inference:
+All hooks are fully type-safe with automatic inference from the factory pattern:
 
 ```tsx
-interface Context {
-  user: { id: string; name: string };
+// Modern factory pattern with automatic type inference
+interface UserContext {
+  user: { id: string; name: string; role: 'admin' | 'user' };
+  session: { token: string; expires: Date };
 }
 
-type Steps = 'info' | 'details' | 'confirm';
-
-interface Data {
-  info: { email: string };
-  details: { address: string };
-  confirm: { agreed: boolean };
-}
-
-const wizard = createWizard<Context, Steps, Data>({
-  // Configuration with full type safety
+const { defineSteps, createWizard, step } = wizardWithContext<UserContext>({
+  user: { id: '', name: '', role: 'user' },
+  session: { token: '', expires: new Date() }
 });
 
+const steps = defineSteps({
+  info: step({
+    data: { email: '', phone: '', newsletter: false },
+    canExit: ({ data }) => Boolean(data?.email),
+    next: ['details']
+  }),
+  details: step({
+    data: { address: '', city: '', zipCode: '' },
+    canExit: ({ data }) => Boolean(data?.address && data?.city),
+    next: ['confirm']
+  }),
+  confirm: step({
+    data: { agreed: false, signature: '' },
+    canExit: ({ data }) => Boolean(data?.agreed),
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
+
+// React component with full type safety
 function Component() {
-  // All hooks have proper types
-  const wizard = useWizard<Context, Steps, Data>();
-  const step = useWizardStep(); // Type: Steps
-  const infoData = useStepData('info'); // Type: { email: string }
-  const context = useWizardSharedContext(); // Type: Context
+  // ✅ All hooks automatically infer types from factory
+  const wizard = useWizard(); // Fully typed wizard instance
+  const step = useWizardStep(); // Type: 'info' | 'details' | 'confirm'
+  const context = useWizardSharedContext(); // Type: UserContext
+
+  // ✅ Step data is properly typed
+  const infoData = useStepData('info'); // Type: { email: string; phone: string; newsletter: boolean } | undefined
+  const detailsData = useStepData('details'); // Type: { address: string; city: string; zipCode: string } | undefined
+
+  // ✅ Fluent API operations maintain type safety
+  const handleUpdate = () => {
+    wizard
+      .getStep('info')
+      .setData({ email: 'user@example.com', phone: '123-456-7890', newsletter: true })
+      .markIdle();
+
+    // TypeScript validates all property names and types
+  };
+
+  // ✅ Context is fully typed
+  const isAdmin = context.user.role === 'admin';
+  const sessionValid = context.session.expires > new Date();
+
+  return (
+    <div>
+      <p>Current step: {step}</p>
+      <p>User: {context.user.name} ({context.user.role})</p>
+      <p>Session valid: {sessionValid ? 'Yes' : 'No'}</p>
+      <button onClick={handleUpdate}>Update Info</button>
+    </div>
+  );
+}
+
+// ✅ Hook composition with preserved types
+function useTypedWizardState() {
+  const wizard = useWizard();
+  const currentStep = useWizardStep();
+
+  return React.useMemo(() => ({
+    wizard,
+    currentStep,
+    progress: wizard.helpers.progress(),
+    canGoNext: wizard.helpers.canGoNext(),
+    canGoBack: wizard.helpers.canGoBack(),
+    // All return types are properly inferred
+  }), [wizard, currentStep]);
+}
+```
+
+### Advanced Type Patterns
+
+```tsx
+// Generic component that works with any wizard
+function WizardNavigator<TContext, TSteps extends string>() {
+  const wizard = useWizard<TContext, TSteps>();
+  const { next, back, canGoNext, canGoBack } = useWizardActions();
+
+  return (
+    <div>
+      <button onClick={back} disabled={!canGoBack}>
+        Previous
+      </button>
+      <button onClick={next} disabled={!canGoNext}>
+        Next
+      </button>
+    </div>
+  );
+}
+
+// Conditional rendering based on step types
+function ConditionalStepRenderer() {
+  const currentStep = useWizardStep();
+
+  // TypeScript knows all possible step values
+  switch (currentStep) {
+    case 'info':
+      return <InfoStep />;
+    case 'details':
+      return <DetailsStep />;
+    case 'confirm':
+      return <ConfirmStep />;
+    default:
+      // TypeScript ensures this is never reached
+      const _exhaustive: never = currentStep;
+      return null;
+  }
+}
+
+// Custom hook with step-specific data typing
+function useStepValidator<TStep extends string>(step: TStep) {
+  const stepData = useStepData(step);
+  const wizard = useWizard();
+
+  const validate = React.useCallback(() => {
+    if (!stepData) return false;
+
+    // TypeScript knows the exact shape of stepData based on the step
+    return wizard.helpers.isStepComplete(step);
+  }, [stepData, wizard, step]);
+
+  return { isValid: validate(), stepData };
 }
 ```
 
@@ -426,11 +763,188 @@ function Component() {
 
 ## Best Practices
 
-1. **Create wizard outside components** - Define wizard instances at module level
-2. **Use selectors in useWizardState** - Only subscribe to needed state slices
-3. **Memoize callbacks** - Use useCallback for event handlers
-4. **Handle loading states** - Show appropriate UI during transitions
-5. **Validate before navigation** - Check data before allowing step changes
+### 1. Use Factory Pattern for Type Safety
+
+```tsx
+// ✅ Good: Use wizardWithContext for automatic type inference
+const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
+  // Initial context
+});
+
+// ❌ Avoid: Manual type definitions
+const wizard = createWizard<Context, Steps, Data>({
+  // Manual configuration requires more boilerplate
+});
+```
+
+### 2. Create Wizard Outside Components
+
+```tsx
+// ✅ Good: Module-level wizard definition
+const { defineSteps, createWizard, step } = wizardWithContext<Context>({...});
+const steps = defineSteps({...});
+const wizard = createWizard(steps);
+
+function App() {
+  return <WizardProvider wizard={wizard}>...</WizardProvider>;
+}
+
+// ❌ Avoid: Creating wizard inside component
+function App() {
+  const wizard = React.useMemo(() => createWizard({...}), []); // Recreated on every render
+}
+```
+
+### 3. Use Fluent API for Complex Operations
+
+```tsx
+// ✅ Good: Fluent API for readable, type-safe operations
+const handleCompleteStep = async () => {
+  const result = await wizard
+    .getCurrentStep()
+    .setData({ completed: true, timestamp: Date.now() })
+    .markLoading()
+    .next()
+    .then(step => step.markIdle());
+};
+
+// ❌ Avoid: Imperative style
+const handleCompleteStep = async () => {
+  const current = wizard.getCurrentStep();
+  wizard.setStepData(current.name, { completed: true, timestamp: Date.now() });
+  wizard.markLoading(current.name);
+  await wizard.next();
+  wizard.markIdle(wizard.getCurrentStep().name);
+};
+```
+
+### 4. Optimize Re-renders with Selectors
+
+```tsx
+// ✅ Good: Use specific selectors to prevent unnecessary re-renders
+const currentStep = useWizardStep();
+const progress = useWizardState(state => state.helpers.progress());
+const errors = useWizardState(state => state.errors);
+
+// ❌ Avoid: Subscribing to entire state
+const wholeState = useWizardState(state => state); // Triggers re-render on any change
+```
+
+### 5. Handle Async Operations Properly
+
+```tsx
+// ✅ Good: Proper async handling with error boundaries
+function AsyncStepComponent() {
+  const wizard = useWizard();
+  const [loading, setLoading] = React.useState(false);
+
+  const handleAsyncOperation = async () => {
+    setLoading(true);
+    try {
+      const result = await wizard
+        .getCurrentStep()
+        .markLoading()
+        .goTo('nextStep')
+        .then(step => step.markIdle());
+    } catch (error) {
+      wizard.getCurrentStep().markError(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return <button onClick={handleAsyncOperation} disabled={loading}>Proceed</button>;
+}
+```
+
+### 6. Validate Before Navigation
+
+```tsx
+// ✅ Good: Validation with step helpers and canExit
+const steps = defineSteps({
+  userInfo: step({
+    data: { name: '', email: '' },
+    canExit: ({ data }) => {
+      return Boolean(data?.name && data?.email && data.email.includes('@'));
+    },
+    next: ['review']
+  })
+});
+
+// Use in components
+function UserInfoStep() {
+  const { next, canGoNext } = useWizardActions();
+
+  return (
+    <div>
+      {/* Form fields */}
+      <button onClick={next} disabled={!canGoNext}>
+        Continue
+      </button>
+    </div>
+  );
+}
+```
+
+### 7. Memoize Expensive Operations
+
+```tsx
+// ✅ Good: Memoize callbacks and computed values
+function StepComponent() {
+  const wizard = useWizard();
+
+  const handleUpdate = React.useCallback((data: any) => {
+    wizard.getCurrentStep().setData(data);
+  }, [wizard]);
+
+  const progress = React.useMemo(() => {
+    return wizard.helpers.progress();
+  }, [wizard]);
+
+  return <div>Progress: {progress}%</div>;
+}
+```
+
+### 8. Use Error Boundaries
+
+```tsx
+// ✅ Good: Wrap wizard with error boundary
+function WizardErrorBoundary({ children }: { children: React.ReactNode }) {
+  return (
+    <ErrorBoundary fallback={<WizardErrorFallback />}>
+      {children}
+    </ErrorBoundary>
+  );
+}
+
+function App() {
+  return (
+    <WizardErrorBoundary>
+      <WizardProvider wizard={wizard}>
+        <WizardComponent />
+      </WizardProvider>
+    </WizardErrorBoundary>
+  );
+}
+```
+
+### 9. Leverage Step Helpers
+
+```tsx
+// ✅ Good: Use step helpers for cleaner definitions
+import { step, dataStep, transitionStep, conditionalStep } from '@wizard/core';
+
+const steps = defineSteps({
+  // Use appropriate helper for each step type
+  init: dataStep({ sessionId: generateId() }, ['userInput']),
+  userInput: step({ data: { name: '', email: '' }, next: ['validation'] }),
+  redirect: transitionStep(['dashboard']),
+  routing: conditionalStep({
+    data: { userType: '' },
+    next: ({ data }) => data.userType === 'admin' ? ['admin'] : ['user']
+  })
+});
+```
 
 ## Next Steps
 
