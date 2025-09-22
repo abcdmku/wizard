@@ -84,7 +84,7 @@ For a more concise API:
 ```typescript
 import { wizardWithContext } from '@wizard/core';
 
-const { defineSteps, createWizard } = wizardWithContext<AppContext>({
+const { defineSteps, step, createWizard } = wizardWithContext<AppContext>({
   globalFlag: true,
   userId: 'user123',
   permissions: ['read'],
@@ -92,11 +92,20 @@ const { defineSteps, createWizard } = wizardWithContext<AppContext>({
 });
 
 const steps = defineSteps({
-  step1: factory.step({
+  step1: step({
     data: { value: 42 },
     canEnter: ({ context, data }) => {
       // ✅ context automatically typed as AppContext
       return context.globalFlag && Boolean(data?.value);
+    },
+    beforeExit: ({ context, data, updateContext }) => {
+      // ✅ All parameters automatically typed
+      const userId: string = context.userId;
+      const value: number = data.value;
+
+      updateContext((ctx) => {
+        ctx.permissions.push('step1:completed');
+      });
     },
     next: []
   })
@@ -135,8 +144,10 @@ const wizard = createWizard({ context: myContext, steps });
 ```
 
 ### To New Approach
+
+**Option 1: Factory Pattern**
 ```typescript
-// ✅ New: Automatic inference
+// ✅ New: Automatic inference with factory
 const factory = createWizardFactory<AppContext>();
 
 const steps = factory.defineSteps({
@@ -150,6 +161,24 @@ const steps = factory.defineSteps({
 });
 
 const wizard = factory.createWizard(myContext, steps);
+```
+
+**Option 2: wizardWithContext (Most Concise)**
+```typescript
+// ✅ New: Most concise approach
+const { defineSteps, step, createWizard } = wizardWithContext<AppContext>(myContext);
+
+const steps = defineSteps({
+  step1: step({
+    data: { value: 42 },
+    beforeExit: ({ context, data }) => {
+      // ✅ Both automatically typed!
+    },
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
 ```
 
 ## Technical Details

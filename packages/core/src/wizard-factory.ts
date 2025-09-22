@@ -119,6 +119,7 @@ export function wizardWithContext<C, E = never>(context: C) {
 
   return {
     defineSteps: factory.defineSteps,
+    step: factory.step,
     createWizard: <TDefs extends Record<string, any>>(
       steps: TDefs,
       options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
