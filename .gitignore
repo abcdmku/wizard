@@ -88,7 +88,8 @@ web_modules/
 out
 
 # Generated documentation
-packages/docs/public/api/
+packages/docs/dist/
+packages/docs/public/typedoc/
 
 # Nuxt.js build / generate output
 .nuxt

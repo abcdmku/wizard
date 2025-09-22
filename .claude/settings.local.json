@@ -116,7 +116,8 @@
       "mcp__playwright__browser_tabs",
       "mcp__playwright__browser_close",
       "Bash(npm test:*)",
-      "WebFetch(domain:nextra.site)"
+      "WebFetch(domain:nextra.site)",
+      "Bash(pnpm run:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",

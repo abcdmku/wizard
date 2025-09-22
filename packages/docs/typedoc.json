@@ -5,7 +5,7 @@
     "../../packages/core/src/index.ts",
     "../../packages/react/src/index.ts"
   ],
-  "out": "./public/api",
+  "out": "./dist/api",
   "theme": "default",
   "categoryOrder": [
     "Factory",
