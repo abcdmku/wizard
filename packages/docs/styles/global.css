@@ -3,192 +3,290 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles for documentation */
+/* ========== CLEAN CODE BLOCK STYLING ========== */
 
-/* Light mode code block background */
-.nextra-code-block pre,
-.nextra-code pre,
-pre[class*="language-"],
-pre[class*="lang-"],
-.nx-border-black pre,
-code[class*="language-"],
-.shiki,
-.shiki pre,
-.shiki code,
-pre code,
-pre,
-code {
-  background: #f6f8fa !important;
-  color: #24292e !important;
+/* Base code block styling - remove overflow from pre */
+pre {
+  background: transparent !important;
+  color: #d4d4d4 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
 }
 
 /* Dark mode code blocks */
-.dark .nextra-code-block pre,
-.dark .nextra-code pre,
-.dark pre[class*="language-"],
-.dark pre[class*="lang-"],
-.dark .nx-border-black pre,
-.dark code[class*="language-"],
-.dark .shiki,
-.dark .shiki pre,
-.dark .shiki code,
-.dark pre code {
-  background: #0b0b0b !important;
-  color: #d4d4d4 !important;
+.dark pre {
+  background: transparent !important;
+  color: #e2e8f0 !important;
+  border: none !important;
 }
 
-/* Code blocks in markdown */
-article pre,
-.prose pre,
-main pre,
-pre.nextra-focus {
-  background: #f6f8fa !important;
-  border-radius: 0.5rem !important;
-  margin: 0 !important;
-  padding: 1rem !important;
-  border: 1px solid #e5e7eb !important;
+/* Code element styling - handle overflow and padding */
+pre > code {
+  display: block !important;
+  padding: 8px 0 16px 0 !important;
+  margin: 8px 0 !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  background: #0a0a0a !important;
+  width: 100% !important;
 }
 
-/* Dark mode code blocks in markdown */
-.dark article pre,
-.dark .prose pre,
-.dark main pre,
-.dark pre.nextra-focus {
-  background: #0b0b0b !important;
-  border: 1px solid #30363d !important;
+/* Dark mode code element */
+.dark pre > code {
+  background: #0a0a0a !important;
 }
 
-/* Specific nextra-focus pre element fixes */
-pre.nextra-focus {
-  background: #f6f8fa !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+/* ========== VS CODE SYNTAX HIGHLIGHTING ========== */
+
+/* VS Code Dark Theme Colors */
+.dark pre > code .token.comment,
+.dark pre > code .token.prolog,
+.dark pre > code .token.doctype,
+.dark pre > code .token.cdata {
+  color: #6a9955 !important; /* VS Code comment green */
 }
 
-.dark pre.nextra-focus {
-  background: #0b0b0b !important;
-  border: 1px solid #374151 !important;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5) !important;
+.dark pre > code .token.punctuation {
+  color: #d4d4d4 !important; /* VS Code punctuation */
+}
+
+.dark pre > code .token.property,
+.dark pre > code .token.tag,
+.dark pre > code .token.boolean,
+.dark pre > code .token.number,
+.dark pre > code .token.constant,
+.dark pre > code .token.symbol,
+.dark pre > code .token.deleted {
+  color: #b5cea8 !important; /* VS Code number/constant green */
+}
+
+.dark pre > code .token.selector,
+.dark pre > code .token.attr-name,
+.dark pre > code .token.string,
+.dark pre > code .token.char,
+.dark pre > code .token.builtin,
+.dark pre > code .token.inserted {
+  color: #ce9178 !important; /* VS Code string orange */
+}
+
+.dark pre > code .token.operator,
+.dark pre > code .token.entity,
+.dark pre > code .token.url,
+.dark pre > code .language-css .token.string,
+.dark pre > code .style .token.string {
+  color: #d4d4d4 !important; /* VS Code operator */
+}
+
+.dark pre > code .token.atrule,
+.dark pre > code .token.attr-value,
+.dark pre > code .token.keyword {
+  color: #569cd6 !important; /* VS Code keyword blue */
+}
+
+.dark pre > code .token.function,
+.dark pre > code .token.class-name {
+  color: #dcdcaa !important; /* VS Code function yellow */
+}
+
+.dark pre > code .token.regex,
+.dark pre > code .token.important,
+.dark pre > code .token.variable {
+  color: #d16969 !important; /* VS Code variable red */
+}
+
+/* Light theme syntax highlighting - VSCode Dark Theme (since using dark background) */
+pre > code .token.comment,
+pre > code .token.prolog,
+pre > code .token.doctype,
+pre > code .token.cdata {
+  color: #6a9955 !important; /* VSCode dark comment green */
+}
+
+pre > code .token.punctuation {
+  color: #d4d4d4 !important; /* VSCode dark punctuation */
+}
+
+pre > code .token.property,
+pre > code .token.tag,
+pre > code .token.boolean,
+pre > code .token.number,
+pre > code .token.constant,
+pre > code .token.symbol,
+pre > code .token.deleted {
+  color: #b5cea8 !important; /* VSCode dark number/constant green */
+}
+
+pre > code .token.selector,
+pre > code .token.attr-name,
+pre > code .token.string,
+pre > code .token.char,
+pre > code .token.builtin,
+pre > code .token.inserted {
+  color: #ce9178 !important; /* VSCode dark string orange */
+}
+
+pre > code .token.operator,
+pre > code .token.entity,
+pre > code .token.url,
+pre > code .language-css .token.string,
+pre > code .style .token.string {
+  color: #d4d4d4 !important; /* VSCode dark operator */
+}
+
+pre > code .token.atrule,
+pre > code .token.attr-value,
+pre > code .token.keyword {
+  color: #569cd6 !important; /* VSCode dark keyword blue */
+}
+
+pre > code .token.function,
+pre > code .token.class-name {
+  color: #dcdcaa !important; /* VSCode dark function yellow */
+}
+
+pre > code .token.regex,
+pre > code .token.important,
+pre > code .token.variable {
+  color: #d16969 !important; /* VSCode dark variable red */
 }
 
 /* Inline code */
 :not(pre) > code {
-  background: #f3f4f6 !important;
-  color: #374151 !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
   padding: 0.125rem 0.375rem !important;
   border-radius: 0.25rem !important;
   font-size: 0.875em !important;
+  border: 1px solid #e2e8f0 !important;
 }
 
-/* Dark mode inline code */
 .dark :not(pre) > code {
-  background: #374151 !important;
-  color: #f3f4f6 !important;
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border: 1px solid #475569 !important;
 }
 
-/* Code block container */
-.contains-task-list,
-div[data-rehype-pretty-code-fragment],
-div[class*="code-block"],
-.code-block {
+/* ========== TAB SYSTEM FOR CODE BLOCKS ========== */
+
+/* Tab container - remove outer borders and background */
+.code-tabs {
   margin: 1.5rem 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
 }
 
-/* Remove any default margins and borders from pre inside tabs */
-.tabs-panel pre,
-[role="tabpanel"] pre,
-div[class*="tab-panel"] pre,
-div[style*="background"] > div > pre,
-div[style*="#0b0b0b"] pre,
-div[style*="#1e1e1e"] pre {
-  margin: 0 !important;
-  border-radius: 0 !important;
+.dark .code-tabs {
   border: none !important;
 }
 
-/* Tab styles for code blocks in general documentation */
-div[data-rehype-pretty-code-fragment] .tabs-header,
+/* Tab header */
 .code-tabs-header {
-  background: #f9fafb !important;
-  border-radius: 8px 8px 0 0 !important;
-  padding: 4px !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 0.5rem !important;
   display: flex !important;
-  gap: 4px !important;
+  gap: 0.25rem !important;
 }
 
-/* Dark mode tab styles */
-.dark div[data-rehype-pretty-code-fragment] .tabs-header,
 .dark .code-tabs-header {
-  background: #1f2937 !important;
+  background: #1e293b !important;
+  border-bottom: 1px solid #334155 !important;
 }
 
 /* Tab buttons */
-.code-tabs-header button,
-div[data-rehype-pretty-code-fragment] button {
+.code-tabs-header button {
   background: transparent !important;
   border: none !important;
-  padding: 0.5rem 1rem !important;
+  padding: 0.5rem 0.75rem !important;
   border-radius: 6px !important;
   font-size: 0.875rem !important;
   font-weight: 500 !important;
-  color: #6b7280 !important;
+  color: #64748b !important;
   cursor: pointer !important;
-  transition: all 0.2s !important;
+  transition: all 0.15s ease !important;
 }
 
-.code-tabs-header button:hover,
-div[data-rehype-pretty-code-fragment] button:hover {
-  background: #f3f4f6 !important;
+.code-tabs-header button:hover {
+  background: #e2e8f0 !important;
+  color: #475569 !important;
 }
 
-.code-tabs-header button.active,
-div[data-rehype-pretty-code-fragment] button[data-state="active"] {
+.code-tabs-header button.active {
   background: white !important;
   color: #3b82f6 !important;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Dark mode tab buttons */
-.dark .code-tabs-header button,
-.dark div[data-rehype-pretty-code-fragment] button {
-  color: #9ca3af !important;
+.dark .code-tabs-header button {
+  color: #94a3b8 !important;
 }
 
-.dark .code-tabs-header button:hover,
-.dark div[data-rehype-pretty-code-fragment] button:hover {
-  background: #374151 !important;
+.dark .code-tabs-header button:hover {
+  background: #334155 !important;
+  color: #cbd5e1 !important;
 }
 
-.dark .code-tabs-header button.active,
-.dark div[data-rehype-pretty-code-fragment] button[data-state="active"] {
-  background: #111827 !important;
+.dark .code-tabs-header button.active {
+  background: #0f172a !important;
   color: #60a5fa !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3) !important;
 }
 
-/* Copy button styling */
-.nextra-copy-button,
-button[class*="copy"],
+/* Tab content area - full width, no padding */
+.code-tabs-content {
+  background: inherit !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Code blocks inside tabs - full width, no borders */
+.code-tabs pre {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: inherit !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* ========== COPY BUTTON ========== */
+
 .copy-button {
-  background: rgba(55, 65, 81, 0.5) !important;
-  backdrop-filter: blur(4px) !important;
-  border: 1px solid rgba(75, 85, 99, 0.3) !important;
-  color: #d1d5db !important;
-  padding: 0.375rem 0.5rem !important;
-  border-radius: 6px !important;
   position: absolute !important;
   top: 0.75rem !important;
   right: 0.75rem !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  color: white !important;
+  border: none !important;
+  padding: 0.375rem 0.5rem !important;
+  border-radius: 4px !important;
+  font-size: 0.75rem !important;
+  cursor: pointer !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s ease !important;
   z-index: 10 !important;
 }
 
-.nextra-copy-button:hover,
-button[class*="copy"]:hover,
-.copy-button:hover {
-  background: rgba(75, 85, 99, 0.8) !important;
-  color: white !important;
+pre:hover .copy-button {
+  opacity: 1 !important;
 }
 
-/* Scrollbar for code blocks */
+.copy-button:hover {
+  background: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* ========== SCROLLBAR ========== */
+
 pre::-webkit-scrollbar {
   height: 8px;
   width: 8px;
@@ -199,67 +297,109 @@ pre::-webkit-scrollbar-track {
 }
 
 pre::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 pre::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: #94a3b8;
 }
 
-.dark pre::-webkit-scrollbar-track {
-  background: transparent;
+.dark pre::-webkit-scrollbar-thumb {
+  background: #475569;
 }
 
-/* Syntax highlighting adjustments */
-.shiki .line {
-  display: block;
-  padding: 0 1rem;
+.dark pre::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
-.shiki .line.highlighted {
-  background: rgba(255, 255, 255, 0.1) !important;
-}
+/* ========== OVERRIDE CONFLICTING NEXTRA STYLES ========== */
 
-/* Line numbers if present */
-.shiki .line-number {
-  color: #6b7280;
-  padding-right: 1rem;
-  user-select: none;
-}
-
-/* Ensure proper styling for code within tabs - no borders or radius */
-.bg-white pre,
-.dark\:bg-\[\#0b0b0b\] pre,
-div[style*="backgroundColor"] pre {
-  border-radius: 0 !important;
+/* Remove all Nextra code styling that conflicts */
+.nextra-code-block,
+.nextra-code-block pre,
+.nextra-code,
+div[data-rehype-pretty-code-fragment],
+div[data-rehype-pretty-code-fragment] pre,
+[class*="nx-"] pre {
   border: none !important;
   box-shadow: none !important;
+  background: inherit !important;
+  margin: 0 !important;
+  padding: inherit !important;
 }
 
-/* Override any conflicting Nextra styles */
-[class*="nx-"] pre {
+/* Restore main content padding but override for code blocks only */
+main.nx-w-full.nx-min-w-0.nx-max-w-6xl.nx-px-6.nx-pt-4,
+main[class*="nx-px-6"],
+main[class*="nx-px-12"] {
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+}
+
+/* Override Nextra code block containers */
+.nextra-code-block.nx-relative.nx-mt-6 {
+  padding: 0 !important;
   margin: 0 !important;
 }
 
-/* Ensure tab content has no padding that conflicts with code blocks */
+/* Override pre elements with Nextra classes - remove all visual styling */
+pre.nx-bg-primary-700\/5.nx-mb-4.nx-overflow-x-auto.nx-rounded-xl,
+pre[class*="nx-bg-primary"],
+pre[class*="nx-mb-"],
+pre[class*="nx-overflow-x-auto"],
+pre[class*="nx-rounded"] {
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+/* Ensure tab panels have no padding */
 div[role="tabpanel"],
 .tab-content,
 .tabs-panel {
   padding: 0 !important;
-}
-
-/* Remove borders from Nextra code blocks inside tabs */
-.nextra-code-block {
-  border: none !important;
   margin: 0 !important;
 }
 
-/* Specific rule for code blocks that are direct children of tab panels */
-div[style*="minHeight"] > pre,
-div[style*="minHeight"] > div > pre,
-div[style*="minHeight"] .nextra-code-block pre {
+/* Remove styling from any nested containers */
+div[style*="background"] pre,
+div[style*="#0b0b0b"] pre,
+div[style*="#1e1e1e"] pre,
+div[style*="minHeight"] pre {
   border: none !important;
   border-radius: 0 !important;
   margin: 0 !important;
+  box-shadow: none !important;
+  padding: 1rem !important;
+}
+
+/* Aggressive override for code tabs - remove all padding and margins from wrappers */
+.code-tabs .code-tabs-content > *,
+.code-tabs .code-tabs-content > * > *,
+.code-tabs .code-tabs-content > * > * > * {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Ensure code blocks in tabs span full width */
+.code-tabs .code-tabs-content pre {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+
+/* Override any Nextra container styles */
+.code-tabs [class*="nextra"],
+.code-tabs [class*="nx-"],
+.code-tabs div[class*="code"] {
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
 }
