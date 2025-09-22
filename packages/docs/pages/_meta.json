@@ -1,6 +1,7 @@
 {
   "index": "Introduction",
   "getting-started": "Getting Started",
+  "api-docs": "API Documentation",
   "-- divider1": {
     "type": "separator",
     "title": "Core Concepts"
@@ -20,15 +21,5 @@
   "recipes": "Recipes",
   "examples": "Examples",
   "helpers": "Helper Functions",
-  "advanced": "Advanced Features",
-  "-- divider4": {
-    "type": "separator",
-    "title": "API Reference"
-  },
-  "api-reference": "API Reference",
-  "api-docs": {
-    "title": "Generated API Docs",
-    "type": "page",
-    "href": "/api"
-  }
+  "advanced": "Advanced Features"
 }

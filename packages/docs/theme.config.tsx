@@ -175,7 +175,7 @@ const config: DocsThemeConfig = {
     next: true
   },
   editLink: {
-    component: 'Edit this page on GitHub →'
+    text: 'Edit this page on GitHub →'
   },
   feedback: {
     content: 'Questions? Give us feedback →',

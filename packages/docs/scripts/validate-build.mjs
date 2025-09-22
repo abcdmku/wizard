@@ -67,7 +67,7 @@ async function validateNextBuild() {
 async function validateTypeDocBuild() {
   log(colors.blue, '\n📋 Validating TypeDoc API documentation...');
 
-  const apiDir = join(docsRoot, 'public/api');
+  const apiDir = join(docsRoot, 'out/typedoc');
 
   // Check if TypeDoc output exists
   if (!(await checkFileExists(apiDir))) {
@@ -76,9 +76,9 @@ async function validateTypeDocBuild() {
 
   // Check for essential TypeDoc files
   const requiredApiFiles = [
-    'public/api/index.html',
-    'public/api/modules',
-    'public/api/assets'
+    'out/typedoc/index.html',
+    'out/typedoc/modules',
+    'out/typedoc/assets'
   ];
 
   for (const file of requiredApiFiles) {
@@ -89,7 +89,7 @@ async function validateTypeDocBuild() {
   }
 
   // Validate API content
-  const indexPath = join(docsRoot, 'public/api/index.html');
+  const indexPath = join(docsRoot, 'out/typedoc/index.html');
   const indexContent = await readFile(indexPath, 'utf-8');
 
   // Check for key content
@@ -182,7 +182,7 @@ async function validateBuildSize() {
   log(colors.blue, '\n📋 Validating build size...');
 
   const nextDir = join(docsRoot, '.next');
-  const apiDir = join(docsRoot, 'public/api');
+  const apiDir = join(docsRoot, 'out/typedoc');
 
   try {
     // Get directory sizes (simplified check)
@@ -212,8 +212,8 @@ async function generateBuildReport() {
       buildId: ''
     },
     typedoc: {
-      built: await checkFileExists(join(docsRoot, 'public/api')),
-      indexExists: await checkFileExists(join(docsRoot, 'public/api/index.html'))
+      built: await checkFileExists(join(docsRoot, 'out/typedoc')),
+      indexExists: await checkFileExists(join(docsRoot, 'out/typedoc/index.html'))
     },
     pages: {},
     examples: {}
