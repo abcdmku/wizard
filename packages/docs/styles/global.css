@@ -69,36 +69,29 @@ div[class*="nextra"] pre > code {
 
 /* Override Shiki CSS variables with VSCode Dark Plus theme colors */
 html.dark {
-  --shiki-color-text: #D4D4D4;                /* Default text */
-  --shiki-color-background: transparent;
-  --shiki-token-constant: #B5CEA8;            /* Numbers, true/false */
-  --shiki-token-string: #CE9178;              /* Strings */
-  --shiki-token-comment: #6A9955;             /* Comments */
-  --shiki-token-keyword: #569CD6;             /* Keywords (const, let, interface) */
-  --shiki-token-parameter: #9CDCFE;           /* Parameters/variables */
-  --shiki-token-function: #DCDCAA;            /* Functions */
-  --shiki-token-string-expression: #CE9178;   /* Template literals */
-  --shiki-token-punctuation: #D4D4D4;         /* Brackets, operators */
-  --shiki-token-link: #569CD6;
-  /* TypeScript types - correct cyan/teal color */
-  --shiki-token-class-name: #4EC9B0;          /* Types, classes, interfaces */
-  --shiki-token-type: #4EC9B0;                /* Type annotations */
-  --shiki-token-interface: #4EC9B0;           /* Interface names */
-  /* Additional VSCode Dark Plus mappings */
-  --shiki-token-variable: #9CDCFE;            /* Variable names */
-  --shiki-token-property: #9CDCFE;            /* Object properties */
-  --shiki-token-operator: #D4D4D4;            /* =, +, -, etc */
-  --shiki-token-number: #B5CEA8;              /* Numeric literals */
-  /* Control keywords */
-  --shiki-token-control: #C586C0;             /* Control flow keywords */
-  /* Constants and enum members */
-  --shiki-token-constant-other: #4FC1FF;      /* Constants and enum members */
-  /* Regex patterns */
-  --shiki-token-regex: #D16969;               /* Regular expressions */
-  /* Invalid/error tokens */
-  --shiki-token-invalid: #F44747;             /* Invalid syntax */
-  /* Escape characters */
-  --shiki-token-escape: #D7BA7D;              /* Escape sequences */
+    --shiki-color-text: #9CDCFE;
+    --shiki-color-background: transparent;
+    --shiki-token-constant: #4EC9B0;
+    --shiki-token-string: #CE9178;
+    --shiki-token-comment: #6A9955;
+    --shiki-token-keyword: #569CD6;
+    --shiki-token-parameter: #9CDCFE;
+    --shiki-token-function: #DCDCAA;
+    --shiki-token-string-expression: #CE9178;
+    --shiki-token-punctuation: #D4D4D4;
+    --shiki-token-link: #569CD6;
+    --shiki-token-class-name: #4EC9B0;
+    --shiki-token-type: #4EC9B0;
+    --shiki-token-interface: #4EC9B0;
+    --shiki-token-variable: #9CDCFE;
+    --shiki-token-property: #9CDCFE;
+    --shiki-token-operator: #D4D4D4;
+    --shiki-token-number: #B5CEA8;
+    --shiki-token-control: #C586C0;
+    --shiki-token-constant-other: #4FC1FF;
+    --shiki-token-regex: #D16969;
+    --shiki-token-invalid: #F44747;
+    --shiki-token-escape: #D7BA7D;
 }
 
 /* ========== LEGACY TOKEN CLASS SUPPORT ========== */
@@ -465,6 +458,34 @@ pre:hover .copy-button {
 
 .copy-button:hover {
   background: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* ========== BRACKET RAINBOW COLORS ========== */
+
+/* Use JavaScript-powered bracket coloring since CSS can't target partial text content */
+.dark pre code {
+  position: relative;
+}
+
+/* Style classes for JavaScript-applied bracket colors */
+.dark .bracket-level-1 {
+  color: #DCDCAA !important; /* Yellow */
+}
+
+.dark .bracket-level-2 {
+  color: #C586C0 !important; /* Magenta */
+}
+
+.dark .bracket-level-3 {
+  color: #569CD6 !important; /* Blue */
+}
+
+/* Ensure bracket colors override other styles */
+.dark .bracket-level-1,
+.dark .bracket-level-2,
+.dark .bracket-level-3 {
+  font-weight: inherit !important;
+  font-style: inherit !important;
 }
 
 /* ========== SCROLLBAR ========== */

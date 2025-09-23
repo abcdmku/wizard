@@ -1,5 +1,13 @@
 import '../styles/global.css'
+import { useEffect } from 'react'
 
 export default function App({ Component, pageProps }) {
+  useEffect(() => {
+    // Load bracket colorizer
+    import('../components/bracket-colorizer.js').then(module => {
+      module.colorizeCodeBrackets()
+    })
+  }, [])
+
   return <Component {...pageProps} />
 }
