@@ -68,27 +68,37 @@ div[class*="nextra"] pre > code {
 }
 
 /* Override Shiki CSS variables with VSCode Dark Plus theme colors */
-.dark {
-  --shiki-color-text: #d4d4d4;                /* Default text */
+html.dark {
+  --shiki-color-text: #D4D4D4;                /* Default text */
   --shiki-color-background: transparent;
-  --shiki-token-constant: #b5cea8;            /* Numbers, true/false */
-  --shiki-token-string: #ce9178;              /* Strings */
-  --shiki-token-comment: #6a9955;             /* Comments */
-  --shiki-token-keyword: #569cd6;             /* Keywords (const, let, interface) */
-  --shiki-token-parameter: #9cdcfe;           /* Parameters/variables */
-  --shiki-token-function: #dcdcaa;            /* Functions */
-  --shiki-token-string-expression: #ce9178;   /* Template literals */
-  --shiki-token-punctuation: #d4d4d4;         /* Brackets, operators */
-  --shiki-token-link: #569cd6;
+  --shiki-token-constant: #B5CEA8;            /* Numbers, true/false */
+  --shiki-token-string: #CE9178;              /* Strings */
+  --shiki-token-comment: #6A9955;             /* Comments */
+  --shiki-token-keyword: #569CD6;             /* Keywords (const, let, interface) */
+  --shiki-token-parameter: #9CDCFE;           /* Parameters/variables */
+  --shiki-token-function: #DCDCAA;            /* Functions */
+  --shiki-token-string-expression: #CE9178;   /* Template literals */
+  --shiki-token-punctuation: #D4D4D4;         /* Brackets, operators */
+  --shiki-token-link: #569CD6;
   /* TypeScript types - correct cyan/teal color */
-  --shiki-token-class-name: #4ec9b0;          /* Types, classes, interfaces */
-  --shiki-token-type: #4ec9b0;                /* Type annotations */
-  --shiki-token-interface: #4ec9b0;           /* Interface names */
+  --shiki-token-class-name: #4EC9B0;          /* Types, classes, interfaces */
+  --shiki-token-type: #4EC9B0;                /* Type annotations */
+  --shiki-token-interface: #4EC9B0;           /* Interface names */
   /* Additional VSCode Dark Plus mappings */
-  --shiki-token-variable: #9cdcfe;            /* Variable names */
-  --shiki-token-property: #9cdcfe;            /* Object properties */
-  --shiki-token-operator: #d4d4d4;            /* =, +, -, etc */
-  --shiki-token-number: #b5cea8;              /* Numeric literals */
+  --shiki-token-variable: #9CDCFE;            /* Variable names */
+  --shiki-token-property: #9CDCFE;            /* Object properties */
+  --shiki-token-operator: #D4D4D4;            /* =, +, -, etc */
+  --shiki-token-number: #B5CEA8;              /* Numeric literals */
+  /* Control keywords */
+  --shiki-token-control: #C586C0;             /* Control flow keywords */
+  /* Constants and enum members */
+  --shiki-token-constant-other: #4FC1FF;      /* Constants and enum members */
+  /* Regex patterns */
+  --shiki-token-regex: #D16969;               /* Regular expressions */
+  /* Invalid/error tokens */
+  --shiki-token-invalid: #F44747;             /* Invalid syntax */
+  /* Escape characters */
+  --shiki-token-escape: #D7BA7D;              /* Escape sequences */
 }
 
 /* ========== LEGACY TOKEN CLASS SUPPORT ========== */
@@ -100,13 +110,13 @@ div[class*="nextra"] pre > code {
 .dark pre > code .token.cdata,
 .dark pre code [data-theme="dark"] .token.comment,
 .dark pre code .hljs-comment {
-  color: #6a9955 !important; /* VSCode Dark Plus comment green */
+  color: #6A9955 !important; /* VSCode Dark Plus comment green */
 }
 
 .dark pre > code .token.punctuation,
 .dark pre code [data-theme="dark"] .token.punctuation,
 .dark pre code .hljs-punctuation {
-  color: #d4d4d4 !important; /* VSCode Dark Plus punctuation */
+  color: #D4D4D4 !important; /* VSCode Dark Plus punctuation */
 }
 
 .dark pre > code .token.property,
@@ -119,7 +129,7 @@ div[class*="nextra"] pre > code {
 .dark pre code [data-theme="dark"] .token.number,
 .dark pre code .hljs-number,
 .dark pre code .hljs-literal {
-  color: #b5cea8 !important; /* VSCode Dark Plus number/constant */
+  color: #B5CEA8 !important; /* VSCode Dark Plus number/constant */
 }
 
 .dark pre > code .token.selector,
@@ -130,7 +140,7 @@ div[class*="nextra"] pre > code {
 .dark pre > code .token.inserted,
 .dark pre code [data-theme="dark"] .token.string,
 .dark pre code .hljs-string {
-  color: #ce9178 !important; /* VSCode Dark Plus string orange */
+  color: #CE9178 !important; /* VSCode Dark Plus string orange */
 }
 
 .dark pre > code .token.operator,
@@ -140,7 +150,7 @@ div[class*="nextra"] pre > code {
 .dark pre > code .style .token.string,
 .dark pre code [data-theme="dark"] .token.operator,
 .dark pre code .hljs-operator {
-  color: #d4d4d4 !important; /* VSCode Dark Plus operator */
+  color: #D4D4D4 !important; /* VSCode Dark Plus operator */
 }
 
 .dark pre > code .token.atrule,
@@ -148,14 +158,14 @@ div[class*="nextra"] pre > code {
 .dark pre > code .token.keyword,
 .dark pre code [data-theme="dark"] .token.keyword,
 .dark pre code .hljs-keyword {
-  color: #569cd6 !important; /* VSCode Dark Plus keyword blue */
+  color: #569CD6 !important; /* VSCode Dark Plus keyword blue */
 }
 
 .dark pre > code .token.function,
 .dark pre code [data-theme="dark"] .token.function,
 .dark pre code .hljs-function,
 .dark pre code .hljs-title {
-  color: #dcdcaa !important; /* VSCode Dark Plus function yellow */
+  color: #DCDCAA !important; /* VSCode Dark Plus function yellow */
 }
 
 /* Variables and parameters - light blue like in VSCode */
@@ -163,7 +173,7 @@ div[class*="nextra"] pre > code {
 .dark pre > code .token.parameter,
 .dark pre code [data-theme="dark"] .token.variable,
 .dark pre code .hljs-variable {
-  color: #9cdcfe !important; /* VSCode Dark Plus variable light blue */
+  color: #9CDCFE !important; /* VSCode Dark Plus variable light blue */
 }
 
 /* Types, classes, interfaces - cyan/teal */
@@ -173,12 +183,12 @@ div[class*="nextra"] pre > code {
 .dark pre code .hljs-built_in,
 .dark pre code .hljs-type,
 .dark pre code .hljs-class {
-  color: #4ec9b0 !important; /* VSCode Dark Plus type cyan */
+  color: #4EC9B0 !important; /* VSCode Dark Plus type cyan */
 }
 
 .dark pre > code .token.regex,
 .dark pre > code .token.important {
-  color: #d16969 !important; /* VSCode Dark Plus regex red */
+  color: #D16969 !important; /* VSCode Dark Plus regex red */
 }
 
 /* Light theme syntax highlighting - VSCode Light Theme - Multiple selectors for compatibility */
@@ -285,18 +295,47 @@ pre > code .token.tag {
 .dark pre > code .token.class-name,
 .dark pre > code .token.type-annotation,
 .dark pre > code .token.type {
-  color: #4ec9b0 !important; /* VSCode dark type/class cyan */
+  color: #4EC9B0 !important; /* VSCode dark type/class cyan */
 }
 
 .dark pre code .hljs-attr,
 .dark pre code .hljs-attribute,
 .dark pre > code .token.attr-name {
-  color: #92c5f8 !important; /* VSCode dark attribute light blue */
+  color: #9CDCFE !important; /* VSCode dark attribute light blue */
 }
 
 .dark pre code .hljs-tag,
 .dark pre > code .token.tag {
-  color: #569cd6 !important; /* VSCode dark tag blue */
+  color: #569CD6 !important; /* VSCode dark tag blue */
+}
+
+/* Control keywords - purple/magenta */
+.dark pre > code .token.control,
+.dark pre > code .token.keyword.control,
+.dark pre code .hljs-keyword.control {
+  color: #C586C0 !important; /* VSCode dark control keywords purple */
+}
+
+/* Constants and enum members - bright blue */
+.dark pre > code .token.constant.other,
+.dark pre > code .token.variable.other.constant,
+.dark pre > code .token.variable.other.enummember,
+.dark pre code .hljs-constant {
+  color: #4FC1FF !important; /* VSCode dark constants bright blue */
+}
+
+/* Escape characters - yellow/gold */
+.dark pre > code .token.escape,
+.dark pre > code .token.character.escape,
+.dark pre code .hljs-escape {
+  color: #D7BA7D !important; /* VSCode dark escape characters yellow */
+}
+
+/* Invalid/error tokens - bright red */
+.dark pre > code .token.invalid,
+.dark pre > code .token.error,
+.dark pre code .hljs-error {
+  color: #F44747 !important; /* VSCode dark invalid/error bright red */
 }
 
 /* Inline code */
