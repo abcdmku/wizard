@@ -1,4 +1,4 @@
-import { createWizard, defineSteps } from "@wizard/core";
+import { defineSteps, step, createWizard } from "./factory";
 import type { WizardContext, WizardStepData, UserRole } from "./types";
 import { determineNextStep, canAccessStep } from "./navigation";
 
@@ -32,13 +32,13 @@ const initialData: WizardStepData = {
 };
 
 export const steps = defineSteps({
-  roleSelection: {
+  roleSelection: step({
     data: initialData.roleSelection,
-    next: ({ data, ctx }) => {
-      return determineNextStep('roleSelection', data.role, ctx);
+    next: ({ data, context }) => {
+      return determineNextStep('roleSelection', data.role, context);
     },
     beforeExit: ({ data, updateContext }) => {
-      updateContext((ctx: WizardContext) => {
+      updateContext((ctx) => {
         ctx.role = data.role;
         ctx.completedSteps.push('roleSelection');
       });
@@ -47,12 +47,12 @@ export const steps = defineSteps({
       label: 'Select Role',
       description: 'Choose your role to customize the wizard experience'
     }
-  },
+  }),
   
-  userProfile: {
+  userProfile: step({
     data: initialData.userProfile,
-    canEnter: ({ ctx }) => canAccessStep('userProfile', ctx.role, ctx),
-    next: ({ ctx }) => determineNextStep('userProfile', ctx.role, ctx),
+    canEnter: ({ context }) => canAccessStep('userProfile', context.role, context),
+    next: ({ context }) => determineNextStep('userProfile', context.role, context),
     validate: ({ data }) => {
       const d = data as typeof initialData.userProfile;
       if (!d.firstName || !d.lastName) {
@@ -66,7 +66,7 @@ export const steps = defineSteps({
       }
     },
     beforeExit: ({ updateContext }) => {
-      updateContext((ctx: WizardContext) => {
+      updateContext((ctx) => {
         ctx.completedSteps.push('userProfile');
       });
     },
@@ -75,18 +75,18 @@ export const steps = defineSteps({
       description: 'Enter your personal information',
       visibleTo: ['user']
     }
-  },
+  }),
   
-  adminPanel: {
+  adminPanel: step({
     data: initialData.adminPanel,
-    canEnter: ({ ctx }) => canAccessStep('adminPanel', ctx.role, ctx),
-    next: ({ data, ctx }) => {
+    canEnter: ({ context }) => canAccessStep('adminPanel', context.role, context),
+    next: ({ data, context }) => {
       // Update context first
-      ctx.requiresApproval = data.requiresApproval;
-      return determineNextStep('adminPanel', ctx.role, ctx);
+      context.requiresApproval = data.requiresApproval;
+      return determineNextStep('adminPanel', context.role, context);
     },
     beforeExit: ({ data, updateContext }) => {
-      updateContext((ctx: WizardContext) => {
+      updateContext((ctx) => {
         ctx.requiresApproval = data.requiresApproval;
         ctx.completedSteps.push('adminPanel');
       });
@@ -96,12 +96,12 @@ export const steps = defineSteps({
       description: 'Configure system-wide settings',
       visibleTo: ['admin']
     }
-  },
+  }),
   
-  managerDashboard: {
+  managerDashboard: step({
     data: initialData.managerDashboard,
-    canEnter: ({ ctx }) => canAccessStep('managerDashboard', ctx.role, ctx),
-    next: ({ ctx }) => determineNextStep('managerDashboard', ctx.role, ctx),
+    canEnter: ({ context }) => canAccessStep('managerDashboard', context.role, context),
+    next: ({ context }) => determineNextStep('managerDashboard', context.role, context),
     validate: ({ data }) => {
       const d = data as typeof initialData.managerDashboard;
       if (d.teamSize < 0) {
@@ -115,7 +115,7 @@ export const steps = defineSteps({
       }
     },
     beforeExit: ({ updateContext }) => {
-      updateContext((ctx: WizardContext) => {
+      updateContext((ctx) => {
         ctx.completedSteps.push('managerDashboard');
       });
     },
@@ -124,9 +124,9 @@ export const steps = defineSteps({
       description: 'Configure team and budget settings',
       visibleTo: ['manager', 'admin']
     }
-  },
+  }),
   
-  sharedReview: {
+  sharedReview: step({
     data: initialData.sharedReview,
     next: [],
     validate: ({ data }) => {
@@ -139,7 +139,7 @@ export const steps = defineSteps({
       }
     },
     beforeExit: ({ updateContext }) => {
-      updateContext((ctx: WizardContext) => {
+      updateContext((ctx) => {
         ctx.completedSteps.push('sharedReview');
       });
     },
@@ -147,14 +147,7 @@ export const steps = defineSteps({
       label: 'Review & Feedback',
       description: 'Share your experience and feedback'
     }
-  },
+  }),
 });
 
-export const branchingWizard = createWizard({
-  context: {
-    role: '' as UserRole | '',
-    requiresApproval: false,
-    completedSteps: []
-  } as WizardContext,
-  steps,
-});
+export const branchingWizard = createWizard(steps);

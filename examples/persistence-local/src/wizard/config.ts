@@ -1,16 +1,47 @@
-import { createWizard } from '@wizard/core';
-import type { WizardContext } from './types';
+import { defineSteps, step, createWizard } from './factory';
 import { storageAdapter } from '../utils/persistence';
 
-export const resumeWizard = createWizard<WizardContext>({
+const steps = defineSteps({
+  personal: step({
+    data: {},
+    next: ['experience'],
+    meta: { label: 'Personal Information', icon: '👤' },
+  }),
+  experience: step({
+    data: {},
+    next: ['education'],
+    meta: { label: 'Work Experience', icon: '💼' },
+  }),
+  education: step({
+    data: {},
+    next: ['skills'],
+    meta: { label: 'Education', icon: '🎓' },
+  }),
+  skills: step({
+    data: {},
+    next: ['projects'],
+    meta: { label: 'Skills', icon: '⚡' },
+  }),
+  projects: step({
+    data: {},
+    next: ['summary'],
+    meta: { label: 'Projects', icon: '🚀' },
+  }),
+  summary: step({
+    data: {},
+    next: ['preview'],
+    meta: { label: 'Professional Summary', icon: '📝' },
+  }),
+  preview: step({
+    data: {},
+    next: [],
+    meta: { label: 'Preview & Export', icon: '👁️' },
+  }),
+});
+
+export const resumeWizard = createWizard(steps, {
   id: 'resume-builder',
   initial: 'personal',
-  context: {
-    resumeData: {},
-    isDirty: false,
-    autoSaveEnabled: true,
-    recoveredFromStorage: false,
-  },
   
   // Load saved data on initialization
   onInit: async (ctx) => {
@@ -36,41 +67,5 @@ export const resumeWizard = createWizard<WizardContext>({
       };
     }
     return ctx;
-  },
-  
-  nodes: {
-    personal: {
-      meta: { label: 'Personal Information', icon: '👤' },
-      next: 'experience',
-    },
-    experience: {
-      meta: { label: 'Work Experience', icon: '💼' },
-      next: 'education',
-      prev: 'personal',
-    },
-    education: {
-      meta: { label: 'Education', icon: '🎓' },
-      next: 'skills',
-      prev: 'experience',
-    },
-    skills: {
-      meta: { label: 'Skills', icon: '⚡' },
-      next: 'projects',
-      prev: 'education',
-    },
-    projects: {
-      meta: { label: 'Projects', icon: '🚀' },
-      next: 'summary',
-      prev: 'skills',
-    },
-    summary: {
-      meta: { label: 'Professional Summary', icon: '📝' },
-      next: 'preview',
-      prev: 'projects',
-    },
-    preview: {
-      meta: { label: 'Preview & Export', icon: '👁️' },
-      prev: 'summary',
-    },
   },
 });

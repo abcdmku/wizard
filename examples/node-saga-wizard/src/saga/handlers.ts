@@ -33,18 +33,18 @@ export const handleReserveExit = async ({
 
 export const handleChargeExit = async ({ 
   data, 
-  ctx, 
+  context, 
   updateContext 
 }: { 
   data: any; 
-  ctx: OrderContext; 
+  context: OrderContext; 
   updateContext: (fn: (ctx: OrderContext) => void) => void 
 }) => {
   if (!data.confirmed) {
     throw new Error("Payment not confirmed");
   }
 
-  console.log(`  Processing ${data.paymentMethod} payment for $${ctx.totalAmount}`);
+  console.log(`  Processing ${data.paymentMethod} payment for $${context.totalAmount}`);
   await new Promise(resolve => setTimeout(resolve, 1500));
 
   const paymentId = `PAY-${Date.now()}`;
@@ -72,19 +72,19 @@ export const handleNotifyExit = async ({
 
 export const handleCompleteExit = ({ 
   data, 
-  ctx 
+  context 
 }: { 
   data: any; 
-  ctx: OrderContext 
+  context: OrderContext 
 }) => {
   if (!data.confirmed) {
     throw new Error("Order not confirmed");
   }
   console.log("✓ Order completed successfully!");
   console.log("  Final state:", {
-    orderId: ctx.orderId,
-    customerId: ctx.customerId,
-    paymentId: ctx.paymentId,
-    totalAmount: ctx.totalAmount,
+    orderId: context.orderId,
+    customerId: context.customerId,
+    paymentId: context.paymentId,
+    totalAmount: context.totalAmount,
   });
 };

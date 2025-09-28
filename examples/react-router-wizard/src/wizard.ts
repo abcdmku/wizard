@@ -1,6 +1,5 @@
-import { createWizard } from '@wizard/core';
+import { defineSteps, step, createWizard } from './wizard/factory';
 import { createZodValidator } from '@wizard/core/zod';
-import type { CheckoutContext, CheckoutSteps, CheckoutDataMap } from './types';
 import {
   accountSchema,
   shippingSchema,
@@ -8,63 +7,61 @@ import {
   reviewSchema,
 } from './types';
 
-export const checkoutWizard = createWizard<
-  CheckoutContext,
-  CheckoutSteps,
-  CheckoutDataMap
->({
+const steps = defineSteps({
+  account: step({
+    data: { email: '' },
+    validate: createZodValidator(accountSchema),
+    next: ['shipping'],
+    beforeExit: async ({ updateContext, data }) => {
+      // Set userId based on email (simulated)
+      updateContext((ctx) => {
+        ctx.userId = data.email.toLowerCase();
+      });
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    },
+  }),
+  shipping: step({
+    data: { address: '', city: '', zipCode: '' },
+    validate: createZodValidator(shippingSchema),
+    next: ['payment'],
+    canEnter: ({ context }) => Boolean(context.userId),
+    beforeEnter: async () => {
+      // Simulate loading saved address
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Could pre-populate from saved data
+    },
+  }),
+  payment: step({
+    data: { cardLast4: '', cardHolder: '' },
+    validate: createZodValidator(paymentSchema),
+    next: ({ context }) => {
+      // Dynamic next step based on context
+      return ['review'];
+    },
+    canEnter: ({ context }) => Boolean(context.userId),
+    beforeExit: async ({ updateContext, data }) => {
+      // Calculate total after payment info
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const subtotal = 100;
+      const fee = 2.5;
+      updateContext((ctx) => {
+        ctx.total = subtotal + fee;
+      });
+    },
+  }),
+  review: step({
+    data: { agreed: false },
+    validate: createZodValidator(reviewSchema),
+    next: [],
+    canEnter: ({ context }) => context.total > 0,
+  }),
+});
+
+export const checkoutWizard = createWizard(steps, {
   initialStep: 'account',
-  initialContext: {
-    total: 0,
-    coupon: null,
-  },
   keepHistory: true,
   maxHistorySize: 10,
-  steps: {
-    account: {
-      validate: createZodValidator(accountSchema),
-      next: ['shipping'],
-      beforeExit: async ({ updateContext, data }) => {
-        // Set userId based on email (simulated)
-        updateContext((ctx) => {
-          ctx.userId = data.email.toLowerCase();
-        });
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      },
-    },
-    shipping: {
-      validate: createZodValidator(shippingSchema),
-      next: ['payment'],
-      canEnter: ({ ctx }) => Boolean(ctx.userId),
-      load: async ({ setStepData }) => {
-        // Simulate loading saved address
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        // Could pre-populate from saved data
-      },
-    },
-    payment: {
-      validate: createZodValidator(paymentSchema),
-      next: ({ ctx }) => {
-        // Dynamic next step based on context
-        return ['review'];
-      },
-      beforeExit: async ({ updateContext, data }) => {
-        // Calculate total after payment info
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        const subtotal = 100;
-        const fee = 2.5;
-        updateContext((ctx) => {
-          ctx.total = subtotal + fee;
-        });
-      },
-    },
-    review: {
-      validate: createZodValidator(reviewSchema),
-      next: [],
-      canEnter: ({ ctx }) => ctx.total > 0,
-    },
-  },
   onTransition: (event) => {
     console.log('Wizard transition:', event);
   },
