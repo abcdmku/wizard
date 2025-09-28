@@ -11,11 +11,11 @@ export function StepIndicator() {
     <div className="w-full">
       <div className="flex items-center justify-between relative">
         {/* Background line */}
-        <div className="absolute left-6 right-6 top-6 h-0.5 bg-gray-200" />
+        <div className="absolute left-6 right-6 top-6 h-0.5 bg-gray-200 dark:bg-gray-600" />
 
         {/* Progress line */}
         <div
-          className="absolute left-6 top-6 h-0.5 bg-blue-600 transition-all duration-300 ease-in-out"
+          className="absolute left-6 top-6 h-0.5 bg-blue-600 dark:bg-blue-500 transition-all duration-300 ease-in-out"
           style={{
             width: currentIndex === 0 ? '0%' :
                    currentIndex === 1 ? 'calc(50% - 24px)' :
@@ -28,10 +28,10 @@ export function StepIndicator() {
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-200 ${
                 currentIndex === index
-                  ? "bg-blue-600 text-white border-blue-600 shadow-lg scale-110"
+                  ? "bg-blue-600 dark:bg-blue-500 text-white border-blue-600 dark:border-blue-500 shadow-lg scale-110"
                   : currentIndex > index
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-400 border-gray-200"
+                  ? "bg-blue-600 dark:bg-blue-500 text-white border-blue-600 dark:border-blue-500"
+                  : "bg-white dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600"
               }`}
             >
               {currentIndex > index ? (
@@ -45,10 +45,10 @@ export function StepIndicator() {
             <span
               className={`mt-3 text-sm font-medium transition-colors duration-200 ${
                 currentIndex === index
-                  ? "text-blue-600"
+                  ? "text-blue-600 dark:text-blue-400"
                   : currentIndex > index
-                  ? "text-gray-900"
-                  : "text-gray-400"
+                  ? "text-gray-900 dark:text-gray-100"
+                  : "text-gray-400 dark:text-gray-500"
               }`}
             >
               {STEP_LABELS[index]}

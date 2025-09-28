@@ -15,7 +15,7 @@ export function AccountStep() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Create Account</h2>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Create Account</h2>
 
       <FormField
         label="Email"
