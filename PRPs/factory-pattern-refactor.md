@@ -49,7 +49,7 @@ export const wizard = createWizard({
 });
 ```
 
-#### New Pattern (factory pattern):
+#### New Pattern (factory pattern with destructuring):
 ```typescript
 import { wizardWithContext } from "@wizard/core";
 
@@ -57,12 +57,12 @@ type AppContext = {
   userId: string;
 };
 
-const factory = wizardWithContext<AppContext>({
+const { defineSteps, step, createWizard } = wizardWithContext<AppContext>({
   userId: ""
 });
 
-const steps = factory.defineSteps({
-  step1: factory.step({
+const steps = defineSteps({
+  step1: step({
     data: { value: "" },
     next: ["step2"],
     beforeExit: ({ context, data }) => {
@@ -72,7 +72,7 @@ const steps = factory.defineSteps({
   })
 });
 
-export const wizard = factory.createWizard(steps);
+export const wizard = createWizard(steps);
 ```
 
 ## Research Findings
@@ -87,8 +87,9 @@ From `packages/core/src/index.ts`:
 From `packages/core/src/tests/factory-step-test.ts`:
 ```typescript
 const factory = createWizardFactory<AppContext>();
-const steps = factory.defineSteps({
-  step1: factory.step({
+const { defineSteps, step, createWizard } = factory;
+const steps = defineSteps({
+  step1: step({
     data: { enabled: true, value: 42 },
     canEnter: ({ context, data }) => {
       // All parameters properly typed
@@ -96,7 +97,7 @@ const steps = factory.defineSteps({
     }
   })
 });
-const wizard = factory.createWizard(context, steps);
+const wizard = createWizard(context, steps);
 ```
 
 From `packages/core/src/tests/context-inference-test.ts`:
@@ -125,29 +126,29 @@ const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
 import { wizardWithContext } from "@wizard/core";
 import type { WizardContext } from "./types";
 
-export const factory = wizardWithContext<WizardContext>({
+export const { defineSteps, step, createWizard } = wizardWithContext<WizardContext>({
   totalSteps: 3,
   completedSteps: [] as string[]
 });
 
 // wizard/config.ts
-import { factory } from "./factory";
+import { defineSteps, step, createWizard } from "./factory";
 import { validateAccount, validatePersonal, validateAddress } from "./validation";
 
-const steps = factory.defineSteps({
-  account: factory.step({
+const steps = defineSteps({
+  account: step({
     validate: validateAccount,
     data: { email: "", password: "", confirmPassword: "" },
     next: ["personal"],
     meta: { label: "Account", iconKey: "user" }
   }),
-  personal: factory.step({
+  personal: step({
     validate: validatePersonal,
     data: { firstName: "", lastName: "", dateOfBirth: "" },
     next: ["address"],
     meta: { label: "Personal", iconKey: "person" }
   }),
-  address: factory.step({
+  address: step({
     validate: validateAddress,
     data: { street: "", city: "", state: "", zipCode: "", country: "" },
     next: [],
@@ -155,7 +156,7 @@ const steps = factory.defineSteps({
   })
 });
 
-export const formWizard = factory.createWizard(steps);
+export const formWizard = createWizard(steps);
 ```
 
 #### 1.2 advanced-branching
@@ -164,18 +165,18 @@ export const formWizard = factory.createWizard(steps);
 import { wizardWithContext } from "@wizard/core";
 import type { WizardContext } from "./types";
 
-export const factory = wizardWithContext<WizardContext>({
+export const { defineSteps, step, createWizard } = wizardWithContext<WizardContext>({
   role: 'user' as UserRole,
   completedSteps: [] as string[],
   requiresApproval: false
 });
 
 // wizard/config.ts
-import { factory } from "./factory";
+import { defineSteps, step, createWizard } from "./factory";
 import { determineNextStep, canAccessStep } from "./navigation";
 
-const steps = factory.defineSteps({
-  roleSelection: factory.step({
+const steps = defineSteps({
+  roleSelection: step({
     data: { role: 'user' },
     next: ({ data, context }) => determineNextStep('roleSelection', data.role, context),
     beforeExit: ({ data, updateContext }) => {
@@ -186,7 +187,7 @@ const steps = factory.defineSteps({
     },
     meta: { label: 'Select Role' }
   }),
-  // ... other steps with proper factory.step() usage
+  // ... other steps with proper step() usage
 });
 ```
 
@@ -197,7 +198,7 @@ import { wizardWithContext } from "@wizard/core";
 import type { WizardContext } from "./types";
 import { storageAdapter } from "../utils/persistence";
 
-export const factory = wizardWithContext<WizardContext>({
+export const { defineSteps, step, createWizard } = wizardWithContext<WizardContext>({
   resumeData: {},
   isDirty: false,
   autoSaveEnabled: true,
@@ -205,11 +206,11 @@ export const factory = wizardWithContext<WizardContext>({
 });
 
 // wizard/config.ts
-import { factory } from "./factory";
+import { defineSteps, step, createWizard } from "./factory";
 import { storageAdapter } from "../utils/persistence";
 
-const steps = factory.defineSteps({
-  personal: factory.step({
+const steps = defineSteps({
+  personal: step({
     data: { /* ... */ },
     next: ["experience"],
     beforeExit: async ({ context, updateContext }) => {
@@ -225,7 +226,7 @@ const steps = factory.defineSteps({
   // ... other steps
 });
 
-export const resumeWizard = factory.createWizard(steps, {
+export const resumeWizard = createWizard(steps, {
   onInit: async (ctx) => {
     const savedData = await storageAdapter.load();
     if (savedData) {
@@ -244,7 +245,7 @@ export const resumeWizard = factory.createWizard(steps, {
 import { wizardWithContext } from "@wizard/core";
 import type { GuardContext } from "./types";
 
-export const factory = wizardWithContext<GuardContext>({
+export const { defineSteps, step, createWizard } = wizardWithContext<GuardContext>({
   isAuthenticated: false,
   hasUnsavedChanges: false,
   lockedSteps: [] as string[],
@@ -252,14 +253,16 @@ export const factory = wizardWithContext<GuardContext>({
 });
 
 // wizard/config.ts
-const steps = factory.defineSteps({
-  introduction: factory.step({
+import { defineSteps, step, createWizard } from "./factory";
+
+const steps = defineSteps({
+  introduction: step({
     data: { agreed: false },
     next: ["authentication"],
     canExit: ({ data }) => data.agreed,
     meta: { label: "Welcome", protected: false }
   }),
-  authentication: factory.step({
+  authentication: step({
     data: { username: "", password: "", verified: false },
     next: ["secureData"],
     canExit: ({ data, context }) => {
@@ -275,19 +278,21 @@ const steps = factory.defineSteps({
     },
     meta: { label: "Login", protected: false }
   }),
-  secureData: factory.step({
+  secureData: step({
     data: { /* sensitive data */ },
     canEnter: ({ context }) => context.isAuthenticated,
     next: ["confirmation"],
     meta: { label: "Secure Area", protected: true }
   }),
-  confirmation: factory.step({
+  confirmation: step({
     data: { confirmed: false },
     canExit: () => false, // Can't go back after confirming
     next: [],
     meta: { label: "Final", protected: true }
   })
 });
+
+export const guardedWizard = createWizard(steps);
 ```
 
 #### 2.2 zod-validation
@@ -296,7 +301,7 @@ const steps = factory.defineSteps({
 import { wizardWithContext } from "@wizard/core";
 import type { ValidationContext } from "./types";
 
-export const factory = wizardWithContext<ValidationContext>({
+export const { defineSteps, step, createWizard } = wizardWithContext<ValidationContext>({
   validationErrors: {} as Record<string, string[]>,
   isValidating: false,
   validationMode: 'onSubmit' as 'onChange' | 'onBlur' | 'onSubmit'
@@ -320,12 +325,12 @@ export const emailSchema = z.object({
 );
 
 // wizard/config.ts
-import { factory } from "./factory";
+import { defineSteps, step, createWizard } from "./factory";
 import { createZodValidator } from "@wizard/core";
 import * as schemas from "./schemas";
 
-const steps = factory.defineSteps({
-  emailVerification: factory.step({
+const steps = defineSteps({
+  emailVerification: step({
     data: { email: "", confirmEmail: "" },
     validate: createZodValidator(schemas.emailSchema),
     next: ["passwordCreation"],
@@ -337,6 +342,8 @@ const steps = factory.defineSteps({
   }),
   // ... other steps with Zod validation
 });
+
+export const validatedWizard = createWizard(steps);
 ```
 
 ## Implementation Tasks
@@ -344,8 +351,8 @@ const steps = factory.defineSteps({
 ### Phase 1: Refactor Existing Examples (Priority 1)
 
 1. **basic-form-wizard**
-   - [ ] Create `wizard/factory.ts` with `wizardWithContext`
-   - [ ] Refactor `wizard/config.ts` to use factory.step()
+   - [ ] Create `wizard/factory.ts` with `wizardWithContext` and destructure methods
+   - [ ] Refactor `wizard/config.ts` to use destructured `step()` function
    - [ ] Update all step callbacks to leverage typed context
    - [ ] Verify type inference in all callbacks
    - [ ] Run validation gates
@@ -460,13 +467,19 @@ const initialContext: MyContext = {
   // ... initial values
 };
 
-export const factory = wizardWithContext<MyContext>(initialContext);
+export const { defineSteps, step, createWizard } = wizardWithContext<MyContext>(initialContext);
 ```
 
 ### Pattern 2: Factory with Options
 ```typescript
 // wizard/config.ts
-export const wizard = factory.createWizard(steps, {
+import { defineSteps, step, createWizard } from "./factory";
+
+const steps = defineSteps({
+  // ... step definitions
+});
+
+export const wizard = createWizard(steps, {
   id: 'my-wizard',
   initial: 'firstStep',
   onInit: async (ctx) => {
@@ -486,8 +499,10 @@ export const wizard = factory.createWizard(steps, {
 
 ### Pattern 3: Step with Full Type Safety
 ```typescript
-const steps = factory.defineSteps({
-  myStep: factory.step({
+import { defineSteps, step } from "./factory";
+
+const steps = defineSteps({
+  myStep: step({
     data: { field1: "", field2: 0 },
     next: ({ data, context }) => {
       // Both data and context are fully typed
@@ -524,6 +539,8 @@ const steps = factory.defineSteps({
 ### Pattern 4: Dynamic Steps
 ```typescript
 // For examples like advanced-branching
+import { defineSteps, step } from "./factory";
+
 const determineSteps = (role: UserRole): string[] => {
   switch(role) {
     case 'admin': return ['adminStep', 'reviewStep'];
@@ -532,8 +549,8 @@ const determineSteps = (role: UserRole): string[] => {
   }
 };
 
-const steps = factory.defineSteps({
-  roleSelect: factory.step({
+const steps = defineSteps({
+  roleSelect: step({
     data: { role: 'user' as UserRole },
     next: ({ data }) => determineSteps(data.role)
   })
@@ -588,11 +605,12 @@ const steps = factory.defineSteps({
 
 ### Important Guidelines
 1. **Start with factory creation** - Always create the factory first in `wizard/factory.ts`
-2. **Use factory.step()** - Wrap all step definitions with factory.step()
-3. **Test type inference** - Hover over callbacks to verify types
-4. **Keep commits atomic** - One example per commit
-5. **Run validation gates** - After each example is complete
-6. **Preserve functionality** - Ensure features still work after refactoring
+2. **Destructure factory methods** - Use `const { defineSteps, step, createWizard } = wizardWithContext<Context>(...)`
+3. **Use step() directly** - Wrap all step definitions with the destructured `step()` function
+4. **Test type inference** - Hover over callbacks to verify types
+5. **Keep commits atomic** - One example per commit
+6. **Run validation gates** - After each example is complete
+7. **Preserve functionality** - Ensure features still work after refactoring
 
 ### Common Pitfalls to Avoid
 1. **Don't mix patterns** - Use either `wizardWithContext` OR `createWizardFactory`, not both
