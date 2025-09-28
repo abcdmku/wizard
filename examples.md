@@ -1,0 +1,1 @@
+go through each example in the examples folder and simplify the example to make the code focus on what the example is trying to demo. make sure to keep UI component separate from the wizard logic to keep clear demos, and separate large files / keep standard code cleanliness. reference the refactor.md for a guide to keep files clean.
