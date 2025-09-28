@@ -1,4 +1,4 @@
-import { createWizard, defineSteps } from "@wizard/core";
+import { defineSteps, step, createWizard } from "./factory";
 import { validateAccount, validatePersonal, validateAddress } from "./validation";
 import type { WizardData } from "./types";
 
@@ -9,27 +9,24 @@ const initialData: WizardData = {
 };
 
 export const steps = defineSteps({
-  account: {
+  account: step({
     validate: validateAccount,
     data: initialData.account,
     next: ["personal"],
     meta: { label: "Account", iconKey: "user" },
-  },
-  personal: {
+  }),
+  personal: step({
     validate: validatePersonal,
     data: initialData.personal,
     next: ["address"],
     meta: { label: "Personal", iconKey: "person" },
-  },
-  address: {
+  }),
+  address: step({
     validate: validateAddress,
     data: initialData.address,
     next: [],
     meta: { label: "Address", iconKey: "location" },
-  },
+  }),
 });
 
-export const formWizard = createWizard({
-  context: { totalSteps: 3, completedSteps: [] as string[] },
-  steps,
-});
+export const formWizard = createWizard(steps);
