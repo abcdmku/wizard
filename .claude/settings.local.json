@@ -117,7 +117,8 @@
       "mcp__playwright__browser_close",
       "Bash(npm test:*)",
       "WebFetch(domain:nextra.site)",
-      "Bash(pnpm run:*)"
+      "Bash(pnpm run:*)",
+      "Bash(pnpm tsc:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",
