@@ -1,0 +1,40 @@
+import { useMemo } from "react";
+import { useWizardSharedContext, useWizardHelpers } from "@wizard/react";
+import type { WizardContext } from "../wizard/types";
+import { getAvailableStepsForRole } from "../wizard/navigation";
+
+export function useRoleBasedSteps() {
+  const context = useWizardSharedContext() as WizardContext;
+  const helpers = useWizardHelpers();
+  
+  const roleSteps = useMemo(() => {
+    return getAvailableStepsForRole(context.role);
+  }, [context.role]);
+  
+  const completionPercentage = useMemo(() => {
+    if (!context.role || roleSteps.length === 0) return 0;
+    
+    const completedInPath = context.completedSteps.filter(
+      step => roleSteps.includes(step)
+    );
+    
+    return Math.round((completedInPath.length / roleSteps.length) * 100);
+  }, [context.completedSteps, context.role, roleSteps]);
+  
+  const nextAvailableStep = useMemo(() => {
+    for (const step of roleSteps) {
+      if (!context.completedSteps.includes(step)) {
+        return step;
+      }
+    }
+    return null;
+  }, [roleSteps, context.completedSteps]);
+  
+  return {
+    roleSteps,
+    completionPercentage,
+    nextAvailableStep,
+    totalSteps: roleSteps.length,
+    completedCount: context.completedSteps.length,
+  };
+}
