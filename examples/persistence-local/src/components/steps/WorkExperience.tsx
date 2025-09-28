@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useWizardHelpers, useWizardSharedContext } from '@wizard/react';
+import { useWizardActions, useWizardSharedContext } from '@wizard/react';
 import type { WizardContext, WorkExperience as WorkExperienceType } from '../../wizard/types';
 
 export function WorkExperience() {
-  const { goNext, goPrev } = useWizardHelpers();
+  const { next, back } = useWizardActions();
   const context = useWizardSharedContext() as WizardContext;
   
   const [experiences, setExperiences] = useState<WorkExperienceType[]>(
@@ -71,7 +71,7 @@ export function WorkExperience() {
   };
 
   const handleSubmit = () => {
-    goNext({
+    next({
       resumeData: {
         ...context.resumeData,
         workExperience: experiences,
@@ -212,7 +212,7 @@ export function WorkExperience() {
 
       <div className="flex gap-4">
         <button
-          onClick={() => goPrev()}
+          onClick={() => back()}
           className="flex-1 bg-gray-200 py-2 rounded hover:bg-gray-300"
         >
           Back

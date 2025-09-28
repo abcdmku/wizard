@@ -1,5 +1,4 @@
 import { defineSteps, step, createWizard } from './factory';
-import { storageAdapter } from '../utils/persistence';
 
 const steps = defineSteps({
   personal: step({
@@ -39,33 +38,4 @@ const steps = defineSteps({
   }),
 });
 
-export const resumeWizard = createWizard(steps, {
-  id: 'resume-builder',
-  initial: 'personal',
-  
-  // Load saved data on initialization
-  onInit: async (ctx) => {
-    const savedData = await storageAdapter.load();
-    if (savedData) {
-      return {
-        ...ctx,
-        resumeData: savedData,
-        recoveredFromStorage: true,
-      };
-    }
-    return ctx;
-  },
-  
-  // Auto-save on each step transition
-  onTransition: async (ctx) => {
-    if (ctx.autoSaveEnabled && ctx.isDirty) {
-      await storageAdapter.save(ctx.resumeData);
-      return {
-        ...ctx,
-        isDirty: false,
-        lastAutoSave: new Date(),
-      };
-    }
-    return ctx;
-  },
-});
+export const resumeWizard = createWizard(steps);

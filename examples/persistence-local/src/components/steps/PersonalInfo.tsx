@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useWizardHelpers, useWizardSharedContext } from '@wizard/react';
+import { useWizardActions, useWizardSharedContext } from '@wizard/react';
 import type { WizardContext, PersonalInfo as PersonalInfoType } from '../../wizard/types';
 
 export function PersonalInfo() {
-  const { goNext } = useWizardHelpers();
+  const { next } = useWizardActions();
   const context = useWizardSharedContext() as WizardContext;
   
   const [formData, setFormData] = useState<PersonalInfoType>({
@@ -32,7 +32,7 @@ export function PersonalInfo() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    goNext({
+    next({
       resumeData: {
         ...context.resumeData,
         personalInfo: formData,

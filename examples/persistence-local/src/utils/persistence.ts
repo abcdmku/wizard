@@ -13,7 +13,7 @@ export interface PersistenceAdapter {
 }
 
 export class LocalStorageAdapter implements PersistenceAdapter {
-  private debounceTimer: NodeJS.Timeout | null = null;
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly debounceMs: number;
 
   constructor(debounceMs = 1000) {
