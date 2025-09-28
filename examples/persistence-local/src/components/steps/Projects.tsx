@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useWizardHelpers, useWizardSharedContext } from '@wizard/react';
+import { useWizardActions, useWizardSharedContext } from '@wizard/react';
 import type { WizardContext, Project } from '../../wizard/types';
 
 export function Projects() {
-  const { goNext, goPrev } = useWizardHelpers();
+  const { next, back } = useWizardActions();
   const context = useWizardSharedContext() as WizardContext;
   
   const [projects, setProjects] = useState<Project[]>(
@@ -67,7 +67,7 @@ export function Projects() {
   };
 
   const handleSubmit = () => {
-    goNext({
+    next({
       resumeData: {
         ...context.resumeData,
         projects,
@@ -187,7 +187,7 @@ export function Projects() {
 
       <div className="flex gap-4">
         <button
-          onClick={() => goPrev()}
+          onClick={() => back()}
           className="flex-1 bg-gray-200 py-2 rounded hover:bg-gray-300"
         >
           Back

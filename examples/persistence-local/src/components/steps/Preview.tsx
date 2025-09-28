@@ -1,9 +1,9 @@
-import { useWizardHelpers, useWizardSharedContext } from '@wizard/react';
+import { useWizardActions, useWizardSharedContext } from '@wizard/react';
 import type { WizardContext } from '../../wizard/types';
 import { storageAdapter } from '../../utils/persistence';
 
 export function Preview() {
-  const { goPrev, reset } = useWizardHelpers();
+  const { back, reset } = useWizardActions();
   const context = useWizardSharedContext() as WizardContext;
   const { resumeData } = context;
 
@@ -154,7 +154,7 @@ export function Preview() {
       </div>
 
       <button
-        onClick={() => goPrev()}
+        onClick={() => back()}
         className="w-full bg-gray-200 py-2 rounded hover:bg-gray-300"
       >
         Back to Edit

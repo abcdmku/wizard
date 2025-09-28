@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   useWizardActions, 
   useCurrentStepData, 
@@ -13,8 +13,9 @@ export function PaymentStep() {
   const existingData = useCurrentStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
   const errors = useWizardErrors<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
   
-  const [cardLast4, setCardLast4] = useState(existingData?.cardLast4 || '');
-  const [cardHolder, setCardHolder] = useState(existingData?.cardHolder || '');
+  const data = existingData as { cardLast4: string; cardHolder: string } | undefined;
+  const [cardLast4, setCardLast4] = useState(data?.cardLast4 || '');
+  const [cardHolder, setCardHolder] = useState(data?.cardHolder || '');
   const [couponCode, setCouponCode] = useState(context.coupon || '');
   
   const stepError = errors.payment;
@@ -128,11 +129,11 @@ export function PaymentStep() {
         )}
       </div>
 
-      {stepError && (
+      {stepError ? (
         <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.9rem' }}>
-          {String(stepError)}
+          {typeof stepError === 'string' ? stepError : 'An error occurred'}
         </div>
-      )}
+      ) : null}
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <button

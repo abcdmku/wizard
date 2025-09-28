@@ -1,5 +1,4 @@
 import { defineSteps, step, createWizard } from './wizard/factory';
-import { createZodValidator } from '@wizard/core/zod';
 import {
   accountSchema,
   shippingSchema,
@@ -10,7 +9,9 @@ import {
 const steps = defineSteps({
   account: step({
     data: { email: '' },
-    validate: createZodValidator(accountSchema),
+    validate: ({ data }) => {
+      accountSchema.parse(data);
+    },
     next: ['shipping'],
     beforeExit: async ({ updateContext, data }) => {
       // Set userId based on email (simulated)
@@ -23,7 +24,9 @@ const steps = defineSteps({
   }),
   shipping: step({
     data: { address: '', city: '', zipCode: '' },
-    validate: createZodValidator(shippingSchema),
+    validate: ({ data }) => {
+      shippingSchema.parse(data);
+    },
     next: ['payment'],
     canEnter: ({ context }) => Boolean(context.userId),
     beforeEnter: async () => {
@@ -34,13 +37,12 @@ const steps = defineSteps({
   }),
   payment: step({
     data: { cardLast4: '', cardHolder: '' },
-    validate: createZodValidator(paymentSchema),
-    next: ({ context }) => {
-      // Dynamic next step based on context
-      return ['review'];
+    validate: ({ data }) => {
+      paymentSchema.parse(data);
     },
+    next: ['review'],
     canEnter: ({ context }) => Boolean(context.userId),
-    beforeExit: async ({ updateContext, data }) => {
+    beforeExit: async ({ updateContext }) => {
       // Calculate total after payment info
       await new Promise((resolve) => setTimeout(resolve, 500));
       const subtotal = 100;
@@ -52,29 +54,12 @@ const steps = defineSteps({
   }),
   review: step({
     data: { agreed: false },
-    validate: createZodValidator(reviewSchema),
+    validate: ({ data }) => {
+      reviewSchema.parse(data);
+    },
     next: [],
     canEnter: ({ context }) => context.total > 0,
   }),
 });
 
-export const checkoutWizard = createWizard(steps, {
-  initialStep: 'account',
-  keepHistory: true,
-  maxHistorySize: 10,
-  onTransition: (event) => {
-    console.log('Wizard transition:', event);
-  },
-  persistence: {
-    save: (state) => {
-      localStorage.setItem('checkout-wizard', JSON.stringify(state));
-    },
-    load: () => {
-      const saved = localStorage.getItem('checkout-wizard');
-      return saved ? JSON.parse(saved) : null;
-    },
-    clear: () => {
-      localStorage.removeItem('checkout-wizard');
-    },
-  },
-});
+export const checkoutWizard = createWizard(steps);

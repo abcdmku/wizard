@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   useWizardActions, 
   useCurrentStepData, 
@@ -13,9 +13,10 @@ export function ShippingStep() {
   const existingData = useCurrentStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
   const errors = useWizardErrors<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
   
-  const [address, setAddress] = useState(existingData?.address || '');
-  const [city, setCity] = useState(existingData?.city || '');
-  const [zipCode, setZipCode] = useState(existingData?.zipCode || '');
+  const data = existingData as { address: string; city: string; zipCode: string } | undefined;
+  const [address, setAddress] = useState(data?.address || '');
+  const [city, setCity] = useState(data?.city || '');
+  const [zipCode, setZipCode] = useState(data?.zipCode || '');
   
   const stepError = errors.shipping;
 
@@ -95,11 +96,11 @@ export function ShippingStep() {
         />
       </div>
 
-      {stepError && (
+      {stepError ? (
         <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.9rem' }}>
-          {String(stepError)}
+          {typeof stepError === 'string' ? stepError : 'An error occurred'}
         </div>
-      )}
+      ) : null}
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <button

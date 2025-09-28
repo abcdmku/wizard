@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useWizardActions, useCurrentStepData, useWizardErrors } from '@wizard/react';
 import type { CheckoutContext, CheckoutSteps, CheckoutDataMap } from '../types';
 
@@ -7,7 +7,7 @@ export function AccountStep() {
   const existingData = useCurrentStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
   const errors = useWizardErrors<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
   
-  const [email, setEmail] = useState(existingData?.email || '');
+  const [email, setEmail] = useState((existingData as { email: string })?.email || '');
   const stepError = errors.account;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,11 +41,11 @@ export function AccountStep() {
             borderRadius: '4px',
           }}
         />
-        {stepError && (
+        {stepError ? (
           <div style={{ color: 'red', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-            {String(stepError)}
+            {typeof stepError === 'string' ? stepError : 'An error occurred'}
           </div>
-        )}
+        ) : null}
       </div>
 
       <button

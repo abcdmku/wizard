@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   useWizardActions, 
   useWizardState,
@@ -107,11 +107,11 @@ export function ReviewStep() {
           />
           I agree to the terms and conditions
         </label>
-        {stepError && (
+        {stepError ? (
           <div style={{ color: 'red', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-            {String(stepError)}
+            {typeof stepError === 'string' ? stepError : 'An error occurred'}
           </div>
-        )}
+        ) : null}
       </div>
 
       <div style={{ display: 'flex', gap: '1rem' }}>

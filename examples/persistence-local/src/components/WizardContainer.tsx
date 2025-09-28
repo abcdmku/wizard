@@ -14,11 +14,11 @@ const stepComponents = {
 };
 
 export function WizardContainer() {
-  const { current } = useWizardState();
-  const StepComponent = stepComponents[current as keyof typeof stepComponents];
+  const { step } = useWizardState();
+  const StepComponent = stepComponents[step as keyof typeof stepComponents];
   
   if (!StepComponent) {
-    return <div>Unknown step: {current}</div>;
+    return <div>Unknown step: {step}</div>;
   }
   
   return (

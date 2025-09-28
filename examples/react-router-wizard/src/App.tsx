@@ -1,4 +1,3 @@
-import React from 'react';
 import { WizardProvider } from '@wizard/react';
 import { checkoutWizard } from './wizard';
 import { CheckoutFlow } from './components/CheckoutFlow';

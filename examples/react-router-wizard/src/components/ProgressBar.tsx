@@ -1,4 +1,3 @@
-import React from 'react';
 import { useWizardStep, useWizardHistory } from '@wizard/react';
 import type { CheckoutContext, CheckoutSteps, CheckoutDataMap } from '../types';
 

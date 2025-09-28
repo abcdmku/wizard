@@ -11,18 +11,18 @@ const steps = [
 ];
 
 export function StepProgress() {
-  const { current } = useWizardState();
-  const currentIndex = steps.findIndex(s => s.id === current);
+  const { step } = useWizardState();
+  const currentIndex = steps.findIndex(s => s.id === step);
   
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center">
-        {steps.map((step, index) => {
-          const isActive = step.id === current;
+        {steps.map((stepInfo, index) => {
+          const isActive = stepInfo.id === step;
           const isCompleted = index < currentIndex;
           
           return (
-            <div key={step.id} className="flex-1 text-center">
+            <div key={stepInfo.id} className="flex-1 text-center">
               <div className="relative">
                 {index > 0 && (
                   <div
@@ -40,12 +40,12 @@ export function StepProgress() {
                       'bg-gray-200 text-gray-500'}
                   `}
                 >
-                  {isCompleted ? '✓' : step.icon}
+                  {isCompleted ? '✓' : stepInfo.icon}
                 </div>
                 
                 <div className="mt-2">
                   <div className={`text-xs ${isActive ? 'font-semibold' : ''}`}>
-                    {step.label}
+                    {stepInfo.label}
                   </div>
                 </div>
               </div>
