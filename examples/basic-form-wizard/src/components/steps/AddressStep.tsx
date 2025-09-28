@@ -42,29 +42,29 @@ export function AddressStep() {
 
     return (
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-green-600">Registration Complete!</h2>
-        <p className="text-gray-600">Thank you for registering. Here's a summary:</p>
+        <h2 className="text-2xl font-bold text-green-600 dark:text-green-400">Registration Complete!</h2>
+        <p className="text-gray-600 dark:text-gray-300">Thank you for registering. Here's a summary:</p>
 
-        <div className="bg-gray-50 p-4 rounded-md space-y-2">
-          <h3 className="font-semibold">Account</h3>
-          <p className="text-sm">Email: {accountData?.email}</p>
+        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md space-y-2">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Account</h3>
+          <p className="text-sm text-gray-700 dark:text-gray-300">Email: {accountData?.email}</p>
         </div>
 
-        <div className="bg-gray-50 p-4 rounded-md space-y-2">
-          <h3 className="font-semibold">Personal</h3>
-          <p className="text-sm">
+        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md space-y-2">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Personal</h3>
+          <p className="text-sm text-gray-700 dark:text-gray-300">
             Name: {personalData?.firstName} {personalData?.lastName}
           </p>
-          <p className="text-sm">Date of Birth: {personalData?.dateOfBirth}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">Date of Birth: {personalData?.dateOfBirth}</p>
         </div>
 
-        <div className="bg-gray-50 p-4 rounded-md space-y-2">
-          <h3 className="font-semibold">Address</h3>
-          <p className="text-sm">{data.street}</p>
-          <p className="text-sm">
+        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md space-y-2">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Address</h3>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{data.street}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">
             {data.city}, {data.state} {data.zipCode}
           </p>
-          <p className="text-sm">{data.country}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{data.country}</p>
         </div>
       </div>
     );
@@ -72,7 +72,7 @@ export function AddressStep() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Address Information</h2>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Address Information</h2>
 
       <FormField
         label="Street Address"

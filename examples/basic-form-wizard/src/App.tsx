@@ -1,12 +1,15 @@
 import { WizardProvider } from "@wizard/react";
-import { formWizard } from "./wizard/config";
+import { ThemeProvider } from "./hooks/useTheme";
+import { formWizard } from "./wizard/steps";
 import { WizardContainer } from "./components/WizardContainer";
 
 function App() {
   return (
-    <WizardProvider wizard={formWizard}>
-      <WizardContainer />
-    </WizardProvider>
+    <ThemeProvider>
+      <WizardProvider wizard={formWizard}>
+        <WizardContainer />
+      </WizardProvider>
+    </ThemeProvider>
   );
 }
 

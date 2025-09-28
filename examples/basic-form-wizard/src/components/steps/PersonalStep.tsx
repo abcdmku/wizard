@@ -15,7 +15,7 @@ export function PersonalStep() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Personal Information</h2>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Personal Information</h2>
 
       <FormField
         label="First Name"
