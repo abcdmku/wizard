@@ -8,7 +8,8 @@ import type {
   ValOrFn,
   EnhancedWizard,
   CreateWizardOptions,
-  EnhancedDataMapFromDefs
+  EnhancedDataMapFromDefs,
+  StepMetaCore
 } from './types';
 import { createWizard as createWizardImpl } from './wizard';
 
@@ -44,7 +45,7 @@ type ContextAwareStepDefinition<C, S extends string, Data, E> = {
   required?: ValOrFn<boolean, ContextAwareStepArgs<C, S, Data, E>>;
   maxRetries?: ValOrFn<number, ContextAwareStepArgs<C, S, Data, E>>;
   retryDelay?: ValOrFn<number, ContextAwareStepArgs<C, S, Data, E>>;
-  meta?: any;
+  meta?: StepMetaCore<C, S, Data, E>;
 };
 
 
@@ -77,7 +78,7 @@ export function createWizardFactory<C = any, E = never>() {
       required?: boolean | ((args: ContextAwareStepArgs<C, string, Data, E>) => boolean);
       maxRetries?: number | ((args: ContextAwareStepArgs<C, string, Data, E>) => number);
       retryDelay?: number | ((args: ContextAwareStepArgs<C, string, Data, E>) => number);
-      meta?: any;
+      meta?: StepMetaCore<C, string, Data, E>;
     }): ContextAwareStepDefinition<C, string, Data, E> {
       return definition as any;
     },

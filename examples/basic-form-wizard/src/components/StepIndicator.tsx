@@ -3,7 +3,7 @@ import { FormWizard } from "../wizard/steps";
 export function StepIndicator() {
   const {getCurrentStep, helpers} = FormWizard;
   const currentStep = getCurrentStep();
-  const stepNames = helpers.availableStepNames();
+  const steps = helpers.allSteps().filter(step => !step?.meta?.hidden); // Only include steps that are not hidden
   const currentIndex = helpers.stepIndex(currentStep.name);
 
   return (
@@ -22,8 +22,8 @@ export function StepIndicator() {
           }}
         />
 
-        {stepNames.map((stepName, index) => (
-          <div key={stepName} className="flex flex-col items-center relative z-10">
+        {steps.map((step, index) => (
+          <div key={index} className="flex flex-col items-center relative z-10">
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-200 ${
                 currentIndex === index
@@ -50,7 +50,7 @@ export function StepIndicator() {
                   : "text-gray-400 dark:text-gray-500"
               }`}
             >
-              {stepNames[index].charAt(0).toUpperCase() + stepNames[index].slice(1)}
+              {step.name.charAt(0).toUpperCase() + step.name.slice(1)}
             </span>
           </div>
         ))}
