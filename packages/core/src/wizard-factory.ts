@@ -84,23 +84,16 @@ export function createWizardFactory<C = any, E = never>() {
 
     /**
      * Create the wizard with the defined steps
-     * @param options Can include context and steps, or pass them as separate parameters
+     * @param steps The wizard step definitions
+     * @param options Configuration options including context
      */
     createWizard<TDefs extends Record<string, any>>(
-      contextOrOptions: C | CreateWizardOptions<C, E, TDefs>,
-      steps?: TDefs,
-      options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
+      steps: TDefs,
+      options: Omit<CreateWizardOptions<C, E, TDefs>, 'steps'>
     ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> {
-      // Check if first parameter is the full options object
-      if (contextOrOptions && typeof contextOrOptions === 'object' && 'steps' in contextOrOptions) {
-        return createWizardImpl(contextOrOptions as CreateWizardOptions<C, E, TDefs>) as EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
-      }
-
-      // Otherwise treat first param as context
       return createWizardImpl({
-        context: contextOrOptions as C,
-        steps: steps!,
-        ...options
+        ...options,
+        steps
       }) as EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
     }
   };
@@ -120,6 +113,6 @@ export function wizardWithContext<C, E = never>(context: C) {
       steps: TDefs,
       options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
     ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> =>
-      factory.createWizard({ context, steps, ...options })
+      factory.createWizard(steps, { context, ...options })
   };
 }
