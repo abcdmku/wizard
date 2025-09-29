@@ -227,6 +227,7 @@ export type WizardState<C,S extends string,D extends Record<S, unknown>> = {
   step: S;
   context: C;
   data: Partial<D>;
+  meta: Partial<Record<S, StepMetaCore<C, S, unknown, never>>>;
   errors: Partial<Record<S, unknown>>;
   history: Array<{ step: S; context: C; data: Partial<D> }>;
   isLoading: boolean;
@@ -237,8 +238,23 @@ export type WizardState<C,S extends string,D extends Record<S, unknown>> = {
 };
 
 export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
-  allSteps(): readonly S[];
-  orderedSteps(): readonly S[];
+  // Step name helpers
+  allStepNames(): readonly S[];
+  orderedStepNames(): readonly S[];
+  availableStepNames(): readonly S[];
+  unavailableStepNames(): readonly S[];
+  completedStepNames(): readonly S[];
+  remainingStepNames(): readonly S[];
+
+  // Step object helpers (return full step wrapper)
+  allSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
+  orderedSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
+  availableSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
+  unavailableSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
+  completedSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
+  remainingSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
+
+  // Legacy methods (kept for compatibility, but now return names)
   stepCount(): number;
   stepIndex(step: S): number;
   currentIndex(): number;
@@ -247,14 +263,13 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
   isOptional(step: S): boolean;
   isRequired(step: S): boolean;
 
-  availableSteps(): readonly S[];
-  unavailableSteps(): readonly S[];
   refreshAvailability(): Promise<void>;
 
-  completedSteps(): readonly S[];
-  remainingSteps(): readonly S[];
-  firstIncompleteStep(): S | null;
-  lastCompletedStep(): S | null;
+  firstIncompleteStep(): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
+  lastCompletedStep(): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
+  firstIncompleteStepName(): S | null;
+  lastCompletedStepName(): S | null;
+
   remainingRequiredCount(): number;
   isComplete(): boolean;
   progress(): { ratio: number; percent: number; label: string };
@@ -262,9 +277,12 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
   canGoNext(): boolean;
   canGoBack(): boolean;
   canGoTo(step: S): boolean;
-  findNextAvailable(from?: S): S | null;
-  findPrevAvailable(from?: S): S | null;
-  jumpToNextRequired(): S | null;
+  findNextAvailable(from?: S): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
+  findPrevAvailable(from?: S): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
+  findNextAvailableName(from?: S): S | null;
+  findPrevAvailableName(from?: S): S | null;
+  jumpToNextRequired(): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
+  jumpToNextRequiredName(): S | null;
 
   isReachable(step: S): boolean;
   prerequisitesFor(step: S): readonly S[];
@@ -284,21 +302,25 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   readonly step: S;
   readonly context: Readonly<C>;
   readonly data: Partial<D>;
+  readonly meta: Partial<Record<S, StepMetaCore<C, S, unknown, never>>>;
   readonly errors: Partial<Record<S, unknown>>;
   readonly history: Array<{ step: S; context: C; data: Partial<D> }>;
   readonly isLoading: boolean;
   readonly isTransitioning: boolean;
   readonly runtime?: Partial<Record<S, { status?: StepStatus; attempts?: number; startedAt?: number; finishedAt?: number }>>;
 
-  next(args?: { data?: D[S] }): Promise<import('./step-wrapper').WizardStep<S, unknown, C, S, D>>;
+  next(args?: { data?: D[S] }): Promise<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
   goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<import('./step-wrapper').WizardStep<K, D[K], C, S, D>>;
-  back(): Promise<import('./step-wrapper').WizardStep<S, unknown, C, S, D>>;
+  back(): Promise<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
   reset(): void;
 
   updateContext(fn: (context: C) => void): void;
   setStepData<K extends S>(step: K, data: D[K]): void;
   updateStepData<K extends S>(step: K, updater: Partial<D[K]> | ((current: D[K] | undefined) => Partial<D[K]>)): void;
   getStepData<K extends S>(step: K): D[K] | undefined;
+  setStepMeta<K extends S>(step: K, meta: StepMetaCore<C, S, D[K], never>): void;
+  updateStepMeta<K extends S>(step: K, updater: Partial<StepMetaCore<C, S, D[K], never>> | ((current: StepMetaCore<C, S, D[K], never> | undefined) => Partial<StepMetaCore<C, S, D[K], never>>)): void;
+  getStepMeta<K extends S>(step: K): StepMetaCore<C, S, D[K], never> | undefined;
   getStepError<K extends S>(step: K): unknown;
   getAllErrors(): Partial<Record<S, unknown>>;
   clearStepError<K extends S>(step: K): void;
@@ -416,13 +438,15 @@ export type EnhancedWizard<C, S extends string, D extends Record<S, unknown>, E>
   getCurrentStep(): WizardStep<S, D[S], C, S, D>;
 
   // Navigation methods that return step objects
-  next(args?: { data?: D[S] }): Promise<WizardStep<S, unknown, C, S, D>>;
+  next(args?: { data?: D[S] }): Promise<WizardStep<S, D[S], C, S, D>>;
   goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<WizardStep<K, D[K], C, S, D>>;
-  back(): Promise<WizardStep<S, unknown, C, S, D>>;
+  back(): Promise<WizardStep<S, D[S], C, S, D>>;
 
   // Enhanced data access with proper typing
   getStepData<K extends S>(step: K): D[K] | undefined;
   updateStepData<K extends S>(step: K, updater: Partial<D[K]> | ((current: D[K] | undefined) => Partial<D[K]>)): void;
+  getStepMeta<K extends S>(step: K): StepMetaCore<C, S, D[K], never> | undefined;
+  updateStepMeta<K extends S>(step: K, updater: Partial<StepMetaCore<C, S, D[K], never>> | ((current: StepMetaCore<C, S, D[K], never> | undefined) => Partial<StepMetaCore<C, S, D[K], never>>)): void;
   getStepError<K extends S>(step: K): unknown;
   getAllErrors(): Partial<Record<S, unknown>>;
   clearStepError<K extends S>(step: K): void;
