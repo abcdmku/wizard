@@ -3,14 +3,9 @@ import { useTheme } from "../../hooks/useTheme";
 export function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
 
-  const handleClick = () => {
-    console.log("Theme toggle clicked, current theme:", theme);
-    toggleTheme();
-  };
-
   return (
     <button
-      onClick={handleClick}
+      onClick={toggleTheme}
       className="p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md"
       aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
       title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}

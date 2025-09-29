@@ -1,16 +1,16 @@
-import { useWizardStep } from "@wizard/react";
-import { StepIndicator } from "./ui/StepIndicator";
+import { StepIndicator } from "./StepIndicator";
 import { ThemeToggle } from "./ui/ThemeToggle";
 import { AccountStep } from "./steps/AccountStep";
 import { PersonalStep } from "./steps/PersonalStep";
 import { AddressStep } from "./steps/AddressStep";
 import { SummaryStep } from "./steps/SummaryStep";
+import { FormWizard } from "../wizard/steps";
 
 export function WizardContainer() {
-  const currentStep = useWizardStep();
+  const {name} = FormWizard.getCurrentStep();
 
   const renderStep = () => {
-    switch (currentStep) {
+    switch (name) {
       case "account":
         return <AccountStep />;
       case "personal":
@@ -32,8 +32,8 @@ export function WizardContainer() {
       </div>
 
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-xl p-6">
-        {currentStep !== "summary" && <StepIndicator />}
-        <div className={currentStep !== "summary" ? "mt-6" : ""}>{renderStep()}</div>
+        {name !== "summary" && <StepIndicator />}
+        <div className={name !== "summary" ? "mt-6" : ""}>{renderStep()}</div>
       </div>
     </div>
   );

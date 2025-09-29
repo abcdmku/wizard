@@ -35,10 +35,14 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
   // Initialize data from step definitions
   const initialData = {} as Partial<D>;
+  const initialMeta = {} as Partial<Record<S, import('./types').StepMetaCore<C, S, unknown, never>>>;
   for (const stepName of allStepIds) {
     const stepDef = steps[stepName];
     if (stepDef.data !== undefined) {
       initialData[stepName as keyof D] = stepDef.data as D[keyof D];
+    }
+    if (stepDef.meta !== undefined) {
+      initialMeta[stepName] = stepDef.meta;
     }
   }
 
@@ -47,6 +51,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     step: orderedSteps[0],
     context: structuredClone(initialContext),
     data: initialData,
+    meta: initialMeta,
     errors: {},
     history: [],
     isLoading: false,
@@ -101,8 +106,13 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
   // Helper functions implementation (24 functions as per PRP)
   const helpers: WizardHelpers<C, S, D> = {
-    allSteps: () => allStepIds,
-    orderedSteps: () => orderedSteps,
+    // Step name helpers
+    allStepNames: () => allStepIds,
+    orderedStepNames: () => orderedSteps,
+
+    // Step object helpers - These will be defined after wizard is created
+    allSteps: () => [],
+    orderedSteps: () => [],
     stepCount: () => orderedSteps.length,
     stepIndex: (step: S) => orderedSteps.indexOf(step),
     currentIndex: () => orderedSteps.indexOf(store.state.step),
@@ -133,7 +143,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       return resolve(stepDef?.required ?? true, args);
     },
 
-    availableSteps: () => {
+    availableStepNames: () => {
       return orderedSteps.filter(step => {
         const stepDef = steps[step];
         if (!stepDef.canEnter) return true;
@@ -147,9 +157,13 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       });
     },
 
-    unavailableSteps: () => {
-      return orderedSteps.filter(step => !helpers.availableSteps().includes(step));
+    availableSteps: () => [],
+
+    unavailableStepNames: () => {
+      return orderedSteps.filter(step => !helpers.availableStepNames().includes(step));
     },
+
+    unavailableSteps: () => [],
 
     refreshAvailability: async () => {
       availabilityCache.clear();
@@ -168,7 +182,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       }
     },
 
-    completedSteps: () => {
+    completedStepNames: () => {
       return orderedSteps.filter(step => {
         const stepDef = steps[step];
         if (stepDef.complete) {
@@ -179,13 +193,22 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       });
     },
 
-    remainingSteps: () => {
-      const completed = helpers.completedSteps();
+    completedSteps: () => [],
+
+    remainingStepNames: () => {
+      const completed = helpers.completedStepNames();
       return orderedSteps.filter(step => !completed.includes(step));
     },
 
+    remainingSteps: () => [],
+
     firstIncompleteStep: () => {
       const remaining = helpers.remainingSteps();
+      return remaining.length > 0 ? remaining[0] : null;
+    },
+
+    firstIncompleteStepName: () => {
+      const remaining = helpers.remainingStepNames();
       return remaining.length > 0 ? remaining[0] : null;
     },
 
@@ -194,8 +217,13 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       return completed.length > 0 ? completed[completed.length - 1] : null;
     },
 
+    lastCompletedStepName: () => {
+      const completed = helpers.completedStepNames();
+      return completed.length > 0 ? completed[completed.length - 1] : null;
+    },
+
     remainingRequiredCount: () => {
-      return helpers.remainingSteps().filter(step => helpers.isRequired(step)).length;
+      return helpers.remainingStepNames().filter(stepName => helpers.isRequired(stepName)).length;
     },
 
     isComplete: () => {
@@ -204,7 +232,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
     progress: () => {
       const total = orderedSteps.filter(step => helpers.isRequired(step)).length;
-      const completed = helpers.completedSteps().filter(step => helpers.isRequired(step)).length;
+      const completed = helpers.completedStepNames().filter(stepName => helpers.isRequired(stepName)).length;
       const ratio = total > 0 ? completed / total : 1;
       return {
         ratio,
@@ -226,7 +254,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
         if (!resolve(stepDef.canExit, args)) return false;
       }
 
-      return helpers.findNextAvailable() !== null;
+      return helpers.findNextAvailableName() !== null;
     },
 
     canGoBack: () => {
@@ -234,44 +262,54 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     },
 
     canGoTo: (step: S) => {
-      return helpers.availableSteps().includes(step);
+      return helpers.availableStepNames().includes(step);
     },
 
-    findNextAvailable: (from?: S) => {
+    findNextAvailableName: (from?: S) => {
       const currentStep = from || store.state.step;
       const currentIndex = orderedSteps.indexOf(currentStep);
 
       for (let i = currentIndex + 1; i < orderedSteps.length; i++) {
         const step = orderedSteps[i];
-        if (helpers.availableSteps().includes(step)) {
+        if (helpers.availableStepNames().includes(step)) {
           return step;
         }
       }
       return null;
     },
 
-    findPrevAvailable: (from?: S) => {
+    findNextAvailable: () => null,
+
+    findPrevAvailableName: (from?: S) => {
       const currentStep = from || store.state.step;
       const currentIndex = orderedSteps.indexOf(currentStep);
 
       for (let i = currentIndex - 1; i >= 0; i--) {
         const step = orderedSteps[i];
-        if (helpers.availableSteps().includes(step)) {
+        if (helpers.availableStepNames().includes(step)) {
           return step;
         }
       }
       return null;
     },
 
+    findPrevAvailable: () => null,
+
     jumpToNextRequired: () => {
       const remaining = helpers.remainingSteps();
-      const nextRequired = remaining.find(step => helpers.isRequired(step));
+      const nextRequired = remaining.find(step => helpers.isRequired(step.name));
+      return nextRequired || null;
+    },
+
+    jumpToNextRequiredName: () => {
+      const remaining = helpers.remainingStepNames();
+      const nextRequired = remaining.find(stepName => helpers.isRequired(stepName));
       return nextRequired || null;
     },
 
     isReachable: (step: S) => {
       // Simple reachability: step is in available steps or already completed
-      return helpers.availableSteps().includes(step) || helpers.completedSteps().includes(step);
+      return helpers.availableStepNames().includes(step) || helpers.completedStepNames().includes(step);
     },
 
     prerequisitesFor: (step: S) => {
@@ -301,7 +339,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     percentCompletePerStep: () => {
       const result = {} as Record<S, number>;
       for (const step of orderedSteps) {
-        if (helpers.completedSteps().includes(step)) {
+        if (helpers.completedStepNames().includes(step)) {
           result[step] = 100;
         } else if (step === store.state.step) {
           result[step] = 50; // Current step is 50% complete
@@ -332,6 +370,10 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       return store.state.data;
     },
 
+    get meta() {
+      return store.state.meta;
+    },
+
     get errors(): Partial<Record<S, unknown>> {
       return store.state.errors;
     },
@@ -357,6 +399,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
         step: orderedSteps[0],
         context: structuredClone(initialContext),
         data: {} as Partial<D>,
+        meta: initialMeta,
         errors: {},
         history: [],
         isLoading: false,
@@ -394,6 +437,29 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
     getStepData<K extends S>(step: K): D[K] | undefined {
       return store.state.data[step] as D[K] | undefined;
+    },
+
+    setStepMeta<K extends S>(step: K, meta: import('./types').StepMetaCore<C, S, D[K], never>) {
+      store.setState(state => ({
+        ...state,
+        meta: { ...state.meta, [step]: meta },
+      }));
+    },
+
+    updateStepMeta<K extends S>(step: K, updater: Partial<import('./types').StepMetaCore<C, S, D[K], never>> | ((current: import('./types').StepMetaCore<C, S, D[K], never> | undefined) => Partial<import('./types').StepMetaCore<C, S, D[K], never>>)) {
+      store.setState(state => {
+        const currentMeta = state.meta[step] as import('./types').StepMetaCore<C, S, D[K], never> | undefined;
+        const updates = typeof updater === 'function' ? updater(currentMeta) : updater;
+        const newMeta = { ...(currentMeta || {} as any), ...updates } as import('./types').StepMetaCore<C, S, D[K], never>;
+        return {
+          ...state,
+          meta: { ...state.meta, [step]: newMeta },
+        };
+      });
+    },
+
+    getStepMeta<K extends S>(step: K): import('./types').StepMetaCore<C, S, D[K], never> | undefined {
+      return store.state.meta[step] as import('./types').StepMetaCore<C, S, D[K], never> | undefined;
     },
 
     getStepError<K extends S>(step: K): unknown {
@@ -439,7 +505,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     },
 
     // Enhanced navigation methods that return step objects
-    async next(args?: { data?: D[S] }): Promise<WizardStep<S, unknown, C, S, D>> {
+    async next(args?: { data?: D[S] }): Promise<WizardStep<S, D[S], C, S, D>> {
       const currentStep = store.state.step;
 
       // Set step data if provided
@@ -451,7 +517,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       }
 
       // Find next step
-      const nextStep = helpers.findNextAvailable();
+      const nextStep = helpers.findNextAvailableName();
       if (!nextStep) {
         throw new Error('No next step available');
       }
@@ -460,7 +526,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       await wizard.goTo(nextStep);
 
       // Return step wrapper for the new current step
-      return createCurrentStepWrapper(wizard);
+      return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
     },
 
     async goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<WizardStep<K, D[K], C, S, D>> {
@@ -515,7 +581,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       return createStepWrapper(wizard, step, stepData, store.state.context);
     },
 
-    async back(): Promise<WizardStep<S, unknown, C, S, D>> {
+    async back(): Promise<WizardStep<S, D[S], C, S, D>> {
       const history = store.state.history;
       if (history.length === 0) {
         throw new Error('No previous step in history');
@@ -533,7 +599,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       }));
 
       // Return step wrapper for the restored step
-      return createCurrentStepWrapper(wizard);
+      return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
     },
 
     // Enhanced mark methods that return step objects
@@ -582,6 +648,56 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
   // Initialize availability cache
   helpers.refreshAvailability();
+
+  // Now that wizard is defined, update the object-returning helper methods
+  helpers.allSteps = () => {
+    return helpers.allStepNames().map(name => wizard.getStep(name));
+  };
+
+  helpers.orderedSteps = () => {
+    return helpers.orderedStepNames().map(name => wizard.getStep(name));
+  };
+
+  helpers.availableSteps = () => {
+    return helpers.availableStepNames().map(name => wizard.getStep(name));
+  };
+
+  helpers.unavailableSteps = () => {
+    return helpers.unavailableStepNames().map(name => wizard.getStep(name));
+  };
+
+  helpers.completedSteps = () => {
+    return helpers.completedStepNames().map(name => wizard.getStep(name));
+  };
+
+  helpers.remainingSteps = () => {
+    return helpers.remainingStepNames().map(name => wizard.getStep(name));
+  };
+
+  helpers.firstIncompleteStep = () => {
+    const name = helpers.firstIncompleteStepName();
+    return name ? wizard.getStep(name) : null;
+  };
+
+  helpers.lastCompletedStep = () => {
+    const name = helpers.lastCompletedStepName();
+    return name ? wizard.getStep(name) : null;
+  };
+
+  helpers.findNextAvailable = (from?: S) => {
+    const name = helpers.findNextAvailableName(from);
+    return name ? wizard.getStep(name) : null;
+  };
+
+  helpers.findPrevAvailable = (from?: S) => {
+    const name = helpers.findPrevAvailableName(from);
+    return name ? wizard.getStep(name) : null;
+  };
+
+  helpers.jumpToNextRequired = () => {
+    const name = helpers.jumpToNextRequiredName();
+    return name ? wizard.getStep(name) : null;
+  };
 
   return wizard;
 }

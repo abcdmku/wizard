@@ -1,11 +1,10 @@
-import { useWizardStep } from "@wizard/react";
-
-const STEPS = ["account", "personal", "address"] as const;
-const STEP_LABELS = ["Account", "Personal", "Address"];
+import { FormWizard } from "../wizard/steps";
 
 export function StepIndicator() {
-  const currentStep = useWizardStep();
-  const currentIndex = STEPS.indexOf(currentStep as typeof STEPS[number]);
+  const {getCurrentStep, helpers} = FormWizard;
+  const currentStep = getCurrentStep();
+  const stepNames = helpers.availableStepNames();
+  const currentIndex = helpers.stepIndex(currentStep.name);
 
   return (
     <div className="w-full">
@@ -23,8 +22,8 @@ export function StepIndicator() {
           }}
         />
 
-        {STEPS.map((step, index) => (
-          <div key={step} className="flex flex-col items-center relative z-10">
+        {stepNames.map((stepName, index) => (
+          <div key={stepName} className="flex flex-col items-center relative z-10">
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-200 ${
                 currentIndex === index
@@ -51,7 +50,7 @@ export function StepIndicator() {
                   : "text-gray-400 dark:text-gray-500"
               }`}
             >
-              {STEP_LABELS[index]}
+              {stepNames[index].charAt(0).toUpperCase() + stepNames[index].slice(1)}
             </span>
           </div>
         ))}

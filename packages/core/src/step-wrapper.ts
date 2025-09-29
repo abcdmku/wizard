@@ -19,6 +19,7 @@ export interface WizardStep<
 > {
   readonly name: StepName;
   readonly data: Readonly<Data> | undefined;
+  readonly meta: import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined;
   readonly context: Readonly<Context>;
   readonly wizard: Wizard<Context, AllSteps, DataMap, never>;
   readonly error: unknown;
@@ -35,12 +36,16 @@ export interface WizardStep<
   setData(data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
   updateData(updater: Partial<Data> | ((data: Data | undefined) => Partial<Data>)): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
 
+  // Meta operations
+  setMeta(meta: import('./types').StepMetaCore<Context, AllSteps, Data, never>): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
+  updateMeta(updater: Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>> | ((meta: import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined) => Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>>)): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
+
   // Navigation that returns step objects
-  next(): Promise<WizardStep<AllSteps, unknown, Context, AllSteps, DataMap>>;
+  next(): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>>;
   goTo<Target extends AllSteps>(
     step: Target
   ): Promise<WizardStep<Target, DataMap[Target], Context, AllSteps, DataMap>>;
-  back(): Promise<WizardStep<AllSteps, unknown, Context, AllSteps, DataMap>>;
+  back(): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>>;
 
   // Utility methods
   canNavigateNext(): boolean;
@@ -70,6 +75,10 @@ export class WizardStepImpl<
   ) {}
 
   // Computed properties
+  get meta(): import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined {
+    return this.wizard.getStepMeta(this.name as unknown as AllSteps) as import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined;
+  }
+
   get error(): unknown {
     return this.wizard.getStepError(this.name as unknown as AllSteps);
   }
@@ -119,9 +128,21 @@ export class WizardStepImpl<
     return this.createFreshInstanceWithData(newData);
   }
 
+  // ===== Meta Operations =====
+
+  setMeta(meta: import('./types').StepMetaCore<Context, AllSteps, Data, never>): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
+    this.wizard.setStepMeta(this.name as unknown as AllSteps, meta as any);
+    return this.createFreshInstance();
+  }
+
+  updateMeta(updater: Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>> | ((meta: import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined) => Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>>)): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
+    this.wizard.updateStepMeta(this.name as unknown as AllSteps, updater as any);
+    return this.createFreshInstance();
+  }
+
   // ===== Navigation Methods =====
 
-  async next(): Promise<WizardStep<AllSteps, unknown, Context, AllSteps, DataMap>> {
+  async next(): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>> {
     await this.wizard.next();
     const current = this.wizard.getCurrent();
     return new WizardStepImpl(
@@ -145,7 +166,7 @@ export class WizardStepImpl<
     );
   }
 
-  async back(): Promise<WizardStep<AllSteps, unknown, Context, AllSteps, DataMap>> {
+  async back(): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>> {
     await this.wizard.back();
     const current = this.wizard.getCurrent();
     return new WizardStepImpl(
