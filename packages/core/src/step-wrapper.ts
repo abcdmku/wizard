@@ -46,8 +46,6 @@ export interface WizardStep<
   canNavigateNext(): boolean;
   canNavigateTo(step: AllSteps): boolean;
   canNavigateBack(): boolean;
-  getStatus(): import('./types').StepStatus;
-  getError(): unknown;
   clearError(): void;
 }
 
@@ -171,14 +169,6 @@ export class WizardStepImpl<
 
   canNavigateBack(): boolean {
     return this.wizard.helpers.canGoBack();
-  }
-
-  getStatus(): import('./types').StepStatus {
-    return this.status;
-  }
-
-  getError(): unknown {
-    return this.error;
   }
 
   clearError(): void {
