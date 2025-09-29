@@ -60,7 +60,7 @@ export const steps = defineSteps({
   summary: step({
     data: {} as {},
     next: [],
-    meta: { label: "Complete", iconKey: "check", hideFromProgress: true },
+    meta: { label: "Complete", iconKey: "check", hidden: true },
   }),
 });
 
