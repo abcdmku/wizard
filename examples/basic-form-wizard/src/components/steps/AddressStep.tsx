@@ -1,34 +1,22 @@
 import { useState } from "react";
-import { useStepForm } from "../../hooks/useStepForm";
-import { useWizardState, useWizardActions } from "@wizard/react";
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
-import type { AddressData, AccountData, PersonalData } from "../../wizard/types";
-
-const defaultData: AddressData = {
-  street: "",
-  city: "",
-  state: "",
-  zipCode: "",
-  country: "",
-};
+import { FormWizard } from "../../wizard/steps";
+import type { AccountData, PersonalData } from "../../wizard/types";
 
 export function AddressStep() {
-  const { data, updateField, error, handleBack } = useStepForm(defaultData);
-  const { setStepData } = useWizardActions();
-  const wizardState = useWizardState();
+  const {status, data, error, updateData, back, wizard} = FormWizard.getStep("address");
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
   const handleSubmit = async () => {
     try {
       // Validate address data
-      if (!data.street || !data.city || !data.state || !data.zipCode || !data.country) {
+      if (!data?.street || !data?.city || !data?.state || !data?.zipCode || !data?.country) {
         throw new Error("Please fill in all address fields");
       }
-      
-      setStepData("address", data);
+
       setSubmitted(true);
       setSubmitError("");
     } catch (err) {
@@ -37,8 +25,8 @@ export function AddressStep() {
   };
 
   if (submitted) {
-    const accountData = wizardState.data.account as AccountData | undefined;
-    const personalData = wizardState.data.personal as PersonalData | undefined;
+    const accountData = wizard.getStepData("account") as AccountData | undefined;
+    const personalData = wizard.getStepData("personal") as PersonalData | undefined;
 
     return (
       <div className="space-y-4">
@@ -60,11 +48,11 @@ export function AddressStep() {
 
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md space-y-2">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">Address</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300">{data.street}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{data?.street}</p>
           <p className="text-sm text-gray-700 dark:text-gray-300">
-            {data.city}, {data.state} {data.zipCode}
+            {data?.city}, {data?.state} {data?.zipCode}
           </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">{data.country}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{data?.country}</p>
         </div>
       </div>
     );
@@ -77,8 +65,8 @@ export function AddressStep() {
       <FormField
         label="Street Address"
         type="text"
-        value={data.street}
-        onChange={(value) => updateField("street", value)}
+        value={data?.street}
+        onChange={(value) => updateData(data => ({ ...data, street: value }))}
         placeholder="123 Main St"
       />
 
@@ -86,16 +74,16 @@ export function AddressStep() {
         <FormField
           label="City"
           type="text"
-          value={data.city}
-          onChange={(value) => updateField("city", value)}
+          value={data?.city}
+          onChange={(value) => updateData(data => ({ ...data, city: value }))}
           placeholder="New York"
         />
 
         <FormField
           label="State"
           type="text"
-          value={data.state}
-          onChange={(value) => updateField("state", value)}
+          value={data?.state}
+          onChange={(value) => updateData(data => ({ ...data, state: value }))}
           placeholder="NY"
         />
       </div>
@@ -104,24 +92,24 @@ export function AddressStep() {
         <FormField
           label="ZIP Code"
           type="text"
-          value={data.zipCode}
-          onChange={(value) => updateField("zipCode", value)}
+          value={data?.zipCode}
+          onChange={(value) => updateData(data => ({ ...data, zipCode: value }))}
           placeholder="10001"
         />
 
         <FormField
           label="Country"
           type="text"
-          value={data.country}
-          onChange={(value) => updateField("country", value)}
+          value={data?.country}
+          onChange={(value) => updateData(data => ({ ...data, country: value }))}
           placeholder="USA"
         />
       </div>
 
-      {(error || submitError) && <ErrorMessage message={error || submitError} />}
+      {(status === 'error' || submitError) && <ErrorMessage message={String(error) || submitError} />}
 
       <div className="flex gap-3">
-        <Button onClick={handleBack} variant="secondary" fullWidth>
+        <Button onClick={back} variant="secondary" fullWidth>
           Previous
         </Button>
         <Button onClick={handleSubmit} variant="success" fullWidth>
