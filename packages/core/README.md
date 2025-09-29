@@ -27,20 +27,55 @@ yarn add @wizard/core
 
 ```typescript
 import { createWizard } from '@wizard/core';
+import { createWizardFactory } from '@wizard/core';
 
-// Define your wizard
+// Option 1: Direct creation
 const wizard = createWizard({
-  initialStep: 'welcome',
-  initialContext: { userId: null },
+  context: { userId: null },
   steps: {
-    welcome: { next: ['profile'] },
-    profile: { next: ['review'] },
-    review: { next: [] }
+    welcome: {
+      data: { name: '', email: '' },
+      next: ['profile']
+    },
+    profile: {
+      data: { bio: '', avatar: '' },
+      next: ['review']
+    },
+    review: {
+      data: { confirmed: false },
+      next: []
+    }
   }
 });
 
+// Option 2: Using factory (recommended for better type inference)
+const { defineSteps, createWizard } = createWizardFactory();
+
+const steps = defineSteps({
+  welcome: {
+    data: { name: '', email: '' },
+    next: ['profile'],
+    validate: ({ data }) => {
+      // data is properly typed!
+      if (!data.email.includes('@')) throw new Error('Invalid email');
+    }
+  },
+  profile: {
+    data: { bio: '', avatar: '' },
+    next: ['review']
+  },
+  review: {
+    data: { confirmed: false },
+    next: []
+  }
+});
+
+const wizard = createWizard(steps, {
+  context: { userId: null }
+});
+
 // Use the wizard
-await wizard.next({ data: welcomeData });
+await wizard.next();
 console.log(wizard.helpers.progress().percent); // 33%
 ```
 

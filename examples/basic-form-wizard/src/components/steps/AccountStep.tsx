@@ -5,8 +5,7 @@ import { FormWizard } from "../../wizard/steps";
 
 
 export function AccountStep() {
-  const { getStep, setStepData } = FormWizard
-  const {status, data, error, next} = getStep("account")
+  const {status, data, error, updateData, next} = FormWizard.getStep("account")
 
   return (
     <div className="space-y-4">
@@ -15,7 +14,7 @@ export function AccountStep() {
         label="Email"
         type="email"
         value={data?.email}
-        onChange={(value) => setStepData("account", { ...data!, email: value })}
+        onChange={(value) => updateData(data => ({ ...data, email: value }))}
         placeholder="you@example.com"
       />
 
@@ -23,7 +22,7 @@ export function AccountStep() {
         label="Password"
         type="password"
         value={data?.password}
-        onChange={(value) => setStepData("account", { ...data!, password: value })}
+        onChange={(value) => updateData(data => ({ ...data, password: value }))}
         placeholder="Min 8 characters"
       />
 
@@ -31,15 +30,13 @@ export function AccountStep() {
         label="Confirm Password"
         type="password"
         value={data?.confirmPassword}
-        onChange={(value) => setStepData("account", { ...data!, confirmPassword: value })}
+        onChange={(value) => updateData(data => ({ ...data, confirmPassword: value }))}
         placeholder="Re-enter password"
       />
 
       {status === 'error' && <ErrorMessage message={String(error)} />}
 
-      <Button onClick={next} fullWidth>
-        Next
-      </Button>
+      <Button onClick={next} fullWidth>Next</Button>
     </div>
   );
 }
