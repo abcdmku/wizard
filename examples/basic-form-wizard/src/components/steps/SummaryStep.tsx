@@ -1,12 +1,14 @@
 import { FormWizard } from "../../wizard/steps";
-import type { AccountData, PersonalData, AddressData } from "../../wizard/types";
+import type { AccountData, PersonalData, AddressData } from "../../wizard/steps";
 
 export function SummaryStep() {
+  // Access the wizard data directly from the exposed state properties
   const { wizard } = FormWizard.getStep("summary");
 
-  const accountData = wizard.getStepData("account") as AccountData | undefined;
-  const personalData = wizard.getStepData("personal") as PersonalData | undefined;
-  const addressData = wizard.getStepData("address") as AddressData | undefined;
+  // Use the exposed data property to get all step data
+  const accountData = wizard.data.account as AccountData | undefined;
+  const personalData = wizard.data.personal as PersonalData | undefined;
+  const addressData = wizard.data.address as AddressData | undefined;
 
   return (
     <div className="space-y-4">
