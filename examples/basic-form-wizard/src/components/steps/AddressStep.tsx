@@ -1,62 +1,10 @@
-import { useState } from "react";
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
 import { FormWizard } from "../../wizard/steps";
-import type { AccountData, PersonalData } from "../../wizard/types";
 
 export function AddressStep() {
-  const {status, data, error, updateData, back, wizard} = FormWizard.getStep("address");
-  const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-
-  const handleSubmit = async () => {
-    try {
-      // Validate address data
-      if (!data?.street || !data?.city || !data?.state || !data?.zipCode || !data?.country) {
-        throw new Error("Please fill in all address fields");
-      }
-
-      setSubmitted(true);
-      setSubmitError("");
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Validation failed");
-    }
-  };
-
-  if (submitted) {
-    const accountData = wizard.getStepData("account") as AccountData | undefined;
-    const personalData = wizard.getStepData("personal") as PersonalData | undefined;
-
-    return (
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-green-600 dark:text-green-400">Registration Complete!</h2>
-        <p className="text-gray-600 dark:text-gray-300">Thank you for registering. Here's a summary:</p>
-
-        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md space-y-2">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Account</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300">Email: {accountData?.email}</p>
-        </div>
-
-        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md space-y-2">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Personal</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
-            Name: {personalData?.firstName} {personalData?.lastName}
-          </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">Date of Birth: {personalData?.dateOfBirth}</p>
-        </div>
-
-        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md space-y-2">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Address</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300">{data?.street}</p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">
-            {data?.city}, {data?.state} {data?.zipCode}
-          </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300">{data?.country}</p>
-        </div>
-      </div>
-    );
-  }
+  const {status, data, error, updateData, back, next} = FormWizard.getStep("address");
 
   return (
     <div className="space-y-4">
@@ -106,13 +54,13 @@ export function AddressStep() {
         />
       </div>
 
-      {(status === 'error' || submitError) && <ErrorMessage message={String(error) || submitError} />}
+      {status === 'error' && <ErrorMessage message={String(error)} />}
 
       <div className="flex gap-3">
         <Button onClick={back} variant="secondary" fullWidth>
           Previous
         </Button>
-        <Button onClick={handleSubmit} variant="success" fullWidth>
+        <Button onClick={next} variant="success" fullWidth>
           Submit
         </Button>
       </div>

@@ -54,8 +54,13 @@ export const steps = defineSteps({
   address: step({
     validate: validateAddressData,
     data: {} as AddressData,
-    next: [],
+    next: ["summary"],
     meta: { label: "Address", iconKey: "location" },
+  }),
+  summary: step({
+    data: {} as {},
+    next: [],
+    meta: { label: "Complete", iconKey: "check", hideFromProgress: true },
   }),
 });
 

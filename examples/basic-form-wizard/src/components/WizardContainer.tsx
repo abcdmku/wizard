@@ -4,6 +4,7 @@ import { ThemeToggle } from "./ui/ThemeToggle";
 import { AccountStep } from "./steps/AccountStep";
 import { PersonalStep } from "./steps/PersonalStep";
 import { AddressStep } from "./steps/AddressStep";
+import { SummaryStep } from "./steps/SummaryStep";
 
 export function WizardContainer() {
   const currentStep = useWizardStep();
@@ -16,6 +17,8 @@ export function WizardContainer() {
         return <PersonalStep />;
       case "address":
         return <AddressStep />;
+      case "summary":
+        return <SummaryStep />;
       default:
         return null;
     }
@@ -29,8 +32,8 @@ export function WizardContainer() {
       </div>
 
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-xl p-6">
-        <StepIndicator />
-        <div className="mt-6">{renderStep()}</div>
+        {currentStep !== "summary" && <StepIndicator />}
+        <div className={currentStep !== "summary" ? "mt-6" : ""}>{renderStep()}</div>
       </div>
     </div>
   );
