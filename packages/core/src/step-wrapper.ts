@@ -72,7 +72,25 @@ export class WizardStepImpl<
     public readonly name: StepName,
     public readonly data: Readonly<Data> | undefined,
     public readonly context: Readonly<Context>
-  ) {}
+  ) {
+    // Bind all methods to preserve 'this' context when destructured
+    this.markIdle = this.markIdle.bind(this);
+    this.markLoading = this.markLoading.bind(this);
+    this.markSkipped = this.markSkipped.bind(this);
+    this.markError = this.markError.bind(this);
+    this.markTerminated = this.markTerminated.bind(this);
+    this.setData = this.setData.bind(this);
+    this.updateData = this.updateData.bind(this);
+    this.setMeta = this.setMeta.bind(this);
+    this.updateMeta = this.updateMeta.bind(this);
+    this.next = this.next.bind(this);
+    this.goTo = this.goTo.bind(this);
+    this.back = this.back.bind(this);
+    this.canNavigateNext = this.canNavigateNext.bind(this);
+    this.canNavigateTo = this.canNavigateTo.bind(this);
+    this.canNavigateBack = this.canNavigateBack.bind(this);
+    this.clearError = this.clearError.bind(this);
+  }
 
   // Computed properties
   get meta(): import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined {
