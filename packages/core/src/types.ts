@@ -287,6 +287,10 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   updateContext(fn: (context: C) => void): void;
   setStepData<K extends S>(step: K, data: D[K]): void;
   getStepData<K extends S>(step: K): D[K] | undefined;
+  getStepError<K extends S>(step: K): unknown;
+  getAllErrors(): Partial<Record<S, unknown>>;
+  clearStepError<K extends S>(step: K): void;
+  clearAllErrors(): void;
   getContext(): Readonly<C>;
   getCurrent(): { step: S; data: Readonly<D[S]> | undefined; context: Readonly<C> };
 
@@ -406,6 +410,10 @@ export type EnhancedWizard<C, S extends string, D extends Record<S, unknown>, E>
 
   // Enhanced data access with proper typing
   getStepData<K extends S>(step: K): D[K] | undefined;
+  getStepError<K extends S>(step: K): unknown;
+  getAllErrors(): Partial<Record<S, unknown>>;
+  clearStepError<K extends S>(step: K): void;
+  clearAllErrors(): void;
   getCurrent(): { step: S; data: Readonly<D[S]> | undefined; context: Readonly<C> };
 
   // Fluent step operations

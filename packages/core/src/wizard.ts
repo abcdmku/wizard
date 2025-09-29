@@ -354,6 +354,26 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       return store.state.data[step] as D[K] | undefined;
     },
 
+    getStepError<K extends S>(step: K): unknown {
+      return store.state.errors[step];
+    },
+
+    getAllErrors(): Partial<Record<S, unknown>> {
+      return store.state.errors;
+    },
+
+    clearStepError<K extends S>(step: K): void {
+      store.setState(state => {
+        const newErrors = { ...state.errors };
+        delete newErrors[step];
+        return { ...state, errors: newErrors };
+      });
+    },
+
+    clearAllErrors(): void {
+      store.setState(state => ({ ...state, errors: {} }));
+    },
+
     getContext: () => store.state.context,
 
     getCurrent: () => ({
