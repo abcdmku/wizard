@@ -1,9 +1,7 @@
 import type { AccountData, PersonalData, AddressData } from "./types";
-import type { ValidateArgs } from "@wizard/core";
-import type { WizardContext } from "./types";
 
 // Internal validation functions with proper typing
-const validateAccountData = (data: AccountData) => {
+export const validateAccountData = ({data}: {data: AccountData}) => {
   if (!data?.email || !data.email.includes("@")) {
     throw new Error("Please enter a valid email");
   }
@@ -15,7 +13,7 @@ const validateAccountData = (data: AccountData) => {
   }
 };
 
-const validatePersonalData = (data: PersonalData) => {
+export const validatePersonalData = ({data}: {data: PersonalData}) => {
   if (!data?.firstName || !data?.lastName) {
     throw new Error("Please enter your full name");
   }
@@ -24,7 +22,7 @@ const validatePersonalData = (data: PersonalData) => {
   }
 };
 
-const validateAddressData = (data: AddressData) => {
+export const validateAddressData = ({data}: {data: AddressData}) => {
   if (
     !data?.street ||
     !data?.city ||
@@ -36,15 +34,3 @@ const validateAddressData = (data: AddressData) => {
   }
 };
 
-// Exported validation functions that match the wizard framework signature
-export const validateAccount = ({ data }: ValidateArgs<WizardContext>) => {
-  validateAccountData(data as AccountData);
-};
-
-export const validatePersonal = ({ data }: ValidateArgs<WizardContext>) => {
-  validatePersonalData(data as PersonalData);
-};
-
-export const validateAddress = ({ data }: ValidateArgs<WizardContext>) => {
-  validateAddressData(data as AddressData);
-};

@@ -51,7 +51,7 @@ type ContextAwareStepDefinition<C, S extends string, Data, E> = {
 /**
  * Creates a wizard factory with context-aware step definitions
  */
-export function createWizardFactory<C, E = never>() {
+export function createWizardFactory<C = any, E = never>() {
   return {
     /**
      * Define steps with proper context typing
@@ -84,15 +84,22 @@ export function createWizardFactory<C, E = never>() {
 
     /**
      * Create the wizard with the defined steps
+     * @param options Can include context and steps, or pass them as separate parameters
      */
     createWizard<TDefs extends Record<string, any>>(
-      context: C,
-      steps: TDefs,
+      contextOrOptions: C | CreateWizardOptions<C, E, TDefs>,
+      steps?: TDefs,
       options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
     ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> {
+      // Check if first parameter is the full options object
+      if (contextOrOptions && typeof contextOrOptions === 'object' && 'steps' in contextOrOptions) {
+        return createWizardImpl(contextOrOptions as CreateWizardOptions<C, E, TDefs>) as EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
+      }
+
+      // Otherwise treat first param as context
       return createWizardImpl({
-        context,
-        steps,
+        context: contextOrOptions as C,
+        steps: steps!,
         ...options
       }) as EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
     }
@@ -100,7 +107,8 @@ export function createWizardFactory<C, E = never>() {
 }
 
 /**
- * Convenience function for creating a wizard with context inference
+ * Convenience function for creating a wizard with pre-bound context
+ * @param context The context to bind to the wizard
  */
 export function wizardWithContext<C, E = never>(context: C) {
   const factory = createWizardFactory<C, E>();
@@ -112,6 +120,6 @@ export function wizardWithContext<C, E = never>(context: C) {
       steps: TDefs,
       options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
     ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> =>
-      factory.createWizard(context, steps, options)
+      factory.createWizard({ context, steps, ...options })
   };
 }
