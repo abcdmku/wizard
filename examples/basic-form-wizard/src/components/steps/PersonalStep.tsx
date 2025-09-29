@@ -1,17 +1,10 @@
-import { useStepForm } from "../../hooks/useStepForm";
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
-import type { PersonalData } from "../../wizard/types";
-
-const defaultData: PersonalData = {
-  firstName: "",
-  lastName: "",
-  dateOfBirth: "",
-};
+import { FormWizard } from "../../wizard/steps";
 
 export function PersonalStep() {
-  const { data, updateField, error, handleNext, handleBack } = useStepForm(defaultData);
+  const {status, data, error, updateData, next, back} = FormWizard.getStep("personal");
 
   return (
     <div className="space-y-4">
@@ -20,33 +13,33 @@ export function PersonalStep() {
       <FormField
         label="First Name"
         type="text"
-        value={data.firstName}
-        onChange={(value) => updateField("firstName", value)}
+        value={data?.firstName}
+        onChange={(value) => updateData(data => ({ ...data, firstName: value }))}
         placeholder="John"
       />
 
       <FormField
         label="Last Name"
         type="text"
-        value={data.lastName}
-        onChange={(value) => updateField("lastName", value)}
+        value={data?.lastName}
+        onChange={(value) => updateData(data => ({ ...data, lastName: value }))}
         placeholder="Doe"
       />
 
       <FormField
         label="Date of Birth"
         type="date"
-        value={data.dateOfBirth}
-        onChange={(value) => updateField("dateOfBirth", value)}
+        value={data?.dateOfBirth}
+        onChange={(value) => updateData(data => ({ ...data, dateOfBirth: value }))}
       />
 
-      {error && <ErrorMessage message={error} />}
+      {status === 'error' && <ErrorMessage message={String(error)} />}
 
       <div className="flex gap-3">
-        <Button onClick={handleBack} variant="secondary" fullWidth>
+        <Button onClick={back} variant="secondary" fullWidth>
           Previous
         </Button>
-        <Button onClick={handleNext} fullWidth>
+        <Button onClick={next} fullWidth>
           Next
         </Button>
       </div>
