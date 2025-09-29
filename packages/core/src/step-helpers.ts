@@ -55,7 +55,7 @@ export function step<Data, Context = unknown>(definition: StepDefinitionInput<Da
  *
  * @example
  * ```typescript
- * const validateUser = ({ data }: { data: { email: string; password: string } }) => {
+ * const validateUser = ({ context, data }: { context: any; data: { email: string; password: string } }) => {
  *   if (!data.email.includes('@')) throw new Error('Invalid email');
  * };
  *
@@ -70,14 +70,14 @@ export function step<Data, Context = unknown>(definition: StepDefinitionInput<Da
  * ```
  */
 export function stepWithValidation<Data, Context = unknown>(
-  validateFn: (args: { data: Data }) => void,
+  validateFn: (args: ValidateArgs<Context, Data>) => void,
   definition: Omit<StepDefinitionInput<Data, Context>, 'validate'> & {
-    validate?: (args: ValidateArgs<Context>) => void;
+    validate?: (args: ValidateArgs<Context, Data>) => void;
   }
-): StepDefinitionInput<Data, Context> & { validate: (args: ValidateArgs<Context>) => void } {
+): StepDefinitionInput<Data, Context> & { validate: (args: ValidateArgs<Context, Data>) => void } {
   return {
     ...definition,
-    validate: validateFn as (args: ValidateArgs<Context>) => void,
+    validate: validateFn,
   };
 }
 

@@ -119,7 +119,8 @@
       "WebFetch(domain:nextra.site)",
       "Bash(pnpm run:*)",
       "Bash(pnpm tsc:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(pnpm test:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",

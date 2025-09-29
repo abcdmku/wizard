@@ -34,7 +34,7 @@ type ContextAwareStepExitArgs<C, S extends string, Data, E> = ContextAwareStepAr
 type ContextAwareStepDefinition<C, S extends string, Data, E> = {
   next: readonly S[] | ((args: ContextAwareStepArgs<C, S, Data, E>) => S | readonly S[]);
   data?: ValOrFn<Data, ContextAwareStepEnterArgs<C, S, Data, E>>;
-  validate?: (args: ValidateArgs<C>) => void;
+  validate?: (args: ValidateArgs<C, Data>) => void;
   beforeExit?: (args: ContextAwareStepExitArgs<C, S, Data, E>) => void | Promise<void>;
   beforeEnter?: (args: ContextAwareStepEnterArgs<C, S, Data, E>) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
   canEnter?: ValOrFn<boolean, ContextAwareStepEnterArgs<C, S, Data, E>>;
@@ -72,7 +72,7 @@ export function createWizardFactory<C, E = never>() {
       canEnter?: boolean | ((args: ContextAwareStepEnterArgs<C, string, Data, E>) => boolean);
       canExit?: boolean | ((args: ContextAwareStepExitArgs<C, string, Data, E>) => boolean);
       complete?: boolean | ((args: ContextAwareStepArgs<C, string, Data, E>) => boolean);
-      validate?: (args: ValidateArgs<C>) => void;
+      validate?: (args: ValidateArgs<C, Data>) => void;
       weight?: number | ((args: ContextAwareStepArgs<C, string, Data, E>) => number);
       required?: boolean | ((args: ContextAwareStepArgs<C, string, Data, E>) => boolean);
       maxRetries?: number | ((args: ContextAwareStepArgs<C, string, Data, E>) => number);
