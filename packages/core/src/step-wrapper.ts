@@ -21,6 +21,8 @@ export interface WizardStep<
   readonly data: Readonly<Data> | undefined;
   readonly context: Readonly<Context>;
   readonly wizard: Wizard<Context, AllSteps, DataMap, never>;
+  readonly error: unknown;
+  readonly status: import('./types').StepStatus;
 
   // Fluent step operations
   markIdle(): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
@@ -45,6 +47,8 @@ export interface WizardStep<
   canNavigateTo(step: AllSteps): boolean;
   canNavigateBack(): boolean;
   getStatus(): import('./types').StepStatus;
+  getError(): unknown;
+  clearError(): void;
 }
 
 // ===== 2. Step Wrapper Implementation =====
@@ -66,6 +70,15 @@ export class WizardStepImpl<
     public readonly data: Readonly<Data> | undefined,
     public readonly context: Readonly<Context>
   ) {}
+
+  // Computed properties
+  get error(): unknown {
+    return this.wizard.getStepError(this.name as unknown as AllSteps);
+  }
+
+  get status(): import('./types').StepStatus {
+    return this.wizard.helpers.stepStatus(this.name as unknown as AllSteps);
+  }
 
   // ===== Fluent Step Operations =====
 
@@ -161,7 +174,15 @@ export class WizardStepImpl<
   }
 
   getStatus(): import('./types').StepStatus {
-    return this.wizard.helpers.stepStatus(this.name as unknown as AllSteps);
+    return this.status;
+  }
+
+  getError(): unknown {
+    return this.error;
+  }
+
+  clearError(): void {
+    this.wizard.clearStepError(this.name as unknown as AllSteps);
   }
 
   // ===== Private Helper Methods =====
