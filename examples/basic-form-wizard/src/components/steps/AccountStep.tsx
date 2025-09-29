@@ -6,7 +6,8 @@ import { FormWizard } from "../../wizard/steps";
 
 export function AccountStep() {
   const { getStep, setStepData } = FormWizard
-  const { data } = getStep("account")
+  const {status, data, error, next} = getStep("account")
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Create Account</h2>
@@ -34,9 +35,9 @@ export function AccountStep() {
         placeholder="Re-enter password"
       />
 
-      {error && <ErrorMessage message={error} />}
+      {status === 'error' && <ErrorMessage message={String(error)} />}
 
-      <Button onClick={handleNext} fullWidth>
+      <Button onClick={next} fullWidth>
         Next
       </Button>
     </div>

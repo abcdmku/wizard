@@ -33,7 +33,7 @@ export interface WizardStep<
 
   // Data operations
   setData(data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  updateData(updater: (data: Data | undefined) => Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
+  updateData(updater: Partial<Data> | ((data: Data | undefined) => Partial<Data>)): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
 
   // Navigation that returns step objects
   next(): Promise<WizardStep<AllSteps, unknown, Context, AllSteps, DataMap>>;
@@ -112,11 +112,10 @@ export class WizardStepImpl<
     return this.createFreshInstanceWithData(data);
   }
 
-  updateData(updater: (data: Data | undefined) => Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
-    const currentData = this.wizard.getStepData(this.name as unknown as AllSteps) as Data | undefined;
-    const updates = updater(currentData);
-    const newData = { ...currentData, ...updates } as Data;
-    this.wizard.setStepData(this.name as unknown as AllSteps, newData as DataMap[AllSteps]);
+  updateData(updater: Partial<Data> | ((data: Data | undefined) => Partial<Data>)): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
+    // Use the wizard's atomic updateStepData method to avoid race conditions
+    this.wizard.updateStepData(this.name as unknown as AllSteps, updater as any);
+    const newData = this.wizard.getStepData(this.name as unknown as AllSteps) as Data;
     return this.createFreshInstanceWithData(newData);
   }
 

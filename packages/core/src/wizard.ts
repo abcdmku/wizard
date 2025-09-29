@@ -350,6 +350,18 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       }));
     },
 
+    updateStepData<K extends S>(step: K, updater: Partial<D[K]> | ((current: D[K] | undefined) => Partial<D[K]>)) {
+      store.setState(state => {
+        const currentData = state.data[step] as D[K] | undefined;
+        const updates = typeof updater === 'function' ? updater(currentData) : updater;
+        const newData = { ...(currentData || {} as any), ...updates } as D[K];
+        return {
+          ...state,
+          data: { ...state.data, [step]: newData },
+        };
+      });
+    },
+
     getStepData<K extends S>(step: K): D[K] | undefined {
       return store.state.data[step] as D[K] | undefined;
     },
