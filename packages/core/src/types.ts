@@ -279,6 +279,17 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
 
 export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   store: Store<WizardState<C,S,D>>;
+
+  // Exposed store state as direct properties
+  readonly step: S;
+  readonly context: Readonly<C>;
+  readonly data: Partial<D>;
+  readonly errors: Partial<Record<S, unknown>>;
+  readonly history: Array<{ step: S; context: C; data: Partial<D> }>;
+  readonly isLoading: boolean;
+  readonly isTransitioning: boolean;
+  readonly runtime?: Partial<Record<S, { status?: StepStatus; attempts?: number; startedAt?: number; finishedAt?: number }>>;
+
   next(args?: { data?: D[S] }): Promise<import('./step-wrapper').WizardStep<S, unknown, C, S, D>>;
   goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<import('./step-wrapper').WizardStep<K, D[K], C, S, D>>;
   back(): Promise<import('./step-wrapper').WizardStep<S, unknown, C, S, D>>;

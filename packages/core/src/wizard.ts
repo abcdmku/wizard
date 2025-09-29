@@ -319,8 +319,38 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
   const wizard: Wizard<C, S, D, E> = {
     store,
 
+    // ===== Exposed Store State Properties =====
+    get step(): S {
+      return store.state.step;
+    },
 
+    get context(): Readonly<C> {
+      return store.state.context;
+    },
 
+    get data(): Partial<D> {
+      return store.state.data;
+    },
+
+    get errors(): Partial<Record<S, unknown>> {
+      return store.state.errors;
+    },
+
+    get history(): Array<{ step: S; context: C; data: Partial<D> }> {
+      return store.state.history;
+    },
+
+    get isLoading(): boolean {
+      return store.state.isLoading;
+    },
+
+    get isTransitioning(): boolean {
+      return store.state.isTransitioning;
+    },
+
+    get runtime() {
+      return store.state.runtime;
+    },
 
     reset() {
       store.setState({
