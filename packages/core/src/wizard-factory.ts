@@ -85,13 +85,14 @@ export function createWizardFactory<C = any, E = never>() {
     /**
      * Create the wizard with the defined steps
      * @param steps The wizard step definitions
-     * @param options Configuration options including context
+     * @param options Optional configuration including context
      */
     createWizard<TDefs extends Record<string, any>>(
       steps: TDefs,
-      options: Omit<CreateWizardOptions<C, E, TDefs>, 'steps'>
+      options?: Partial<Omit<CreateWizardOptions<C, E, TDefs>, 'steps'>>
     ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> {
       return createWizardImpl({
+        context: {} as C,  // Default empty context if not provided
         ...options,
         steps
       }) as EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
