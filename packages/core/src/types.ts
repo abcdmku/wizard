@@ -34,9 +34,9 @@ export type StepEnterArgs<C, S extends string, Data, E> =
 export type StepExitArgs<C, S extends string, Data, E> =
   StepArgs<C, S, Data, E> & { to?: S | null };
 
-export type ValidateArgs<C> = {
+export type ValidateArgs<C, Data = unknown> = {
   context: Readonly<C>;
-  data: unknown; // to be narrowed by validate
+  data: Data;
 };
 
 // ===== 3. Server-Safe Meta (core) + Resolver =====
@@ -101,7 +101,7 @@ export type StepDefinition<C,S extends string,Data,E = never> = {
     args: StepEnterArgs<C,S,Data,E>
   ) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
 
-  validate?: (args: ValidateArgs<C>) => void;
+  validate?: (args: ValidateArgs<C, Data>) => void;
 
   complete?: ValOrFn<boolean, StepArgs<C,S,Data,E>>;
   canEnter?: ValOrFn<boolean, StepEnterArgs<C,S,Data,E>>;
@@ -121,9 +121,11 @@ export type StepDefinition<C,S extends string,Data,E = never> = {
 
 // Infer Data from validate() → beforeEnter() return → data initializer
 type InferFromValidate<TDef> =
-  TDef extends { validate: (args: { data: infer Data }) => any }
+  TDef extends { validate: (args: ValidateArgs<any, infer Data>) => any }
     ? Data
-    : never;
+    : TDef extends { validate: (args: { context: any; data: infer Data }) => any }
+      ? Data
+      : never;
 
 type InferFromBeforeEnter<TDef> =
   TDef extends { beforeEnter: (...args: any[]) => infer R | Promise<infer R> }
@@ -158,7 +160,7 @@ export type PartialStepDefinition<C,S extends string,E,TDef> = {
   beforeEnter?: (
     args: StepEnterArgs<C,S,InferStepData<TDef>,E>
   ) => void | Partial<InferStepData<TDef>> | InferStepData<TDef> | Promise<void | Partial<InferStepData<TDef>> | InferStepData<TDef>>;
-  validate?: (args: ValidateArgs<C>) => void;
+  validate?: (args: ValidateArgs<C, InferStepData<TDef>>) => void;
   complete?: ValOrFn<boolean, StepArgs<C,S,InferStepData<TDef>,E>>;
   canEnter?: ValOrFn<boolean, StepEnterArgs<C,S,InferStepData<TDef>,E>>;
   canExit?: ValOrFn<boolean, StepExitArgs<C,S,InferStepData<TDef>,E>>;
@@ -202,7 +204,7 @@ type TypedStepExitArgs<StepName extends string, Data, Context = unknown> = Typed
 export function defineSteps<T extends Record<string, any>>(defs: T): {
   [K in keyof T]: T[K] extends {
     data: infer Data;
-    validate?: (args: { data: any }) => any;
+    validate?: (args: ValidateArgs<any, any> | { context: any; data: any }) => any;
   } ? T[K] & {
     beforeExit?: (args: TypedStepExitArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => void | Promise<void>;
     beforeEnter?: (args: TypedStepEnterArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => void | Partial<T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data> | (T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data) | Promise<void | Partial<T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data> | (T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data)>;
