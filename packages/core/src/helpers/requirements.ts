@@ -22,7 +22,16 @@ export function createRequirementChecks<C, S extends string, D extends Record<S,
     if (stepDef && 'required' in stepDef) {
       const required = stepDef.required;
       if (typeof required === 'function') {
-        return required(ctx);
+        const snapshot = state.get();
+        const args = {
+          step,
+          context: ctx,
+          data: snapshot.data[step],
+          updateContext: () => {},
+          setStepData: () => {},
+          emit: () => {},
+        };
+        return required(args as any);
       }
       return required !== false; // Default true for boolean
     }
@@ -59,7 +68,15 @@ export function createRequirementChecks<C, S extends string, D extends Record<S,
         return stepDef.complete;
       }
       if (typeof stepDef.complete === 'function') {
-        return stepDef.complete(stepData, snapshot.context);
+        const args = {
+          step,
+          context: snapshot.context,
+          data: stepData,
+          updateContext: () => {},
+          setStepData: () => {},
+          emit: () => {},
+        };
+        return stepDef.complete(args as any);
       }
     }
 
@@ -71,7 +88,7 @@ export function createRequirementChecks<C, S extends string, D extends Record<S,
       return config.isStepComplete({
         step,
         data: snapshot.data,
-        ctx: snapshot.context,
+        context: snapshot.context,
       });
     }
 

@@ -113,6 +113,7 @@ export type StepDefinition<C,S extends string,Data,E = never> = {
   required?: ValOrFn<boolean, StepArgs<C,S,Data,E>>;
   maxRetries?: ValOrFn<number, StepArgs<C,S,Data,E>>;
   retryDelay?: ValOrFn<number, StepArgs<C,S,Data,E>>; // ms
+  prerequisites?: readonly S[];  // Steps that must be completed before this step can be entered
 
   meta?: StepMetaCore<C,S,Data,E>;
 };

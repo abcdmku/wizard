@@ -69,8 +69,25 @@ export function createAvailabilityApi<C, S extends string, D extends Record<S, u
       return true;
     }
 
+    // Handle both boolean literals and functions
+    const canEnterValue = stepDef.canEnter;
+    if (typeof canEnterValue === 'boolean') {
+      guardCache.set(step, canEnterValue);
+      return canEnterValue;
+    }
+
+    // It's a function, so call it with proper StepEnterArgs
     try {
-      const result = stepDef.canEnter({ ctx: snapshot.context });
+      const args = {
+        step,
+        context: snapshot.context,
+        data: snapshot.data[step],
+        updateContext: () => {},
+        setStepData: () => {},
+        emit: () => {},
+        from: snapshot.step,
+      };
+      const result = canEnterValue(args as any);
       if (typeof result === 'boolean') {
         guardCache.set(step, result);
         return result;
@@ -93,8 +110,25 @@ export function createAvailabilityApi<C, S extends string, D extends Record<S, u
         continue;
       }
 
+      // Handle both boolean literals and functions
+      const canEnterValue = stepDef.canEnter;
+      if (typeof canEnterValue === 'boolean') {
+        guardCache.set(step, canEnterValue);
+        continue;
+      }
+
+      // It's a function, so call it with proper StepEnterArgs
       try {
-        const result = await stepDef.canEnter({ ctx: snapshot.context });
+        const args = {
+          step,
+          context: snapshot.context,
+          data: snapshot.data[step],
+          updateContext: () => {},
+          setStepData: () => {},
+          emit: () => {},
+          from: snapshot.step,
+        };
+        const result = await canEnterValue(args as any);
         guardCache.set(step, !!result);
       } catch {
         guardCache.set(step, false);

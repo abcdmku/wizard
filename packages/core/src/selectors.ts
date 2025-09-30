@@ -51,7 +51,15 @@ export const isStepComplete = <C, S extends string, D extends Record<S, unknown>
       return stepDef.complete;
     }
     if (typeof stepDef.complete === 'function') {
-      return stepDef.complete(stepData, state.context);
+      const args = {
+        step,
+        context: state.context,
+        data: stepData,
+        updateContext: () => {},
+        setStepData: () => {},
+        emit: () => {},
+      };
+      return stepDef.complete(args as any);
     }
   }
 
@@ -63,7 +71,7 @@ export const isStepComplete = <C, S extends string, D extends Record<S, unknown>
     return config.isStepComplete({
       step,
       data: state.data,
-      ctx: state.context,
+      context: state.context,
     });
   }
 
@@ -102,7 +110,15 @@ export const isRequired = <C, S extends string, D extends Record<S, unknown>>(
   if (stepDef && 'required' in stepDef) {
     const required = stepDef.required;
     if (typeof required === 'function') {
-      return required(state.context);
+      const args = {
+        step,
+        context: state.context,
+        data: state.data[step],
+        updateContext: () => {},
+        setStepData: () => {},
+        emit: () => {},
+      };
+      return required(args as any);
     }
     return required !== false; // Default true for boolean
   }
@@ -237,9 +253,19 @@ export const progress = <C, S extends string, D extends Record<S, unknown>>(
 
       // Check new step-level weight first
       if (stepDef?.weight !== undefined) {
-        weight = typeof stepDef.weight === 'function'
-          ? stepDef.weight(state.context)
-          : stepDef.weight;
+        if (typeof stepDef.weight === 'function') {
+          const args = {
+            step,
+            context: state.context,
+            data: state.data[step],
+            updateContext: () => {},
+            setStepData: () => {},
+            emit: () => {},
+          };
+          weight = stepDef.weight(args as any);
+        } else {
+          weight = stepDef.weight;
+        }
       }
       // Fallback to deprecated wizard-level weights
       else if (config.weights?.[step] !== undefined) {
