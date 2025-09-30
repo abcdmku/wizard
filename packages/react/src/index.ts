@@ -10,35 +10,14 @@ export type { WizardProviderProps } from './context';
 // Core hooks
 export {
   useWizard,
-  useWizardState,
+  useCurrentStep,
   useWizardStep,
-  useWizardSharedContext,
-  useStepData,
-  useCurrentStepData,
-  useWizardLoading,
-  useWizardTransitioning,
-  useWizardHistory,
-  useWizardErrors,
+  useWizardProgress,
   useWizardActions,
+  useWizardHelpers,
+  useStepError,
+  useWizardSelector,
 } from './hooks';
-
-// React-specific types and utilities
-export {
-  resolveMetaUI,
-  resolveStepComponent,
-} from './types';
-export type {
-  ComponentLike,
-  StepMetaUI,
-  ReactStepDefinition,
-} from './types';
-
-// Router integration
-export {
-  useSyncWizardWithRouter,
-  useTanStackRouterSync,
-} from './router';
-export type { SyncWizardWithRouterOptions } from './router';
 
 // Re-export core types for convenience
 export type {
@@ -53,7 +32,4 @@ export type {
   StepMetaCore,
   JSONValue,
   ValOrFn,
-  InferStepData,
-  StepIds,
-  DataMapFromDefs,
 } from '@wizard/core';

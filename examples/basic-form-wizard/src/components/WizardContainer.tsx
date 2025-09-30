@@ -1,15 +1,13 @@
-import { useStore } from "@tanstack/react-store";
 import { StepIndicator } from "./StepIndicator";
 import { ThemeToggle } from "./ui/ThemeToggle";
 import { AccountStep } from "./steps/AccountStep";
 import { PersonalStep } from "./steps/PersonalStep";
 import { AddressStep } from "./steps/AddressStep";
 import { SummaryStep } from "./steps/SummaryStep";
-import { FormWizard } from "../wizard/steps";
+import { useFormWizard } from "../wizard/steps";
 
 export function WizardContainer() {
-  const state = useStore(FormWizard.store);
-  const name = state.step;
+  const { step: name } = useFormWizard();
 
   const renderStep = () => {
     switch (name) {

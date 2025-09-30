@@ -1,27 +1,13 @@
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import type { Wizard } from '@wizard/core';
-
-/**
- * Context type holding the wizard instance
- */
-type WizardContextValue<
-  C,
-  S extends string,
-  D extends Record<S, unknown>,
-  E = never
-> = {
-  wizard: Wizard<C, S, D, E>;
-};
 
 /**
  * React context for wizard instance
  */
-const WizardContext = createContext<WizardContextValue<any, any, any, any> | null>(
-  null
-);
+export const WizardContext = createContext<Wizard<any, any, any, any> | null>(null);
 
 /**
- * Provider component for wizard context
+ * Provider component props
  */
 export interface WizardProviderProps<
   C,
@@ -33,6 +19,17 @@ export interface WizardProviderProps<
   children: ReactNode;
 }
 
+/**
+ * Provider component for wizard context.
+ * Wrap your application with this to enable wizard hooks.
+ *
+ * @example
+ * ```tsx
+ * <WizardProvider wizard={FormWizard}>
+ *   <App />
+ * </WizardProvider>
+ * ```
+ */
 export function WizardProvider<
   C,
   S extends string,
@@ -40,25 +37,28 @@ export function WizardProvider<
   E = never
 >({ wizard, children }: WizardProviderProps<C, S, D, E>) {
   return (
-    <WizardContext.Provider value={{ wizard }}>
+    <WizardContext.Provider value={wizard}>
       {children}
     </WizardContext.Provider>
   );
 }
 
 /**
- * Hook to access the wizard instance from context
+ * Internal hook to access the wizard instance from context.
  * @throws Error if used outside WizardProvider
+ * @internal
  */
 export function useWizardContext<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(): WizardContextValue<C, S, D, E> {
-  const context = useContext(WizardContext);
-  if (!context) {
-    throw new Error('useWizardContext must be used within a WizardProvider');
+>(): Wizard<C, S, D, E> {
+  const wizard = useContext(WizardContext);
+  if (!wizard) {
+    throw new Error(
+      'Wizard context not found. Make sure your component is wrapped with <WizardProvider>.'
+    );
   }
-  return context as WizardContextValue<C, S, D, E>;
+  return wizard as Wizard<C, S, D, E>;
 }
