@@ -517,6 +517,26 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
         }));
       }
 
+      // Validate current step before leaving
+      const currentStepDef = steps[currentStep];
+      if (currentStepDef.validate) {
+        const currentData = store.state.data[currentStep];
+        try {
+          currentStepDef.validate({
+            context: store.state.context,
+            data: currentData as any,
+          });
+        } catch (err) {
+          // Mark step as error and store the error
+          updateRuntime(currentStep, { status: 'error' });
+          store.setState(state => ({
+            ...state,
+            errors: { ...state.errors, [currentStep]: err },
+          }));
+          throw err;
+        }
+      }
+
       // Find next step
       const nextStep = helpers.findNextAvailableName();
       if (!nextStep) {
