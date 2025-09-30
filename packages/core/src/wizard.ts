@@ -268,10 +268,11 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     findNextAvailableName: (from?: S) => {
       const currentStep = from || store.state.step;
       const currentIndex = orderedSteps.indexOf(currentStep);
+      const available = helpers.availableStepNames();
 
       for (let i = currentIndex + 1; i < orderedSteps.length; i++) {
         const step = orderedSteps[i];
-        if (helpers.availableStepNames().includes(step)) {
+        if (available.includes(step)) {
           return step;
         }
       }
