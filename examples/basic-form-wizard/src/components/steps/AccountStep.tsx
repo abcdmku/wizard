@@ -14,7 +14,7 @@ export function AccountStep() {
         label="Email"
         type="email"
         value={data?.email}
-        onChange={(value) => updateData(data => ({ ...data, email: value }))}
+        onChange={(value) => updateData({ email: value })}
         placeholder="you@example.com"
       />
 
@@ -22,7 +22,7 @@ export function AccountStep() {
         label="Password"
         type="password"
         value={data?.password}
-        onChange={(value) => updateData(data => ({ ...data, password: value }))}
+        onChange={(value) => updateData({ password: value })}
         placeholder="Min 8 characters"
       />
 
@@ -30,7 +30,7 @@ export function AccountStep() {
         label="Confirm Password"
         type="password"
         value={data?.confirmPassword}
-        onChange={(value) => updateData(data => ({ ...data, confirmPassword: value }))}
+        onChange={(value) => updateData({ confirmPassword: value })}
         placeholder="Re-enter password"
       />
 

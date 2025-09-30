@@ -411,17 +411,18 @@ export type ExtractStepDataType<TDefs, StepName extends keyof TDefs> =
 
 // Enhanced data map that preserves step-specific types
 // Using direct data extraction for better compatibility with step() helper
+// Prioritize extracting from 'data' property first, then fall back to 'validate'
 type DirectExtractDataType<T> =
-  T extends { validate: (args: { data: infer D }) => any }
-    ? D
-    : T extends { data?: infer D }
-      ? D extends ValOrFn<infer U, any>
-        ? U
+  T extends { data?: infer D }
+    ? D extends (...args: any[]) => infer R
+      ? R
+      : D
+    : T extends { data: infer D }
+      ? D extends (...args: any[]) => infer R
+        ? R
         : D
-      : T extends { data: infer D }
-        ? D extends ValOrFn<infer U, any>
-          ? U
-          : D
+      : T extends { validate: (args: { data: infer D }) => any }
+        ? D
         : unknown;
 
 export type EnhancedDataMapFromDefs<TDefs> = {

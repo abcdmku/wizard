@@ -1,13 +1,9 @@
 import { useStore } from '@tanstack/react-store';
-import { useWizardContext } from './context';
 import type { Wizard, WizardState } from '@wizard/core';
 
 /**
  * Kitchen sink hook that returns everything from the wizard.
  * Returns flattened state properties and all wizard methods.
- *
- * This is the only hook that takes the wizard as a value parameter,
- * making it easy to create typed convenience hooks.
  *
  * @param wizard - The wizard instance
  * @returns Complete wizard API with flattened state and methods
@@ -90,23 +86,25 @@ export function useWizard<
 /**
  * Returns the current active step wrapper.
  *
+ * @param wizard - The wizard instance
+ *
  * @example
  * ```tsx
  * function MyComponent() {
- *   const step = useCurrentStep<typeof FormWizard>();
+ *   const step = useCurrentStep(FormWizard);
  *   return <div>Current step: {step.name}</div>;
  * }
+ *
+ * // Or create a typed convenience hook:
+ * export const useFormWizardCurrentStep = () => useCurrentStep(FormWizard);
  * ```
  */
 export function useCurrentStep<
-  W extends Wizard<any, any, any, any>
->() {
-  type C = W extends Wizard<infer Ctx, any, any, any> ? Ctx : never;
-  type S = W extends Wizard<any, infer Steps, any, any> ? Steps : never;
-  type D = W extends Wizard<any, any, infer Data, any> ? Data : never;
-  type E = W extends Wizard<any, any, any, infer Events> ? Events : never;
-
-  const wizard = useWizardContext<C, S, D, E>();
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(wizard: Wizard<C, S, D, E>) {
   // Subscribe to current step changes
   useStore(wizard.store, (state) => state.step);
   return wizard.getCurrentStep();
@@ -115,56 +113,58 @@ export function useCurrentStep<
 /**
  * Returns a specific step wrapper by name.
  *
+ * @param wizard - The wizard instance
  * @param stepName - The name of the step to get
  *
  * @example
  * ```tsx
  * function MyComponent() {
- *   const accountStep = useWizardStep<typeof FormWizard>('account');
+ *   const accountStep = useWizardStep(FormWizard, 'account');
  *   return <div>Status: {accountStep.status}</div>;
  * }
+ *
+ * // Or create a typed convenience hook:
+ * export const useAccountStep = () => useWizardStep(FormWizard, 'account');
  * ```
  */
 export function useWizardStep<
-  W extends Wizard<any, any, any, any>
->(stepName: W extends Wizard<any, infer S, any, any> ? S : string) {
-  type C = W extends Wizard<infer Ctx, any, any, any> ? Ctx : never;
-  type S = W extends Wizard<any, infer Steps, any, any> ? Steps : never;
-  type D = W extends Wizard<any, any, infer Data, any> ? Data : never;
-  type E = W extends Wizard<any, any, any, infer Events> ? Events : never;
-
-  const wizard = useWizardContext<C, S, D, E>();
-
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never,
+  K extends S = S
+>(wizard: Wizard<C, S, D, E>, stepName: K) {
   // Re-render when step data or runtime changes
   useStore(wizard.store, (state) => ({
-    data: state.data[stepName as S],
-    runtime: state.runtime?.[stepName as S],
+    data: state.data[stepName],
+    runtime: state.runtime?.[stepName],
   }));
 
-  return wizard.getStep(stepName as S);
+  return wizard.getStep(stepName);
 }
 
 /**
  * Returns progress metrics for the wizard.
  *
+ * @param wizard - The wizard instance
+ *
  * @example
  * ```tsx
  * function ProgressBar() {
- *   const { percentage, currentIndex, totalSteps } = useWizardProgress<typeof FormWizard>();
+ *   const { percentage, currentIndex, totalSteps } = useWizardProgress(FormWizard);
  *   return <div style={{ width: `${percentage}%` }} />;
  * }
+ *
+ * // Or create a typed convenience hook:
+ * export const useFormWizardProgress = () => useWizardProgress(FormWizard);
  * ```
  */
 export function useWizardProgress<
-  W extends Wizard<any, any, any, any>
->() {
-  type C = W extends Wizard<infer Ctx, any, any, any> ? Ctx : never;
-  type S = W extends Wizard<any, infer Steps, any, any> ? Steps : never;
-  type D = W extends Wizard<any, any, infer Data, any> ? Data : never;
-  type E = W extends Wizard<any, any, any, infer Events> ? Events : never;
-
-  const wizard = useWizardContext<C, S, D, E>();
-
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(wizard: Wizard<C, S, D, E>) {
   const progress = useStore(wizard.store, (state) => {
     const allSteps = wizard.helpers.orderedStepNames();
     const visibleSteps = allSteps.filter(
@@ -192,10 +192,12 @@ export function useWizardProgress<
  * Returns only the navigation actions.
  * This hook never re-renders since it only returns functions.
  *
+ * @param wizard - The wizard instance
+ *
  * @example
  * ```tsx
  * function NavigationButtons() {
- *   const { next, back, goTo } = useWizardActions<typeof FormWizard>();
+ *   const { next, back, goTo } = useWizardActions(FormWizard);
  *   return (
  *     <div>
  *       <button onClick={back}>Back</button>
@@ -203,18 +205,17 @@ export function useWizardProgress<
  *     </div>
  *   );
  * }
+ *
+ * // Or create a typed convenience hook:
+ * export const useFormWizardActions = () => useWizardActions(FormWizard);
  * ```
  */
 export function useWizardActions<
-  W extends Wizard<any, any, any, any>
->() {
-  type C = W extends Wizard<infer Ctx, any, any, any> ? Ctx : never;
-  type S = W extends Wizard<any, infer Steps, any, any> ? Steps : never;
-  type D = W extends Wizard<any, any, infer Data, any> ? Data : never;
-  type E = W extends Wizard<any, any, any, infer Events> ? Events : never;
-
-  const wizard = useWizardContext<C, S, D, E>();
-
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(wizard: Wizard<C, S, D, E>) {
   return {
     next: wizard.next.bind(wizard),
     back: wizard.back.bind(wizard),
@@ -229,10 +230,12 @@ export function useWizardActions<
 /**
  * Returns helper utilities.
  *
+ * @param wizard - The wizard instance
+ *
  * @example
  * ```tsx
  * function StepList() {
- *   const { helpers, visitedSteps } = useWizardHelpers<typeof FormWizard>();
+ *   const { helpers, visitedSteps } = useWizardHelpers(FormWizard);
  *   return (
  *     <ul>
  *       {helpers.allSteps().map(step => (
@@ -241,18 +244,17 @@ export function useWizardActions<
  *     </ul>
  *   );
  * }
+ *
+ * // Or create a typed convenience hook:
+ * export const useFormWizardHelpers = () => useWizardHelpers(FormWizard);
  * ```
  */
 export function useWizardHelpers<
-  W extends Wizard<any, any, any, any>
->() {
-  type C = W extends Wizard<infer Ctx, any, any, any> ? Ctx : never;
-  type S = W extends Wizard<any, infer Steps, any, any> ? Steps : never;
-  type D = W extends Wizard<any, any, infer Data, any> ? Data : never;
-  type E = W extends Wizard<any, any, any, infer Events> ? Events : never;
-
-  const wizard = useWizardContext<C, S, D, E>();
-
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(wizard: Wizard<C, S, D, E>) {
   // Subscribe to history for visitedSteps
   const history = useStore(wizard.store, (state) => state.history);
 
@@ -268,30 +270,30 @@ export function useWizardHelpers<
 /**
  * Returns error for a specific step (or current step if not specified).
  *
+ * @param wizard - The wizard instance
  * @param stepName - Optional step name. If not provided, returns error for current step.
  *
  * @example
  * ```tsx
  * function ErrorDisplay() {
- *   const error = useStepError<typeof FormWizard>('account');
+ *   const error = useStepError(FormWizard, 'account');
  *   if (!error) return null;
  *   return <div className="error">{String(error)}</div>;
  * }
+ *
+ * // Or create a typed convenience hook:
+ * export const useAccountStepError = () => useStepError(FormWizard, 'account');
  * ```
  */
 export function useStepError<
-  W extends Wizard<any, any, any, any>
->(stepName?: W extends Wizard<any, infer S, any, any> ? S : string) {
-  type C = W extends Wizard<infer Ctx, any, any, any> ? Ctx : never;
-  type S = W extends Wizard<any, infer Steps, any, any> ? Steps : never;
-  type D = W extends Wizard<any, any, infer Data, any> ? Data : never;
-  type E = W extends Wizard<any, any, any, infer Events> ? Events : never;
-
-  const wizard = useWizardContext<C, S, D, E>();
-
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(wizard: Wizard<C, S, D, E>, stepName?: S) {
   const error = useStore(wizard.store, (state) => {
     const name = stepName || state.step;
-    return state.errors[name as S];
+    return state.errors[name];
   });
 
   return error;
@@ -301,29 +303,26 @@ export function useStepError<
  * Performance-optimized hook that lets you select specific data from wizard state.
  * Use this for fine-grained control over re-renders.
  *
+ * @param wizard - The wizard instance
  * @param selector - Function to select data from wizard state
  *
  * @example
  * ```tsx
  * function UserEmail() {
- *   const email = useWizardSelector<typeof FormWizard>(
- *     state => state.data.account?.email
- *   );
+ *   const email = useWizardSelector(FormWizard, state => state.data.account?.email);
  *   return <div>{email}</div>;
  * }
  * ```
  */
 export function useWizardSelector<
-  W extends Wizard<any, any, any, any>,
-  Selected
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never,
+  Selected = any
 >(
-  selector: (state: W extends Wizard<infer C, infer S, infer D, any> ? WizardState<C, S, D> : never) => Selected
+  wizard: Wizard<C, S, D, E>,
+  selector: (state: WizardState<C, S, D>) => Selected
 ) {
-  type C = W extends Wizard<infer Ctx, any, any, any> ? Ctx : never;
-  type S = W extends Wizard<any, infer Steps, any, any> ? Steps : never;
-  type D = W extends Wizard<any, any, infer Data, any> ? Data : never;
-  type E = W extends Wizard<any, any, any, infer Events> ? Events : never;
-
-  const wizard = useWizardContext<C, S, D, E>();
-  return useStore(wizard.store, selector as any);
+  return useStore(wizard.store, selector);
 }
