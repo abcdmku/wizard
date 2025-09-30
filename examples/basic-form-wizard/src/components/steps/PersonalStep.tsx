@@ -1,10 +1,10 @@
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
-import { FormWizard } from "../../wizard/steps";
+import { usePersonalStep } from "../../wizard/steps";
 
 export function PersonalStep() {
-  const step = FormWizard.getStep("personal");
+  const step = usePersonalStep();
   const {status, data, error, updateData, next, back} = step;
 
   return (

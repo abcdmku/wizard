@@ -1,5 +1,5 @@
 import { createWizardFactory } from "@wizard/core";
-import { useWizard } from "@wizard/react";
+import { useWizard, useWizardStep } from "@wizard/react";
 
 export interface AccountData {
   email: string;
@@ -79,3 +79,11 @@ export const FormWizard = createWizard(steps);
  * ```
  */
 export const useFormWizard = () => useWizard(FormWizard);
+
+/**
+ * Step-specific typed convenience hooks.
+ * These provide direct access to individual steps with full type safety.
+ */
+export const useAccountStep = () => useWizardStep<typeof FormWizard>("account");
+export const usePersonalStep = () => useWizardStep<typeof FormWizard>("personal");
+export const useAddressStep = () => useWizardStep<typeof FormWizard>("address");
