@@ -1,10 +1,10 @@
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
-import { FormWizard } from "../../wizard/steps";
+import { useAddressStep } from "../../wizard/steps";
 
 export function AddressStep() {
-  const step = FormWizard.getStep("address");
+  const step = useAddressStep();
   const {status, data, error, updateData, back, next} = step;
 
   return (

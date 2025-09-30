@@ -1,11 +1,10 @@
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
-import { FormWizard } from "../../wizard/steps";
-
+import { useAccountStep } from "../../wizard/steps";
 
 export function AccountStep() {
-  const step = FormWizard.getStep("account");
+  const step = useAccountStep();
   const {status, data, error, updateData, next} = step;
 
   return (
