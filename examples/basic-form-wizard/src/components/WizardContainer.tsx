@@ -1,3 +1,4 @@
+import { useStore } from "@tanstack/react-store";
 import { StepIndicator } from "./StepIndicator";
 import { ThemeToggle } from "./ui/ThemeToggle";
 import { AccountStep } from "./steps/AccountStep";
@@ -7,7 +8,8 @@ import { SummaryStep } from "./steps/SummaryStep";
 import { FormWizard } from "../wizard/steps";
 
 export function WizardContainer() {
-  const {name} = FormWizard.getCurrentStep();
+  const state = useStore(FormWizard.store);
+  const name = state.step;
 
   const renderStep = () => {
     switch (name) {

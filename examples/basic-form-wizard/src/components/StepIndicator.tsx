@@ -1,10 +1,11 @@
+import { useStore } from "@tanstack/react-store";
 import { FormWizard } from "../wizard/steps";
 
 export function StepIndicator() {
-  const {getCurrentStep, helpers} = FormWizard;
-  const currentStep = getCurrentStep();
+  const state = useStore(FormWizard.store);
+  const { helpers } = FormWizard;
   const steps = helpers.allSteps().filter(step => !step?.meta?.hidden); // Only include steps that are not hidden
-  const currentIndex = helpers.stepIndex(currentStep.name);
+  const currentIndex = helpers.stepIndex(state.step);
 
   return (
     <div className="w-full">

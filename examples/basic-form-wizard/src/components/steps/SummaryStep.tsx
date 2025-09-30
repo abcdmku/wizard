@@ -1,14 +1,14 @@
+import { useStore } from "@tanstack/react-store";
 import { FormWizard } from "../../wizard/steps";
 import type { AccountData, PersonalData, AddressData } from "../../wizard/steps";
 
 export function SummaryStep() {
-  // Access the wizard data directly from the exposed state properties
-  const { wizard } = FormWizard.getStep("summary");
+  const state = useStore(FormWizard.store);
 
-  // Use the exposed data property to get all step data
-  const accountData = wizard.data.account as AccountData | undefined;
-  const personalData = wizard.data.personal as PersonalData | undefined;
-  const addressData = wizard.data.address as AddressData | undefined;
+  // Use the state to get all step data
+  const accountData = state.data.account as AccountData | undefined;
+  const personalData = state.data.personal as PersonalData | undefined;
+  const addressData = state.data.address as AddressData | undefined;
 
   return (
     <div className="space-y-4">

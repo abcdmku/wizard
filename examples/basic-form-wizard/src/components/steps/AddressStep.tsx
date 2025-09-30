@@ -1,10 +1,13 @@
+import { useStore } from "@tanstack/react-store";
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
 import { FormWizard } from "../../wizard/steps";
 
 export function AddressStep() {
-  const {status, data, error, updateData, back, next} = FormWizard.getStep("address");
+  const state = useStore(FormWizard.store);
+  const step = FormWizard.getStep("address");
+  const {status, data, error, updateData, back, next} = step;
 
   return (
     <div className="space-y-4">
