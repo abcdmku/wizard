@@ -46,3 +46,6 @@ export type {
   StepIds,
   DataMapFromDefs,
 } from './types';
+
+// Step wrapper types
+export type { WizardStep } from './step-wrapper';

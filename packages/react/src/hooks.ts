@@ -1,5 +1,5 @@
 import { useStore } from '@tanstack/react-store';
-import type { Wizard, WizardState } from '@wizard/core';
+import type { Wizard, WizardState, WizardStep } from '@wizard/core';
 
 /**
  * Kitchen sink hook that returns everything from the wizard.
@@ -133,7 +133,7 @@ export function useWizardStep<
   D extends Record<S, unknown>,
   E = never,
   K extends S = S
->(wizard: Wizard<C, S, D, E>, stepName: K) {
+>(wizard: Wizard<C, S, D, E>, stepName: K): WizardStep<K, D[K], C, S, D> {
   // Re-render when step data or runtime changes
   useStore(wizard.store, (state) => ({
     data: state.data[stepName],

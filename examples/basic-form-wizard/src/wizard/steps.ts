@@ -22,17 +22,17 @@ export interface AddressData {
 }
 
 
-export const validateAccountData = ({data}: {data: AccountData}): void => {
+export const validateAccountData = ({data}: {data: AccountData}) => {
   if (!data?.email || !data.email.includes("@")) throw new Error("Please enter a valid email");
   if (data.password !== data.confirmPassword) throw new Error("Passwords do not match");
 };
 
-export const validatePersonalData = ({data}: {data: PersonalData}): void => {
+export const validatePersonalData = ({data}: {data: PersonalData}) => {
   if (!data?.firstName || !data?.lastName) throw new Error("Please enter your full name");
   if (!data?.dateOfBirth) throw new Error("Please enter your date of birth");
 };
 
-export const validateAddressData = ({data}: {data: AddressData}): void => {
+export const validateAddressData = ({data}: {data: AddressData}) => {
   if ( !data?.street || !data?.city || !data?.state || !data?.zipCode || !data?.country )
     throw new Error("Please fill in all address fields");
 };
@@ -40,32 +40,32 @@ export const validateAddressData = ({data}: {data: AddressData}): void => {
 const { defineSteps, step, createWizard } = createWizardFactory();
 
 export const steps = defineSteps({
-  account: step({
+  account: step<AccountData>({
     data: {} as AccountData,
     next: ["personal"],
     meta: { label: "Account", iconKey: "user" },
     validate: validateAccountData,
   }),
-  personal: step({
+  personal: step<PersonalData>({
     validate: validatePersonalData,
     data: {} as PersonalData,
     next: ["address"],
     meta: { label: "Personal", iconKey: "person" },
   }),
-  address: step({
+  address: step<AddressData>({
     validate: validateAddressData,
     data: {} as AddressData,
     next: ["summary"],
     meta: { label: "Address", iconKey: "location" },
   }),
-  summary: step({
+  summary: step<{}>({
     data: {} as {},
     next: [],
     meta: { label: "Complete", iconKey: "check", hidden: true },
   }),
 });
 
-export const FormWizard = createWizard(steps);
+export const FormWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
 
 /**
  * Typed convenience hook for using FormWizard.
