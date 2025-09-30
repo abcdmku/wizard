@@ -1,11 +1,12 @@
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
-import { useAccountStep } from "../../wizard/steps";
+import { FormWizard } from "../../wizard/steps";
+import { useWizardStep } from "@wizard/react";
 
 export function AccountStep() {
-  const step = useAccountStep();
-  const {status, data, error, updateData, next} = step;
+  const step = useWizardStep(FormWizard, "account");
+  const {status, data, error, next} = step;
 
   return (
     <div className="space-y-4">
@@ -14,7 +15,7 @@ export function AccountStep() {
         label="Email"
         type="email"
         value={data?.email}
-        onChange={(value) => updateData({ email: value })}
+        onChange={(value) => step.updateData((currentData) => ({ ...currentData, email: value }))}
         placeholder="you@example.com"
       />
 
@@ -22,7 +23,7 @@ export function AccountStep() {
         label="Password"
         type="password"
         value={data?.password}
-        onChange={(value) => updateData({ password: value })}
+        onChange={(value) => step.updateData({ password: value })}
         placeholder="Min 8 characters"
       />
 
@@ -30,7 +31,7 @@ export function AccountStep() {
         label="Confirm Password"
         type="password"
         value={data?.confirmPassword}
-        onChange={(value) => updateData({ confirmPassword: value })}
+        onChange={(value) => step.updateData({ confirmPassword: value })}
         placeholder="Re-enter password"
       />
 

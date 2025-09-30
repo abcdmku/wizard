@@ -56,19 +56,20 @@ export function createWizardFactory<C = any, E = never>() {
   return {
     /**
      * Define steps with proper context typing
-     * Note: Due to TypeScript limitations, you still need explicit typing in callback parameters
+     * Returns the definitions as const to preserve literal types across module boundaries
      */
-    defineSteps<T extends Record<string, any>>(defs: T): T {
+    defineSteps<const T extends Record<string, any>>(defs: T): T {
       return defs;
     },
 
     /**
      * Helper for creating a typed step with context awareness
+     * Explicitly captures the Data type to preserve it through module boundaries
      */
-    step<Def extends ContextAwareStepDefinition<C, string, any, E>>(
-      definition: Def
-    ): Def {
-      return definition;
+    step<Data>(
+      definition: ContextAwareStepDefinition<C, string, Data, E>
+    ): ContextAwareStepDefinition<C, string, Data, E> & { __data?: Data } {
+      return definition as ContextAwareStepDefinition<C, string, Data, E> & { __data?: Data };
     },
 
     /**

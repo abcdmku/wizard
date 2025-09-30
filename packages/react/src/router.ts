@@ -26,17 +26,16 @@ export function useSyncWizardWithRouter<
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(options: SyncWizardWithRouterOptions<S>) {
+>(wizard: import('@wizard/core').Wizard<C, S, D, E>, options: SyncWizardWithRouterOptions<S>) {
   const { toStep, toUrl, navigate, getParam } = options;
-  const wizard = useWizard<C, S, D, E>();
-  const currentStep = useWizardStep<C, S, D>();
+  const { step: currentStep } = useWizard(wizard);
 
   // Sync wizard → router
   useEffect(() => {
     const urlOptions = toUrl(currentStep);
     const currentParam = getParam();
     const expectedParam = urlOptions.to.split('/').pop(); // Simple extraction
-    
+
     if (currentParam !== expectedParam) {
       navigate(urlOptions);
     }
@@ -71,6 +70,7 @@ export function useTanStackRouterSync<
   D extends Record<S, unknown>,
   E = never
 >(
+  wizard: import('@wizard/core').Wizard<C, S, D, E>,
   options: Omit<SyncWizardWithRouterOptions<S>, 'navigate' | 'getParam'> & {
     // These would come from TanStack Router hooks
     // Users need to provide them since we don't have hard dependency
@@ -80,8 +80,8 @@ export function useTanStackRouterSync<
 ) {
   const navigate = options.useNavigate();
   const params = options.useParams();
-  
-  return useSyncWizardWithRouter<C, S, D, E>({
+
+  return useSyncWizardWithRouter<C, S, D, E>(wizard, {
     ...options,
     navigate,
     getParam: () => params[options.param],
