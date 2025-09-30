@@ -1,9 +1,10 @@
-import { FormWizard } from "../../wizard/steps";
+import { useFormWizard } from "../../wizard/steps";
 
 export function SummaryStep() {
-    const accountData = FormWizard.data.account
-    const personalData = FormWizard.data.personal
-    const addressData = FormWizard.data.address
+  const { data } = useFormWizard();
+  const accountData = data.account;
+  const personalData = data.personal;
+  const addressData = data.address;
 
   return (
     <div className="space-y-4">

@@ -1,4 +1,5 @@
 import { createWizardFactory } from "@wizard/core";
+import { useWizard } from "@wizard/react";
 
 export interface AccountData {
   email: string;
@@ -66,3 +67,15 @@ export const steps = defineSteps({
 
 export const FormWizard = createWizard(steps);
 
+/**
+ * Typed convenience hook for using FormWizard.
+ * This eliminates the need to pass FormWizard to useWizard in every component.
+ *
+ * @example
+ * ```tsx
+ * function MyComponent() {
+ *   const { step, data, next } = useFormWizard();
+ * }
+ * ```
+ */
+export const useFormWizard = () => useWizard(FormWizard);

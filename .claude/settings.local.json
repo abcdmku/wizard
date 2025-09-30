@@ -122,7 +122,8 @@
       "Bash(sed:*)",
       "Bash(pnpm test:*)",
       "mcp__playwright__browser_type",
-      "mcp__playwright__browser_console_messages"
+      "mcp__playwright__browser_console_messages",
+      "WebFetch(domain:tanstack.com)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",
