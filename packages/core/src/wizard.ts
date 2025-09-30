@@ -111,8 +111,8 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     orderedStepNames: () => orderedSteps,
 
     // Step object helpers - These will be defined after wizard is created
-    allSteps: () => [],
-    orderedSteps: () => [],
+    allSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
+    orderedSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
     stepCount: () => orderedSteps.length,
     stepIndex: (step: S) => orderedSteps.indexOf(step),
     currentIndex: () => orderedSteps.indexOf(store.state.step),
@@ -157,13 +157,13 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       });
     },
 
-    availableSteps: () => [],
+    availableSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
 
     unavailableStepNames: () => {
       return orderedSteps.filter(step => !helpers.availableStepNames().includes(step));
     },
 
-    unavailableSteps: () => [],
+    unavailableSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
 
     refreshAvailability: async () => {
       availabilityCache.clear();
@@ -193,14 +193,14 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       });
     },
 
-    completedSteps: () => [],
+    completedSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
 
     remainingStepNames: () => {
       const completed = helpers.completedStepNames();
       return orderedSteps.filter(step => !completed.includes(step));
     },
 
-    remainingSteps: () => [],
+    remainingSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
 
     firstIncompleteStep: () => {
       const remaining = helpers.remainingSteps();
@@ -278,7 +278,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       return null;
     },
 
-    findNextAvailable: () => null,
+    findNextAvailable: () => null as WizardStep<S, D[S], C, S, D> | null,
 
     findPrevAvailableName: (from?: S) => {
       const currentStep = from || store.state.step;
@@ -293,7 +293,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       return null;
     },
 
-    findPrevAvailable: () => null,
+    findPrevAvailable: () => null as WizardStep<S, D[S], C, S, D> | null,
 
     jumpToNextRequired: () => {
       const remaining = helpers.remainingSteps();

@@ -27,7 +27,7 @@ export function createProgressApi<C, S extends string, D extends Record<S, unkno
     const hasWizardWeights = config.weights && Object.keys(config.weights).length > 0;
 
     const ratio = (hasStepWeights || hasWizardWeights)
-      ? weightedRatio(ordered, requirements.completed(), config, state?.get().context)
+      ? weightedRatio(ordered, requirements.completed(), config, state)
       : done / total;
 
     return {
@@ -70,7 +70,7 @@ function weightedRatio<C, S extends string, D extends Record<S, unknown>, E>(
   ordered: readonly S[],
   completed: readonly S[],
   config: WizardConfig<C, S, D, E>,
-  context?: C
+  state?: StateAccess<C, S, D>
 ): number {
   const completedSet = new Set(completed);
   let totalWeight = 0;
@@ -83,11 +83,22 @@ function weightedRatio<C, S extends string, D extends Record<S, unknown>, E>(
 
     // Check new step-level weight first
     if (stepDef?.weight !== undefined) {
-      weight = typeof stepDef.weight === 'function' && context
-        ? stepDef.weight(context)
-        : typeof stepDef.weight === 'number'
-        ? stepDef.weight
-        : 1;
+      if (typeof stepDef.weight === 'function' && state) {
+        const snapshot = state.get();
+        const args = {
+          step,
+          context: snapshot.context,
+          data: snapshot.data[step],
+          updateContext: () => {},
+          setStepData: () => {},
+          emit: () => {},
+        };
+        weight = stepDef.weight(args as any);
+      } else if (typeof stepDef.weight === 'number') {
+        weight = stepDef.weight;
+      } else {
+        weight = 1;
+      }
     }
     // Fallback to deprecated wizard-level weights
     else if (config.weights?.[step] !== undefined) {

@@ -76,9 +76,16 @@ export function createHelpers<
     const next = stepDef.next;
     if (typeof next === 'function') {
       try {
-        const data = state.get().data[step];
-        const ctx = state.get().context;
-        const result = next({ ctx, data: data as any });
+        const snapshot = state.get();
+        const args = {
+          step,
+          context: snapshot.context,
+          data: snapshot.data[step],
+          updateContext: () => {},
+          setStepData: () => {},
+          emit: () => {},
+        };
+        const result = next(args as any);
         return Array.isArray(result) ? [...result] as readonly S[] : [result as S] as readonly S[];
       } catch {
         return [];
@@ -89,8 +96,22 @@ export function createHelpers<
   };
 
   return {
-    allSteps: () => all,
-    orderedSteps: () => ordered,
+    // Step name helpers
+    allStepNames: () => all,
+    orderedStepNames: () => ordered,
+    availableStepNames: () => availability.availableSteps(),
+    unavailableStepNames: () => availability.unavailableSteps(),
+    completedStepNames: () => requirements.completed(),
+    remainingStepNames: () => navigation.remainingSteps(),
+
+    // Step object helpers - return empty/null with type assertions (will be overridden by wizard)
+    allSteps: () => [] as any,
+    orderedSteps: () => [] as any,
+    availableSteps: () => [] as any,
+    unavailableSteps: () => [] as any,
+    completedSteps: () => [] as any,
+    remainingSteps: () => [] as any,
+
     stepCount: () => ordered.length,
     stepIndex: (step) => ordered.indexOf(step),
     currentIndex: () => ordered.indexOf(state.get().step),
@@ -99,14 +120,13 @@ export function createHelpers<
     isOptional: requirements.isOptional,
     isRequired: requirements.isRequired,
 
-    availableSteps: () => availability.availableSteps(),
-    unavailableSteps: () => availability.unavailableSteps(),
     refreshAvailability: () => availability.refreshAvailability(),
 
-    completedSteps: () => requirements.completed(),
-    remainingSteps: navigation.remainingSteps,
-    firstIncompleteStep: navigation.firstIncompleteStep,
-    lastCompletedStep: navigation.lastCompletedStep,
+    firstIncompleteStep: () => null as any,
+    firstIncompleteStepName: navigation.firstIncompleteStep,
+    lastCompletedStep: () => null as any,
+    lastCompletedStepName: navigation.lastCompletedStep,
+
     remainingRequiredCount: progress.remainingRequiredCount,
     isComplete: progress.isComplete,
     progress: progress.progress,
@@ -114,9 +134,12 @@ export function createHelpers<
     canGoNext: navigation.canGoNext,
     canGoBack: navigation.canGoBack,
     canGoTo: navigation.canGoTo,
-    findNextAvailable: availability.findNextAvailable,
-    findPrevAvailable: availability.findPrevAvailable,
-    jumpToNextRequired: availability.jumpToNextRequired,
+    findNextAvailable: () => null as any,
+    findNextAvailableName: availability.findNextAvailable,
+    findPrevAvailable: () => null as any,
+    findPrevAvailableName: availability.findPrevAvailable,
+    jumpToNextRequired: () => null as any,
+    jumpToNextRequiredName: availability.jumpToNextRequired,
 
     isReachable: (step) => requirements.prerequisitesMet(step),
     prerequisitesFor: (step) => {
