@@ -1,11 +1,9 @@
-import { useStore } from "@tanstack/react-store";
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
 import { FormWizard } from "../../wizard/steps";
 
 export function PersonalStep() {
-  const state = useStore(FormWizard.store);
   const step = FormWizard.getStep("personal");
   const {status, data, error, updateData, next, back} = step;
 

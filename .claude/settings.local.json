@@ -120,7 +120,9 @@
       "Bash(pnpm run:*)",
       "Bash(pnpm tsc:*)",
       "Bash(sed:*)",
-      "Bash(pnpm test:*)"
+      "Bash(pnpm test:*)",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_console_messages"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",
