@@ -15,7 +15,7 @@ export function PersonalStep() {
         label="First Name"
         type="text"
         value={data?.firstName}
-        onChange={(value) => updateData(data => ({ ...data, firstName: value }))}
+        onChange={(value) => updateData({ firstName: value })}
         placeholder="John"
       />
 
@@ -23,7 +23,7 @@ export function PersonalStep() {
         label="Last Name"
         type="text"
         value={data?.lastName}
-        onChange={(value) => updateData(data => ({ ...data, lastName: value }))}
+        onChange={(value) => updateData({ lastName: value })}
         placeholder="Doe"
       />
 
@@ -31,7 +31,7 @@ export function PersonalStep() {
         label="Date of Birth"
         type="date"
         value={data?.dateOfBirth}
-        onChange={(value) => updateData(data => ({ ...data, dateOfBirth: value }))}
+        onChange={(value) => updateData({ dateOfBirth: value })}
       />
 
       {status === 'error' && <ErrorMessage message={String(error)} />}

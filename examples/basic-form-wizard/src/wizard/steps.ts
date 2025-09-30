@@ -22,17 +22,17 @@ export interface AddressData {
 }
 
 
-export const validateAccountData = ({data}: {data: AccountData}) => {
+export const validateAccountData = ({data}: {data: AccountData}): void => {
   if (!data?.email || !data.email.includes("@")) throw new Error("Please enter a valid email");
   if (data.password !== data.confirmPassword) throw new Error("Passwords do not match");
 };
 
-export const validatePersonalData = ({data}: {data: PersonalData}) => {
+export const validatePersonalData = ({data}: {data: PersonalData}): void => {
   if (!data?.firstName || !data?.lastName) throw new Error("Please enter your full name");
   if (!data?.dateOfBirth) throw new Error("Please enter your date of birth");
 };
 
-export const validateAddressData = ({data}: {data: AddressData}) => {
+export const validateAddressData = ({data}: {data: AddressData}): void => {
   if ( !data?.street || !data?.city || !data?.state || !data?.zipCode || !data?.country )
     throw new Error("Please fill in all address fields");
 };
@@ -84,6 +84,6 @@ export const useFormWizard = () => useWizard(FormWizard);
  * Step-specific typed convenience hooks.
  * These provide direct access to individual steps with full type safety.
  */
-export const useAccountStep = () => useWizardStep<typeof FormWizard>("account");
-export const usePersonalStep = () => useWizardStep<typeof FormWizard>("personal");
-export const useAddressStep = () => useWizardStep<typeof FormWizard>("address");
+export const useAccountStep = () => useWizardStep(FormWizard, "account");
+export const usePersonalStep = () => useWizardStep(FormWizard, "personal");
+export const useAddressStep = () => useWizardStep(FormWizard, "address");

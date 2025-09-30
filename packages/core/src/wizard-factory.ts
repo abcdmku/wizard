@@ -65,22 +65,10 @@ export function createWizardFactory<C = any, E = never>() {
     /**
      * Helper for creating a typed step with context awareness
      */
-    step<Data>(definition: {
-      data?: Data;
-      next: readonly string[] | ((args: ContextAwareStepArgs<C, string, Data, E>) => string | readonly string[]);
-      beforeExit?: (args: ContextAwareStepExitArgs<C, string, Data, E>) => void | Promise<void>;
-      beforeEnter?: (args: ContextAwareStepEnterArgs<C, string, Data, E>) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
-      canEnter?: boolean | ((args: ContextAwareStepEnterArgs<C, string, Data, E>) => boolean);
-      canExit?: boolean | ((args: ContextAwareStepExitArgs<C, string, Data, E>) => boolean);
-      complete?: boolean | ((args: ContextAwareStepArgs<C, string, Data, E>) => boolean);
-      validate?: (args: ValidateArgs<C, Data>) => void;
-      weight?: number | ((args: ContextAwareStepArgs<C, string, Data, E>) => number);
-      required?: boolean | ((args: ContextAwareStepArgs<C, string, Data, E>) => boolean);
-      maxRetries?: number | ((args: ContextAwareStepArgs<C, string, Data, E>) => number);
-      retryDelay?: number | ((args: ContextAwareStepArgs<C, string, Data, E>) => number);
-      meta?: StepMetaCore<C, string, Data, E>;
-    }): ContextAwareStepDefinition<C, string, Data, E> {
-      return definition as any;
+    step<Def extends ContextAwareStepDefinition<C, string, any, E>>(
+      definition: Def
+    ): Def {
+      return definition;
     },
 
     /**

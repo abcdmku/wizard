@@ -15,7 +15,7 @@ export function AddressStep() {
         label="Street Address"
         type="text"
         value={data?.street}
-        onChange={(value) => updateData(data => ({ ...data, street: value }))}
+        onChange={(value) => updateData({ street: value })}
         placeholder="123 Main St"
       />
 
@@ -24,7 +24,7 @@ export function AddressStep() {
           label="City"
           type="text"
           value={data?.city}
-          onChange={(value) => updateData(data => ({ ...data, city: value }))}
+          onChange={(value) => updateData({ city: value })}
           placeholder="New York"
         />
 
@@ -32,7 +32,7 @@ export function AddressStep() {
           label="State"
           type="text"
           value={data?.state}
-          onChange={(value) => updateData(data => ({ ...data, state: value }))}
+          onChange={(value) => updateData({ state: value })}
           placeholder="NY"
         />
       </div>
@@ -42,7 +42,7 @@ export function AddressStep() {
           label="ZIP Code"
           type="text"
           value={data?.zipCode}
-          onChange={(value) => updateData(data => ({ ...data, zipCode: value }))}
+          onChange={(value) => updateData({ zipCode: value })}
           placeholder="10001"
         />
 
@@ -50,7 +50,7 @@ export function AddressStep() {
           label="Country"
           type="text"
           value={data?.country}
-          onChange={(value) => updateData(data => ({ ...data, country: value }))}
+          onChange={(value) => updateData({ country: value })}
           placeholder="USA"
         />
       </div>
