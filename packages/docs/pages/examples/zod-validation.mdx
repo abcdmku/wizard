@@ -1,0 +1,496 @@
+# Zod Validation Example
+
+import { Callout } from '../../components'
+
+A comprehensive example demonstrating form validation using Zod schemas with the wizard factory pattern for type-safe, runtime-validated forms.
+
+## Overview
+
+This example shows how to build wizards with:
+- **Zod schema validation** for each step
+- **Real-time field validation** as users type
+- **Step-level validation** before proceeding
+- **Custom validation rules** using Zod's refinements
+- **Error aggregation** and display in context
+- **Full type safety** inferred from Zod schemas
+
+## What You'll Learn
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--gray-300)', borderRadius: '8px' }}>
+    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>✅ Zod Integration</div>
+    <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Use Zod schemas for type-safe validation</div>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--gray-300)', borderRadius: '8px' }}>
+    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>⚡ Real-time Validation</div>
+    <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Validate fields as users type</div>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--gray-300)', borderRadius: '8px' }}>
+    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>🎯 Type Inference</div>
+    <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Automatic TypeScript types from schemas</div>
+  </div>
+</div>
+
+## Validation Examples
+
+The wizard demonstrates various validation patterns:
+
+### Basic Field Validation
+- String length constraints (min/max)
+- Email format validation
+- Number range validation
+- Regex patterns (ZIP codes, phone numbers)
+
+### Complex Validation
+- Nested object validation (preferences, notifications)
+- Enum validation (theme, language selection)
+- Custom refinements (terms acceptance, password matching)
+- Conditional validation rules
+
+## Key Implementation
+
+### Zod Schemas
+
+```typescript
+import { z } from 'zod';
+
+// Personal information schema
+export const PersonalInfoSchema = z.object({
+  name: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(50, 'Name cannot exceed 50 characters'),
+  email: z.string()
+    .email('Invalid email address'),
+  age: z.number()
+    .min(18, 'Must be 18 or older')
+    .max(120, 'Invalid age'),
+  phone: z.string()
+    .regex(/^\+?[\d\s-()]+$/, 'Invalid phone number format')
+    .optional()
+});
+
+// Address schema with conditional validation
+export const AddressSchema = z.object({
+  street: z.string()
+    .min(1, 'Street address is required'),
+  city: z.string()
+    .min(1, 'City is required'),
+  state: z.string()
+    .length(2, 'State must be 2 characters')
+    .regex(/^[A-Z]{2}$/, 'State must be uppercase letters'),
+  zipCode: z.string()
+    .regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code format'),
+  country: z.enum(['US', 'CA', 'MX'], {
+    errorMap: () => ({ message: 'Please select a country' })
+  })
+});
+
+// Preferences with nested validation
+export const PreferencesSchema = z.object({
+  newsletter: z.boolean(),
+  notifications: z.object({
+    email: z.boolean(),
+    sms: z.boolean(),
+    push: z.boolean()
+  }).refine(
+    (data) => data.email || data.sms || data.push,
+    'At least one notification method must be enabled'
+  ),
+  theme: z.enum(['light', 'dark', 'auto']),
+  language: z.enum(['en', 'es', 'fr', 'de'])
+});
+
+// Review with custom refinement
+export const ReviewSchema = z.object({
+  terms: z.boolean()
+    .refine(val => val === true, 'You must accept the terms'),
+  privacy: z.boolean()
+    .refine(val => val === true, 'You must accept the privacy policy'),
+  newsletter: z.boolean()
+});
+
+// Infer TypeScript types from schemas
+export type PersonalInfo = z.infer<typeof PersonalInfoSchema>;
+export type Address = z.infer<typeof AddressSchema>;
+export type Preferences = z.infer<typeof PreferencesSchema>;
+export type Review = z.infer<typeof ReviewSchema>;
+```
+
+### Wizard Configuration
+
+```typescript
+import { wizardWithContext, step } from '@wizard/core';
+import {
+  PersonalInfoSchema,
+  AddressSchema,
+  PreferencesSchema,
+  ReviewSchema,
+  type PersonalInfo,
+  type Address,
+  type Preferences,
+  type Review
+} from './schemas';
+
+const { defineSteps, createWizard } = wizardWithContext<{}>({});
+
+const steps = defineSteps({
+  personal: step({
+    data: {
+      name: '',
+      email: '',
+      age: 0,
+      phone: ''
+    } as PersonalInfo,
+    validate: async ({ data }) => {
+      // Zod validation throws ZodError on failure
+      try {
+        PersonalInfoSchema.parse(data);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          // Format error messages
+          const messages = error.errors.map(e => e.message).join(', ');
+          throw new Error(messages);
+        }
+        throw error;
+      }
+    },
+    next: ['address']
+  }),
+
+  address: step({
+    data: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'US'
+    } as Address,
+    validate: async ({ data }) => {
+      try {
+        AddressSchema.parse(data);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          throw new Error(error.errors[0].message);
+        }
+        throw error;
+      }
+    },
+    next: ['preferences']
+  }),
+
+  preferences: step({
+    data: {
+      newsletter: false,
+      notifications: { email: true, sms: false, push: false },
+      theme: 'light',
+      language: 'en'
+    } as Preferences,
+    validate: async ({ data }) => {
+      try {
+        PreferencesSchema.parse(data);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          throw new Error(error.errors[0].message);
+        }
+        throw error;
+      }
+    },
+    next: ['review']
+  }),
+
+  review: step({
+    data: {
+      terms: false,
+      privacy: false,
+      newsletter: false
+    } as Review,
+    validate: async ({ data }) => {
+      try {
+        ReviewSchema.parse(data);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          throw new Error(error.errors[0].message);
+        }
+        throw error;
+      }
+    },
+    next: []
+  })
+});
+
+export const wizard = createWizard(steps);
+```
+
+### React Component with Real-time Validation
+
+```tsx
+import { useWizard, useWizardState } from '@wizard/react';
+import { useState, useEffect } from 'react';
+import { z } from 'zod';
+import { PersonalInfoSchema } from '../wizard/schemas';
+
+function PersonalInfoStep() {
+  const wizard = useWizard();
+  const { step } = useWizardState();
+  const stepData = wizard.getStep('personal').data;
+
+  const [formData, setFormData] = useState(stepData || {
+    name: '',
+    email: '',
+    age: 0,
+    phone: ''
+  });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Real-time field validation
+  const validateField = (field: string, value: any) => {
+    try {
+      // Validate individual field
+      const fieldSchema = PersonalInfoSchema.shape[field];
+      fieldSchema.parse(value);
+
+      // Clear error for this field
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        setErrors(prev => ({
+          ...prev,
+          [field]: error.errors[0].message
+        }));
+      }
+    }
+  };
+
+  const handleChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    validateField(field, value);
+  };
+
+  const handleNext = async () => {
+    try {
+      // Set step data
+      wizard.setStepData('personal', formData);
+
+      // Try to navigate (will trigger step validation)
+      await wizard.next();
+    } catch (error) {
+      // Validation failed
+      alert(error.message);
+    }
+  };
+
+  return (
+    <div className="step-container">
+      <h2>Personal Information</h2>
+
+      <div className="form-field">
+        <label>Name</label>
+        <input
+          type="text"
+          value={formData.name}
+          onChange={(e) => handleChange('name', e.target.value)}
+          onBlur={() => validateField('name', formData.name)}
+        />
+        {errors.name && (
+          <span className="error">{errors.name}</span>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label>Email</label>
+        <input
+          type="email"
+          value={formData.email}
+          onChange={(e) => handleChange('email', e.target.value)}
+          onBlur={() => validateField('email', formData.email)}
+        />
+        {errors.email && (
+          <span className="error">{errors.email}</span>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label>Age</label>
+        <input
+          type="number"
+          value={formData.age}
+          onChange={(e) => handleChange('age', parseInt(e.target.value))}
+          onBlur={() => validateField('age', formData.age)}
+        />
+        {errors.age && (
+          <span className="error">{errors.age}</span>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label>Phone (optional)</label>
+        <input
+          type="tel"
+          value={formData.phone}
+          onChange={(e) => handleChange('phone', e.target.value)}
+          onBlur={() => validateField('phone', formData.phone)}
+        />
+        {errors.phone && (
+          <span className="error">{errors.phone}</span>
+        )}
+      </div>
+
+      <button
+        onClick={handleNext}
+        disabled={Object.keys(errors).length > 0}
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+```
+
+### Validation Status Component
+
+```tsx
+function ValidationStatus({ errors }: { errors: Record<string, string> }) {
+  const errorCount = Object.keys(errors).length;
+
+  if (errorCount === 0) {
+    return (
+      <div className="validation-status success">
+        ✅ All fields are valid
+      </div>
+    );
+  }
+
+  return (
+    <div className="validation-status error">
+      <div className="error-count">
+        ⚠️ {errorCount} validation {errorCount === 1 ? 'error' : 'errors'}
+      </div>
+      <ul className="error-list">
+        {Object.entries(errors).map(([field, message]) => (
+          <li key={field}>
+            <strong>{field}:</strong> {message}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+## Running the Example
+
+```bash
+# From repository root
+cd examples/zod-validation
+
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm dev
+
+# Build for production
+pnpm build
+```
+
+## Project Structure
+
+```
+src/
+├── App.tsx                    # Main app component
+├── wizard/
+│   ├── config.ts              # Wizard with Zod validation
+│   ├── schemas.ts             # Zod schemas for all steps
+│   └── types.ts               # Inferred TypeScript types
+├── components/
+│   ├── steps/
+│   │   ├── PersonalInfo.tsx   # Personal info with validation
+│   │   ├── Address.tsx        # Address with validation
+│   │   ├── Preferences.tsx    # Preferences with validation
+│   │   └── Review.tsx         # Review with validation
+│   ├── ui/
+│   │   ├── ValidationStatus.tsx # Error display
+│   │   ├── FormField.tsx        # Reusable field with errors
+│   │   └── StepIndicator.tsx    # Progress indicator
+│   └── WizardContainer.tsx    # Main wizard wrapper
+```
+
+## Validation Strategies
+
+### 1. Step Validation
+Validates entire step data before allowing navigation:
+```typescript
+validate: async ({ data }) => {
+  StepSchema.parse(data); // Throws on error
+}
+```
+
+### 2. Field Validation
+Validates individual fields on blur or change:
+```typescript
+const fieldSchema = StepSchema.shape[fieldName];
+fieldSchema.parse(value);
+```
+
+### 3. Async Validation
+Validates against external services:
+```typescript
+validate: async ({ data }) => {
+  const schema = z.object({
+    email: z.string().email()
+  });
+
+  schema.parse(data);
+
+  // Additional async check
+  const exists = await checkEmailExists(data.email);
+  if (exists) throw new Error('Email already registered');
+}
+```
+
+## Key Takeaways
+
+<Callout type="success">
+  **Best Practices Demonstrated:**
+  - Define Zod schemas for all step data shapes
+  - Use `z.infer<>` to derive TypeScript types
+  - Implement real-time validation for better UX
+  - Show validation errors inline with form fields
+  - Prevent navigation when validation fails
+  - Use custom refinements for business logic
+  - Handle nested object validation
+</Callout>
+
+## Use Cases
+
+This pattern is ideal for:
+- **Complex forms** with many validation rules
+- **Multi-step registration** flows
+- **Data collection wizards** with strict requirements
+- **Survey builders** with conditional validation
+- **E-commerce checkouts** with address validation
+- **Applications** requiring data integrity
+
+## Technologies Used
+
+- React 18
+- TypeScript
+- @wizard/core & @wizard/react
+- Zod ^3.0
+- Tailwind CSS
+- Vite
+
+## Next Steps
+
+- Explore [Local Persistence](/examples/persistence-local) for auto-save
+- Learn about [Advanced Branching](/examples/advanced-branching) for dynamic flows
+- See [Basic Form](/examples/basic-form-wizard) for a simpler validation approach
+
+## Source Code
+
+[View full source on GitHub →](https://github.com/user/wizard/tree/main/examples/zod-validation)

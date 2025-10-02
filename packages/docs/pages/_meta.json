@@ -1,25 +1,29 @@
 {
   "index": "Introduction",
   "getting-started": "Getting Started",
-  "api-docs": "API Documentation",
   "-- divider1": {
     "type": "separator",
-    "title": "Core Concepts"
+    "title": "Fundamentals"
   },
   "concepts": "Core Concepts",
+  "validation": "Validation",
   "core": "Core API",
   "-- divider2": {
     "type": "separator",
     "title": "Framework Integration"
   },
   "react": "React",
-  "validation": "Validation",
   "-- divider3": {
     "type": "separator",
-    "title": "Guides & Examples"
+    "title": "Patterns & Examples"
   },
-  "recipes": "Recipes",
-  "examples": "Examples",
+  "patterns": "Common Patterns",
+  "examples": "Complete Examples",
+  "-- divider4": {
+    "type": "separator",
+    "title": "Advanced"
+  },
   "helpers": "Helper Functions",
-  "advanced": "Advanced Features"
+  "advanced": "Advanced Features",
+  "api-docs": "API Reference"
 }

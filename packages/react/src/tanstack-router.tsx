@@ -113,49 +113,76 @@ export function createWizardRouteComponent<C, S extends string, D extends Record
   return function WizardRouteComponent() {
     const navigate = useNavigate();
     const params = useParams({ strict: false });
-    const { step: currentStep } = useWizard(wizard);
 
     // Extract base path from current route (remove the param segment)
     const currentPath = window.location.pathname;
     const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
 
     const urlStep = params[stepParam] as S | undefined;
-    const isNavigatingRef = React.useRef(false);
 
-    // Sync: Router → Wizard (when URL changes)
-    useEffect(() => {
-      if (!urlStep || isNavigatingRef.current) return;
+    // Override wizard navigation methods to use URL navigation
+    React.useEffect(() => {
+      const originalNext = wizard.next.bind(wizard);
+      const originalBack = wizard.back.bind(wizard);
+      const originalGoTo = wizard.goTo.bind(wizard);
 
-      if (urlStep !== currentStep) {
-        isNavigatingRef.current = true;
-        wizard.goTo(urlStep)
-          .catch((err) => {
-            console.error(`Failed to navigate to step: ${urlStep}`, err);
-            // Navigate back to current valid step
-            navigate({
-              to: basePath + '/$' + stepParam,
-              params: { [stepParam]: currentStep },
-            });
-          })
-          .finally(() => {
-            isNavigatingRef.current = false;
+      // Override next to navigate via URL
+      wizard.next = async function(...args: any[]) {
+        const result = await originalNext(...args);
+        const newStep = wizard.store?.state.step;
+        if (newStep && newStep !== urlStep) {
+          navigate({
+            to: basePath + '/$' + stepParam,
+            params: { [stepParam]: newStep },
           });
-      }
-    }, [urlStep, currentStep, navigate, basePath]);
+        }
+        return result;
+      } as any;
 
-    // Sync: Wizard → Router (when wizard step changes programmatically)
+      // Override back to use browser history
+      wizard.back = async function() {
+        window.history.back();
+        return null as any;
+      } as any;
+
+      // Override goTo to navigate via URL
+      wizard.goTo = async function(step: S, ...args: any[]) {
+        // For browser history navigation, use original goTo with skipGuards
+        if (args[0]?.skipGuards) {
+          return originalGoTo(step, ...args);
+        }
+
+        // For programmatic navigation, validate first then navigate
+        const result = await originalGoTo(step, ...args);
+        if (step !== urlStep) {
+          navigate({
+            to: basePath + '/$' + stepParam,
+            params: { [stepParam]: step },
+          });
+        }
+        return result;
+      } as any;
+
+      return () => {
+        wizard.next = originalNext;
+        wizard.back = originalBack;
+        wizard.goTo = originalGoTo;
+      };
+    }, [navigate, basePath, urlStep]);
+
+    // Sync URL to wizard state (only for initial load and browser navigation)
     useEffect(() => {
-      if (isNavigatingRef.current) return;
+      if (!urlStep) return;
 
+      const currentStep = wizard.store?.state.step;
       if (urlStep !== currentStep) {
-        navigate({
-          to: basePath + '/$' + stepParam,
-          params: { [stepParam]: currentStep },
+        wizard.goTo(urlStep, { skipGuards: true } as any).catch((err) => {
+          console.error(`Failed to navigate to step: ${urlStep}`, err);
         });
       }
-    }, [currentStep, urlStep, navigate, basePath]);
+    }, [urlStep]);
 
-    // Render with key to force remount when step changes
-    return <StepRenderer key={currentStep} stepName={currentStep} />;
+    // Render current URL step
+    return <StepRenderer key={urlStep} stepName={urlStep!} />;
   };
 }

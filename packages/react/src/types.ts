@@ -36,8 +36,31 @@ export function resolveStepComponent<C, S extends string, Data, E>(
   args: StepArgs<C, S, Data, E>
 ): React.ReactElement | null {
   if (!comp) return null;
-  const value = typeof comp === 'function' ? (comp as any)(args) : comp;
-  if (React.isValidElement(value)) return value;
-  if (typeof value === 'function') return React.createElement(value as React.ComponentType<any>, { args });
+
+  // If it's already a React element, return it
+  if (React.isValidElement(comp)) return comp;
+
+  // If it's a function, we need to determine if it's:
+  // 1. A React component (rendered as <Component />)
+  // 2. A factory function that takes args and returns a component/element
+  if (typeof comp === 'function') {
+    // Check if it's a React component by checking function length
+    // React components typically have length 0 or 1 (props)
+    // Factory functions that take StepArgs have specific length
+    const funcLength = comp.length;
+
+    // If function takes 0 arguments, it's likely a React component
+    if (funcLength === 0) {
+      return React.createElement(comp as React.ComponentType<any>);
+    }
+
+    // Otherwise, call it as a factory function with args
+    const value = (comp as any)(args);
+    if (React.isValidElement(value)) return value;
+    if (typeof value === 'function') {
+      return React.createElement(value as React.ComponentType<any>);
+    }
+  }
+
   return null;
 }

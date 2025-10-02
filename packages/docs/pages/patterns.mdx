@@ -1,0 +1,655 @@
+# Common Patterns
+
+import { Callout, Tabs, Tab } from '../components'
+
+Learn common patterns for building wizards through real, working examples. Each pattern links to a complete implementation you can run and explore.
+
+## Dynamic Step Branching
+
+Create wizards with conditional paths based on user input and role-based access control.
+
+```typescript
+import { wizardWithContext, step } from '@wizard/core';
+
+type UserRole = 'user' | 'admin' | 'manager';
+
+interface AppContext {
+  role: UserRole | null;
+  requiresApproval: boolean;
+}
+
+const { defineSteps, createWizard } = wizardWithContext<AppContext>({
+  role: null,
+  requiresApproval: false
+});
+
+const steps = defineSteps({
+  roleSelection: step({
+    data: { selectedRole: '' as UserRole },
+    beforeExit: ({ data, updateContext }) => {
+      updateContext(ctx => ({ ...ctx, role: data.selectedRole }));
+    },
+    next: ['userProfile', 'adminPanel', 'managerDashboard']
+  }),
+
+  userProfile: step({
+    data: { name: '', email: '' },
+    canEnter: ({ context }) => context.role === 'user',
+    next: ['review']
+  }),
+
+  adminPanel: step({
+    data: { permissions: [], requiresApproval: false },
+    canEnter: ({ context }) => context.role === 'admin',
+    beforeExit: ({ data, updateContext }) => {
+      updateContext(ctx => ({ ...ctx, requiresApproval: data.requiresApproval }));
+    },
+    next: ['managerDashboard', 'review']
+  }),
+
+  managerDashboard: step({
+    data: { approvalNotes: '' },
+    canEnter: ({ context }) =>
+      context.role === 'manager' ||
+      (context.role === 'admin' && context.requiresApproval),
+    next: ['review']
+  }),
+
+  review: step({
+    data: { confirmed: false },
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
+```
+
+<Callout type="info">
+  **See the full example:** [Advanced Branching](/examples/advanced-branching) demonstrates dynamic navigation, role-based access, and conditional flows with a complete React implementation.
+</Callout>
+
+## Form Validation with Zod
+
+Integrate Zod for robust, type-safe schema validation at each step.
+
+```typescript
+import { z } from 'zod';
+import { wizardWithContext, step } from '@wizard/core';
+
+// Define Zod schemas for each step
+const PersonalInfoSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  age: z.number().min(18, 'Must be 18 or older')
+});
+
+const AddressSchema = z.object({
+  street: z.string().min(1, 'Street is required'),
+  city: z.string().min(1, 'City is required'),
+  state: z.string().length(2, 'State must be 2 characters'),
+  zipCode: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code')
+});
+
+const PreferencesSchema = z.object({
+  newsletter: z.boolean(),
+  notifications: z.object({
+    email: z.boolean(),
+    sms: z.boolean()
+  }),
+  theme: z.enum(['light', 'dark', 'auto']),
+  language: z.enum(['en', 'es', 'fr'])
+});
+
+// Infer types from schemas
+type PersonalInfo = z.infer<typeof PersonalInfoSchema>;
+type Address = z.infer<typeof AddressSchema>;
+type Preferences = z.infer<typeof PreferencesSchema>;
+
+const { defineSteps, createWizard } = wizardWithContext<{}>({});
+
+const steps = defineSteps({
+  personal: step({
+    data: {} as PersonalInfo,
+    validate: async ({ data }) => {
+      PersonalInfoSchema.parse(data);
+    },
+    next: ['address']
+  }),
+
+  address: step({
+    data: {} as Address,
+    validate: async ({ data }) => {
+      AddressSchema.parse(data);
+    },
+    next: ['preferences']
+  }),
+
+  preferences: step({
+    data: {} as Preferences,
+    validate: async ({ data }) => {
+      PreferencesSchema.parse(data);
+    },
+    next: ['review']
+  }),
+
+  review: step({
+    data: { accepted: false },
+    validate: async ({ data }) => {
+      if (!data.accepted) {
+        throw new Error('You must accept the terms');
+      }
+    },
+    next: []
+  })
+});
+
+const wizard = createWizard(steps);
+```
+
+<Callout type="info">
+  **See the full example:** [Zod Validation](/examples/zod-validation) shows comprehensive form validation with real-time field validation and error handling.
+</Callout>
+
+## Auto-save & Persistence
+
+Automatically save wizard state to localStorage with debouncing for recovery.
+
+```typescript
+import { wizardWithContext, step } from '@wizard/core';
+
+// Persistence adapter
+class LocalStorageAdapter<T> {
+  constructor(
+    private key: string,
+    private debounceMs: number = 1000
+  ) {}
+
+  private debounceTimer: NodeJS.Timeout | null = null;
+
+  async save(data: T): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+
+      this.debounceTimer = setTimeout(() => {
+        localStorage.setItem(this.key, JSON.stringify({
+          data,
+          timestamp: Date.now(),
+          version: 1
+        }));
+        resolve();
+      }, this.debounceMs);
+    });
+  }
+
+  async load(): Promise<T | null> {
+    const saved = localStorage.getItem(this.key);
+    if (!saved) return null;
+
+    try {
+      const { data, timestamp } = JSON.parse(saved);
+
+      // Only restore if less than 1 hour old
+      const hourAgo = Date.now() - (60 * 60 * 1000);
+      if (timestamp > hourAgo) {
+        return data;
+      }
+
+      this.clear();
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  clear(): void {
+    localStorage.removeItem(this.key);
+  }
+
+  async backup(): Promise<void> {
+    const data = localStorage.getItem(this.key);
+    if (data) {
+      localStorage.setItem(`${this.key}_backup`, data);
+    }
+  }
+
+  async restore(): Promise<void> {
+    const backup = localStorage.getItem(`${this.key}_backup`);
+    if (backup) {
+      localStorage.setItem(this.key, backup);
+    }
+  }
+}
+
+// Setup wizard with persistence
+interface ResumeData {
+  personal: { name: string; email: string; phone: string };
+  experience: { company: string; role: string; years: number }[];
+  education: { school: string; degree: string; year: number }[];
+  skills: string[];
+}
+
+interface WizardContext {
+  resumeData: ResumeData;
+  isDirty: boolean;
+  lastAutoSave: Date | null;
+  recoveredFromStorage: boolean;
+}
+
+const storageAdapter = new LocalStorageAdapter<ResumeData>('resume-wizard', 1000);
+
+const { defineSteps, createWizard } = wizardWithContext<WizardContext>({
+  resumeData: { personal: {} as any, experience: [], education: [], skills: [] },
+  isDirty: false,
+  lastAutoSave: null,
+  recoveredFromStorage: false
+});
+
+const steps = defineSteps({
+  personal: step({
+    data: { name: '', email: '', phone: '' },
+    beforeExit: async ({ data, context, updateContext }) => {
+      const updatedResume = { ...context.resumeData, personal: data };
+      await storageAdapter.save(updatedResume);
+      updateContext(ctx => ({
+        ...ctx,
+        resumeData: updatedResume,
+        lastAutoSave: new Date(),
+        isDirty: false
+      }));
+    },
+    next: ['experience']
+  }),
+
+  experience: step({
+    data: { entries: [] as any[] },
+    beforeExit: async ({ data, context, updateContext }) => {
+      const updatedResume = { ...context.resumeData, experience: data.entries };
+      await storageAdapter.save(updatedResume);
+      updateContext(ctx => ({
+        ...ctx,
+        resumeData: updatedResume,
+        lastAutoSave: new Date(),
+        isDirty: false
+      }));
+    },
+    next: ['education']
+  }),
+
+  // More steps...
+});
+
+// Load saved data on init
+async function initWizard() {
+  const wizard = createWizard(steps);
+
+  const savedData = await storageAdapter.load();
+  if (savedData) {
+    // Restore wizard state from storage
+    wizard.updateContext(ctx => ({
+      ...ctx,
+      resumeData: savedData,
+      recoveredFromStorage: true
+    }));
+  }
+
+  return wizard;
+}
+```
+
+<Callout type="info">
+  **See the full example:** [Local Persistence](/examples/persistence-local) implements auto-save, session recovery, and backup/restore functionality.
+</Callout>
+
+## Async Data Loading
+
+Load data asynchronously when entering steps with loading states.
+
+```typescript
+import { wizardWithContext, step } from '@wizard/core';
+
+interface ProductContext {
+  userId: string;
+  selectedAddress: any;
+  shippingOptions: any[];
+  isLoadingShipping: boolean;
+}
+
+const { defineSteps, createWizard } = wizardWithContext<ProductContext>({
+  userId: '',
+  selectedAddress: null,
+  shippingOptions: [],
+  isLoadingShipping: false
+});
+
+const steps = defineSteps({
+  address: step({
+    data: { street: '', city: '', state: '', zip: '' },
+    next: ['shipping']
+  }),
+
+  shipping: step({
+    data: { selectedOption: null as any },
+    beforeEnter: async ({ context, updateContext }) => {
+      // Set loading state
+      updateContext(ctx => ({ ...ctx, isLoadingShipping: true }));
+
+      try {
+        // Fetch shipping options based on address
+        const options = await fetchShippingOptions(context.selectedAddress);
+
+        updateContext(ctx => ({
+          ...ctx,
+          shippingOptions: options,
+          isLoadingShipping: false
+        }));
+      } catch (error) {
+        updateContext(ctx => ({ ...ctx, isLoadingShipping: false }));
+        throw error;
+      }
+    },
+    next: ['payment']
+  }),
+
+  payment: step({
+    data: { cardNumber: '', cvv: '', expiry: '' },
+    next: ['confirm']
+  }),
+
+  confirm: step({
+    data: { orderId: '' },
+    beforeEnter: async ({ setStepData }) => {
+      // Generate order ID asynchronously
+      const orderId = await generateOrderId();
+      setStepData({ orderId });
+    },
+    next: []
+  })
+});
+
+async function fetchShippingOptions(address: any) {
+  const response = await fetch('/api/shipping', {
+    method: 'POST',
+    body: JSON.stringify(address)
+  });
+  return response.json();
+}
+
+async function generateOrderId() {
+  const response = await fetch('/api/orders/generate-id');
+  const { orderId } = await response.json();
+  return orderId;
+}
+
+const wizard = createWizard(steps);
+```
+
+<Callout type="tip">
+  Use loading states in your context to show spinners and disable navigation during async operations.
+</Callout>
+
+## Multi-page Forms with Router
+
+Sync wizard state with URL routing for bookmarkable steps.
+
+<Tabs items={['TanStack Router', 'React Router']}>
+  <Tab label="TanStack Router">
+```tsx
+import { createWizardRouteComponent } from '@wizard/react';
+import { createRouter, createRoute } from '@tanstack/react-router';
+import { wizard } from './wizard';
+
+// Create wizard route component with auto URL syncing
+const WizardRoute = createWizardRouteComponent({
+  wizard,
+  basePath: '/checkout'
+});
+
+const checkoutRoute = createRoute({
+  path: '/checkout',
+  component: WizardRoute
+});
+
+const router = createRouter({
+  routes: [checkoutRoute]
+});
+
+// That's it! The wizard automatically:
+// - Syncs step with URL (/checkout/account, /checkout/shipping, etc.)
+// - Updates URL on navigation
+// - Restores step from URL on page load
+// - Validates step exists before navigating
+```
+  </Tab>
+
+  <Tab label="React Router">
+```tsx
+import { useNavigate, useParams } from 'react-router-dom';
+import { useWizard } from '@wizard/react';
+import { useEffect } from 'react';
+
+function WizardPage() {
+  const { step } = useParams<{ step: string }>();
+  const navigate = useNavigate();
+  const wizard = useWizard();
+
+  // Sync wizard step with URL
+  useEffect(() => {
+    if (step && step !== wizard.state.currentStep) {
+      wizard.goTo(step).catch(() => {
+        // Invalid step, redirect to first
+        navigate('/wizard/account');
+      });
+    }
+  }, [step]);
+
+  // Update URL when wizard step changes
+  useEffect(() => {
+    const unsubscribe = wizard.subscribe(state => {
+      if (state.currentStep !== step) {
+        navigate(`/wizard/${state.currentStep}`);
+      }
+    });
+    return unsubscribe;
+  }, [wizard]);
+
+  return <WizardSteps />;
+}
+```
+  </Tab>
+</Tabs>
+
+<Callout type="info">
+  **See the full example:** [TanStack Router Integration](/examples/react-router) demonstrates URL syncing, route guards, and bookmarkable wizard steps.
+</Callout>
+
+## Conditional Validation
+
+Validate based on context or other step data for complex business rules.
+
+```typescript
+import { wizardWithContext, step } from '@wizard/core';
+
+interface CheckoutContext {
+  country: string;
+  paymentMethod: 'card' | 'paypal' | 'crypto';
+  isBusinessAccount: boolean;
+}
+
+const { defineSteps, createWizard } = wizardWithContext<CheckoutContext>({
+  country: '',
+  paymentMethod: 'card',
+  isBusinessAccount: false
+});
+
+const steps = defineSteps({
+  shipping: step({
+    data: { country: '', zipCode: '' },
+    beforeExit: ({ data, updateContext }) => {
+      updateContext(ctx => ({ ...ctx, country: data.country }));
+    },
+    next: ['payment']
+  }),
+
+  payment: step({
+    data: { cardNumber: '', cvv: '', taxId: '' },
+    validate: async ({ data, context, wizard }) => {
+      // Get shipping data from previous step
+      const shipping = wizard.getStep('shipping').data;
+
+      // Validate based on country
+      if (context.country === 'US') {
+        if (!data.zipCode || !/^\d{5}(-\d{4})?$/.test(data.zipCode)) {
+          throw new Error('Invalid US ZIP code');
+        }
+      } else if (context.country === 'CA') {
+        if (!data.zipCode || !/^[A-Z]\d[A-Z] \d[A-Z]\d$/.test(data.zipCode)) {
+          throw new Error('Invalid Canadian postal code');
+        }
+      }
+
+      // Validate based on payment method
+      if (context.paymentMethod === 'card') {
+        if (!data.cardNumber || !data.cvv) {
+          throw new Error('Card details required for card payment');
+        }
+      }
+
+      // Validate based on account type
+      if (context.isBusinessAccount && !data.taxId) {
+        throw new Error('Tax ID required for business accounts');
+      }
+    },
+    next: ['confirm']
+  })
+});
+
+const wizard = createWizard(steps);
+```
+
+<Callout type="tip">
+  Access other step data using `wizard.getStep('stepId').data` for cross-step validation.
+</Callout>
+
+## Node.js Saga Pattern
+
+Use wizards for backend workflows and multi-step processes.
+
+```typescript
+import { wizardWithContext, step } from '@wizard/core';
+
+interface OrderContext {
+  orderId: string;
+  customerId: string;
+  inventoryReserved: boolean;
+  paymentProcessed: boolean;
+  emailSent: boolean;
+}
+
+const { defineSteps, createWizard } = wizardWithContext<OrderContext>({
+  orderId: '',
+  customerId: '',
+  inventoryReserved: false,
+  paymentProcessed: false,
+  emailSent: false
+});
+
+const steps = defineSteps({
+  initialize: step({
+    data: { customerEmail: '', items: [] as any[] },
+    beforeExit: async ({ data, updateContext }) => {
+      const orderId = await createOrder(data);
+      updateContext(ctx => ({ ...ctx, orderId }));
+    },
+    next: ['reserve']
+  }),
+
+  reserve: step({
+    data: { reservationId: '' },
+    beforeEnter: async ({ context, setStepData }) => {
+      const reservationId = await reserveInventory(context.orderId);
+      setStepData({ reservationId });
+    },
+    beforeExit: async ({ updateContext }) => {
+      updateContext(ctx => ({ ...ctx, inventoryReserved: true }));
+    },
+    next: ['charge']
+  }),
+
+  charge: step({
+    data: { transactionId: '' },
+    beforeEnter: async ({ context, setStepData }) => {
+      try {
+        const transactionId = await processPayment(context.orderId);
+        setStepData({ transactionId });
+      } catch (error) {
+        // Compensate: release inventory
+        await releaseInventory(context.orderId);
+        throw error;
+      }
+    },
+    beforeExit: async ({ updateContext }) => {
+      updateContext(ctx => ({ ...ctx, paymentProcessed: true }));
+    },
+    next: ['notify']
+  }),
+
+  notify: step({
+    data: { emailId: '' },
+    beforeEnter: async ({ context, setStepData, wizard }) => {
+      const initData = wizard.getStep('initialize').data;
+      const emailId = await sendConfirmationEmail(
+        initData.customerEmail,
+        context.orderId
+      );
+      setStepData({ emailId });
+    },
+    next: ['complete']
+  }),
+
+  complete: step({
+    data: { completedAt: new Date() },
+    beforeEnter: async ({ setStepData }) => {
+      setStepData({ completedAt: new Date() });
+    },
+    next: []
+  })
+});
+
+// Helper functions
+async function createOrder(data: any) { /* ... */ }
+async function reserveInventory(orderId: string) { /* ... */ }
+async function processPayment(orderId: string) { /* ... */ }
+async function releaseInventory(orderId: string) { /* ... */ }
+async function sendConfirmationEmail(email: string, orderId: string) { /* ... */ }
+
+const wizard = createWizard(steps);
+
+// Execute saga
+async function runOrderSaga(customerEmail: string, items: any[]) {
+  await wizard.setStepData('initialize', { customerEmail, items });
+
+  try {
+    while (wizard.helpers.canGoNext()) {
+      await wizard.next();
+    }
+    console.log('Order completed successfully!');
+  } catch (error) {
+    console.error('Order failed:', error);
+    // Implement compensation logic
+  }
+}
+```
+
+<Callout type="info">
+  **See the full example:** [Node.js Saga](/examples/node-saga-wizard) implements a complete order processing workflow with beautiful CLI interface, error handling, and compensation logic.
+</Callout>
+
+## Next Steps
+
+Explore our complete, runnable examples to see these patterns in action:
+
+- **[All Examples](/examples)** - Browse all available examples
+- **[Getting Started](/getting-started)** - Set up your first wizard
+- **[Core Concepts](/concepts)** - Understand the fundamentals
