@@ -44,12 +44,13 @@ src/
 ```bash
 pnpm start
 ```
-- Clean TUI powered by [prompts](https://www.npmjs.com/package/prompts)
-- Single-line input rendering (no console glitches)
-- Input validation with helpful error messages
+- **Clean TUI** powered by [readline-sync](https://www.npmjs.com/package/readline-sync)
+- **Zero keystroke spam** - only shows final input values
+- Built-in email validation
+- Simple Y/N confirmations
+- Select menus for choices
 - Beautiful visual feedback with spinners and progress bars
-- Email validation, native number inputs, and confirmation dialogs
-- Graceful Ctrl+C handling
+- Clean, predictable terminal output
 - **Note**: Requires an interactive terminal (TTY). Will not work with piped input.
 
 #### Automated Mode
