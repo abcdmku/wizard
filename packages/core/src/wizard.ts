@@ -557,49 +557,57 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
       const currentStep = store.state.step;
 
-      // Set step data if provided
-      if (args?.data) {
-        store.setState(state => ({
-          ...state,
-          data: { ...state.data, [step]: args.data },
-        }));
-      }
+      // Set transitioning state
+      store.setState(state => ({ ...state, isTransitioning: true }));
 
-      // Save to history
-      store.setState(state => ({
-        ...state,
-        history: [
-          ...state.history,
-          { step: currentStep, context: state.context, data: state.data },
-        ].slice(-10), // Keep last 10 entries
-      }));
-
-      // Execute beforeEnter if defined
-      const stepDef = steps[step];
-      if (stepDef.beforeEnter) {
-        const currentData = store.state.data[step] as D[K] | undefined;
-        const args = createStepArgs(step, currentData);
-        const enterArgs = { ...args, from: currentStep };
-
-        const result = await stepDef.beforeEnter(enterArgs);
-        if (result !== undefined) {
-          const mergedData = typeof result === 'object' && result !== null
-            ? { ...(currentData || {}), ...result } as D[K]
-            : result as D[K];
-
+      try {
+        // Set step data if provided
+        if (args?.data) {
           store.setState(state => ({
             ...state,
-            data: { ...state.data, [step]: mergedData },
+            data: { ...state.data, [step]: args.data },
           }));
         }
+
+        // Save to history
+        store.setState(state => ({
+          ...state,
+          history: [
+            ...state.history,
+            { step: currentStep, context: state.context, data: state.data },
+          ].slice(-10), // Keep last 10 entries
+        }));
+
+        // Execute beforeEnter if defined
+        const stepDef = steps[step];
+        if (stepDef.beforeEnter) {
+          const currentData = store.state.data[step] as D[K] | undefined;
+          const args = createStepArgs(step, currentData);
+          const enterArgs = { ...args, from: currentStep };
+
+          const result = await stepDef.beforeEnter(enterArgs);
+          if (result !== undefined) {
+            const mergedData = typeof result === 'object' && result !== null
+              ? { ...(currentData || {}), ...result } as D[K]
+              : result as D[K];
+
+            store.setState(state => ({
+              ...state,
+              data: { ...state.data, [step]: mergedData },
+            }));
+          }
+        }
+
+        // Update current step
+        store.setState(state => ({ ...state, step }));
+
+        // Return step wrapper for the target step
+        const stepData = store.state.data[step] as D[K] | undefined;
+        return createStepWrapper(wizard, step, stepData, store.state.context);
+      } finally {
+        // Clear transitioning state
+        store.setState(state => ({ ...state, isTransitioning: false }));
       }
-
-      // Update current step
-      store.setState(state => ({ ...state, step }));
-
-      // Return step wrapper for the target step
-      const stepData = store.state.data[step] as D[K] | undefined;
-      return createStepWrapper(wizard, step, stepData, store.state.context);
     },
 
     async back(): Promise<WizardStep<S, D[S], C, S, D>> {
@@ -610,17 +618,25 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
       const previousState = history[history.length - 1];
 
-      // Restore previous state
-      store.setState(state => ({
-        ...state,
-        step: previousState.step,
-        context: previousState.context,
-        data: previousState.data,
-        history: history.slice(0, -1),
-      }));
+      // Set transitioning state
+      store.setState(state => ({ ...state, isTransitioning: true }));
 
-      // Return step wrapper for the restored step
-      return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
+      try {
+        // Restore previous state
+        store.setState(state => ({
+          ...state,
+          step: previousState.step,
+          context: previousState.context,
+          data: previousState.data,
+          history: history.slice(0, -1),
+        }));
+
+        // Return step wrapper for the restored step
+        return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
+      } finally {
+        // Clear transitioning state
+        store.setState(state => ({ ...state, isTransitioning: false }));
+      }
     },
 
     // Enhanced mark methods that return step objects
