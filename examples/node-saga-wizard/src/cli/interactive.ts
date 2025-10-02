@@ -62,7 +62,7 @@ export async function runInteractiveCLI() {
     const { orderId, customerId, totalAmount: totalAmountStr } = answers1;
     const totalAmount = parseFloat(totalAmountStr);
 
-    let spinner = createSpinner("Processing order initialization...");
+    const spinner = createSpinner("Processing order initialization...");
     await orderWizard.next({
       data: { orderId, customerId, totalAmount: totalAmount || 0 },
     });
@@ -108,11 +108,11 @@ export async function runInteractiveCLI() {
       items.push({ sku: itemAnswers.sku, quantity: parseInt(itemAnswers.quantity) });
     }
 
-    spinner = createSpinner("Reserving inventory...");
+    const spinner2 = createSpinner("Reserving inventory...");
     await orderWizard.next({
       data: { items },
     });
-    spinner.succeed("Inventory reserved!");
+    spinner2.succeed("Inventory reserved!");
     showProgress(2, stepCount, "Wizard Progress");
 
     // Step 3: Process payment
@@ -141,7 +141,7 @@ export async function runInteractiveCLI() {
     };
 
     if (paymentConfirm) {
-      spinner = createSpinner("Processing payment...");
+      const spinner3 = createSpinner("Processing payment...");
       await orderWizard.next({
         data: {
           paymentMethod,
@@ -149,7 +149,7 @@ export async function runInteractiveCLI() {
         },
       });
       const context = orderWizard.getContext();
-      spinner.succeed(`Payment processed: ${context.paymentId}`);
+      spinner3.succeed(`Payment processed: ${context.paymentId}`);
       showProgress(3, stepCount, "Wizard Progress");
     } else {
       showError("Payment cancelled");
@@ -171,11 +171,11 @@ export async function runInteractiveCLI() {
       },
     ]);
 
-    spinner = createSpinner("Sending notification...");
+    const spinner4 = createSpinner("Sending notification...");
     await orderWizard.next({
       data: { email },
     });
-    spinner.succeed(`Notification sent to ${email}`);
+    spinner4.succeed(`Notification sent to ${email}`);
     showProgress(4, stepCount, "Wizard Progress");
 
     // Step 5: Complete order
@@ -190,11 +190,11 @@ export async function runInteractiveCLI() {
     ]);
 
     if (finalConfirm) {
-      spinner = createSpinner("Finalizing order...");
+      const spinner5 = createSpinner("Finalizing order...");
       await orderWizard.next({
         data: { confirmed: finalConfirm },
       });
-      spinner.succeed("Order completed!");
+      spinner5.succeed("Order completed!");
       showProgress(5, stepCount, "Wizard Progress");
 
       showDivider();
