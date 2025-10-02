@@ -1,5 +1,4 @@
 import { useGuardWizard } from '../../wizard/config';
-import type { GuardContext } from '../../wizard/types';
 
 const steps = [
   { id: 'introduction', label: 'Welcome', icon: '👋', protected: false },

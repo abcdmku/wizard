@@ -1,4 +1,4 @@
-import inquirer from "inquirer";
+import prompts from "prompts";
 import { orderWizard } from "../wizard/orderWizard";
 import type { ChargeData } from "../wizard/types";
 import {
@@ -16,9 +16,6 @@ import {
 } from "./display";
 
 export async function runInteractiveCLI() {
-  showTitle("Order Wizard");
-  showBanner("Interactive Order Processing", { color: "magenta" });
-
   // Check if we have a TTY (interactive terminal)
   if (!process.stdin.isTTY) {
     showError("Interactive mode requires a TTY (interactive terminal)");
@@ -27,40 +24,42 @@ export async function runInteractiveCLI() {
     process.exit(1);
   }
 
+  // Clear screen for clean start
+  console.clear();
+
+  showTitle("Order Wizard");
+  showBanner("Interactive Order Processing", { color: "magenta" });
+
   try {
     const stepCount = orderWizard.helpers.stepCount();
 
     // Step 1: Initialize order
     showStep(1, "Initialize Order");
-    const answers1 = await inquirer.prompt([
+    const answers1 = await prompts([
       {
-        type: "input",
+        type: "text",
         name: "orderId",
-        message: "Order ID:",
-        default: `ORD-${Date.now()}`,
+        message: "Order ID",
+        initial: `ORD-${Date.now()}`,
         validate: (value: string) => value.length > 0 || "Order ID is required",
       },
       {
-        type: "input",
+        type: "text",
         name: "customerId",
-        message: "Customer ID:",
-        default: "CUST-123",
+        message: "Customer ID",
+        initial: "CUST-123",
         validate: (value: string) => value.length > 0 || "Customer ID is required",
       },
       {
-        type: "input",
+        type: "number",
         name: "totalAmount",
-        message: "Total Amount ($):",
-        default: "99.99",
-        validate: (value: string) => {
-          const num = parseFloat(value);
-          return !isNaN(num) && num > 0 || "Please enter a valid amount greater than 0";
-        },
+        message: "Total Amount ($)",
+        initial: 99.99,
+        validate: (value: number) => value > 0 || "Amount must be greater than 0",
       },
     ]);
 
-    const { orderId, customerId, totalAmount: totalAmountStr } = answers1;
-    const totalAmount = parseFloat(totalAmountStr);
+    const { orderId, customerId, totalAmount } = answers1;
 
     const spinner = createSpinner("Processing order initialization...");
     await orderWizard.next({
@@ -71,41 +70,32 @@ export async function runInteractiveCLI() {
 
     // Step 2: Reserve inventory
     showStep(2, "Reserve Inventory");
-    const { itemCount: itemCountStr } = await inquirer.prompt([
-      {
-        type: "input",
-        name: "itemCount",
-        message: "Number of items:",
-        default: "2",
-        validate: (value: string) => {
-          const num = parseInt(value);
-          return !isNaN(num) && num > 0 || "Please enter a valid number greater than 0";
-        },
-      },
-    ]);
+    const { itemCount } = await prompts({
+      type: "number",
+      name: "itemCount",
+      message: "Number of items",
+      initial: 2,
+      validate: (value: number) => value > 0 || "Must be at least 1",
+    });
 
-    const itemCount = parseInt(itemCountStr);
     const items = [];
     for (let i = 0; i < itemCount; i++) {
-      const itemAnswers = await inquirer.prompt([
+      const itemAnswers = await prompts([
         {
-          type: "input",
+          type: "text",
           name: "sku",
-          message: `Item ${i + 1} SKU:`,
-          default: `ITEM-${String(i + 1).padStart(3, "0")}`,
+          message: `Item ${i + 1} SKU`,
+          initial: `ITEM-${String(i + 1).padStart(3, "0")}`,
         },
         {
-          type: "input",
+          type: "number",
           name: "quantity",
-          message: `Item ${i + 1} Quantity:`,
-          default: "1",
-          validate: (value: string) => {
-            const num = parseInt(value);
-            return !isNaN(num) && num > 0 || "Quantity must be at least 1";
-          },
+          message: `Item ${i + 1} Quantity`,
+          initial: 1,
+          validate: (value: number) => value > 0 || "Quantity must be at least 1",
         },
       ]);
-      items.push({ sku: itemAnswers.sku, quantity: parseInt(itemAnswers.quantity) });
+      items.push({ sku: itemAnswers.sku, quantity: itemAnswers.quantity });
     }
 
     const spinner2 = createSpinner("Reserving inventory...");
@@ -117,21 +107,22 @@ export async function runInteractiveCLI() {
 
     // Step 3: Process payment
     showStep(3, "Process Payment");
-    const paymentAnswers = await inquirer.prompt([
+    const paymentAnswers = await prompts([
       {
-        type: "list",
+        type: "select",
         name: "paymentMethod",
-        message: "Payment method:",
+        message: "Payment method",
         choices: [
-          { name: "Credit Card", value: "card" },
-          { name: "PayPal", value: "paypal" },
+          { title: "Credit Card", value: "card" },
+          { title: "PayPal", value: "paypal" },
         ],
+        initial: 0,
       },
       {
         type: "confirm",
         name: "paymentConfirm",
         message: "Confirm payment?",
-        default: true,
+        initial: true,
       },
     ]);
 

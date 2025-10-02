@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { usePreferencesStep } from '../../wizard/config';
+import { useValidationWizard, usePreferencesStep } from '../../wizard/config';
 import { PreferencesSchema, type Preferences as PreferencesType } from '../../wizard/types';
 
 export function Preferences() {
-  const { next, back, data: currentData, context, setStepData } = usePreferencesStep();
+  const { next, back, setStepData, context } = useValidationWizard();
+  const preferencesStep = usePreferencesStep();
+  const currentData = preferencesStep.data;
   
   const [formData, setFormData] = useState<PreferencesType>({
     newsletter: currentData?.newsletter || false,

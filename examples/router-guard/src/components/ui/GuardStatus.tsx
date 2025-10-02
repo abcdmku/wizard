@@ -1,5 +1,4 @@
 import { useGuardWizard } from '../../wizard/config';
-import type { GuardContext } from '../../wizard/types';
 
 export function GuardStatus() {
   const { context } = useGuardWizard();

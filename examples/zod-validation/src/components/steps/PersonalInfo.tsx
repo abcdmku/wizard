@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { usePersonalInfoStep } from '../../wizard/config';
+import { useValidationWizard, usePersonalInfoStep } from '../../wizard/config';
 import { PersonalInfoSchema, type PersonalInfo as PersonalInfoType } from '../../wizard/types';
 
 export function PersonalInfo() {
-  const { next, data: currentData, context, setStepData } = usePersonalInfoStep();
+  const { next, setStepData, context } = useValidationWizard();
+  const personalStep = usePersonalInfoStep();
+  const currentData = personalStep.data;
   
   const [formData, setFormData] = useState<PersonalInfoType>({
     firstName: currentData?.firstName || '',
