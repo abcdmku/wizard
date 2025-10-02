@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { usePersonalInfoStep } from '../../wizard/config';
-import { PersonalInfoSchema, type PersonalInfo as PersonalInfoType, type ValidationContext } from '../../wizard/types';
+import { PersonalInfoSchema, type PersonalInfo as PersonalInfoType } from '../../wizard/types';
 
 export function PersonalInfo() {
-  const { next, data: currentData, context } = usePersonalInfoStep();
+  const { next, data: currentData, context, setStepData } = usePersonalInfoStep();
   
   const [formData, setFormData] = useState<PersonalInfoType>({
     firstName: currentData?.firstName || '',
@@ -49,7 +49,8 @@ export function PersonalInfo() {
     try {
       // Validate entire form before proceeding
       PersonalInfoSchema.parse(formData);
-      await next({ data: formData });
+      setStepData('personalInfo', formData);
+      await next();
     } catch (error: any) {
       if (error.errors) {
         const errors: Record<string, string> = {};

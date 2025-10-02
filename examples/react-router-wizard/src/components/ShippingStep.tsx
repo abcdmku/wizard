@@ -11,8 +11,12 @@ export function ShippingStep() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await next();
-    navigate({ to: '/checkout/payment' });
+    try {
+      await next();
+      navigate({ to: '/checkout/payment' });
+    } catch (error) {
+      console.error('Validation failed:', error);
+    }
   };
 
   const handleBack = () => {

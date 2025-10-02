@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useAddressStep } from '../../wizard/config';
-import { AddressSchema, type Address as AddressType, type ValidationContext } from '../../wizard/types';
+import { AddressSchema, type Address as AddressType } from '../../wizard/types';
 
 export function Address() {
-  const { next, back, data: currentData, context } = useAddressStep();
+  const { next, back, data: currentData, context, setStepData } = useAddressStep();
   
   const [formData, setFormData] = useState<AddressType>({
     street: currentData?.street || '',
@@ -55,7 +55,8 @@ export function Address() {
     try {
       // Validate entire form before proceeding
       AddressSchema.parse(formData);
-      await next({ data: formData });
+      setStepData('address', formData);
+      await next();
     } catch (error: any) {
       if (error.errors) {
         const errors: Record<string, string> = {};
