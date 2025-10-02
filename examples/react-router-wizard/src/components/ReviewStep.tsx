@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useReviewStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
 import { formatError } from '../utils/formatError';
 
 export function ReviewStep() {
-  const { data, error, back, updateData } = useReviewStep();
+  const { data, error, updateData } = useReviewStep();
   const { context, reset } = useCheckoutWizard();
   const navigate = useNavigate();
+  const router = useRouter();
 
   const accountData = checkoutWizard.getStepData('account');
   const shippingData = checkoutWizard.getStepData('shipping');
@@ -47,8 +48,8 @@ export function ReviewStep() {
   };
 
   const handleBack = () => {
-    back();
-    navigate({ to: '/checkout/payment' });
+    // Use browser back button for true history navigation
+    router.history.back();
   };
 
   if (isSubmitted) {

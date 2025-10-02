@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { usePaymentStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
 import { formatError } from '../utils/formatError';
 
 export function PaymentStep() {
-  const { data, error, next, back, updateData } = usePaymentStep();
+  const { data, error, next, updateData } = usePaymentStep();
   const { context, updateContext } = useCheckoutWizard();
   const navigate = useNavigate();
+  const router = useRouter();
   const [couponInput, setCouponInput] = useState(context.coupon || '');
 
   // Clear error when leaving the step
@@ -30,8 +31,8 @@ export function PaymentStep() {
   };
 
   const handleBack = () => {
-    back();
-    navigate({ to: '/checkout/shipping' });
+    // Use browser back button for true history navigation
+    router.history.back();
   };
 
   const applyCoupon = () => {

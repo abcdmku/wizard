@@ -1,15 +1,16 @@
 import { useEffect } from 'react';
 import { useShippingStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
 import { formatError } from '../utils/formatError';
 
 export function ShippingStep() {
-  const { data, error, next, back, updateData } = useShippingStep();
+  const { data, error, next, updateData } = useShippingStep();
   const { context } = useCheckoutWizard();
   const navigate = useNavigate();
+  const router = useRouter();
 
   // Clear error when leaving the step
   useEffect(() => {
@@ -29,8 +30,8 @@ export function ShippingStep() {
   };
 
   const handleBack = () => {
-    back();
-    navigate({ to: '/checkout/account' });
+    // Use browser back button for true history navigation
+    router.history.back();
   };
 
   return (

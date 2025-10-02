@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAdminPanelStep, useBranchingWizard } from "../../wizard/config";
 
 // Mock user data that an admin would see
@@ -40,11 +40,12 @@ const mockUserSubmissions = [
 
 export function AdminPanel() {
   const step = useAdminPanelStep();
-  const { context } = useBranchingWizard();
+  const { context, goTo } = useBranchingWizard();
   const { error, back } = step;
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [userData, setUserData] = useState(mockUserSubmissions);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   const selectedUserData = selectedUser !== null
     ? userData.find(u => u.id === selectedUser)
@@ -54,6 +55,57 @@ export function AdminPanel() {
     setEditMode(false);
     // In a real app, this would save to backend
   };
+
+  // Auto-redirect after showing completion
+  useEffect(() => {
+    if (isCompleted) {
+      const timer = setTimeout(() => {
+        goTo('roleSelection');
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isCompleted, goTo]);
+
+  // Show completion screen
+  if (isCompleted) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <div className="mb-4">
+            <svg
+              className="w-20 h-20 mx-auto text-green-600 dark:text-green-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-2 dark:text-gray-100">Admin Review Complete!</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            All user data has been reviewed successfully
+          </p>
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 max-w-md mx-auto">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <strong className="dark:text-gray-300">Reviewed:</strong> {userData.length} user submissions
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              <strong className="dark:text-gray-300">Average Rating:</strong> {(userData.reduce((acc, u) => acc + u.rating, 0) / userData.length).toFixed(1)}/10
+            </div>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-6">
+            Returning to role selection...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -183,10 +235,7 @@ export function AdminPanel() {
           Back
         </button>
         <button
-          onClick={() => {
-            // Admin journey ends here - show completion message
-            alert("Admin review complete! In a real app, this would save any changes and complete the workflow.");
-          }}
+          onClick={() => setIsCompleted(true)}
           className="flex-1 py-2 px-4 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 transition-colors duration-200"
         >
           Complete Review
