@@ -80,4 +80,4 @@ export const orderWizard = createWizard(steps, {
   onStatusChange: ({ step, next }) => {
     console.log(`\n→ Step ${step} status: ${next}`);
   },
-});
+}) as ReturnType<typeof createWizard<typeof steps>>;
