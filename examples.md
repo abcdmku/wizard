@@ -1,1 +1,0 @@
-based off the PRPs\examples-refactor.md and PRPs\complete-remaining-examples.md update all examples to use the factory pattern for wizard. then finish the examples not yet completed using this pattern. use .claude\commands\refactor.md as a guide for keeping code clean.
