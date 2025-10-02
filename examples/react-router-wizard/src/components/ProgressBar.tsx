@@ -1,5 +1,5 @@
-import { useWizardStep, useWizardHistory } from '@wizard/react';
-import type { CheckoutContext, CheckoutSteps, CheckoutDataMap } from '../types';
+import { useCheckoutWizard } from '../wizard';
+import type { CheckoutSteps } from '../types';
 
 const steps: { id: CheckoutSteps; label: string }[] = [
   { id: 'account', label: 'Account' },
@@ -9,12 +9,9 @@ const steps: { id: CheckoutSteps; label: string }[] = [
 ];
 
 export function ProgressBar() {
-  const currentStep = useWizardStep<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const history = useWizardHistory<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  
+  const { step: currentStep } = useCheckoutWizard();
+
   const currentIndex = steps.findIndex(s => s.id === currentStep);
-  const visitedSteps = new Set(history.map(h => h.step));
-  visitedSteps.add(currentStep);
 
   return (
     <div style={{ marginBottom: '2rem' }}>
