@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProjectsStep, useResumeWizard } from '../../wizard/config';
 import type { Project, WizardContext } from '../../wizard/types';
 
@@ -6,11 +6,11 @@ export function Projects() {
   const step = useProjectsStep();
   const { updateContext, context } = useResumeWizard();
   const { next, back } = step;
-  
+
   const [projects, setProjects] = useState<Project[]>(
     context.resumeData.projects || []
   );
-  
+
   const [currentProject, setCurrentProject] = useState<Partial<Project>>({
     name: '',
     description: '',
@@ -21,6 +21,17 @@ export function Projects() {
   });
 
   const [techInput, setTechInput] = useState('');
+
+  // Auto-save projects whenever they change
+  useEffect(() => {
+    updateContext((ctx: WizardContext) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
+        projects,
+      };
+      ctx.isDirty = true;
+    });
+  }, [projects, updateContext]);
 
   const addTechnology = () => {
     if (techInput.trim()) {
@@ -68,13 +79,7 @@ export function Projects() {
   };
 
   const handleSubmit = () => {
-    updateContext((ctx: WizardContext) => {
-      ctx.resumeData = {
-        ...ctx.resumeData,
-        projects,
-      };
-      ctx.isDirty = true;
-    });
+    // Data is already saved via useEffect, just navigate
     next();
   };
 

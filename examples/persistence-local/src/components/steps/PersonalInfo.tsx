@@ -28,18 +28,26 @@ export function PersonalInfo() {
   const handleChange = (field: keyof PersonalInfoType) => (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    setFormData(prev => ({ ...prev, [field]: e.target.value }));
+    const newValue = e.target.value;
+    setFormData(prev => {
+      const updated = { ...prev, [field]: newValue };
+
+      // Immediately update context and mark as dirty
+      updateContext((ctx: WizardContext) => {
+        ctx.resumeData = {
+          ...ctx.resumeData,
+          personalInfo: updated,
+        };
+        ctx.isDirty = true;
+      });
+
+      return updated;
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateContext((ctx: WizardContext) => {
-      ctx.resumeData = {
-        ...ctx.resumeData,
-        personalInfo: formData,
-      };
-      ctx.isDirty = true;
-    });
+    // Data is already saved on every change, just navigate
     next();
   };
 

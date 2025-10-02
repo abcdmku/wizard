@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useEducationStep, useResumeWizard } from '../../wizard/config';
 import type { Education as EducationType, WizardContext } from '../../wizard/types';
 
@@ -6,11 +6,11 @@ export function Education() {
   const step = useEducationStep();
   const { updateContext, context } = useResumeWizard();
   const { next, back } = step;
-  
+
   const [educations, setEducations] = useState<EducationType[]>(
     context.resumeData.education || []
   );
-  
+
   const [currentEdu, setCurrentEdu] = useState<Partial<EducationType>>({
     degree: '',
     institution: '',
@@ -19,6 +19,17 @@ export function Education() {
     gpa: '',
     relevantCourses: [],
   });
+
+  // Auto-save educations whenever they change
+  useEffect(() => {
+    updateContext((ctx: WizardContext) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
+        education: educations,
+      };
+      ctx.isDirty = true;
+    });
+  }, [educations, updateContext]);
 
   const addEducation = () => {
     if (currentEdu.degree && currentEdu.institution) {
@@ -49,13 +60,7 @@ export function Education() {
   };
 
   const handleSubmit = () => {
-    updateContext((ctx: WizardContext) => {
-      ctx.resumeData = {
-        ...ctx.resumeData,
-        education: educations,
-      };
-      ctx.isDirty = true;
-    });
+    // Data is already saved via useEffect, just navigate
     next();
   };
 

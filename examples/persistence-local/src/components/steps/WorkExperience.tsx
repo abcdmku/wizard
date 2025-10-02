@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useExperienceStep, useResumeWizard } from '../../wizard/config';
 import type { WorkExperience as WorkExperienceType, WizardContext } from '../../wizard/types';
 
@@ -22,6 +22,17 @@ export function WorkExperience() {
   });
 
   const [highlightInput, setHighlightInput] = useState('');
+
+  // Auto-save experiences whenever they change
+  useEffect(() => {
+    updateContext((ctx: WizardContext) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
+        workExperience: experiences,
+      };
+      ctx.isDirty = true;
+    });
+  }, [experiences, updateContext]);
 
   const addHighlight = () => {
     if (highlightInput.trim()) {
@@ -72,13 +83,7 @@ export function WorkExperience() {
   };
 
   const handleSubmit = () => {
-    updateContext((ctx: WizardContext) => {
-      ctx.resumeData = {
-        ...ctx.resumeData,
-        workExperience: experiences,
-      };
-      ctx.isDirty = true;
-    });
+    // Data is already saved via useEffect, just navigate
     next();
   };
 
