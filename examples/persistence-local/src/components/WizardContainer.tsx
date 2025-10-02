@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { useResumeWizard } from '../wizard/config';
 import * as Steps from './steps';
 import { StepProgress } from './ui/StepProgress';
 import { AutoSaveIndicator } from './ui/AutoSaveIndicator';
 import { usePersistence } from '../hooks/usePersistence';
+import type { WizardContext } from '../wizard/types';
 
 const stepComponents = {
   personal: Steps.PersonalInfo,
@@ -15,10 +17,28 @@ const stepComponents = {
 };
 
 export function WizardContainer() {
-  const { step, context, updateContext } = useResumeWizard();
+  const { step, context, updateContext, goTo } = useResumeWizard();
 
   // Enable persistence
   usePersistence(context, updateContext);
+
+  // Save current step whenever it changes
+  useEffect(() => {
+    if (step !== context.currentStep) {
+      updateContext((ctx: WizardContext) => {
+        ctx.currentStep = step;
+        ctx.isDirty = true;
+      });
+    }
+  }, [step, context.currentStep, updateContext]);
+
+  // Restore to saved step on mount
+  useEffect(() => {
+    if (context.recoveredFromStorage && context.currentStep && context.currentStep !== step) {
+      goTo(context.currentStep as any);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context.recoveredFromStorage]);
 
   const StepComponent = stepComponents[step as keyof typeof stepComponents];
   

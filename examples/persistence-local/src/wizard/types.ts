@@ -61,6 +61,7 @@ export interface ResumeData {
 
 export type WizardContext = {
   resumeData: Partial<ResumeData>;
+  currentStep?: string;
   isDirty: boolean;
   autoSaveEnabled: boolean;
   lastAutoSave?: Date;

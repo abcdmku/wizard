@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useProjectsStep, useResumeWizard } from '../../wizard/config';
 import type { Project, WizardContext } from '../../wizard/types';
 
@@ -21,11 +21,16 @@ export function Projects() {
   });
 
   const [techInput, setTechInput] = useState('');
+  const isFirstRender = useRef(true);
+
 
   // Auto-save projects whenever they change
   useEffect(() => {
     // Skip initial mount
-    if (projects === context.resumeData.projects) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
 
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {

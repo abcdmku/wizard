@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEducationStep, useResumeWizard } from '../../wizard/config';
 import type { Education as EducationType, WizardContext } from '../../wizard/types';
 
@@ -20,10 +20,15 @@ export function Education() {
     relevantCourses: [],
   });
 
+  const isFirstRender = useRef(true);
+
   // Auto-save educations whenever they change
   useEffect(() => {
     // Skip initial mount
-    if (educations === context.resumeData.education) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
 
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {

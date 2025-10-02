@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSkillsStep, useResumeWizard } from '../../wizard/config';
 import type { Skill, WizardContext } from '../../wizard/types';
 
@@ -17,10 +17,15 @@ export function Skills() {
     proficiency: 'intermediate',
   });
 
+  const isFirstRender = useRef(true);
+
   // Auto-save skills whenever they change
   useEffect(() => {
     // Skip initial mount
-    if (skills === context.resumeData.skills) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
 
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
