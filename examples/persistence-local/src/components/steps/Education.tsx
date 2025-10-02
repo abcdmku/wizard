@@ -22,6 +22,9 @@ export function Education() {
 
   // Auto-save educations whenever they change
   useEffect(() => {
+    // Skip initial mount
+    if (educations === context.resumeData.education) return;
+
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
@@ -29,7 +32,8 @@ export function Education() {
       };
       ctx.isDirty = true;
     });
-  }, [educations, updateContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [educations]);
 
   const addEducation = () => {
     if (currentEdu.degree && currentEdu.institution) {

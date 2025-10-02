@@ -29,19 +29,16 @@ export function PersonalInfo() {
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const newValue = e.target.value;
-    setFormData(prev => {
-      const updated = { ...prev, [field]: newValue };
+    const updated = { ...formData, [field]: newValue };
+    setFormData(updated);
 
-      // Immediately update context and mark as dirty
-      updateContext((ctx: WizardContext) => {
-        ctx.resumeData = {
-          ...ctx.resumeData,
-          personalInfo: updated,
-        };
-        ctx.isDirty = true;
-      });
-
-      return updated;
+    // Immediately update context and mark as dirty
+    updateContext((ctx: WizardContext) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
+        personalInfo: updated,
+      };
+      ctx.isDirty = true;
     });
   };
 

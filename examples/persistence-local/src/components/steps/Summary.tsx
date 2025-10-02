@@ -13,6 +13,9 @@ export function Summary() {
 
   // Auto-save summary whenever it changes
   useEffect(() => {
+    // Skip initial mount
+    if (summary === context.resumeData.summary) return;
+
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
@@ -20,7 +23,8 @@ export function Summary() {
       };
       ctx.isDirty = true;
     });
-  }, [summary, updateContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary]);
 
   const handleSubmit = () => {
     // Data is already saved via useEffect, just navigate
