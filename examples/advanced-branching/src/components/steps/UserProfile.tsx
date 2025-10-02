@@ -1,6 +1,4 @@
-import { useState } from "react";
-import { useWizardActions, useCurrentStepData } from "@wizard/react";
-import type { UserProfileData } from "../../wizard/types";
+import { useUserProfileStep } from "../../wizard/config";
 
 const departments = [
   "Engineering",
@@ -12,32 +10,11 @@ const departments = [
 ];
 
 export function UserProfile() {
-  const { next, back, setStepData } = useWizardActions();
-  const existingData = useCurrentStepData() as UserProfileData | undefined;
-  
-  const [data, setData] = useState<UserProfileData>(
-    existingData || {
-      firstName: "",
-      lastName: "",
-      email: "",
-      department: "",
-    }
-  );
-  const [error, setError] = useState("");
+  const step = useUserProfileStep();
+  const { data, error, next, back, updateData } = step;
 
-  const handleNext = async () => {
-    try {
-      setStepData("userProfile", data);
-      await next();
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Validation failed");
-    }
-  };
-
-  const updateField = (field: keyof UserProfileData, value: string) => {
-    setData(prev => ({ ...prev, [field]: value }));
-    setError(""); // Clear error on change
+  const updateField = (field: string, value: string) => {
+    updateData({ [field]: value });
   };
 
   return (
@@ -52,7 +29,7 @@ export function UserProfile() {
           <label className="block text-sm font-medium mb-1">First Name</label>
           <input
             type="text"
-            value={data.firstName}
+            value={data?.firstName || ""}
             onChange={(e) => updateField("firstName", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="John"
@@ -63,7 +40,7 @@ export function UserProfile() {
           <label className="block text-sm font-medium mb-1">Last Name</label>
           <input
             type="text"
-            value={data.lastName}
+            value={data?.lastName || ""}
             onChange={(e) => updateField("lastName", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Doe"
@@ -75,7 +52,7 @@ export function UserProfile() {
         <label className="block text-sm font-medium mb-1">Email</label>
         <input
           type="email"
-          value={data.email}
+          value={data?.email || ""}
           onChange={(e) => updateField("email", e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="john.doe@example.com"
@@ -85,7 +62,7 @@ export function UserProfile() {
       <div>
         <label className="block text-sm font-medium mb-1">Department</label>
         <select
-          value={data.department}
+          value={data?.department || ""}
           onChange={(e) => updateField("department", e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
@@ -96,9 +73,9 @@ export function UserProfile() {
         </select>
       </div>
 
-      {error && (
+      {error != null && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
-          {error}
+          {String(error)}
         </div>
       )}
 
@@ -110,7 +87,7 @@ export function UserProfile() {
           Back
         </button>
         <button
-          onClick={handleNext}
+          onClick={next}
           className="flex-1 py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           Continue
