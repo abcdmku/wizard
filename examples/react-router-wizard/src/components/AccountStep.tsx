@@ -32,7 +32,7 @@ export function AccountStep() {
         required
       />
 
-      {error && <ErrorMessage message={String(error)} />}
+      {error != null && <ErrorMessage message={String(error)} />}
 
       <Button type="submit" variant="primary" fullWidth>
         Continue to Shipping

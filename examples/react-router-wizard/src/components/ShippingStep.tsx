@@ -57,7 +57,7 @@ export function ShippingStep() {
         placeholder="10001"
       />
 
-      {error && <ErrorMessage message={String(error)} />}
+      {error != null && <ErrorMessage message={String(error)} />}
 
       <div className="flex gap-4">
         <Button type="button" onClick={handleBack} variant="secondary" fullWidth>
