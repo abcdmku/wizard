@@ -9,6 +9,7 @@ export function SendReminder() {
   const [scheduleType, setScheduleType] = useState<'now' | 'later' | 'custom'>(data?.scheduleType || 'later');
   const [customDate, setCustomDate] = useState(data?.customDate || '');
   const [message, setMessage] = useState(data?.message || '');
+  const [isSent, setIsSent] = useState(false);
 
   // Get tomorrow's date for default "later" option
   const tomorrow = new Date();
@@ -23,23 +24,67 @@ export function SendReminder() {
     });
   }, [scheduleType, customDate, message]);
 
-  const handleSend = async () => {
-    try {
-      // Simulate sending reminder
-      const scheduleDate = scheduleType === 'now'
-        ? 'immediately'
-        : scheduleType === 'later'
-        ? tomorrowStr
-        : customDate;
+  // Auto-redirect after showing "Sent" confirmation
+  useEffect(() => {
+    if (isSent) {
+      const timer = setTimeout(() => {
+        goTo('managerDashboard');
+      }, 2000); // 2 seconds
 
-      alert(`Reminder scheduled for ${data?.userName}!\n\nScheduled: ${scheduleDate}\nMessage: ${message}`);
-
-      // Navigate back to manager dashboard
-      await goTo('managerDashboard');
-    } catch (err) {
-      console.error('Failed to send reminder:', err);
+      return () => clearTimeout(timer);
     }
+  }, [isSent, goTo]);
+
+  const handleSend = () => {
+    // Show confirmation, then auto-redirect
+    setIsSent(true);
   };
+
+  const getScheduledDate = () => {
+    if (scheduleType === 'now') return 'immediately';
+    if (scheduleType === 'later') return tomorrowStr;
+    return customDate;
+  };
+
+  // Show "Sent" confirmation screen
+  if (isSent) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <div className="mb-4">
+            <svg
+              className="w-20 h-20 mx-auto text-green-600 dark:text-green-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-2 dark:text-gray-100">Reminder Scheduled!</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            Your reminder has been scheduled for <strong>{data?.userName}</strong>
+          </p>
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 max-w-md mx-auto">
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              <strong className="dark:text-gray-300">Scheduled:</strong> {getScheduledDate()}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <strong className="dark:text-gray-300">Message:</strong> {message}
+            </div>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-6">
+            Returning to dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
