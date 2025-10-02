@@ -1,4 +1,5 @@
 import { defineSteps, step, createWizard } from "./factory";
+import { useWizard, useWizardStep } from "@wizard/react";
 import type { WizardStepData, IntroductionData, AuthenticationData, SecureData, ConfirmationData } from "./types";
 
 const initialData: WizardStepData = {
@@ -19,9 +20,8 @@ const steps = defineSteps({
       }
       return true;
     },
-    meta: { 
-      label: "Welcome", 
-      protected: false,
+    meta: {
+      label: "Welcome",
       description: "Review terms and conditions"
     }
   }),
@@ -60,9 +60,8 @@ const steps = defineSteps({
         throw new Error("Password must be at least 8 characters");
       }
     },
-    meta: { 
-      label: "Login", 
-      protected: false,
+    meta: {
+      label: "Login",
       description: "Authenticate to access secure areas"
     }
   }),
@@ -99,13 +98,12 @@ const steps = defineSteps({
         throw new Error("API endpoint must be a secure HTTPS URL");
       }
     },
-    meta: { 
-      label: "Secure Area", 
-      protected: true,
+    meta: {
+      label: "Secure Area",
       description: "Configure secure settings"
     }
   }),
-  
+
   confirmation: step({
     data: initialData.confirmation,
     next: [],
@@ -144,12 +142,24 @@ const steps = defineSteps({
         throw new Error("You must confirm to complete the process");
       }
     },
-    meta: { 
-      label: "Final Confirmation", 
-      protected: true,
+    meta: {
+      label: "Final Confirmation",
       description: "Review and confirm all settings"
     }
   })
 });
 
-export const wizard = createWizard(steps);
+export const wizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+
+/**
+ * Typed convenience hook for using wizard.
+ */
+export const useGuardWizard = () => useWizard(wizard);
+
+/**
+ * Step-specific typed convenience hooks.
+ */
+export const useIntroductionStep = () => useWizardStep(wizard, "introduction");
+export const useAuthenticationStep = () => useWizardStep(wizard, "authentication");
+export const useSecureDataStep = () => useWizardStep(wizard, "secureData");
+export const useConfirmationStep = () => useWizardStep(wizard, "confirmation");
