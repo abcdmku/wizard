@@ -38,15 +38,19 @@ export async function runInteractiveCLI() {
         validate: (value: string) => value.length > 0 || "Customer ID is required",
       },
       {
-        type: "number",
+        type: "input",
         name: "totalAmount",
         message: "Total Amount ($):",
-        default: 99.99,
-        validate: (value: number) => value > 0 || "Amount must be greater than 0",
+        default: "99.99",
+        validate: (value: string) => {
+          const num = parseFloat(value);
+          return !isNaN(num) && num > 0 || "Please enter a valid amount greater than 0";
+        },
       },
     ]);
 
-    const { orderId, customerId, totalAmount } = answers1;
+    const { orderId, customerId, totalAmount: totalAmountStr } = answers1;
+    const totalAmount = parseFloat(totalAmountStr);
 
     let spinner = createSpinner("Processing order initialization...");
     await orderWizard.next({
@@ -57,16 +61,20 @@ export async function runInteractiveCLI() {
 
     // Step 2: Reserve inventory
     showStep(2, "Reserve Inventory");
-    const { itemCount } = await inquirer.prompt([
+    const { itemCount: itemCountStr } = await inquirer.prompt([
       {
-        type: "number",
+        type: "input",
         name: "itemCount",
         message: "Number of items:",
-        default: 2,
-        validate: (value: number) => value > 0 || "Must have at least 1 item",
+        default: "2",
+        validate: (value: string) => {
+          const num = parseInt(value);
+          return !isNaN(num) && num > 0 || "Please enter a valid number greater than 0";
+        },
       },
     ]);
 
+    const itemCount = parseInt(itemCountStr);
     const items = [];
     for (let i = 0; i < itemCount; i++) {
       const itemAnswers = await inquirer.prompt([
@@ -77,14 +85,17 @@ export async function runInteractiveCLI() {
           default: `ITEM-${String(i + 1).padStart(3, "0")}`,
         },
         {
-          type: "number",
+          type: "input",
           name: "quantity",
           message: `Item ${i + 1} Quantity:`,
-          default: 1,
-          validate: (value: number) => value > 0 || "Quantity must be at least 1",
+          default: "1",
+          validate: (value: string) => {
+            const num = parseInt(value);
+            return !isNaN(num) && num > 0 || "Quantity must be at least 1";
+          },
         },
       ]);
-      items.push({ sku: itemAnswers.sku, quantity: itemAnswers.quantity });
+      items.push({ sku: itemAnswers.sku, quantity: parseInt(itemAnswers.quantity) });
     }
 
     spinner = createSpinner("Reserving inventory...");
