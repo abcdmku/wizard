@@ -1,22 +1,22 @@
-import { useState } from 'react';
 import type { FormData } from '../wizard/config';
 
 interface Props {
   data: FormData;
   onNext: (data: FormData) => void;
   onBack: () => void;
+  onChange?: (data: FormData) => void;
 }
 
-export function EmailStep({ data, onNext, onBack }: Props) {
-  const [email, setEmail] = useState(data.email);
-  const [age, setAge] = useState(data.age);
-  const [terms, setTerms] = useState(data.terms);
-
-  const handleNext = () => {
-    onNext({ ...data, email, age, terms });
+export function EmailStep({ data, onNext, onBack, onChange }: Props) {
+  const handleChange = (updates: Partial<FormData>) => {
+    onChange?.({ ...data, ...updates });
   };
 
-  const isValid = email.includes('@') && parseInt(age) >= 18 && terms;
+  const handleNext = () => {
+    onNext(data);
+  };
+
+  const isValid = data.email.includes('@') && parseInt(data.age) >= 18 && data.terms;
 
   return (
     <div className="space-y-6">
@@ -31,8 +31,8 @@ export function EmailStep({ data, onNext, onBack }: Props) {
         </label>
         <input
           type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={data.email}
+          onChange={(e) => handleChange({ email: e.target.value })}
           placeholder="john@example.com"
           className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           autoFocus
@@ -45,8 +45,8 @@ export function EmailStep({ data, onNext, onBack }: Props) {
         </label>
         <input
           type="number"
-          value={age}
-          onChange={(e) => setAge(e.target.value)}
+          value={data.age}
+          onChange={(e) => handleChange({ age: e.target.value })}
           placeholder="18"
           min="18"
           className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -56,8 +56,8 @@ export function EmailStep({ data, onNext, onBack }: Props) {
       <div className="flex items-start">
         <input
           type="checkbox"
-          checked={terms}
-          onChange={(e) => setTerms(e.target.checked)}
+          checked={data.terms}
+          onChange={(e) => handleChange({ terms: e.target.checked })}
           className="mt-1 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
         />
         <label className="ml-2 text-sm text-gray-700">

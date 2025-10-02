@@ -27,17 +27,26 @@ function WizardContent() {
   const [saveMode, setSaveMode] = useState<'instant' | 'step' | 'manual'>('instant');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const lastSavedDataRef = useRef<string>('');
+  const isInitialLoadRef = useRef(true);
 
   // Load from localStorage on mount
   useEffect(() => {
     const saved = loadFromStorage();
     if (saved) {
+      const savedDataString = JSON.stringify(saved.data);
       setFormData(saved.data);
       setCurrentStep(saved.currentStep);
       setLastSaved(saved.timestamp);
       setRecovered(true);
-      lastSavedDataRef.current = JSON.stringify(saved.data);
+      lastSavedDataRef.current = savedDataString;
+    } else {
+      // Initialize with empty data ref
+      lastSavedDataRef.current = JSON.stringify(formData);
     }
+    // Small delay to ensure state is updated before enabling change detection
+    setTimeout(() => {
+      isInitialLoadRef.current = false;
+    }, 0);
   }, []);
 
   // Save function
@@ -53,6 +62,8 @@ function WizardContent() {
 
   // Mark as dirty when data changes (compare with last saved)
   useEffect(() => {
+    if (isInitialLoadRef.current) return;
+
     const currentDataString = JSON.stringify(formData);
     if (currentDataString !== lastSavedDataRef.current) {
       setHasUnsavedChanges(true);
@@ -61,14 +72,14 @@ function WizardContent() {
 
   // Auto-save in INSTANT mode (debounced)
   useEffect(() => {
-    if (saveMode === 'instant' && hasUnsavedChanges) {
-      console.log('⏱️ Instant mode: scheduling save in 500ms...');
-      const timer = setTimeout(() => {
-        console.log('⏱️ Instant mode: saving now!');
-        doSave();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
+    if (saveMode !== 'instant' || !hasUnsavedChanges) return;
+
+    console.log('⏱️ Instant mode: scheduling save in 500ms...');
+    const timer = setTimeout(() => {
+      console.log('⏱️ Instant mode: saving now!');
+      doSave();
+    }, 500);
+    return () => clearTimeout(timer);
   }, [formData, saveMode, hasUnsavedChanges, doSave]);
 
   // Auto-save in STEP mode (on navigation)
@@ -196,10 +207,10 @@ function WizardContent() {
         {/* Step Content */}
         <div className="bg-white rounded-lg shadow-lg p-8">
           {currentStep === 'name' && (
-            <NameStep data={formData} onNext={handleNext} />
+            <NameStep data={formData} onNext={handleNext} onChange={setFormData} />
           )}
           {currentStep === 'email' && (
-            <EmailStep data={formData} onNext={handleNext} onBack={handleBack} />
+            <EmailStep data={formData} onNext={handleNext} onBack={handleBack} onChange={setFormData} />
           )}
           {currentStep === 'review' && (
             <ReviewStep data={formData} onBack={handleBack} onSubmit={handleSubmit} />
