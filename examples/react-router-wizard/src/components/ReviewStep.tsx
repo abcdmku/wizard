@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useReviewStep, useCheckoutWizard, checkoutWizard } from '../wizard';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
+import { formatError } from '../utils/formatError';
 
 export function ReviewStep() {
   const { data, error, back, updateData } = useReviewStep();
@@ -14,6 +15,13 @@ export function ReviewStep() {
   const paymentData = checkoutWizard.getStepData('payment');
 
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Clear error when leaving the step
+  useEffect(() => {
+    return () => {
+      checkoutWizard.clearStepError('review');
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +109,7 @@ export function ReviewStep() {
             I agree to the terms and conditions
           </span>
         </label>
-        {error != null && <ErrorMessage message={String(error)} />}
+        {error != null && <ErrorMessage message={formatError(error)} />}
       </div>
 
       <div className="flex gap-4">
