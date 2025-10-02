@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { useWizardActions, useCurrentStepData, useWizardSharedContext, useWizardState } from '@wizard/react';
+import { useConfirmationStep, useGuardWizard } from '../../wizard/config';
 import type { ConfirmationData, GuardContext, SecureData } from '../../wizard/types';
 
 export function Confirmation() {
-  const { next, back } = useWizardActions();
-  const currentData = useCurrentStepData() as ConfirmationData | undefined;
-  const context = useWizardSharedContext() as GuardContext;
-  const { data } = useWizardState();
+  const { next, back, data: currentData, context } = useConfirmationStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: ConfirmationData | undefined; context: GuardContext };
+  const { data } = useGuardWizard();
 
   const [confirmed, setConfirmed] = useState(currentData?.confirmed || false);
   const [error, setError] = useState<string>('');

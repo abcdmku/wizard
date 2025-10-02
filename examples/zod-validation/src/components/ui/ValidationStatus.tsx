@@ -1,8 +1,8 @@
-import { useWizardSharedContext } from '@wizard/react';
+import { useValidationWizard } from '../../wizard/config';
 import type { ValidationContext } from '../../wizard/types';
 
 export function ValidationStatus() {
-  const context = useWizardSharedContext() as ValidationContext;
+  const { context } = useValidationWizard() as { context: ValidationContext };
   
   const totalErrors = Object.values(context.validationErrors)
     .flat()

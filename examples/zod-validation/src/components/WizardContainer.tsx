@@ -1,4 +1,4 @@
-import { useWizardState } from '@wizard/react';
+import { useValidationWizard } from '../wizard/config';
 import { PersonalInfo, Address, Preferences, Review } from './steps';
 import { StepIndicator } from './ui/StepIndicator';
 import { ValidationStatus } from './ui/ValidationStatus';
@@ -11,8 +11,8 @@ const stepComponents = {
 };
 
 export function WizardContainer() {
-  const state = useWizardState();
-  const currentStep = state.step as keyof typeof stepComponents;
+  const { step } = useValidationWizard();
+  const currentStep = step as keyof typeof stepComponents;
   const StepComponent = stepComponents[currentStep];
 
   if (!StepComponent) {

@@ -1,4 +1,4 @@
-import { useWizardState, useWizardSharedContext } from '@wizard/react';
+import { useGuardWizard } from '../../wizard/config';
 import type { GuardContext } from '../../wizard/types';
 
 const steps = [
@@ -9,8 +9,7 @@ const steps = [
 ];
 
 export function StepIndicator() {
-  const { step } = useWizardState();
-  const context = useWizardSharedContext() as GuardContext;
+  const { step, context } = useGuardWizard() as { step: string; context: GuardContext };
   const currentIndex = steps.findIndex((s) => s.id === step);
 
   return (

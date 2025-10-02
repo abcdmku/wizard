@@ -1,12 +1,13 @@
 # Node Saga Wizard Example
 
-This example demonstrates wizard usage in a Node.js CLI environment with an order processing saga.
+This example demonstrates wizard usage in a Node.js CLI environment with an order processing saga and **modern terminal UI**.
 
 ## What This Example Demonstrates
 
 - **Non-React Usage**: Pure Node.js implementation without UI framework
 - **Saga Pattern**: Multi-step order processing workflow
-- **CLI Interaction**: Interactive and automated modes
+- **Modern CLI**: Beautiful terminal UI with colors, spinners, and progress bars
+- **Interactive & Automated Modes**: Choose your workflow
 - **Error Handling**: Compensation logic for failed steps
 - **Clean Architecture**: Separated concerns across modules
 

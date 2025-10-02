@@ -1,4 +1,4 @@
-import { useWizardState, useWizardSharedContext } from '@wizard/react';
+import { useValidationWizard } from '../../wizard/config';
 import type { ValidationContext } from '../../wizard/types';
 
 const steps = [
@@ -9,8 +9,7 @@ const steps = [
 ];
 
 export function StepIndicator() {
-  const { step } = useWizardState();
-  const context = useWizardSharedContext() as ValidationContext;
+  const { step, context } = useValidationWizard() as { step: string; context: ValidationContext };
   const currentIndex = steps.findIndex((s) => s.id === step);
 
   return (

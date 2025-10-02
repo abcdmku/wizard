@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { useWizardActions, useCurrentStepData, useWizardSharedContext } from '@wizard/react';
+import { usePreferencesStep } from '../../wizard/config';
 import { PreferencesSchema, type Preferences as PreferencesType, type ValidationContext } from '../../wizard/types';
 
 export function Preferences() {
-  const { next, back } = useWizardActions();
-  const currentData = useCurrentStepData() as PreferencesType | undefined;
-  const context = useWizardSharedContext() as ValidationContext;
+  const { next, back, data: currentData, context } = usePreferencesStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: PreferencesType | undefined; context: ValidationContext };
   
   const [formData, setFormData] = useState<PreferencesType>({
     newsletter: currentData?.newsletter || false,

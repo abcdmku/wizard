@@ -30,7 +30,6 @@ const steps = defineSteps({
     validate: validateReserve,
     data: { items: [] as Array<{ sku: string; quantity: number }> },
     next: ["charge"],
-    canEnter: ({ context }) => Boolean(context.orderId),
     beforeExit: handleReserveExit,
     meta: {
       label: "Reserve Inventory",
@@ -42,7 +41,6 @@ const steps = defineSteps({
     validate: validateCharge,
     data: { paymentMethod: "card" as "card" | "paypal", confirmed: false },
     next: ["notify"],
-    canEnter: ({ context }) => context.inventoryReserved,
     beforeExit: handleChargeExit,
     meta: {
       label: "Process Payment",
@@ -54,7 +52,6 @@ const steps = defineSteps({
     validate: validateNotify,
     data: { email: "" },
     next: ["complete"],
-    canEnter: ({ context }) => Boolean(context.paymentId),
     beforeExit: handleNotifyExit,
     meta: {
       label: "Send Notification",
@@ -66,7 +63,6 @@ const steps = defineSteps({
     validate: validateComplete,
     data: { confirmed: false },
     next: [],
-    canEnter: ({ context }) => context.emailSent,
     beforeExit: handleCompleteExit,
     meta: {
       label: "Complete Order",
@@ -76,6 +72,4 @@ const steps = defineSteps({
   }),
 });
 
-export const orderWizard = createWizard(steps, {
-  initialStep: "init"
-}) as ReturnType<typeof createWizard<typeof steps>>;
+export const orderWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;

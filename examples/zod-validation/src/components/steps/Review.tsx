@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { useWizardActions, useCurrentStepData, useWizardSharedContext, useWizardState } from '@wizard/react';
+import { useReviewStep, useValidationWizard } from '../../wizard/config';
 import { ReviewSchema, type Review as ReviewType, type ValidationContext, type PersonalInfo, type Address, type Preferences } from '../../wizard/types';
 
 export function Review() {
-  const { next, back } = useWizardActions();
-  const currentData = useCurrentStepData() as ReviewType | undefined;
-  const context = useWizardSharedContext() as ValidationContext;
-  const { data } = useWizardState();
+  const { next, back, data: currentData, context } = useReviewStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: ReviewType | undefined; context: ValidationContext };
+  const { data } = useValidationWizard();
   
   const [formData, setFormData] = useState<ReviewType>({
     agreeToTerms: currentData?.agreeToTerms || false,

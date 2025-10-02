@@ -1,4 +1,4 @@
-import { useWizardState } from '@wizard/react';
+import { useGuardWizard } from '../wizard/config';
 import { Introduction, Authentication, SecureData, Confirmation } from './steps';
 import { StepIndicator } from './ui/StepIndicator';
 import { GuardStatus } from './ui/GuardStatus';
@@ -11,8 +11,8 @@ const stepComponents = {
 };
 
 export function WizardContainer() {
-  const state = useWizardState();
-  const currentStep = state.step as keyof typeof stepComponents;
+  const { step } = useGuardWizard();
+  const currentStep = step as keyof typeof stepComponents;
   const StepComponent = stepComponents[currentStep];
 
   if (!StepComponent) {
