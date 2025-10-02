@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useIntroductionStep } from '../../wizard/config';
-import type { IntroductionData } from '../../wizard/types';
+import { useGuardWizard, useIntroductionStep } from '../../wizard/config';
 
 export function Introduction() {
-  const { next, data: currentData, setStepData } = useIntroductionStep();
+  const { next, setStepData } = useGuardWizard();
+  const introduction = useIntroductionStep();
+  const currentData = introduction.data;
   
   const [agreed, setAgreed] = useState(currentData?.agreed || false);
 

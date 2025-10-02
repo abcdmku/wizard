@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useConfirmationStep, useGuardWizard } from '../../wizard/config';
-import type { ConfirmationData, SecureData } from '../../wizard/types';
+import { useGuardWizard, useConfirmationStep } from '../../wizard/config';
+import type { SecureData } from '../../wizard/types';
 
 export function Confirmation() {
-  const { next, back, data: currentData, context, setStepData } = useConfirmationStep();
-  const { data } = useGuardWizard();
+  const { next, back, setStepData, context, data } = useGuardWizard();
+  const confirmation = useConfirmationStep();
+  const currentData = confirmation.data;
 
   const [confirmed, setConfirmed] = useState(currentData?.confirmed || false);
   const [error, setError] = useState<string>('');

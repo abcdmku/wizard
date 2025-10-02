@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useSecureDataStep } from '../../wizard/config';
-import type { SecureData as SecureDataType } from '../../wizard/types';
+import { useGuardWizard, useSecureDataStep } from '../../wizard/config';
 
 export function SecureData() {
-  const { next, back, data: currentData, context, setStepData } = useSecureDataStep();
+  const { next, back, setStepData, context } = useGuardWizard();
+  const secureData = useSecureDataStep();
+  const currentData = secureData.data;
 
-  const [formData, setFormData] = useState<SecureDataType>({
+  const [formData, setFormData] = useState({
     secretKey: currentData?.secretKey || '',
     apiEndpoint: currentData?.apiEndpoint || '',
     encryptionEnabled: currentData?.encryptionEnabled || false,
