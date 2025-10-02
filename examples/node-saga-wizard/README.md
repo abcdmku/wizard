@@ -44,10 +44,12 @@ src/
 ```bash
 pnpm start
 ```
-- Modern prompts powered by [Inquirer](https://www.npmjs.com/package/inquirer)
+- Clean TUI powered by [prompts](https://www.npmjs.com/package/prompts)
+- Single-line input rendering (no console glitches)
 - Input validation with helpful error messages
 - Beautiful visual feedback with spinners and progress bars
-- Email validation, numeric inputs with parsing, and confirmation dialogs
+- Email validation, native number inputs, and confirmation dialogs
+- Graceful Ctrl+C handling
 - **Note**: Requires an interactive terminal (TTY). Will not work with piped input.
 
 #### Automated Mode
@@ -137,9 +139,9 @@ Demonstrates usage of wizard helpers:
 
 This example showcases a modern CLI experience using:
 
+- **[prompts](https://www.npmjs.com/package/prompts)** - Clean, minimal terminal prompts (TUI)
 - **[chalk](https://www.npmjs.com/package/chalk)** - Terminal string styling
 - **[ora](https://www.npmjs.com/package/ora)** - Elegant terminal spinners
-- **[inquirer](https://www.npmjs.com/package/inquirer)** - Interactive command line prompts
 - **[boxen](https://www.npmjs.com/package/boxen)** - Create boxes in the terminal
 - **[cli-table3](https://www.npmjs.com/package/cli-table3)** - Pretty unicode tables
 - **[gradient-string](https://www.npmjs.com/package/gradient-string)** - Beautiful gradients
