@@ -1,4 +1,5 @@
 import { defineSteps, step, createWizard } from './wizard/factory';
+import { useWizard, useWizardStep } from "@wizard/react";
 import {
   accountSchema,
   shippingSchema,
@@ -62,4 +63,17 @@ const steps = defineSteps({
   }),
 });
 
-export const checkoutWizard = createWizard(steps);
+export const checkoutWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+
+/**
+ * Typed convenience hook for using checkoutWizard.
+ */
+export const useCheckoutWizard = () => useWizard(checkoutWizard);
+
+/**
+ * Step-specific typed convenience hooks.
+ */
+export const useAccountStep = () => useWizardStep(checkoutWizard, "account");
+export const useShippingStep = () => useWizardStep(checkoutWizard, "shipping");
+export const usePaymentStep = () => useWizardStep(checkoutWizard, "payment");
+export const useReviewStep = () => useWizardStep(checkoutWizard, "review");
