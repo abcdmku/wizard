@@ -24,6 +24,7 @@ function WizardContent() {
   const [currentStep, setCurrentStep] = useState<'name' | 'email' | 'review'>('name');
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
+  const [saveMode, setSaveMode] = useState<'instant' | 'step' | 'manual'>('instant');
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -36,13 +37,31 @@ function WizardContent() {
     }
   }, []);
 
-  // Save to localStorage whenever data or step changes
-  useEffect(() => {
+  // Save function
+  const doSave = () => {
     if (formData.name || formData.email) {
       saveToStorage(formData, currentStep);
       setLastSaved(new Date().toISOString());
     }
-  }, [formData, currentStep]);
+  };
+
+  // Auto-save based on mode
+  useEffect(() => {
+    if (saveMode === 'instant') {
+      // Debounced save on every change (500ms)
+      const timer = setTimeout(doSave, 500);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, saveMode]);
+
+  // Save on step change
+  useEffect(() => {
+    if (saveMode === 'step') {
+      doSave();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
 
   const handleNext = (data: FormData) => {
     setFormData(data);
@@ -166,27 +185,69 @@ function WizardContent() {
           )}
         </div>
 
-        {/* Reset Button */}
-        {(formData.name || formData.email) && (
-          <div className="mt-6 text-center">
+        {/* Controls */}
+        <div className="mt-8 bg-white rounded-lg shadow-sm p-6">
+          <h3 className="font-semibold mb-4">Persistence Controls</h3>
+
+          {/* Save Mode */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Save Mode
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSaveMode('instant')}
+                className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
+                  saveMode === 'instant'
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-600'
+                }`}
+              >
+                <div className="font-medium">Instant</div>
+                <div className="text-xs opacity-80">Save as you type</div>
+              </button>
+              <button
+                onClick={() => setSaveMode('step')}
+                className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
+                  saveMode === 'step'
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-600'
+                }`}
+              >
+                <div className="font-medium">On Step</div>
+                <div className="text-xs opacity-80">Save when changing steps</div>
+              </button>
+              <button
+                onClick={() => setSaveMode('manual')}
+                className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
+                  saveMode === 'manual'
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-600'
+                }`}
+              >
+                <div className="font-medium">Manual</div>
+                <div className="text-xs opacity-80">Save manually only</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            {saveMode === 'manual' && (
+              <button
+                onClick={doSave}
+                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                💾 Save Now
+              </button>
+            )}
             <button
               onClick={handleReset}
-              className="text-sm text-red-600 hover:text-red-700 underline"
+              className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
             >
-              Reset and clear localStorage
+              🗑️ Clear Storage
             </button>
           </div>
-        )}
-
-        {/* Instructions */}
-        <div className="mt-8 bg-white rounded-lg shadow-sm p-6">
-          <h3 className="font-semibold mb-2">Try it out:</h3>
-          <ul className="text-sm text-gray-600 space-y-1">
-            <li>• Fill in some data and refresh the page - your progress is saved!</li>
-            <li>• Navigate between steps - the current step is remembered</li>
-            <li>• Close the tab and come back - everything is restored</li>
-            <li>• Submit the form to clear localStorage</li>
-          </ul>
         </div>
       </div>
     </div>
