@@ -24,6 +24,8 @@ export function WizardContainer() {
         return <ManagerDashboard />;
       case "sharedReview":
         return <SharedReview />;
+      case "sendReminder":
+        return <SendReminder />;
       default:
         return <div className="dark:text-gray-200">Unknown step: {currentStep}</div>;
     }
