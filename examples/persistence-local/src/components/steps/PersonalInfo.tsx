@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { usePersonalStep } from '../../wizard/config';
-import type { WizardContext, PersonalInfo as PersonalInfoType } from '../../wizard/types';
+import type { PersonalInfo as PersonalInfoType } from '../../wizard/types';
 
 export function PersonalInfo() {
-  const { next, context } = usePersonalStep();
+  const { next, context, updateContext } = usePersonalStep();
   
   const [formData, setFormData] = useState<PersonalInfoType>({
     firstName: '',
@@ -31,13 +31,14 @@ export function PersonalInfo() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    next({
+    updateContext({
       resumeData: {
         ...context.resumeData,
         personalInfo: formData,
       },
       isDirty: true,
     });
+    next();
   };
 
   const isValid = formData.firstName && formData.lastName && formData.email;
