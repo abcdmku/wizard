@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useAuthenticationStep } from '../../wizard/config';
-import type { AuthenticationData } from '../../wizard/types';
+import { useGuardWizard, useAuthenticationStep } from '../../wizard/config';
 
 export function Authentication() {
-  const { next, back, data: currentData, context, setStepData } = useAuthenticationStep();
+  const { next, back, setStepData, context } = useGuardWizard();
+  const authentication = useAuthenticationStep();
+  const currentData = authentication.data;
 
-  const [formData, setFormData] = useState<AuthenticationData>({
+  const [formData, setFormData] = useState({
     username: currentData?.username || '',
     password: currentData?.password || '',
     verified: currentData?.verified || false,
