@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { WizardProvider } from '@wizard/react';
 import { simpleWizard, saveToStorage, loadFromStorage, clearStorage, type FormData } from './wizard/config';
 import { NameStep } from './components/NameStep';
@@ -26,6 +26,7 @@ function WizardContent() {
   const [recovered, setRecovered] = useState(false);
   const [saveMode, setSaveMode] = useState<'instant' | 'step' | 'manual'>('instant');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const lastSavedDataRef = useRef<string>('');
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -35,41 +36,48 @@ function WizardContent() {
       setCurrentStep(saved.currentStep);
       setLastSaved(saved.timestamp);
       setRecovered(true);
+      lastSavedDataRef.current = JSON.stringify(saved.data);
     }
   }, []);
 
   // Save function
-  const doSave = () => {
+  const doSave = useCallback(() => {
     if (formData.name || formData.email) {
       saveToStorage(formData, currentStep);
       setLastSaved(new Date().toISOString());
       setHasUnsavedChanges(false);
+      lastSavedDataRef.current = JSON.stringify(formData);
+      console.log('💾 Saved:', { formData, currentStep, mode: saveMode });
     }
-  };
+  }, [formData, currentStep, saveMode]);
 
-  // Mark as dirty when data changes
+  // Mark as dirty when data changes (compare with last saved)
   useEffect(() => {
-    if (lastSaved) {
+    const currentDataString = JSON.stringify(formData);
+    if (currentDataString !== lastSavedDataRef.current) {
       setHasUnsavedChanges(true);
     }
   }, [formData]);
 
-  // Auto-save based on mode - instant (debounced)
+  // Auto-save in INSTANT mode (debounced)
   useEffect(() => {
     if (saveMode === 'instant' && hasUnsavedChanges) {
+      console.log('⏱️ Instant mode: scheduling save in 500ms...');
       const timer = setTimeout(() => {
+        console.log('⏱️ Instant mode: saving now!');
         doSave();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [formData, saveMode, hasUnsavedChanges]);
+  }, [formData, saveMode, hasUnsavedChanges, doSave]);
 
-  // Save on step change
+  // Auto-save in STEP mode (on navigation)
   useEffect(() => {
     if (saveMode === 'step' && hasUnsavedChanges) {
+      console.log('📍 Step mode: saving on step change');
       doSave();
     }
-  }, [currentStep]);
+  }, [currentStep, saveMode, hasUnsavedChanges, doSave]);
 
   const handleNext = (data: FormData) => {
     setFormData(data);
