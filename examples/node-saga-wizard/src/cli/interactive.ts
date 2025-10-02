@@ -31,8 +31,9 @@ export async function runInteractiveCLI() {
   showTitle("Order Wizard");
   showBanner("Interactive Order Processing", { color: "magenta" });
 
+  const stepCount = orderWizard.helpers.stepCount();
+
   try {
-    const stepCount = orderWizard.helpers.stepCount();
 
     // Step 1: Initialize order
     showStep(1, "Initialize Order");
@@ -193,17 +194,35 @@ export async function runInteractiveCLI() {
     // Step 5: Complete order
     showStep(5, "Complete Order");
 
-    const finalConfirmStr = readlineSync.question(
-      chalk.cyan("Complete order? [y/n]: "),
-      { defaultInput: "y" }
-    );
-    const finalConfirm = finalConfirmStr.toLowerCase() === "y";
+    let finalConfirm = false;
+    let finalConfirmValid = false;
+    while (!finalConfirmValid) {
+      const finalConfirmStr = readlineSync.question(
+        chalk.cyan("Complete order? [y/n]: "),
+        { defaultInput: "y" }
+      );
+      const normalized = finalConfirmStr.toLowerCase().trim();
+      if (normalized === "y" || normalized === "n") {
+        finalConfirmValid = true;
+        finalConfirm = normalized === "y";
+      } else {
+        showError("Invalid input. Please enter 'y' or 'n'.");
+      }
+    }
 
     if (finalConfirm) {
       const spinner5 = createSpinner("Finalizing order...");
-      await orderWizard.next({
-        data: { confirmed: finalConfirm },
-      });
+
+      // Complete is the final step, so we call beforeExit directly
+      const completeStep = orderWizard.getStep("complete");
+      if (completeStep?.beforeExit) {
+        await completeStep.beforeExit({
+          data: { confirmed: finalConfirm },
+          context: orderWizard.getContext(),
+          updateContext: orderWizard.updateContext.bind(orderWizard),
+        });
+      }
+
       spinner5.succeed("Order completed!");
       showProgress(5, stepCount, "Wizard Progress");
 
