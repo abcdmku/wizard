@@ -38,33 +38,7 @@ Navigate to `http://localhost:5173` to see the wizard in action.
 This example currently uses legacy `defineSteps` and `createWizard` patterns. It should be modernized to use the `wizardWithContext` factory pattern for better type safety and developer experience.
 </Callout>
 
-```tsx
-// Current implementation (legacy pattern)
-const steps = defineSteps({
-  account: {
-    validate: validateAccount,
-    data: { email: '', password: '', confirmPassword: '' },
-    next: ['personal'],
-    meta: { label: 'Account', iconKey: 'user' },
-  },
-  personal: {
-    validate: validatePersonal,
-    data: { firstName: '', lastName: '', dateOfBirth: '' },
-    next: ['address'],
-    meta: { label: 'Personal', iconKey: 'person' },
-  },
-  address: {
-    validate: validateAddress,
-    data: { street: '', city: '', state: '', zipCode: '', country: '' },
-    next: [],
-    meta: { label: 'Address', iconKey: 'location' },
-  },
-});
-
-const wizard = createWizard({
-  context: { totalSteps: 3, completedSteps: [] as string[] },
-  steps,
-});
+```typescript file="@examples/basic-form-wizard/src/wizard/steps.ts" lines="40-68"
 ```
 
 ### Modern Implementation (Recommended)
