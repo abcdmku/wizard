@@ -1,4 +1,4 @@
-import { useRoleSelectionStep } from "../../wizard/config";
+import { useRoleSelectionStep, useBranchingWizard } from "../../wizard/config";
 import type { UserRole } from "../../wizard/types";
 
 const roles: { value: UserRole; label: string; description: string }[] = [
@@ -21,9 +21,25 @@ const roles: { value: UserRole; label: string; description: string }[] = [
 
 export function RoleSelection() {
   const step = useRoleSelectionStep();
+  const { updateContext, context } = useBranchingWizard();
   const { data, error, next, updateData } = step;
 
   const selectedRole = data?.role || "user";
+
+  const handleRoleChange = (newRole: UserRole) => {
+    updateData({ role: newRole });
+
+    // Update context immediately to show correct role badge and progress
+    updateContext((ctx) => {
+      // If role changed, reset completed steps
+      if (ctx.role !== newRole) {
+        ctx.completedSteps = ctx.completedSteps.includes('roleSelection')
+          ? ['roleSelection']
+          : [];
+      }
+      ctx.role = newRole;
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -50,7 +66,7 @@ export function RoleSelection() {
                 name="role"
                 value={role.value}
                 checked={selectedRole === role.value}
-                onChange={(e) => updateData({ role: e.target.value as UserRole })}
+                onChange={(e) => handleRoleChange(e.target.value as UserRole)}
                 className="mt-1 mr-3"
               />
               <div>
