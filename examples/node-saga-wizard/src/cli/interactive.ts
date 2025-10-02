@@ -1,4 +1,5 @@
-import prompts from "prompts";
+import readlineSync from "readline-sync";
+import chalk from "chalk";
 import { orderWizard } from "../wizard/orderWizard";
 import type { ChargeData } from "../wizard/types";
 import {
@@ -35,31 +36,22 @@ export async function runInteractiveCLI() {
 
     // Step 1: Initialize order
     showStep(1, "Initialize Order");
-    const answers1 = await prompts([
-      {
-        type: "text",
-        name: "orderId",
-        message: "Order ID",
-        initial: `ORD-${Date.now()}`,
-        validate: (value: string) => value.length > 0 || "Order ID is required",
-      },
-      {
-        type: "text",
-        name: "customerId",
-        message: "Customer ID",
-        initial: "CUST-123",
-        validate: (value: string) => value.length > 0 || "Customer ID is required",
-      },
-      {
-        type: "number",
-        name: "totalAmount",
-        message: "Total Amount ($)",
-        initial: 99.99,
-        validate: (value: number) => value > 0 || "Amount must be greater than 0",
-      },
-    ]);
 
-    const { orderId, customerId, totalAmount } = answers1;
+    const orderId = readlineSync.question(
+      chalk.cyan("Order ID: "),
+      { defaultInput: `ORD-${Date.now()}` }
+    );
+
+    const customerId = readlineSync.question(
+      chalk.cyan("Customer ID: "),
+      { defaultInput: "CUST-123" }
+    );
+
+    const totalAmountStr = readlineSync.question(
+      chalk.cyan("Total Amount ($): "),
+      { defaultInput: "99.99" }
+    );
+    const totalAmount = parseFloat(totalAmountStr);
 
     const spinner = createSpinner("Processing order initialization...");
     await orderWizard.next({
@@ -70,32 +62,26 @@ export async function runInteractiveCLI() {
 
     // Step 2: Reserve inventory
     showStep(2, "Reserve Inventory");
-    const { itemCount } = await prompts({
-      type: "number",
-      name: "itemCount",
-      message: "Number of items",
-      initial: 2,
-      validate: (value: number) => value > 0 || "Must be at least 1",
-    });
+
+    const itemCountStr = readlineSync.question(
+      chalk.cyan("Number of items: "),
+      { defaultInput: "2" }
+    );
+    const itemCount = parseInt(itemCountStr);
 
     const items = [];
     for (let i = 0; i < itemCount; i++) {
-      const itemAnswers = await prompts([
-        {
-          type: "text",
-          name: "sku",
-          message: `Item ${i + 1} SKU`,
-          initial: `ITEM-${String(i + 1).padStart(3, "0")}`,
-        },
-        {
-          type: "number",
-          name: "quantity",
-          message: `Item ${i + 1} Quantity`,
-          initial: 1,
-          validate: (value: number) => value > 0 || "Quantity must be at least 1",
-        },
-      ]);
-      items.push({ sku: itemAnswers.sku, quantity: itemAnswers.quantity });
+      const sku = readlineSync.question(
+        chalk.cyan(`  Item ${i + 1} SKU: `),
+        { defaultInput: `ITEM-${String(i + 1).padStart(3, "0")}` }
+      );
+
+      const quantityStr = readlineSync.question(
+        chalk.cyan(`  Item ${i + 1} Quantity: `),
+        { defaultInput: "1" }
+      );
+
+      items.push({ sku, quantity: parseInt(quantityStr) });
     }
 
     const spinner2 = createSpinner("Reserving inventory...");
@@ -107,29 +93,18 @@ export async function runInteractiveCLI() {
 
     // Step 3: Process payment
     showStep(3, "Process Payment");
-    const paymentAnswers = await prompts([
-      {
-        type: "select",
-        name: "paymentMethod",
-        message: "Payment method",
-        choices: [
-          { title: "Credit Card", value: "card" },
-          { title: "PayPal", value: "paypal" },
-        ],
-        initial: 0,
-      },
-      {
-        type: "confirm",
-        name: "paymentConfirm",
-        message: "Confirm payment?",
-        initial: true,
-      },
-    ]);
 
-    const { paymentMethod, paymentConfirm } = paymentAnswers as {
-      paymentMethod: ChargeData["paymentMethod"];
-      paymentConfirm: boolean;
-    };
+    const paymentMethodIndex = readlineSync.keyInSelect(
+      ["Credit Card", "PayPal"],
+      "Payment method:",
+      { cancel: false }
+    );
+    const paymentMethod: ChargeData["paymentMethod"] =
+      paymentMethodIndex === 0 ? "card" : "paypal";
+
+    const paymentConfirm = readlineSync.keyInYNStrict(
+      chalk.cyan("Confirm payment?")
+    );
 
     if (paymentConfirm) {
       const spinner3 = createSpinner("Processing payment...");
@@ -149,16 +124,11 @@ export async function runInteractiveCLI() {
 
     // Step 4: Send notification
     showStep(4, "Send Notification");
-    const { email } = await prompts({
-      type: "text",
-      name: "email",
-      message: "Customer email",
-      initial: "customer@example.com",
-      validate: (value: string) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(value) || "Please enter a valid email";
-      },
-    });
+
+    const email = readlineSync.questionEMail(
+      chalk.cyan("Customer email: "),
+      { defaultInput: "customer@example.com" }
+    );
 
     const spinner4 = createSpinner("Sending notification...");
     await orderWizard.next({
@@ -169,12 +139,10 @@ export async function runInteractiveCLI() {
 
     // Step 5: Complete order
     showStep(5, "Complete Order");
-    const { finalConfirm } = await prompts({
-      type: "confirm",
-      name: "finalConfirm",
-      message: "Complete order?",
-      initial: true,
-    });
+
+    const finalConfirm = readlineSync.keyInYNStrict(
+      chalk.cyan("Complete order?")
+    );
 
     if (finalConfirm) {
       const spinner5 = createSpinner("Finalizing order...");
@@ -209,9 +177,3 @@ export async function runInteractiveCLI() {
     showError(`Failed at: ${progress.label} (${progress.percent}% complete)`);
   }
 }
-
-// Handle Ctrl+C gracefully
-prompts.onCancel = () => {
-  showWarning("\n\nWizard cancelled by user");
-  process.exit(0);
-};
