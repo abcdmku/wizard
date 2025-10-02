@@ -1,5 +1,4 @@
 import { useValidationWizard } from '../../wizard/config';
-import type { ValidationContext } from '../../wizard/types';
 
 export function ValidationStatus() {
   const { context } = useValidationWizard();
