@@ -2,6 +2,7 @@ import { useResumeWizard } from '../wizard/config';
 import * as Steps from './steps';
 import { StepProgress } from './ui/StepProgress';
 import { AutoSaveIndicator } from './ui/AutoSaveIndicator';
+import { usePersistence } from '../hooks/usePersistence';
 
 const stepComponents = {
   personal: Steps.PersonalInfo,
@@ -14,7 +15,11 @@ const stepComponents = {
 };
 
 export function WizardContainer() {
-  const { step } = useResumeWizard();
+  const { step, context, updateContext } = useResumeWizard();
+
+  // Enable persistence
+  usePersistence(context, updateContext);
+
   const StepComponent = stepComponents[step as keyof typeof stepComponents];
   
   if (!StepComponent) {

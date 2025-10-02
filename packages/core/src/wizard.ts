@@ -537,20 +537,30 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
         }
       }
 
-      // Find next step
+      // Execute beforeExit BEFORE finding next step, so context updates are available for canEnter checks
+      if (currentStepDef.beforeExit) {
+        const currentData = store.state.data[currentStep];
+        const exitArgs = {
+          ...createStepArgs(currentStep, currentData),
+          to: undefined, // We don't know the target yet
+        };
+        await currentStepDef.beforeExit(exitArgs);
+      }
+
+      // Find next step (now with updated context from beforeExit)
       const nextStep = helpers.findNextAvailableName();
       if (!nextStep) {
         throw new Error('No next step available');
       }
 
-      // Transition to next step
-      await wizard.goTo(nextStep);
+      // Transition to next step (beforeExit already executed above)
+      await wizard.goTo(nextStep, { skipBeforeExit: true } as any);
 
       // Return step wrapper for the new current step
       return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
     },
 
-    async goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<WizardStep<K, D[K], C, S, D>> {
+    async goTo<K extends S>(step: K, args?: { data?: D[K]; skipBeforeExit?: boolean }): Promise<WizardStep<K, D[K], C, S, D>> {
       if (!helpers.canGoTo(step)) {
         throw new Error(`Cannot go to step: ${step}`);
       }
@@ -567,6 +577,17 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
             ...state,
             data: { ...state.data, [step]: args.data },
           }));
+        }
+
+        // Execute beforeExit on current step if defined (unless skipped from next())
+        const currentStepDef = steps[currentStep];
+        if (currentStepDef.beforeExit && !args?.skipBeforeExit) {
+          const currentData = store.state.data[currentStep];
+          const exitArgs = {
+            ...createStepArgs(currentStep, currentData),
+            to: step,
+          };
+          await currentStepDef.beforeExit(exitArgs);
         }
 
         // Save to history
