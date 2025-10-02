@@ -118,116 +118,54 @@ export function ManagerDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-bold mb-2 dark:text-gray-100">Manager Dashboard</h2>
-        <p className="text-gray-600 dark:text-gray-300">
-          View your team's progress and completion statistics
+        <h2 className="text-2xl font-bold mb-1 dark:text-gray-100">Manager Dashboard</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Team completion: {completionRate}% ({completedCount}/{mockTeamMembers.length})
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg p-4">
-          <div className="text-2xl font-bold text-green-900 dark:text-green-100">{completedCount}</div>
-          <div className="text-sm text-green-700 dark:text-green-300">Completed</div>
-        </div>
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
-          <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{inProgressCount}</div>
-          <div className="text-sm text-yellow-700 dark:text-yellow-300">In Progress</div>
-        </div>
-        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-          <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{notStartedCount}</div>
-          <div className="text-sm text-gray-700 dark:text-gray-400">Not Started</div>
-        </div>
-      </div>
-
-      <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-        <div className="flex justify-between items-center mb-2">
-          <span className="font-semibold dark:text-gray-100">Team Completion Rate</span>
-          <span className="text-2xl font-bold text-blue-900 dark:text-blue-100">{completionRate}%</span>
-        </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-          <div
-            className="bg-blue-600 dark:bg-blue-500 h-3 rounded-full transition-all duration-300"
-            style={{ width: `${completionRate}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="font-semibold text-lg dark:text-gray-100">Team Members</h3>
-
-        <div className="space-y-3">
+      <div className="space-y-2">
           {mockTeamMembers.map((member) => (
             <div
               key={member.id}
-              className="p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+              className="p-3 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600"
             >
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <div className="font-semibold dark:text-gray-100">{member.name}</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">{member.department}</div>
-                </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    member.status === "Completed"
-                      ? "bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100"
-                      : member.status === "In Progress"
-                      ? "bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100"
-                      : "bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-100"
-                  }`}
-                >
-                  {member.status}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      member.progress === 100
-                        ? "bg-green-600 dark:bg-green-500"
-                        : member.progress > 0
-                        ? "bg-yellow-600 dark:bg-yellow-500"
-                        : "bg-gray-400 dark:bg-gray-500"
-                    }`}
-                    style={{ width: `${member.progress}%` }}
-                  />
-                </div>
-                <span className="text-sm text-gray-600 dark:text-gray-400 min-w-[3rem]">
-                  {member.progress}%
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                {member.completedAt ? (
-                  <div className="text-xs text-gray-500 dark:text-gray-500">
-                    Completed on {member.completedAt}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium dark:text-gray-100 truncate">{member.name}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${
+                          member.progress === 100
+                            ? "bg-green-600 dark:bg-green-500"
+                            : member.progress > 0
+                            ? "bg-yellow-600 dark:bg-yellow-500"
+                            : "bg-gray-400"
+                        }`}
+                        style={{ width: `${member.progress}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-600 dark:text-gray-400 w-10 text-right">
+                      {member.progress}%
+                    </span>
                   </div>
-                ) : (
-                  <div className="text-xs text-gray-500 dark:text-gray-500">
-                    {member.status === "In Progress" ? "Currently working" : "Not started yet"}
-                  </div>
-                )}
-                {member.status !== "Completed" && (
+                </div>
+                {member.status !== "Completed" ? (
                   <button
                     onClick={() => handleSendReminder(member)}
-                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 whitespace-nowrap"
                   >
-                    Send Reminder
+                    Remind
                   </button>
+                ) : (
+                  <div className="text-xs text-green-600 dark:text-green-400 whitespace-nowrap">✓ Done</div>
                 )}
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          <strong className="dark:text-gray-300">Note:</strong> As a manager, you can see team completion
-          statistics but not individual feedback responses to maintain privacy.
-        </div>
       </div>
 
       {error != null && (
