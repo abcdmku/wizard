@@ -94,12 +94,22 @@ export async function runInteractiveCLI() {
         { defaultInput: `ITEM-${String(i + 1).padStart(3, "0")}` }
       );
 
-      const quantityStr = readlineSync.question(
-        chalk.cyan(`Item ${i + 1} Quantity: `),
-        { defaultInput: "1" }
-      );
+      let quantity = 0;
+      let quantityValid = false;
+      while (!quantityValid) {
+        const quantityStr = readlineSync.question(
+          chalk.cyan(`Item ${i + 1} Quantity: `),
+          { defaultInput: "1" }
+        );
+        quantity = parseInt(quantityStr);
+        if (!isNaN(quantity) && quantity > 0) {
+          quantityValid = true;
+        } else {
+          showError("Invalid quantity. Please enter a number greater than 0.");
+        }
+      }
 
-      items.push({ sku, quantity: parseInt(quantityStr) });
+      items.push({ sku, quantity });
     }
 
     const spinner2 = createSpinner("Reserving inventory...");
