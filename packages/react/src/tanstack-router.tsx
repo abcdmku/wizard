@@ -5,23 +5,18 @@
 
 import * as React from 'react';
 import { useEffect } from 'react';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useWizard } from './hooks';
 import { resolveStepComponent } from './types';
 import type { Wizard, StepArgs } from '@wizard/core';
 
-export interface CreateWizardRouteOptions<C, S extends string, D extends Record<S, unknown>, E> {
+export interface CreateWizardRouteConfig<C, S extends string, D extends Record<S, unknown>, E> {
   /**
    * Wizard instance with component support
    */
   wizard: Wizard<C, S, D, E> & {
     getStepComponent?: (stepName: S) => any;
   };
-
-  /**
-   * TanStack Router hooks (passed from user since we don't have hard dependency)
-   */
-  useNavigate: () => (options: { to: string; params?: Record<string, string> }) => void;
-  useParams: () => Record<string, string>;
 
   /**
    * Base path for the wizard (e.g., '/checkout')
@@ -40,25 +35,22 @@ export interface CreateWizardRouteOptions<C, S extends string, D extends Record<
 }
 
 /**
- * Creates a TanStack Router route configuration for a wizard
- * Returns a standard route config object that can be spread into createFileRoute()
+ * Creates a wizard route component for TanStack Router
  */
-export function createWizardRoute<C, S extends string, D extends Record<S, unknown>, E>(
-  options: CreateWizardRouteOptions<C, S, D, E>
+export function createWizardRouteComponent<C, S extends string, D extends Record<S, unknown>, E>(
+  config: CreateWizardRouteConfig<C, S, D, E>
 ) {
   const {
     wizard,
-    useNavigate: useNavigateHook,
-    useParams: useParamsHook,
     basePath,
     stepParam = 'step',
     fallbackComponent: FallbackComponent,
-  } = options;
+  } = config;
 
-  // Main component that handles wizard rendering and sync
-  function WizardRouteComponent() {
-    const navigate = useNavigateHook();
-    const params = useParamsHook();
+  // Return the component function
+  return function WizardRouteComponent() {
+    const navigate = useNavigate();
+    const params = useParams({ strict: false });
     const { step: currentStep, data, context } = useWizard(wizard);
 
     const urlStep = params[stepParam] as S | undefined;
@@ -159,10 +151,5 @@ export function createWizardRoute<C, S extends string, D extends Record<S, unkno
         <p>Unable to render component for step: {currentStep}</p>
       </div>
     );
-  }
-
-  // Return TanStack Router route configuration
-  return {
-    component: WizardRouteComponent,
   };
 }
