@@ -46,8 +46,13 @@ export const steps = defineSteps({
     },
     beforeExit: ({ data, updateContext }) => {
       updateContext((ctx) => {
+        // If role changed, reset completed steps
+        if (ctx.role !== data.role) {
+          ctx.completedSteps = ['roleSelection'];
+        } else {
+          ctx.completedSteps.push('roleSelection');
+        }
         ctx.role = data.role;
-        ctx.completedSteps.push('roleSelection');
       });
     },
     meta: { 
