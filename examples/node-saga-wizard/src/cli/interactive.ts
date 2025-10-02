@@ -72,12 +72,12 @@ export async function runInteractiveCLI() {
     const items = [];
     for (let i = 0; i < itemCount; i++) {
       const sku = readlineSync.question(
-        chalk.cyan(`  Item ${i + 1} SKU: `),
+        chalk.cyan(`Item ${i + 1} SKU: `),
         { defaultInput: `ITEM-${String(i + 1).padStart(3, "0")}` }
       );
 
       const quantityStr = readlineSync.question(
-        chalk.cyan(`  Item ${i + 1} Quantity: `),
+        chalk.cyan(`Item ${i + 1} Quantity: `),
         { defaultInput: "1" }
       );
 
