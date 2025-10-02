@@ -21,12 +21,12 @@ export function EmailStep({ data, onNext, onBack, onChange }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold mb-2">Contact Information</h2>
-        <p className="text-gray-600">We'll need a few more details</p>
+        <h2 className="text-2xl font-bold mb-2 dark:text-white">Contact Information</h2>
+        <p className="text-gray-600 dark:text-slate-400">We'll need a few more details</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
           Email Address
         </label>
         <input
@@ -34,13 +34,13 @@ export function EmailStep({ data, onNext, onBack, onChange }: Props) {
           value={data.email}
           onChange={(e) => handleChange({ email: e.target.value })}
           placeholder="john@example.com"
-          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full p-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700/50 dark:text-white dark:placeholder-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
           autoFocus
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
           Age
         </label>
         <input
@@ -49,7 +49,7 @@ export function EmailStep({ data, onNext, onBack, onChange }: Props) {
           onChange={(e) => handleChange({ age: e.target.value })}
           placeholder="18"
           min="18"
-          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full p-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700/50 dark:text-white dark:placeholder-slate-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
         />
       </div>
 
@@ -60,7 +60,7 @@ export function EmailStep({ data, onNext, onBack, onChange }: Props) {
           onChange={(e) => handleChange({ terms: e.target.checked })}
           className="mt-1 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
         />
-        <label className="ml-2 text-sm text-gray-700">
+        <label className="ml-2 text-sm text-gray-700 dark:text-slate-300">
           I agree to the terms and conditions
         </label>
       </div>
@@ -68,14 +68,14 @@ export function EmailStep({ data, onNext, onBack, onChange }: Props) {
       <div className="flex gap-4">
         <button
           onClick={onBack}
-          className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors"
+          className="flex-1 bg-gray-200 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 py-3 px-6 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors"
         >
           Back
         </button>
         <button
           onClick={handleNext}
           disabled={!isValid}
-          className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed transition-colors"
         >
           Review
         </button>

@@ -141,7 +141,7 @@ function WizardContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4 transition-colors duration-200 relative">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 py-12 px-4 transition-colors duration-200 relative">
       {/* Theme toggle positioned at top-right of screen */}
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
@@ -153,43 +153,43 @@ function WizardContent() {
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             Simple Form Wizard
           </h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-gray-600 dark:text-slate-400">
             With automatic localStorage persistence
           </p>
         </div>
 
         {/* Save Status */}
-        <div className="mb-6 flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+        <div className="mb-6 flex items-center justify-between bg-white dark:bg-slate-800/50 dark:border dark:border-slate-700/50 rounded-lg shadow-sm p-4">
           <div className="flex items-center gap-2">
             {hasUnsavedChanges ? (
               <>
                 <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-gray-600 dark:text-gray-300">Unsaved changes...</span>
+                <span className="text-sm text-gray-600 dark:text-slate-400">Unsaved changes...</span>
               </>
             ) : lastSaved ? (
               <>
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm text-gray-600 dark:text-gray-300">
+                <span className="text-sm text-gray-600 dark:text-slate-400">
                   Saved at {new Date(lastSaved).toLocaleTimeString()}
                 </span>
               </>
             ) : (
               <>
-                <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                <span className="text-sm text-gray-600 dark:text-gray-300">No data saved</span>
+                <div className="w-2 h-2 bg-gray-300 dark:bg-slate-600 rounded-full"></div>
+                <span className="text-sm text-gray-600 dark:text-slate-400">No data saved</span>
               </>
             )}
           </div>
 
           {recovered && (
-            <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full">
+            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 dark:border dark:border-blue-800 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full">
               ✓ Recovered from localStorage
             </span>
           )}
         </div>
 
         {/* Progress Bar */}
-        <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <div className="mb-8 bg-white dark:bg-slate-800/50 dark:border dark:border-slate-700/50 rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-2">
             {['Name', 'Contact', 'Review'].map((label, idx) => {
               const stepNames = ['name', 'email', 'review'];
@@ -204,12 +204,12 @@ function WizardContent() {
                         ? 'bg-blue-600 text-white'
                         : isComplete
                         ? 'bg-green-500 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                        : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-400'
                     }`}
                   >
                     {isComplete ? '✓' : idx + 1}
                   </div>
-                  <div className={`mt-2 text-sm dark:text-gray-300 ${isActive ? 'font-semibold' : ''}`}>
+                  <div className={`mt-2 text-sm dark:text-slate-400 ${isActive ? 'font-semibold' : ''}`}>
                     {label}
                   </div>
                 </div>
@@ -217,7 +217,7 @@ function WizardContent() {
             })}
           </div>
 
-          <div className="mt-4 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+          <div className="mt-4 bg-gray-200 dark:bg-slate-700 rounded-full h-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all duration-300"
               style={{
@@ -230,7 +230,7 @@ function WizardContent() {
         </div>
 
         {/* Step Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+        <div className="bg-white dark:bg-slate-800/50 dark:border dark:border-slate-700/50 rounded-lg shadow-lg p-8">
           {currentStep === 'name' && (
             <NameStep data={formData} onNext={handleNext} onChange={setFormData} />
           )}
@@ -243,12 +243,12 @@ function WizardContent() {
         </div>
 
         {/* Controls */}
-        <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <div className="mt-8 bg-white dark:bg-slate-800/50 dark:border dark:border-slate-700/50 rounded-lg shadow-sm p-6">
           <h3 className="font-semibold dark:text-white mb-4">Persistence Controls</h3>
 
           {/* Save Mode */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
               Save Mode
             </label>
             <div className="flex gap-2">
@@ -257,7 +257,7 @@ function WizardContent() {
                 className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
                   saveMode === 'instant'
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-600'
+                    : 'bg-white dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:border-blue-600 dark:hover:border-blue-500'
                 }`}
               >
                 <div className="font-medium">Instant</div>
@@ -268,7 +268,7 @@ function WizardContent() {
                 className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
                   saveMode === 'step'
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-600'
+                    : 'bg-white dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:border-blue-600 dark:hover:border-blue-500'
                 }`}
               >
                 <div className="font-medium">On Step</div>
@@ -279,7 +279,7 @@ function WizardContent() {
                 className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
                   saveMode === 'manual'
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-600'
+                    : 'bg-white dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:border-blue-600 dark:hover:border-blue-500'
                 }`}
               >
                 <div className="font-medium">Manual</div>
