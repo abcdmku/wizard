@@ -45,12 +45,10 @@ export function WizardContainer() {
           <p className="text-gray-600 dark:text-gray-400">
             Experience different paths based on your role selection
           </p>
-          {context.role && (
-            <div className="mt-3">
-              <span className="text-gray-700 dark:text-gray-300">Current Role: </span>
-              <RoleBadge role={context.role} />
-            </div>
-          )}
+          <div className="mt-3">
+            <span className="text-gray-700 dark:text-gray-300">Current Role: </span>
+            <RoleBadge role={context.role} />
+          </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-colors duration-200">
