@@ -27,6 +27,7 @@ function WizardContent() {
   const [saveMode, setSaveMode] = useState<'instant' | 'step' | 'manual'>('instant');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const lastSavedDataRef = useRef<string>('');
+  const lastSavedStepRef = useRef<string>('name');
   const isInitialLoadRef = useRef(true);
 
   // Load from localStorage on mount
@@ -39,9 +40,11 @@ function WizardContent() {
       setLastSaved(saved.timestamp);
       setRecovered(true);
       lastSavedDataRef.current = savedDataString;
+      lastSavedStepRef.current = saved.currentStep;
     } else {
       // Initialize with empty data ref
       lastSavedDataRef.current = JSON.stringify(formData);
+      lastSavedStepRef.current = currentStep;
     }
     // Small delay to ensure state is updated before enabling change detection
     setTimeout(() => {
@@ -51,28 +54,36 @@ function WizardContent() {
 
   // Save function
   const doSave = useCallback(() => {
-    if (formData.name || formData.email) {
-      saveToStorage(formData, currentStep);
-      setLastSaved(new Date().toISOString());
-      setHasUnsavedChanges(false);
-      lastSavedDataRef.current = JSON.stringify(formData);
-      console.log('💾 Saved:', { formData, currentStep, mode: saveMode });
-    }
+    saveToStorage(formData, currentStep);
+    setLastSaved(new Date().toISOString());
+    setHasUnsavedChanges(false);
+    lastSavedDataRef.current = JSON.stringify(formData);
+    lastSavedStepRef.current = currentStep;
+    console.log('💾 Saved:', { formData, currentStep, mode: saveMode });
   }, [formData, currentStep, saveMode]);
 
-  // Mark as dirty when data changes (compare with last saved)
+  // Mark as dirty when data or step changes (compare with last saved)
   useEffect(() => {
     if (isInitialLoadRef.current) return;
 
     const currentDataString = JSON.stringify(formData);
-    if (currentDataString !== lastSavedDataRef.current) {
+    const dataChanged = currentDataString !== lastSavedDataRef.current;
+    const stepChanged = currentStep !== lastSavedStepRef.current;
+
+    if (dataChanged || stepChanged) {
       setHasUnsavedChanges(true);
     }
-  }, [formData]);
+  }, [formData, currentStep]);
 
-  // Auto-save in INSTANT mode (debounced)
+  // Auto-save in INSTANT mode (debounced) - only on data changes, not step changes
   useEffect(() => {
-    if (saveMode !== 'instant' || !hasUnsavedChanges) return;
+    if (saveMode !== 'instant') return;
+    if (isInitialLoadRef.current) return;
+
+    const currentDataString = JSON.stringify(formData);
+    const dataChanged = currentDataString !== lastSavedDataRef.current;
+
+    if (!dataChanged) return;
 
     console.log('⏱️ Instant mode: scheduling save in 500ms...');
     const timer = setTimeout(() => {
@@ -80,7 +91,7 @@ function WizardContent() {
       doSave();
     }, 500);
     return () => clearTimeout(timer);
-  }, [formData, saveMode, hasUnsavedChanges, doSave]);
+  }, [formData, saveMode, doSave]);
 
   // Auto-save in STEP mode (on navigation)
   useEffect(() => {
