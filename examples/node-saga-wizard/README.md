@@ -140,7 +140,7 @@ Demonstrates usage of wizard helpers:
 
 This example showcases a modern CLI experience using:
 
-- **[prompts](https://www.npmjs.com/package/prompts)** - Clean, minimal terminal prompts (TUI)
+- **[readline-sync](https://www.npmjs.com/package/readline-sync)** - Synchronous readline for clean TUI (zero keystroke spam!)
 - **[chalk](https://www.npmjs.com/package/chalk)** - Terminal string styling
 - **[ora](https://www.npmjs.com/package/ora)** - Elegant terminal spinners
 - **[boxen](https://www.npmjs.com/package/boxen)** - Create boxes in the terminal
