@@ -1,15 +1,23 @@
-import { useState } from 'react';
-import { usePaymentStep, useCheckoutWizard } from '../wizard';
+import { useState, useEffect } from 'react';
+import { usePaymentStep, useCheckoutWizard, checkoutWizard } from '../wizard';
 import { useNavigate } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
+import { formatError } from '../utils/formatError';
 
 export function PaymentStep() {
   const { data, error, next, back, updateData } = usePaymentStep();
   const { context, updateContext } = useCheckoutWizard();
   const navigate = useNavigate();
   const [couponInput, setCouponInput] = useState(context.coupon || '');
+
+  // Clear error when leaving the step
+  useEffect(() => {
+    return () => {
+      checkoutWizard.clearStepError('payment');
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +87,7 @@ export function PaymentStep() {
         )}
       </div>
 
-      {error != null && <ErrorMessage message={String(error)} />}
+      {error != null && <ErrorMessage message={formatError(error)} />}
 
       <div className="flex gap-4">
         <Button type="button" onClick={handleBack} variant="secondary" fullWidth>
