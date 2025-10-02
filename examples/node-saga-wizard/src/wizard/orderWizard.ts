@@ -77,7 +77,5 @@ const steps = defineSteps({
 });
 
 export const orderWizard = createWizard(steps, {
-  onStatusChange: ({ step, next }) => {
-    console.log(`\n→ Step ${step} status: ${next}`);
-  },
+  initialStep: "init"
 }) as ReturnType<typeof createWizard<typeof steps>>;

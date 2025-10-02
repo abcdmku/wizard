@@ -1,4 +1,4 @@
-import { useWizardState } from '@wizard/react';
+import { useResumeWizard } from '../../wizard/config';
 
 const steps = [
   { id: 'personal', label: 'Personal', icon: '👤' },
@@ -11,7 +11,7 @@ const steps = [
 ];
 
 export function StepProgress() {
-  const { step } = useWizardState();
+  const { step } = useResumeWizard();
   const currentIndex = steps.findIndex(s => s.id === step);
   
   return (

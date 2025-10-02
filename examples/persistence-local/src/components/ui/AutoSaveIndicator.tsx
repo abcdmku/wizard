@@ -1,8 +1,8 @@
-import { useWizardSharedContext } from '@wizard/react';
+import { useResumeWizard } from '../../wizard/config';
 import type { WizardContext } from '../../wizard/types';
 
 export function AutoSaveIndicator() {
-  const context = useWizardSharedContext() as WizardContext;
+  const { context } = useResumeWizard() as { context: WizardContext };
   
   if (!context.autoSaveEnabled) return null;
   

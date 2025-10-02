@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useWizardActions, useWizardSharedContext } from '@wizard/react';
+import { useSkillsStep } from '../../wizard/config';
 import type { WizardContext, Skill } from '../../wizard/types';
 
 export function Skills() {
-  const { next, back } = useWizardActions();
-  const context = useWizardSharedContext() as WizardContext;
+  const { next, back, context } = useSkillsStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
   
   const [skills, setSkills] = useState<Skill[]>(
     context.resumeData.skills || []

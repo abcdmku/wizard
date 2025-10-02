@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useWizardActions, useWizardSharedContext } from '@wizard/react';
+import { useExperienceStep } from '../../wizard/config';
 import type { WizardContext, WorkExperience as WorkExperienceType } from '../../wizard/types';
 
 export function WorkExperience() {
-  const { next, back } = useWizardActions();
-  const context = useWizardSharedContext() as WizardContext;
+  const { next, back, context } = useExperienceStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
   
   const [experiences, setExperiences] = useState<WorkExperienceType[]>(
     context.resumeData.workExperience || []

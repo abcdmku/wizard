@@ -1,10 +1,9 @@
-import { useWizardActions, useWizardSharedContext } from '@wizard/react';
+import { usePreviewStep } from '../../wizard/config';
 import type { WizardContext } from '../../wizard/types';
 import { storageAdapter } from '../../utils/persistence';
 
 export function Preview() {
-  const { back, reset } = useWizardActions();
-  const context = useWizardSharedContext() as WizardContext;
+  const { back, reset, context } = usePreviewStep() as { back: () => void; reset: () => void; context: WizardContext };
   const { resumeData } = context;
 
   const handleExport = () => {

@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useWizardActions, useCurrentStepData, useWizardSharedContext } from "@wizard/react";
-import type { ManagerDashboardData, WizardContext } from "../../wizard/types";
+import { useBranchingWizard, useManagerDashboardStep } from "../../wizard/config";
+import type { ManagerDashboardData } from "../../wizard/types";
 
 export function ManagerDashboard() {
-  const { next, back, setStepData } = useWizardActions();
-  const context = useWizardSharedContext() as WizardContext;
-  const existingData = useCurrentStepData() as ManagerDashboardData | undefined;
+  const { next, back, setStepData, context } = useBranchingWizard();
+  const managerStep = useManagerDashboardStep();
+  const existingData = managerStep.data;
   
   const [data, setData] = useState<ManagerDashboardData>(
     existingData || {

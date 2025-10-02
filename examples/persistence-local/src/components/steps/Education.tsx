@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useWizardActions, useWizardSharedContext } from '@wizard/react';
+import { useEducationStep } from '../../wizard/config';
 import type { WizardContext, Education as EducationType } from '../../wizard/types';
 
 export function Education() {
-  const { next, back } = useWizardActions();
-  const context = useWizardSharedContext() as WizardContext;
+  const { next, back, context } = useEducationStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
   
   const [educations, setEducations] = useState<EducationType[]>(
     context.resumeData.education || []

@@ -1,117 +1,67 @@
 import { useShippingStep, useCheckoutWizard } from '../wizard';
+import { useNavigate } from '@tanstack/react-router';
+import { FormField } from './ui/FormField';
+import { Button } from './ui/Button';
+import { ErrorMessage } from './ui/ErrorMessage';
 
 export function ShippingStep() {
   const { data, error, next, back, updateData } = useShippingStep();
   const { context } = useCheckoutWizard();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await next();
+    navigate({ to: '/checkout/payment' });
+  };
+
+  const handleBack = () => {
+    back();
+    navigate({ to: '/checkout/account' });
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Shipping Information</h2>
-      <p style={{ color: '#666', marginBottom: '1rem' }}>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <p className="text-gray-600 dark:text-gray-400 text-sm">
         Shipping for: {context.userId}
       </p>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label htmlFor="address" style={{ display: 'block', marginBottom: '0.5rem' }}>
-          Street Address
-        </label>
-        <input
-          id="address"
-          type="text"
-          value={data?.address || ''}
-          onChange={(e) => updateData({ address: e.target.value })}
-          placeholder="123 Main St"
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            fontSize: '1rem',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-          }}
-        />
-      </div>
+      <FormField
+        id="address"
+        label="Street Address"
+        type="text"
+        value={data?.address || ''}
+        onChange={(e) => updateData({ address: e.target.value })}
+        placeholder="123 Main St"
+      />
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label htmlFor="city" style={{ display: 'block', marginBottom: '0.5rem' }}>
-          City
-        </label>
-        <input
-          id="city"
-          type="text"
-          value={data?.city || ''}
-          onChange={(e) => updateData({ city: e.target.value })}
-          placeholder="New York"
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            fontSize: '1rem',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-          }}
-        />
-      </div>
+      <FormField
+        id="city"
+        label="City"
+        type="text"
+        value={data?.city || ''}
+        onChange={(e) => updateData({ city: e.target.value })}
+        placeholder="New York"
+      />
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label htmlFor="zipCode" style={{ display: 'block', marginBottom: '0.5rem' }}>
-          ZIP Code
-        </label>
-        <input
-          id="zipCode"
-          type="text"
-          value={data?.zipCode || ''}
-          onChange={(e) => updateData({ zipCode: e.target.value })}
-          placeholder="10001"
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            fontSize: '1rem',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-          }}
-        />
-      </div>
+      <FormField
+        id="zipCode"
+        label="ZIP Code"
+        type="text"
+        value={data?.zipCode || ''}
+        onChange={(e) => updateData({ zipCode: e.target.value })}
+        placeholder="10001"
+      />
 
-      {error != null ? (
-        <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.9rem' }}>
-          {String(error)}
-        </div>
-      ) : null}
+      {error && <ErrorMessage message={String(error)} />}
 
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <button
-          type="button"
-          onClick={() => back()}
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '1rem',
-            background: '#666',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
+      <div className="flex gap-4">
+        <Button type="button" onClick={handleBack} variant="secondary" fullWidth>
           Back
-        </button>
-        <button
-          type="submit"
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '1rem',
-            background: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
+        </Button>
+        <Button type="submit" variant="primary" fullWidth>
           Continue to Payment
-        </button>
+        </Button>
       </div>
     </form>
   );

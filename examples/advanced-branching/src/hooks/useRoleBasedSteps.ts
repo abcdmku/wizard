@@ -1,11 +1,9 @@
 import { useMemo } from "react";
-import { useWizardSharedContext, useWizardHelpers } from "@wizard/react";
-import type { WizardContext } from "../wizard/types";
+import { useBranchingWizard } from "../wizard/config";
 import { getAvailableStepsForRole } from "../wizard/navigation";
 
 export function useRoleBasedSteps() {
-  const context = useWizardSharedContext() as WizardContext;
-  const helpers = useWizardHelpers();
+  const { context } = useBranchingWizard();
   
   const roleSteps = useMemo(() => {
     return getAvailableStepsForRole(context.role);

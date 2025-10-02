@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useWizardActions, useWizardSharedContext } from '@wizard/react';
+import { usePersonalStep } from '../../wizard/config';
 import type { WizardContext, PersonalInfo as PersonalInfoType } from '../../wizard/types';
 
 export function PersonalInfo() {
-  const { next } = useWizardActions();
-  const context = useWizardSharedContext() as WizardContext;
+  const { next, context } = usePersonalStep() as { next: (ctx?: Partial<WizardContext>) => void; context: WizardContext };
   
   const [formData, setFormData] = useState<PersonalInfoType>({
     firstName: '',

@@ -123,7 +123,11 @@
       "Bash(pnpm test:*)",
       "mcp__playwright__browser_type",
       "mcp__playwright__browser_console_messages",
-      "WebFetch(domain:tanstack.com)"
+      "WebFetch(domain:tanstack.com)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm exec tailwindcss:*)",
+      "Bash(pnpm exec tsc:*)",
+      "Bash(pnpm start:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",
