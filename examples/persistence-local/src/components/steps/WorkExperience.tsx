@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useExperienceStep } from '../../wizard/config';
-import type { WorkExperience as WorkExperienceType } from '../../wizard/types';
+import { useExperienceStep, useResumeWizard } from '../../wizard/config';
+import type { WorkExperience as WorkExperienceType, WizardContext } from '../../wizard/types';
 
 export function WorkExperience() {
   const step = useExperienceStep();
-  const { next, back, context, updateContext } = step;
+  const { updateContext, context } = useResumeWizard();
+  const { next, back } = step;
   
   const [experiences, setExperiences] = useState<WorkExperienceType[]>(
     context.resumeData.workExperience || []
@@ -71,7 +72,7 @@ export function WorkExperience() {
   };
 
   const handleSubmit = () => {
-    updateContext((ctx) => {
+    updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
         workExperience: experiences,

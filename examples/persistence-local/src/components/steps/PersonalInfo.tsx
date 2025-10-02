@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { usePersonalStep } from '../../wizard/config';
-import type { PersonalInfo as PersonalInfoType } from '../../wizard/types';
+import { usePersonalStep, useResumeWizard } from '../../wizard/config';
+import type { PersonalInfo as PersonalInfoType, WizardContext } from '../../wizard/types';
 
 export function PersonalInfo() {
   const step = usePersonalStep();
-  const { next, context, updateContext } = step;
+  const { updateContext, context } = useResumeWizard();
+  const { next } = step;
   
   const [formData, setFormData] = useState<PersonalInfoType>({
     firstName: '',
@@ -32,7 +33,7 @@ export function PersonalInfo() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateContext((ctx) => {
+    updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
         personalInfo: formData,

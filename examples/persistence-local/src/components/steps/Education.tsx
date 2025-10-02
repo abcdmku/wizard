@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useEducationStep } from '../../wizard/config';
-import type { Education as EducationType } from '../../wizard/types';
+import { useEducationStep, useResumeWizard } from '../../wizard/config';
+import type { Education as EducationType, WizardContext } from '../../wizard/types';
 
 export function Education() {
   const step = useEducationStep();
-  const { next, back, context, wizard } = step;
+  const { updateContext, context } = useResumeWizard();
+  const { next, back } = step;
   
   const [educations, setEducations] = useState<EducationType[]>(
     context.resumeData.education || []
@@ -48,7 +49,7 @@ export function Education() {
   };
 
   const handleSubmit = () => {
-    wizard.updateContext((ctx) => {
+    updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
         education: educations,
