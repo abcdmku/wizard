@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useProjectsStep } from '../../wizard/config';
-import type { Project } from '../../wizard/types';
+import { useProjectsStep, useResumeWizard } from '../../wizard/config';
+import type { Project, WizardContext } from '../../wizard/types';
 
 export function Projects() {
   const step = useProjectsStep();
-  const { next, back, context, wizard } = step;
+  const { updateContext, context } = useResumeWizard();
+  const { next, back } = step;
   
   const [projects, setProjects] = useState<Project[]>(
     context.resumeData.projects || []
@@ -67,7 +68,7 @@ export function Projects() {
   };
 
   const handleSubmit = () => {
-    wizard.updateContext((ctx) => {
+    updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
         projects,

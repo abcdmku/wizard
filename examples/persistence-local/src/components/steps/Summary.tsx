@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { useSummaryStep } from '../../wizard/config';
+import { useSummaryStep, useResumeWizard } from '../../wizard/config';
+import type { WizardContext } from '../../wizard/types';
 
 export function Summary() {
   const step = useSummaryStep();
-  const { next, back, context, wizard } = step;
+  const { updateContext, context } = useResumeWizard();
+  const { next, back } = step;
   
   const [summary, setSummary] = useState(
     context.resumeData.summary || ''
   );
 
   const handleSubmit = () => {
-    wizard.updateContext((ctx) => {
+    updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
         summary,
