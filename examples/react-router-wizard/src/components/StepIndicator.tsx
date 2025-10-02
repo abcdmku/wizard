@@ -1,15 +1,15 @@
-import { useCheckoutWizard } from "../wizard";
+import { useLocation } from '@tanstack/react-router';
 
 const steps = [
-  { id: 'account', label: 'Account' },
-  { id: 'shipping', label: 'Shipping' },
-  { id: 'payment', label: 'Payment' },
-  { id: 'review', label: 'Review' },
+  { id: 'account', label: 'Account', path: '/checkout/account' },
+  { id: 'shipping', label: 'Shipping', path: '/checkout/shipping' },
+  { id: 'payment', label: 'Payment', path: '/checkout/payment' },
+  { id: 'review', label: 'Review', path: '/checkout/review' },
 ] as const;
 
 export function StepIndicator() {
-  const { step: currentStep } = useCheckoutWizard();
-  const currentIndex = steps.findIndex(s => s.id === currentStep);
+  const location = useLocation();
+  const currentIndex = steps.findIndex(s => s.path === location.pathname);
 
   return (
     <div className="w-full mb-8">
