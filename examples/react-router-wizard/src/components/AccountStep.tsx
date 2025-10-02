@@ -1,28 +1,17 @@
-import { useState } from 'react';
-import { useWizardActions, useCurrentStepData, useWizardErrors } from '@wizard/react';
-import type { CheckoutContext, CheckoutSteps, CheckoutDataMap } from '../types';
+import { useAccountStep } from '../wizard';
 
 export function AccountStep() {
-  const { next } = useWizardActions<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const existingData = useCurrentStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const errors = useWizardErrors<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  
-  const [email, setEmail] = useState((existingData as { email: string })?.email || '');
-  const stepError = errors.account;
+  const { data, error, next, updateData } = useAccountStep();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await next({ email });
-    } catch (error) {
-      console.error('Failed to proceed:', error);
-    }
+    await next();
   };
 
   return (
     <form onSubmit={handleSubmit}>
       <h2>Account Information</h2>
-      
+
       <div style={{ marginBottom: '1rem' }}>
         <label htmlFor="email" style={{ display: 'block', marginBottom: '0.5rem' }}>
           Email Address
@@ -30,8 +19,8 @@ export function AccountStep() {
         <input
           id="email"
           type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={data?.email || ''}
+          onChange={(e) => updateData({ email: e.target.value })}
           placeholder="your@email.com"
           style={{
             width: '100%',
@@ -41,9 +30,9 @@ export function AccountStep() {
             borderRadius: '4px',
           }}
         />
-        {stepError ? (
+        {error != null ? (
           <div style={{ color: 'red', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-            {typeof stepError === 'string' ? stepError : 'An error occurred'}
+            {String(error)}
           </div>
         ) : null}
       </div>
