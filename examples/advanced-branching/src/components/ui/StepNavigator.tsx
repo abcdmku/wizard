@@ -4,9 +4,9 @@ import { getAvailableStepsForRole } from "../../wizard/navigation";
 const stepLabels: Record<string, string> = {
   roleSelection: "Select Role",
   userProfile: "User Profile",
-  adminPanel: "Admin Settings",
+  adminPanel: "Admin Dashboard",
   managerDashboard: "Manager Dashboard",
-  sharedReview: "Review & Feedback",
+  sharedReview: "Submit Feedback",
 };
 
 export function StepNavigator() {

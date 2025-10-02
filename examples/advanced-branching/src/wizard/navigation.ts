@@ -18,38 +18,35 @@ export const determineNextStep = (
         default:
           return [];
       }
-    
+
     case 'adminPanel':
-      // Conditional based on admin action
-      if (context.requiresApproval) {
-        return ['managerDashboard'];
-      }
-      return ['sharedReview'];
-    
+      // Admin sees all data, ends here (final step)
+      return [];
+
     case 'managerDashboard':
-      return ['sharedReview'];
-    
+      // Manager sees team stats, ends here (final step)
+      return [];
+
     case 'userProfile':
+      // User goes to review after profile
       return ['sharedReview'];
-    
+
     case 'sharedReview':
-      return []; // Final step
-    
+      return []; // Final step for users
+
     default:
       return [];
   }
 };
 
 export const getAvailableStepsForRole = (role: UserRole | ''): string[] => {
-  const commonSteps = ['roleSelection', 'sharedReview'];
-  
   switch (role) {
     case 'admin':
-      return [...commonSteps, 'adminPanel', 'managerDashboard'];
+      return ['roleSelection', 'adminPanel'];
     case 'manager':
-      return [...commonSteps, 'managerDashboard'];
+      return ['roleSelection', 'managerDashboard'];
     case 'user':
-      return [...commonSteps, 'userProfile'];
+      return ['roleSelection', 'userProfile', 'sharedReview'];
     default:
       return ['roleSelection'];
   }
@@ -62,24 +59,24 @@ export const canAccessStep = (
 ): boolean => {
   // Always can access role selection
   if (step === 'roleSelection') return true;
-  
+
   // Must have a role selected for other steps
   if (!role) return false;
-  
+
   // Check role-specific access
   switch (step) {
     case 'adminPanel':
       return role === 'admin';
-    
+
     case 'managerDashboard':
-      return role === 'manager' || (role === 'admin' && context.requiresApproval);
-    
+      return role === 'manager';
+
     case 'userProfile':
       return role === 'user';
-    
+
     case 'sharedReview':
-      return true; // All roles can access final review
-    
+      return role === 'user'; // Only users fill out feedback
+
     default:
       return false;
   }

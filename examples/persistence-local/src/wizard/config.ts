@@ -1,58 +1,65 @@
-import { defineSteps, step, createWizard } from './factory';
-import { useWizard, useWizardStep } from "@wizard/react";
+import { createWizardFactory } from '@wizard/core';
 
+// Simple form data type
+export interface FormData {
+  name: string;
+  email: string;
+  age: string;
+  terms: boolean;
+}
+
+// Create wizard factory
+const { defineSteps, step, createWizard } = createWizardFactory();
+
+// Define wizard steps
 const steps = defineSteps({
-  personal: step({
-    data: {},
-    next: ['experience'],
-    meta: { label: 'Personal Information' },
+  name: step({
+    data: { name: '', email: '', age: '', terms: false } as FormData,
+    next: ['email'],
   }),
-  experience: step({
-    data: {},
-    next: ['education'],
-    meta: { label: 'Work Experience' },
+  email: step({
+    data: { name: '', email: '', age: '', terms: false } as FormData,
+    next: ['review'],
   }),
-  education: step({
-    data: {},
-    next: ['skills'],
-    meta: { label: 'Education' },
-  }),
-  skills: step({
-    data: {},
-    next: ['projects'],
-    meta: { label: 'Skills' },
-  }),
-  projects: step({
-    data: {},
-    next: ['summary'],
-    meta: { label: 'Projects' },
-  }),
-  summary: step({
-    data: {},
-    next: ['preview'],
-    meta: { label: 'Professional Summary' },
-  }),
-  preview: step({
-    data: {},
+  review: step({
+    data: { name: '', email: '', age: '', terms: false } as FormData,
     next: [],
-    meta: { label: 'Preview & Export' },
   }),
 });
 
-export const resumeWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+export const simpleWizard = createWizard(steps);
 
-/**
- * Typed convenience hook for using resumeWizard.
- */
-export const useResumeWizard = () => useWizard(resumeWizard);
+// LocalStorage key
+const STORAGE_KEY = 'simple-wizard-data';
 
-/**
- * Step-specific typed convenience hooks.
- */
-export const usePersonalStep = () => useWizardStep(resumeWizard, "personal");
-export const useExperienceStep = () => useWizardStep(resumeWizard, "experience");
-export const useEducationStep = () => useWizardStep(resumeWizard, "education");
-export const useSkillsStep = () => useWizardStep(resumeWizard, "skills");
-export const useProjectsStep = () => useWizardStep(resumeWizard, "projects");
-export const useSummaryStep = () => useWizardStep(resumeWizard, "summary");
-export const usePreviewStep = () => useWizardStep(resumeWizard, "preview");
+// Save to localStorage
+export function saveToStorage(data: Partial<FormData>, currentStep: string) {
+  const savedData = {
+    data,
+    currentStep,
+    timestamp: new Date().toISOString(),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
+  console.log('✅ Saved to localStorage:', savedData);
+}
+
+// Load from localStorage
+export function loadFromStorage() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      console.log('📦 Loaded from localStorage:', parsed);
+      return parsed;
+    }
+  } catch (error) {
+    console.error('Failed to load from localStorage:', error);
+  }
+  return null;
+}
+
+// Clear storage
+export function clearStorage() {
+  localStorage.removeItem(STORAGE_KEY);
+  console.log('🗑️ Cleared localStorage');
+}

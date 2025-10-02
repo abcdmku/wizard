@@ -1,13 +1,22 @@
-import { useShippingStep, useCheckoutWizard } from '../wizard';
+import { useEffect } from 'react';
+import { useShippingStep, useCheckoutWizard, checkoutWizard } from '../wizard';
 import { useNavigate } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
+import { formatError } from '../utils/formatError';
 
 export function ShippingStep() {
   const { data, error, next, back, updateData } = useShippingStep();
   const { context } = useCheckoutWizard();
   const navigate = useNavigate();
+
+  // Clear error when leaving the step
+  useEffect(() => {
+    return () => {
+      checkoutWizard.clearStepError('shipping');
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
