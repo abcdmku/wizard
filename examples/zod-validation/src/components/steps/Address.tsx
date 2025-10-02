@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { useWizardActions, useCurrentStepData, useWizardSharedContext } from '@wizard/react';
+import { useAddressStep } from '../../wizard/config';
 import { AddressSchema, type Address as AddressType, type ValidationContext } from '../../wizard/types';
 
 export function Address() {
-  const { next, back } = useWizardActions();
-  const currentData = useCurrentStepData() as AddressType | undefined;
-  const context = useWizardSharedContext() as ValidationContext;
+  const { next, back, data: currentData, context } = useAddressStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: AddressType | undefined; context: ValidationContext };
   
   const [formData, setFormData] = useState<AddressType>({
     street: currentData?.street || '',

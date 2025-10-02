@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useWizardActions, useCurrentStepData } from '@wizard/react';
+import { useIntroductionStep } from '../../wizard/config';
 import type { IntroductionData } from '../../wizard/types';
 
 export function Introduction() {
-  const { next } = useWizardActions();
-  const currentData = useCurrentStepData() as IntroductionData;
+  const { next, data: currentData } = useIntroductionStep() as { next: (ctx?: any) => Promise<void>; data: IntroductionData };
   
   const [agreed, setAgreed] = useState(currentData?.agreed || false);
 

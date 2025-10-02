@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { useWizardActions, useCurrentStepData, useWizardSharedContext } from '@wizard/react';
+import { useSecureDataStep } from '../../wizard/config';
 import type { SecureData as SecureDataType, GuardContext } from '../../wizard/types';
 
 export function SecureData() {
-  const { next, back } = useWizardActions();
-  const currentData = useCurrentStepData() as SecureDataType | undefined;
-  const context = useWizardSharedContext() as GuardContext;
+  const { next, back, data: currentData, context } = useSecureDataStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: SecureDataType | undefined; context: GuardContext };
 
   const [formData, setFormData] = useState<SecureDataType>({
     secretKey: currentData?.secretKey || '',

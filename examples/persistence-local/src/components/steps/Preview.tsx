@@ -1,9 +1,10 @@
-import { usePreviewStep } from '../../wizard/config';
+import { usePreviewStep, useResumeWizard } from '../../wizard/config';
 import type { WizardContext } from '../../wizard/types';
 import { storageAdapter } from '../../utils/persistence';
 
 export function Preview() {
-  const { back, reset, context } = usePreviewStep() as { back: () => void; reset: () => void; context: WizardContext };
+  const { back, context } = usePreviewStep() as { back: () => void; context: WizardContext };
+  const { reset } = useResumeWizard();
   const { resumeData } = context;
 
   const handleExport = () => {
