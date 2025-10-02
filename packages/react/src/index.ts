@@ -23,8 +23,8 @@ export {
 export { createReactWizardFactory, reactWizardWithContext } from './factory';
 
 // TanStack Router integration
-export { createWizardRoute } from './tanstack-router';
-export type { CreateWizardRouteOptions } from './tanstack-router';
+export { createWizardRouteComponent } from './tanstack-router';
+export type { CreateWizardRouteConfig } from './tanstack-router';
 
 // Re-export core types for convenience
 export type {
