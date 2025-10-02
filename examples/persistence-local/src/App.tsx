@@ -75,15 +75,16 @@ function WizardContent() {
     }
   }, [formData, currentStep]);
 
-  // Auto-save in INSTANT mode (debounced) - only on data changes, not step changes
+  // Auto-save in INSTANT mode (debounced) - saves on data OR step changes
   useEffect(() => {
     if (saveMode !== 'instant') return;
     if (isInitialLoadRef.current) return;
 
     const currentDataString = JSON.stringify(formData);
     const dataChanged = currentDataString !== lastSavedDataRef.current;
+    const stepChanged = currentStep !== lastSavedStepRef.current;
 
-    if (!dataChanged) return;
+    if (!dataChanged && !stepChanged) return;
 
     console.log('⏱️ Instant mode: scheduling save in 500ms...');
     const timer = setTimeout(() => {
@@ -91,7 +92,7 @@ function WizardContent() {
       doSave();
     }, 500);
     return () => clearTimeout(timer);
-  }, [formData, saveMode, doSave]);
+  }, [formData, currentStep, saveMode, doSave]);
 
   // Auto-save in STEP mode (on navigation only)
   useEffect(() => {
