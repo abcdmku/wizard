@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { useWizardActions, useCurrentStepData } from "@wizard/react";
-import type { RoleSelectionData, UserRole } from "../../wizard/types";
+import { useRoleSelectionStep } from "../../wizard/config";
+import type { UserRole } from "../../wizard/types";
 
 const roles: { value: UserRole; label: string; description: string }[] = [
   {
@@ -21,23 +20,10 @@ const roles: { value: UserRole; label: string; description: string }[] = [
 ];
 
 export function RoleSelection() {
-  const { next, setStepData } = useWizardActions();
-  const existingData = useCurrentStepData() as RoleSelectionData | undefined;
-  
-  const [selectedRole, setSelectedRole] = useState<UserRole>(
-    existingData?.role || "user"
-  );
-  const [error, setError] = useState("");
+  const step = useRoleSelectionStep();
+  const { data, error, next, updateData } = step;
 
-  const handleNext = async () => {
-    try {
-      setStepData("roleSelection", { role: selectedRole });
-      await next();
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to proceed");
-    }
-  };
+  const selectedRole = data?.role || "user";
 
   return (
     <div className="space-y-6">
@@ -64,7 +50,7 @@ export function RoleSelection() {
                 name="role"
                 value={role.value}
                 checked={selectedRole === role.value}
-                onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+                onChange={(e) => updateData({ role: e.target.value as UserRole })}
                 className="mt-1 mr-3"
               />
               <div>
@@ -78,14 +64,14 @@ export function RoleSelection() {
         ))}
       </div>
 
-      {error && (
+      {error != null && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
-          {error}
+          {String(error)}
         </div>
       )}
 
       <button
-        onClick={handleNext}
+        onClick={next}
         className="w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         Continue as {roles.find((r) => r.value === selectedRole)?.label}

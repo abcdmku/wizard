@@ -1,5 +1,6 @@
 import { defineSteps, step, createWizard } from "./factory";
-import type { WizardContext, WizardStepData, UserRole } from "./types";
+import { useWizard, useWizardStep } from "@wizard/react";
+import type { WizardStepData } from "./types";
 import { determineNextStep, canAccessStep } from "./navigation";
 
 const initialData: WizardStepData = {
@@ -70,19 +71,16 @@ export const steps = defineSteps({
         ctx.completedSteps.push('userProfile');
       });
     },
-    meta: { 
+    meta: {
       label: 'User Profile',
-      description: 'Enter your personal information',
-      visibleTo: ['user']
+      description: 'Enter your personal information'
     }
   }),
   
   adminPanel: step({
     data: initialData.adminPanel,
     canEnter: ({ context }) => canAccessStep('adminPanel', context.role, context),
-    next: ({ data, context }) => {
-      // Update context first
-      context.requiresApproval = data.requiresApproval;
+    next: ({ context }) => {
       return determineNextStep('adminPanel', context.role, context);
     },
     beforeExit: ({ data, updateContext }) => {
@@ -91,10 +89,9 @@ export const steps = defineSteps({
         ctx.completedSteps.push('adminPanel');
       });
     },
-    meta: { 
+    meta: {
       label: 'Admin Settings',
-      description: 'Configure system-wide settings',
-      visibleTo: ['admin']
+      description: 'Configure system-wide settings'
     }
   }),
   
@@ -119,10 +116,9 @@ export const steps = defineSteps({
         ctx.completedSteps.push('managerDashboard');
       });
     },
-    meta: { 
+    meta: {
       label: 'Manager Dashboard',
-      description: 'Configure team and budget settings',
-      visibleTo: ['manager', 'admin']
+      description: 'Configure team and budget settings'
     }
   }),
   
@@ -150,4 +146,20 @@ export const steps = defineSteps({
   }),
 });
 
-export const branchingWizard = createWizard(steps);
+export const branchingWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+
+/**
+ * Typed convenience hook for using branchingWizard.
+ * This eliminates the need to pass branchingWizard to useWizard in every component.
+ */
+export const useBranchingWizard = () => useWizard(branchingWizard);
+
+/**
+ * Step-specific typed convenience hooks.
+ * These provide direct access to individual steps with full type safety.
+ */
+export const useRoleSelectionStep = () => useWizardStep(branchingWizard, "roleSelection");
+export const useUserProfileStep = () => useWizardStep(branchingWizard, "userProfile");
+export const useAdminPanelStep = () => useWizardStep(branchingWizard, "adminPanel");
+export const useManagerDashboardStep = () => useWizardStep(branchingWizard, "managerDashboard");
+export const useSharedReviewStep = () => useWizardStep(branchingWizard, "sharedReview");

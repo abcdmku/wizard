@@ -1,39 +1,17 @@
-import { useState } from "react";
-import { useWizardActions, useCurrentStepData } from "@wizard/react";
-import type { AdminPanelData } from "../../wizard/types";
+import { useAdminPanelStep } from "../../wizard/config";
 
 export function AdminPanel() {
-  const { next, back, setStepData } = useWizardActions();
-  const existingData = useCurrentStepData() as AdminPanelData | undefined;
-  
-  const [data, setData] = useState<AdminPanelData>(
-    existingData || {
-      settings: {
-        allowRegistration: true,
-        requireEmailVerification: false,
-        maintenanceMode: false,
-      },
-      requiresApproval: false,
-    }
-  );
-  const [error, setError] = useState("");
+  const step = useAdminPanelStep();
+  const { data, error, next, back, updateData } = step;
 
-  const handleNext = async () => {
-    try {
-      setStepData("adminPanel", data);
-      await next();
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save settings");
-    }
-  };
-
-  const toggleSetting = (setting: keyof typeof data.settings) => {
-    setData(prev => ({
-      ...prev,
+  const toggleSetting = (setting: string) => {
+    updateData((currentData) => ({
+      ...currentData,
       settings: {
-        ...prev.settings,
-        [setting]: !prev.settings[setting],
+        allowRegistration: currentData?.settings?.allowRegistration || false,
+        requireEmailVerification: currentData?.settings?.requireEmailVerification || false,
+        maintenanceMode: currentData?.settings?.maintenanceMode || false,
+        [setting]: !currentData?.settings?.[setting as keyof typeof currentData.settings],
       }
     }));
   };
@@ -47,7 +25,7 @@ export function AdminPanel() {
 
       <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
         <h3 className="font-semibold text-lg mb-3">System Configuration</h3>
-        
+
         <label className="flex items-center justify-between p-3 bg-white rounded border">
           <div>
             <div className="font-medium">Allow New Registrations</div>
@@ -55,7 +33,7 @@ export function AdminPanel() {
           </div>
           <input
             type="checkbox"
-            checked={data.settings.allowRegistration}
+            checked={data?.settings?.allowRegistration || false}
             onChange={() => toggleSetting("allowRegistration")}
             className="h-5 w-5 text-blue-600"
           />
@@ -68,7 +46,7 @@ export function AdminPanel() {
           </div>
           <input
             type="checkbox"
-            checked={data.settings.requireEmailVerification}
+            checked={data?.settings?.requireEmailVerification || false}
             onChange={() => toggleSetting("requireEmailVerification")}
             className="h-5 w-5 text-blue-600"
           />
@@ -81,7 +59,7 @@ export function AdminPanel() {
           </div>
           <input
             type="checkbox"
-            checked={data.settings.maintenanceMode}
+            checked={data?.settings?.maintenanceMode || false}
             onChange={() => toggleSetting("maintenanceMode")}
             className="h-5 w-5 text-blue-600"
           />
@@ -92,8 +70,8 @@ export function AdminPanel() {
         <label className="flex items-center">
           <input
             type="checkbox"
-            checked={data.requiresApproval}
-            onChange={(e) => setData(prev => ({ ...prev, requiresApproval: e.target.checked }))}
+            checked={data?.requiresApproval || false}
+            onChange={(e) => updateData({ requiresApproval: e.target.checked })}
             className="h-5 w-5 text-yellow-600 mr-3"
           />
           <div>
@@ -105,9 +83,9 @@ export function AdminPanel() {
         </label>
       </div>
 
-      {error && (
+      {error != null && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
-          {error}
+          {String(error)}
         </div>
       )}
 
@@ -119,10 +97,10 @@ export function AdminPanel() {
           Back
         </button>
         <button
-          onClick={handleNext}
+          onClick={next}
           className="flex-1 py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
         >
-          {data.requiresApproval ? "Continue to Manager Dashboard" : "Continue to Review"}
+          {data?.requiresApproval ? "Continue to Manager Dashboard" : "Continue to Review"}
         </button>
       </div>
     </div>
