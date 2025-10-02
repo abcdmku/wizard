@@ -41,8 +41,8 @@ export function createWizardRouteComponent<C, S extends string, D extends Record
     fallbackComponent: FallbackComponent,
   } = config;
 
-  // Create a stable step renderer component
-  const StepRenderer: React.FC<{ stepName: S }> = ({ stepName }) => {
+  // Create a stable step renderer component to prevent hooks errors
+  const StepRenderer = React.memo<{ stepName: S }>(({ stepName }) => {
     const { data, context } = useWizard(wizard);
 
     // Get and render the step component
@@ -107,7 +107,7 @@ export function createWizardRouteComponent<C, S extends string, D extends Record
         <p>Unable to render component for step: {stepName}</p>
       </div>
     );
-  };
+  });
 
   // Return the component function
   return function WizardRouteComponent() {
