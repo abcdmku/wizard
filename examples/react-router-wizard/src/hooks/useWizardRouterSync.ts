@@ -19,9 +19,10 @@ export function useWizardRouterSync() {
       const currentStepName = currentStepWrapper.name;
 
       if (currentStepName !== targetStep) {
-        // Use the step's enter method to navigate the wizard
-        const targetStepWrapper = checkoutWizard.getStep(targetStep);
-        targetStepWrapper.enter();
+        // Use goTo to update wizard's internal current step
+        checkoutWizard.goTo(targetStep).catch(err => {
+          console.error('Failed to sync wizard to step:', targetStep, err);
+        });
       }
     }
   }, [location.pathname]);
