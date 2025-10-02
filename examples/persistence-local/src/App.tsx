@@ -93,13 +93,17 @@ function WizardContent() {
     return () => clearTimeout(timer);
   }, [formData, saveMode, doSave]);
 
-  // Auto-save in STEP mode (on navigation)
+  // Auto-save in STEP mode (on navigation only)
   useEffect(() => {
-    if (saveMode === 'step' && hasUnsavedChanges) {
-      console.log('📍 Step mode: saving on step change');
-      doSave();
-    }
-  }, [currentStep, saveMode, hasUnsavedChanges, doSave]);
+    if (saveMode !== 'step') return;
+    if (isInitialLoadRef.current) return;
+
+    const stepChanged = currentStep !== lastSavedStepRef.current;
+    if (!stepChanged) return;
+
+    console.log('📍 Step mode: saving on step change');
+    doSave();
+  }, [currentStep, saveMode, doSave]);
 
   const handleNext = (data: FormData) => {
     setFormData(data);
