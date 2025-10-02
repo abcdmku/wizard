@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useAccountStep, checkoutWizard } from '../wizard';
-import { useNavigate } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
@@ -8,7 +7,6 @@ import { formatError } from '../utils/formatError';
 
 export function AccountStep() {
   const { data, error, next, updateData } = useAccountStep();
-  const navigate = useNavigate();
 
   // Clear error when leaving the step
   useEffect(() => {
@@ -22,7 +20,7 @@ export function AccountStep() {
 
     try {
       await next();
-      navigate({ to: '/checkout/shipping' });
+      // Navigation happens automatically via wizard route sync
     } catch (error) {
       // Validation error will be shown via the error state
       console.error('Validation failed:', error);

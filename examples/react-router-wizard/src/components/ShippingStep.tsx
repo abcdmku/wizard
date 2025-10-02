@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useShippingStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useNavigate, useRouter } from '@tanstack/react-router';
+import { useRouter } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
@@ -9,7 +9,6 @@ import { formatError } from '../utils/formatError';
 export function ShippingStep() {
   const { data, error, next, updateData } = useShippingStep();
   const { context } = useCheckoutWizard();
-  const navigate = useNavigate();
   const router = useRouter();
 
   // Clear error when leaving the step
@@ -23,7 +22,7 @@ export function ShippingStep() {
     e.preventDefault();
     try {
       await next();
-      navigate({ to: '/checkout/payment' });
+      // Navigation happens automatically via wizard route sync
     } catch (error) {
       console.error('Validation failed:', error);
     }

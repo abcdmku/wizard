@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useReviewStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useNavigate, useRouter } from '@tanstack/react-router';
+import { useRouter } from '@tanstack/react-router';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
 import { formatError } from '../utils/formatError';
@@ -8,7 +8,6 @@ import { formatError } from '../utils/formatError';
 export function ReviewStep() {
   const { data, error, updateData } = useReviewStep();
   const { context, reset } = useCheckoutWizard();
-  const navigate = useNavigate();
   const router = useRouter();
 
   const accountData = checkoutWizard.getStepData('account');
@@ -44,7 +43,7 @@ export function ReviewStep() {
 
   const handleReset = () => {
     reset();
-    navigate({ to: '/checkout/account' });
+    // Navigation happens automatically via wizard route sync when reset changes the step
   };
 
   const handleBack = () => {
