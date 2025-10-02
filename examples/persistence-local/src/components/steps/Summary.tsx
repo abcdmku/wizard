@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSummaryStep, useResumeWizard } from '../../wizard/config';
 import type { WizardContext } from '../../wizard/types';
 
@@ -6,12 +6,13 @@ export function Summary() {
   const step = useSummaryStep();
   const { updateContext, context } = useResumeWizard();
   const { next, back } = step;
-  
+
   const [summary, setSummary] = useState(
     context.resumeData.summary || ''
   );
 
-  const handleSubmit = () => {
+  // Auto-save summary whenever it changes
+  useEffect(() => {
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
@@ -19,6 +20,10 @@ export function Summary() {
       };
       ctx.isDirty = true;
     });
+  }, [summary, updateContext]);
+
+  const handleSubmit = () => {
+    // Data is already saved via useEffect, just navigate
     next();
   };
 

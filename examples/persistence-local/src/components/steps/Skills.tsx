@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSkillsStep, useResumeWizard } from '../../wizard/config';
 import type { Skill, WizardContext } from '../../wizard/types';
 
@@ -6,16 +6,27 @@ export function Skills() {
   const step = useSkillsStep();
   const { updateContext, context } = useResumeWizard();
   const { next, back } = step;
-  
+
   const [skills, setSkills] = useState<Skill[]>(
     context.resumeData.skills || []
   );
-  
+
   const [currentSkill, setCurrentSkill] = useState<Partial<Skill>>({
     name: '',
     category: 'technical',
     proficiency: 'intermediate',
   });
+
+  // Auto-save skills whenever they change
+  useEffect(() => {
+    updateContext((ctx: WizardContext) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
+        skills,
+      };
+      ctx.isDirty = true;
+    });
+  }, [skills, updateContext]);
 
   const addSkill = () => {
     if (currentSkill.name) {
@@ -40,13 +51,7 @@ export function Skills() {
   };
 
   const handleSubmit = () => {
-    updateContext((ctx: WizardContext) => {
-      ctx.resumeData = {
-        ...ctx.resumeData,
-        skills,
-      };
-      ctx.isDirty = true;
-    });
+    // Data is already saved via useEffect, just navigate
     next();
   };
 

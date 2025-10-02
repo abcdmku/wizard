@@ -26,23 +26,23 @@ export function StepProgress() {
               <div className="relative">
                 {index > 0 && (
                   <div
-                    className={`absolute top-5 -left-1/2 right-1/2 h-0.5 ${
+                    className={`absolute top-5 -left-1/2 right-1/2 h-0.5 -z-10 ${
                       isCompleted ? 'bg-green-500' : 'bg-gray-300'
                     }`}
                   />
                 )}
-                
+
                 <div
                   className={`
-                    mx-auto w-10 h-10 rounded-full flex items-center justify-center
-                    ${isActive ? 'bg-blue-600 text-white' : 
-                      isCompleted ? 'bg-green-500 text-white' : 
+                    relative mx-auto w-10 h-10 rounded-full flex items-center justify-center
+                    ${isActive ? 'bg-blue-600 text-white' :
+                      isCompleted ? 'bg-green-500 text-white' :
                       'bg-gray-200 text-gray-500'}
                   `}
                 >
                   {isCompleted ? '✓' : stepInfo.icon}
                 </div>
-                
+
                 <div className="mt-2">
                   <div className={`text-xs ${isActive ? 'font-semibold' : ''}`}>
                     {stepInfo.label}
