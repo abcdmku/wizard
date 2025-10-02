@@ -1,0 +1,364 @@
+# Local Persistence Example
+
+import { Callout } from '../../components'
+
+A simple example demonstrating data persistence using localStorage with manual save/load functionality in a basic wizard.
+
+## Overview
+
+This example shows how to build wizards with:
+- **LocalStorage persistence** for saving wizard state
+- **Session recovery** that restores progress on page reload
+- **Manual save/load** functions
+- **Simple debouncing** to optimize storage writes
+
+## What You'll Learn
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
+  <div style={{ padding: '1rem', border: '1px solid var(--gray-300)', borderRadius: '8px' }}>
+    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>💾 Storage</div>
+    <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Save and load wizard state with localStorage</div>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--gray-300)', borderRadius: '8px' }}>
+    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>🔄 Recovery</div>
+    <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Restore progress on page reload</div>
+  </div>
+  <div style={{ padding: '1rem', border: '1px solid var(--gray-300)', borderRadius: '8px' }}>
+    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>🎮 Manual Control</div>
+    <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>User-controlled save and clear functions</div>
+  </div>
+</div>
+
+## User Experience
+
+1. **Fill out the wizard** with your information
+2. **Click "Save Progress"** to persist to localStorage
+3. **Close the browser** or refresh the page
+4. **Return** and your progress is automatically restored
+5. **Click "Clear Saved Data"** to start fresh
+
+## Key Implementation
+
+### Persistence Adapter
+
+```typescript
+// utils/persistence.ts
+interface PersistenceAdapter<T> {
+  save(data: T): Promise<void>;
+  load(): Promise<T | null>;
+  clear(): void;
+  backup(): Promise<void>;
+  restore(): Promise<void>;
+}
+
+export class LocalStorageAdapter<T> implements PersistenceAdapter<T> {
+  private debounceTimer: NodeJS.Timeout | null = null;
+
+  constructor(
+    private storageKey: string,
+    private debounceMs: number = 1000
+  ) {}
+
+  async save(data: T): Promise<void> {
+    return new Promise((resolve) => {
+      // Clear existing timer
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+
+      // Debounce saves to prevent excessive writes
+      this.debounceTimer = setTimeout(() => {
+        try {
+          const payload = {
+            data,
+            timestamp: Date.now(),
+            version: 1
+          };
+
+          localStorage.setItem(
+            this.storageKey,
+            JSON.stringify(payload)
+          );
+
+          resolve();
+        } catch (error) {
+          console.error('Failed to save to localStorage:', error);
+          resolve(); // Don't throw, fail silently
+        }
+      }, this.debounceMs);
+    });
+  }
+
+  async load(): Promise<T | null> {
+    try {
+      const saved = localStorage.getItem(this.storageKey);
+      if (!saved) return null;
+
+      const payload = JSON.parse(saved);
+
+      // Only restore if less than 1 hour old
+      const hourAgo = Date.now() - (60 * 60 * 1000);
+      if (payload.timestamp > hourAgo) {
+        return payload.data;
+      }
+
+      // Expired, clear it
+      this.clear();
+      return null;
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      return null;
+    }
+  }
+
+  clear(): void {
+    localStorage.removeItem(this.storageKey);
+  }
+
+  async backup(): Promise<void> {
+    const data = localStorage.getItem(this.storageKey);
+    if (data) {
+      localStorage.setItem(`${this.storageKey}_backup`, data);
+    }
+  }
+
+  async restore(): Promise<void> {
+    const backup = localStorage.getItem(`${this.storageKey}_backup`);
+    if (backup) {
+      localStorage.setItem(this.storageKey, backup);
+    }
+  }
+}
+```
+
+### Wizard Configuration
+
+This example uses the basic factory pattern with localStorage persistence:
+
+```typescript
+import { createWizardFactory } from '@wizard/core';
+
+interface FormData {
+  name: string;
+  email: string;
+  age: string;
+  terms: boolean;
+}
+
+// Create wizard factory
+const { defineSteps, step, createWizard } = createWizardFactory();
+
+// Define wizard steps
+const steps = defineSteps({
+  name: step({
+    data: { name: '', email: '', age: '', terms: false } as FormData,
+    next: ['email'],
+  }),
+  email: step({
+    data: { name: '', email: '', age: '', terms: false } as FormData,
+    next: ['review'],
+  }),
+  review: step({
+    data: { name: '', email: '', age: '', terms: false } as FormData,
+    next: [],
+  }),
+});
+
+export const simpleWizard = createWizard(steps);
+
+// LocalStorage persistence
+const STORAGE_KEY = 'simple-wizard-data';
+
+export function saveToStorage(data: Partial<FormData>, currentStep: string) {
+  const savedData = {
+    data,
+    currentStep,
+    timestamp: new Date().toISOString(),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
+}
+
+export function loadFromStorage() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (error) {
+    console.error('Failed to load from localStorage:', error);
+  }
+  return null;
+}
+
+export function clearStorage() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+```
+
+### React Component with Manual Save/Load
+
+```tsx
+import { WizardProvider, useWizard } from '@wizard/react';
+import { simpleWizard, saveToStorage, loadFromStorage, clearStorage } from './wizard/config';
+import { useEffect, useState } from 'react';
+
+function App() {
+  return (
+    <WizardProvider wizard={simpleWizard}>
+      <WizardFlow />
+    </WizardProvider>
+  );
+}
+
+function WizardFlow() {
+  const wizard = useWizard();
+  const [formData, setFormData] = useState({ name: '', email: '', age: '', terms: false });
+
+  // Load saved data on mount
+  useEffect(() => {
+    const saved = loadFromStorage();
+    if (saved) {
+      setFormData(saved.data);
+      wizard.goTo(saved.currentStep);
+      alert('Restored your progress!');
+    }
+  }, []);
+
+  const handleSave = () => {
+    saveToStorage(formData, wizard.state.currentStep);
+    alert('Progress saved!');
+  };
+
+  const handleClear = () => {
+    if (confirm('Clear all saved data?')) {
+      clearStorage();
+      setFormData({ name: '', email: '', age: '', terms: false });
+      wizard.goTo('name');
+    }
+  };
+
+  return (
+    <div>
+      <h2>Step: {wizard.state.currentStep}</h2>
+
+      {/* Form inputs */}
+      <input
+        type="text"
+        placeholder="Name"
+        value={formData.name}
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+      />
+
+      {/* Save controls */}
+      <div className="actions">
+        <button onClick={handleSave}>Save Progress</button>
+        <button onClick={handleClear}>Clear Saved Data</button>
+      </div>
+
+      {/* Navigation */}
+      <button onClick={() => wizard.back()}>Back</button>
+      <button onClick={() => {
+        wizard.setStepData(wizard.state.currentStep, formData);
+        wizard.next();
+      }}>Next</button>
+    </div>
+  );
+}
+```
+
+## Running the Example
+
+```bash
+# From repository root
+cd examples/persistence-local
+
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm dev
+
+# Build for production
+pnpm build
+```
+
+## Project Structure
+
+```
+src/
+├── App.tsx                    # Main app (10 lines)
+├── wizard/
+│   ├── config.ts              # Wizard with persistence hooks
+│   └── types.ts               # TypeScript types
+├── utils/
+│   └── persistence.ts         # LocalStorage adapter
+├── components/
+│   ├── steps/
+│   │   ├── PersonalInfo.tsx   # Personal information
+│   │   ├── WorkExperience.tsx # Work history
+│   │   ├── Education.tsx      # Education background
+│   │   ├── Skills.tsx         # Technical & soft skills
+│   │   ├── Projects.tsx       # Portfolio projects
+│   │   ├── Summary.tsx        # Professional summary
+│   │   └── Preview.tsx        # Final preview & export
+│   ├── ui/
+│   │   ├── AutoSaveIndicator.tsx # Save status display
+│   │   └── StepProgress.tsx      # Progress tracker
+│   └── WizardContainer.tsx    # Main wizard wrapper
+```
+
+## Features Demonstrated
+
+### Debounced Saving
+Prevents excessive writes to localStorage by waiting 1 second after changes before saving.
+
+### Session Recovery
+Automatically loads saved data on app initialization if it's less than 1 hour old.
+
+### Backup System
+- Manual backup creation
+- One-click restore from backup
+- Separate storage keys for backups
+
+### Export Functionality
+Download complete wizard data as a JSON file for external use.
+
+## Key Takeaways
+
+<Callout type="success">
+  **Best Practices Demonstrated:**
+  - Implement debouncing to optimize storage writes
+  - Show visual feedback for save status
+  - Add session expiration to prevent stale data
+  - Provide manual backup/restore options
+  - Handle storage errors gracefully
+  - Export data in standard formats
+</Callout>
+
+## Use Cases
+
+This pattern is ideal for:
+- **Long-form wizards** where users may take breaks
+- **Multi-session flows** spanning days or weeks
+- **Data-intensive forms** with significant user input
+- **Resume builders**, **application forms**, **project creators**
+- **Offline-first applications** with eventual sync
+
+## Technologies Used
+
+- React 18
+- TypeScript
+- @wizard/core & @wizard/react
+- LocalStorage API
+- Tailwind CSS
+- Vite
+
+## Next Steps
+
+- Explore [Zod Validation](/examples/zod-validation) for form validation
+- Learn about [Advanced Branching](/examples/advanced-branching) for dynamic flows
+- See [TanStack Router](/examples/react-router) for URL persistence
+
+## Source Code
+
+[View full source on GitHub →](https://github.com/user/wizard/tree/main/examples/persistence-local)

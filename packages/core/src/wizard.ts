@@ -560,8 +560,9 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
     },
 
-    async goTo<K extends S>(step: K, args?: { data?: D[K]; skipBeforeExit?: boolean }): Promise<WizardStep<K, D[K], C, S, D>> {
-      if (!helpers.canGoTo(step)) {
+    async goTo<K extends S>(step: K, args?: { data?: D[K]; skipBeforeExit?: boolean; skipGuards?: boolean }): Promise<WizardStep<K, D[K], C, S, D>> {
+      // Skip guard checks if requested (e.g., for browser history navigation)
+      if (!args?.skipGuards && !helpers.canGoTo(step)) {
         throw new Error(`Cannot go to step: ${step}`);
       }
 
@@ -579,9 +580,9 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
           }));
         }
 
-        // Execute beforeExit on current step if defined (unless skipped from next())
+        // Execute beforeExit on current step if defined (unless skipped)
         const currentStepDef = steps[currentStep];
-        if (currentStepDef.beforeExit && !args?.skipBeforeExit) {
+        if (currentStepDef.beforeExit && !args?.skipBeforeExit && !args?.skipGuards) {
           const currentData = store.state.data[currentStep];
           const exitArgs = {
             ...createStepArgs(currentStep, currentData),
@@ -599,12 +600,12 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
           ].slice(-10), // Keep last 10 entries
         }));
 
-        // Execute beforeEnter if defined
+        // Execute beforeEnter if defined (unless guards are skipped)
         const stepDef = steps[step];
-        if (stepDef.beforeEnter) {
+        if (stepDef.beforeEnter && !args?.skipGuards) {
           const currentData = store.state.data[step] as D[K] | undefined;
-          const args = createStepArgs(step, currentData);
-          const enterArgs = { ...args, from: currentStep };
+          const stepArgs = createStepArgs(step, currentData);
+          const enterArgs = { ...stepArgs, from: currentStep };
 
           const result = await stepDef.beforeEnter(enterArgs);
           if (result !== undefined) {

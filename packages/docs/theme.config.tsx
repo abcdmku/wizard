@@ -7,7 +7,7 @@ const repoUrl = process.env.NEXT_PUBLIC_GITHUB_REPO_URL ||
                 'https://github.com/user/wizard';
 
 const config: DocsThemeConfig = {
-  logo: <span style={{ fontWeight: 600, fontSize: '1.125rem' }}>🧙‍♂️ Wziard</span>,
+  logo: <span style={{ fontWeight: 600, fontSize: '1.125rem' }}>🧙‍♂️ Wizard</span>,
   project: {
     link: repoUrl
   },
@@ -18,17 +18,17 @@ const config: DocsThemeConfig = {
   footer: {
     text: (
       <span>
-        {new Date().getFullYear()} © Wziard - Type-Safe Multi-Step Wizards for TypeScript
+        {new Date().getFullYear()} © Wizard - Type-Safe Multi-Step Wizards for TypeScript
       </span>
     )
   },
   head: (
     <>
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <meta property="og:title" content="Wziard - Type-Safe Multi-Step Wizards" />
+      <meta property="og:title" content="Wizard - Type-Safe Multi-Step Wizards" />
       <meta property="og:description" content="A deeply type-safe, isomorphic, headless multi-step wizard library for TypeScript applications" />
       <meta name="keywords" content="typescript, react, wizard, multi-step, form, state management, type-safe" />
-      <meta name="author" content="Wziard Team" />
+      <meta name="author" content="Wizard Team" />
       <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧙‍♂️</text></svg>" />
       <style>{`
         /* Remove ring effects and ensure light mode styling */
@@ -183,7 +183,7 @@ const config: DocsThemeConfig = {
   },
   useNextSeoProps() {
     return {
-      titleTemplate: '%s – Wziard Documentation',
+      titleTemplate: '%s – Wizard Documentation',
       description: 'Type-safe multi-step wizards for TypeScript applications'
     };
   },
