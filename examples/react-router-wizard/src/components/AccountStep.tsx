@@ -22,6 +22,7 @@ export function AccountStep() {
           value={data?.email || ''}
           onChange={(e) => updateData({ email: e.target.value })}
           placeholder="your@email.com"
+          required
           style={{
             width: '100%',
             padding: '0.5rem',
