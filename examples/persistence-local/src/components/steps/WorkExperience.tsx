@@ -25,6 +25,9 @@ export function WorkExperience() {
 
   // Auto-save experiences whenever they change
   useEffect(() => {
+    // Skip initial mount
+    if (experiences === context.resumeData.workExperience) return;
+
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
@@ -32,7 +35,8 @@ export function WorkExperience() {
       };
       ctx.isDirty = true;
     });
-  }, [experiences, updateContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [experiences]);
 
   const addHighlight = () => {
     if (highlightInput.trim()) {

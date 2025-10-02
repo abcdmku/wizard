@@ -27,7 +27,8 @@ export function usePersistence(
     };
 
     loadSavedData();
-  }, [updateContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-save when context changes
   useEffect(() => {
@@ -47,5 +48,6 @@ export function usePersistence(
     };
 
     saveData();
-  }, [context, updateContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context.isDirty, context.resumeData]);
 }

@@ -19,6 +19,9 @@ export function Skills() {
 
   // Auto-save skills whenever they change
   useEffect(() => {
+    // Skip initial mount
+    if (skills === context.resumeData.skills) return;
+
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
@@ -26,7 +29,8 @@ export function Skills() {
       };
       ctx.isDirty = true;
     });
-  }, [skills, updateContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skills]);
 
   const addSkill = () => {
     if (currentSkill.name) {

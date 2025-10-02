@@ -24,6 +24,9 @@ export function Projects() {
 
   // Auto-save projects whenever they change
   useEffect(() => {
+    // Skip initial mount
+    if (projects === context.resumeData.projects) return;
+
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
         ...ctx.resumeData,
@@ -31,7 +34,8 @@ export function Projects() {
       };
       ctx.isDirty = true;
     });
-  }, [projects, updateContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects]);
 
   const addTechnology = () => {
     if (techInput.trim()) {
