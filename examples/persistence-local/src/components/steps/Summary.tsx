@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useWizardActions, useWizardSharedContext } from '@wizard/react';
+import { useSummaryStep } from '../../wizard/config';
 import type { WizardContext } from '../../wizard/types';
 
 export function Summary() {
-  const { next, back } = useWizardActions();
-  const context = useWizardSharedContext() as WizardContext;
+  const { next, back, context } = useSummaryStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
   
   const [summary, setSummary] = useState(
     context.resumeData.summary || ''

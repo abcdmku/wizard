@@ -1,23 +1,42 @@
 import { orderWizard } from "../wizard/orderWizard";
+import {
+  showTitle,
+  showBanner,
+  showSuccess,
+  showError,
+  showInfo,
+  showProgress,
+  showSummary,
+  showDivider,
+  createSpinner,
+} from "../cli/display";
 
 export async function runAutomatedSaga() {
-  console.log("\n=== Automated Order Saga ===\n");
+  showTitle("Order Saga");
+  showBanner("Automated Order Processing Workflow", { color: "cyan" });
 
   try {
-    // Show initial state using helpers
-    console.log("Available steps:", orderWizard.helpers.availableSteps());
-    console.log("Step count:", orderWizard.helpers.stepCount());
+    // Show initial state
+    const stepCount = orderWizard.helpers.stepCount();
+    showInfo(`Total steps in workflow: ${stepCount}`);
+    showDivider();
 
-    // Initialize
+    // Step 1: Initialize
+    let spinner = createSpinner("Initializing order...");
+    const orderId = "ORD-" + Date.now();
+
     await orderWizard.next({
       data: {
-        orderId: "ORD-" + Date.now(),
+        orderId,
         customerId: "CUST-123",
         totalAmount: 99.99,
       },
     });
+    spinner.succeed(`Order initialized: ${orderId}`);
+    showProgress(1, stepCount, "Workflow Progress");
 
-    // Reserve inventory
+    // Step 2: Reserve inventory
+    spinner = createSpinner("Reserving inventory...");
     await orderWizard.next({
       data: {
         items: [
@@ -26,51 +45,69 @@ export async function runAutomatedSaga() {
         ],
       },
     });
+    spinner.succeed("Inventory reserved successfully");
+    showProgress(2, stepCount, "Workflow Progress");
 
-    // Process payment
+    // Step 3: Process payment
+    spinner = createSpinner("Processing payment...");
     await orderWizard.next({
       data: {
-        paymentMethod: "card",
+        paymentMethod: "card" as const,
         confirmed: true,
       },
     });
+    const context = orderWizard.getContext();
+    spinner.succeed(`Payment processed: ${context.paymentId}`);
+    showProgress(3, stepCount, "Workflow Progress");
 
-    // Send notification
+    // Step 4: Send notification
+    spinner = createSpinner("Sending order confirmation...");
     await orderWizard.next({
       data: {
         email: "customer@example.com",
       },
     });
+    spinner.succeed("Notification sent to customer");
+    showProgress(4, stepCount, "Workflow Progress");
 
-    // Complete
+    // Step 5: Complete
+    spinner = createSpinner("Finalizing order...");
     await orderWizard.next({
       data: {
         confirmed: true,
       },
     });
+    spinner.succeed("Order completed successfully!");
+    showProgress(5, stepCount, "Workflow Progress");
 
-    console.log("\n=== Saga Complete ===\n");
+    showDivider();
+    showSuccess("🎉 Saga completed successfully!");
 
-    // Show final progress
-    const progress = orderWizard.helpers.progress();
-    const completedSteps = orderWizard.helpers.completedSteps();
-    console.log(`Final progress: ${progress.label} (${progress.percent}%)`);
-    console.log("Completed steps:", completedSteps);
+    // Show final summary
+    const finalContext = orderWizard.getContext();
+    showSummary({
+      "Order ID": finalContext.orderId,
+      "Customer ID": finalContext.customerId,
+      "Payment ID": finalContext.paymentId,
+      "Total Amount": `$${finalContext.totalAmount}`,
+      "Email Sent": finalContext.emailSent ? "Yes" : "No",
+    });
   } catch (error) {
-    console.error("\n❌ Saga failed:", error);
+    showError(`Saga failed: ${error instanceof Error ? error.message : String(error)}`);
 
-    // Use helpers to show state
-    const current = orderWizard.getCurrent();
-    const completedSteps = orderWizard.helpers.completedSteps();
-    const remainingSteps = orderWizard.helpers.remainingSteps();
-    const context = current.context as any;
+    // Show rollback information
+    const context = orderWizard.getContext();
+    const progress = orderWizard.helpers.progress();
 
-    console.log("Completed steps:", completedSteps);
-    console.log("Remaining steps:", remainingSteps);
+    showDivider();
+    showInfo(`Stopped at: ${progress.label} (${progress.percent}% complete)`);
 
-    // In a real saga, we might implement compensations here
+    // Show what needs to be rolled back
     if (context.inventoryReserved && !context.paymentId) {
-      console.log("  → Rolling back inventory reservation...");
+      showInfo("→ Rolling back inventory reservation...");
+    }
+    if (context.paymentId && !context.emailSent) {
+      showInfo("→ Refunding payment...");
     }
   }
 }

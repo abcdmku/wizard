@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { useReviewStep, useCheckoutWizard, checkoutWizard } from '../wizard';
+import { useNavigate } from '@tanstack/react-router';
+import { Button } from './ui/Button';
+import { ErrorMessage } from './ui/ErrorMessage';
 
 export function ReviewStep() {
   const { data, error, back, updateData } = useReviewStep();
   const { context, reset } = useCheckoutWizard();
+  const navigate = useNavigate();
 
   const accountData = checkoutWizard.getStepData('account');
   const shippingData = checkoutWizard.getStepData('shipping');
@@ -29,112 +33,89 @@ export function ReviewStep() {
     setIsSubmitted(true);
   };
 
+  const handleReset = () => {
+    reset();
+    navigate({ to: '/checkout/account' });
+  };
+
+  const handleBack = () => {
+    back();
+    navigate({ to: '/checkout/payment' });
+  };
+
   if (isSubmitted) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem' }}>
-        <h2 style={{ color: '#4CAF50' }}>Order Complete!</h2>
-        <p>Thank you for your order. Total: ${context.total.toFixed(2)}</p>
-        <button
-          onClick={() => reset()}
-          style={{
-            marginTop: '1rem',
-            padding: '0.5rem 1rem',
-            fontSize: '1rem',
-            background: '#2196F3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
+      <div className="text-center space-y-6 py-8">
+        <div className="space-y-2">
+          <h2 className="text-3xl font-bold text-green-600 dark:text-green-400">Order Complete!</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            Thank you for your order. Total: ${context.total.toFixed(2)}
+          </p>
+        </div>
+        <Button onClick={handleReset} variant="primary">
           Start New Order
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Review Your Order</h2>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-4">
+        <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Account</h3>
+          <p className="text-gray-700 dark:text-gray-300">Email: {accountData?.email}</p>
+        </div>
 
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h3>Account</h3>
-        <p>Email: {accountData?.email}</p>
+        <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Shipping</h3>
+          <p className="text-gray-700 dark:text-gray-300">{shippingData?.address}</p>
+          <p className="text-gray-700 dark:text-gray-300">{shippingData?.city}, {shippingData?.zipCode}</p>
+        </div>
+
+        <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Payment</h3>
+          <p className="text-gray-700 dark:text-gray-300">Card ending in: {paymentData?.cardLast4}</p>
+          <p className="text-gray-700 dark:text-gray-300">Card holder: {paymentData?.cardHolder}</p>
+          {context.coupon && (
+            <p className="text-green-600 dark:text-green-400 mt-1">Coupon applied: {context.coupon}</p>
+          )}
+        </div>
+
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            Total: ${context.total.toFixed(2)}
+          </p>
+        </div>
       </div>
 
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h3>Shipping</h3>
-        <p>{shippingData?.address}</p>
-        <p>{shippingData?.city}, {shippingData?.zipCode}</p>
-      </div>
-
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h3>Payment</h3>
-        <p>Card ending in: {paymentData?.cardLast4}</p>
-        <p>Card holder: {paymentData?.cardHolder}</p>
-        {context.coupon && (
-          <p style={{ color: 'green' }}>Coupon applied: {context.coupon}</p>
-        )}
-      </div>
-
-      <div style={{
-        marginBottom: '1.5rem',
-        padding: '1rem',
-        background: '#f5f5f5',
-        borderRadius: '4px',
-        fontSize: '1.2rem',
-        fontWeight: 'bold'
-      }}>
-        Total: ${context.total.toFixed(2)}
-      </div>
-
-      <div style={{ marginBottom: '1rem' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={data?.agreed || false}
             onChange={(e) => updateData({ agreed: e.target.checked })}
+            className="w-4 h-4 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           />
-          I agree to the terms and conditions
+          <span className="text-sm text-gray-700 dark:text-gray-300">
+            I agree to the terms and conditions
+          </span>
         </label>
-        {error != null ? (
-          <div style={{ color: 'red', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-            {String(error)}
-          </div>
-        ) : null}
+        {error && <ErrorMessage message={String(error)} />}
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <button
-          type="button"
-          onClick={() => back()}
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '1rem',
-            background: '#666',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
+      <div className="flex gap-4">
+        <Button type="button" onClick={handleBack} variant="secondary" fullWidth>
           Back
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
           disabled={!data?.agreed}
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '1rem',
-            background: data?.agreed ? '#4CAF50' : '#ccc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: data?.agreed ? 'pointer' : 'not-allowed',
-          }}
+          variant="success"
+          fullWidth
         >
           Complete Order
-        </button>
+        </Button>
       </div>
     </form>
   );

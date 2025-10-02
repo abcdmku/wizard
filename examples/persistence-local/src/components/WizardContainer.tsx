@@ -1,4 +1,4 @@
-import { useWizardState } from '@wizard/react';
+import { useResumeWizard } from '../wizard/config';
 import * as Steps from './steps';
 import { StepProgress } from './ui/StepProgress';
 import { AutoSaveIndicator } from './ui/AutoSaveIndicator';
@@ -14,7 +14,7 @@ const stepComponents = {
 };
 
 export function WizardContainer() {
-  const { step } = useWizardState();
+  const { step } = useResumeWizard();
   const StepComponent = stepComponents[step as keyof typeof stepComponents];
   
   if (!StepComponent) {

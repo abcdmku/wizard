@@ -1,5 +1,4 @@
-import { useWizardStep, useWizardSharedContext } from "@wizard/react";
-import type { WizardContext } from "../wizard/types";
+import { useBranchingWizard } from "../wizard/config";
 import { StepNavigator } from "./ui/StepNavigator";
 import { RoleBadge } from "./ui/RoleBadge";
 import { RoleSelection } from "./steps/RoleSelection";
@@ -9,8 +8,7 @@ import { ManagerDashboard } from "./steps/ManagerDashboard";
 import { SharedReview } from "./steps/SharedReview";
 
 export function WizardContainer() {
-  const currentStep = useWizardStep();
-  const context = useWizardSharedContext() as WizardContext;
+  const { step: currentStep, context } = useBranchingWizard();
 
   const renderStep = () => {
     switch (currentStep) {

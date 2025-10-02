@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { useWizardActions, useCurrentStepData, useWizardSharedContext, useWizardState } from "@wizard/react";
-import type { SharedReviewData, WizardContext } from "../../wizard/types";
+import { useBranchingWizard, useSharedReviewStep } from "../../wizard/config";
+import type { SharedReviewData } from "../../wizard/types";
 
 export function SharedReview() {
-  const { back, setStepData } = useWizardActions();
-  const context = useWizardSharedContext() as WizardContext;
-  const wizardState = useWizardState();
-  const existingData = useCurrentStepData() as SharedReviewData | undefined;
+  const { back, setStepData, context } = useBranchingWizard();
+  const reviewStep = useSharedReviewStep();
+  const existingData = reviewStep.data;
   
   const [data, setData] = useState<SharedReviewData>(
     existingData || {

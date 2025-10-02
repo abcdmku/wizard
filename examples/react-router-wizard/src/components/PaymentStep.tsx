@@ -1,150 +1,89 @@
+import { useState } from 'react';
 import { usePaymentStep, useCheckoutWizard } from '../wizard';
+import { useNavigate } from '@tanstack/react-router';
+import { FormField } from './ui/FormField';
+import { Button } from './ui/Button';
+import { ErrorMessage } from './ui/ErrorMessage';
 
 export function PaymentStep() {
   const { data, error, next, back, updateData } = usePaymentStep();
   const { context, updateContext } = useCheckoutWizard();
+  const navigate = useNavigate();
+  const [couponInput, setCouponInput] = useState(context.coupon || '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await next();
+    navigate({ to: '/checkout/review' });
+  };
+
+  const handleBack = () => {
+    back();
+    navigate({ to: '/checkout/shipping' });
   };
 
   const applyCoupon = () => {
-    const couponInput = document.getElementById('coupon') as HTMLInputElement;
-    if (couponInput?.value) {
+    if (couponInput) {
       updateContext((ctx) => {
-        ctx.coupon = couponInput.value;
+        ctx.coupon = couponInput;
       });
     }
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Payment Information</h2>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <FormField
+        id="cardLast4"
+        label="Card Last 4 Digits"
+        type="text"
+        value={data?.cardLast4 || ''}
+        onChange={(e) => updateData({ cardLast4: e.target.value })}
+        placeholder="1234"
+        maxLength={4}
+      />
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label htmlFor="cardLast4" style={{ display: 'block', marginBottom: '0.5rem' }}>
-          Card Last 4 Digits
-        </label>
-        <input
-          id="cardLast4"
-          type="text"
-          value={data?.cardLast4 || ''}
-          onChange={(e) => updateData({ cardLast4: e.target.value })}
-          placeholder="1234"
-          maxLength={4}
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            fontSize: '1rem',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-          }}
-        />
-      </div>
+      <FormField
+        id="cardHolder"
+        label="Card Holder Name"
+        type="text"
+        value={data?.cardHolder || ''}
+        onChange={(e) => updateData({ cardHolder: e.target.value })}
+        placeholder="John Doe"
+      />
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label htmlFor="cardHolder" style={{ display: 'block', marginBottom: '0.5rem' }}>
-          Card Holder Name
-        </label>
-        <input
-          id="cardHolder"
-          type="text"
-          value={data?.cardHolder || ''}
-          onChange={(e) => updateData({ cardHolder: e.target.value })}
-          placeholder="John Doe"
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            fontSize: '1rem',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-          }}
-        />
-      </div>
-
-      <div style={{
-        marginBottom: '1rem',
-        padding: '1rem',
-        background: '#f5f5f5',
-        borderRadius: '4px'
-      }}>
-        <label htmlFor="coupon" style={{ display: 'block', marginBottom: '0.5rem' }}>
+      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-3">
+        <label htmlFor="coupon" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Coupon Code (Optional)
         </label>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div className="flex gap-2">
           <input
             id="coupon"
             type="text"
-            defaultValue={context.coupon || ''}
+            value={couponInput}
+            onChange={(e) => setCouponInput(e.target.value)}
             placeholder="SAVE10"
-            style={{
-              flex: 1,
-              padding: '0.5rem',
-              fontSize: '1rem',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-            }}
+            className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           />
-          <button
-            type="button"
-            onClick={applyCoupon}
-            style={{
-              padding: '0.5rem 1rem',
-              fontSize: '1rem',
-              background: '#2196F3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-            }}
-          >
+          <Button type="button" onClick={applyCoupon} variant="primary">
             Apply
-          </button>
+          </Button>
         </div>
         {context.coupon && (
-          <div style={{ marginTop: '0.5rem', color: 'green' }}>
+          <div className="text-sm text-green-600 dark:text-green-400">
             Coupon "{context.coupon}" applied!
           </div>
         )}
       </div>
 
-      {error != null ? (
-        <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.9rem' }}>
-          {String(error)}
-        </div>
-      ) : null}
+      {error && <ErrorMessage message={String(error)} />}
 
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <button
-          type="button"
-          onClick={() => back()}
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '1rem',
-            background: '#666',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
+      <div className="flex gap-4">
+        <Button type="button" onClick={handleBack} variant="secondary" fullWidth>
           Back
-        </button>
-        <button
-          type="submit"
-          style={{
-            padding: '0.5rem 1rem',
-            fontSize: '1rem',
-            background: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
+        </Button>
+        <Button type="submit" variant="primary" fullWidth>
           Continue to Review
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,5 +1,4 @@
-import { useWizardStep, useWizardSharedContext, useWizardState } from "@wizard/react";
-import type { WizardContext } from "../../wizard/types";
+import { useBranchingWizard } from "../../wizard/config";
 import { getAvailableStepsForRole } from "../../wizard/navigation";
 
 const stepLabels: Record<string, string> = {
@@ -11,9 +10,7 @@ const stepLabels: Record<string, string> = {
 };
 
 export function StepNavigator() {
-  const currentStep = useWizardStep();
-  const context = useWizardSharedContext() as WizardContext;
-  const wizardState = useWizardState();
+  const { step: currentStep, context } = useBranchingWizard();
   
   const availableSteps = getAvailableStepsForRole(context.role);
   const visibleSteps = availableSteps.filter(step => stepLabels[step]);
