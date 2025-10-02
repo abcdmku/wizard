@@ -3,7 +3,7 @@ import { useEducationStep } from '../../wizard/config';
 import type { WizardContext, Education as EducationType } from '../../wizard/types';
 
 export function Education() {
-  const { next, back, context } = useEducationStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
+  const { next, back, context } = useEducationStep();
   
   const [educations, setEducations] = useState<EducationType[]>(
     context.resumeData.education || []

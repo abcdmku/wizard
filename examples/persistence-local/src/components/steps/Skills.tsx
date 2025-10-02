@@ -3,7 +3,7 @@ import { useSkillsStep } from '../../wizard/config';
 import type { WizardContext, Skill } from '../../wizard/types';
 
 export function Skills() {
-  const { next, back, context } = useSkillsStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
+  const { next, back, context } = useSkillsStep();
   
   const [skills, setSkills] = useState<Skill[]>(
     context.resumeData.skills || []

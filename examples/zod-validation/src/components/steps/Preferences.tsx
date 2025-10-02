@@ -3,7 +3,7 @@ import { usePreferencesStep } from '../../wizard/config';
 import { PreferencesSchema, type Preferences as PreferencesType, type ValidationContext } from '../../wizard/types';
 
 export function Preferences() {
-  const { next, back, data: currentData, context } = usePreferencesStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: PreferencesType | undefined; context: ValidationContext };
+  const { next, back, data: currentData, context } = usePreferencesStep();
   
   const [formData, setFormData] = useState<PreferencesType>({
     newsletter: currentData?.newsletter || false,

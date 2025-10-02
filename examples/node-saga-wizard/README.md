@@ -15,16 +15,18 @@ This example demonstrates wizard usage in a Node.js CLI environment with an orde
 
 ```
 src/
-├── index.ts                   # Entry point (21 lines)
+├── index.ts                   # Entry point
 ├── wizard/
-│   ├── orderWizard.ts         # Wizard configuration (93 lines)
-│   ├── types.ts               # Type definitions (54 lines)
-│   └── validation.ts          # Zod schemas (26 lines)
+│   ├── orderWizard.ts         # Wizard configuration
+│   ├── factory.ts             # Wizard factory with types
+│   ├── types.ts               # Type definitions
+│   └── validation.ts          # Zod schemas
 ├── saga/
-│   ├── automated.ts           # Automated flow (76 lines)
-│   └── handlers.ts            # Step handlers (89 lines)
+│   ├── automated.ts           # Automated flow with beautiful UI
+│   └── handlers.ts            # Step handlers
 └── cli/
-    └── interactive.ts         # Interactive CLI (84 lines)
+    ├── interactive.ts         # Interactive CLI with modern prompts
+    └── display.ts             # Terminal UI utilities
 ```
 
 ## Key Features
@@ -42,13 +44,20 @@ src/
 ```bash
 pnpm start
 ```
-Prompts user for input at each step.
+- Modern prompts powered by [Inquirer](https://www.npmjs.com/package/inquirer)
+- Input validation with helpful error messages
+- Beautiful visual feedback with spinners and progress bars
+- Email validation, number inputs, and confirmation dialogs
 
 #### Automated Mode
 ```bash
 pnpm start auto
 ```
-Runs through the entire saga automatically with test data.
+- Runs through the entire saga automatically with test data
+- Animated ASCII art title
+- Real-time progress indicators
+- Colored success/error messages
+- Beautiful summary box at completion
 
 ### Clean Separation
 
@@ -101,6 +110,26 @@ Demonstrates usage of wizard helpers:
 4. **Audit Trail**: Each step is logged
 5. **Async Operations**: Steps can perform long-running tasks
 
+## Modern Terminal UI
+
+This example showcases a modern CLI experience using:
+
+- **[chalk](https://www.npmjs.com/package/chalk)** - Terminal string styling
+- **[ora](https://www.npmjs.com/package/ora)** - Elegant terminal spinners
+- **[inquirer](https://www.npmjs.com/package/inquirer)** - Interactive command line prompts
+- **[boxen](https://www.npmjs.com/package/boxen)** - Create boxes in the terminal
+- **[cli-table3](https://www.npmjs.com/package/cli-table3)** - Pretty unicode tables
+- **[gradient-string](https://www.npmjs.com/package/gradient-string)** - Beautiful gradients
+- **[figlet](https://www.npmjs.com/package/figlet)** - ASCII art text
+
+The `cli/display.ts` module provides reusable utilities:
+- `showTitle()` - Animated ASCII art titles
+- `showBanner()` - Boxed messages with colors
+- `showProgress()` - Visual progress bars
+- `createSpinner()` - Loading spinners
+- `showSummary()` - Data display boxes
+- `showSuccess/Error/Warning/Info()` - Colored status messages
+
 ## Usage Pattern
 
 This example shows how to:
@@ -109,3 +138,4 @@ This example shows how to:
 - Handle async operations in steps
 - Provide both interactive and automated modes
 - Structure Node.js CLI applications
+- Create beautiful terminal UIs similar to modern dev tools like Claude Code

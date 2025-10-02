@@ -3,7 +3,7 @@ import { useAddressStep } from '../../wizard/config';
 import { AddressSchema, type Address as AddressType, type ValidationContext } from '../../wizard/types';
 
 export function Address() {
-  const { next, back, data: currentData, context } = useAddressStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: AddressType | undefined; context: ValidationContext };
+  const { next, back, data: currentData, context } = useAddressStep();
   
   const [formData, setFormData] = useState<AddressType>({
     street: currentData?.street || '',

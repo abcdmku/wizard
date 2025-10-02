@@ -3,7 +3,7 @@ import { useIntroductionStep } from '../../wizard/config';
 import type { IntroductionData } from '../../wizard/types';
 
 export function Introduction() {
-  const { next, data: currentData } = useIntroductionStep() as { next: (ctx?: any) => Promise<void>; data: IntroductionData };
+  const { next, data: currentData } = useIntroductionStep();
   
   const [agreed, setAgreed] = useState(currentData?.agreed || false);
 
