@@ -47,11 +47,20 @@ export async function runInteractiveCLI() {
       { defaultInput: "CUST-123" }
     );
 
-    const totalAmountStr = readlineSync.question(
-      chalk.cyan("Total Amount ($): "),
-      { defaultInput: "99.99" }
-    );
-    const totalAmount = parseFloat(totalAmountStr);
+    let totalAmount = 0;
+    let amountValid = false;
+    while (!amountValid) {
+      const totalAmountStr = readlineSync.question(
+        chalk.cyan("Total Amount ($): "),
+        { defaultInput: "99.99" }
+      );
+      totalAmount = parseFloat(totalAmountStr);
+      if (!isNaN(totalAmount) && totalAmount > 0) {
+        amountValid = true;
+      } else {
+        showError("Invalid amount. Please enter a number greater than 0.");
+      }
+    }
 
     const spinner = createSpinner("Processing order initialization...");
     await orderWizard.next({
@@ -63,11 +72,20 @@ export async function runInteractiveCLI() {
     // Step 2: Reserve inventory
     showStep(2, "Reserve Inventory");
 
-    const itemCountStr = readlineSync.question(
-      chalk.cyan("Number of items: "),
-      { defaultInput: "2" }
-    );
-    const itemCount = parseInt(itemCountStr);
+    let itemCount = 0;
+    let countValid = false;
+    while (!countValid) {
+      const itemCountStr = readlineSync.question(
+        chalk.cyan("Number of items: "),
+        { defaultInput: "2" }
+      );
+      itemCount = parseInt(itemCountStr);
+      if (!isNaN(itemCount) && itemCount > 0) {
+        countValid = true;
+      } else {
+        showError("Invalid number. Please enter a number greater than 0.");
+      }
+    }
 
     const items = [];
     for (let i = 0; i < itemCount; i++) {
@@ -129,10 +147,21 @@ export async function runInteractiveCLI() {
     // Step 4: Send notification
     showStep(4, "Send Notification");
 
-    const email = readlineSync.question(
-      chalk.cyan("Customer email: "),
-      { defaultInput: "customer@example.com" }
-    );
+    let email = "";
+    let emailValid = false;
+    while (!emailValid) {
+      email = readlineSync.question(
+        chalk.cyan("Customer email: "),
+        { defaultInput: "customer@example.com" }
+      );
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailRegex.test(email)) {
+        emailValid = true;
+      } else {
+        showError("Invalid email address. Please try again.");
+      }
+    }
 
     const spinner4 = createSpinner("Sending notification...");
     await orderWizard.next({
@@ -178,8 +207,9 @@ export async function runInteractiveCLI() {
     showError(`Wizard failed: ${error instanceof Error ? error.message : String(error)}`);
 
     // Show helpful information
-    const progress = orderWizard.helpers.progress();
+    const currentStep = orderWizard.getCurrent();
+    const completedCount = orderWizard.helpers.completedSteps().length;
     showDivider();
-    showError(`Failed at: ${progress.label} (${progress.percent}% complete)`);
+    showError(`Failed at step: ${currentStep.step} (${completedCount}/${stepCount} completed)`);
   }
 }
