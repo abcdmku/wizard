@@ -3,7 +3,7 @@ import { useSummaryStep } from '../../wizard/config';
 import type { WizardContext } from '../../wizard/types';
 
 export function Summary() {
-  const { next, back, context } = useSummaryStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
+  const { next, back, context } = useSummaryStep();
   
   const [summary, setSummary] = useState(
     context.resumeData.summary || ''

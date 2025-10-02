@@ -3,7 +3,7 @@ import { usePersonalStep } from '../../wizard/config';
 import type { WizardContext, PersonalInfo as PersonalInfoType } from '../../wizard/types';
 
 export function PersonalInfo() {
-  const { next, context } = usePersonalStep() as { next: (ctx?: Partial<WizardContext>) => void; context: WizardContext };
+  const { next, context } = usePersonalStep();
   
   const [formData, setFormData] = useState<PersonalInfoType>({
     firstName: '',

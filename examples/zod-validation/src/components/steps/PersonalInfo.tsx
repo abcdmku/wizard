@@ -3,7 +3,7 @@ import { usePersonalInfoStep } from '../../wizard/config';
 import { PersonalInfoSchema, type PersonalInfo as PersonalInfoType, type ValidationContext } from '../../wizard/types';
 
 export function PersonalInfo() {
-  const { next, data: currentData, context } = usePersonalInfoStep() as { next: (ctx?: any) => Promise<void>; data: PersonalInfoType | undefined; context: ValidationContext };
+  const { next, data: currentData, context } = usePersonalInfoStep();
   
   const [formData, setFormData] = useState<PersonalInfoType>({
     firstName: currentData?.firstName || '',

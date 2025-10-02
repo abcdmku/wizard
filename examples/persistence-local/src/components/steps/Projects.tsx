@@ -3,7 +3,7 @@ import { useProjectsStep } from '../../wizard/config';
 import type { WizardContext, Project } from '../../wizard/types';
 
 export function Projects() {
-  const { next, back, context } = useProjectsStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
+  const { next, back, context } = useProjectsStep();
   
   const [projects, setProjects] = useState<Project[]>(
     context.resumeData.projects || []

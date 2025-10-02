@@ -3,7 +3,7 @@ import { useExperienceStep } from '../../wizard/config';
 import type { WizardContext, WorkExperience as WorkExperienceType } from '../../wizard/types';
 
 export function WorkExperience() {
-  const { next, back, context } = useExperienceStep() as { next: (ctx?: Partial<WizardContext>) => void; back: () => void; context: WizardContext };
+  const { next, back, context } = useExperienceStep();
   
   const [experiences, setExperiences] = useState<WorkExperienceType[]>(
     context.resumeData.workExperience || []

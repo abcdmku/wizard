@@ -3,7 +3,7 @@ import type { WizardContext } from '../../wizard/types';
 import { storageAdapter } from '../../utils/persistence';
 
 export function Preview() {
-  const { back, context } = usePreviewStep() as { back: () => void; context: WizardContext };
+  const { back, context } = usePreviewStep();
   const { reset } = useResumeWizard();
   const { resumeData } = context;
 

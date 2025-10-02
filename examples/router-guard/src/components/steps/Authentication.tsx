@@ -3,7 +3,7 @@ import { useAuthenticationStep } from '../../wizard/config';
 import type { AuthenticationData, GuardContext } from '../../wizard/types';
 
 export function Authentication() {
-  const { next, back, data: currentData, context } = useAuthenticationStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: AuthenticationData | undefined; context: GuardContext };
+  const { next, back, data: currentData, context } = useAuthenticationStep();
 
   const [formData, setFormData] = useState<AuthenticationData>({
     username: currentData?.username || '',
