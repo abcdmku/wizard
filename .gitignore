@@ -140,3 +140,4 @@ dist
 .pnp.*
 .nx
 .claude
+.playwright-mcp
