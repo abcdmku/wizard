@@ -149,18 +149,16 @@ export async function runInteractiveCLI() {
 
     // Step 4: Send notification
     showStep(4, "Send Notification");
-    const { email } = await inquirer.prompt([
-      {
-        type: "input",
-        name: "email",
-        message: "Customer email:",
-        default: "customer@example.com",
-        validate: (value: string) => {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          return emailRegex.test(value) || "Please enter a valid email";
-        },
+    const { email } = await prompts({
+      type: "text",
+      name: "email",
+      message: "Customer email",
+      initial: "customer@example.com",
+      validate: (value: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(value) || "Please enter a valid email";
       },
-    ]);
+    });
 
     const spinner4 = createSpinner("Sending notification...");
     await orderWizard.next({
@@ -171,14 +169,12 @@ export async function runInteractiveCLI() {
 
     // Step 5: Complete order
     showStep(5, "Complete Order");
-    const { finalConfirm } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "finalConfirm",
-        message: "Complete order?",
-        default: true,
-      },
-    ]);
+    const { finalConfirm } = await prompts({
+      type: "confirm",
+      name: "finalConfirm",
+      message: "Complete order?",
+      initial: true,
+    });
 
     if (finalConfirm) {
       const spinner5 = createSpinner("Finalizing order...");
@@ -205,12 +201,6 @@ export async function runInteractiveCLI() {
       showError("Order completion cancelled");
     }
   } catch (error) {
-    // Check if user cancelled (Ctrl+C)
-    if (error instanceof Error && error.message.includes("User force closed")) {
-      showWarning("\nWizard cancelled by user");
-      process.exit(0);
-    }
-
     showError(`Wizard failed: ${error instanceof Error ? error.message : String(error)}`);
 
     // Show helpful information
@@ -219,3 +209,9 @@ export async function runInteractiveCLI() {
     showError(`Failed at: ${progress.label} (${progress.percent}% complete)`);
   }
 }
+
+// Handle Ctrl+C gracefully
+prompts.onCancel = () => {
+  showWarning("\n\nWizard cancelled by user");
+  process.exit(0);
+};
