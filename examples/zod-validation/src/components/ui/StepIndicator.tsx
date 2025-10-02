@@ -9,7 +9,7 @@ const steps = [
 ];
 
 export function StepIndicator() {
-  const { step, context } = useValidationWizard() as { step: string; context: ValidationContext };
+  const { step, context } = useValidationWizard();
   const currentIndex = steps.findIndex((s) => s.id === step);
 
   return (

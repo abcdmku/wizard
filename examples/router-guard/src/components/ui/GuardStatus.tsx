@@ -2,7 +2,7 @@ import { useGuardWizard } from '../../wizard/config';
 import type { GuardContext } from '../../wizard/types';
 
 export function GuardStatus() {
-  const { context } = useGuardWizard() as { context: GuardContext };
+  const { context } = useGuardWizard();
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
