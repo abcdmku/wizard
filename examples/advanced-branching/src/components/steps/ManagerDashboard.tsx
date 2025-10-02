@@ -238,15 +238,13 @@ export function ManagerDashboard() {
 
       <div className="flex gap-3">
         <button
-          onClick={back}
+          onClick={() => goTo('roleSelection')}
           className="flex-1 py-2 px-4 bg-gray-200 text-gray-800 font-medium rounded-md hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 transition-colors duration-200"
         >
           Back
         </button>
         <button
-          onClick={() => {
-            alert("Manager review complete! In a real app, this would export the team statistics and complete the workflow.");
-          }}
+          onClick={() => setIsCompleted(true)}
           className="flex-1 py-2 px-4 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 transition-colors duration-200"
         >
           Complete Review
