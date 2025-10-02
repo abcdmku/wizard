@@ -1,12 +1,21 @@
-import { useAccountStep } from '../wizard';
+import { useEffect } from 'react';
+import { useAccountStep, checkoutWizard } from '../wizard';
 import { useNavigate } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
+import { formatError } from '../utils/formatError';
 
 export function AccountStep() {
   const { data, error, next, updateData } = useAccountStep();
   const navigate = useNavigate();
+
+  // Clear error when leaving the step
+  useEffect(() => {
+    return () => {
+      checkoutWizard.clearStepError('account');
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +41,7 @@ export function AccountStep() {
         required
       />
 
-      {error != null && <ErrorMessage message={String(error)} />}
+      {error != null && <ErrorMessage message={formatError(error)} />}
 
       <Button type="submit" variant="primary" fullWidth>
         Continue to Shipping

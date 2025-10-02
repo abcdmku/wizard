@@ -1,115 +1,160 @@
-import { useState } from "react";
-import { useBranchingWizard, useManagerDashboardStep } from "../../wizard/config";
-import type { ManagerDashboardData } from "../../wizard/types";
+import { useManagerDashboardStep } from "../../wizard/config";
+
+// Mock team member data
+const mockTeamMembers = [
+  {
+    id: 1,
+    name: "John Doe",
+    department: "Engineering",
+    status: "Completed",
+    completedAt: "2025-09-28",
+    progress: 100,
+  },
+  {
+    id: 2,
+    name: "Jane Smith",
+    department: "Engineering",
+    status: "Completed",
+    completedAt: "2025-09-27",
+    progress: 100,
+  },
+  {
+    id: 3,
+    name: "Bob Johnson",
+    department: "Engineering",
+    status: "In Progress",
+    completedAt: null,
+    progress: 67,
+  },
+  {
+    id: 4,
+    name: "Alice Williams",
+    department: "Engineering",
+    status: "Not Started",
+    completedAt: null,
+    progress: 0,
+  },
+  {
+    id: 5,
+    name: "Charlie Brown",
+    department: "Engineering",
+    status: "Completed",
+    completedAt: "2025-09-26",
+    progress: 100,
+  },
+];
 
 export function ManagerDashboard() {
-  const { next, back, setStepData, context } = useBranchingWizard();
-  const managerStep = useManagerDashboardStep();
-  const existingData = managerStep.data;
-  
-  const [data, setData] = useState<ManagerDashboardData>(
-    existingData || {
-      teamSize: 5,
-      budget: 50000,
-      approvalThreshold: 1000,
-      delegateApprovals: false,
-    }
-  );
-  const [error, setError] = useState("");
+  const step = useManagerDashboardStep();
+  const { error, back } = step;
 
-  const handleNext = async () => {
-    try {
-      setStepData("managerDashboard", data);
-      await next();
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Validation failed");
-    }
-  };
-
-  const updateField = (field: keyof ManagerDashboardData, value: string | number | boolean) => {
-    setData(prev => ({ ...prev, [field]: value }));
-    setError("");
-  };
-
-  const isAdminApproval = context.role === "admin" && context.requiresApproval;
+  const completedCount = mockTeamMembers.filter(m => m.status === "Completed").length;
+  const inProgressCount = mockTeamMembers.filter(m => m.status === "In Progress").length;
+  const notStartedCount = mockTeamMembers.filter(m => m.status === "Not Started").length;
+  const completionRate = Math.round((completedCount / mockTeamMembers.length) * 100);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2 dark:text-gray-100">Manager Dashboard</h2>
         <p className="text-gray-600 dark:text-gray-300">
-          {isAdminApproval
-            ? "Review and approve admin settings"
-            : "Configure team and budget settings"}
+          View your team's progress and completion statistics
         </p>
       </div>
 
-      {isAdminApproval && (
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg transition-colors duration-200">
-          <div className="font-medium text-blue-900 dark:text-blue-100">Admin Approval Required</div>
-          <div className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-            The admin has requested manager approval for their settings changes.
-          </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg p-4">
+          <div className="text-2xl font-bold text-green-900 dark:text-green-100">{completedCount}</div>
+          <div className="text-sm text-green-700 dark:text-green-300">Completed</div>
         </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1 dark:text-gray-100">Team Size</label>
-          <input
-            type="number"
-            value={data.teamSize}
-            onChange={(e) => updateField("teamSize", parseInt(e.target.value) || 0)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 transition-colors duration-200"
-            min="0"
-          />
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+          <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{inProgressCount}</div>
+          <div className="text-sm text-yellow-700 dark:text-yellow-300">In Progress</div>
         </div>
+        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+          <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{notStartedCount}</div>
+          <div className="text-sm text-gray-700 dark:text-gray-400">Not Started</div>
+        </div>
+      </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1 dark:text-gray-100">Annual Budget ($)</label>
-          <input
-            type="number"
-            value={data.budget}
-            onChange={(e) => updateField("budget", parseInt(e.target.value) || 0)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 transition-colors duration-200"
-            min="0"
-            step="1000"
+      <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+        <div className="flex justify-between items-center mb-2">
+          <span className="font-semibold dark:text-gray-100">Team Completion Rate</span>
+          <span className="text-2xl font-bold text-blue-900 dark:text-blue-100">{completionRate}%</span>
+        </div>
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+          <div
+            className="bg-blue-600 dark:bg-blue-500 h-3 rounded-full transition-all duration-300"
+            style={{ width: `${completionRate}%` }}
           />
         </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1 dark:text-gray-100">Approval Threshold ($)</label>
-        <input
-          type="number"
-          value={data.approvalThreshold}
-          onChange={(e) => updateField("approvalThreshold", parseInt(e.target.value) || 0)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 transition-colors duration-200"
-          min="0"
-          step="100"
-        />
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-          Purchases above this amount require approval
-        </p>
+      <div className="space-y-4">
+        <h3 className="font-semibold text-lg dark:text-gray-100">Team Members</h3>
+
+        <div className="space-y-3">
+          {mockTeamMembers.map((member) => (
+            <div
+              key={member.id}
+              className="p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <div className="font-semibold dark:text-gray-100">{member.name}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">{member.department}</div>
+                </div>
+                <span
+                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    member.status === "Completed"
+                      ? "bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100"
+                      : member.status === "In Progress"
+                      ? "bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100"
+                      : "bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-100"
+                  }`}
+                >
+                  {member.status}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      member.progress === 100
+                        ? "bg-green-600 dark:bg-green-500"
+                        : member.progress > 0
+                        ? "bg-yellow-600 dark:bg-yellow-500"
+                        : "bg-gray-400 dark:bg-gray-500"
+                    }`}
+                    style={{ width: `${member.progress}%` }}
+                  />
+                </div>
+                <span className="text-sm text-gray-600 dark:text-gray-400 min-w-[3rem]">
+                  {member.progress}%
+                </span>
+              </div>
+
+              {member.completedAt && (
+                <div className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                  Completed on {member.completedAt}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <label className="flex items-center p-3 bg-gray-50 dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 transition-colors duration-200">
-        <input
-          type="checkbox"
-          checked={data.delegateApprovals}
-          onChange={(e) => updateField("delegateApprovals", e.target.checked)}
-          className="h-5 w-5 text-blue-600 mr-3"
-        />
-        <div>
-          <div className="font-medium dark:text-gray-100">Delegate Approvals</div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">Allow team leads to approve purchases</div>
+      <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          <strong className="dark:text-gray-300">Note:</strong> As a manager, you can see team completion
+          statistics but not individual feedback responses to maintain privacy.
         </div>
-      </label>
+      </div>
 
-      {error && (
+      {error != null && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-600 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300 rounded-md text-sm">
-          {error}
+          {String(error)}
         </div>
       )}
 
@@ -121,10 +166,12 @@ export function ManagerDashboard() {
           Back
         </button>
         <button
-          onClick={handleNext}
-          className="flex-1 py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 transition-colors duration-200"
+          onClick={() => {
+            alert("Manager review complete! In a real app, this would export the team statistics and complete the workflow.");
+          }}
+          className="flex-1 py-2 px-4 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 transition-colors duration-200"
         >
-          {isAdminApproval ? "Approve & Continue" : "Continue to Review"}
+          Complete Review
         </button>
       </div>
     </div>
