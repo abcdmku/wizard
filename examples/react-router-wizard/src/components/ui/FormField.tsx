@@ -1,15 +1,13 @@
 import type { InputHTMLAttributes } from "react";
 
-interface FormFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {
+interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
-  onChange: (value: string) => void;
   error?: string;
 }
 
 export function FormField({
   label,
   error,
-  onChange,
   ...props
 }: FormFieldProps) {
   return (
@@ -21,7 +19,6 @@ export function FormField({
         } rounded-md focus:outline-none focus:ring-2 ${
           error ? "focus:ring-red-500 dark:focus:ring-red-400" : "focus:ring-blue-500 dark:focus:ring-blue-400"
         } bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 transition-colors`}
-        onChange={(e) => onChange(e.target.value)}
         {...props}
       />
       {error && (

@@ -8,8 +8,7 @@ import {
   type PersonalInfo,
   type Address,
   type Preferences,
-  type Review,
-  type ValidationContext
+  type Review
 } from "./types";
 
 const initialData = {
@@ -53,7 +52,7 @@ const steps = defineSteps({
       }
     },
     beforeExit: ({ updateContext }) => {
-      updateContext((ctx: ValidationContext) => {
+      updateContext((ctx) => {
         delete ctx.validationErrors.personalInfo;
         if (!ctx.completedSteps.includes("personalInfo")) {
           ctx.completedSteps.push("personalInfo");
@@ -77,7 +76,7 @@ const steps = defineSteps({
       }
     },
     beforeExit: ({ updateContext }) => {
-      updateContext((ctx: ValidationContext) => {
+      updateContext((ctx) => {
         delete ctx.validationErrors.address;
         if (!ctx.completedSteps.includes("address")) {
           ctx.completedSteps.push("address");
@@ -101,7 +100,7 @@ const steps = defineSteps({
       }
     },
     beforeExit: ({ updateContext }) => {
-      updateContext((ctx: ValidationContext) => {
+      updateContext((ctx) => {
         delete ctx.validationErrors.preferences;
         if (!ctx.completedSteps.includes("preferences")) {
           ctx.completedSteps.push("preferences");
@@ -125,7 +124,7 @@ const steps = defineSteps({
       }
     },
     beforeExit: ({ updateContext }) => {
-      updateContext((ctx: ValidationContext) => {
+      updateContext((ctx) => {
         delete ctx.validationErrors.review;
         if (!ctx.completedSteps.includes("review")) {
           ctx.completedSteps.push("review");
