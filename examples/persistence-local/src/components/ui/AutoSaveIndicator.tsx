@@ -1,5 +1,4 @@
 import { useResumeWizard } from '../../wizard/config';
-import type { WizardContext } from '../../wizard/types';
 
 export function AutoSaveIndicator() {
   const { context } = useResumeWizard();

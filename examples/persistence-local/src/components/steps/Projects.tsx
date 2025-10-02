@@ -3,7 +3,8 @@ import { useProjectsStep } from '../../wizard/config';
 import type { Project } from '../../wizard/types';
 
 export function Projects() {
-  const { next, back, context, updateContext } = useProjectsStep();
+  const step = useProjectsStep();
+  const { next, back, context, wizard } = step;
   
   const [projects, setProjects] = useState<Project[]>(
     context.resumeData.projects || []
@@ -66,12 +67,12 @@ export function Projects() {
   };
 
   const handleSubmit = () => {
-    updateContext({
-      resumeData: {
-        ...context.resumeData,
+    wizard.updateContext((ctx) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
         projects,
-      },
-      isDirty: true,
+      };
+      ctx.isDirty = true;
     });
     next();
   };

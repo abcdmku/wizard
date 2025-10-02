@@ -3,7 +3,8 @@ import { useSkillsStep } from '../../wizard/config';
 import type { Skill } from '../../wizard/types';
 
 export function Skills() {
-  const { next, back, context, updateContext } = useSkillsStep();
+  const step = useSkillsStep();
+  const { next, back, context, wizard } = step;
   
   const [skills, setSkills] = useState<Skill[]>(
     context.resumeData.skills || []
@@ -38,12 +39,12 @@ export function Skills() {
   };
 
   const handleSubmit = () => {
-    updateContext({
-      resumeData: {
-        ...context.resumeData,
+    wizard.updateContext((ctx) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
         skills,
-      },
-      isDirty: true,
+      };
+      ctx.isDirty = true;
     });
     next();
   };

@@ -2,19 +2,20 @@ import { useState } from 'react';
 import { useSummaryStep } from '../../wizard/config';
 
 export function Summary() {
-  const { next, back, context, updateContext } = useSummaryStep();
+  const step = useSummaryStep();
+  const { next, back, context, wizard } = step;
   
   const [summary, setSummary] = useState(
     context.resumeData.summary || ''
   );
 
   const handleSubmit = () => {
-    updateContext({
-      resumeData: {
-        ...context.resumeData,
+    wizard.updateContext((ctx) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
         summary,
-      },
-      isDirty: true,
+      };
+      ctx.isDirty = true;
     });
     next();
   };
