@@ -19,11 +19,6 @@ export interface CreateWizardRouteConfig<C, S extends string, D extends Record<S
   };
 
   /**
-   * Base path for the wizard (e.g., '/checkout')
-   */
-  basePath: string;
-
-  /**
    * Name of the param used for step (defaults to 'step')
    */
   stepParam?: string;
@@ -42,7 +37,6 @@ export function createWizardRouteComponent<C, S extends string, D extends Record
 ) {
   const {
     wizard,
-    basePath,
     stepParam = 'step',
     fallbackComponent: FallbackComponent,
   } = config;
@@ -52,6 +46,10 @@ export function createWizardRouteComponent<C, S extends string, D extends Record
     const navigate = useNavigate();
     const params = useParams({ strict: false });
     const { step: currentStep, data, context } = useWizard(wizard);
+
+    // Extract base path from current route (remove the param segment)
+    const currentPath = window.location.pathname;
+    const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
 
     const urlStep = params[stepParam] as S | undefined;
     const isNavigatingRef = React.useRef(false);
