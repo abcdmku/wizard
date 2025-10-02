@@ -6,6 +6,8 @@ import {
   showBanner,
   showSuccess,
   showError,
+  showWarning,
+  showInfo,
   showStep,
   showProgress,
   showSummary,
@@ -16,6 +18,14 @@ import {
 export async function runInteractiveCLI() {
   showTitle("Order Wizard");
   showBanner("Interactive Order Processing", { color: "magenta" });
+
+  // Check if we have a TTY (interactive terminal)
+  if (!process.stdin.isTTY) {
+    showError("Interactive mode requires a TTY (interactive terminal)");
+    showInfo("Please run this command in a real terminal, not with piped input");
+    showInfo("Or use automated mode: pnpm start auto");
+    process.exit(1);
+  }
 
   try {
     const stepCount = orderWizard.helpers.stepCount();
@@ -204,6 +214,12 @@ export async function runInteractiveCLI() {
       showError("Order completion cancelled");
     }
   } catch (error) {
+    // Check if user cancelled (Ctrl+C)
+    if (error instanceof Error && error.message.includes("User force closed")) {
+      showWarning("\nWizard cancelled by user");
+      process.exit(0);
+    }
+
     showError(`Wizard failed: ${error instanceof Error ? error.message : String(error)}`);
 
     // Show helpful information
