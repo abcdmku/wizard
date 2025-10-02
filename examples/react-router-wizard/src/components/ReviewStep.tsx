@@ -101,7 +101,7 @@ export function ReviewStep() {
             I agree to the terms and conditions
           </span>
         </label>
-        {error && <ErrorMessage message={String(error)} />}
+        {error != null && <ErrorMessage message={String(error)} />}
       </div>
 
       <div className="flex gap-4">
