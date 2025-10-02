@@ -1,7 +1,8 @@
 import { defineSteps, step, createWizard } from "./factory";
+import { useWizard, useWizardStep } from "@wizard/react";
 import {
   PersonalInfoSchema,
-  AddressSchema, 
+  AddressSchema,
   PreferencesSchema,
   ReviewSchema,
   type PersonalInfo,
@@ -147,4 +148,17 @@ const steps = defineSteps({
   })
 });
 
-export const wizard = createWizard(steps);
+export const wizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+
+/**
+ * Typed convenience hook for using wizard.
+ */
+export const useValidationWizard = () => useWizard(wizard);
+
+/**
+ * Step-specific typed convenience hooks.
+ */
+export const usePersonalInfoStep = () => useWizardStep(wizard, "personalInfo");
+export const useAddressStep = () => useWizardStep(wizard, "address");
+export const usePreferencesStep = () => useWizardStep(wizard, "preferences");
+export const useReviewStep = () => useWizardStep(wizard, "review");
