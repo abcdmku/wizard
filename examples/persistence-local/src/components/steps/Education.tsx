@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useEducationStep } from '../../wizard/config';
-import type { WizardContext, Education as EducationType } from '../../wizard/types';
+import type { Education as EducationType } from '../../wizard/types';
 
 export function Education() {
-  const { next, back, context } = useEducationStep();
+  const { next, back, context, updateContext } = useEducationStep();
   
   const [educations, setEducations] = useState<EducationType[]>(
     context.resumeData.education || []
@@ -47,13 +47,14 @@ export function Education() {
   };
 
   const handleSubmit = () => {
-    next({
+    updateContext({
       resumeData: {
         ...context.resumeData,
         education: educations,
       },
       isDirty: true,
     });
+    next();
   };
 
   return (

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useSkillsStep } from '../../wizard/config';
-import type { WizardContext, Skill } from '../../wizard/types';
+import type { Skill } from '../../wizard/types';
 
 export function Skills() {
-  const { next, back, context } = useSkillsStep();
+  const { next, back, context, updateContext } = useSkillsStep();
   
   const [skills, setSkills] = useState<Skill[]>(
     context.resumeData.skills || []
@@ -38,13 +38,14 @@ export function Skills() {
   };
 
   const handleSubmit = () => {
-    next({
+    updateContext({
       resumeData: {
         ...context.resumeData,
         skills,
       },
       isDirty: true,
     });
+    next();
   };
 
   const skillsByCategory = {

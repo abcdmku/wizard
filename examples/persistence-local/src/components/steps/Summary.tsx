@@ -1,22 +1,22 @@
 import { useState } from 'react';
 import { useSummaryStep } from '../../wizard/config';
-import type { WizardContext } from '../../wizard/types';
 
 export function Summary() {
-  const { next, back, context } = useSummaryStep();
+  const { next, back, context, updateContext } = useSummaryStep();
   
   const [summary, setSummary] = useState(
     context.resumeData.summary || ''
   );
 
   const handleSubmit = () => {
-    next({
+    updateContext({
       resumeData: {
         ...context.resumeData,
         summary,
       },
       isDirty: true,
     });
+    next();
   };
 
   const generateSuggestion = () => {

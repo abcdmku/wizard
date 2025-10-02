@@ -13,8 +13,12 @@ export function PaymentStep() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await next();
-    navigate({ to: '/checkout/review' });
+    try {
+      await next();
+      navigate({ to: '/checkout/review' });
+    } catch (error) {
+      console.error('Validation failed:', error);
+    }
   };
 
   const handleBack = () => {

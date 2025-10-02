@@ -10,8 +10,13 @@ export function AccountStep() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await next();
-    navigate({ to: '/checkout/shipping' });
+    try {
+      await next();
+      navigate({ to: '/checkout/shipping' });
+    } catch (error) {
+      // Validation error will be shown via the error state
+      console.error('Validation failed:', error);
+    }
   };
 
   return (
