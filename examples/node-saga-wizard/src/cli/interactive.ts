@@ -132,11 +132,21 @@ export async function runInteractiveCLI() {
     const paymentMethod: ChargeData["paymentMethod"] =
       paymentMethodStr === "1" ? "card" : "paypal";
 
-    const confirmStr = readlineSync.question(
-      chalk.cyan("Confirm payment? [y/n]: "),
-      { defaultInput: "y" }
-    );
-    const paymentConfirm = confirmStr.toLowerCase() === "y";
+    let paymentConfirm = false;
+    let confirmValid = false;
+    while (!confirmValid) {
+      const confirmStr = readlineSync.question(
+        chalk.cyan("Confirm payment? [y/n]: "),
+        { defaultInput: "y" }
+      );
+      const normalized = confirmStr.toLowerCase().trim();
+      if (normalized === "y" || normalized === "n") {
+        confirmValid = true;
+        paymentConfirm = normalized === "y";
+      } else {
+        showError("Invalid input. Please enter 'y' or 'n'.");
+      }
+    }
 
     if (paymentConfirm) {
       const spinner3 = createSpinner("Processing payment...");
