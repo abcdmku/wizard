@@ -25,6 +25,7 @@ function WizardContent() {
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
   const [saveMode, setSaveMode] = useState<'instant' | 'step' | 'manual'>('instant');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -42,25 +43,32 @@ function WizardContent() {
     if (formData.name || formData.email) {
       saveToStorage(formData, currentStep);
       setLastSaved(new Date().toISOString());
+      setHasUnsavedChanges(false);
     }
   };
 
-  // Auto-save based on mode
+  // Mark as dirty when data changes
   useEffect(() => {
-    if (saveMode === 'instant') {
-      // Debounced save on every change (500ms)
-      const timer = setTimeout(doSave, 500);
+    if (lastSaved) {
+      setHasUnsavedChanges(true);
+    }
+  }, [formData]);
+
+  // Auto-save based on mode - instant (debounced)
+  useEffect(() => {
+    if (saveMode === 'instant' && hasUnsavedChanges) {
+      const timer = setTimeout(() => {
+        doSave();
+      }, 500);
       return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, saveMode]);
+  }, [formData, saveMode, hasUnsavedChanges]);
 
   // Save on step change
   useEffect(() => {
-    if (saveMode === 'step') {
+    if (saveMode === 'step' && hasUnsavedChanges) {
       doSave();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
   const handleNext = (data: FormData) => {
@@ -109,7 +117,12 @@ function WizardContent() {
         {/* Save Status */}
         <div className="mb-6 flex items-center justify-between bg-white rounded-lg shadow-sm p-4">
           <div className="flex items-center gap-2">
-            {lastSaved ? (
+            {hasUnsavedChanges ? (
+              <>
+                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-gray-600">Unsaved changes...</span>
+              </>
+            ) : lastSaved ? (
               <>
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-sm text-gray-600">

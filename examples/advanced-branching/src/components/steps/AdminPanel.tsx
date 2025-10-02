@@ -109,6 +109,7 @@ export function AdminPanel() {
                         className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 dark:text-gray-100"
                         rows={3}
                         value={selectedUserData?.feedback || ""}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={(e) => {
                           setUserData(prev =>
                             prev.map(u => u.id === user.id ? { ...u, feedback: e.target.value } : u)
