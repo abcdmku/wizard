@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useExperienceStep, useResumeWizard } from '../../wizard/config';
 import type { WorkExperience as WorkExperienceType, WizardContext } from '../../wizard/types';
 
@@ -6,11 +6,11 @@ export function WorkExperience() {
   const step = useExperienceStep();
   const { updateContext, context } = useResumeWizard();
   const { next, back } = step;
-  
+
   const [experiences, setExperiences] = useState<WorkExperienceType[]>(
     context.resumeData.workExperience || []
   );
-  
+
   const [currentExp, setCurrentExp] = useState<Partial<WorkExperienceType>>({
     title: '',
     company: '',
@@ -22,11 +22,15 @@ export function WorkExperience() {
   });
 
   const [highlightInput, setHighlightInput] = useState('');
+  const isFirstRender = useRef(true);
 
   // Auto-save experiences whenever they change
   useEffect(() => {
     // Skip initial mount
-    if (experiences === context.resumeData.workExperience) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
 
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {

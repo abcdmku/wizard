@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSummaryStep, useResumeWizard } from '../../wizard/config';
 import type { WizardContext } from '../../wizard/types';
 
@@ -11,10 +11,15 @@ export function Summary() {
     context.resumeData.summary || ''
   );
 
+  const isFirstRender = useRef(true);
+
   // Auto-save summary whenever it changes
   useEffect(() => {
     // Skip initial mount
-    if (summary === context.resumeData.summary) return;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
 
     updateContext((ctx: WizardContext) => {
       ctx.resumeData = {
