@@ -15,10 +15,13 @@ export function useWizardRouterSync() {
   useEffect(() => {
     const targetStep = routeToStepMap[location.pathname];
     if (targetStep) {
-      const currentStep = checkoutWizard.getCurrentStep();
-      if (currentStep !== targetStep) {
-        // Navigate wizard to match the route
-        checkoutWizard.goToStep(targetStep);
+      const currentStepWrapper = checkoutWizard.getCurrentStep();
+      const currentStepName = currentStepWrapper.name;
+
+      if (currentStepName !== targetStep) {
+        // Use the step's enter method to navigate the wizard
+        const targetStepWrapper = checkoutWizard.getStep(targetStep);
+        targetStepWrapper.enter();
       }
     }
   }, [location.pathname]);
