@@ -3,7 +3,8 @@ import { useEducationStep } from '../../wizard/config';
 import type { Education as EducationType } from '../../wizard/types';
 
 export function Education() {
-  const { next, back, context, updateContext } = useEducationStep();
+  const step = useEducationStep();
+  const { next, back, context, wizard } = step;
   
   const [educations, setEducations] = useState<EducationType[]>(
     context.resumeData.education || []
@@ -47,12 +48,12 @@ export function Education() {
   };
 
   const handleSubmit = () => {
-    updateContext({
-      resumeData: {
-        ...context.resumeData,
+    wizard.updateContext((ctx) => {
+      ctx.resumeData = {
+        ...ctx.resumeData,
         education: educations,
-      },
-      isDirty: true,
+      };
+      ctx.isDirty = true;
     });
     next();
   };

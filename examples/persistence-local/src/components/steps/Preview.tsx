@@ -1,5 +1,4 @@
 import { usePreviewStep, useResumeWizard } from '../../wizard/config';
-import type { WizardContext } from '../../wizard/types';
 import { storageAdapter } from '../../utils/persistence';
 
 export function Preview() {
