@@ -28,8 +28,8 @@ export function RoleSelection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold mb-2">Select Your Role</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold mb-2 dark:text-gray-100">Select Your Role</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Choose a role to see different wizard paths and features
         </p>
       </div>
@@ -38,10 +38,10 @@ export function RoleSelection() {
         {roles.map((role) => (
           <label
             key={role.value}
-            className={`block p-4 border rounded-lg cursor-pointer transition-all ${
+            className={`block p-4 border rounded-lg cursor-pointer transition-colors duration-200 ${
               selectedRole === role.value
-                ? "border-blue-500 bg-blue-50"
-                : "border-gray-300 hover:border-gray-400"
+                ? "border-blue-500 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/30"
+                : "border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500"
             }`}
           >
             <div className="flex items-start">
@@ -54,8 +54,8 @@ export function RoleSelection() {
                 className="mt-1 mr-3"
               />
               <div>
-                <div className="font-semibold">{role.label}</div>
-                <div className="text-sm text-gray-600 mt-1">
+                <div className="font-semibold dark:text-gray-100">{role.label}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {role.description}
                 </div>
               </div>
@@ -65,14 +65,14 @@ export function RoleSelection() {
       </div>
 
       {error != null && (
-        <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
+        <div className="p-3 bg-red-50 border border-red-200 text-red-600 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300 rounded-md text-sm">
           {String(error)}
         </div>
       )}
 
       <button
         onClick={next}
-        className="w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200"
       >
         Continue as {roles.find((r) => r.value === selectedRole)?.label}
       </button>
