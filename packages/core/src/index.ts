@@ -45,6 +45,8 @@ export type {
   InferStepData,
   StepIds,
   DataMapFromDefs,
+  EnhancedDataMapFromDefs,
+  EnhancedWizard,
 } from './types';
 
 // Step wrapper types

@@ -5,6 +5,6 @@ export const Route = createFileRoute('/')({
 });
 
 function IndexRedirect() {
-  return <Navigate to="/checkout/account" replace />;
+  return <Navigate to="/checkout/$step" params={{ step: 'account' }} replace />;
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePaymentStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useNavigate, useRouter } from '@tanstack/react-router';
+import { useRouter } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
@@ -9,7 +9,6 @@ import { formatError } from '../utils/formatError';
 export function PaymentStep() {
   const { data, error, next, updateData } = usePaymentStep();
   const { context, updateContext } = useCheckoutWizard();
-  const navigate = useNavigate();
   const router = useRouter();
   const [couponInput, setCouponInput] = useState(context.coupon || '');
 
@@ -24,7 +23,7 @@ export function PaymentStep() {
     e.preventDefault();
     try {
       await next();
-      navigate({ to: '/checkout/review' });
+      // Navigation happens automatically via wizard route sync
     } catch (error) {
       console.error('Validation failed:', error);
     }

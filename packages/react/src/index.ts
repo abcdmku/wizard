@@ -19,6 +19,13 @@ export {
   useWizardSelector,
 } from './hooks';
 
+// React-specific factory
+export { createReactWizardFactory, reactWizardWithContext } from './factory';
+
+// TanStack Router integration
+export { createWizardRoute } from './tanstack-router';
+export type { CreateWizardRouteOptions } from './tanstack-router';
+
 // Re-export core types for convenience
 export type {
   Wizard,

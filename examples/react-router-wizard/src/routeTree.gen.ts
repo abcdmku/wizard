@@ -11,10 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CheckoutShippingRouteImport } from './routes/checkout/shipping'
-import { Route as CheckoutReviewRouteImport } from './routes/checkout/review'
-import { Route as CheckoutPaymentRouteImport } from './routes/checkout/payment'
-import { Route as CheckoutAccountRouteImport } from './routes/checkout/account'
+import { Route as CheckoutStepRouteImport } from './routes/checkout/$step'
 
 const CheckoutRoute = CheckoutRouteImport.update({
   id: '/checkout',
@@ -26,77 +23,34 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CheckoutShippingRoute = CheckoutShippingRouteImport.update({
-  id: '/shipping',
-  path: '/shipping',
-  getParentRoute: () => CheckoutRoute,
-} as any)
-const CheckoutReviewRoute = CheckoutReviewRouteImport.update({
-  id: '/review',
-  path: '/review',
-  getParentRoute: () => CheckoutRoute,
-} as any)
-const CheckoutPaymentRoute = CheckoutPaymentRouteImport.update({
-  id: '/payment',
-  path: '/payment',
-  getParentRoute: () => CheckoutRoute,
-} as any)
-const CheckoutAccountRoute = CheckoutAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
+const CheckoutStepRoute = CheckoutStepRouteImport.update({
+  id: '/$step',
+  path: '/$step',
   getParentRoute: () => CheckoutRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/checkout': typeof CheckoutRouteWithChildren
-  '/checkout/account': typeof CheckoutAccountRoute
-  '/checkout/payment': typeof CheckoutPaymentRoute
-  '/checkout/review': typeof CheckoutReviewRoute
-  '/checkout/shipping': typeof CheckoutShippingRoute
+  '/checkout/$step': typeof CheckoutStepRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/checkout': typeof CheckoutRouteWithChildren
-  '/checkout/account': typeof CheckoutAccountRoute
-  '/checkout/payment': typeof CheckoutPaymentRoute
-  '/checkout/review': typeof CheckoutReviewRoute
-  '/checkout/shipping': typeof CheckoutShippingRoute
+  '/checkout/$step': typeof CheckoutStepRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/checkout': typeof CheckoutRouteWithChildren
-  '/checkout/account': typeof CheckoutAccountRoute
-  '/checkout/payment': typeof CheckoutPaymentRoute
-  '/checkout/review': typeof CheckoutReviewRoute
-  '/checkout/shipping': typeof CheckoutShippingRoute
+  '/checkout/$step': typeof CheckoutStepRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/checkout'
-    | '/checkout/account'
-    | '/checkout/payment'
-    | '/checkout/review'
-    | '/checkout/shipping'
+  fullPaths: '/' | '/checkout' | '/checkout/$step'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/checkout'
-    | '/checkout/account'
-    | '/checkout/payment'
-    | '/checkout/review'
-    | '/checkout/shipping'
-  id:
-    | '__root__'
-    | '/'
-    | '/checkout'
-    | '/checkout/account'
-    | '/checkout/payment'
-    | '/checkout/review'
-    | '/checkout/shipping'
+  to: '/' | '/checkout' | '/checkout/$step'
+  id: '__root__' | '/' | '/checkout' | '/checkout/$step'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -120,49 +74,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/checkout/shipping': {
-      id: '/checkout/shipping'
-      path: '/shipping'
-      fullPath: '/checkout/shipping'
-      preLoaderRoute: typeof CheckoutShippingRouteImport
-      parentRoute: typeof CheckoutRoute
-    }
-    '/checkout/review': {
-      id: '/checkout/review'
-      path: '/review'
-      fullPath: '/checkout/review'
-      preLoaderRoute: typeof CheckoutReviewRouteImport
-      parentRoute: typeof CheckoutRoute
-    }
-    '/checkout/payment': {
-      id: '/checkout/payment'
-      path: '/payment'
-      fullPath: '/checkout/payment'
-      preLoaderRoute: typeof CheckoutPaymentRouteImport
-      parentRoute: typeof CheckoutRoute
-    }
-    '/checkout/account': {
-      id: '/checkout/account'
-      path: '/account'
-      fullPath: '/checkout/account'
-      preLoaderRoute: typeof CheckoutAccountRouteImport
+    '/checkout/$step': {
+      id: '/checkout/$step'
+      path: '/$step'
+      fullPath: '/checkout/$step'
+      preLoaderRoute: typeof CheckoutStepRouteImport
       parentRoute: typeof CheckoutRoute
     }
   }
 }
 
 interface CheckoutRouteChildren {
-  CheckoutAccountRoute: typeof CheckoutAccountRoute
-  CheckoutPaymentRoute: typeof CheckoutPaymentRoute
-  CheckoutReviewRoute: typeof CheckoutReviewRoute
-  CheckoutShippingRoute: typeof CheckoutShippingRoute
+  CheckoutStepRoute: typeof CheckoutStepRoute
 }
 
 const CheckoutRouteChildren: CheckoutRouteChildren = {
-  CheckoutAccountRoute: CheckoutAccountRoute,
-  CheckoutPaymentRoute: CheckoutPaymentRoute,
-  CheckoutReviewRoute: CheckoutReviewRoute,
-  CheckoutShippingRoute: CheckoutShippingRoute,
+  CheckoutStepRoute: CheckoutStepRoute,
 }
 
 const CheckoutRouteWithChildren = CheckoutRoute._addFileChildren(
