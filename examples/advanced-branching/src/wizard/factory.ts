@@ -3,7 +3,7 @@ import type { WizardContext, UserRole } from "./types";
 
 // Create factory with context type and destructure methods for cleaner usage
 export const { defineSteps, step, createWizard } = wizardWithContext<WizardContext>({
-  role: '' as UserRole | '',
+  role: 'user',
   requiresApproval: false,
   completedSteps: []
 });
