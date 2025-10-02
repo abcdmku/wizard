@@ -1,1 +1,0 @@
-make sure all wizard core files are ts checked and make sure naming is correct 
