@@ -39,12 +39,21 @@ export interface SharedReviewData {
   subscribe: boolean;
 }
 
+export interface SendReminderData {
+  userId: number;
+  userName: string;
+  scheduleType: 'now' | 'later' | 'custom';
+  customDate?: string;
+  message: string;
+}
+
 export type WizardStepData = {
   roleSelection: RoleSelectionData;
   userProfile: UserProfileData;
   adminPanel: AdminPanelData;
   managerDashboard: ManagerDashboardData;
   sharedReview: SharedReviewData;
+  sendReminder: SendReminderData;
 };
 
 export type WizardSteps = keyof WizardStepData;

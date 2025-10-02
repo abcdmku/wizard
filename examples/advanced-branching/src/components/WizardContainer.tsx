@@ -7,6 +7,7 @@ import { UserProfile } from "./steps/UserProfile";
 import { AdminPanel } from "./steps/AdminPanel";
 import { ManagerDashboard } from "./steps/ManagerDashboard";
 import { SharedReview } from "./steps/SharedReview";
+import { SendReminder } from "./steps/SendReminder";
 
 export function WizardContainer() {
   const { step: currentStep, context } = useBranchingWizard();

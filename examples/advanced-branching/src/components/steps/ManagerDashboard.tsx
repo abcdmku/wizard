@@ -1,4 +1,4 @@
-import { useManagerDashboardStep } from "../../wizard/config";
+import { useManagerDashboardStep, useBranchingWizard } from "../../wizard/config";
 
 // Mock team member data
 const mockTeamMembers = [
@@ -46,12 +46,23 @@ const mockTeamMembers = [
 
 export function ManagerDashboard() {
   const step = useManagerDashboardStep();
+  const { goTo, setStepData } = useBranchingWizard();
   const { error, back } = step;
 
   const completedCount = mockTeamMembers.filter(m => m.status === "Completed").length;
   const inProgressCount = mockTeamMembers.filter(m => m.status === "In Progress").length;
   const notStartedCount = mockTeamMembers.filter(m => m.status === "Not Started").length;
   const completionRate = Math.round((completedCount / mockTeamMembers.length) * 100);
+
+  const handleSendReminder = (member: typeof mockTeamMembers[0]) => {
+    setStepData('sendReminder', {
+      userId: member.id,
+      userName: member.name,
+      scheduleType: 'later',
+      message: '',
+    });
+    goTo('sendReminder');
+  };
 
   return (
     <div className="space-y-6">
@@ -135,11 +146,25 @@ export function ManagerDashboard() {
                 </span>
               </div>
 
-              {member.completedAt && (
-                <div className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                  Completed on {member.completedAt}
-                </div>
-              )}
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                {member.completedAt ? (
+                  <div className="text-xs text-gray-500 dark:text-gray-500">
+                    Completed on {member.completedAt}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500 dark:text-gray-500">
+                    {member.status === "In Progress" ? "Currently working" : "Not started yet"}
+                  </div>
+                )}
+                {member.status !== "Completed" && (
+                  <button
+                    onClick={() => handleSendReminder(member)}
+                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
+                  >
+                    Send Reminder
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

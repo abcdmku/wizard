@@ -30,6 +30,12 @@ const initialData: WizardStepData = {
     rating: 5,
     subscribe: false,
   },
+  sendReminder: {
+    userId: 0,
+    userName: '',
+    scheduleType: 'later',
+    message: '',
+  },
 };
 
 export const steps = defineSteps({
@@ -139,9 +145,33 @@ export const steps = defineSteps({
         ctx.completedSteps.push('sharedReview');
       });
     },
-    meta: { 
+    meta: {
       label: 'Review & Feedback',
       description: 'Share your experience and feedback'
+    }
+  }),
+
+  sendReminder: step({
+    data: initialData.sendReminder,
+    canEnter: ({ context }) => context.role === 'manager',
+    next: () => ['managerDashboard'], // Loop back to dashboard
+    validate: ({ data }) => {
+      const d = data as typeof initialData.sendReminder;
+      if (!d.message || d.message.length < 5) {
+        throw new Error('Please provide a reminder message (minimum 5 characters)');
+      }
+      if (d.scheduleType === 'custom' && !d.customDate) {
+        throw new Error('Please select a date for custom scheduling');
+      }
+    },
+    beforeExit: ({ updateContext }) => {
+      updateContext((ctx) => {
+        ctx.completedSteps.push('sendReminder');
+      });
+    },
+    meta: {
+      label: 'Send Reminder',
+      description: 'Schedule a reminder for team member'
     }
   }),
 });
@@ -163,3 +193,4 @@ export const useUserProfileStep = () => useWizardStep(branchingWizard, "userProf
 export const useAdminPanelStep = () => useWizardStep(branchingWizard, "adminPanel");
 export const useManagerDashboardStep = () => useWizardStep(branchingWizard, "managerDashboard");
 export const useSharedReviewStep = () => useWizardStep(branchingWizard, "sharedReview");
+export const useSendReminderStep = () => useWizardStep(branchingWizard, "sendReminder");
