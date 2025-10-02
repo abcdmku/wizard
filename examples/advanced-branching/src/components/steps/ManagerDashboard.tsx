@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useManagerDashboardStep, useBranchingWizard } from "../../wizard/config";
 
 // Mock team member data
@@ -47,7 +48,8 @@ const mockTeamMembers = [
 export function ManagerDashboard() {
   const step = useManagerDashboardStep();
   const { goTo, setStepData } = useBranchingWizard();
-  const { error, back } = step;
+  const { error } = step;
+  const [isCompleted, setIsCompleted] = useState(false);
 
   const completedCount = mockTeamMembers.filter(m => m.status === "Completed").length;
   const inProgressCount = mockTeamMembers.filter(m => m.status === "In Progress").length;
@@ -63,6 +65,57 @@ export function ManagerDashboard() {
     });
     goTo('sendReminder');
   };
+
+  // Auto-redirect after showing completion
+  useEffect(() => {
+    if (isCompleted) {
+      const timer = setTimeout(() => {
+        goTo('roleSelection');
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isCompleted, goTo]);
+
+  // Show completion screen
+  if (isCompleted) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <div className="mb-4">
+            <svg
+              className="w-20 h-20 mx-auto text-green-600 dark:text-green-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-2 dark:text-gray-100">Manager Review Complete!</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            Team statistics have been reviewed successfully
+          </p>
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 max-w-md mx-auto">
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              <strong className="dark:text-gray-300">Team Completion Rate:</strong> {completionRate}%
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <strong className="dark:text-gray-300">Team Members:</strong> {completedCount} completed, {inProgressCount} in progress, {notStartedCount} not started
+            </div>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-6">
+            Returning to role selection...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
