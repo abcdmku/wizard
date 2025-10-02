@@ -1,41 +1,31 @@
 import { useState } from 'react';
-import { 
-  useWizardActions, 
-  useWizardState,
-  useWizardSharedContext,
-  useStepData,
-  useWizardErrors 
-} from '@wizard/react';
-import type { CheckoutContext, CheckoutSteps, CheckoutDataMap } from '../types';
+import { useReviewStep, useCheckoutWizard, checkoutWizard } from '../wizard';
 
 export function ReviewStep() {
-  const { back, reset } = useWizardActions<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const context = useWizardSharedContext<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const state = useWizardState<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const errors = useWizardErrors<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  
-  const accountData = useStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap, 'account'>('account');
-  const shippingData = useStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap, 'shipping'>('shipping');
-  const paymentData = useStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap, 'payment'>('payment');
-  
-  const [agreed, setAgreed] = useState(false);
+  const { data, error, back, updateData } = useReviewStep();
+  const { context, reset } = useCheckoutWizard();
+
+  const accountData = checkoutWizard.getStepData('account');
+  const shippingData = checkoutWizard.getStepData('shipping');
+  const paymentData = checkoutWizard.getStepData('payment');
+
   const [isSubmitted, setIsSubmitted] = useState(false);
-  
-  const stepError = errors.review;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!agreed) {
+
+    if (!data?.agreed) {
       return;
     }
 
     // Simulate order submission
     console.log('Submitting order:', {
       context,
-      data: state.data,
+      accountData,
+      shippingData,
+      paymentData,
     });
-    
+
     setIsSubmitted(true);
   };
 
@@ -66,7 +56,7 @@ export function ReviewStep() {
   return (
     <form onSubmit={handleSubmit}>
       <h2>Review Your Order</h2>
-      
+
       <div style={{ marginBottom: '1.5rem' }}>
         <h3>Account</h3>
         <p>Email: {accountData?.email}</p>
@@ -87,7 +77,7 @@ export function ReviewStep() {
         )}
       </div>
 
-      <div style={{ 
+      <div style={{
         marginBottom: '1.5rem',
         padding: '1rem',
         background: '#f5f5f5',
@@ -102,14 +92,14 @@ export function ReviewStep() {
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <input
             type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
+            checked={data?.agreed || false}
+            onChange={(e) => updateData({ agreed: e.target.checked })}
           />
           I agree to the terms and conditions
         </label>
-        {stepError ? (
+        {error != null ? (
           <div style={{ color: 'red', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-            {typeof stepError === 'string' ? stepError : 'An error occurred'}
+            {String(error)}
           </div>
         ) : null}
       </div>
@@ -132,15 +122,15 @@ export function ReviewStep() {
         </button>
         <button
           type="submit"
-          disabled={!agreed}
+          disabled={!data?.agreed}
           style={{
             padding: '0.5rem 1rem',
             fontSize: '1rem',
-            background: agreed ? '#4CAF50' : '#ccc',
+            background: data?.agreed ? '#4CAF50' : '#ccc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: agreed ? 'pointer' : 'not-allowed',
+            cursor: data?.agreed ? 'pointer' : 'not-allowed',
           }}
         >
           Complete Order

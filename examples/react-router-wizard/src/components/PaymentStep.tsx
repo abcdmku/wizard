@@ -1,38 +1,19 @@
-import { useState } from 'react';
-import { 
-  useWizardActions, 
-  useCurrentStepData, 
-  useWizardErrors,
-  useWizardSharedContext 
-} from '@wizard/react';
-import type { CheckoutContext, CheckoutSteps, CheckoutDataMap } from '../types';
+import { usePaymentStep, useCheckoutWizard } from '../wizard';
 
 export function PaymentStep() {
-  const { next, back, updateContext } = useWizardActions<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const context = useWizardSharedContext<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const existingData = useCurrentStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const errors = useWizardErrors<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  
-  const data = existingData as { cardLast4: string; cardHolder: string } | undefined;
-  const [cardLast4, setCardLast4] = useState(data?.cardLast4 || '');
-  const [cardHolder, setCardHolder] = useState(data?.cardHolder || '');
-  const [couponCode, setCouponCode] = useState(context.coupon || '');
-  
-  const stepError = errors.payment;
+  const { data, error, next, back, updateData } = usePaymentStep();
+  const { context, updateContext } = useCheckoutWizard();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await next({ cardLast4, cardHolder });
-    } catch (error) {
-      console.error('Failed to proceed:', error);
-    }
+    await next();
   };
 
   const applyCoupon = () => {
-    if (couponCode) {
+    const couponInput = document.getElementById('coupon') as HTMLInputElement;
+    if (couponInput?.value) {
       updateContext((ctx) => {
-        ctx.coupon = couponCode;
+        ctx.coupon = couponInput.value;
       });
     }
   };
@@ -40,7 +21,7 @@ export function PaymentStep() {
   return (
     <form onSubmit={handleSubmit}>
       <h2>Payment Information</h2>
-      
+
       <div style={{ marginBottom: '1rem' }}>
         <label htmlFor="cardLast4" style={{ display: 'block', marginBottom: '0.5rem' }}>
           Card Last 4 Digits
@@ -48,8 +29,8 @@ export function PaymentStep() {
         <input
           id="cardLast4"
           type="text"
-          value={cardLast4}
-          onChange={(e) => setCardLast4(e.target.value)}
+          value={data?.cardLast4 || ''}
+          onChange={(e) => updateData({ cardLast4: e.target.value })}
           placeholder="1234"
           maxLength={4}
           style={{
@@ -69,8 +50,8 @@ export function PaymentStep() {
         <input
           id="cardHolder"
           type="text"
-          value={cardHolder}
-          onChange={(e) => setCardHolder(e.target.value)}
+          value={data?.cardHolder || ''}
+          onChange={(e) => updateData({ cardHolder: e.target.value })}
           placeholder="John Doe"
           style={{
             width: '100%',
@@ -82,9 +63,9 @@ export function PaymentStep() {
         />
       </div>
 
-      <div style={{ 
-        marginBottom: '1rem', 
-        padding: '1rem', 
+      <div style={{
+        marginBottom: '1rem',
+        padding: '1rem',
         background: '#f5f5f5',
         borderRadius: '4px'
       }}>
@@ -95,8 +76,7 @@ export function PaymentStep() {
           <input
             id="coupon"
             type="text"
-            value={couponCode}
-            onChange={(e) => setCouponCode(e.target.value)}
+            defaultValue={context.coupon || ''}
             placeholder="SAVE10"
             style={{
               flex: 1,
@@ -129,9 +109,9 @@ export function PaymentStep() {
         )}
       </div>
 
-      {stepError ? (
+      {error != null ? (
         <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.9rem' }}>
-          {typeof stepError === 'string' ? stepError : 'An error occurred'}
+          {String(error)}
         </div>
       ) : null}
 

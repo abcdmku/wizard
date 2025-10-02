@@ -1,32 +1,12 @@
-import { useState } from 'react';
-import { 
-  useWizardActions, 
-  useCurrentStepData, 
-  useWizardErrors,
-  useWizardSharedContext 
-} from '@wizard/react';
-import type { CheckoutContext, CheckoutSteps, CheckoutDataMap } from '../types';
+import { useShippingStep, useCheckoutWizard } from '../wizard';
 
 export function ShippingStep() {
-  const { next, back } = useWizardActions<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const context = useWizardSharedContext<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const existingData = useCurrentStepData<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  const errors = useWizardErrors<CheckoutContext, CheckoutSteps, CheckoutDataMap>();
-  
-  const data = existingData as { address: string; city: string; zipCode: string } | undefined;
-  const [address, setAddress] = useState(data?.address || '');
-  const [city, setCity] = useState(data?.city || '');
-  const [zipCode, setZipCode] = useState(data?.zipCode || '');
-  
-  const stepError = errors.shipping;
+  const { data, error, next, back, updateData } = useShippingStep();
+  const { context } = useCheckoutWizard();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await next({ address, city, zipCode });
-    } catch (error) {
-      console.error('Failed to proceed:', error);
-    }
+    await next();
   };
 
   return (
@@ -35,7 +15,7 @@ export function ShippingStep() {
       <p style={{ color: '#666', marginBottom: '1rem' }}>
         Shipping for: {context.userId}
       </p>
-      
+
       <div style={{ marginBottom: '1rem' }}>
         <label htmlFor="address" style={{ display: 'block', marginBottom: '0.5rem' }}>
           Street Address
@@ -43,8 +23,8 @@ export function ShippingStep() {
         <input
           id="address"
           type="text"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
+          value={data?.address || ''}
+          onChange={(e) => updateData({ address: e.target.value })}
           placeholder="123 Main St"
           style={{
             width: '100%',
@@ -63,8 +43,8 @@ export function ShippingStep() {
         <input
           id="city"
           type="text"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
+          value={data?.city || ''}
+          onChange={(e) => updateData({ city: e.target.value })}
           placeholder="New York"
           style={{
             width: '100%',
@@ -83,8 +63,8 @@ export function ShippingStep() {
         <input
           id="zipCode"
           type="text"
-          value={zipCode}
-          onChange={(e) => setZipCode(e.target.value)}
+          value={data?.zipCode || ''}
+          onChange={(e) => updateData({ zipCode: e.target.value })}
           placeholder="10001"
           style={{
             width: '100%',
@@ -96,9 +76,9 @@ export function ShippingStep() {
         />
       </div>
 
-      {stepError ? (
+      {error != null ? (
         <div style={{ color: 'red', marginBottom: '1rem', fontSize: '0.9rem' }}>
-          {typeof stepError === 'string' ? stepError : 'An error occurred'}
+          {String(error)}
         </div>
       ) : null}
 
