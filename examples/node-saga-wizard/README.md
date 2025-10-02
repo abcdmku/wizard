@@ -47,7 +47,8 @@ pnpm start
 - Modern prompts powered by [Inquirer](https://www.npmjs.com/package/inquirer)
 - Input validation with helpful error messages
 - Beautiful visual feedback with spinners and progress bars
-- Email validation, number inputs, and confirmation dialogs
+- Email validation, numeric inputs with parsing, and confirmation dialogs
+- **Note**: Requires an interactive terminal (TTY). Will not work with piped input.
 
 #### Automated Mode
 ```bash
