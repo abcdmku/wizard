@@ -3,13 +3,14 @@ import { useIntroductionStep } from '../../wizard/config';
 import type { IntroductionData } from '../../wizard/types';
 
 export function Introduction() {
-  const { next, data: currentData } = useIntroductionStep();
+  const { next, data: currentData, setStepData } = useIntroductionStep();
   
   const [agreed, setAgreed] = useState(currentData?.agreed || false);
 
   const handleNext = async () => {
     try {
-      await next({ data: { agreed } });
+      setStepData('introduction', { agreed });
+      await next();
     } catch (error) {
       console.error('Failed to proceed:', error);
     }

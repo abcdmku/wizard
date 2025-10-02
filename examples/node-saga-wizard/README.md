@@ -69,17 +69,39 @@ pnpm start auto
 ## Running the Example
 
 ```bash
-# Install dependencies
+# Install dependencies (from repo root)
 pnpm install
+
+# Run interactive mode (requires TTY)
+pnpm start
+
+# Run automated mode (perfect for CI/CD)
+pnpm start auto
+# or
+pnpm start:auto
+# or
+pnpm test
 
 # Build TypeScript
 pnpm build
 
-# Run interactive mode
-pnpm start
+# Type check
+pnpm typecheck
 
-# Run automated mode  
-pnpm start auto
+# Development mode with watch
+pnpm dev
+```
+
+### CI/CD Friendly
+
+The automated mode is perfect for CI/CD pipelines since it doesn't require user input:
+
+```yaml
+# GitHub Actions example
+- name: Test Node Saga Wizard
+  run: |
+    cd examples/node-saga-wizard
+    pnpm test
 ```
 
 ## Code Organization

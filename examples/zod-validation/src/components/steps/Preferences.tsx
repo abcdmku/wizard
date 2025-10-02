@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { usePreferencesStep } from '../../wizard/config';
-import { PreferencesSchema, type Preferences as PreferencesType, type ValidationContext } from '../../wizard/types';
+import { PreferencesSchema, type Preferences as PreferencesType } from '../../wizard/types';
 
 export function Preferences() {
-  const { next, back, data: currentData, context } = usePreferencesStep();
+  const { next, back, data: currentData, context, setStepData } = usePreferencesStep();
   
   const [formData, setFormData] = useState<PreferencesType>({
     newsletter: currentData?.newsletter || false,
@@ -30,7 +30,8 @@ export function Preferences() {
     try {
       // Validate with Zod schema
       PreferencesSchema.parse(formData);
-      await next({ data: formData });
+      setStepData('preferences', formData);
+      await next();
     } catch (error) {
       console.error('Validation error:', error);
     }

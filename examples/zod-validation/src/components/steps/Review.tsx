@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useReviewStep, useValidationWizard } from '../../wizard/config';
-import { ReviewSchema, type Review as ReviewType, type ValidationContext, type PersonalInfo, type Address, type Preferences } from '../../wizard/types';
+import { ReviewSchema, type Review as ReviewType, type PersonalInfo, type Address, type Preferences } from '../../wizard/types';
 
 export function Review() {
-  const { next, back, data: currentData, context } = useReviewStep();
+  const { next, back, data: currentData, context, setStepData } = useReviewStep();
   const { data } = useValidationWizard();
   
   const [formData, setFormData] = useState<ReviewType>({
@@ -17,16 +17,17 @@ export function Review() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setValidationError('');
-    
+
     try {
       // Validate consent with Zod
       ReviewSchema.parse(formData);
-      
+
       // Simulate API submission
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      await next({ data: formData });
-      
+
+      setStepData('review', formData);
+      await next();
+
       // Show success message
       alert('✅ Registration completed successfully! All data has been validated with Zod schemas.');
     } catch (error: any) {
