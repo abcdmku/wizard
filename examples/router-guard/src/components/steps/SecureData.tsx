@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useSecureDataStep } from '../../wizard/config';
-import type { SecureData as SecureDataType, GuardContext } from '../../wizard/types';
+import type { SecureData as SecureDataType } from '../../wizard/types';
 
 export function SecureData() {
-  const { next, back, data: currentData, context } = useSecureDataStep();
+  const { next, back, data: currentData, context, setStepData } = useSecureDataStep();
 
   const [formData, setFormData] = useState<SecureDataType>({
     secretKey: currentData?.secretKey || '',
@@ -15,7 +15,8 @@ export function SecureData() {
 
   const handleNext = async () => {
     try {
-      await next({ data: formData });
+      setStepData('secureData', formData);
+      await next();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to proceed');
     }

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useConfirmationStep, useGuardWizard } from '../../wizard/config';
-import type { ConfirmationData, GuardContext, SecureData } from '../../wizard/types';
+import type { ConfirmationData, SecureData } from '../../wizard/types';
 
 export function Confirmation() {
-  const { next, back, data: currentData, context } = useConfirmationStep();
+  const { next, back, data: currentData, context, setStepData } = useConfirmationStep();
   const { data } = useGuardWizard();
 
   const [confirmed, setConfirmed] = useState(currentData?.confirmed || false);
@@ -18,7 +18,8 @@ export function Confirmation() {
 
     setIsSubmitting(true);
     try {
-      await next({ data: { confirmed, timestamp: currentData?.timestamp || new Date() } });
+      setStepData('confirmation', { confirmed, timestamp: currentData?.timestamp || new Date() });
+      await next();
       // In a real app, this would submit to an API
       alert('✅ Order confirmed successfully! All steps are now locked.');
     } catch (error) {

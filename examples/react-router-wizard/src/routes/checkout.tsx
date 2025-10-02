@@ -1,12 +1,15 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { StepIndicator } from '../components/StepIndicator';
+import { useWizardRouterSync } from '../hooks/useWizardRouterSync';
 
 export const Route = createFileRoute('/checkout')({
   component: CheckoutLayout,
 });
 
 function CheckoutLayout() {
+  useWizardRouterSync();
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4 transition-colors duration-200">
       {/* Theme toggle positioned at top-right of screen */}

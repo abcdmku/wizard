@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useAuthenticationStep } from '../../wizard/config';
-import type { AuthenticationData, GuardContext } from '../../wizard/types';
+import type { AuthenticationData } from '../../wizard/types';
 
 export function Authentication() {
-  const { next, back, data: currentData, context } = useAuthenticationStep();
+  const { next, back, data: currentData, context, setStepData } = useAuthenticationStep();
 
   const [formData, setFormData] = useState<AuthenticationData>({
     username: currentData?.username || '',
@@ -27,7 +27,8 @@ export function Authentication() {
 
   const handleNext = async () => {
     try {
-      await next({ data: formData });
+      setStepData('authentication', formData);
+      await next();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to proceed');
     }
