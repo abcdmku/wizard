@@ -94,17 +94,21 @@ export async function runInteractiveCLI() {
     // Step 3: Process payment
     showStep(3, "Process Payment");
 
-    const paymentMethodIndex = readlineSync.keyInSelect(
-      ["Credit Card", "PayPal"],
-      "Payment method:",
-      { cancel: false }
+    console.log(chalk.cyan("Payment method:"));
+    console.log("  [1] Credit Card");
+    console.log("  [2] PayPal");
+    const paymentMethodStr = readlineSync.question(
+      chalk.cyan("Select [1-2]: "),
+      { defaultInput: "1" }
     );
     const paymentMethod: ChargeData["paymentMethod"] =
-      paymentMethodIndex === 0 ? "card" : "paypal";
+      paymentMethodStr === "1" ? "card" : "paypal";
 
-    const paymentConfirm = readlineSync.keyInYNStrict(
-      chalk.cyan("Confirm payment?")
+    const confirmStr = readlineSync.question(
+      chalk.cyan("Confirm payment? [y/n]: "),
+      { defaultInput: "y" }
     );
+    const paymentConfirm = confirmStr.toLowerCase() === "y";
 
     if (paymentConfirm) {
       const spinner3 = createSpinner("Processing payment...");
@@ -125,7 +129,7 @@ export async function runInteractiveCLI() {
     // Step 4: Send notification
     showStep(4, "Send Notification");
 
-    const email = readlineSync.questionEMail(
+    const email = readlineSync.question(
       chalk.cyan("Customer email: "),
       { defaultInput: "customer@example.com" }
     );
@@ -140,9 +144,11 @@ export async function runInteractiveCLI() {
     // Step 5: Complete order
     showStep(5, "Complete Order");
 
-    const finalConfirm = readlineSync.keyInYNStrict(
-      chalk.cyan("Complete order?")
+    const finalConfirmStr = readlineSync.question(
+      chalk.cyan("Complete order? [y/n]: "),
+      { defaultInput: "y" }
     );
+    const finalConfirm = finalConfirmStr.toLowerCase() === "y";
 
     if (finalConfirm) {
       const spinner5 = createSpinner("Finalizing order...");
