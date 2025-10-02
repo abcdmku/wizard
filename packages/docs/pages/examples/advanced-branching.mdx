@@ -54,135 +54,25 @@ Direct access to manager-specific features.
 
 ## Key Implementation
 
+### Wizard Factory
+
+First, create the factory with typed context:
+
+```typescript file="@examples/advanced-branching/src/wizard/factory.ts"
+```
+
 ### Wizard Configuration
 
-```typescript
-import { wizardWithContext, step } from '@wizard/core';
+Then define the steps with dynamic navigation and guards:
 
-type UserRole = 'user' | 'admin' | 'manager';
-
-interface AppContext {
-  role: UserRole | null;
-  requiresApproval: boolean;
-}
-
-const { defineSteps, createWizard } = wizardWithContext<AppContext>({
-  role: null,
-  requiresApproval: false
-});
-
-const steps = defineSteps({
-  roleSelection: step({
-    data: { selectedRole: '' as UserRole },
-    beforeExit: ({ data, updateContext }) => {
-      updateContext(ctx => ({ ...ctx, role: data.selectedRole }));
-    },
-    next: ['userProfile', 'adminPanel', 'managerDashboard']
-  }),
-
-  userProfile: step({
-    data: { name: '', email: '', bio: '' },
-    canEnter: ({ context }) => context.role === 'user',
-    next: ['review']
-  }),
-
-  adminPanel: step({
-    data: {
-      permissions: [] as string[],
-      requiresApproval: false
-    },
-    canEnter: ({ context }) => context.role === 'admin',
-    beforeExit: ({ data, updateContext }) => {
-      updateContext(ctx => ({
-        ...ctx,
-        requiresApproval: data.requiresApproval
-      }));
-    },
-    next: ['managerDashboard', 'review']
-  }),
-
-  managerDashboard: step({
-    data: { approvalNotes: '', approved: false },
-    canEnter: ({ context }) =>
-      context.role === 'manager' ||
-      (context.role === 'admin' && context.requiresApproval),
-    next: ['review']
-  }),
-
-  review: step({
-    data: { feedback: '', confirmed: false },
-    next: []
-  })
-});
-
-export const wizard = createWizard(steps);
+```typescript file="@examples/advanced-branching/src/wizard/config.ts" lines="41-85"
 ```
 
 ### Navigation Logic
 
-```typescript
-// wizard/navigation.ts
-import type { AppContext, UserRole } from './types';
+The navigation module handles dynamic step routing based on roles:
 
-export function getAvailableStepsForRole(role: UserRole | null): string[] {
-  if (!role) return ['roleSelection'];
-
-  const baseSteps = ['roleSelection'];
-
-  if (role === 'user') {
-    return [...baseSteps, 'userProfile', 'review'];
-  }
-
-  if (role === 'admin') {
-    return [...baseSteps, 'adminPanel', 'review'];
-  }
-
-  if (role === 'manager') {
-    return [...baseSteps, 'managerDashboard', 'review'];
-  }
-
-  return baseSteps;
-}
-
-export function canAccessStep(
-  step: string,
-  role: UserRole | null,
-  context: AppContext
-): boolean {
-  if (step === 'roleSelection') return true;
-  if (!role) return false;
-
-  if (step === 'userProfile') return role === 'user';
-  if (step === 'adminPanel') return role === 'admin';
-  if (step === 'managerDashboard') {
-    return role === 'manager' ||
-           (role === 'admin' && context.requiresApproval);
-  }
-  if (step === 'review') return true;
-
-  return false;
-}
-
-export function determineNextStep(
-  currentStep: string,
-  context: AppContext
-): string | null {
-  if (currentStep === 'roleSelection') {
-    if (context.role === 'user') return 'userProfile';
-    if (context.role === 'admin') return 'adminPanel';
-    if (context.role === 'manager') return 'managerDashboard';
-  }
-
-  if (currentStep === 'userProfile') return 'review';
-
-  if (currentStep === 'adminPanel') {
-    return context.requiresApproval ? 'managerDashboard' : 'review';
-  }
-
-  if (currentStep === 'managerDashboard') return 'review';
-
-  return null;
-}
+```typescript file="@examples/advanced-branching/src/wizard/navigation.ts"
 ```
 
 ### React Component
