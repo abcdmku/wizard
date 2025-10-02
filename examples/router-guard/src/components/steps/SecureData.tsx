@@ -3,7 +3,7 @@ import { useSecureDataStep } from '../../wizard/config';
 import type { SecureData as SecureDataType, GuardContext } from '../../wizard/types';
 
 export function SecureData() {
-  const { next, back, data: currentData, context } = useSecureDataStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: SecureDataType | undefined; context: GuardContext };
+  const { next, back, data: currentData, context } = useSecureDataStep();
 
   const [formData, setFormData] = useState<SecureDataType>({
     secretKey: currentData?.secretKey || '',

@@ -2,7 +2,7 @@ import { useValidationWizard } from '../../wizard/config';
 import type { ValidationContext } from '../../wizard/types';
 
 export function ValidationStatus() {
-  const { context } = useValidationWizard() as { context: ValidationContext };
+  const { context } = useValidationWizard();
   
   const totalErrors = Object.values(context.validationErrors)
     .flat()

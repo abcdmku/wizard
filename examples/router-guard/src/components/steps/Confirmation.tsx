@@ -3,7 +3,7 @@ import { useConfirmationStep, useGuardWizard } from '../../wizard/config';
 import type { ConfirmationData, GuardContext, SecureData } from '../../wizard/types';
 
 export function Confirmation() {
-  const { next, back, data: currentData, context } = useConfirmationStep() as { next: (ctx?: any) => Promise<void>; back: () => void; data: ConfirmationData | undefined; context: GuardContext };
+  const { next, back, data: currentData, context } = useConfirmationStep();
   const { data } = useGuardWizard();
 
   const [confirmed, setConfirmed] = useState(currentData?.confirmed || false);

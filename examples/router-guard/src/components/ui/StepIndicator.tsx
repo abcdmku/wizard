@@ -9,7 +9,7 @@ const steps = [
 ];
 
 export function StepIndicator() {
-  const { step, context } = useGuardWizard() as { step: string; context: GuardContext };
+  const { step, context } = useGuardWizard();
   const currentIndex = steps.findIndex((s) => s.id === step);
 
   return (
