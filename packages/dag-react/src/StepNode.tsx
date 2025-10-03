@@ -5,7 +5,17 @@ export function StepNode({ data, selected }: NodeProps<{ label: string; info?: a
   const info = data?.info ?? {};
   return (
     <>
-      <Handle type="target" position={Position.Left} />
+      {/* Handles on all 4 sides to allow flexible edge routing */}
+      <Handle type="target" position={Position.Top} id="t" />
+      <Handle type="target" position={Position.Bottom} id="b" />
+      <Handle type="target" position={Position.Left} id="l" />
+      <Handle type="target" position={Position.Right} id="r" />
+
+      <Handle type="source" position={Position.Top} id="t" />
+      <Handle type="source" position={Position.Bottom} id="b" />
+      <Handle type="source" position={Position.Left} id="l" />
+      <Handle type="source" position={Position.Right} id="r" />
+
       <div className="wiz-node-card" data-selected={selected ? 'true' : 'false'}>
         <div className="wiz-node-head">
           <span className="wiz-node-id">{info.id}</span>
@@ -22,7 +32,6 @@ export function StepNode({ data, selected }: NodeProps<{ label: string; info?: a
           )}
         </div>
       </div>
-      <Handle type="source" position={Position.Right} />
     </>
   );
 }

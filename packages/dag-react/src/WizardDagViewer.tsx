@@ -1,5 +1,5 @@
 import * as React from 'react';
-import ReactFlow, { Background, Controls, MiniMap, useEdgesState, useNodesState, Panel, Edge, Node, Position } from 'reactflow';
+import ReactFlow, { Background, Controls, MiniMap, useEdgesState, useNodesState, Panel, Edge, Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { WizardGraph } from '@wizard/dag-core';
 import clsx from 'clsx';
@@ -104,13 +104,22 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           'elk.spacing.edgeEdge': 30,
           'elk.edgeRouting': 'SPLINES',
           'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-          'elk.layered.cycleBreaking.strategy': 'DEPTH_FIRST', // Handle cycles better
+          'elk.layered.cycleBreaking.strategy': 'DEPTH_FIRST',
+          'elk.port.side': 'FREE', // Allow ports on any side of nodes
+          'elk.portConstraints': 'FREE', // Don't constrain port positions
         },
         children: graph.nodes.map((n) => {
           return {
             id: n.id,
             width: 200,
             height: 68,
+            // Add ports on all sides to allow flexible edge routing
+            ports: [
+              { id: `${n.id}_n`, layoutOptions: { 'elk.port.side': 'NORTH' } },
+              { id: `${n.id}_s`, layoutOptions: { 'elk.port.side': 'SOUTH' } },
+              { id: `${n.id}_e`, layoutOptions: { 'elk.port.side': 'EAST' } },
+              { id: `${n.id}_w`, layoutOptions: { 'elk.port.side': 'WEST' } },
+            ],
           };
         }),
         // Exclude back edges from layout to break cycles
@@ -137,8 +146,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           data: { label: n.label ?? n.id, info: (n.meta as any)?.info },
           draggable: false,
           selectable: true,
-          sourcePosition: Position.Right,
-          targetPosition: Position.Left,
+          // Remove fixed positions to allow edges from all sides
           className: clsx('wiz-node'),
         } as Node;
       });
