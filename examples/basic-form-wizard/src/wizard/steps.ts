@@ -31,6 +31,7 @@ export const validateAccountData = ({data}: {data: AccountData}) => {
 };
 
 export const validatePersonalData = ({data}: {data: PersonalData}) => {
+  console.log("Validating personal data:", data);
   if (!data?.firstName || !data?.lastName) throw new Error("Please enter your full name");
   if (!data?.dateOfBirth) throw new Error("Please enter your date of birth");
 };

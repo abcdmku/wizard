@@ -22,7 +22,10 @@ export class ReactWizardStepImpl<
   constructor(
     private readonly _coreStep: CoreWizardStep<StepName, Data, Context, AllSteps, DataMap>,
     private readonly _getComponent: (stepName: AllSteps) => React.ReactNode
-  ) {}
+  ) {
+    // Bind updateData to preserve 'this' context when destructured
+    this.updateData = this.updateData.bind(this);
+  }
 
   // Delegate all core step properties and methods
   get name() { return this._coreStep.name; }
