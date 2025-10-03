@@ -17,17 +17,20 @@ export function Tabs({ items, children, defaultIndex = 0 }: TabsProps) {
   const panels = React.Children.toArray(children);
 
   useEffect(() => {
+    // Only run in browser environment
+    if (typeof window === 'undefined') return;
+
     const checkDarkMode = () => {
       setIsDark(document.documentElement.classList.contains('dark'));
     };
-    
+
     checkDarkMode();
     const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, { 
-      attributes: true, 
-      attributeFilter: ['class'] 
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
     });
-    
+
     return () => observer.disconnect();
   }, []);
 
