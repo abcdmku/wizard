@@ -36,6 +36,18 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
 
     async function layout() {
       setLoading(true);
+
+      // Detect entry points: nodes with no incoming edges or marked as entry
+      const incomingEdges = new Set<string>();
+      for (const edge of graph.edges) {
+        if (edge.kind !== 'prerequisite') {
+          incomingEdges.add(edge.target);
+        }
+      }
+
+      // Entry points are nodes that have no incoming edges
+      const entryPoints = graph.nodes.filter(n => !incomingEdges.has(n.id));
+
       const elkGraph: any = {
         id: 'root',
         layoutOptions: {
@@ -47,8 +59,20 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           'elk.spacing.edgeEdge': 30,  // More space between edges
           'elk.edgeRouting': 'SPLINES', // Use splines instead of orthogonal for better curve handling
           'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX', // Better positioning for complex graphs
+          'elk.layered.layering.strategy': 'NETWORK_SIMPLEX', // Better layer assignment
         },
-        children: graph.nodes.map((n) => ({ id: n.id, width: 200, height: 68 })),
+        children: graph.nodes.map((n) => {
+          const isEntry = entryPoints.some(e => e.id === n.id);
+          return {
+            id: n.id,
+            width: 200,
+            height: 68,
+            // Set layer constraint for entry points to keep them on the left
+            layoutOptions: isEntry ? {
+              'elk.layered.layering.layerConstraint': 'FIRST'
+            } : undefined
+          };
+        }),
         edges: graph.edges
           .filter((e) => e.kind !== 'prerequisite')
           .map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
