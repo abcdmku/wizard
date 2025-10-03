@@ -21,7 +21,7 @@ export class ReactWizardStepImpl<
 
   constructor(
     private readonly _coreStep: CoreWizardStep<StepName, Data, Context, AllSteps, DataMap>,
-    private readonly _getComponent: (stepName: AllSteps) => React.ComponentType<any> | React.ReactElement | null
+    private readonly _getComponent: (stepName: AllSteps) => React.ReactNode
   ) {}
 
   // Delegate all core step properties and methods
@@ -34,7 +34,7 @@ export class ReactWizardStepImpl<
   get status() { return this._coreStep.status; }
 
   // React-specific: component getter
-  get component(): React.ComponentType<any> | React.ReactElement | null {
+  get component(): React.ReactNode {
     return this._getComponent(this.name as AllSteps);
   }
 
@@ -118,7 +118,7 @@ export function wrapWithReactStep<
   DataMap extends Record<AllSteps, unknown>
 >(
   coreStep: CoreWizardStep<StepName, Data, Context, AllSteps, DataMap>,
-  getComponent: (stepName: AllSteps) => React.ComponentType<any> | React.ReactElement | null
+  getComponent: (stepName: AllSteps) => React.ReactNode
 ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> {
   return new ReactWizardStepImpl(coreStep, getComponent);
 }
