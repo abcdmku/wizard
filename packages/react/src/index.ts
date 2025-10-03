@@ -26,10 +26,14 @@ export { createReactWizardFactory, reactWizardWithContext } from './factory';
 export { createWizardRouteComponent } from './tanstack-router';
 export type { CreateWizardRouteConfig } from './tanstack-router';
 
+// React-specific types
+export type { ReactWizardStep, ComponentLike, StepMetaUI, ReactStepDefinition } from './types';
+
 // Re-export core types for convenience
 export type {
   Wizard,
   WizardState,
+  WizardStep,
   StepDefinition,
   StepStatus,
   StepArgs,

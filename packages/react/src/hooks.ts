@@ -1,5 +1,7 @@
 import { useStore } from '@tanstack/react-store';
-import type { Wizard, WizardState, WizardStep } from '@wizard/core';
+import type { Wizard, WizardState } from '@wizard/core';
+import type { ReactWizardStep } from './types';
+import { wrapWithReactStep } from './step-wrapper';
 
 /**
  * Kitchen sink hook that returns everything from the wizard.
@@ -23,12 +25,17 @@ export function useWizard<
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: Wizard<C, S, D, E>) {
+>(wizard: Wizard<C, S, D, E> & { getStepComponent?: (stepName: S) => any }) {
   const state = useStore(wizard.store);
+
+  // Wrap getCurrentStep with React component support
+  const getComponent = (stepName: S) => wizard.getStepComponent?.(stepName);
+  const currentStep = wrapWithReactStep(wizard.getCurrentStep(), getComponent);
 
   return {
     // Flattened state properties
     step: state.step,
+    currentStep,
     data: state.data,
     context: state.context,
     meta: state.meta,
@@ -84,7 +91,7 @@ export function useWizard<
 }
 
 /**
- * Returns the current active step wrapper.
+ * Returns the current active step wrapper with React component support.
  *
  * @param wizard - The wizard instance
  *
@@ -104,14 +111,15 @@ export function useCurrentStep<
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: Wizard<C, S, D, E>) {
+>(wizard: Wizard<C, S, D, E> & { getStepComponent?: (stepName: S) => any }): ReactWizardStep<S, D[S], C, S, D> {
   // Subscribe to current step changes
   useStore(wizard.store, (state) => state.step);
-  return wizard.getCurrentStep();
+  const getComponent = (stepName: S) => wizard.getStepComponent?.(stepName);
+  return wrapWithReactStep(wizard.getCurrentStep(), getComponent);
 }
 
 /**
- * Returns a specific step wrapper by name.
+ * Returns a specific step wrapper by name with React component support.
  *
  * @param wizard - The wizard instance
  * @param stepName - The name of the step to get
@@ -133,14 +141,15 @@ export function useWizardStep<
   D extends Record<S, unknown>,
   E = never,
   K extends S = S
->(wizard: Wizard<C, S, D, E>, stepName: K): WizardStep<K, D[K], C, S, D> {
+>(wizard: Wizard<C, S, D, E> & { getStepComponent?: (stepName: S) => any }, stepName: K): ReactWizardStep<K, D[K], C, S, D> {
   // Re-render when step data or runtime changes
   useStore(wizard.store, (state) => ({
     data: state.data[stepName],
     runtime: state.runtime?.[stepName],
   }));
 
-  return wizard.getStep(stepName);
+  const getComponent = (stepName: S) => wizard.getStepComponent?.(stepName);
+  return wrapWithReactStep(wizard.getStep(stepName), getComponent);
 }
 
 /**

@@ -1,10 +1,10 @@
 import { StepIndicator } from "./StepIndicator";
 import { ThemeToggle } from "./ui/ThemeToggle";
 import { FormWizard } from "../wizard/steps";
+import { useCurrentStep } from "@wizard/react";
 
 export function WizardContainer() {
-  const { c } = FormWizard.getCurrentStep();
-
+  const { name, component } = useCurrentStep(FormWizard)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4 transition-colors duration-200 relative">
@@ -14,8 +14,8 @@ export function WizardContainer() {
       </div>
 
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-xl p-6">
-        {step. !== "summary" && <StepIndicator />}
-        <div className={name !== "summary" ? "mt-6" : ""}>{renderStep()}</div>
+        {name !== "summary" && <StepIndicator />}
+        <div className={name !== "summary" ? "mt-6" : ""}>{component}</div>
       </div>
     </div>
   );
