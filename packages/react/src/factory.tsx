@@ -13,7 +13,8 @@ import {
   type ValidateArgs,
   type StepMetaCore,
 } from '@wizard/core';
-import type { ComponentLike, StepMetaUI } from './types';
+import type { StepMetaUI } from './types';
+import * as React from 'react';
 
 // Context-aware step definition with React component support
 type ReactContextAwareStepArgs<C, S extends string, Data, E> = {
@@ -49,7 +50,7 @@ type ReactContextAwareStepDefinition<C, S extends string, Data, E> = {
   retryDelay?: ValOrFn<number, ReactContextAwareStepArgs<C, S, Data, E>>;
   meta?: StepMetaCore<C, S, Data, E>;
   // React-specific fields
-  component?: ValOrFn<ComponentLike, StepArgs<C, S, Data, E>>;
+  component?: ValOrFn<React.ComponentType<any> | React.ReactElement, StepArgs<C, S, Data, E>>;
   uiMeta?: StepMetaUI<C, S, Data, E>;
 };
 
@@ -88,7 +89,7 @@ export function createReactWizardFactory<C = Record<string, never>, E = never>()
       options?: Partial<Omit<CreateWizardOptions<C, E, TDefs>, 'steps'>>
     ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> & {
       // Add component getter to wizard instance
-      getStepComponent: (stepName: keyof TDefs & string) => ComponentLike | undefined;
+      getStepComponent: (stepName: keyof TDefs & string) => React.ComponentType<any> | React.ReactElement | null;
     } {
       const coreFactory = createCoreWizardFactory<C, E>();
       const wizard = coreFactory.createWizard(steps, options);
