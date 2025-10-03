@@ -55,33 +55,18 @@ export function WizEdge(props: EdgeProps) {
     labelX = startX + loopSize / 2;
     labelY = startY - loopSize / 2;
   } else {
-    // Calculate perpendicular offset to prevent edges from overlapping
-    // This is especially important for bidirectional edges
-    const dx = targetX - sourceX;
-    const dy = targetY - sourceY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    // Normalize the perpendicular vector
-    const perpX = -dy / distance;
-    const perpY = dx / distance;
-
-    // Apply offset based on edge ID to separate bidirectional edges
-    // Use a consistent offset based on alphabetical order of source/target
-    const offset = source < target ? 15 : -15;
-
-    const offsetSourceX = sourceX + perpX * offset;
-    const offsetSourceY = sourceY + perpY * offset;
-    const offsetTargetX = targetX + perpX * offset;
-    const offsetTargetY = targetY + perpY * offset;
+    // For bidirectional edges, use different curvature to separate them
+    // Use alphabetical order of source/target to ensure consistency
+    const curvature = source < target ? 0.25 : 0.5;
 
     [path, labelX, labelY] = getBezierPath({
-      sourceX: offsetSourceX,
-      sourceY: offsetSourceY,
-      targetX: offsetTargetX,
-      targetY: offsetTargetY,
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
       sourcePosition,
       targetPosition,
-      curvature: 0.25,
+      curvature,
     });
   }
 
