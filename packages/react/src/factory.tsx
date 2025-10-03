@@ -55,8 +55,10 @@ type ReactContextAwareStepDefinition<C, S extends string, Data, E> = {
 
 /**
  * Creates a React wizard factory with context-aware step definitions and component support
+ * @template C The context type (required - no default to force explicit typing)
+ * @template E The event type (defaults to never)
  */
-export function createReactWizardFactory<C = any, E = never>() {
+export function createReactWizardFactory<C = Record<string, never>, E = never>() {
   return {
     /**
      * Define steps with proper context typing and React component support
