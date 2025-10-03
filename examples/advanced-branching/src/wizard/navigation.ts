@@ -24,8 +24,8 @@ export const determineNextStep = (
       return [];
 
     case 'managerDashboard':
-      // Manager sees team stats, ends here (final step)
-      return [];
+      // Manager can send reminders or end here
+      return ['sendReminder'];
 
     case 'userProfile':
       // User goes to review after profile

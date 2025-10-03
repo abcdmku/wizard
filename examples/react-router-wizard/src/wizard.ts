@@ -11,7 +11,7 @@ export const { defineSteps, step, createWizard } = reactWizardWithContext<Checko
   coupon: null
 });
 
-const steps = defineSteps({
+export const steps = defineSteps({
   account: step({
     data: { email: '' },
     component: AccountStep,
