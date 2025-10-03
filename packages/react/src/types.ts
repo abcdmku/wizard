@@ -8,7 +8,7 @@ import { ValOrFn, StepArgs, PartialStepDefinition, InferStepData, WizardStep as 
 
 // ===== 1. UI Meta + Component (value-or-fn) + Resolver =====
 
-export type ComponentLike = React.ComponentType<any> | React.ReactElement;
+export type ComponentLike = React.ComponentType<any>;
 
 /**
  * React-enhanced wizard step with component support
@@ -47,31 +47,22 @@ export type ReactStepDefinition<C, S extends string, E, TDef> =
 export function resolveStepComponent<C, S extends string, Data, E>(
   comp: ValOrFn<ComponentLike, StepArgs<C, S, Data, E>> | undefined,
   args: StepArgs<C, S, Data, E>
-): React.ReactElement | null {
+): React.ComponentType<any> | null {
   if (!comp) return null;
 
-  // If it's already a React element, return it
-  if (React.isValidElement(comp)) return comp;
-
-  // If it's a function, we need to determine if it's:
-  // 1. A React component (rendered as <Component />)
-  // 2. A factory function that takes args and returns a component/element
+  // If it's a function, check if it's a factory that takes args
   if (typeof comp === 'function') {
-    // Check if it's a React component by checking function length
-    // React components typically have length 0 or 1 (props)
-    // Factory functions that take StepArgs have specific length
     const funcLength = comp.length;
 
-    // If function takes 0 arguments, it's likely a React component
-    if (funcLength === 0) {
-      return React.createElement(comp as React.ComponentType<any>);
+    // If function takes 0 or 1 arguments (props), it's a React component
+    if (funcLength <= 1) {
+      return comp as React.ComponentType<any>;
     }
 
-    // Otherwise, call it as a factory function with args
-    const value = (comp as any)(args);
-    if (React.isValidElement(value)) return value;
-    if (typeof value === 'function') {
-      return React.createElement(value as React.ComponentType<any>);
+    // Otherwise, call it as a factory function with args to get the component
+    const result = (comp as any)(args);
+    if (typeof result === 'function') {
+      return result as React.ComponentType<any>;
     }
   }
 
