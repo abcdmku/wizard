@@ -37,44 +37,85 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
     async function layout() {
       setLoading(true);
 
-      // Detect entry points: nodes with no incoming edges or marked as entry
+      // Build adjacency list for BFS
+      const adjacency = new Map<string, string[]>();
+      const transitionEdges = graph.edges.filter(e => e.kind !== 'prerequisite');
+
+      for (const node of graph.nodes) {
+        adjacency.set(node.id, []);
+      }
+
+      for (const edge of transitionEdges) {
+        adjacency.get(edge.source)?.push(edge.target);
+      }
+
+      // Detect entry points: nodes with no incoming edges
       const incomingEdges = new Set<string>();
-      for (const edge of graph.edges) {
-        if (edge.kind !== 'prerequisite') {
-          incomingEdges.add(edge.target);
+      for (const edge of transitionEdges) {
+        incomingEdges.add(edge.target);
+      }
+      const entryPoints = graph.nodes.filter(n => !incomingEdges.has(n.id));
+
+      // Calculate minimum distance from any entry point using BFS
+      const distances = new Map<string, number>();
+      const queue: Array<{node: string, dist: number}> = [];
+
+      for (const entry of entryPoints) {
+        queue.push({ node: entry.id, dist: 0 });
+        distances.set(entry.id, 0);
+      }
+
+      while (queue.length > 0) {
+        const { node, dist } = queue.shift()!;
+        const currentDist = distances.get(node) ?? Infinity;
+
+        if (dist > currentDist) continue;
+
+        for (const neighbor of adjacency.get(node) ?? []) {
+          const newDist = dist + 1;
+          const neighborDist = distances.get(neighbor) ?? Infinity;
+
+          if (newDist < neighborDist) {
+            distances.set(neighbor, newDist);
+            queue.push({ node: neighbor, dist: newDist });
+          }
         }
       }
 
-      // Entry points are nodes that have no incoming edges
-      const entryPoints = graph.nodes.filter(n => !incomingEdges.has(n.id));
+      // Detect back edges (edges that go from higher distance to lower/equal distance)
+      const backEdges = new Set<string>();
+      for (const edge of transitionEdges) {
+        const sourceDist = distances.get(edge.source) ?? Infinity;
+        const targetDist = distances.get(edge.target) ?? Infinity;
+
+        if (sourceDist >= targetDist) {
+          backEdges.add(edge.id);
+        }
+      }
 
       const elkGraph: any = {
         id: 'root',
         layoutOptions: {
           'elk.algorithm': 'layered',
           'elk.direction': 'RIGHT',
-          'elk.layered.spacing.nodeNodeBetweenLayers': 150, // Increased for curved edges
-          'elk.spacing.nodeNode': 80,  // More vertical space between nodes in same layer
-          'elk.spacing.edgeNode': 60,  // More space between edges and nodes
-          'elk.spacing.edgeEdge': 30,  // More space between edges
-          'elk.edgeRouting': 'SPLINES', // Use splines instead of orthogonal for better curve handling
-          'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX', // Better positioning for complex graphs
-          'elk.layered.layering.strategy': 'NETWORK_SIMPLEX', // Better layer assignment
+          'elk.layered.spacing.nodeNodeBetweenLayers': 150,
+          'elk.spacing.nodeNode': 80,
+          'elk.spacing.edgeNode': 60,
+          'elk.spacing.edgeEdge': 30,
+          'elk.edgeRouting': 'SPLINES',
+          'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+          'elk.layered.cycleBreaking.strategy': 'DEPTH_FIRST', // Handle cycles better
         },
         children: graph.nodes.map((n) => {
-          const isEntry = entryPoints.some(e => e.id === n.id);
           return {
             id: n.id,
             width: 200,
             height: 68,
-            // Set layer constraint for entry points to keep them on the left
-            layoutOptions: isEntry ? {
-              'elk.layered.layering.layerConstraint': 'FIRST'
-            } : undefined
           };
         }),
-        edges: graph.edges
-          .filter((e) => e.kind !== 'prerequisite')
+        // Exclude back edges from layout to break cycles
+        edges: transitionEdges
+          .filter((e) => !backEdges.has(e.id))
           .map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
       };
 
