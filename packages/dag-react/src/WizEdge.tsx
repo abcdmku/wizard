@@ -26,7 +26,7 @@ export function WizEdge(props: EdgeProps) {
   });
 
   const stroke = (style as any)?.stroke ?? (data?.kind === 'prerequisite' ? 'var(--wiz-warn)' : 'var(--wiz-edge)');
-  const strokeWidth = (style as any)?.strokeWidth ?? (data?.kind === 'prerequisite' ? 2.5 : 3);
+  const strokeWidth = (style as any)?.strokeWidth ?? (data?.kind === 'prerequisite' ? 1.5 : 2);
   const dash = data?.kind === 'prerequisite' ? '6 4' : undefined;
 
   // Create unique marker ID for this edge's arrow
@@ -38,7 +38,7 @@ export function WizEdge(props: EdgeProps) {
         <marker
           id={markerId}
           viewBox="0 0 10 10"
-          refX="10"
+          refX="8"
           refY="5"
           markerWidth="5"
           markerHeight="5"
