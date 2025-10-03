@@ -1,0 +1,42 @@
+{
+  "name": "@wizard/dag-react",
+  "version": "0.1.0",
+  "private": true,
+  "description": "React components to visualize Wizard step DAGs (React Flow + ELK)",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./styles.css": "./dist/styles.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts && node -e \"require('fs').cpSync('src/styles.css','dist/styles.css',{force:true})\"",
+    "dev": "tsup src/index.ts --watch --format esm,cjs --dts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@wizard/dag-core": "workspace:*",
+    "reactflow": "^11.11.2",
+    "elkjs": "^0.8.2",
+    "clsx": "^2.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2"
+  }
+}

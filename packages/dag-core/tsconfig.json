@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "composite": false,
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "types": []
+  },
+  "include": ["src"]
+}
+

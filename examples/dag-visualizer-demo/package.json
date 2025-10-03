@@ -1,0 +1,27 @@
+{
+  "name": "dag-visualizer-demo",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@wizard/dag-core": "workspace:*",
+    "@wizard/dag-react": "workspace:*",
+    "@wizard/react": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.55.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
+  }
+}
