@@ -1,5 +1,8 @@
-import { createWizardFactory } from "@wizard/core";
-import { useWizard, useWizardStep } from "@wizard/react";
+import { createReactWizardFactory} from "@wizard/react";
+import { AccountStep } from "../components/steps/AccountStep";
+import { PersonalStep } from "../components/steps/PersonalStep";
+import { AddressStep } from "../components/steps/AddressStep";
+import { SummaryStep } from "../components/steps/SummaryStep";
 
 export interface AccountData {
   email: string;
@@ -37,7 +40,7 @@ export const validateAddressData = ({data}: {data: AddressData}) => {
     throw new Error("Please fill in all address fields");
 };
 
-const { defineSteps, step, createWizard } = createWizardFactory();
+const { defineSteps, step, createWizard } = createReactWizardFactory();
 
 export const steps = defineSteps({
   account: step<AccountData>({
@@ -45,45 +48,29 @@ export const steps = defineSteps({
     next: ["personal"],
     meta: { label: "Account", iconKey: "user" },
     validate: validateAccountData,
+    component: AccountStep
   }),
   personal: step<PersonalData>({
     validate: validatePersonalData,
     data: {} as PersonalData,
     next: ["address"],
     meta: { label: "Personal", iconKey: "person" },
+    component: PersonalStep
   }),
   address: step<AddressData>({
     validate: validateAddressData,
     data: {} as AddressData,
     next: ["summary"],
     meta: { label: "Address", iconKey: "location" },
+    component: AddressStep
   }),
   summary: step<{}>({
-    data: {} as {},
+    data: {},
     next: [],
     meta: { label: "Complete", iconKey: "check", hidden: true },
+    component: SummaryStep,
   }),
 });
 
 export const FormWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
 
-/**
- * Typed convenience hook for using FormWizard.
- * This eliminates the need to pass FormWizard to useWizard in every component.
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const { step, data, next } = useFormWizard();
- * }
- * ```
- */
-export const useFormWizard = () => useWizard(FormWizard);
-
-/**
- * Step-specific typed convenience hooks.
- * These provide direct access to individual steps with full type safety.
- */
-export const useAccountStep = () => useWizardStep(FormWizard, "account");
-export const usePersonalStep = () => useWizardStep(FormWizard, "personal");
-export const useAddressStep = () => useWizardStep(FormWizard, "address");
