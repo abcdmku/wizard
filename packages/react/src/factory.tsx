@@ -97,7 +97,15 @@ export function createReactWizardFactory<C = Record<string, never>, E = never>()
       // Extend wizard with component getter
       return Object.assign(wizard, {
         getStepComponent(stepName: keyof TDefs & string) {
-          return steps[stepName]?.component;
+          const comp = steps[stepName]?.component;
+          if (!comp) return null;
+
+          // If it's a React component function, return it as a JSX element
+          if (typeof comp === 'function') {
+            return React.createElement(comp as React.ComponentType);
+          }
+
+          return comp;
         },
       });
     },

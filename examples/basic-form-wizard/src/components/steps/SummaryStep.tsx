@@ -1,7 +1,8 @@
-import { useFormWizard } from "../../wizard/steps";
+import { useWizard } from "@wizard/react";
+import { FormWizard } from "../../wizard/steps";
 
 export function SummaryStep() {
-  const { data } = useFormWizard();
+  const { data } = useWizard(FormWizard);
   const accountData = data.account;
   const personalData = data.personal;
   const addressData = data.address;

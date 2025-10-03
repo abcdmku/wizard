@@ -1,7 +1,8 @@
-import { useFormWizard } from "../wizard/steps";
+import { useWizard } from "@wizard/react";
+import { FormWizard } from "../wizard/steps";
 
 export function StepIndicator() {
-  const { step: currentStep, helpers } = useFormWizard();
+  const { step: currentStep, helpers } = useWizard(FormWizard);
   const steps = helpers.allSteps().filter(step => !step?.meta?.hidden); // Only include steps that are not hidden
   const currentIndex = helpers.stepIndex(currentStep);
 

@@ -1,10 +1,11 @@
 import { FormField } from "../ui/FormField";
 import { Button } from "../ui/Button";
 import { ErrorMessage } from "../ui/ErrorMessage";
-import { usePersonalStep } from "../../wizard/steps";
+import { useWizardStep } from "@wizard/react";
+import { FormWizard } from "../../wizard/steps";
 
 export function PersonalStep() {
-  const step = usePersonalStep();
+  const step = useWizardStep(FormWizard, "personal");
   const {status, data, error, updateData, next, back} = step;
 
   return (
