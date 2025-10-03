@@ -141,9 +141,9 @@ async function validateDocumentationStructure() {
 
   // Check for navigation files
   const requiredNavFiles = [
-    'pages/_meta.js',
-    'pages/core/_meta.js',
-    'pages/react/_meta.js'
+    'pages/_meta.json',
+    'pages/core/_meta.json',
+    'pages/react/_meta.json'
   ];
 
   for (const navFile of requiredNavFiles) {
@@ -290,10 +290,8 @@ async function writeFile(filePath, content) {
   return fs.writeFile(filePath, content);
 }
 
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    log(colors.red, 'Unexpected error:', error);
-    process.exit(1);
-  });
-}
+// Run the main function
+main().catch(error => {
+  log(colors.red, 'Unexpected error:', error);
+  process.exit(1);
+});

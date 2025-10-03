@@ -1,0 +1,249 @@
+# React Hooks
+
+The `@wizard/react` package provides a comprehensive set of React hooks for managing wizard state and navigation.
+
+## Overview
+
+All hooks (except `useWizard`) use type parameters and must be called within a component wrapped by `WizardProvider`.
+
+## Hook Reference
+
+### useWizard
+
+The primary hook for accessing wizard state and actions.
+
+```tsx
+import { useWizard } from '@wizard/react';
+
+function MyComponent() {
+  const wizard = useWizard(MyWizard);
+
+  return (
+    <div>
+      <p>Current Step: {wizard.state.currentStep}</p>
+      <button onClick={() => wizard.next()}>Next</button>
+    </div>
+  );
+}
+```
+
+**Returns:**
+- `state` - Current wizard state
+- `next()` - Navigate to next step
+- `back()` - Navigate to previous step
+- `goTo(stepId)` - Navigate to specific step
+- `setStepData(stepId, data)` - Update step data
+- `reset()` - Reset wizard to initial state
+- `helpers` - Wizard helper methods
+
+### useCurrentStep
+
+Get the current step ID.
+
+```tsx
+import { useCurrentStep } from '@wizard/react';
+
+function StepIndicator() {
+  const currentStep = useCurrentStep<typeof MyWizard>();
+
+  return <div>Current: {currentStep}</div>;
+}
+```
+
+### useWizardStep
+
+Access data and methods for a specific step.
+
+```tsx
+import { useWizardStep } from '@wizard/react';
+
+function PersonalInfoStep() {
+  const { data, setData, validate, canGoNext } =
+    useWizardStep<typeof MyWizard>('personal');
+
+  return (
+    <form>
+      <input
+        value={data.name}
+        onChange={(e) => setData({ ...data, name: e.target.value })}
+      />
+      <button disabled={!canGoNext()} onClick={validate}>
+        Next
+      </button>
+    </form>
+  );
+}
+```
+
+### useWizardProgress
+
+Track wizard completion progress.
+
+```tsx
+import { useWizardProgress } from '@wizard/react';
+
+function ProgressBar() {
+  const { percentage, current, total, visited } =
+    useWizardProgress<typeof MyWizard>();
+
+  return (
+    <div>
+      <div style={{ width: `${percentage}%` }} />
+      <span>{current} of {total}</span>
+    </div>
+  );
+}
+```
+
+### useWizardActions
+
+Access navigation actions only.
+
+```tsx
+import { useWizardActions } from '@wizard/react';
+
+function NavigationButtons() {
+  const { next, back, goTo, reset } =
+    useWizardActions<typeof MyWizard>();
+
+  return (
+    <div>
+      <button onClick={back}>Back</button>
+      <button onClick={next}>Next</button>
+      <button onClick={reset}>Start Over</button>
+    </div>
+  );
+}
+```
+
+### useWizardHelpers
+
+Access wizard helper methods.
+
+```tsx
+import { useWizardHelpers } from '@wizard/react';
+
+function WizardInfo() {
+  const helpers = useWizardHelpers<typeof MyWizard>();
+
+  return (
+    <div>
+      <p>Can go next: {helpers.canGoNext() ? 'Yes' : 'No'}</p>
+      <p>Can go back: {helpers.canGoBack() ? 'Yes' : 'No'}</p>
+      <p>Is complete: {helpers.isComplete() ? 'Yes' : 'No'}</p>
+    </div>
+  );
+}
+```
+
+### useStepError
+
+Access validation errors for a step.
+
+```tsx
+import { useStepError } from '@wizard/react';
+
+function ErrorDisplay() {
+  const error = useStepError<typeof MyWizard>('personal');
+
+  if (!error) return null;
+
+  return (
+    <div className="error">
+      {error.message}
+    </div>
+  );
+}
+```
+
+### useWizardSelector
+
+Optimize performance by selecting specific state.
+
+```tsx
+import { useWizardSelector } from '@wizard/react';
+
+function StepName() {
+  // Only re-renders when currentStep changes
+  const stepName = useWizardSelector<typeof MyWizard>(
+    (state) => state.currentStep
+  );
+
+  return <div>{stepName}</div>;
+}
+```
+
+## Creating Typed Hooks
+
+Best practice: Create typed convenience hooks for your wizard.
+
+```tsx
+// In your wizard definition file
+export const MyWizard = createWizard(steps);
+
+export const useMyWizard = () => useWizard(MyWizard);
+export const useMyCurrentStep = () => useCurrentStep<typeof MyWizard>();
+export const useMyWizardActions = () => useWizardActions<typeof MyWizard>();
+```
+
+```tsx
+// In your components
+function MyComponent() {
+  const { step, next } = useMyWizard(); // Clean!
+  const currentStep = useMyCurrentStep(); // No type parameters needed!
+
+  return <div>...</div>;
+}
+```
+
+## Hook Comparison
+
+| Hook | Returns | Use Case |
+|------|---------|----------|
+| `useWizard` | Full wizard instance | Complete access to wizard |
+| `useCurrentStep` | Current step ID | Display current step name |
+| `useWizardStep` | Step data & methods | Managing single step |
+| `useWizardProgress` | Progress metrics | Progress bars |
+| `useWizardActions` | Navigation only | Navigation buttons |
+| `useWizardHelpers` | Helper methods | Conditional logic |
+| `useStepError` | Validation errors | Error display |
+| `useWizardSelector` | Selected state | Performance optimization |
+
+## Performance Tips
+
+### Use Specific Hooks
+
+Instead of using `useWizard` everywhere, use specific hooks to minimize re-renders:
+
+```tsx
+// ❌ Less optimal - re-renders on any state change
+function NavButtons() {
+  const wizard = useWizard(MyWizard);
+  return <button onClick={wizard.next}>Next</button>;
+}
+
+// ✅ Better - only subscribes to actions
+function NavButtons() {
+  const { next } = useWizardActions<typeof MyWizard>();
+  return <button onClick={next}>Next</button>;
+}
+```
+
+### Use Selectors
+
+For computed values, use `useWizardSelector` to avoid unnecessary re-renders:
+
+```tsx
+function StepCount() {
+  const count = useWizardSelector<typeof MyWizard>(
+    (state) => Object.keys(state.steps).length
+  );
+  return <div>Total steps: {count}</div>;
+}
+```
+
+## Next Steps
+
+- Learn about [Router Integration](/react/router-integration)
+- See [Examples](/examples) for complete implementations
+- Explore [Core Concepts](/concepts) for wizard fundamentals
