@@ -38,13 +38,13 @@ export function WizEdge(props: EdgeProps) {
         <marker
           id={markerId}
           viewBox="0 0 10 10"
-          refX="9"
+          refX="10"
           refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
+          markerWidth="5"
+          markerHeight="5"
+          orient="auto"
         >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill={stroke} />
+          <path d="M 0 2 L 10 5 L 0 8 z" fill={stroke} />
         </marker>
       </defs>
       <BaseEdge
