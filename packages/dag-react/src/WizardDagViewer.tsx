@@ -41,12 +41,12 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         layoutOptions: {
           'elk.algorithm': 'layered',
           'elk.direction': 'RIGHT',
-          'elk.layered.spacing.nodeNodeBetweenLayers': 120,
-          'elk.spacing.nodeNode': 64,
-          'elk.spacing.edgeNode': 48,
-          'elk.spacing.edgeEdge': 24,
-          'elk.edgeRouting': 'ORTHOGONAL',
-          'elk.layers.nodes.fromScratch': true,
+          'elk.layered.spacing.nodeNodeBetweenLayers': 150, // Increased for curved edges
+          'elk.spacing.nodeNode': 80,  // More vertical space between nodes in same layer
+          'elk.spacing.edgeNode': 60,  // More space between edges and nodes
+          'elk.spacing.edgeEdge': 30,  // More space between edges
+          'elk.edgeRouting': 'SPLINES', // Use splines instead of orthogonal for better curve handling
+          'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX', // Better positioning for complex graphs
         },
         children: graph.nodes.map((n) => ({ id: n.id, width: 200, height: 68 })),
         edges: graph.edges
