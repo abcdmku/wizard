@@ -1,4 +1,4 @@
-import { createReactWizardFactory} from "@wizard/react";
+import { createReactWizardFactory } from "@wizard/react";
 import { AccountStep } from "../components/steps/AccountStep";
 import { PersonalStep } from "../components/steps/PersonalStep";
 import { AddressStep } from "../components/steps/AddressStep";
@@ -43,28 +43,28 @@ export const validateAddressData = ({data}: {data: AddressData}) => {
 const { defineSteps, step, createWizard } = createReactWizardFactory();
 
 export const steps = defineSteps({
-  account: step<AccountData>({
+  account: step({
     data: {} as AccountData,
     next: ["personal"],
     meta: { label: "Account", iconKey: "user" },
     validate: validateAccountData,
     component: AccountStep
   }),
-  personal: step<PersonalData>({
+  personal: step({
     validate: validatePersonalData,
     data: {} as PersonalData,
     next: ["address"],
     meta: { label: "Personal", iconKey: "person" },
     component: PersonalStep
   }),
-  address: step<AddressData>({
+  address: step({
     validate: validateAddressData,
     data: {} as AddressData,
     next: ["summary"],
     meta: { label: "Address", iconKey: "location" },
     component: AddressStep
   }),
-  summary: step<{}>({
+  summary: step({
     data: {},
     next: [],
     meta: { label: "Complete", iconKey: "check", hidden: true },
@@ -72,5 +72,4 @@ export const steps = defineSteps({
   }),
 });
 
-export const FormWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
-
+export const FormWizard = createWizard(steps);

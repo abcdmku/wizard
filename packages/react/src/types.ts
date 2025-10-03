@@ -4,11 +4,24 @@
  */
 
 import * as React from 'react';
-import { ValOrFn, StepArgs, PartialStepDefinition, InferStepData } from '@wizard/core';
+import { ValOrFn, StepArgs, PartialStepDefinition, InferStepData, WizardStep as CoreWizardStep } from '@wizard/core';
 
 // ===== 1. UI Meta + Component (value-or-fn) + Resolver =====
 
 export type ComponentLike = React.ComponentType<any> | React.ReactElement;
+
+/**
+ * React-enhanced wizard step with component support
+ */
+export interface ReactWizardStep<
+  StepName extends AllSteps,
+  Data extends DataMap[StepName],
+  Context,
+  AllSteps extends string = string,
+  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
+> extends CoreWizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  readonly component: ComponentLike | undefined;
+}
 
 export type StepMetaUI<C, S extends string, Data, E> = {
   icon?: ValOrFn<React.ReactNode, StepArgs<C, S, Data, E>>;
