@@ -8,8 +8,6 @@ import { ValOrFn, StepArgs, PartialStepDefinition, InferStepData, WizardStep as 
 
 // ===== 1. UI Meta + Component (value-or-fn) + Resolver =====
 
-export type ComponentLike = React.ComponentType<any>;
-
 /**
  * React-enhanced wizard step with component support
  */
@@ -20,7 +18,7 @@ export interface ReactWizardStep<
   AllSteps extends string = string,
   DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
 > extends CoreWizardStep<StepName, Data, Context, AllSteps, DataMap> {
-  readonly component: ComponentLike | undefined;
+  readonly component: React.ComponentType<any> | React.ReactElement | null;
 }
 
 export type StepMetaUI<C, S extends string, Data, E> = {
@@ -40,31 +38,28 @@ export function resolveMetaUI<C, S extends string, Data, E>(
 
 export type ReactStepDefinition<C, S extends string, E, TDef> =
   PartialStepDefinition<C, S, E, TDef> & {
-    component?: ValOrFn<ComponentLike, StepArgs<C, S, InferStepData<TDef>, E>>;
+    component?: ValOrFn<React.ComponentType<any> | React.ReactElement, StepArgs<C, S, InferStepData<TDef>, E>>;
     uiMeta?: StepMetaUI<C, S, InferStepData<TDef>, E>;
   };
 
 export function resolveStepComponent<C, S extends string, Data, E>(
-  comp: ValOrFn<ComponentLike, StepArgs<C, S, Data, E>> | undefined,
+  comp: ValOrFn<React.ComponentType<any> | React.ReactElement, StepArgs<C, S, Data, E>> | undefined,
   args: StepArgs<C, S, Data, E>
-): React.ComponentType<any> | null {
+): React.ComponentType<any> | React.ReactElement | null {
   if (!comp) return null;
 
-  // If it's a function, check if it's a factory that takes args
+  // If it's a function, call it with args if needed
   if (typeof comp === 'function') {
     const funcLength = comp.length;
 
-    // If function takes 0 or 1 arguments (props), it's a React component
+    // If function takes 0 or 1 arguments (props), it's a React component - return as-is
     if (funcLength <= 1) {
       return comp as React.ComponentType<any>;
     }
 
-    // Otherwise, call it as a factory function with args to get the component
-    const result = (comp as any)(args);
-    if (typeof result === 'function') {
-      return result as React.ComponentType<any>;
-    }
+    // Otherwise, call it as a factory function with args
+    return (comp as any)(args);
   }
 
-  return null;
+  return comp;
 }

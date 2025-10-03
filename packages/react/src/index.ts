@@ -27,7 +27,7 @@ export { createWizardRouteComponent } from './tanstack-router';
 export type { CreateWizardRouteConfig } from './tanstack-router';
 
 // React-specific types
-export type { ReactWizardStep, ComponentLike, StepMetaUI, ReactStepDefinition } from './types';
+export type { ReactWizardStep, StepMetaUI, ReactStepDefinition } from './types';
 
 // Re-export core types for convenience
 export type {

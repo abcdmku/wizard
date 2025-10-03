@@ -4,7 +4,8 @@
  */
 
 import { WizardStep as CoreWizardStep } from '@wizard/core';
-import type { ReactWizardStep, ComponentLike } from './types';
+import type { ReactWizardStep } from './types';
+import * as React from 'react';
 
 /**
  * Concrete implementation of ReactWizardStep interface
@@ -20,7 +21,7 @@ export class ReactWizardStepImpl<
 
   constructor(
     private readonly _coreStep: CoreWizardStep<StepName, Data, Context, AllSteps, DataMap>,
-    private readonly _getComponent: (stepName: AllSteps) => ComponentLike | undefined
+    private readonly _getComponent: (stepName: AllSteps) => React.ComponentType<any> | React.ReactElement | null
   ) {}
 
   // Delegate all core step properties and methods
@@ -33,7 +34,7 @@ export class ReactWizardStepImpl<
   get status() { return this._coreStep.status; }
 
   // React-specific: component getter
-  get component(): ComponentLike | undefined {
+  get component(): React.ComponentType<any> | React.ReactElement | null {
     return this._getComponent(this.name as AllSteps);
   }
 
@@ -117,7 +118,7 @@ export function wrapWithReactStep<
   DataMap extends Record<AllSteps, unknown>
 >(
   coreStep: CoreWizardStep<StepName, Data, Context, AllSteps, DataMap>,
-  getComponent: (stepName: AllSteps) => ComponentLike | undefined
+  getComponent: (stepName: AllSteps) => React.ComponentType<any> | React.ReactElement | null
 ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> {
   return new ReactWizardStepImpl(coreStep, getComponent);
 }
