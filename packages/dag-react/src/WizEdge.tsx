@@ -13,17 +13,9 @@ export function WizEdge(props: EdgeProps) {
     style,
     label,
     data,
+    source,
+    target,
   } = props;
-
-  const [path, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    curvature: 0.25,
-  });
 
   const stroke = (style as any)?.stroke ?? (data?.kind === 'prerequisite' ? 'var(--wiz-warn)' : 'var(--wiz-edge)');
   const strokeWidth = (style as any)?.strokeWidth ?? (data?.kind === 'prerequisite' ? 1 : 1.5);
@@ -31,6 +23,67 @@ export function WizEdge(props: EdgeProps) {
 
   // Create unique marker ID for this edge's arrow
   const markerId = `arrow-${id}`;
+
+  // Detect self-loop (source === target)
+  const isSelfLoop = source === target;
+
+  let path: string;
+  let labelX: number;
+  let labelY: number;
+
+  if (isSelfLoop) {
+    // Create a loop that goes around the node
+    const loopSize = 60; // Size of the loop
+    const loopOffset = 30; // Offset from the node center
+
+    // Position loop to the right of the node
+    const startX = sourceX + loopOffset;
+    const startY = sourceY;
+
+    // Create a circular path using cubic bezier curves
+    path = `
+      M ${startX},${startY}
+      C ${startX + loopSize},${startY - loopSize * 0.5}
+        ${startX + loopSize},${startY + loopSize * 0.5}
+        ${startX},${startY + loopSize}
+      C ${startX - loopSize * 0.3},${startY + loopSize}
+        ${startX - loopSize * 0.3},${startY}
+        ${startX - 5},${startY}
+    `.trim().replace(/\s+/g, ' ');
+
+    // Position label at the top of the loop
+    labelX = startX + loopSize / 2;
+    labelY = startY - loopSize / 2;
+  } else {
+    // Calculate perpendicular offset to prevent edges from overlapping
+    // This is especially important for bidirectional edges
+    const dx = targetX - sourceX;
+    const dy = targetY - sourceY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Normalize the perpendicular vector
+    const perpX = -dy / distance;
+    const perpY = dx / distance;
+
+    // Apply offset based on edge ID to separate bidirectional edges
+    // Use a consistent offset based on alphabetical order of source/target
+    const offset = source < target ? 15 : -15;
+
+    const offsetSourceX = sourceX + perpX * offset;
+    const offsetSourceY = sourceY + perpY * offset;
+    const offsetTargetX = targetX + perpX * offset;
+    const offsetTargetY = targetY + perpY * offset;
+
+    [path, labelX, labelY] = getBezierPath({
+      sourceX: offsetSourceX,
+      sourceY: offsetSourceY,
+      targetX: offsetTargetX,
+      targetY: offsetTargetY,
+      sourcePosition,
+      targetPosition,
+      curvature: 0.25,
+    });
+  }
 
   return (
     <>
