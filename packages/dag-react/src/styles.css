@@ -65,3 +65,21 @@
 .wiz-inspector-kv { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--wiz-border); }
 .wiz-inspector-section { margin-top: 6px; }
 .wiz-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Handle (connection point) styling */
+.react-flow__handle {
+  background: var(--wiz-border);
+  border: 1px solid var(--wiz-border);
+  opacity: 0.1;
+}
+.react-flow__handle:hover {
+  background: var(--wiz-edge);
+  border-color: var(--wiz-edge);
+  opacity: 1;
+}
+
+/* Larger hitbox for handles */
+.react-flow__handle {
+  width: 5px !important;
+  height: 5px !important;
+}

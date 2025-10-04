@@ -59,8 +59,7 @@ export const steps = defineSteps({
       label: 'Select Role',
       description: 'Choose your role to customize the wizard experience'
     }
-  }),
-  
+  }), 
   userProfile: step({
     data: initialData.userProfile,
     canEnter: ({ context }) => canAccessStep('userProfile', context.role, context),
@@ -87,7 +86,6 @@ export const steps = defineSteps({
       description: 'Enter your personal information'
     }
   }),
-  
   adminPanel: step({
     data: initialData.adminPanel,
     canEnter: ({ context }) => canAccessStep('adminPanel', context.role, context),
@@ -105,7 +103,6 @@ export const steps = defineSteps({
       description: 'Configure system-wide settings'
     }
   }),
-  
   managerDashboard: step({
     data: initialData.managerDashboard,
     canEnter: ({ context }) => canAccessStep('managerDashboard', context.role, context),
@@ -132,7 +129,6 @@ export const steps = defineSteps({
       description: 'Configure team and budget settings'
     }
   }),
-  
   sharedReview: step({
     data: initialData.sharedReview,
     next: [],
@@ -155,11 +151,10 @@ export const steps = defineSteps({
       description: 'Share your experience and feedback'
     }
   }),
-
   sendReminder: step({
     data: initialData.sendReminder,
     canEnter: ({ context }) => context.role === 'manager',
-    next: () => ['managerDashboard'], // Loop back to dashboard
+    next: () => ['managerDashboard'],
     validate: ({ data }) => {
       const d = data as typeof initialData.sendReminder;
       if (!d.message || d.message.length < 5) {
@@ -174,6 +169,14 @@ export const steps = defineSteps({
         ctx.completedSteps.push('sendReminder');
       });
     },
+    meta: {
+      label: 'Send Reminder',
+      description: 'Schedule a reminder for team member'
+    }
+  }),
+    new: step({
+    data: initialData.sendReminder,
+    next: ['managerDashboard'],
     meta: {
       label: 'Send Reminder',
       description: 'Schedule a reminder for team member'

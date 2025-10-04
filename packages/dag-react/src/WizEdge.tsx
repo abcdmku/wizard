@@ -17,7 +17,7 @@ export function WizEdge(props: EdgeProps) {
   } = props;
 
   const stroke = (style as any)?.stroke ?? (data?.kind === 'prerequisite' ? 'var(--wiz-warn)' : 'var(--wiz-edge)');
-  const strokeWidth = (style as any)?.strokeWidth ?? (data?.kind === 'prerequisite' ? 1 : 1.5);
+  const strokeWidth = (style as any)?.strokeWidth ?? 2;
   const dash = data?.kind === 'prerequisite' ? '6 4' : undefined;
 
   // Create unique marker ID for this edge's arrow
@@ -65,14 +65,14 @@ export function WizEdge(props: EdgeProps) {
       const midY = (sourceY + targetY) / 2;
       const distance = Math.abs(targetX - sourceX);
 
-      // Super wide U-shape: control points extremely close to source/target for super tight corners
-      const controlOffset = distance * 0.005; // Extremely narrow offset for super wide U
+      // Super wide U-shape: angled exit/entry at 45 degrees
+      const controlOffset = distance * 0.05; // Moderate offset for angled approach
       const control1X = sourceX + (targetX > sourceX ? controlOffset : -controlOffset);
       const control2X = targetX - (targetX > sourceX ? controlOffset : -controlOffset);
       const control1Y = isBottom ? sourceY + arcDepth : sourceY - arcDepth;
       const control2Y = isBottom ? targetY + arcDepth : targetY - arcDepth;
 
-      // Super wide U with tight rounded corners at top and flat bottom
+      // Super wide U with angled corners
       path = `M ${sourceX},${sourceY} C ${control1X},${control1Y} ${control2X},${control2Y} ${targetX},${targetY}`;
       labelX = midX;
       labelY = isBottom ? midY + arcDepth * 0.75 : midY - arcDepth * 0.75;
@@ -112,11 +112,11 @@ export function WizEdge(props: EdgeProps) {
           viewBox="0 0 10 10"
           refX="5"
           refY="5"
-          markerWidth="6"
-          markerHeight="6"
+          markerWidth="5"
+          markerHeight="5"
           orient="auto"
         >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill={stroke} />
+          <path d="M 0 2 L 10 5 L 0 8 z" fill={stroke} />
         </marker>
       </defs>
       <BaseEdge
