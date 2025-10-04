@@ -177,7 +177,7 @@ export function reactWizardWithContext<C, E = never>(context: C) {
 
       return {
         step,
-        registerSteps<const T extends Record<StepNames, any>>(defs: T): T {
+        registerSteps<const T extends Partial<Record<StepNames, any>>>(defs: T): T {
           return defs;
         }
       };
