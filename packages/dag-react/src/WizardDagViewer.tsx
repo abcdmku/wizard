@@ -171,7 +171,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           type: 'step',
           position,
           data: { label: n.label ?? n.id, info: (n.meta as any)?.info },
-          draggable: false,
+          draggable: true,
           selectable: true,
           // Remove fixed positions to allow edges from all sides
           className: clsx('wiz-node'),
