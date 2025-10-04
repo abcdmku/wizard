@@ -63,13 +63,17 @@ export function WizEdge(props: EdgeProps) {
       const isBottom = sourcePosition === 'bottom';
       const midX = (sourceX + targetX) / 2;
       const midY = (sourceY + targetY) / 2;
+      const distance = Math.abs(targetX - sourceX);
 
-      // Control points for cubic bezier - create inward curve at both ends
+      // Control points positioned wider to create flatter middle and tighter end curves
+      const controlOffset = distance * 0.35; // Move control points outward horizontally
+      const control1X = sourceX + (targetX > sourceX ? controlOffset : -controlOffset);
+      const control2X = targetX - (targetX > sourceX ? controlOffset : -controlOffset);
       const control1Y = isBottom ? sourceY + arcDepth : sourceY - arcDepth;
       const control2Y = isBottom ? targetY + arcDepth : targetY - arcDepth;
 
-      // Create smooth cubic bezier curve with pronounced arc that curves inward
-      path = `M ${sourceX},${sourceY} C ${sourceX},${control1Y} ${targetX},${control2Y} ${targetX},${targetY}`;
+      // Create smooth cubic bezier curve with flat middle and tight curves at ends
+      path = `M ${sourceX},${sourceY} C ${control1X},${control1Y} ${control2X},${control2Y} ${targetX},${targetY}`;
       labelX = midX;
       labelY = isBottom ? midY + arcDepth * 0.75 : midY - arcDepth * 0.75;
     } else {
