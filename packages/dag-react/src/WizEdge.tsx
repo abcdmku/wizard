@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from 'reactflow';
 
 export function WizEdge(props: EdgeProps) {
@@ -55,9 +54,20 @@ export function WizEdge(props: EdgeProps) {
     labelX = startX + loopSize / 2;
     labelY = startY - loopSize / 2;
   } else {
+    // Determine if using vertical connections (top/bottom)
+    const isVertical = sourcePosition === 'top' || sourcePosition === 'bottom' ||
+                       targetPosition === 'top' || targetPosition === 'bottom';
+
+    // For vertical connections, use higher curvature to create arc
     // For bidirectional edges, use different curvature to separate them
-    // Use alphabetical order of source/target to ensure consistency
-    const curvature = source < target ? 0.25 : 0.5;
+    let curvature: number;
+    if (isVertical) {
+      // Vertical connections get more arc
+      curvature = source < target ? 0.6 : 0.8;
+    } else {
+      // Horizontal connections
+      curvature = source < target ? 0.25 : 0.5;
+    }
 
     [path, labelX, labelY] = getBezierPath({
       sourceX,

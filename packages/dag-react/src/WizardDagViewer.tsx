@@ -147,10 +147,47 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         } as Node;
       });
 
-      const rfEdges: Edge[] = graph.edges.map((e) => ({
+      // Calculate optimal edge positions based on node positions
+      const rfEdges: Edge[] = graph.edges.map((e) => {
+        const sourceNode = rfNodes.find(n => n.id === e.source);
+        const targetNode = rfNodes.find(n => n.id === e.target);
+
+        let sourcePosition: 'left' | 'right' | 'top' | 'bottom' = 'right';
+        let targetPosition: 'left' | 'right' | 'top' | 'bottom' = 'left';
+
+        if (sourceNode && targetNode) {
+          const dx = targetNode.position.x - sourceNode.position.x;
+          const dy = targetNode.position.y - sourceNode.position.y;
+
+          // If edge goes backwards (target is to the left), use vertical routing
+          if (dx < -50) {
+            // Target is to the left of source, use top/bottom
+            sourcePosition = dy >= 0 ? 'bottom' : 'top';
+            targetPosition = dy >= 0 ? 'top' : 'bottom';
+          } else {
+            // Normal forward flow or vertical, use horizontal routing
+            const absX = Math.abs(dx);
+            const absY = Math.abs(dy);
+
+            // Prefer horizontal unless heavily vertical
+            if (absY > absX * 1.5) {
+              // Heavily vertical - use top/bottom
+              sourcePosition = dy >= 0 ? 'bottom' : 'top';
+              targetPosition = dy >= 0 ? 'top' : 'bottom';
+            } else {
+              // Horizontal or diagonal - use left/right
+              sourcePosition = 'right';
+              targetPosition = 'left';
+            }
+          }
+        }
+
+        return {
           id: e.id,
           source: e.source,
           target: e.target,
+          sourceHandle: sourcePosition.charAt(0),
+          targetHandle: targetPosition.charAt(0),
           type: 'wiz',
           animated: false,
           label: e.label,
@@ -162,7 +199,8 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           labelBgPadding: [4, 2],
           labelBgBorderRadius: 6,
           labelBgStyle: { fill: 'var(--wiz-surface)', stroke: 'var(--wiz-border)' },
-        } as Edge));
+        } as Edge;
+      });
 
       setNodes(rfNodes);
       setEdges(rfEdges);
