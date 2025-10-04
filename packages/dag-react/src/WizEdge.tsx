@@ -58,21 +58,21 @@ export function WizEdge(props: EdgeProps) {
     const isSameSide = sourcePosition === targetPosition;
 
     if (isSameSide && (sourcePosition === 'top' || sourcePosition === 'bottom')) {
-      // Same-side top/bottom connections - create smooth bull nose arc
+      // Same-side top/bottom connections - create super wide U-shape
       const arcDepth = 45;
       const isBottom = sourcePosition === 'bottom';
       const midX = (sourceX + targetX) / 2;
       const midY = (sourceY + targetY) / 2;
       const distance = Math.abs(targetX - sourceX);
 
-      // Control points for smooth S-curve with rounded transitions
-      const controlOffset = distance * 0.4; // Wider for flatter middle
+      // Super wide U-shape: control points very close to source/target for tight corners
+      const controlOffset = distance * 0.15; // Very narrow offset for tight U corners
       const control1X = sourceX + (targetX > sourceX ? controlOffset : -controlOffset);
       const control2X = targetX - (targetX > sourceX ? controlOffset : -controlOffset);
       const control1Y = isBottom ? sourceY + arcDepth : sourceY - arcDepth;
       const control2Y = isBottom ? targetY + arcDepth : targetY - arcDepth;
 
-      // Smooth cubic bezier with bull nose shape
+      // Super wide U with tight rounded corners at top and flat bottom
       path = `M ${sourceX},${sourceY} C ${control1X},${control1Y} ${control2X},${control2Y} ${targetX},${targetY}`;
       labelX = midX;
       labelY = isBottom ? midY + arcDepth * 0.75 : midY - arcDepth * 0.75;
