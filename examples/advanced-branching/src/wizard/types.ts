@@ -1,6 +1,14 @@
-import type { StepName } from "./stepNames";
 
 export type UserRole = 'user' | 'admin' | 'manager';
+
+export type StepName =
+  | 'roleSelection'
+  | 'userProfile'
+  | 'adminPanel'
+  | 'managerDashboard'
+  | 'sharedReview'
+  | 'sendReminder'
+  | 'new';
 
 export interface WizardContext {
   role: UserRole | '';

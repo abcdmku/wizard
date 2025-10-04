@@ -1,4 +1,4 @@
-import { defineSteps, step, createWizard } from "./factory";
+import { registerSteps, step, createWizard } from "./factory";
 import { useWizard, useWizardStep } from "@wizard/react";
 import type { WizardStepData } from "./types";
 import { determineNextStep, canAccessStep } from "./navigation";
@@ -38,7 +38,7 @@ const initialData: WizardStepData = {
   },
 };
 
-export const steps = defineSteps({
+export const steps = registerSteps({
   roleSelection: step({
     data: initialData.roleSelection,
     next: ({ data, context }) => {

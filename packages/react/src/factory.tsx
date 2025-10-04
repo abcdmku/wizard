@@ -160,8 +160,8 @@ export function reactWizardWithContext<C, E = never>(context: C) {
      * Define wizard steps - returns builder to provide typed step() helper
      *
      * @example
-     * const { step, build } = defineSteps();
-     * const steps = build({
+     * const { step, registerSteps } = defineSteps();
+     * const steps = registerSteps({
      *   start: step({ data: {}, next: ['end'] }),
      *   end: step({ data: {}, next: [] })
      * });
@@ -177,7 +177,7 @@ export function reactWizardWithContext<C, E = never>(context: C) {
 
       return {
         step,
-        build<const T extends Record<StepNames, any>>(defs: T): T {
+        registerSteps<const T extends Record<StepNames, any>>(defs: T): T {
           return defs;
         }
       };

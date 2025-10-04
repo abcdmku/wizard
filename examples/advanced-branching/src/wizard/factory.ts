@@ -10,9 +10,8 @@ const wizardFactory = reactWizardWithContext<WizardContext>({
 });
 
 // Create typed step builder - step names are explicitly defined in stepNames.ts
-const { step, build } = wizardFactory.defineSteps<StepName>();
+const { step, registerSteps } = wizardFactory.defineSteps<StepName>();
 
 // Export for use in config
-export { step };
-export const defineSteps = build;
+export { step, registerSteps };
 export const createWizard = wizardFactory.createWizard;
