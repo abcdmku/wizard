@@ -54,6 +54,11 @@ type ReactContextAwareStepDefinition<C, S extends string, Data, E> = {
   uiMeta?: StepMetaUI<C, S, Data, E>;
 };
 
+// Type-safe step builder that knows about all step names
+type TypedStepBuilder<C, E, StepNames extends string> = <Data>(
+  definition: ReactContextAwareStepDefinition<C, StepNames, Data, E>
+) => ReactContextAwareStepDefinition<C, StepNames, Data, E> & { __data?: Data };
+
 /**
  * Creates a React wizard factory with context-aware step definitions and component support
  * @template C The context type (required - no default to force explicit typing)
@@ -64,20 +69,8 @@ export function createReactWizardFactory<C = Record<string, never>, E = never>()
     /**
      * Define steps with proper context typing and React component support
      * Returns the definitions as const to preserve literal types across module boundaries
-     *
-     * This overload ensures that `next` arrays only accept valid step names from the defined steps
      */
-    defineSteps<const T extends Record<string, any>>(
-      defs: T & {
-        [K in keyof T]: T[K] extends { next: infer N }
-          ? N extends readonly (infer Item)[]
-            ? Item extends keyof T
-              ? T[K]
-              : { error: 'next array must only contain valid step names' }
-            : T[K]
-          : T[K]
-      }
-    ): T {
+    defineSteps<const T extends Record<string, any>>(defs: T): T {
       return defs;
     },
 
@@ -86,12 +79,21 @@ export function createReactWizardFactory<C = Record<string, never>, E = never>()
      * Explicitly captures the Data type to preserve it through module boundaries
      *
      * @template Data The data type for this step
-     * @template S The union of valid step names (inferred from next property)
      */
-    step<Data, S extends string = string>(
-      definition: ReactContextAwareStepDefinition<C, S, Data, E>
-    ): ReactContextAwareStepDefinition<C, S, Data, E> & { __data?: Data } {
-      return definition as ReactContextAwareStepDefinition<C, S, Data, E> & { __data?: Data };
+    step<Data>(
+      definition: ReactContextAwareStepDefinition<C, string, Data, E>
+    ): ReactContextAwareStepDefinition<C, string, Data, E> & { __data?: Data } {
+      return definition as any;
+    },
+
+    /**
+     * Creates a type-safe step builder that validates step names
+     * @template StepNames Union of valid step names
+     */
+    createStepBuilder<StepNames extends string>(): TypedStepBuilder<C, E, StepNames> {
+      return function<Data>(definition: ReactContextAwareStepDefinition<C, StepNames, Data, E>) {
+        return definition as any;
+      };
     },
 
     /**
@@ -137,6 +139,7 @@ export function reactWizardWithContext<C, E = never>(context: C) {
   return {
     defineSteps: factory.defineSteps,
     step: factory.step,
+    createStepBuilder: factory.createStepBuilder,
     createWizard: <TDefs extends Record<string, any>>(
       steps: TDefs,
       options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
