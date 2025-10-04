@@ -65,8 +65,8 @@ export function WizEdge(props: EdgeProps) {
       const midY = (sourceY + targetY) / 2;
       const distance = Math.abs(targetX - sourceX);
 
-      // Super wide U-shape: control points very close to source/target for tight corners
-      const controlOffset = distance * 0.15; // Very narrow offset for tight U corners
+      // Super wide U-shape: control points extremely close to source/target for super tight corners
+      const controlOffset = distance * 0.05; // Extremely narrow offset for super wide U
       const control1X = sourceX + (targetX > sourceX ? controlOffset : -controlOffset);
       const control2X = targetX - (targetX > sourceX ? controlOffset : -controlOffset);
       const control1Y = isBottom ? sourceY + arcDepth : sourceY - arcDepth;
