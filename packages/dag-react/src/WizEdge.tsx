@@ -58,12 +58,20 @@ export function WizEdge(props: EdgeProps) {
     const isVertical = sourcePosition === 'top' || sourcePosition === 'bottom' ||
                        targetPosition === 'top' || targetPosition === 'bottom';
 
+    // Detect same-side connections (top-to-top or bottom-to-bottom)
+    const isSameSide = sourcePosition === targetPosition;
+
     // For vertical connections, use higher curvature to create arc
     // For bidirectional edges, use different curvature to separate them
     let curvature: number;
     if (isVertical) {
-      // Vertical connections get more arc
-      curvature = source < target ? 0.6 : 0.8;
+      if (isSameSide) {
+        // Same-side connections need even more curvature for visible arc
+        curvature = source < target ? 0.8 : 1.2;
+      } else {
+        // Different-side vertical connections
+        curvature = source < target ? 0.6 : 0.8;
+      }
     } else {
       // Horizontal connections
       curvature = source < target ? 0.25 : 0.5;

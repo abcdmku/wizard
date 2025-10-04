@@ -161,19 +161,20 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
 
           // If edge goes backwards (target is to the left), use vertical routing
           if (dx < -50) {
-            // Target is to the left of source, use closest top/bottom
+            // Target is to the left of source, use same-side vertical handles
+            // Prefer bottom first, then top based on which is closer
             if (dy > 20) {
-              // Target is below source (higher y value) - closest is bottom to bottom
+              // Target is below source (higher y value) - use bottom to bottom
               sourcePosition = 'bottom';
               targetPosition = 'bottom';
             } else if (dy < -20) {
-              // Target is above source (lower y value) - closest is top to top
+              // Target is above source (lower y value) - use top to top
               sourcePosition = 'top';
               targetPosition = 'top';
             } else {
-              // About same height - use top to top
-              sourcePosition = 'top';
-              targetPosition = 'top';
+              // About same height - prefer bottom to bottom
+              sourcePosition = 'bottom';
+              targetPosition = 'bottom';
             }
           } else {
             // Normal forward flow or vertical, use horizontal routing
