@@ -93,6 +93,14 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         }
       }
 
+      // Detect isolated nodes (nodes with no edges)
+      const connectedNodes = new Set<string>();
+      for (const edge of transitionEdges) {
+        connectedNodes.add(edge.source);
+        connectedNodes.add(edge.target);
+      }
+      const isolatedNodes = graph.nodes.filter(n => !connectedNodes.has(n.id));
+
       const elkGraph: any = {
         id: 'root',
         layoutOptions: {
@@ -133,12 +141,35 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
 
       if (cancelled) return;
 
+      // Calculate position for isolated nodes (place them in a column to the right)
+      const maxX = result.children?.reduce((max: number, child: any) => Math.max(max, child.x + 200), 0) ?? 0;
+      const isolatedYStart = 100;
+      const isolatedYSpacing = 100;
+
       const rfNodes: Node[] = graph.nodes.map((n) => {
         const pos = result.children?.find((p: any) => p.id === n.id);
+        const isIsolated = isolatedNodes.some(iso => iso.id === n.id);
+
+        let position;
+        if (pos) {
+          // Node was positioned by ELK
+          position = { x: pos.x, y: pos.y };
+        } else if (isIsolated) {
+          // Isolated node - position it to the right in a column
+          const isolatedIndex = isolatedNodes.findIndex(iso => iso.id === n.id);
+          position = {
+            x: maxX + 250,
+            y: isolatedYStart + (isolatedIndex * isolatedYSpacing)
+          };
+        } else {
+          // Fallback
+          position = { x: 0, y: 0 };
+        }
+
         return {
           id: n.id,
           type: 'step',
-          position: { x: pos?.x ?? 0, y: pos?.y ?? 0 },
+          position,
           data: { label: n.label ?? n.id, info: (n.meta as any)?.info },
           draggable: false,
           selectable: true,
@@ -205,8 +236,8 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           label: e.label,
           data: { kind: e.kind },
           style: e.kind === 'prerequisite'
-            ? { stroke: 'var(--wiz-warn)', strokeDasharray: '6 4', opacity: 1, strokeWidth: 2.5 }
-            : { stroke: 'var(--wiz-edge)', strokeWidth: 3 },
+            ? { stroke: 'var(--wiz-warn)', strokeDasharray: '6 4', opacity: 1, strokeWidth: 2 }
+            : { stroke: 'var(--wiz-edge)', strokeWidth: 2 },
           labelStyle: { fill: 'var(--wiz-subtle)', fontWeight: 500 },
           labelBgPadding: [4, 2],
           labelBgBorderRadius: 6,
