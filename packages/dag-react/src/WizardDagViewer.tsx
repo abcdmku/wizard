@@ -105,21 +105,17 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           'elk.edgeRouting': 'SPLINES',
           'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
           'elk.layered.cycleBreaking.strategy': 'DEPTH_FIRST',
-          'elk.port.side': 'FREE', // Allow ports on any side of nodes
-          'elk.portConstraints': 'FREE', // Don't constrain port positions
+          'elk.portConstraints': 'FIXED_SIDE', // Prefer standard sides (E/W for horizontal flow)
+          'elk.port.borderOffset': 0, // Center ports on sides
         },
         children: graph.nodes.map((n) => {
           return {
             id: n.id,
             width: 200,
             height: 68,
-            // Add ports on all sides to allow flexible edge routing
-            ports: [
-              { id: `${n.id}_n`, layoutOptions: { 'elk.port.side': 'NORTH' } },
-              { id: `${n.id}_s`, layoutOptions: { 'elk.port.side': 'SOUTH' } },
-              { id: `${n.id}_e`, layoutOptions: { 'elk.port.side': 'EAST' } },
-              { id: `${n.id}_w`, layoutOptions: { 'elk.port.side': 'WEST' } },
-            ],
+            layoutOptions: {
+              'elk.portConstraints': 'FIXED_SIDE',
+            },
           };
         }),
         // Exclude back edges from layout to break cycles
