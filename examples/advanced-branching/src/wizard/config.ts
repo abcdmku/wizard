@@ -176,7 +176,7 @@ export const steps = defineSteps({
   }),
     new: step({
     data: initialData.sendReminder,
-    next: ['managerDashboard'],
+    next: ['managerDashboard',],
     meta: {
       label: 'Send Reminder',
       description: 'Schedule a reminder for team member'

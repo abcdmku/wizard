@@ -64,19 +64,34 @@ export function createReactWizardFactory<C = Record<string, never>, E = never>()
     /**
      * Define steps with proper context typing and React component support
      * Returns the definitions as const to preserve literal types across module boundaries
+     *
+     * This overload ensures that `next` arrays only accept valid step names from the defined steps
      */
-    defineSteps<const T extends Record<string, any>>(defs: T): T {
+    defineSteps<const T extends Record<string, any>>(
+      defs: T & {
+        [K in keyof T]: T[K] extends { next: infer N }
+          ? N extends readonly (infer Item)[]
+            ? Item extends keyof T
+              ? T[K]
+              : { error: 'next array must only contain valid step names' }
+            : T[K]
+          : T[K]
+      }
+    ): T {
       return defs;
     },
 
     /**
      * Helper for creating a typed step with context awareness and React component
      * Explicitly captures the Data type to preserve it through module boundaries
+     *
+     * @template Data The data type for this step
+     * @template S The union of valid step names (inferred from next property)
      */
-    step<Data>(
-      definition: ReactContextAwareStepDefinition<C, string, Data, E>
-    ): ReactContextAwareStepDefinition<C, string, Data, E> & { __data?: Data } {
-      return definition as ReactContextAwareStepDefinition<C, string, Data, E> & { __data?: Data };
+    step<Data, S extends string = string>(
+      definition: ReactContextAwareStepDefinition<C, S, Data, E>
+    ): ReactContextAwareStepDefinition<C, S, Data, E> & { __data?: Data } {
+      return definition as ReactContextAwareStepDefinition<C, S, Data, E> & { __data?: Data };
     },
 
     /**
