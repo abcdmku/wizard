@@ -58,22 +58,34 @@ export function WizEdge(props: EdgeProps) {
     const isSameSide = sourcePosition === targetPosition;
 
     if (isSameSide && (sourcePosition === 'top' || sourcePosition === 'bottom')) {
-      // Same-side top/bottom connections - create custom arc path with inward curves
+      // Same-side top/bottom connections - create bull nose shaped arc
       const arcDepth = 45; // Shallower arc to stay closer to red line but not too tall
       const isBottom = sourcePosition === 'bottom';
       const midX = (sourceX + targetX) / 2;
       const midY = (sourceY + targetY) / 2;
       const distance = Math.abs(targetX - sourceX);
 
-      // Control points positioned wider to create flatter middle and tighter end curves
-      const controlOffset = distance * 0.35; // Move control points outward horizontally
-      const control1X = sourceX + (targetX > sourceX ? controlOffset : -controlOffset);
-      const control2X = targetX - (targetX > sourceX ? controlOffset : -controlOffset);
-      const control1Y = isBottom ? sourceY + arcDepth : sourceY - arcDepth;
-      const control2Y = isBottom ? targetY + arcDepth : targetY - arcDepth;
+      // Bull nose shape: tight radius at corners, flat section in middle
+      const cornerRadius = distance * 0.2; // Tight rounded corners
+      const flatOffset = distance * 0.25; // Width of flat section
 
-      // Create smooth cubic bezier curve with flat middle and tight curves at ends
-      path = `M ${sourceX},${sourceY} C ${control1X},${control1Y} ${control2X},${control2Y} ${targetX},${targetY}`;
+      // Calculate points for bull nose shape
+      const baseY = isBottom ? sourceY : sourceY;
+      const arcY = isBottom ? baseY + arcDepth : baseY - arcDepth;
+
+      const startCornerX = sourceX + (targetX > sourceX ? cornerRadius : -cornerRadius);
+      const endCornerX = targetX - (targetX > sourceX ? cornerRadius : -cornerRadius);
+      const flatStartX = sourceX + (targetX > sourceX ? flatOffset : -flatOffset);
+      const flatEndX = targetX - (targetX > sourceX ? flatOffset : -flatOffset);
+
+      // Create bull nose path: vertical drop, rounded corner, flat section, rounded corner, vertical rise
+      path = `M ${sourceX},${sourceY}
+              L ${sourceX},${arcY}
+              Q ${startCornerX},${arcY} ${flatStartX},${arcY}
+              L ${flatEndX},${arcY}
+              Q ${endCornerX},${arcY} ${targetX},${arcY}
+              L ${targetX},${targetY}`;
+
       labelX = midX;
       labelY = isBottom ? midY + arcDepth * 0.75 : midY - arcDepth * 0.75;
     } else {
