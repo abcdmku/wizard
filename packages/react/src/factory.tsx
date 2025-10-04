@@ -156,7 +156,31 @@ export function reactWizardWithContext<C, E = never>(context: C) {
       };
     },
 
-    defineSteps: factory.defineSteps,
+    /**
+     * Define wizard steps with automatic step name inference
+     * Pass a function that receives a typed 'step' helper
+     *
+     * @example
+     * const steps = defineSteps((step) => ({
+     *   start: step({
+     *     data: {},
+     *     next: ['middle', 'end']  // ✅ Autocomplete works!
+     *   }),
+     *   middle: step({ data: {}, next: ['end'] }),
+     *   end: step({ data: {}, next: [] })
+     * }));
+     */
+    defineSteps<const T extends Record<string, any>>(
+      builder: (step: TypedStepBuilder<C, E, keyof T & string>) => T
+    ): T {
+      const step: TypedStepBuilder<C, E, keyof T & string> = function<Data>(
+        definition: ReactContextAwareStepDefinition<C, keyof T & string, Data, E>
+      ) {
+        return definition as any;
+      };
+      return builder(step);
+    },
+
     step: factory.step,
     createStepBuilder: factory.createStepBuilder,
     createWizard: <TDefs extends Record<string, any>>(
