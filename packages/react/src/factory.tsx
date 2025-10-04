@@ -157,27 +157,30 @@ export function reactWizardWithContext<C, E = never>(context: C) {
     },
 
     /**
-     * Define wizard steps with type-safe next arrays
-     * The next property can only contain keys that exist in the steps object
+     * Define wizard steps - returns builder to provide typed step() helper
+     *
+     * @example
+     * const { step, build } = defineSteps();
+     * const steps = build({
+     *   start: step({ data: {}, next: ['end'] }),
+     *   end: step({ data: {}, next: [] })
+     * });
      */
-    defineSteps<const T extends Record<string, any>>(
-      defs: {
-        [K in keyof T]: T[K] extends { next: infer N }
-          ? N extends readonly any[]
-            ? (readonly (keyof T)[]) extends N
-              ? T[K]
-              : N extends readonly (keyof T)[]
-                ? T[K]
-                : { error: 'next array must only contain valid step names'; invalidKeys: Exclude<N[number], keyof T> }
-            : N extends (...args: any[]) => infer R
-              ? R extends keyof T | readonly (keyof T)[]
-                ? T[K]
-                : { error: 'next function must return valid step name(s)' }
-              : T[K]
-          : T[K]
-      }
-    ): T {
-      return defs as T;
+    defineSteps<StepNames extends string = string>() {
+      type StepFn = <Data>(
+        def: ReactContextAwareStepDefinition<C, StepNames, Data, E>
+      ) => ReactContextAwareStepDefinition<C, StepNames, Data, E> & { __data?: Data };
+
+      const step: StepFn = function<Data>(def: ReactContextAwareStepDefinition<C, StepNames, Data, E>) {
+        return def as any;
+      };
+
+      return {
+        step,
+        build<const T extends Record<StepNames, any>>(defs: T): T {
+          return defs;
+        }
+      };
     },
 
     step: factory.step,

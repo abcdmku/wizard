@@ -1,4 +1,4 @@
-import { defineSteps, createWizard } from "./factory";
+import { defineSteps, step, createWizard } from "./factory";
 import { useWizard, useWizardStep } from "@wizard/react";
 import type { WizardStepData } from "./types";
 import { determineNextStep, canAccessStep } from "./navigation";
@@ -39,7 +39,7 @@ const initialData: WizardStepData = {
 };
 
 export const steps = defineSteps({
-  roleSelection: {
+  roleSelection: step({
     data: initialData.roleSelection,
     next: ({ data, context }) => {
       return determineNextStep('roleSelection', data.role, context);
@@ -59,8 +59,8 @@ export const steps = defineSteps({
       label: 'Select Role',
       description: 'Choose your role to customize the wizard experience'
     }
-  },
-  userProfile: {
+  }),
+  userProfile: step({
     data: initialData.userProfile,
     canEnter: ({ context }) => canAccessStep('userProfile', context.role, context),
     next: ({ context }) => determineNextStep('userProfile', context.role, context),
@@ -85,8 +85,8 @@ export const steps = defineSteps({
       label: 'User Profile',
       description: 'Enter your personal information'
     }
-  },
-  adminPanel: {
+  }),
+  adminPanel: step({
     data: initialData.adminPanel,
     canEnter: ({ context }) => canAccessStep('adminPanel', context.role, context),
     next: ({ context }) => {
@@ -102,8 +102,8 @@ export const steps = defineSteps({
       label: 'Admin Settings',
       description: 'Configure system-wide settings'
     }
-  },
-  managerDashboard: {
+  }),
+  managerDashboard: step({
     data: initialData.managerDashboard,
     canEnter: ({ context }) => canAccessStep('managerDashboard', context.role, context),
     next: ({ context }) => determineNextStep('managerDashboard', context.role, context),
@@ -128,8 +128,8 @@ export const steps = defineSteps({
       label: 'Manager Dashboard',
       description: 'Configure team and budget settings'
     }
-  },
-  sharedReview: {
+  }),
+  sharedReview: step({
     data: initialData.sharedReview,
     next: [],
     validate: ({ data }) => {
@@ -150,8 +150,8 @@ export const steps = defineSteps({
       label: 'Review & Feedback',
       description: 'Share your experience and feedback'
     }
-  },
-  sendReminder: {
+  }),
+  sendReminder: step({
     data: initialData.sendReminder,
     canEnter: ({ context }) => context.role === 'manager',
     next: () => ['managerDashboard'],
@@ -173,15 +173,15 @@ export const steps = defineSteps({
       label: 'Send Reminder',
       description: 'Schedule a reminder for team member'
     }
-  },
-    new: {
+  }),
+    new: step({
     data: initialData.sendReminder,
     next: ['managerDashboard', 'sendReminder'],
     meta: {
       label: 'Send Reminder',
       description: 'Schedule a reminder for team member'
     }
-  },
+  }),
 });
 
 export const branchingWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
