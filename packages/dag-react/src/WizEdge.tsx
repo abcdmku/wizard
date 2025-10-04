@@ -54,38 +54,49 @@ export function WizEdge(props: EdgeProps) {
     labelX = startX + loopSize / 2;
     labelY = startY - loopSize / 2;
   } else {
-    // Determine if using vertical connections (top/bottom)
-    const isVertical = sourcePosition === 'top' || sourcePosition === 'bottom' ||
-                       targetPosition === 'top' || targetPosition === 'bottom';
-
     // Detect same-side connections (top-to-top or bottom-to-bottom)
     const isSameSide = sourcePosition === targetPosition;
 
-    // For vertical connections, use higher curvature to create arc
-    // For bidirectional edges, use different curvature to separate them
-    let curvature: number;
-    if (isVertical) {
-      if (isSameSide) {
-        // Same-side connections need even more curvature for visible arc
-        curvature = source < target ? 0.8 : 1.2;
-      } else {
+    if (isSameSide && (sourcePosition === 'top' || sourcePosition === 'bottom')) {
+      // Same-side top/bottom connections - create custom arc path
+      const arcDepth = 40; // How far the arc extends
+      const isBottom = sourcePosition === 'bottom';
+      const midX = (sourceX + targetX) / 2;
+      const midY = (sourceY + targetY) / 2;
+
+      // Control point for the arc - extend outward from the connecting side
+      const controlY = isBottom ? midY + arcDepth : midY - arcDepth;
+
+      // Create smooth bezier curve with arc
+      path = `M ${sourceX},${sourceY} Q ${midX},${controlY} ${targetX},${targetY}`;
+      labelX = midX;
+      labelY = controlY;
+    } else {
+      // Determine if using vertical connections (top/bottom)
+      const isVertical = sourcePosition === 'top' || sourcePosition === 'bottom' ||
+                         targetPosition === 'top' || targetPosition === 'bottom';
+
+      // For vertical connections, use higher curvature to create arc
+      // For bidirectional edges, use different curvature to separate them
+      let curvature: number;
+      if (isVertical) {
         // Different-side vertical connections
         curvature = source < target ? 0.6 : 0.8;
+      } else {
+        // Horizontal connections
+        curvature = source < target ? 0.25 : 0.5;
       }
-    } else {
-      // Horizontal connections
-      curvature = source < target ? 0.25 : 0.5;
-    }
 
-    [path, labelX, labelY] = getBezierPath({
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
-      sourcePosition,
-      targetPosition,
-      curvature,
-    });
+      [path, labelX, labelY] = getBezierPath({
+        sourceX,
+        sourceY,
+        targetX,
+        targetY,
+        sourcePosition,
+        targetPosition,
+        curvature,
+      });
+    }
   }
 
   return (
