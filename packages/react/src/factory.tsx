@@ -157,11 +157,27 @@ export function reactWizardWithContext<C, E = never>(context: C) {
     },
 
     /**
-     * Define wizard steps - this is a stub that won't provide type safety
-     * Use the builder pattern for full type safety
+     * Define wizard steps with type-safe next arrays
+     * The next property can only contain keys that exist in the steps object
      */
-    defineSteps<const T extends Record<string, any>>(defs: T): T {
-      return defs;
+    defineSteps<const T extends Record<string, any>>(
+      defs: {
+        [K in keyof T]: T[K] extends { next: infer N }
+          ? N extends readonly any[]
+            ? (readonly (keyof T)[]) extends N
+              ? T[K]
+              : N extends readonly (keyof T)[]
+                ? T[K]
+                : { error: 'next array must only contain valid step names'; invalidKeys: Exclude<N[number], keyof T> }
+            : N extends (...args: any[]) => infer R
+              ? R extends keyof T | readonly (keyof T)[]
+                ? T[K]
+                : { error: 'next function must return valid step name(s)' }
+              : T[K]
+          : T[K]
+      }
+    ): T {
+      return defs as T;
     },
 
     step: factory.step,
