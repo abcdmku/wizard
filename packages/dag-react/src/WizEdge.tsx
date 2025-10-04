@@ -59,7 +59,7 @@ export function WizEdge(props: EdgeProps) {
 
     if (isSameSide && (sourcePosition === 'top' || sourcePosition === 'bottom')) {
       // Same-side top/bottom connections - create custom arc path with inward curves
-      const arcDepth = 60; // How far the arc extends
+      const arcDepth = 45; // Shallower arc to stay closer to red line but not too tall
       const isBottom = sourcePosition === 'bottom';
       const midX = (sourceX + targetX) / 2;
       const midY = (sourceY + targetY) / 2;
