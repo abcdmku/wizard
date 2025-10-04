@@ -78,12 +78,19 @@ export function WizEdge(props: EdgeProps) {
       const flatStartX = sourceX + (targetX > sourceX ? flatOffset : -flatOffset);
       const flatEndX = targetX - (targetX > sourceX ? flatOffset : -flatOffset);
 
-      // Create bull nose path: vertical drop, rounded corner, flat section, rounded corner, vertical rise
+      // Create bull nose path with all rounded corners
+      // Define corner transition points
+      const cornerTransition = arcDepth * 0.5; // Smooth transition distance
+      const startVerticalY = isBottom ? sourceY + (arcDepth - cornerTransition) : sourceY - (arcDepth - cornerTransition);
+      const endVerticalY = isBottom ? targetY + (arcDepth - cornerTransition) : targetY - (arcDepth - cornerTransition);
+
       path = `M ${sourceX},${sourceY}
-              L ${sourceX},${arcY}
-              Q ${startCornerX},${arcY} ${flatStartX},${arcY}
+              L ${sourceX},${startVerticalY}
+              Q ${sourceX},${arcY} ${startCornerX},${arcY}
+              Q ${flatStartX},${arcY} ${flatStartX},${arcY}
               L ${flatEndX},${arcY}
               Q ${endCornerX},${arcY} ${targetX},${arcY}
+              Q ${targetX},${arcY} ${targetX},${endVerticalY}
               L ${targetX},${targetY}`;
 
       labelX = midX;
