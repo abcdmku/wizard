@@ -58,19 +58,20 @@ export function WizEdge(props: EdgeProps) {
     const isSameSide = sourcePosition === targetPosition;
 
     if (isSameSide && (sourcePosition === 'top' || sourcePosition === 'bottom')) {
-      // Same-side top/bottom connections - create custom arc path
-      const arcDepth = 40; // How far the arc extends
+      // Same-side top/bottom connections - create custom arc path with inward curves
+      const arcDepth = 60; // How far the arc extends
       const isBottom = sourcePosition === 'bottom';
       const midX = (sourceX + targetX) / 2;
       const midY = (sourceY + targetY) / 2;
 
-      // Control point for the arc - extend outward from the connecting side
-      const controlY = isBottom ? midY + arcDepth : midY - arcDepth;
+      // Control points for cubic bezier - create inward curve at both ends
+      const control1Y = isBottom ? sourceY + arcDepth : sourceY - arcDepth;
+      const control2Y = isBottom ? targetY + arcDepth : targetY - arcDepth;
 
-      // Create smooth bezier curve with arc
-      path = `M ${sourceX},${sourceY} Q ${midX},${controlY} ${targetX},${targetY}`;
+      // Create smooth cubic bezier curve with pronounced arc that curves inward
+      path = `M ${sourceX},${sourceY} C ${sourceX},${control1Y} ${targetX},${control2Y} ${targetX},${targetY}`;
       labelX = midX;
-      labelY = controlY;
+      labelY = isBottom ? midY + arcDepth * 0.75 : midY - arcDepth * 0.75;
     } else {
       // Determine if using vertical connections (top/bottom)
       const isVertical = sourcePosition === 'top' || sourcePosition === 'bottom' ||
