@@ -66,7 +66,7 @@ export function WizEdge(props: EdgeProps) {
       const distance = Math.abs(targetX - sourceX);
 
       // Super wide U-shape: control points extremely close to source/target for super tight corners
-      const controlOffset = distance * 0.05; // Extremely narrow offset for super wide U
+      const controlOffset = distance * 0.005; // Extremely narrow offset for super wide U
       const control1X = sourceX + (targetX > sourceX ? controlOffset : -controlOffset);
       const control2X = targetX - (targetX > sourceX ? controlOffset : -controlOffset);
       const control1Y = isBottom ? sourceY + arcDepth : sourceY - arcDepth;
@@ -110,11 +110,11 @@ export function WizEdge(props: EdgeProps) {
         <marker
           id={markerId}
           viewBox="0 0 10 10"
-          refX="8"
+          refX="10"
           refY="5"
           markerWidth="5"
           markerHeight="5"
-          orient="auto"
+          orient="auto-start-reverse"
         >
           <path d="M 0 2 L 10 5 L 0 8 z" fill={stroke} />
         </marker>
