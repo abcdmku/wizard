@@ -58,41 +58,22 @@ export function WizEdge(props: EdgeProps) {
     const isSameSide = sourcePosition === targetPosition;
 
     if (isSameSide && (sourcePosition === 'top' || sourcePosition === 'bottom')) {
-      // Same-side top/bottom connections - create bull nose shaped arc
-      const arcDepth = 45; // Shallower arc to stay closer to red line but not too tall
+      // Same-side top/bottom connections - create smooth bull nose arc
+      const arcDepth = 45;
       const isBottom = sourcePosition === 'bottom';
       const midX = (sourceX + targetX) / 2;
       const midY = (sourceY + targetY) / 2;
       const distance = Math.abs(targetX - sourceX);
 
-      // Bull nose shape: smooth radius at corners, flat section in middle
-      const cornerRadius = distance * 0.35; // Smooth rounded corners
-      const flatOffset = distance * 0.15; // Width of flat section
+      // Control points for smooth S-curve with rounded transitions
+      const controlOffset = distance * 0.4; // Wider for flatter middle
+      const control1X = sourceX + (targetX > sourceX ? controlOffset : -controlOffset);
+      const control2X = targetX - (targetX > sourceX ? controlOffset : -controlOffset);
+      const control1Y = isBottom ? sourceY + arcDepth : sourceY - arcDepth;
+      const control2Y = isBottom ? targetY + arcDepth : targetY - arcDepth;
 
-      // Calculate points for bull nose shape
-      const baseY = isBottom ? sourceY : sourceY;
-      const arcY = isBottom ? baseY + arcDepth : baseY - arcDepth;
-
-      const startCornerX = sourceX + (targetX > sourceX ? cornerRadius : -cornerRadius);
-      const endCornerX = targetX - (targetX > sourceX ? cornerRadius : -cornerRadius);
-      const flatStartX = sourceX + (targetX > sourceX ? flatOffset : -flatOffset);
-      const flatEndX = targetX - (targetX > sourceX ? flatOffset : -flatOffset);
-
-      // Create bull nose path with all rounded corners
-      // Define corner transition points
-      const cornerTransition = arcDepth * 0.5; // Smooth transition distance
-      const startVerticalY = isBottom ? sourceY + (arcDepth - cornerTransition) : sourceY - (arcDepth - cornerTransition);
-      const endVerticalY = isBottom ? targetY + (arcDepth - cornerTransition) : targetY - (arcDepth - cornerTransition);
-
-      path = `M ${sourceX},${sourceY}
-              L ${sourceX},${startVerticalY}
-              Q ${sourceX},${arcY} ${startCornerX},${arcY}
-              Q ${flatStartX},${arcY} ${flatStartX},${arcY}
-              L ${flatEndX},${arcY}
-              Q ${endCornerX},${arcY} ${targetX},${arcY}
-              Q ${targetX},${arcY} ${targetX},${endVerticalY}
-              L ${targetX},${targetY}`;
-
+      // Smooth cubic bezier with bull nose shape
+      path = `M ${sourceX},${sourceY} C ${control1X},${control1Y} ${control2X},${control2Y} ${targetX},${targetY}`;
       labelX = midX;
       labelY = isBottom ? midY + arcDepth * 0.75 : midY - arcDepth * 0.75;
     } else {
