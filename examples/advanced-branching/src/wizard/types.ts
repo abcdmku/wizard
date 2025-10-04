@@ -1,9 +1,11 @@
+import type { StepName } from "./stepNames";
+
 export type UserRole = 'user' | 'admin' | 'manager';
 
 export interface WizardContext {
   role: UserRole | '';
   requiresApproval: boolean;
-  completedSteps: string[];
+  completedSteps: StepName[];
 }
 
 export interface RoleSelectionData {

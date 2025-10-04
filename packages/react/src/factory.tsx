@@ -137,6 +137,25 @@ export function reactWizardWithContext<C, E = never>(context: C) {
   const factory = createReactWizardFactory<C, E>();
 
   return {
+    /**
+     * Creates a wizard builder with type-safe step definitions
+     * This is the recommended approach for full type safety
+     */
+    builder<StepNames extends string>() {
+      type StepBuilder = <Data>(
+        definition: ReactContextAwareStepDefinition<C, StepNames, Data, E>
+      ) => ReactContextAwareStepDefinition<C, StepNames, Data, E> & { __data?: Data };
+
+      const step: StepBuilder = (definition) => definition as any;
+
+      return {
+        step,
+        build<const T extends Record<StepNames, any>>(steps: T): T {
+          return steps;
+        },
+      };
+    },
+
     defineSteps: factory.defineSteps,
     step: factory.step,
     createStepBuilder: factory.createStepBuilder,

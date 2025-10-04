@@ -1,10 +1,11 @@
 import type { UserRole, WizardContext } from "./types";
+import type { StepName } from "./stepNames";
 
 export const determineNextStep = (
   currentStep: string,
   role: UserRole | '',
-  context: WizardContext
-): string[] => {
+  _context: WizardContext
+): StepName[] => {
   switch (currentStep) {
     case 'roleSelection':
       // Branch based on selected role
@@ -39,7 +40,7 @@ export const determineNextStep = (
   }
 };
 
-export const getAvailableStepsForRole = (role: UserRole | ''): string[] => {
+export const getAvailableStepsForRole = (role: UserRole | ''): StepName[] => {
   switch (role) {
     case 'admin':
       return ['roleSelection', 'adminPanel'];
@@ -55,7 +56,7 @@ export const getAvailableStepsForRole = (role: UserRole | ''): string[] => {
 export const canAccessStep = (
   step: string,
   role: UserRole | '',
-  context: WizardContext
+  _context: WizardContext
 ): boolean => {
   // Always can access role selection
   if (step === 'roleSelection') return true;

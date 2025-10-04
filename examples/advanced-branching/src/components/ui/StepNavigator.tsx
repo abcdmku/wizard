@@ -1,7 +1,8 @@
 import { useBranchingWizard } from "../../wizard/config";
 import { getAvailableStepsForRole } from "../../wizard/navigation";
+import type { StepName } from "../../wizard/stepNames";
 
-const stepLabels: Record<string, string> = {
+const stepLabels: Partial<Record<StepName, string>> = {
   roleSelection: "Select Role",
   userProfile: "User Profile",
   adminPanel: "Admin Dashboard",
@@ -15,7 +16,7 @@ export function StepNavigator() {
   const availableSteps = getAvailableStepsForRole(context.role);
   const visibleSteps = availableSteps.filter(step => stepLabels[step]);
 
-  const getStepStatus = (step: string) => {
+  const getStepStatus = (step: StepName) => {
     if (step === currentStep) return "current";
     if (context.completedSteps.includes(step)) return "completed";
     if (availableSteps.includes(step)) return "available";
