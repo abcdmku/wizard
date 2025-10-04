@@ -1,4 +1,4 @@
-import { defineSteps, createWizard } from "./factory";
+import { defineSteps, step, createWizard } from "./factory";
 import { useWizard, useWizardStep } from "@wizard/react";
 import type { WizardStepData } from "./types";
 import { determineNextStep, canAccessStep } from "./navigation";
@@ -38,7 +38,7 @@ const initialData: WizardStepData = {
   },
 };
 
-export const steps = defineSteps((step) => ({
+export const steps = defineSteps({
   roleSelection: step({
     data: initialData.roleSelection,
     next: ({ data, context }) => {
@@ -182,7 +182,7 @@ export const steps = defineSteps((step) => ({
       description: 'Schedule a reminder for team member'
     }
   }),
-}));
+});
 
 export const branchingWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
 

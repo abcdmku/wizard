@@ -157,28 +157,11 @@ export function reactWizardWithContext<C, E = never>(context: C) {
     },
 
     /**
-     * Define wizard steps with automatic step name inference
-     * Pass a function that receives a typed 'step' helper
-     *
-     * @example
-     * const steps = defineSteps((step) => ({
-     *   start: step({
-     *     data: {},
-     *     next: ['middle', 'end']  // ✅ Autocomplete works!
-     *   }),
-     *   middle: step({ data: {}, next: ['end'] }),
-     *   end: step({ data: {}, next: [] })
-     * }));
+     * Define wizard steps - this is a stub that won't provide type safety
+     * Use the builder pattern for full type safety
      */
-    defineSteps<const T extends Record<string, any>>(
-      builder: (step: TypedStepBuilder<C, E, keyof T & string>) => T
-    ): T {
-      const step: TypedStepBuilder<C, E, keyof T & string> = function<Data>(
-        definition: ReactContextAwareStepDefinition<C, keyof T & string, Data, E>
-      ) {
-        return definition as any;
-      };
-      return builder(step);
+    defineSteps<const T extends Record<string, any>>(defs: T): T {
+      return defs;
     },
 
     step: factory.step,
