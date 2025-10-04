@@ -163,17 +163,19 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           if (dx < -50) {
             // Target is to the left of source, use closest top/bottom
             if (dy > 20) {
-              // Target is below source - connect bottom to top (shortest path)
-              sourcePosition = 'bottom';
-              targetPosition = 'top';
-            } else if (dy < -20) {
-              // Target is above source - connect top to bottom (shortest path)
+              // Target is ABOVE source (positive dy means target has higher y, which is lower on screen)
+              // Connect from source TOP to target BOTTOM (going upward on screen)
               sourcePosition = 'top';
               targetPosition = 'bottom';
-            } else {
-              // About same height - use bottom to top for upward arc
+            } else if (dy < -20) {
+              // Target is BELOW source (negative dy means target has lower y, which is higher on screen)
+              // Connect from source BOTTOM to target TOP (going downward on screen)
               sourcePosition = 'bottom';
               targetPosition = 'top';
+            } else {
+              // About same height - use top to bottom for upward arc
+              sourcePosition = 'top';
+              targetPosition = 'bottom';
             }
           } else {
             // Normal forward flow or vertical, use horizontal routing
