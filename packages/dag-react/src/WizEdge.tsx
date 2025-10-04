@@ -65,9 +65,9 @@ export function WizEdge(props: EdgeProps) {
       const midY = (sourceY + targetY) / 2;
       const distance = Math.abs(targetX - sourceX);
 
-      // Bull nose shape: tight radius at corners, flat section in middle
-      const cornerRadius = distance * 0.2; // Tight rounded corners
-      const flatOffset = distance * 0.25; // Width of flat section
+      // Bull nose shape: smooth radius at corners, flat section in middle
+      const cornerRadius = distance * 0.35; // Smooth rounded corners
+      const flatOffset = distance * 0.15; // Width of flat section
 
       // Calculate points for bull nose shape
       const baseY = isBottom ? sourceY : sourceY;
