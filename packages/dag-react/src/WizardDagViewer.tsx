@@ -27,6 +27,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   const [selectedInfo, setSelectedInfo] = React.useState<any | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null);
   const isDraggingRef = React.useRef(false);
+  const dragStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
   const graph = React.useMemo(
     () => inputGraph ?? (steps ? stepsToGraph(steps, { probes }) : { nodes: [], edges: [] }),
     [inputGraph, steps, probes]
@@ -305,12 +306,20 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
     setSelectedInfo(info);
   }, [onNodeSelect]);
 
-  const onNodeDragStart = React.useCallback(() => {
-    isDraggingRef.current = true;
+  const onNodeDragStart = React.useCallback((_: any, node: Node) => {
+    dragStartPosRef.current = { x: node.position.x, y: node.position.y };
     setHoveredNodeId(null); // Clear hover state during drag
   }, []);
 
-  const onNodeDragStop = React.useCallback(() => {
+  const onNodeDragStop = React.useCallback((_: any, node: Node) => {
+    // Check if node actually moved
+    if (dragStartPosRef.current) {
+      const dx = Math.abs(node.position.x - dragStartPosRef.current.x);
+      const dy = Math.abs(node.position.y - dragStartPosRef.current.y);
+      isDraggingRef.current = dx > 5 || dy > 5; // Consider it a drag if moved more than 5px
+    }
+    dragStartPosRef.current = null;
+
     // Keep dragging flag true until after click event
     setTimeout(() => {
       isDraggingRef.current = false;
