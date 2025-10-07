@@ -4,9 +4,10 @@ import type { WizardGraph } from '@wizard/dag-core';
 type Props = {
   info: { info: any; nodeId: string; graph: WizardGraph } | null;
   onClose?: () => void;
+  width?: number;
 };
 
-export function StepInspector({ info: data, onClose }: Props) {
+export function StepInspector({ info: data, onClose, width = 400 }: Props) {
   const [expandedCode, setExpandedCode] = React.useState<Set<string>>(new Set());
 
   // Compute outgoing edges
@@ -75,7 +76,7 @@ export function StepInspector({ info: data, onClose }: Props) {
     : [];
 
   return (
-    <div className="wiz-inspector">
+    <div className="wiz-inspector" style={{ width: `${width}px` }}>
       <div className="wiz-inspector-head">
         <div>
           <div className="wiz-inspector-title">{info.label ?? info.id}</div>

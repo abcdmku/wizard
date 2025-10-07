@@ -29,6 +29,8 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null);
   const isDraggingRef = React.useRef(false);
   const dragStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const [panelWidth, setPanelWidth] = React.useState(400);
+  const isResizingRef = React.useRef(false);
   const graph = React.useMemo(
     () => inputGraph ?? (steps ? stepsToGraph(steps, { probes }) : { nodes: [], edges: [] }),
     [inputGraph, steps, probes]
@@ -352,6 +354,38 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
     setHoveredNodeId(null);
   }, []);
 
+  const onResizeStart = React.useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  React.useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current || !rootRef.current) return;
+      const containerRect = rootRef.current.getBoundingClientRect();
+      const newWidth = containerRect.right - e.clientX;
+      setPanelWidth(Math.max(300, Math.min(800, newWidth)));
+    };
+
+    const onMouseUp = () => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
+
   React.useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -393,7 +427,12 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           </div>
         </Panel>
       </ReactFlow>
-      <StepInspector info={selectedInfo} onClose={onInspectorClose} />
+      {selectedInfo && (
+        <>
+          <div className="wiz-resize-handle" onMouseDown={onResizeStart} style={{ right: `${panelWidth}px` }} />
+          <StepInspector info={selectedInfo} onClose={onInspectorClose} width={panelWidth} />
+        </>
+      )}
     </div>
   );
 }
