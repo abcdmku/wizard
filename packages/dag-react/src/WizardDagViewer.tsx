@@ -236,7 +236,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         if (e.kind === 'prerequisite') {
           edgeStyle = { stroke: 'var(--wiz-warn)', strokeDasharray: '6 4', opacity: 1, strokeWidth: 2 };
         } else if (e.kind === 'any-transition') {
-          edgeStyle = { stroke: 'var(--wiz-warn)', strokeWidth: 1.5, opacity: 0.15 };
+          edgeStyle = { stroke: 'var(--wiz-warn)', strokeWidth: 1.5 };
           edgeClass = 'wiz-any-edge';
         } else {
           edgeStyle = { stroke: 'var(--wiz-edge)', strokeWidth: 2 };
