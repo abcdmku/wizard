@@ -25,6 +25,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   const [loading, setLoading] = React.useState(true);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const [selectedInfo, setSelectedInfo] = React.useState<any | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null);
   const isDraggingRef = React.useRef(false);
   const dragStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -271,7 +272,8 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   }, [graph]);
 
   React.useEffect(() => {
-    const highlightedNodeId = activeNodeId || hoveredNodeId;
+    // Priority: activeNodeId (from props) > hoveredNodeId > selectedNodeId
+    const highlightedNodeId = activeNodeId || hoveredNodeId || selectedNodeId;
 
     // Update node className for highlighting
     setNodes((nds) => nds.map((n) => ({
@@ -293,7 +295,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         return e;
       });
     });
-  }, [activeNodeId, hoveredNodeId, setNodes, setEdges]);
+  }, [activeNodeId, hoveredNodeId, selectedNodeId, setNodes, setEdges]);
 
   const onNodeClick = React.useCallback((_: any, node: Node) => {
     // Prevent click during drag
@@ -303,7 +305,21 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
     }
     onNodeSelect?.(node?.id ?? null);
     const info = (node?.data as any)?.info ?? null;
-    setSelectedInfo(info);
+    setSelectedNodeId(node.id);
+    setSelectedInfo(info ? { info, nodeId: node.id, graph } : null);
+  }, [onNodeSelect, graph]);
+
+  const onPaneClick = React.useCallback(() => {
+    // Clear selection when clicking on empty space
+    setSelectedNodeId(null);
+    setSelectedInfo(null);
+    onNodeSelect?.(null);
+  }, [onNodeSelect]);
+
+  const onInspectorClose = React.useCallback(() => {
+    setSelectedNodeId(null);
+    setSelectedInfo(null);
+    onNodeSelect?.(null);
   }, [onNodeSelect]);
 
   const onNodeDragStart = React.useCallback((_: any, node: Node) => {
@@ -358,6 +374,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
         onNodeMouseEnter={onNodeMouseEnter}
@@ -376,7 +393,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           </div>
         </Panel>
       </ReactFlow>
-      <StepInspector info={selectedInfo} onClose={() => setSelectedInfo(null)} />
+      <StepInspector info={selectedInfo} onClose={onInspectorClose} />
     </div>
   );
 }
