@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export type NodeKind = 'step' | 'start' | 'end' | 'group';
-export type EdgeKind = 'transition' | 'prerequisite';
+export type EdgeKind = 'transition' | 'prerequisite' | 'any-transition';
 
 export type WizardNode = {
   id: string;
@@ -43,7 +43,7 @@ export const WizardEdgeSchema = z.object({
   id: z.string(),
   source: z.string(),
   target: z.string(),
-  kind: z.union([z.literal('transition'), z.literal('prerequisite')]).optional(),
+  kind: z.union([z.literal('transition'), z.literal('prerequisite'), z.literal('any-transition')]).optional(),
   label: z.string().optional(),
   guard: z.string().optional(),
   meta: z.record(z.unknown()).optional(),

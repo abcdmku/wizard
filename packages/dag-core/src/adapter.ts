@@ -78,8 +78,21 @@ export function stepsToGraph(steps: AnyStepsRecord, opts?: { probes?: StepsToGra
       (info as any).nextIsAny = true;
     }
 
-    // Don't create edges for "any" - we'll handle this visually in the viewer
-    if (!isAnyNext) {
+    // Create edges
+    if (isAnyNext) {
+      // Create edges to all other steps with special "any-transition" kind
+      for (const targetId of Object.keys(steps)) {
+        if (targetId !== stepId) {
+          edges.push({
+            id: `${stepId}__any__${targetId}`,
+            source: stepId,
+            target: targetId,
+            kind: 'any-transition',
+            meta: { isAnyEdge: true }
+          });
+        }
+      }
+    } else {
       for (const target of targets) {
         edges.push({ id: `${stepId}__to__${target}`, source: stepId, target, kind: 'transition' });
       }

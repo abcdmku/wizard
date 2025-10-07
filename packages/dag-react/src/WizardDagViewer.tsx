@@ -25,6 +25,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   const [loading, setLoading] = React.useState(true);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const [selectedInfo, setSelectedInfo] = React.useState<any | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null);
   const graph = React.useMemo(
     () => inputGraph ?? (steps ? stepsToGraph(steps, { probes }) : { nodes: [], edges: [] }),
     [inputGraph, steps, probes]
@@ -39,7 +40,8 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
 
       // Build adjacency list for BFS
       const adjacency = new Map<string, string[]>();
-      const transitionEdges = graph.edges.filter(e => e.kind !== 'prerequisite');
+      // Exclude prerequisite and any-transition edges from layout calculation
+      const transitionEdges = graph.edges.filter(e => e.kind !== 'prerequisite' && e.kind !== 'any-transition');
 
       for (const node of graph.nodes) {
         adjacency.set(node.id, []);
@@ -225,6 +227,19 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           }
         }
 
+        // Determine edge style based on kind
+        let edgeStyle: any;
+        let edgeClass = '';
+
+        if (e.kind === 'prerequisite') {
+          edgeStyle = { stroke: 'var(--wiz-warn)', strokeDasharray: '6 4', opacity: 1, strokeWidth: 2 };
+        } else if (e.kind === 'any-transition') {
+          edgeStyle = { stroke: 'var(--wiz-warn)', strokeWidth: 1.5, opacity: 0.15 };
+          edgeClass = 'wiz-any-edge';
+        } else {
+          edgeStyle = { stroke: 'var(--wiz-edge)', strokeWidth: 2 };
+        }
+
         return {
           id: e.id,
           source: e.source,
@@ -234,10 +249,9 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
           type: 'wiz',
           animated: false,
           label: e.label,
-          data: { kind: e.kind },
-          style: e.kind === 'prerequisite'
-            ? { stroke: 'var(--wiz-warn)', strokeDasharray: '6 4', opacity: 1, strokeWidth: 2 }
-            : { stroke: 'var(--wiz-edge)', strokeWidth: 2 },
+          data: { kind: e.kind, sourceId: e.source },
+          style: edgeStyle,
+          className: edgeClass,
           labelStyle: { fill: 'var(--wiz-subtle)', fontWeight: 500 },
           labelBgPadding: [4, 2],
           labelBgBorderRadius: 6,
@@ -255,15 +269,50 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   }, [graph]);
 
   React.useEffect(() => {
-    if (!activeNodeId) return;
-    setNodes((nds) => nds.map((n) => ({ ...n, style: n.id === activeNodeId ? { outline: '2px solid var(--wiz-accent)' } : undefined })));
-  }, [activeNodeId, setNodes]);
+    const highlightedNodeId = activeNodeId || hoveredNodeId;
+
+    if (!highlightedNodeId) {
+      // Clear all highlights
+      setNodes((nds) => nds.map((n) => ({ ...n, style: undefined })));
+      setEdges((eds) => eds.map((e) => {
+        if (e.className === 'wiz-any-edge') {
+          return { ...e, style: { ...e.style, opacity: 0.15 } };
+        }
+        return e;
+      }));
+      return;
+    }
+
+    // Highlight active or hovered node
+    setNodes((nds) => nds.map((n) => ({
+      ...n,
+      style: n.id === highlightedNodeId ? { outline: '2px solid var(--wiz-accent)' } : undefined
+    })));
+
+    // Highlight any-edges from highlighted node
+    setEdges((eds) => eds.map((e) => {
+      if (e.className === 'wiz-any-edge' && (e.data as any)?.sourceId === highlightedNodeId) {
+        return { ...e, style: { ...e.style, opacity: 0.6 } };
+      } else if (e.className === 'wiz-any-edge') {
+        return { ...e, style: { ...e.style, opacity: 0.15 } };
+      }
+      return e;
+    }));
+  }, [activeNodeId, hoveredNodeId, setNodes, setEdges]);
 
   const onNodeClick = React.useCallback((_: any, node: Node) => {
     onNodeSelect?.(node?.id ?? null);
     const info = (node?.data as any)?.info ?? null;
     setSelectedInfo(info);
   }, [onNodeSelect]);
+
+  const onNodeMouseEnter = React.useCallback((_: any, node: Node) => {
+    setHoveredNodeId(node.id);
+  }, []);
+
+  const onNodeMouseLeave = React.useCallback(() => {
+    setHoveredNodeId(null);
+  }, []);
 
   React.useEffect(() => {
     const root = rootRef.current;
@@ -287,6 +336,8 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeMouseEnter={onNodeMouseEnter}
+        onNodeMouseLeave={onNodeMouseLeave}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         className="wiz-flow"
