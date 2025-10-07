@@ -428,10 +428,10 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         </Panel>
       </ReactFlow>
       {selectedInfo && (
-        <>
-          <div className="wiz-resize-handle" onMouseDown={onResizeStart} style={{ right: `${panelWidth}px` }} />
+        <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: `${panelWidth}px`, pointerEvents: 'none' }}>
+          <div className="wiz-resize-handle" onMouseDown={onResizeStart} style={{ pointerEvents: 'auto' }} />
           <StepInspector info={selectedInfo} onClose={onInspectorClose} width={panelWidth} />
-        </>
+        </div>
       )}
     </div>
   );

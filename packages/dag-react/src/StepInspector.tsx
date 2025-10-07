@@ -76,7 +76,7 @@ export function StepInspector({ info: data, onClose, width = 400 }: Props) {
     : [];
 
   return (
-    <div className="wiz-inspector" style={{ width: `${width}px` }}>
+    <div className="wiz-inspector">
       <div className="wiz-inspector-head">
         <div>
           <div className="wiz-inspector-title">{info.label ?? info.id}</div>
