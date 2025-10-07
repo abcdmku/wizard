@@ -271,33 +271,26 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   React.useEffect(() => {
     const highlightedNodeId = activeNodeId || hoveredNodeId;
 
-    if (!highlightedNodeId) {
-      // Clear all highlights
-      setNodes((nds) => nds.map((n) => ({ ...n, style: undefined })));
-      setEdges((eds) => eds.map((e) => {
-        if (e.className === 'wiz-any-edge') {
-          return { ...e, style: { ...e.style, opacity: 0.15 } };
-        }
-        return e;
-      }));
-      return;
-    }
-
-    // Highlight active or hovered node
+    // Update node styles for highlighting
     setNodes((nds) => nds.map((n) => ({
       ...n,
       style: n.id === highlightedNodeId ? { outline: '2px solid var(--wiz-accent)' } : undefined
     })));
 
-    // Highlight any-edges from highlighted node
-    setEdges((eds) => eds.map((e) => {
-      if (e.className === 'wiz-any-edge' && (e.data as any)?.sourceId === highlightedNodeId) {
-        return { ...e, style: { ...e.style, opacity: 0.6 } };
-      } else if (e.className === 'wiz-any-edge') {
-        return { ...e, style: { ...e.style, opacity: 0.15 } };
-      }
-      return e;
-    }));
+    // Update edge className for any-edges highlighting
+    setEdges((eds) => {
+      return eds.map((e) => {
+        // Check if this is an any-transition edge
+        if ((e.data as any)?.kind === 'any-transition') {
+          const isHighlighted = highlightedNodeId && (e.data as any)?.sourceId === highlightedNodeId;
+          return {
+            ...e,
+            className: isHighlighted ? 'wiz-any-edge highlighted' : 'wiz-any-edge'
+          };
+        }
+        return e;
+      });
+    });
   }, [activeNodeId, hoveredNodeId, setNodes, setEdges]);
 
   const onNodeClick = React.useCallback((_: any, node: Node) => {

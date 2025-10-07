@@ -84,3 +84,13 @@
   width: 5px !important;
   height: 5px !important;
 }
+
+/* Any-transition edges - low opacity by default */
+.wiz-any-edge {
+  opacity: 0.05;
+}
+
+/* Highlighted any-transition edges */
+.wiz-any-edge.highlighted {
+  opacity: 0.6;
+}
