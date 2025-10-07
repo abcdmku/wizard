@@ -26,6 +26,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const [selectedInfo, setSelectedInfo] = React.useState<any | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null);
+  const isDraggingRef = React.useRef(false);
   const graph = React.useMemo(
     () => inputGraph ?? (steps ? stepsToGraph(steps, { probes }) : { nodes: [], edges: [] }),
     [inputGraph, steps, probes]
@@ -271,10 +272,10 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   React.useEffect(() => {
     const highlightedNodeId = activeNodeId || hoveredNodeId;
 
-    // Update node styles for highlighting
+    // Update node className for highlighting
     setNodes((nds) => nds.map((n) => ({
       ...n,
-      style: n.id === highlightedNodeId ? { outline: '2px solid var(--wiz-accent)' } : undefined
+      className: clsx('wiz-node', n.id === highlightedNodeId && 'highlighted')
     })));
 
     // Update edge className for any-edges highlighting
@@ -294,13 +295,31 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
   }, [activeNodeId, hoveredNodeId, setNodes, setEdges]);
 
   const onNodeClick = React.useCallback((_: any, node: Node) => {
+    // Prevent click during drag
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      return;
+    }
     onNodeSelect?.(node?.id ?? null);
     const info = (node?.data as any)?.info ?? null;
     setSelectedInfo(info);
   }, [onNodeSelect]);
 
+  const onNodeDragStart = React.useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
+
+  const onNodeDragStop = React.useCallback(() => {
+    // Keep dragging flag true until after click event
+    setTimeout(() => {
+      isDraggingRef.current = false;
+    }, 50);
+  }, []);
+
   const onNodeMouseEnter = React.useCallback((_: any, node: Node) => {
-    setHoveredNodeId(node.id);
+    if (!isDraggingRef.current) {
+      setHoveredNodeId(node.id);
+    }
   }, []);
 
   const onNodeMouseLeave = React.useCallback(() => {
@@ -329,6 +348,8 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDragStop={onNodeDragStop}
         onNodeMouseEnter={onNodeMouseEnter}
         onNodeMouseLeave={onNodeMouseLeave}
         nodeTypes={nodeTypes}

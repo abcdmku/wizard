@@ -41,6 +41,13 @@
 .rf-node.wiz-node { background: transparent; border: none; box-shadow: none; }
 .wiz-node-card { background: var(--wiz-surface); border: 1px solid var(--wiz-border); color: var(--wiz-text); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); width: 200px; padding: 10px 12px; }
 .wiz-node-card[data-selected="true"] { outline: 2px solid var(--wiz-accent); }
+
+/* Node highlight with rounded outline */
+.rf-node.wiz-node.highlighted .wiz-node-card {
+  outline: 2px solid var(--wiz-accent);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
 .wiz-node-head { display: flex; align-items: center; gap: 6px; color: var(--wiz-subtle); font-size: 12px; }
 .wiz-node-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .wiz-chip { padding: 1px 6px; border-radius: 999px; border: 1px solid var(--wiz-border); background: var(--wiz-muted); }
