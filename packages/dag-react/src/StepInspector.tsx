@@ -7,19 +7,23 @@ type Props = {
 };
 
 export function StepInspector({ info: data, onClose }: Props) {
-  if (!data) return null;
-
-  const { info, nodeId, graph } = data;
+  const [expandedCode, setExpandedCode] = React.useState<Set<string>>(new Set());
 
   // Compute outgoing edges
   const outgoingEdges = React.useMemo(() => {
-    return graph.edges.filter(e => e.source === nodeId);
-  }, [graph.edges, nodeId]);
+    if (!data) return [];
+    return data.graph.edges.filter(e => e.source === data.nodeId);
+  }, [data]);
 
   // Compute incoming edges
   const incomingEdges = React.useMemo(() => {
-    return graph.edges.filter(e => e.target === nodeId);
-  }, [graph.edges, nodeId]);
+    if (!data) return [];
+    return data.graph.edges.filter(e => e.target === data.nodeId);
+  }, [data]);
+
+  if (!data) return null;
+
+  const { info, nodeId, graph } = data;
 
   // Separate by edge kind
   const nextSteps = outgoingEdges.filter(e => e.kind === 'transition' || e.kind === 'any-transition');
@@ -38,6 +42,35 @@ export function StepInspector({ info: data, onClose }: Props) {
   const inDegree = incomingStepIds.length;
   const isEntryPoint = inDegree === 0 && prerequisites.length === 0;
 
+  const toggleCode = (key: string) => {
+    setExpandedCode(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  // Collect all badges for the combined section
+  const badges = [];
+  if (isEntryPoint) badges.push({ key: 'entry', label: 'Entry Point', className: 'green', clickable: false });
+  if (isHub) badges.push({ key: 'hub', label: 'Hub Node', className: 'golden', clickable: false });
+  if (info.required !== false) badges.push({ key: 'required', label: 'Required', className: '', clickable: false });
+  if (info.hidden) badges.push({ key: 'hidden', label: 'Hidden', className: 'muted', clickable: false });
+  if (info.component) badges.push({ key: 'component', label: 'Has Component', className: '', clickable: false });
+  if (info.has?.validate) badges.push({ key: 'validate', label: 'Validate', className: 'green', clickable: true, code: info.validate });
+  if (info.has?.canEnter) badges.push({ key: 'canEnter', label: 'Entry Guard', className: 'blue', clickable: true, code: info.canEnter });
+  if (info.has?.canExit) badges.push({ key: 'canExit', label: 'Exit Guard', className: 'blue', clickable: true, code: info.canExit });
+  if (info.has?.beforeEnter) badges.push({ key: 'beforeEnter', label: 'Before Enter', className: 'purple', clickable: true, code: info.beforeEnter });
+  if (info.has?.beforeExit) badges.push({ key: 'beforeExit', label: 'Before Exit', className: 'purple', clickable: true, code: info.beforeExit });
+  if (info.has?.dynamicNext) badges.push({ key: 'dynamicNext', label: 'Dynamic Next', className: 'gold', clickable: true, code: info.next });
+  if (Array.isArray(info.tags)) {
+    info.tags.forEach((tag: string) => badges.push({ key: `tag-${tag}`, label: tag, className: 'tag', clickable: false }));
+  }
+
   return (
     <div className="wiz-inspector">
       <div className="wiz-inspector-head">
@@ -49,6 +82,32 @@ export function StepInspector({ info: data, onClose }: Props) {
       </div>
 
       {info.description && <p className="wiz-inspector-desc">{info.description}</p>}
+
+      {/* Combined Badges Section */}
+      {badges.length > 0 && (
+        <div className="wiz-inspector-section">
+          <div className="wiz-section-title">🏷️ Attributes</div>
+          <div className="wiz-badges">
+            {badges.map((badge) => (
+              <React.Fragment key={badge.key}>
+                <span
+                  className={`wiz-badge ${badge.className} ${badge.clickable ? 'clickable' : ''}`}
+                  onClick={badge.clickable ? () => toggleCode(badge.key) : undefined}
+                  style={badge.clickable ? { cursor: 'pointer' } : undefined}
+                >
+                  {badge.label}
+                  {badge.clickable && <span style={{ marginLeft: '4px' }}>{expandedCode.has(badge.key) ? '▼' : '▶'}</span>}
+                </span>
+                {badge.clickable && expandedCode.has(badge.key) && badge.code && (
+                  <div className="wiz-code-block">
+                    <pre><code>{typeof badge.code === 'function' ? badge.code.toString() : String(badge.code)}</code></pre>
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Statistics Section */}
       <div className="wiz-inspector-section">
@@ -62,16 +121,6 @@ export function StepInspector({ info: data, onClose }: Props) {
             <span className="wiz-stat-label">Reachable from</span>
             <span className="wiz-stat-value">{inDegree} {inDegree === 1 ? 'step' : 'steps'}</span>
           </div>
-          {isEntryPoint && (
-            <div className="wiz-stat-item full-width">
-              <span className="wiz-badge green">Entry Point</span>
-            </div>
-          )}
-          {isHub && (
-            <div className="wiz-stat-item full-width">
-              <span className="wiz-badge golden">Hub Node</span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -108,40 +157,6 @@ export function StepInspector({ info: data, onClose }: Props) {
           </div>
         </div>
       )}
-
-      {/* Guards & Validations */}
-      <div className="wiz-inspector-section">
-        <div className="wiz-section-title">🛡️ Guards & Validations</div>
-        <div className="wiz-guard-list">
-          {info.has?.validate && <div className="wiz-guard-item"><span className="wiz-guard-icon green">✓</span> Validation function</div>}
-          {info.has?.canEnter && <div className="wiz-guard-item"><span className="wiz-guard-icon blue">◆</span> Entry guard</div>}
-          {info.has?.canExit && <div className="wiz-guard-item"><span className="wiz-guard-icon blue">◆</span> Exit guard</div>}
-          {info.has?.beforeEnter && <div className="wiz-guard-item"><span className="wiz-guard-icon purple">→</span> Before enter hook</div>}
-          {info.has?.beforeExit && <div className="wiz-guard-item"><span className="wiz-guard-icon purple">←</span> Before exit hook</div>}
-          {info.has?.dynamicNext && <div className="wiz-guard-item"><span className="wiz-guard-icon gold">⚡</span> Dynamic next function</div>}
-          {!info.has?.validate && !info.has?.canEnter && !info.has?.canExit && !info.has?.beforeEnter && !info.has?.beforeExit && !info.has?.dynamicNext && (
-            <span className="wiz-subtle">No guards or validations</span>
-          )}
-        </div>
-      </div>
-
-      {/* Tags Section */}
-      {Array.isArray(info.tags) && info.tags.length > 0 && (
-        <div className="wiz-inspector-section">
-          <div className="wiz-section-title">🏷️ Tags</div>
-          <div className="wiz-badges">
-            {info.tags.map((tag: string) => <span key={tag} className="wiz-badge tag">{tag}</span>)}
-          </div>
-        </div>
-      )}
-
-      {/* Properties Section */}
-      <div className="wiz-inspector-section">
-        <div className="wiz-section-title">⚙️ Properties</div>
-        <div className="wiz-inspector-kv"><span>Required</span><span>{info.required !== false ? 'Yes' : 'No'}</span></div>
-        <div className="wiz-inspector-kv"><span>Hidden</span><span>{info.hidden ? 'Yes' : 'No'}</span></div>
-        <div className="wiz-inspector-kv"><span>Component</span><span>{info.component ? 'Present' : 'None'}</span></div>
-      </div>
     </div>
   );
 }

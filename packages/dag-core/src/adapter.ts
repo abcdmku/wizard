@@ -34,6 +34,15 @@ export function stepsToGraph(steps: AnyStepsRecord, opts?: { probes?: StepsToGra
       prerequisites: Array.isArray(def?.prerequisites) ? [...(def.prerequisites as string[])] : undefined,
     };
 
+    // Store actual function references for code inspection
+    const infoWithFns = info as any;
+    if (typeof (def as any)?.validate === 'function') infoWithFns.validate = (def as any).validate;
+    if (typeof (def as any)?.beforeEnter === 'function') infoWithFns.beforeEnter = (def as any).beforeEnter;
+    if (typeof (def as any)?.beforeExit === 'function') infoWithFns.beforeExit = (def as any).beforeExit;
+    if (typeof (def as any)?.canEnter === 'function') infoWithFns.canEnter = (def as any).canEnter;
+    if (typeof (def as any)?.canExit === 'function') infoWithFns.canExit = (def as any).canExit;
+    if (typeof def?.next === 'function') infoWithFns.next = def.next;
+
     nodes.push({
       id: stepId,
       label: info.label,

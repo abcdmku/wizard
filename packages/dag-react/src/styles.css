@@ -89,6 +89,16 @@
 .wiz-badge.green { border-color: var(--wiz-success); background: rgba(56, 211, 159, 0.15); color: var(--wiz-success); font-weight: 600; }
 .wiz-badge.warn { border-color: var(--wiz-warn); background: rgba(248, 191, 69, 0.15); color: var(--wiz-warn); }
 .wiz-badge.tag { border-color: var(--wiz-accent-2); background: rgba(180, 124, 255, 0.15); color: var(--wiz-accent-2); }
+.wiz-badge.clickable { cursor: pointer; user-select: none; }
+.wiz-badge.clickable:hover { opacity: 0.8; transform: translateY(-1px); }
+.wiz-badge.blue { border-color: var(--wiz-accent); background: rgba(122, 162, 255, 0.15); color: var(--wiz-accent); font-weight: 600; }
+.wiz-badge.purple { border-color: var(--wiz-accent-2); background: rgba(180, 124, 255, 0.15); color: var(--wiz-accent-2); font-weight: 600; }
+.wiz-badge.gold { border-color: var(--wiz-warn); background: rgba(248, 191, 69, 0.15); color: var(--wiz-warn); font-weight: 600; }
+.wiz-badge.golden { border-color: var(--wiz-warn); background: rgba(248, 191, 69, 0.15); color: var(--wiz-warn); font-weight: 600; }
+.wiz-badge.muted { opacity: 0.6; }
+.wiz-code-block { margin-top: 8px; width: 100%; background: var(--wiz-muted); border: 1px solid var(--wiz-border); border-radius: 8px; padding: 8px; overflow-x: auto; }
+.wiz-code-block pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
+.wiz-code-block code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: var(--wiz-text); }
 
 /* Handle (connection point) styling */
 .react-flow__handle {
