@@ -54,22 +54,25 @@ export function StepInspector({ info: data, onClose }: Props) {
     });
   };
 
-  // Collect all badges for the combined section
-  const badges = [];
-  if (isEntryPoint) badges.push({ key: 'entry', label: 'Entry Point', className: 'green', clickable: false });
-  if (isHub) badges.push({ key: 'hub', label: 'Hub Node', className: 'golden', clickable: false });
-  if (info.required !== false) badges.push({ key: 'required', label: 'Required', className: '', clickable: false });
-  if (info.hidden) badges.push({ key: 'hidden', label: 'Hidden', className: 'muted', clickable: false });
-  if (info.component) badges.push({ key: 'component', label: 'Has Component', className: '', clickable: false });
-  if (info.has?.validate) badges.push({ key: 'validate', label: 'Validate', className: 'green', clickable: true, code: info.validate });
-  if (info.has?.canEnter) badges.push({ key: 'canEnter', label: 'Entry Guard', className: 'blue', clickable: true, code: info.canEnter });
-  if (info.has?.canExit) badges.push({ key: 'canExit', label: 'Exit Guard', className: 'blue', clickable: true, code: info.canExit });
-  if (info.has?.beforeEnter) badges.push({ key: 'beforeEnter', label: 'Before Enter', className: 'purple', clickable: true, code: info.beforeEnter });
-  if (info.has?.beforeExit) badges.push({ key: 'beforeExit', label: 'Before Exit', className: 'purple', clickable: true, code: info.beforeExit });
-  if (info.has?.dynamicNext) badges.push({ key: 'dynamicNext', label: 'Dynamic Next', className: 'gold', clickable: true, code: info.next });
-  if (Array.isArray(info.tags)) {
-    info.tags.forEach((tag: string) => badges.push({ key: `tag-${tag}`, label: tag, className: 'tag', clickable: false }));
-  }
+  // Define all possible attributes
+  const allAttributes = [
+    { key: 'entry', label: 'Entry Point', active: isEntryPoint, className: 'green', clickable: false },
+    { key: 'hub', label: 'Hub Node', active: isHub, className: 'golden', clickable: false },
+    { key: 'required', label: 'Required', active: info.required !== false, className: '', clickable: false },
+    { key: 'hidden', label: 'Hidden', active: !!info.hidden, className: 'muted', clickable: false },
+    { key: 'component', label: 'Has Component', active: !!info.component, className: '', clickable: false },
+    { key: 'validate', label: 'Validate', active: !!info.has?.validate, className: 'green', clickable: true, code: info.validate },
+    { key: 'canEnter', label: 'Can Enter Guard', active: !!info.has?.canEnter, className: 'blue', clickable: true, code: info.canEnter },
+    { key: 'canExit', label: 'Can Exit Guard', active: !!info.has?.canExit, className: 'blue', clickable: true, code: info.canExit },
+    { key: 'beforeEnter', label: 'Before Enter Hook', active: !!info.has?.beforeEnter, className: 'purple', clickable: true, code: info.beforeEnter },
+    { key: 'beforeExit', label: 'Before Exit Hook', active: !!info.has?.beforeExit, className: 'purple', clickable: true, code: info.beforeExit },
+    { key: 'dynamicNext', label: 'Dynamic Next', active: !!info.has?.dynamicNext, className: 'gold', clickable: true, code: info.next },
+  ];
+
+  // Add tags as separate attributes
+  const tagAttributes = Array.isArray(info.tags)
+    ? info.tags.map((tag: string) => ({ key: `tag-${tag}`, label: `Tag: ${tag}`, active: true, className: 'tag', clickable: false }))
+    : [];
 
   return (
     <div className="wiz-inspector">
@@ -83,31 +86,35 @@ export function StepInspector({ info: data, onClose }: Props) {
 
       {info.description && <p className="wiz-inspector-desc">{info.description}</p>}
 
-      {/* Combined Badges Section */}
-      {badges.length > 0 && (
-        <div className="wiz-inspector-section">
-          <div className="wiz-section-title">🏷️ Attributes</div>
-          <div className="wiz-badges">
-            {badges.map((badge) => (
-              <React.Fragment key={badge.key}>
-                <span
-                  className={`wiz-badge ${badge.className} ${badge.clickable ? 'clickable' : ''}`}
-                  onClick={badge.clickable ? () => toggleCode(badge.key) : undefined}
-                  style={badge.clickable ? { cursor: 'pointer' } : undefined}
-                >
-                  {badge.label}
-                  {badge.clickable && <span style={{ marginLeft: '4px' }}>{expandedCode.has(badge.key) ? '▼' : '▶'}</span>}
-                </span>
-                {badge.clickable && expandedCode.has(badge.key) && badge.code && (
-                  <div className="wiz-code-block">
-                    <pre><code>{typeof badge.code === 'function' ? badge.code.toString() : String(badge.code)}</code></pre>
-                  </div>
+      {/* Attributes Section - Vertical List */}
+      <div className="wiz-inspector-section">
+        <div className="wiz-section-title">🏷️ Attributes</div>
+        <div className="wiz-attr-list">
+          {[...allAttributes, ...tagAttributes].map((attr) => (
+            <React.Fragment key={attr.key}>
+              <div
+                className={`wiz-attr-item ${attr.active ? 'active' : 'inactive'} ${attr.clickable && attr.active ? 'clickable' : ''}`}
+                onClick={attr.clickable && attr.active ? () => toggleCode(attr.key) : undefined}
+              >
+                <div className="wiz-attr-label">
+                  <span className={`wiz-attr-indicator ${attr.active ? attr.className : ''}`}>
+                    {attr.active ? '●' : '○'}
+                  </span>
+                  <span className="wiz-attr-name">{attr.label}</span>
+                </div>
+                {attr.clickable && attr.active && (
+                  <span className="wiz-attr-expand">{expandedCode.has(attr.key) ? '▼' : '▶'}</span>
                 )}
-              </React.Fragment>
-            ))}
-          </div>
+              </div>
+              {attr.clickable && attr.active && expandedCode.has(attr.key) && attr.code && (
+                <div className="wiz-code-block">
+                  <pre><code>{typeof attr.code === 'function' ? attr.code.toString() : String(attr.code)}</code></pre>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Statistics Section */}
       <div className="wiz-inspector-section">

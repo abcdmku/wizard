@@ -96,9 +96,25 @@
 .wiz-badge.gold { border-color: var(--wiz-warn); background: rgba(248, 191, 69, 0.15); color: var(--wiz-warn); font-weight: 600; }
 .wiz-badge.golden { border-color: var(--wiz-warn); background: rgba(248, 191, 69, 0.15); color: var(--wiz-warn); font-weight: 600; }
 .wiz-badge.muted { opacity: 0.6; }
-.wiz-code-block { margin-top: 8px; width: 100%; background: var(--wiz-muted); border: 1px solid var(--wiz-border); border-radius: 8px; padding: 8px; overflow-x: auto; }
+.wiz-code-block { margin-top: 8px; margin-bottom: 8px; width: 100%; background: var(--wiz-muted); border: 1px solid var(--wiz-border); border-radius: 8px; padding: 8px; overflow-x: auto; }
 .wiz-code-block pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
 .wiz-code-block code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: var(--wiz-text); }
+.wiz-attr-list { display: flex; flex-direction: column; gap: 4px; }
+.wiz-attr-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; transition: background 0.15s; }
+.wiz-attr-item.active { background: var(--wiz-muted); }
+.wiz-attr-item.inactive { opacity: 0.4; }
+.wiz-attr-item.clickable { cursor: pointer; }
+.wiz-attr-item.clickable:hover { background: var(--wiz-border); }
+.wiz-attr-label { display: flex; align-items: center; gap: 8px; flex: 1; }
+.wiz-attr-indicator { font-size: 10px; }
+.wiz-attr-indicator.green { color: var(--wiz-success); }
+.wiz-attr-indicator.blue { color: var(--wiz-accent); }
+.wiz-attr-indicator.purple { color: var(--wiz-accent-2); }
+.wiz-attr-indicator.gold { color: var(--wiz-warn); }
+.wiz-attr-indicator.golden { color: var(--wiz-warn); }
+.wiz-attr-indicator.tag { color: var(--wiz-accent-2); }
+.wiz-attr-name { font-size: 13px; font-weight: 500; }
+.wiz-attr-expand { font-size: 10px; color: var(--wiz-subtle); margin-left: 8px; }
 
 /* Handle (connection point) styling */
 .react-flow__handle {
