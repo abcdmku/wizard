@@ -307,6 +307,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
 
   const onNodeDragStart = React.useCallback(() => {
     isDraggingRef.current = true;
+    setHoveredNodeId(null); // Clear hover state during drag
   }, []);
 
   const onNodeDragStop = React.useCallback(() => {

@@ -44,9 +44,7 @@
 
 /* Node highlight with rounded outline */
 .rf-node.wiz-node.highlighted .wiz-node-card {
-  outline: 2px solid var(--wiz-accent);
-  outline-offset: 2px;
-  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25), 0 0 0 2px var(--wiz-accent);
 }
 .wiz-node-head { display: flex; align-items: center; gap: 6px; color: var(--wiz-subtle); font-size: 12px; }
 .wiz-node-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
