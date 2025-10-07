@@ -26,6 +26,7 @@ export type StepArgs<C, S extends string, Data, E> = {
   updateContext: (fn: (context: C) => void) => void;
   setStepData: (data: Data) => void;
   emit: (event: E) => void;
+  getAllStepNames: () => readonly S[];
 };
 
 export type StepEnterArgs<C, S extends string, Data, E> =
@@ -94,7 +95,7 @@ export type StepStatus =
 // ===== 5. Step Definition (value-or-fn, typed via inference) =====
 
 export type StepDefinition<C,S extends string,Data,E = never> = {
-  next: readonly S[] | ((args: StepArgs<C,S,Data,E>) => S | readonly S[]);
+  next: readonly S[] | "any" | ((args: StepArgs<C,S,Data,E>) => S | readonly S[] | "any");
   data?: ValOrFn<Data, StepEnterArgs<C,S,Data,E>>;
 
   beforeEnter?: (
@@ -156,7 +157,7 @@ export type InferStepData<TDef> =
 
 // Authoring surface (callbacks see inferred Data)
 export type PartialStepDefinition<C,S extends string,E,TDef> = {
-  next: readonly S[] | ((args: StepArgs<C,S,InferStepData<TDef>,E>) => S | readonly S[]);
+  next: readonly S[] | "any" | ((args: StepArgs<C,S,InferStepData<TDef>,E>) => S | readonly S[] | "any");
   data?: ValOrFn<InferStepData<TDef>, StepEnterArgs<C,S,InferStepData<TDef>,E>>;
   beforeEnter?: (
     args: StepEnterArgs<C,S,InferStepData<TDef>,E>

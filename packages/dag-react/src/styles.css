@@ -51,6 +51,7 @@
 .wiz-flag.green { border-color: var(--wiz-success); color: var(--wiz-success); }
 .wiz-flag.blue { border-color: var(--wiz-accent); color: var(--wiz-accent); }
 .wiz-flag.purple { border-color: var(--wiz-accent-2); color: var(--wiz-accent-2); }
+.wiz-flag.gold { border-color: var(--wiz-warn); color: var(--wiz-warn); background: rgba(248, 191, 69, 0.1); }
 
 .wiz-edge-label { background: var(--wiz-surface); border: 1px solid var(--wiz-border); color: var(--wiz-subtle); padding: 2px 6px; border-radius: 6px; }
 .wiz-minimap { filter: saturate(0.85); }

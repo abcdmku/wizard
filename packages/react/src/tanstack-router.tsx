@@ -82,6 +82,9 @@ export function createWizardRouteComponent<C, S extends string, D extends Record
       emit: (_event: E) => {
         // Event handling can be added here
       },
+      getAllStepNames: () => {
+        return wizard.helpers.allStepNames();
+      },
     };
 
     // Resolve the component (handles both React components and elements)

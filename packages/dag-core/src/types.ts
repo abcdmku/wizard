@@ -82,6 +82,7 @@ export type StepInfo = {
     dynamicNext: boolean;
   };
   next?: string[]; // static nexts if known
+  nextIsAny?: boolean; // true if next: "any"
   prerequisites?: string[];
 };
 

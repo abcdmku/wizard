@@ -24,6 +24,7 @@ type ReactContextAwareStepArgs<C, S extends string, Data, E> = {
   updateContext: (fn: (context: C) => void) => void;
   setStepData: (data: Data) => void;
   emit: (event: E) => void;
+  getAllStepNames: () => readonly S[];
 };
 
 type ReactContextAwareStepEnterArgs<C, S extends string, Data, E> = ReactContextAwareStepArgs<C, S, Data, E> & {
@@ -36,7 +37,7 @@ type ReactContextAwareStepExitArgs<C, S extends string, Data, E> = ReactContextA
 
 // React-specific step definition
 type ReactContextAwareStepDefinition<C, S extends string, Data, E> = {
-  next: readonly S[] | ((args: ReactContextAwareStepArgs<C, S, Data, E>) => S | readonly S[]);
+  next: readonly S[] | "any" | ((args: ReactContextAwareStepArgs<C, S, Data, E>) => S | readonly S[] | "any");
   data?: ValOrFn<Data, ReactContextAwareStepEnterArgs<C, S, Data, E>>;
   validate?: (args: ValidateArgs<C, Data>) => void;
   beforeExit?: (args: ReactContextAwareStepExitArgs<C, S, Data, E>) => void | Promise<void>;

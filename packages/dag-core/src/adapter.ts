@@ -1,7 +1,7 @@
 import type { WizardGraph, WizardNode, WizardEdge, StepInfo, StepsToGraphProbe } from './types';
 
 export type AnyStepsRecord = Record<string, {
-  next?: readonly string[] | ((...args: any[]) => string | readonly string[]);
+  next?: readonly string[] | "any" | ((...args: any[]) => string | readonly string[] | "any");
   meta?: { label?: string } & Record<string, any>;
   prerequisites?: readonly string[];
 } & Record<string, any>>;
@@ -43,7 +43,11 @@ export function stepsToGraph(steps: AnyStepsRecord, opts?: { probes?: StepsToGra
 
     const next = def?.next as AnyStepsRecord[string]['next'];
     const targets = new Set<string>();
-    if (Array.isArray(next)) {
+    let isAnyNext = false;
+
+    if (next === "any") {
+      isAnyNext = true;
+    } else if (Array.isArray(next)) {
       for (const target of next as string[]) targets.add(target);
     } else if (typeof next === 'function') {
       for (const probe of probes) {
@@ -55,16 +59,30 @@ export function stepsToGraph(steps: AnyStepsRecord, opts?: { probes?: StepsToGra
             updateContext: () => {},
             setStepData: () => {},
             emit: () => {},
+            getAllStepNames: () => Object.keys(steps),
           });
-          const out = Array.isArray(result) ? result : result ? [result] : [];
-          for (const t of out) if (typeof t === 'string') targets.add(t);
+          if (result === "any") {
+            isAnyNext = true;
+          } else {
+            const out = Array.isArray(result) ? result : result ? [result] : [];
+            for (const t of out) if (typeof t === 'string') targets.add(t);
+          }
         } catch {
           // ignore dynamic evaluation errors; we only best-effort discover edges
         }
       }
     }
-    for (const target of targets) {
-      edges.push({ id: `${stepId}__to__${target}`, source: stepId, target, kind: 'transition' });
+
+    // Store the "any" flag in the node meta
+    if (isAnyNext) {
+      (info as any).nextIsAny = true;
+    }
+
+    // Don't create edges for "any" - we'll handle this visually in the viewer
+    if (!isAnyNext) {
+      for (const target of targets) {
+        edges.push({ id: `${stepId}__to__${target}`, source: stepId, target, kind: 'transition' });
+      }
     }
   }
 

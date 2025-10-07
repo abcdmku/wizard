@@ -85,6 +85,7 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     emit: (_event: E) => {
       // Event emission logic can be added here
     },
+    getAllStepNames: () => allStepIds,
   });
 
   // Helper to update runtime state
@@ -267,9 +268,45 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
     findNextAvailableName: (from?: S) => {
       const currentStep = from || store.state.step;
-      const currentIndex = orderedSteps.indexOf(currentStep);
+      const currentStepDef = steps[currentStep];
       const available = helpers.availableStepNames();
 
+      // Get the next field from step definition
+      let nextCandidates: readonly S[] | "any" | null = null;
+      if (currentStepDef?.next !== undefined) {
+        const nextField = currentStepDef.next;
+        if (typeof nextField === 'function') {
+          const currentData = store.state.data[currentStep];
+          const args = createStepArgs(currentStep, currentData);
+          const result = nextField(args);
+          nextCandidates = result;
+        } else {
+          nextCandidates = nextField;
+        }
+      }
+
+      // If next is "any", return the first available step
+      if (nextCandidates === "any") {
+        return available.length > 0 ? available[0] : null;
+      }
+
+      // If next is an array, find the first available step in that array
+      if (Array.isArray(nextCandidates)) {
+        for (const candidate of nextCandidates) {
+          if (available.includes(candidate)) {
+            return candidate;
+          }
+        }
+        return null;
+      }
+
+      // If next is a single step name, return it if available
+      if (typeof nextCandidates === 'string') {
+        return available.includes(nextCandidates) ? nextCandidates : null;
+      }
+
+      // Fallback: use ordered steps
+      const currentIndex = orderedSteps.indexOf(currentStep);
       for (let i = currentIndex + 1; i < orderedSteps.length; i++) {
         const step = orderedSteps[i];
         if (available.includes(step)) {

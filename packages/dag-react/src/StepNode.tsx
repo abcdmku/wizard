@@ -27,7 +27,8 @@ export function StepNode({ data, selected }: NodeProps<{ label: string; info?: a
           {info.has?.validate && <span className="wiz-flag green">validate</span>}
           {info.has?.canEnter && <span className="wiz-flag blue">guard</span>}
           {info.has?.dynamicNext && <span className="wiz-flag purple">dynamic next</span>}
-          {Array.isArray(info?.next) && info.next.length > 0 && (
+          {info.nextIsAny && <span className="wiz-flag gold">next: any</span>}
+          {!info.nextIsAny && Array.isArray(info?.next) && info.next.length > 0 && (
             <span className="wiz-flag">next: {info.next.length}</span>
           )}
         </div>

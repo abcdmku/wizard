@@ -176,10 +176,10 @@ export const steps = registerSteps({
   }),
     new: step({
     data: initialData.sendReminder,
-    next: ['managerDashboard', 'sendReminder'],
+    next: "any",
     meta: {
-      label: 'Send Reminder',
-      description: 'Schedule a reminder for team member'
+      label: 'Any Next Step',
+      description: 'Can navigate to any available step from here'
     }
   }),
 });
