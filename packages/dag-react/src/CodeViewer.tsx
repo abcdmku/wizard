@@ -2,12 +2,37 @@ import * as React from 'react';
 import Editor from '@monaco-editor/react';
 
 type Props = {
-  code: string;
+  code: string | Function;
   language?: string;
 };
 
 export function CodeViewer({ code, language = 'typescript' }: Props) {
   const formattedCode = typeof code === 'function' ? code.toString() : String(code);
+
+  // Detect theme by checking if background is dark
+  const [isDark, setIsDark] = React.useState(true);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkTheme = () => {
+      // Check the background color of the document body
+      const bgColor = window.getComputedStyle(document.body).backgroundColor;
+      // Parse RGB and calculate luminance
+      const rgb = bgColor.match(/\d+/g);
+      if (rgb && rgb.length >= 3) {
+        const [r, g, b] = rgb.map(Number);
+        // Calculate relative luminance
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        setIsDark(luminance < 0.5);
+      }
+    };
+
+    checkTheme();
+    // Re-check theme periodically in case it changes
+    const interval = setInterval(checkTheme, 500);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="wiz-code-viewer">
@@ -15,7 +40,7 @@ export function CodeViewer({ code, language = 'typescript' }: Props) {
         height="200px"
         language={language}
         value={formattedCode}
-        theme="vs-dark"
+        theme={isDark ? 'vs-dark' : 'light'}
         options={{
           readOnly: true,
           minimap: { enabled: false },
