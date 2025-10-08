@@ -428,7 +428,7 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
         </Panel>
       </ReactFlow>
       {selectedInfo && (
-        <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: `${panelWidth}px`, pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: `${panelWidth}px`, pointerEvents: 'none', zIndex: 10 }}>
           <div className="wiz-resize-handle" onMouseDown={onResizeStart} style={{ pointerEvents: 'auto' }} />
           <StepInspector info={selectedInfo} onClose={onInspectorClose} width={panelWidth} />
         </div>
