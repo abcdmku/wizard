@@ -96,9 +96,9 @@
 .wiz-badge.gold { border-color: var(--wiz-warn); background: rgba(248, 191, 69, 0.15); color: var(--wiz-warn); font-weight: 600; }
 .wiz-badge.golden { border-color: var(--wiz-warn); background: rgba(248, 191, 69, 0.15); color: var(--wiz-warn); font-weight: 600; }
 .wiz-badge.muted { opacity: 0.6; }
-.wiz-code-block { margin-top: 8px; margin-bottom: 8px; width: 100%; background: var(--wiz-muted); border: 1px solid var(--wiz-border); border-radius: 8px; padding: 8px; overflow-x: auto; }
-.wiz-code-block pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
-.wiz-code-block code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: var(--wiz-text); }
+.wiz-code-block { margin-top: 8px; margin-bottom: 8px; width: 100%; background: var(--wiz-muted); border: 1px solid var(--wiz-border); border-radius: 8px; padding: 8px; overflow-x: auto; box-sizing: border-box; max-width: 100%; }
+.wiz-code-block pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; max-width: 100%; overflow-wrap: break-word; }
+.wiz-code-block code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: var(--wiz-text); display: block; max-width: 100%; }
 .wiz-attr-list { display: flex; flex-direction: column; gap: 4px; }
 .wiz-attr-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; transition: background 0.15s; }
 .wiz-attr-item.active { background: var(--wiz-muted); }
