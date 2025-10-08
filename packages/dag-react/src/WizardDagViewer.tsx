@@ -363,9 +363,8 @@ export function WizardDagViewer({ graph: inputGraph, steps, probes, theme = 'sys
 
   React.useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      if (!isResizingRef.current || !rootRef.current) return;
-      const containerRect = rootRef.current.getBoundingClientRect();
-      const newWidth = containerRect.right - e.clientX;
+      if (!isResizingRef.current) return;
+      const newWidth = window.innerWidth - e.clientX;
       setPanelWidth(Math.max(300, Math.min(800, newWidth)));
     };
 
