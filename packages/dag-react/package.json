@@ -28,10 +28,12 @@
     "react-dom": ">=18"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@wizard/dag-core": "workspace:*",
-    "reactflow": "^11.11.2",
+    "clsx": "^2.1.1",
     "elkjs": "^0.8.2",
-    "clsx": "^2.1.1"
+    "monaco-editor": "^0.54.0",
+    "reactflow": "^11.11.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

@@ -1,5 +1,6 @@
 import * as React from 'react';
 import type { WizardGraph } from '@wizard/dag-core';
+import { CodeViewer } from './CodeViewer';
 
 type Props = {
   info: { info: any; nodeId: string; graph: WizardGraph } | null;
@@ -108,9 +109,7 @@ export function StepInspector({ info: data, onClose, width = 400 }: Props) {
                 )}
               </div>
               {attr.clickable && attr.active && expandedCode.has(attr.key) && attr.code && (
-                <div className="wiz-code-block">
-                  <pre><code>{typeof attr.code === 'function' ? attr.code.toString() : String(attr.code)}</code></pre>
-                </div>
+                <CodeViewer code={attr.code} language="typescript" />
               )}
             </React.Fragment>
           ))}
