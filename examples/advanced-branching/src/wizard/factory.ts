@@ -1,5 +1,4 @@
-import type { WizardContext } from "./types";
-import type { StepName } from "./stepNames";
+import type { StepName, WizardContext } from "./types";
 import { reactWizardWithContext } from "@wizard/react";
 
 // Create factory with context type
