@@ -1,4 +1,4 @@
-import { registerSteps, step, createWizard } from "./factory";
+import { defineSteps, step, createWizard } from "./factory";
 import { useWizard, useWizardStep } from "@wizard/react";
 import type { WizardStepData } from "./types";
 import { determineNextStep, canAccessStep } from "./navigation";
@@ -38,7 +38,7 @@ const initialData: WizardStepData = {
   },
 };
 
-export const steps = registerSteps({
+export const steps = defineSteps({
   roleSelection: step({
     data: initialData.roleSelection,
     next: ({ data, context }) => {
@@ -176,7 +176,7 @@ export const steps = registerSteps({
   }),
     new: step({
     data: initialData.sendReminder,
-    next: "any",
+    next: "any" as any,
     meta: {
       label: 'Any Next Step',
       description: 'Can navigate to any available step from here'
