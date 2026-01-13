@@ -1,0 +1,108 @@
+# State Persistence
+
+Learn how to persist and restore wizard state across sessions using local storage, URLs, or backend databases.
+
+## Overview
+
+Persistence is crucial for long-form wizards where users might lose progress due to:
+- Browser refreshes
+- Tab closures
+- Device switching
+- Network interruptions
+
+## Serialization
+
+The wizard state is JSON-serializable, making it easy to store and restore.
+
+### Snapshotting
+
+To get a snapshot of the current state:
+
+```typescript
+const snapshot = wizard.helpers.snapshot();
+// { step: '...', data: { ... }, context: { ... }, ... }
+```
+
+### Restoring
+
+To restore state, pass the data when creating the wizard or use `setData`/`goTo`:
+
+```typescript
+const wizard = createWizard({
+  initialStep: snapshot.step,
+  initialContext: snapshot.context,
+  // ... other config
+});
+
+// Or dynamically restoration
+Object.entries(snapshot.data).forEach(([step, data]) => {
+  wizard.setStepData(step, data);
+});
+wizard.goTo(snapshot.step);
+```
+
+## Strategies
+
+### 1. Local Storage (Client-side)
+
+Best for anonymous users or temporary draft saving on a single device.
+
+```typescript
+// Auto-save hook example
+function useWizardPersistence(key: string) {
+  const wizard = useWizard();
+  
+  // Save on change
+  useEffect(() => {
+    const unsubscribe = wizard.subscribe(state => {
+      localStorage.setItem(key, JSON.stringify(state));
+    });
+    return unsubscribe;
+  }, [wizard, key]);
+
+  // Load on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const state = JSON.parse(saved);
+      // Restore logic...
+    }
+  }, []);
+}
+```
+
+See [Local Persistence Example](/examples/persistence-local) for a full implementation.
+
+### 2. URL Synchronization
+
+Best for shareable states and bookmarking.
+
+Using `@wizard/react` with TanStack Router or similar libraries allows automatic 2-way sync between URL params/search query and wizard state.
+
+See [Router Integration](/react/router-integration) for details.
+
+### 3. Server-side Persistence
+
+Best for authenticated flows, multi-device support, and audit trails.
+
+**Pattern:**
+1. **Save**: Send `wizard.state` or specific step data to your API on `next()` or `beforeExit`.
+2. **Load**: Fetch the session data from your API on page load and initialize the wizard with it.
+
+```typescript
+const steps = defineSteps({
+  account: {
+    beforeExit: async ({ data }) => {
+      await api.saveDraft({ step: 'account', data });
+    }
+  }
+});
+```
+
+See [Node.js Saga Example](/examples/node-saga-wizard) for server-side implementation.
+
+## Security Considerations
+
+- **Sensitive Data**: Avoid storing sensitive data (passwords, PI, credit cards) in Local Storage or URLs.
+- **Expiration**: Implement expiration logic for persisted sessions to prevent stale data issues.
+- **Validation**: Always re-validate restored data, as schemas may have changed since the data was saved.

@@ -14,7 +14,7 @@ yarn add @wizard/react @wizard/core
 
 ## Quick Start
 
-Here's a complete example of a simple wizard with React:
+Here's an example of setting up a wizard in React.
 
 ```tsx
 import { createWizardFactory } from '@wizard/core';
@@ -40,10 +40,7 @@ const steps = defineSteps({
 
 export const MyWizard = createWizard(steps);
 
-// 2. Create typed convenience hook
-export const useMyWizard = () => useWizard(MyWizard);
-
-// 3. Wrap your app with WizardProvider
+// 2. Wrap your app (or wizard container) with WizardProvider
 function App() {
   return (
     <WizardProvider wizard={MyWizard}>
@@ -52,9 +49,10 @@ function App() {
   );
 }
 
-// 4. Use the wizard in your components
+// 3. Use the wizard in your components
 function WizardFlow() {
-  const { step, data, next, back } = useMyWizard();
+  // Use the kitchen-sink hook (pass wizard instance)
+  const { step, next, back } = useWizard(MyWizard);
 
   return (
     <div>
@@ -68,9 +66,9 @@ function WizardFlow() {
 
 ## Core Concepts
 
-### WizardProvider
+### Provider
 
-The `WizardProvider` component makes your wizard available to all child components via React Context. You must wrap your application (or the part using the wizard) with this provider.
+The `WizardProvider` component makes your wizard available to all child components via React Context.
 
 ```tsx
 <WizardProvider wizard={MyWizard}>
@@ -78,476 +76,50 @@ The `WizardProvider` component makes your wizard available to all child componen
 </WizardProvider>
 ```
 
-### Type Parameters vs Value Parameters
+### Hooks
 
-The hooks in `@wizard/react` use a hybrid API design:
+`@wizard/react` provides several hooks to interact with your wizard.
 
-- **`useWizard(wizard)`** - Takes wizard as a **value parameter** (the only hook that does)
-- **All other hooks** - Use type parameters like `<typeof MyWizard>`
+- **`useWizard`**: Kitchen-sink hook for full access.
+- **`useCurrentStep`**: Get the current step ID.
+- **`useWizardStep`**: Get data and methods for a specific step.
+- **`useWizardActions`**: Get stable navigation actions (no re-renders).
+- **`useWizardSelector`**: Select specific state for performance.
 
-This design allows you to create convenient typed hooks for your specific wizard:
+> [!TIP]
+> See the [API Reference](/typedoc/react) for full details on all available hooks.
 
-```tsx
-// Create once in your wizard definition file
-export const useMyWizard = () => useWizard(MyWizard);
+## Best Practice: Typed Hooks
 
-// Use everywhere without passing the wizard
-function MyComponent() {
-  const { step, data, next } = useMyWizard(); // Clean!
-}
-```
-
-**Why can't TypeScript infer the type automatically?**
-
-React Context loses generic type information at compile time. TypeScript can't automatically know which wizard type to use from the provider. Type parameters let you manually specify the types for full IntelliSense support.
-
-## Hook Reference
-
-### useWizard
-
-**Kitchen sink hook** that returns everything from the wizard. This is the only hook that takes the wizard instance as a value parameter.
+While you can use the hooks directly with type parameters (e.g., `useWizardStep<typeof MyWizard>('step')`), we recommend creating typed convenience hooks for your specific wizard.
 
 ```tsx
-function MyComponent() {
-  const wizard = useWizard(FormWizard);
-
-  // Access flattened state
-  wizard.step;           // Current step name
-  wizard.data;           // All step data
-  wizard.context;        // Shared context
-  wizard.history;        // Navigation history
-  wizard.errors;         // Validation errors
-  wizard.isLoading;      // Loading state
-  wizard.isTransitioning; // Transitioning state
-
-  // Navigation methods
-  wizard.next();         // Go to next step
-  wizard.back();         // Go to previous step
-  wizard.goTo('step');   // Go to specific step
-  wizard.reset();        // Reset wizard
-
-  // Data methods
-  wizard.updateStepData('step', data);
-  wizard.setStepData('step', data);
-  wizard.updateContext(fn);
-
-  // Step accessors
-  wizard.getStep('step');
-  wizard.getCurrentStep();
-
-  // Helpers
-  wizard.helpers;        // All helper methods
-}
-```
-
-**Creating a typed convenience hook (recommended):**
-
-```tsx
-// In your wizard definition file
-export const useFormWizard = () => useWizard(FormWizard);
-
-// In your components
-function MyComponent() {
-  const { step, data, next } = useFormWizard();
-}
-```
-
-### useCurrentStep
-
-Returns the current active step wrapper with all step-specific methods and properties.
-
-```tsx
-function MyComponent() {
-  const currentStep = useCurrentStep<typeof FormWizard>();
-
-  currentStep.name;      // Step name
-  currentStep.data;      // Step data
-  currentStep.status;    // Step status
-  currentStep.error;     // Step error
-  currentStep.next();    // Navigate next
-  currentStep.back();    // Navigate back
-  currentStep.updateData(fn); // Update step data
-}
-```
-
-### useWizardStep
-
-Returns a specific step wrapper by name.
-
-```tsx
-function AccountStatus() {
-  const accountStep = useWizardStep<typeof FormWizard>('account');
-
-  return (
-    <div>
-      <p>Status: {accountStep.status}</p>
-      <p>Data: {JSON.stringify(accountStep.data)}</p>
-      {accountStep.error && <p>Error: {String(accountStep.error)}</p>}
-    </div>
-  );
-}
-```
-
-### useWizardProgress
-
-Returns progress metrics for the wizard.
-
-```tsx
-function ProgressBar() {
-  const {
-    currentIndex,
-    totalSteps,
-    percentage,
-    visitedSteps,
-    isFirstStep,
-    isLastStep,
-  } = useWizardProgress<typeof FormWizard>();
-
-  return (
-    <div>
-      <div className="progress-bar" style={{ width: `${percentage}%` }} />
-      <p>Step {currentIndex + 1} of {totalSteps}</p>
-    </div>
-  );
-}
-```
-
-### useWizardActions
-
-Returns only navigation and data update actions. This hook never re-renders since it only returns functions.
-
-```tsx
-function NavigationButtons() {
-  const { next, back, goTo, updateStepData } = useWizardActions<typeof FormWizard>();
-
-  return (
-    <div>
-      <button onClick={back}>Previous</button>
-      <button onClick={next}>Next</button>
-      <button onClick={() => goTo('summary')}>Jump to Summary</button>
-    </div>
-  );
-}
-```
-
-### useWizardHelpers
-
-Returns helper utilities and computed values.
-
-```tsx
-function StepList() {
-  const { helpers, visitedSteps, history } = useWizardHelpers<typeof FormWizard>();
-
-  const allSteps = helpers.allSteps();
-  const availableSteps = helpers.availableSteps();
-
-  return (
-    <ul>
-      {allSteps.map(step => (
-        <li key={step.name}>
-          {step.name} - {helpers.stepStatus(step.name)}
-        </li>
-      ))}
-    </ul>
-  );
-}
-```
-
-### useStepError
-
-Returns the error for a specific step (or current step if not specified).
-
-```tsx
-function ErrorDisplay() {
-  // Get error for current step
-  const currentError = useStepError<typeof FormWizard>();
-
-  // Get error for specific step
-  const accountError = useStepError<typeof FormWizard>('account');
-
-  if (!currentError) return null;
-
-  return (
-    <div className="error">
-      {String(currentError)}
-    </div>
-  );
-}
-```
-
-### useWizardSelector
-
-Performance-optimized hook for selecting specific data from wizard state. Use this for fine-grained control over re-renders.
-
-```tsx
-function UserEmail() {
-  // Only re-renders when email changes
-  const email = useWizardSelector<typeof FormWizard>(
-    state => state.data.account?.email
-  );
-
-  return <div>Email: {email}</div>;
-}
-
-function StepNames() {
-  // Only re-renders when current step changes
-  const { current, all } = useWizardSelector<typeof FormWizard>(state => ({
-    current: state.step,
-    all: Object.keys(state.data),
-  }));
-
-  return <div>Current: {current}, All: {all.join(', ')}</div>;
-}
-```
-
-## Creating Typed Hooks (Best Practice)
-
-Instead of passing type parameters everywhere, create typed convenience hooks in your wizard definition file:
-
-```tsx
-// wizard/steps.ts
+// wizard.ts
 import { createWizardFactory } from '@wizard/core';
-import { useWizard, useWizardProgress, useCurrentStep } from '@wizard/react';
+import { useWizard, useWizardActions } from '@wizard/react';
 
-const { defineSteps, step, createWizard } = createWizardFactory();
+export const MyWizard = createWizard(steps);
 
-const steps = defineSteps({
-  // ... your steps
-});
-
-export const FormWizard = createWizard(steps);
-
-// Export typed convenience hooks
-export const useFormWizard = () => useWizard(FormWizard);
-export const useFormWizardProgress = () => useWizardProgress<typeof FormWizard>();
-export const useCurrentFormStep = () => useCurrentStep<typeof FormWizard>();
+// Create typed hooks
+export const useMyWizard = () => useWizard(MyWizard);
+export const useMyWizardActions = () => useWizardActions<typeof MyWizard>();
 ```
 
-Then use them in your components without type parameters:
+Then use them in your components without extra typing:
 
 ```tsx
-// components/MyComponent.tsx
-import { useFormWizard, useFormWizardProgress } from '../wizard/steps';
+// Component.tsx
+import { useMyWizard } from './wizard';
 
 function MyComponent() {
-  const { step, data, next } = useFormWizard();
-  const { percentage } = useFormWizardProgress();
-
-  return <div>Step: {step}, Progress: {percentage}%</div>;
+  const { step } = useMyWizard(); // Fully typed!
 }
 ```
 
-This pattern provides:
-- ✅ Clean component code
-- ✅ No repetitive type parameters
-- ✅ Full type safety and IntelliSense
-- ✅ Easy refactoring
-- ✅ Consistent API across your app
+## Router Integration
 
-## Common Patterns
+Be sure to check out the [Router Integration](/react/router-integration) guide to learn how to sync your wizard steps with the URL (TanStack Router, React Router, Next.js).
 
-### Form Handling
+## API Reference
 
-```tsx
-import { FormField } from './FormField';
-import { useFormWizard } from '../wizard/steps';
-
-function AccountStep() {
-  const { data, updateStepData, next } = useFormWizard();
-
-  const handleSubmit = async () => {
-    try {
-      await next();
-    } catch (error) {
-      // Validation error is automatically stored in wizard state
-      console.error('Validation failed:', error);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <FormField
-        label="Email"
-        value={data.account?.email || ''}
-        onChange={(email) => updateStepData('account', { email })}
-      />
-      <button type="submit">Next</button>
-    </form>
-  );
-}
-```
-
-### Step Validation
-
-```tsx
-function PersonalStep() {
-  const currentStep = useCurrentStep<typeof FormWizard>();
-  const error = useStepError<typeof FormWizard>();
-
-  return (
-    <div>
-      <h2>Personal Information</h2>
-
-      {/* Form fields */}
-
-      {error && (
-        <div className="error">
-          {String(error)}
-        </div>
-      )}
-
-      {currentStep.status === 'loading' && <div>Validating...</div>}
-
-      <button onClick={currentStep.next}>Next</button>
-    </div>
-  );
-}
-```
-
-### Progress Indicators
-
-```tsx
-function StepIndicator() {
-  const { currentIndex, totalSteps } = useWizardProgress<typeof FormWizard>();
-  const { helpers } = useWizardHelpers<typeof FormWizard>();
-
-  const steps = helpers.orderedSteps();
-
-  return (
-    <div className="step-indicator">
-      {steps.map((step, index) => (
-        <div
-          key={step.name}
-          className={`step ${index === currentIndex ? 'active' : ''} ${index < currentIndex ? 'completed' : ''}`}
-        >
-          <div className="step-number">{index + 1}</div>
-          <div className="step-label">{step.name}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-### Navigation Buttons
-
-```tsx
-function NavigationButtons() {
-  const { next, back } = useWizardActions<typeof FormWizard>();
-  const { isFirstStep, isLastStep } = useWizardProgress<typeof FormWizard>();
-
-  return (
-    <div className="navigation">
-      <button onClick={back} disabled={isFirstStep}>
-        Previous
-      </button>
-      <button onClick={next}>
-        {isLastStep ? 'Complete' : 'Next'}
-      </button>
-    </div>
-  );
-}
-```
-
-### Conditional Rendering
-
-```tsx
-function WizardFlow() {
-  const { step } = useFormWizard();
-
-  return (
-    <div>
-      {step === 'account' && <AccountStep />}
-      {step === 'personal' && <PersonalStep />}
-      {step === 'address' && <AddressStep />}
-      {step === 'summary' && <SummaryStep />}
-    </div>
-  );
-}
-```
-
-## TypeScript Support
-
-All hooks are fully typed and provide complete IntelliSense support:
-
-```tsx
-const { step, data, next } = useFormWizard();
-
-// `step` is typed as union: 'account' | 'personal' | 'address' | 'summary'
-// `data` is typed with each step's data type
-// `next` is typed as () => Promise<WizardStep>
-
-// Type-safe step data access
-const email = data.account?.email; // string | undefined
-const firstName = data.personal?.firstName; // string | undefined
-
-// Type-safe navigation
-next(); // ✅
-goTo('account'); // ✅
-goTo('invalid'); // ❌ TypeScript error
-```
-
-## Performance Optimization
-
-### Use Specific Hooks
-
-For better performance, use specific hooks instead of the kitchen sink `useWizard`:
-
-```tsx
-// ❌ Re-renders on every wizard state change
-function MyComponent() {
-  const wizard = useFormWizard();
-  return <button onClick={wizard.next}>Next</button>;
-}
-
-// ✅ Never re-renders (only returns functions)
-function MyComponent() {
-  const { next } = useWizardActions<typeof FormWizard>();
-  return <button onClick={next}>Next</button>;
-}
-```
-
-### Use Selectors
-
-For fine-grained reactivity, use `useWizardSelector`:
-
-```tsx
-// ❌ Re-renders when ANY step data changes
-function UserEmail() {
-  const { data } = useFormWizard();
-  return <div>{data.account?.email}</div>;
-}
-
-// ✅ Only re-renders when email changes
-function UserEmail() {
-  const email = useWizardSelector<typeof FormWizard>(
-    state => state.data.account?.email
-  );
-  return <div>{email}</div>;
-}
-```
-
-### Hook Comparison
-
-| Hook | Re-renders when... | Use case |
-|------|-------------------|----------|
-| `useWizard` | Any wizard state changes | Kitchen sink, prototyping |
-| `useCurrentStep` | Current step changes | Step-specific components |
-| `useWizardStep` | Specific step data/runtime changes | Monitoring other steps |
-| `useWizardProgress` | Progress metrics change | Progress bars, indicators |
-| `useWizardActions` | Never (only functions) | Navigation buttons |
-| `useWizardHelpers` | History changes | Step lists, helpers |
-| `useStepError` | Specific step error changes | Error displays |
-| `useWizardSelector` | Selected data changes | Optimized components |
-
-## Examples
-
-Check out the complete working example in our repository:
-
-- [Basic Form Wizard](https://github.com/your-repo/examples/basic-form-wizard) - Complete multi-step form with validation
-
-## Next Steps
-
-- [Core Concepts](/core/concepts) - Learn about wizard fundamentals
-- [Validation](/core/validation) - Implement step validation
-- [API Reference](/api/react) - Complete API documentation
+For detailed documentation of all components and hooks, see the [API Reference](/typedoc/react).

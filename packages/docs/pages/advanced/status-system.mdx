@@ -172,45 +172,29 @@ class RetryableWizard {
 
 ## Manual Status Control
 
-### Using Status Markers
+### Using Wizard Status Methods
+
+The wizard instance exposes direct methods to manually control step status:
 
 ```typescript
-import { createStatusMarkers } from '@wizard/core/internal';
+// Manually mark step as loading
+wizard.markLoading('payment');
 
-class CustomWizardController {
-  private markers: StatusMarkers<Steps>;
+// Mark step as errored
+wizard.markError('payment', new Error('Payment failed'));
 
-  constructor(wizard: Wizard<C, Steps, D>) {
-    // Note: This uses internal APIs - be careful with updates
-    this.markers = createStatusMarkers(wizard.config, wizard.state);
-  }
+// Mark step as terminated
+wizard.markTerminated('payment', new Error('Gateway unavailable'));
 
-  // Manually mark step as loading
-  setLoading(step: Steps) {
-    this.markers.markLoading(step);
-  }
+// Mark step as skipped
+wizard.markSkipped('optionalStep');
 
-  // Mark step as errored
-  setError(step: Steps, error: Error) {
-    this.markers.markError(step, error);
-  }
-
-  // Mark step as terminated
-  terminate(step: Steps, reason?: string) {
-    this.markers.markTerminated(step, new Error(reason || 'Terminated'));
-  }
-
-  // Mark step as skipped
-  skip(step: Steps) {
-    this.markers.markSkipped(step);
-  }
-
-  // Clear status (back to idle)
-  clearStatus(step: Steps) {
-    this.markers.markIdle(step);
-  }
-}
+// Clear status (back to idle)
+wizard.markIdle('payment');
 ```
+
+These methods automatically update the runtime state and trigger any `onStatusChange` listeners.
+
 
 ### Programmatic Skip Pattern
 

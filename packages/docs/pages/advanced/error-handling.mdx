@@ -1,0 +1,137 @@
+# Error Handling
+
+Learn how to handle errors gracefully in your wizard flows, from validation failures to async operation errors.
+
+## Overview
+
+The wizard library provides a robust error handling system that covers:
+
+- **Validation Errors**: Synchronous and asynchronous validation failures
+- **Operation Errors**: Failures during `load`, `next`, or `submit` operations
+- **Boundary Errors**: React component runtime errors
+- **Global Errors**: Wizard-level error tracking
+
+## Step Errors
+
+### Marking Errors
+
+You can manually mark a step as errored using the wizard API:
+
+```typescript
+// Mark current step as error
+wizard.markError(wizard.state.step, new Error('Something went wrong'));
+
+// Mark specific step as error
+wizard.markError('payment', new Error('Payment gateway failed'));
+```
+
+### Clearing Errors
+
+Errors can be cleared manually or automatically when the user retries:
+
+```typescript
+// Clear specific step error
+wizard.clearStepError('payment');
+
+// Clear all errors
+wizard.clearAllErrors();
+```
+
+## Validation Handling
+
+Errors thrown during validation are automatically captured and stored in the wizard state:
+
+```typescript
+const steps = defineSteps({
+  email: step({
+    validate: ({ data }) => {
+      if (!data.email.includes('@')) {
+        // This error is captured and stored in wizard.state.errors.email
+        throw new Error('Invalid email address');
+      }
+    }
+  })
+});
+```
+
+### Accessing Validation Errors
+
+In React:
+
+```tsx
+function EmailStep() {
+  const { error } = useStepError('email');
+
+  return (
+    <div>
+      <input />
+      {error && <div className="error">{error.message}</div>}
+    </div>
+  );
+}
+```
+
+## Async Operation Errors
+
+Errors in `load` or `beforeEnter`/`beforeExit` hooks are also captured:
+
+```typescript
+const steps = defineSteps({
+  profile: {
+    load: async () => {
+      try {
+        await loadUserData();
+      } catch (err) {
+        // Will set status to 'error' and store the error
+        throw err;
+      }
+    }
+  }
+});
+```
+
+## Global Error Boundary
+
+For React applications, it's recommended to wrap your wizard or specific steps in an Error Boundary to catch render errors:
+
+```tsx
+import { ErrorBoundary } from 'react-error-boundary';
+
+function WizardWithErrorBoundary() {
+  return (
+    <ErrorBoundary fallback={<div>Something went wrong</div>}>
+      <WizardProvider wizard={wizard}>
+        <WizardSteps />
+      </WizardProvider>
+    </ErrorBoundary>
+  );
+}
+```
+
+## Recovery Strategies
+
+### Retry Logic
+
+You can implement retry logic by simply clearing the error and re-attempting the navigation or action:
+
+```tsx
+function ErrorState({ retry }) {
+  return (
+    <div className="error-state">
+      <h3>Operation Failed</h3>
+      <button onClick={retry}>Try Again</button>
+    </div>
+  );
+}
+```
+
+### Auto-Recovery
+
+For transient errors (like network timeouts), you might want to implement auto-retry logic in your customized wizard wrapper.
+
+## Best Practices
+
+1. **Type Your Errors**: Use typed error objects where possible.
+2. **User Friendly Messages**: Map technical errors to user-friendly messages for display.
+3. **Log Everything**: Ensure all errors are logged to your monitoring service, even if handled gracefully in UI.
+4. **Fail Safe**: Ensure the user can always go "Back" or "Reset" even in an error state.

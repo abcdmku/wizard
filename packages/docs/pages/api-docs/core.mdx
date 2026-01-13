@@ -38,6 +38,61 @@ const wizard = createWizard({
   }
 });
 ```
+const wizard = createWizard({
+  initialStep: 'user',
+  initialContext: { sessionId: '123' },
+  steps: {
+    user: { next: ['address'], validate: (data) => { /* ... */ } },
+    address: { next: ['payment'], load: async (ctx) => { /* ... */ } },
+    payment: { next: [] }
+  }
+});
+```
+
+### `createWizardFactory`
+
+Creates a type-safe wizard factory that provides helper functions for defining steps with proper type inference.
+
+```typescript
+function createWizardFactory<C = Record<string, never>, E = never>(): {
+  defineSteps: (defs: T) => T;
+  step: (def: StepDefinition) => StepDefinition;
+  createWizard: (steps, options) => Wizard;
+}
+```
+
+### `wizardWithContext`
+
+Convenience wrapper around `createWizardFactory` that binds the context type.
+
+```typescript
+function wizardWithContext<C, E = never>(context: C): Factory
+```
+
+## Step Helpers
+
+These helper functions are available when using `createWizardFactory` or imported directly.
+
+### `step`
+
+Identity function for defining a step. Provides type inference for step data and options.
+
+```typescript
+function step<Data>(def: StepDefinition<C, S, Data, E>): StepDefinition
+```
+
+### `defineSteps`
+
+Identity function for defining the map of all steps.
+
+```typescript
+function defineSteps<T>(defs: T): T
+```
+
+### `dataStep`, `transitionStep`, `conditionalStep`
+
+Specialized step helpers for common patterns.
+
 
 ### `createHelpers`
 
@@ -221,6 +276,36 @@ interface Wizard<C, S, D, E> {
   // Helper utilities
   helpers: WizardHelpers<C, S, D>;
 }
+```
+
+## Validation Adapters
+
+Helper functions for using Zod schema validation (exported from `@wizard/core/zod`).
+
+### `createZodValidator`
+
+Creates a validation function from a Zod schema.
+
+```typescript
+function createZodValidator<T>(schema: z.ZodSchema<T>): (data: unknown, ctx: unknown) => asserts data is T
+```
+
+### `createContextualZodValidator`
+
+Creates a validation function that generates a schema based on the current context.
+
+```typescript
+function createContextualZodValidator<T, C>(
+  schemaFactory: (ctx: Readonly<C>) => z.ZodSchema<T>
+): (data: unknown, ctx: Readonly<C>) => asserts data is T
+```
+
+### `InferSchema`
+
+Type helper to extract the inferred type from a Zod schema.
+
+```typescript
+type InferSchema<T> = T extends z.ZodSchema<infer U> ? U : never;
 ```
 
 ## WizardHelpers API

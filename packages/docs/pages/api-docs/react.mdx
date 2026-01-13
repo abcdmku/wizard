@@ -1,0 +1,211 @@
+---
+slug: /typedoc/react
+title: '@wizard/react API Reference'
+---
+
+# @wizard/react API Reference
+
+Complete API reference for the React integration of the wizard library.
+
+## Components
+
+### `WizardProvider`
+
+Context provider that makes the wizard instance available to all child components.
+
+```tsx
+function WizardProvider<C, S extends string, D extends Record<S, unknown>, E>({
+  children,
+  wizard
+}: WizardProviderProps<C, S, D, E>): JSX.Element
+```
+
+**Props:**
+- `wizard` - The wizard instance created with `createWizard`
+- `children` - React children
+
+**Example:**
+```tsx
+<WizardProvider wizard={myWizard}>
+  <App />
+</WizardProvider>
+```
+
+## Factory functions
+
+### `createReactWizardFactory`
+
+Creates a wizard factory with React component support.
+
+```typescript
+function createReactWizardFactory<C = Record<string, never>, E = never>(): {
+  defineSteps: (defs: T) => T;
+  step: (def: ReactContextAwareStepDefinition) => ReactContextAwareStepDefinition;
+  createStepBuilder: () => TypedStepBuilder;
+  createWizard: (steps, options) => EnhancedWizard;
+}
+```
+
+**Features:**
+- Adds `component` property to step definitions
+- Adds `getStepComponent` method to wizard instance
+- Supports both React components and elements
+
+### `reactWizardWithContext`
+
+Convenience function for creating a React wizard with pre-bound context.
+
+```typescript
+function reactWizardWithContext<C, E = never>(context: C): {
+  builder: () => StepBuilder;
+  defineSteps: () => StepDefiner;
+  // ... exposes factory methods
+}
+```
+
+## Hooks
+
+All hooks (except `useWizard`) require the component to be wrapped in `WizardProvider`.
+
+### `useWizard`
+
+The primary hook for accessing wizard state and actions.
+
+```typescript
+function useWizard<W extends Wizard>(wizardInstance?: W): EnhancedWizardState & W
+```
+
+**Parameters:**
+- `wizardInstance` (optional) - Pass the wizard instance directly if not using Provider (not recommended for general use)
+
+**Returns:**
+- Merged object containing:
+    - Current state properties (`step`, `data`, `context`, etc.)
+    - Navigation methods (`next`, `back`, `goTo`)
+    - Helper methods (`helpers`)
+
+### `useCurrentStep`
+
+Returns the ID of the current active step.
+
+```typescript
+function useCurrentStep<W extends Wizard>(): string
+```
+
+### `useWizardStep`
+
+Access data and methods for a specific step.
+
+```typescript
+function useWizardStep<W extends Wizard>(stepName: string): {
+  data: Data;
+  status: StepStatus;
+  error: unknown;
+  next: () => Promise<void>;
+  back: () => Promise<void>;
+  updateData: (data: Partial<Data>) => void;
+  // ... other step properties
+}
+```
+
+### `useWizardProgress`
+
+Track wizard completion progress.
+
+```typescript
+function useWizardProgress<W extends Wizard>(): {
+  currentIndex: number;
+  totalSteps: number;
+  percentage: number;
+  isFirstStep: boolean;
+  isLastStep: boolean;
+  visitedSteps: string[];
+}
+```
+
+### `useWizardActions`
+
+Access navigation actions only. Stable hook that doesn't re-render on state changes.
+
+```typescript
+function useWizardActions<W extends Wizard>(): {
+  next: (args?) => Promise<void>;
+  back: () => Promise<void>;
+  goTo: (step, args?) => Promise<void>;
+  setStepData: (step, data) => void;
+  updateContext: (updater) => void;
+  reset: () => void;
+}
+```
+
+### `useWizardHelpers`
+
+Access wizard helper methods.
+
+```typescript
+function useWizardHelpers<W extends Wizard>(): {
+  helpers: WizardHelpers;
+  // ... exposes individual helper methods
+}
+```
+
+### `useStepError`
+
+Access validation errors for a step.
+
+```typescript
+function useStepError<W extends Wizard>(step?: string): unknown | undefined
+```
+
+### `useWizardSelector`
+
+Optimize performance by selecting specific state.
+
+```typescript
+function useWizardSelector<W extends Wizard, T>(
+  selector: (state: WizardState) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T
+```
+
+## Router Integration
+
+### `createWizardRouteComponent`
+
+Creates a component for integrating with TanStack Router.
+
+```typescript
+function createWizardRouteComponent<C, S, D, E>(
+  config: CreateWizardRouteConfig<C, S, D, E>
+): () => JSX.Element
+```
+
+**Config:**
+- `wizard`: Wizard instance
+- `stepParam` (optional): URL parameter name (default: "step")
+- `fallbackComponent` (optional): Component to render if step component missing
+
+## Types
+
+### `CreateWizardRouteConfig`
+
+Configuration object for `createWizardRouteComponent`.
+
+```typescript
+interface CreateWizardRouteConfig<C, S, D, E> {
+  wizard: Wizard<C, S, D, E> & { getStepComponent?: (step: S) => any };
+  stepParam?: string;
+  fallbackComponent?: React.ComponentType<{ stepName: S }>;
+}
+```
+
+### `WizardProviderProps`
+
+Props for the `WizardProvider` component.
+
+```typescript
+interface WizardProviderProps<C, S, D, E> {
+  children: React.ReactNode;
+  wizard: Wizard<C, S, D, E>;
+}
+```

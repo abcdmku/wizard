@@ -7,7 +7,7 @@
   },
   "concepts": "Core Concepts",
   "validation": "Validation",
-  "core": "Core API",
+  "core": "Core Patterns",
   "-- divider2": {
     "type": "separator",
     "title": "Framework Integration"

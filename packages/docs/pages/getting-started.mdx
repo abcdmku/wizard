@@ -181,7 +181,7 @@ The easiest way to create type-safe wizards is using the `wizardWithContext` fac
 For React applications, use the modern hooks and provider with your wizard:
 
 ```tsx
-import { WizardProvider, useWizard, useWizardState, useCurrentStepData } from '@wizard/react';
+import { WizardProvider, useWizard, useWizardStep } from '@wizard/react';
 
 function App() {
   return (
@@ -192,15 +192,13 @@ function App() {
 }
 
 function CheckoutWizard() {
-  const wizard = useWizard();
-  const { step } = useWizardState();
+  // Use the kitchen sink hook to get everything
+  const { step, helpers, next, back } = useWizard(wizard);
 
-  // Get current step data with full type safety
-  const currentStepData = useCurrentStepData();
-
-  const progress = wizard.helpers.progress();
-  const canGoNext = wizard.helpers.canGoNext();
-  const canGoBack = wizard.helpers.canGoBack();
+  const progress = helpers.progress();
+  // Call helpers directly or use extracted methods
+  const canGoNext = helpers.canGoNext();
+  const canGoBack = helpers.canGoBack();
 
   return (
     <div className="wizard-container">
@@ -226,14 +224,14 @@ function CheckoutWizard() {
       {/* Navigation */}
       <div className="navigation">
         <button
-          onClick={() => wizard.back()}
+          onClick={() => back()}
           disabled={!canGoBack}
         >
           Previous
         </button>
 
         <button
-          onClick={() => wizard.next()}
+          onClick={() => next()}
           disabled={!canGoNext}
         >
           Next
@@ -245,19 +243,19 @@ function CheckoutWizard() {
 
 // Example step component with typed data access
 function UserStep() {
-  const wizard = useWizard();
-  const userData = useCurrentStepData(); // ✅ Typed as user step data
+  // Use useWizardStep for specific step data/actions
+  const { data, setStepData, next } = useWizardStep(wizard, 'user');
 
   const handleSubmit = (formData: any) => {
     // Update step data with type safety
-    wizard.setStepData('user', {
+    setStepData({
       name: formData.name,
       email: formData.email,
       password: formData.password
     });
 
     // Navigate to next step
-    wizard.next();
+    next();
   };
 
   return (
@@ -265,17 +263,17 @@ function UserStep() {
       <input
         type="text"
         placeholder="Name"
-        defaultValue={userData?.name || ''}
+        defaultValue={data?.name || ''}
       />
       <input
         type="email"
         placeholder="Email"
-        defaultValue={userData?.email || ''}
+        defaultValue={data?.email || ''}
       />
       <input
         type="password"
         placeholder="Password"
-        defaultValue={userData?.password || ''}
+        defaultValue={data?.password || ''}
       />
     </form>
   );
