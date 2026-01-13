@@ -118,12 +118,13 @@ async function validateDocumentationStructure() {
   const requiredPages = [
     'pages/index.mdx',
     'pages/getting-started.mdx',
-    'pages/core/factory-pattern.mdx',
-    'pages/core/step-helpers.mdx',
-    'pages/core/fluent-api.mdx',
-    'pages/react/index.mdx',
-    'pages/react/hooks.mdx',
-    'pages/react/router-integration.mdx',
+    'pages/api-docs/core.mdx',
+    'pages/api-docs/react.mdx',
+    'pages/react/quick-start.mdx',
+    'pages/react/building-ui.mdx',
+    'pages/react/routing.mdx',
+    'pages/essentials/defining-flows.mdx',
+    'pages/advanced/persistence.mdx',
     'pages/examples/index.mdx'
   ];
 
@@ -142,7 +143,7 @@ async function validateDocumentationStructure() {
   // Check for navigation files
   const requiredNavFiles = [
     'pages/_meta.json',
-    'pages/core/_meta.json',
+    'pages/api-docs/_meta.json',
     'pages/react/_meta.json'
   ];
 
@@ -164,7 +165,7 @@ async function validateExampleDocumentation() {
   // Check for example documentation pages
   const requiredExampleDocs = [
     'pages/examples/basic-form-wizard.mdx',
-    'pages/examples/react-router-wizard.mdx',
+    'pages/examples/react-router.mdx',
     'pages/examples/node-saga-wizard.mdx'
   ];
 

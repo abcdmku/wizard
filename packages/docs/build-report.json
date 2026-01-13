@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-01-13T01:08:05.355Z",
+  "timestamp": "2026-01-13T01:45:27.060Z",
   "nextjs": {
     "built": true,
-    "buildId": "-cC4_K8tcoBx3kjAWWUeS"
+    "buildId": "8PmQRCXdTlwhiVdfVkcGH"
   },
   "typedoc": {
     "built": true,
     "indexExists": true
   },
   "pages": {
-    "total": 31
+    "total": 23
   },
   "examples": {
     "total": 7
