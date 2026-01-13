@@ -38,16 +38,7 @@ const wizard = createWizard({
   }
 });
 ```
-const wizard = createWizard({
-  initialStep: 'user',
-  initialContext: { sessionId: '123' },
-  steps: {
-    user: { next: ['address'], validate: (data) => { /* ... */ } },
-    address: { next: ['payment'], load: async (ctx) => { /* ... */ } },
-    payment: { next: [] }
-  }
-});
-```
+
 
 ### `createWizardFactory`
 
