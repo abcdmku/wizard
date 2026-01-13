@@ -1,4 +1,5 @@
 {
-  "hooks": "Hooks",
-  "router-integration": "Router Integration"
+  "quick-start": "Quick Start",
+  "building-ui": "Building UI",
+  "routing": "Routing"
 }
