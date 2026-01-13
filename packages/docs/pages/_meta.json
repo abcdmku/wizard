@@ -3,27 +3,62 @@
   "getting-started": "Getting Started",
   "-- divider1": {
     "type": "separator",
-    "title": "Fundamentals"
+    "title": "Essentials"
   },
-  "concepts": "Core Concepts",
-  "validation": "Validation",
-  "core": "Core Patterns",
+  "essentials": {
+    "type": "page",
+    "title": "Essentials",
+    "theme": {
+      "sidebar": {
+        "auto": true,
+        "collapsed": false
+      }
+    },
+    "children": [
+      "essentials/defining-flows",
+      "essentials/state-management",
+      "essentials/validation"
+    ]
+  },
   "-- divider2": {
     "type": "separator",
-    "title": "Framework Integration"
+    "title": "Integration"
   },
-  "react": "React",
+  "react": {
+    "type": "page",
+    "title": "React",
+    "theme": {
+      "sidebar": {
+        "auto": true,
+        "collapsed": false
+      }
+    },
+    "children": [
+      "react/quick-start",
+      "react/building-ui",
+      "react/routing"
+    ]
+  },
   "-- divider3": {
-    "type": "separator",
-    "title": "Patterns & Examples"
-  },
-  "patterns": "Common Patterns",
-  "examples": "Complete Examples",
-  "-- divider4": {
     "type": "separator",
     "title": "Advanced"
   },
-  "helpers": "Helper Functions",
-  "advanced": "Advanced Features",
-  "api-docs": "API Reference"
+  "advanced": {
+    "type": "page",
+    "title": "Advanced Guides",
+    "theme": {
+      "sidebar": {
+        "auto": true,
+        "collapsed": true
+      }
+    },
+    "children": [
+      "advanced/persistence",
+      "advanced/error-handling",
+      "advanced/status-system",
+      "advanced/complex-flows"
+    ]
+  },
+  "api-docs": "API Reference",
+  "examples": "Examples"
 }

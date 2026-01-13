@@ -1,0 +1,93 @@
+# State Management
+
+Wizard helps you manage state across complex multi-step flows without prop drilling or global state spaghetti.
+
+## The State Model
+
+The wizard state consists of three distinct parts:
+
+1.  **Context**: Global shared state (e.g., User ID, Shopping Cart).
+2.  **Step Data**: Local state for each specific step (e.g., Form fields).
+3.  **Meta State**: Runtime status (Current step, History, Errors).
+
+## Shared Context
+
+Context is the glue that holds your wizard together. It is accessible properties in every lifecycle hook (`load`, `beforeEnter`, `next`, etc.).
+
+### Updating Context
+
+You can update the context from any step using `updateContext`.
+
+```typescript
+step({
+  beforeExit: ({ context, updateContext }) => {
+    // Immutable update pattern
+    updateContext(ctx => {
+      ctx.lastUpdated = Date.now();
+      ctx.totalStepsCompleted++;
+    });
+  }
+})
+```
+
+### Type Safety
+When using `wizardWithContext`, your context updates are fully type-checked.
+
+```typescript
+// Typescript will catch this error!
+updateContext(ctx => {
+  ctx.invalidProperty = 123; // Error
+});
+```
+
+## Step Data
+
+Each step defines its own data schema. This data is isolated but accessible using helpers if needed.
+
+### Accessing Step Data
+
+Inside a step, data is passed directly to hooks:
+
+```typescript
+step({
+  data: { username: '' },
+  beforeExit: ({ data }) => {
+    console.log(data.username);
+  }
+})
+```
+
+### Accessing Other Steps' Data
+
+You can access data from previous steps via the wizard instance or helpers.
+
+```typescript
+step({
+  load: ({ context, wizard }) => {
+    const prevData = wizard.getStepData('previousStep');
+    // Use prevData...
+  }
+})
+```
+
+## Runtime State & History
+
+Wizard automatically tracks:
+- **History**: Use `wizard.back()` to reverse state, including context changes.
+- **Status**: Steps can be `idle`, `loading`, `error`, `completed`, etc.
+
+### Snapshots & Restoration
+
+You can serialize the entire wizard state (Context + Data + History) to persist it.
+
+```typescript
+const snapshot = wizard.snapshot();
+localStorage.setItem('wizard', JSON.stringify(snapshot));
+
+// Later...
+wizard.restore(JSON.parse(localStorage.getItem('wizard')));
+```
+
+## Next Steps
+- Ensure your data is correct with [Validation](/essentials/validation).
+- Visualize your flow with [React Integration](/react/quick-start).

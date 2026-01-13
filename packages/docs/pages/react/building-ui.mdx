@@ -1,0 +1,112 @@
+# Building UI
+
+There are many ways to structure your wizard UI. Since Wizard is headless, you have full control over the markup and styling.
+
+## Step Renderer Pattern
+
+A common pattern is to create a renderer component that maps step IDs to React components.
+
+```tsx
+const STEP_COMPONENTS = {
+  welcome: WelcomeStep,
+  info: InfoStep,
+  review: ReviewStep
+};
+
+function WizardRenderer() {
+  const { step } = useWizard();
+  const Component = STEP_COMPONENTS[step];
+
+  if (!Component) return <div>Unknown Step</div>;
+
+  return <Component />;
+}
+```
+
+## Common UI Components
+
+### Navigation Controls
+
+You can build a reusable navigation bar that stays outside of the steps.
+
+```tsx
+function WizardControls() {
+  const { 
+    helpers: { canGoNext, canGoBack, isFirstStep, isLastStep },
+    next, 
+    back, 
+    isLoading 
+  } = useWizard();
+
+  return (
+    <div className="controls">
+      <button onClick={back} disabled={!canGoBack || isLoading}>
+        Back
+      </button>
+      
+      <button onClick={next} disabled={!canGoNext || isLoading}>
+        {isLastStep ? 'Finish' : 'Next'}
+      </button>
+    </div>
+  );
+}
+```
+
+### Progress Bar
+
+Use the `useWizardProgress` hook to easily build progress indicators.
+
+```tsx
+function ProgressBar() {
+  const { percentage, currentIndex, totalSteps } = useWizardProgress();
+
+  return (
+    <div className="progress-container">
+      <div className="labels">
+        Step {currentIndex + 1} of {totalSteps}
+      </div>
+      <div className="track">
+        <div 
+          className="fill" 
+          style={{ width: `${percentage}%` }} 
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+### Error Display
+
+Use `useStepError` to show validation errors relative to the current step.
+
+```tsx
+function ErrorMessage() {
+  const { step } = useWizard();
+  const { error } = useStepError(step);
+
+  if (!error) return null;
+
+  return (
+    <div className="error-banner">
+      {error.message}
+    </div>
+  );
+}
+```
+
+## Performance Optimization
+
+If your wizard is large, you might want to prevent re-rendering the entire tree on every keystroke.
+
+1.  **Isolate Input State**: Keep form inputs in local React state (`useState` or `react-hook-form`) and only update the wizard state on blur or "Next".
+2.  **Use `useWizardSelector`**: Only subscribe to the specific slice of state you need.
+
+```tsx
+function SubmitButton() {
+  // Only re-render when isLoading changes
+  const isLoading = useWizardSelector(state => state.isLoading);
+  
+  return <button disabled={isLoading}>Submit</button>;
+}
+```

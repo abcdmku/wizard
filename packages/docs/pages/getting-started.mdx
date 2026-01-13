@@ -1,330 +1,61 @@
 # Getting Started
 
-import { Callout, Steps, Step, Tabs, Tab } from '../components'
-
-Welcome to Wizard! This guide will help you get up and running with type-safe multi-step wizards in your TypeScript application using modern factory patterns with automatic type inference.
+Wizard is a headless, type-safe state manager for multi-step flows. It works in any environment (Node, React, Vue, etc.).
 
 ## Installation
 
-<Tabs items={['npm', 'pnpm', 'yarn']}>
-  <Tab label="npm">
-    ```bash
-    npm install @wizard/core
-    ```
-  </Tab>
-  <Tab label="pnpm">
-    ```bash
-    pnpm add @wizard/core
-    ```
-  </Tab>
-  <Tab label="yarn">
-    ```bash
-    yarn add @wizard/core
-    ```
-  </Tab>
-</Tabs>
-
-For React applications, also install the React adapter:
-
-<Tabs items={['npm', 'pnpm', 'yarn']}>
-  <Tab label="npm">
-    ```bash
-    npm install @wizard/react
-    ```
-  </Tab>
-  <Tab label="pnpm">
-    ```bash
-    pnpm add @wizard/react
-    ```
-  </Tab>
-  <Tab label="yarn">
-    ```bash
-    yarn add @wizard/react
-    ```
-  </Tab>
-</Tabs>
-
-## Modern Factory Pattern (Recommended)
-
-The easiest way to create type-safe wizards is using the `wizardWithContext` factory pattern:
-
-<Steps>
-  <Step title="Define your shared context">
-    ```typescript
-    // Define the shared context that's available across all steps
-    interface CheckoutContext {
-      totalAmount: number;
-      currency: string;
-      customerId?: string;
-      isAuthenticated: boolean;
-    }
-    ```
-  </Step>
-
-  <Step title="Create your wizard factory">
-    ```typescript
-    import { wizardWithContext } from '@wizard/core';
-
-    // Create the factory with your context - TypeScript will automatically
-    // infer context types in all step callbacks
-    const { defineSteps, createWizard, step } = wizardWithContext<CheckoutContext>({
-      totalAmount: 0,
-      currency: 'USD',
-      isAuthenticated: false
-    });
-    ```
-  </Step>
-
-  <Step title="Define your steps with type inference">
-    ```typescript
-    const steps = defineSteps({
-      // User information step
-      user: step({
-        data: {
-          name: '',
-          email: '',
-          password: ''
-        },
-        canEnter: ({ context, data }) => {
-          // ✅ context is automatically typed as CheckoutContext
-          // ✅ data is automatically typed as { name: string; email: string; password: string } | undefined
-          return !context.isAuthenticated || Boolean(data?.email);
-        },
-        next: ['address']
-      }),
-
-      // Address step
-      address: step({
-        data: {
-          street: '',
-          city: '',
-          country: '',
-          zipCode: ''
-        },
-        canEnter: ({ context }) => {
-          // Authentication check with proper typing
-          return context.isAuthenticated && context.totalAmount > 0;
-        },
-        next: ['payment']
-      }),
-
-      // Payment step
-      payment: step({
-        data: {
-          cardNumber: '',
-          expiryDate: '',
-          cvv: ''
-        },
-        beforeEnter: ({ updateContext }) => {
-          // Update context when entering payment
-          updateContext(ctx => {
-            ctx.totalAmount = 99.99; // Calculate total
-          });
-        },
-        next: ['confirm']
-      }),
-
-      // Confirmation step
-      confirm: step({
-        data: {
-          orderId: '',
-          confirmed: false
-        },
-        beforeEnter: async ({ setStepData }) => {
-          // Generate order ID when entering confirmation
-          const orderId = Math.random().toString(36).substring(7);
-          setStepData({ orderId, confirmed: false });
-        },
-        next: []
-      })
-    });
-    ```
-  </Step>
-
-  <Step title="Create and use your wizard">
-    ```typescript
-    const wizard = createWizard(steps);
-
-    // Get current step with full type safety
-    const currentStep = wizard.getStep('user');
-
-    // ✅ TypeScript knows this is { name: string; email: string; password: string } | undefined
-    const userData = currentStep.data;
-    if (userData) {
-      console.log('User email:', userData.email); // ✅ Fully typed!
-    }
-
-    // Navigate with type-safe step names
-    await wizard.next();
-    await wizard.goTo('payment'); // ✅ TypeScript validates step names
-    await wizard.back();
-
-    // Update step data with type safety
-    wizard.setStepData('user', {
-      name: 'John Doe',
-      email: 'john@example.com',
-      password: 'secure123'
-    });
-
-    // Access wizard helpers
-    const progress = wizard.helpers.progress();
-    const canGoNext = wizard.helpers.canGoNext();
-    const isComplete = wizard.helpers.isComplete();
-
-    console.log(`Progress: ${progress.percent}%`);
-    ```
-  </Step>
-</Steps>
-
-## React Integration
-
-For React applications, use the modern hooks and provider with your wizard:
-
-```tsx
-import { WizardProvider, useWizard, useWizardStep } from '@wizard/react';
-
-function App() {
-  return (
-    <WizardProvider wizard={wizard}>
-      <CheckoutWizard />
-    </WizardProvider>
-  );
-}
-
-function CheckoutWizard() {
-  // Use the kitchen sink hook to get everything
-  const { step, helpers, next, back } = useWizard(wizard);
-
-  const progress = helpers.progress();
-  // Call helpers directly or use extracted methods
-  const canGoNext = helpers.canGoNext();
-  const canGoBack = helpers.canGoBack();
-
-  return (
-    <div className="wizard-container">
-      {/* Progress indicator */}
-      <div className="progress-bar">
-        <div
-          className="progress-fill"
-          style={{ width: `${progress.percent}%` }}
-        />
-        <span>{progress.label}</span>
-      </div>
-
-      {/* Current step content */}
-      <div className="step-content">
-        <h2>Step: {step}</h2>
-
-        {step === 'user' && <UserStep />}
-        {step === 'address' && <AddressStep />}
-        {step === 'payment' && <PaymentStep />}
-        {step === 'confirm' && <ConfirmStep />}
-      </div>
-
-      {/* Navigation */}
-      <div className="navigation">
-        <button
-          onClick={() => back()}
-          disabled={!canGoBack}
-        >
-          Previous
-        </button>
-
-        <button
-          onClick={() => next()}
-          disabled={!canGoNext}
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Example step component with typed data access
-function UserStep() {
-  // Use useWizardStep for specific step data/actions
-  const { data, setStepData, next } = useWizardStep(wizard, 'user');
-
-  const handleSubmit = (formData: any) => {
-    // Update step data with type safety
-    setStepData({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password
-    });
-
-    // Navigate to next step
-    next();
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        type="text"
-        placeholder="Name"
-        defaultValue={data?.name || ''}
-      />
-      <input
-        type="email"
-        placeholder="Email"
-        defaultValue={data?.email || ''}
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        defaultValue={data?.password || ''}
-      />
-    </form>
-  );
-}
+```bash
+npm install @wizard/core
 ```
 
-## Direct Creation Pattern (Alternative)
+If you are using React, also install the adapter:
 
-If you prefer more explicit control, you can also use the direct creation pattern:
+```bash
+npm install @wizard/react
+```
+
+## Core Concept
+
+At its heart, Wizard is just a state machine.
+
+1.  **Define Steps**: What steps exist and how they connect.
+2.  **Create Wizard**: Instantiate the machine.
+3.  **Interact**: Call `next()`, `back()`, `setData()`.
+
+## Basic Usage (Vanilla JS/TS)
 
 ```typescript
-import { createWizard, defineSteps } from '@wizard/core';
+import { createWizard, step, defineSteps } from '@wizard/core';
 
-// Define steps first
+// 1. Define Steps
 const steps = defineSteps({
-  welcome: {
-    data: { userName: '' },
+  intro: step({
     next: ['details']
-  },
-  details: {
-    data: { age: 0, preferences: [] },
-    next: ['confirm']
-  },
-  confirm: {
-    data: { confirmed: false },
+  }),
+  details: step({
+    data: { name: '' },
+    next: ['finish']
+  }),
+  finish: step({
     next: []
-  }
+  })
 });
 
-// Create wizard with explicit context
-const wizard = createWizard({
-  context: { appName: 'My App', version: '1.0' },
-  steps
-});
+// 2. Create Instance
+const wizard = createWizard(steps);
+
+// 3. Interact
+console.log(wizard.state.step); // 'intro'
+
+await wizard.next();
+console.log(wizard.state.step); // 'details'
+
+wizard.setStepData('details', { name: 'Alice' });
+await wizard.next();
+console.log(wizard.state.step); // 'finish'
 ```
-
-<Callout type="info" title="Enhanced Type Safety">
-  With the modern factory pattern, all wizard operations are fully type-safe. TypeScript automatically infers step names, data shapes, and context types throughout your application. The recent type inference improvements ensure that `wizard.getStep('stepName').data.property` returns properly typed values instead of `unknown`.
-</Callout>
-
-## Key Benefits
-
-- **🎯 Automatic Type Inference**: Context and step data types are automatically inferred throughout your application
-- **🔒 Compile-time Safety**: Invalid step names, data shapes, and context mutations are caught at compile time
-- **🚀 Modern Patterns**: Uses the latest factory pattern with `wizardWithContext` for the best developer experience
-- **⚡ Performance**: Optimized type system provides excellent IDE support and fast compilation
-- **🔄 Fluent API**: Method chaining with `.getStep('name').setData().markLoading()` patterns
 
 ## Next Steps
 
-- Explore [Core Concepts](/concepts) to understand the architecture
-- Check out [Recipes](/recipes) for common patterns
-- Browse [Examples](/examples) for complete implementations
-- Read the [API Reference](/api-docs) for detailed documentation
+- **React Users**: Jump to the [React Quick Start](/react/quick-start).
+- **Architecture**: Learn about [Defining Flows](/essentials/defining-flows).

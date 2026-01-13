@@ -1,133 +1,35 @@
 ---
 title: Type-Safe Multi-Step Wizards
-description: A deeply type-safe, isomorphic, headless multi-step wizard library for TypeScript applications
 ---
 
 # Wizard
 
-**A deeply type-safe, isomorphic, headless multi-step wizard library for TypeScript applications.**
+**A deeply type-safe, headless wizard library for TypeScript applications.**
 
-## Features at a Glance
+Wizard helps you build complex multi-step flows (onboarding, checkout, surveys) with zero compromises on type safety or flexibility.
 
-<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginTop: '2rem' }}>
-  <div style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🎯</div>
-    <h3 style={{ margin: '0.5rem 0' }}>100% Type-Safe</h3>
-    <p style={{ margin: 0, opacity: 0.8 }}>Full TypeScript support with deep type inference</p>
+<div className="grid grid-cols-2 gap-4 mt-8">
+  <div className="card">
+    <h3>🎯 100% Type Safe</h3>
+    <p>Infer data shapes, context types, and step names automatically.</p>
   </div>
-  <div style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔄</div>
-    <h3 style={{ margin: '0.5rem 0' }}>Isomorphic</h3>
-    <p style={{ margin: 0, opacity: 0.8 }}>Works in Node.js and browsers</p>
+  <div className="card">
+    <h3>🧩 Headless</h3>
+    <p>Bring your own UI. We handle the state, logic, and navigation.</p>
   </div>
-  <div style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🎨</div>
-    <h3 style={{ margin: '0.5rem 0' }}>Headless</h3>
-    <p style={{ margin: 0, opacity: 0.8 }}>Bring your own UI, no style dependencies</p>
+  <div className="card">
+    <h3>⚛️ React Ready</h3>
+    <p>First-class hooks and components for seamless integration.</p>
   </div>
-  <div style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📦</div>
-    <h3 style={{ margin: '0.5rem 0' }}>Tiny</h3>
-    <p style={{ margin: 0, opacity: 0.8 }}>~3-4kb min+gz core (excluding peer deps)</p>
+  <div className="card">
+    <h3>🔄 Isomorphic</h3>
+    <p>Works on the client, server, or anywhere JS runs.</p>
   </div>
 </div>
 
-## Quick Start
+## Quick Links
 
-```bash
-npm install @wizard/core
-# or
-pnpm add @wizard/core
-```
-
-```typescript
-import { createWizard } from '@wizard/core';
-import { z } from 'zod';
-
-// Define your wizard
-const wizard = createWizard({
-  initialStep: 'account',
-  initialContext: { total: 0 },
-  steps: {
-    account: {
-      next: ['shipping'],
-      validate: (data) => {
-        // Your validation logic
-      }
-    },
-    shipping: {
-      next: ['payment'],
-    },
-    payment: {
-      next: [],
-    }
-  }
-});
-```
-
-## Why Wizard?
-
-### Deep Type Safety
-
-Every aspect of your wizard is fully typed - from step IDs to data shapes to context mutations. Invalid transitions and data shapes are caught at compile time.
-
-### Shared Context
-
-A single typed context object shared across all steps makes complex flows simple. Update it from any step, access it everywhere.
-
-### Framework Agnostic
-
-The core library has zero UI dependencies. Use it with React, Vue, Svelte, or vanilla JavaScript. We provide first-class React bindings, but the patterns work everywhere.
-
-### Production Ready
-
-Built with TanStack Store for bulletproof state management. Includes async operations, validation, guards, persistence, and history out of the box.
-
-## Core Concepts
-
-- **Steps** - Define your wizard flow with typed step definitions
-- **Context** - Share state across all steps with a single typed context
-- **Validation** - Validate step data with Zod or custom validators  
-- **Guards** - Control step entry/exit with canEnter/canExit hooks
-- **Persistence** - Save and restore wizard state with pluggable adapters
-- **History** - Built-in undo/redo and time-travel debugging
-
-## Examples
-
-Explore our example applications to see the wizard in action:
-
-<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginTop: '2rem' }}>
-  <a href="/examples" style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
-    <h4 style={{ margin: '0 0 0.5rem 0' }}>Basic Form</h4>
-    <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>Simple multi-step form with validation</p>
-  </a>
-  <a href="/examples" style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
-    <h4 style={{ margin: '0 0 0.5rem 0' }}>Router Integration</h4>
-    <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>TanStack Router with URL syncing</p>
-  </a>
-  <a href="/examples" style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
-    <h4 style={{ margin: '0 0 0.5rem 0' }}>Dynamic Branching</h4>
-    <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>Complex flows with conditional steps</p>
-  </a>
-  <a href="/examples" style={{ padding: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
-    <h4 style={{ margin: '0 0 0.5rem 0' }}>Node.js Saga</h4>
-    <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>Backend orchestration and workflows</p>
-  </a>
-</div>
-
-## Getting Help
-
-- Read the [Getting Started Guide](/getting-started)
-- Explore [Concepts](/concepts) for deep dives
-- Check out [Recipes](/recipes) for common patterns
-- View the [API Reference](/api-docs) for detailed docs
-- Join our [GitHub Discussions](https://github.com/user/wizard/discussions)
-
-## Philosophy
-
-Wizard follows the TanStack philosophy:
-
-- **Headless** - UI agnostic, bring your own components
-- **Type-first** - TypeScript is a first-class citizen
-- **Minimal** - Small bundle, minimal dependencies
-- **Composable** - Build complex flows from simple primitives
+- **[Getting Started](/getting-started)**: Install and build your first wizard.
+- **[React Guide](/react/quick-start)**: Integrate with your React application.
+- **[Essentials](/essentials/defining-flows)**: Learn how to define steps and flows.
+- **[API Reference](/api-docs/core)**: Deep dive into the configuration options.

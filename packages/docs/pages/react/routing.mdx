@@ -1,0 +1,80 @@
+# Routing Integration
+
+Integrating with a router (like TanStack Router or Next.js) allows you to sync the wizard state with the URL. This enables deep linking, browser history support, and bookmarking.
+
+## TanStack Router (Recommended)
+
+`@wizard/react` has a first-class integration helper for [TanStack Router](https://tanstack.com/router).
+
+```tsx
+import { createWizardRouteComponent } from '@wizard/react';
+import { wizard } from './wizard.config';
+
+// 1. Create the route component
+const WizardRoute = createWizardRouteComponent({
+  wizard,
+  basePath: '/onboarding'
+});
+
+// 2. Define the route
+const onboardingRoute = createRoute({
+  path: '/onboarding',
+  component: WizardRoute
+});
+```
+
+This will automatically handle:
+- Parsing the URL step param (e.g. `/onboarding/program-selection`)
+- Updating the URL when the wizard navigates
+- Redirecting invalid steps to the initial step
+
+## Next.js (App Router)
+
+For Next.js, you'll want to manually sync the state using `useEffect`.
+
+```tsx
+'use client';
+import { useWizard } from '@wizard/react';
+import { useRouter, useParams } from 'next/navigation';
+
+export default function WizardPage() {
+  const { step } = useParams();
+  const { state, goTo, subscribe } = useWizard(wizard);
+  const router = useRouter();
+
+  // 1. Sync URL -> Wizard
+  useEffect(() => {
+    if (step && state.currentStep !== step) {
+      goTo(step as string);
+    }
+  }, [step]);
+
+  // 2. Sync Wizard -> URL
+  useEffect(() => {
+    return subscribe((newState) => {
+      if (newState.currentStep !== step) {
+        router.push(`/wizard/${newState.currentStep}`);
+      }
+    });
+  }, []);
+
+  return <MyWizardRenderer />;
+}
+```
+
+## React Router (v6)
+
+Similar to Next.js, use `useEffect` to sync.
+
+```tsx
+function WizardPage() {
+  const { step } = useParams();
+  const navigate = useNavigate();
+  const { state, goTo, subscribe } = useWizard(wizard);
+
+  useEffect(() => {
+    // Sync logic...
+    navigate(`/wizard/${state.currentStep}`);
+  }, [state.currentStep]);
+}
+```
