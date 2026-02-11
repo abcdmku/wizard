@@ -1,8 +1,8 @@
 import type { UserRole, WizardContext } from "./types";
-import type { StepName } from "./stepNames";
+import type { StepName } from "./types";
 
 export const determineNextStep = (
-  currentStep: string,
+  currentStep: StepName,
   role: UserRole | '',
   _context: WizardContext
 ): StepName[] => {

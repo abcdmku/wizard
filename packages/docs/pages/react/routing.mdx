@@ -1,80 +1,34 @@
-# Routing Integration
+# Routing
 
-Integrating with a router (like TanStack Router or Next.js) allows you to sync the wizard state with the URL. This enables deep linking, browser history support, and bookmarking.
+`@wizard/react` exposes hook-based router integration.
 
-## TanStack Router (Recommended)
-
-`@wizard/react` has a first-class integration helper for [TanStack Router](https://tanstack.com/router).
+## Generic router sync
 
 ```tsx
-import { createWizardRouteComponent } from '@wizard/react';
-import { wizard } from './wizard.config';
+import { useSyncWizardWithRouter } from '@wizard/react';
 
-// 1. Create the route component
-const WizardRoute = createWizardRouteComponent({
-  wizard,
-  basePath: '/onboarding'
-});
-
-// 2. Define the route
-const onboardingRoute = createRoute({
-  path: '/onboarding',
-  component: WizardRoute
+useSyncWizardWithRouter(wizard, {
+  param: 'step',
+  toStep: (param) => (param === 'account' || param === 'review' ? param : null),
+  toUrl: (step) => ({ to: `/checkout/${step}` }),
+  navigate: ({ to }) => routerNavigate(to),
+  getParam: () => currentRouteParams.step,
 });
 ```
 
-This will automatically handle:
-- Parsing the URL step param (e.g. `/onboarding/program-selection`)
-- Updating the URL when the wizard navigates
-- Redirecting invalid steps to the initial step
-
-## Next.js (App Router)
-
-For Next.js, you'll want to manually sync the state using `useEffect`.
+## TanStack Router sync
 
 ```tsx
-'use client';
-import { useWizard } from '@wizard/react';
-import { useRouter, useParams } from 'next/navigation';
+import { useTanStackWizardRouter } from '@wizard/react';
 
-export default function WizardPage() {
-  const { step } = useParams();
-  const { state, goTo, subscribe } = useWizard(wizard);
-  const router = useRouter();
-
-  // 1. Sync URL -> Wizard
-  useEffect(() => {
-    if (step && state.currentStep !== step) {
-      goTo(step as string);
-    }
-  }, [step]);
-
-  // 2. Sync Wizard -> URL
-  useEffect(() => {
-    return subscribe((newState) => {
-      if (newState.currentStep !== step) {
-        router.push(`/wizard/${newState.currentStep}`);
-      }
-    });
-  }, []);
-
-  return <MyWizardRenderer />;
-}
+useTanStackWizardRouter(wizard, {
+  basePath: '/checkout',
+  paramName: 'step',
+  toStep: (param) => (param === 'account' || param === 'review' ? param : null),
+});
 ```
 
-## React Router (v6)
+## Notes
 
-Similar to Next.js, use `useEffect` to sync.
-
-```tsx
-function WizardPage() {
-  const { step } = useParams();
-  const navigate = useNavigate();
-  const { state, goTo, subscribe } = useWizard(wizard);
-
-  useEffect(() => {
-    // Sync logic...
-    navigate(`/wizard/${state.currentStep}`);
-  }, [state.currentStep]);
-}
-```
+- Integration is side-effect free: it does not mutate wizard methods.
+- Invalid route params should return `null` from `toStep`.

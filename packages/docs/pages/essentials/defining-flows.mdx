@@ -1,106 +1,49 @@
 # Defining Flows
 
-The core of any wizard is its flow definition. This guide covers how to define steps, control navigation, and use the factory pattern for maximum type safety.
+Use `createWizardFactory` + `defineSteps` + `step`.
 
-## The Factory Pattern
+```ts
+import { createWizardFactory } from '@wizard/core';
 
-The recommended way to create a wizard is using the `wizardWithContext` factory. This ensures your context and data types are automatically inferred throughout the entire wizard definition.
+type Context = { role: 'user' | 'admin' };
 
-```typescript
-import { wizardWithContext } from '@wizard/core';
+const factory = createWizardFactory<Context>();
+const { defineSteps, step } = factory;
 
-// 1. Define your shared context type
-interface AppContext {
-  userId: string;
-  theme: 'light' | 'dark';
-}
-
-// 2. Create the factory
-const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
-  userId: '',
-  theme: 'light'
-});
-```
-
-Using this pattern, `step`, `defineSteps`, and `createWizard` are all pre-bound to your `AppContext`.
-
-## Step Definitions
-
-Use the `step()` helper to define each step in your flow. It automatically infers the data shape from the `data` property.
-
-```typescript
 const steps = defineSteps({
-  // A simple step with data
-  personalInfo: step({
-    data: { name: '', email: '' }, 
-    next: ['preferences']
+  role: step({
+    data: { role: 'user' as const },
+    next: ({ data }) => (data.role === 'admin' ? ['admin'] : ['profile']),
   }),
-
-  // A step with logic
-  preferences: step({
-    data: { newsletter: false },
-    canEnter: ({ context }) => !!context.userId, // Context is typed!
-    next: ['review']
+  profile: step({
+    data: { firstName: '', lastName: '' },
+    next: ['done'],
+    canEnter: ({ context }) => context.role === 'user',
   }),
-
-  // A final review step
-  review: step({
-    next: [] // No next steps -> terminal step
-  })
+  admin: step({
+    data: { accessKey: '' },
+    next: ['done'],
+    canEnter: ({ context }) => context.role === 'admin',
+  }),
+  done: step({
+    data: { confirmed: false },
+    next: [],
+  }),
 });
-
-const wizard = createWizard(steps);
 ```
 
-### Step Helpers
+Create the wizard:
 
-In addition to the standard `step()`, several specialized helpers make common patterns easier:
-
-| Helper | Use Case | Example |
-| :--- | :--- | :--- |
-| `step()` | flexible, general purpose | `step({ data: {...}, next: [...] })` |
-| `dataStep()` | Simple data collection, no logic | `dataStep({ key: 'val' }, ['next'])` |
-| `transitionStep()` | Logic-only, no UI/Data | `transitionStep(['next'])` |
-| `conditionalStep()` | Dynamic branching | `conditionalStep({ next: (ctx) => ... })` |
-
-## Navigation Logic
-
-### Linear Navigation
-For simple linear flows, pass an array of possible next steps strings.
-
-```typescript
-step({
-  next: ['billing']
-})
+```ts
+const wizard = factory.createWizard(steps, {
+  context: { role: 'user' },
+  order: ['role', 'profile', 'admin', 'done'],
+});
 ```
 
-### Conditional Branching
-For dynamic flows, pass a function to `next`.
+## Authoring rules
 
-```typescript
-step({
-  data: { paymentMethod: 'card' as 'card' | 'paypal' },
-  next: ({ data }) => {
-    return data.paymentMethod === 'card' ? ['creditCard'] : ['paypalLogin'];
-  }
-})
-```
-
-### Guards (`canEnter` / `canExit`)
-Control flow with guard functions. These can be async.
-
-```typescript
-step({
-  canEnter: async ({ context }) => {
-    const hasPermission = await checkUserPermission(context.userId);
-    return hasPermission;
-  },
-  canExit: ({ data }) => {
-    return data.isValid;
-  }
-})
-```
-
-## Next Steps
-- Learn about [State Management](/essentials/state-management) to share data between steps.
-- Add [Validation](/essentials/validation) to your steps.
+- Prefer `step()` for per-step data inference.
+- Keep `next` explicit (`['step']`), dynamic (`(args) => ...`), or `'any'`.
+- Put guard logic in `canEnter` / `canExit`.
+- Put data validation in `validate`.

@@ -1,15 +1,13 @@
 import { useEffect } from 'react';
 import { useShippingStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useRouter } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
 import { formatError } from '../utils/formatError';
 
 export function ShippingStep() {
-  const { data, error, next, updateData } = useShippingStep();
+  const { data, error, next, back, updateData } = useShippingStep();
   const { context } = useCheckoutWizard();
-  const router = useRouter();
 
   // Clear error when leaving the step
   useEffect(() => {
@@ -26,11 +24,6 @@ export function ShippingStep() {
     } catch (error) {
       console.error('Validation failed:', error);
     }
-  };
-
-  const handleBack = () => {
-    // Use browser back button for true history navigation
-    router.history.back();
   };
 
   return (
@@ -69,7 +62,7 @@ export function ShippingStep() {
       {error != null && <ErrorMessage message={formatError(error)} />}
 
       <div className="flex gap-4">
-        <Button type="button" onClick={handleBack} variant="secondary" fullWidth>
+        <Button type="button" onClick={back} variant="secondary" fullWidth>
           Back
         </Button>
         <Button type="submit" variant="primary" fullWidth>

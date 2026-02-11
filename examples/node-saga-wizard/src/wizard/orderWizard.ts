@@ -72,4 +72,4 @@ const steps = defineSteps({
   }),
 });
 
-export const orderWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+export const orderWizard = createWizard(steps);

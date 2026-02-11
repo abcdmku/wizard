@@ -3,13 +3,15 @@ import { AccountStep } from './components/AccountStep';
 import { ShippingStep } from './components/ShippingStep';
 import { PaymentStep } from './components/PaymentStep';
 import { ReviewStep } from './components/ReviewStep';
-import { reactWizardWithContext } from "@wizard/react";
+import { createReactWizardFactory, useWizard, useWizardStep } from "@wizard/react";
 
-// Create factory with context type and destructure methods for cleaner usage
-export const { defineSteps, step, createWizard } = reactWizardWithContext<CheckoutContext>({
+const INITIAL_CONTEXT: CheckoutContext = {
   total: 0,
-  coupon: null
-});
+  coupon: null,
+};
+
+const wizardFactory = createReactWizardFactory<CheckoutContext>();
+export const { defineSteps, step } = wizardFactory;
 
 export const steps = defineSteps({
   account: step({
@@ -44,4 +46,12 @@ export const steps = defineSteps({
   }),
 });
 
-export const checkoutWizard = createWizard(steps)
+export const checkoutWizard = wizardFactory.createWizard(steps, {
+  context: structuredClone(INITIAL_CONTEXT),
+});
+
+export const useCheckoutWizard = () => useWizard(checkoutWizard);
+export const useAccountStep = () => useWizardStep(checkoutWizard, "account");
+export const useShippingStep = () => useWizardStep(checkoutWizard, "shipping");
+export const usePaymentStep = () => useWizardStep(checkoutWizard, "payment");
+export const useReviewStep = () => useWizardStep(checkoutWizard, "review");

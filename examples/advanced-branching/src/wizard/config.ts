@@ -42,17 +42,19 @@ export const steps = defineSteps({
   roleSelection: step({
     data: initialData.roleSelection,
     next: ({ data, context }) => {
-      return determineNextStep('roleSelection', data.role, context);
+      const selectedRole = data?.role ?? "user";
+      return determineNextStep('roleSelection', selectedRole, context);
     },
     beforeExit: ({ data, updateContext }) => {
       updateContext((ctx) => {
+        const selectedRole = data?.role ?? "user";
         // If role changed, reset completed steps
-        if (ctx.role !== data.role) {
+        if (ctx.role !== selectedRole) {
           ctx.completedSteps = ['roleSelection'];
         } else {
           ctx.completedSteps.push('roleSelection');
         }
-        ctx.role = data.role;
+        ctx.role = selectedRole;
       });
     },
     meta: {
@@ -65,14 +67,13 @@ export const steps = defineSteps({
     canEnter: ({ context }) => canAccessStep('userProfile', context.role, context),
     next: ({ context }) => determineNextStep('userProfile', context.role, context),
     validate: ({ data }) => {
-      const d = data as typeof initialData.userProfile;
-      if (!d.firstName || !d.lastName) {
+      if (!data.firstName || !data.lastName) {
         throw new Error('Please enter your full name');
       }
-      if (!d.email || !d.email.includes('@')) {
+      if (!data.email || !data.email.includes('@')) {
         throw new Error('Please enter a valid email');
       }
-      if (!d.department) {
+      if (!data.department) {
         throw new Error('Please select a department');
       }
     },
@@ -94,7 +95,7 @@ export const steps = defineSteps({
     },
     beforeExit: ({ data, updateContext }) => {
       updateContext((ctx) => {
-        ctx.requiresApproval = data.requiresApproval;
+        ctx.requiresApproval = data?.requiresApproval ?? false;
         ctx.completedSteps.push('adminPanel');
       });
     },
@@ -108,14 +109,13 @@ export const steps = defineSteps({
     canEnter: ({ context }) => canAccessStep('managerDashboard', context.role, context),
     next: ({ context }) => determineNextStep('managerDashboard', context.role, context),
     validate: ({ data }) => {
-      const d = data as typeof initialData.managerDashboard;
-      if (d.teamSize < 0) {
+      if (data.teamSize < 0) {
         throw new Error('Team size cannot be negative');
       }
-      if (d.budget < 0) {
+      if (data.budget < 0) {
         throw new Error('Budget cannot be negative');
       }
-      if (d.approvalThreshold < 0) {
+      if (data.approvalThreshold < 0) {
         throw new Error('Approval threshold cannot be negative');
       }
     },
@@ -133,11 +133,10 @@ export const steps = defineSteps({
     data: initialData.sharedReview,
     next: [],
     validate: ({ data }) => {
-      const d = data as typeof initialData.sharedReview;
-      if (!d.feedback || d.feedback.length < 10) {
+      if (!data.feedback || data.feedback.length < 10) {
         throw new Error('Please provide at least 10 characters of feedback');
       }
-      if (d.rating < 1 || d.rating > 10) {
+      if (data.rating < 1 || data.rating > 10) {
         throw new Error('Rating must be between 1 and 10');
       }
     },
@@ -156,11 +155,10 @@ export const steps = defineSteps({
     canEnter: ({ context }) => context.role === 'manager',
     next: () => ['managerDashboard'],
     validate: ({ data }) => {
-      const d = data as typeof initialData.sendReminder;
-      if (!d.message || d.message.length < 5) {
+      if (!data.message || data.message.length < 5) {
         throw new Error('Please provide a reminder message (minimum 5 characters)');
       }
-      if (d.scheduleType === 'custom' && !d.customDate) {
+      if (data.scheduleType === 'custom' && !data.customDate) {
         throw new Error('Please select a date for custom scheduling');
       }
     },
@@ -174,17 +172,9 @@ export const steps = defineSteps({
       description: 'Schedule a reminder for team member'
     }
   }),
-    new: step({
-    data: initialData.sendReminder,
-    next: "any" as any,
-    meta: {
-      label: 'Any Next Step',
-      description: 'Can navigate to any available step from here'
-    }
-  }),
 });
 
-export const branchingWizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+export const branchingWizard = createWizard(steps);
 
 /**
  * Typed convenience hook for using branchingWizard.

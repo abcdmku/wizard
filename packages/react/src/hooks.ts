@@ -1,337 +1,495 @@
+import { useContext } from 'react';
 import { useStore } from '@tanstack/react-store';
 import type { Wizard, WizardState } from '@wizard/core';
-import type { ReactWizardStep } from './types';
+import { WizardContext } from './context';
+import type { ReactWizardStep, StepComponent } from './types';
 import { wrapWithReactStep } from './step-wrapper';
 
-/**
- * Kitchen sink hook that returns everything from the wizard.
- * Returns flattened state properties and all wizard methods.
- *
- * @param wizard - The wizard instance
- * @returns Complete wizard API with flattened state and methods
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const { step, data, next, back } = useWizard(FormWizard);
- * }
- *
- * // Or create a typed convenience hook:
- * export const useFormWizard = () => useWizard(FormWizard);
- * ```
- */
+type WizardWithComponents<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+> = Wizard<C, S, D, E> & {
+  getStepComponent?: (stepName: S) => StepComponent<C, S, D, E, S> | undefined;
+};
+
+type BoundMethods<C, S extends string, D extends Record<S, unknown>, E> = {
+  next: Wizard<C, S, D, E>['next'];
+  back: Wizard<C, S, D, E>['back'];
+  goTo: Wizard<C, S, D, E>['goTo'];
+  reset: Wizard<C, S, D, E>['reset'];
+  updateStepData: Wizard<C, S, D, E>['updateStepData'];
+  setStepData: Wizard<C, S, D, E>['setStepData'];
+  getStepData: Wizard<C, S, D, E>['getStepData'];
+  updateContext: Wizard<C, S, D, E>['updateContext'];
+  getContext: Wizard<C, S, D, E>['getContext'];
+  setStepMeta: Wizard<C, S, D, E>['setStepMeta'];
+  updateStepMeta: Wizard<C, S, D, E>['updateStepMeta'];
+  getStepMeta: Wizard<C, S, D, E>['getStepMeta'];
+  getStepError: Wizard<C, S, D, E>['getStepError'];
+  getAllErrors: Wizard<C, S, D, E>['getAllErrors'];
+  clearStepError: Wizard<C, S, D, E>['clearStepError'];
+  clearAllErrors: Wizard<C, S, D, E>['clearAllErrors'];
+  getStep: Wizard<C, S, D, E>['getStep'];
+  getCurrentStep: Wizard<C, S, D, E>['getCurrentStep'];
+  getCurrent: Wizard<C, S, D, E>['getCurrent'];
+  markError: Wizard<C, S, D, E>['markError'];
+  markTerminated: Wizard<C, S, D, E>['markTerminated'];
+  markLoading: Wizard<C, S, D, E>['markLoading'];
+  markIdle: Wizard<C, S, D, E>['markIdle'];
+  markSkipped: Wizard<C, S, D, E>['markSkipped'];
+};
+
+const boundMethodCache = new WeakMap<
+  Wizard<any, any, any, any>,
+  BoundMethods<any, any, any, any>
+>();
+
+function getBoundMethods<C, S extends string, D extends Record<S, unknown>, E>(
+  wizard: Wizard<C, S, D, E>
+): BoundMethods<C, S, D, E> {
+  const cached = boundMethodCache.get(wizard);
+  if (cached) {
+    return cached as BoundMethods<C, S, D, E>;
+  }
+
+  const methods: BoundMethods<C, S, D, E> = {
+    next: wizard.next.bind(wizard),
+    back: wizard.back.bind(wizard),
+    goTo: wizard.goTo.bind(wizard),
+    reset: wizard.reset.bind(wizard),
+    updateStepData: wizard.updateStepData.bind(wizard),
+    setStepData: wizard.setStepData.bind(wizard),
+    getStepData: wizard.getStepData.bind(wizard),
+    updateContext: wizard.updateContext.bind(wizard),
+    getContext: wizard.getContext.bind(wizard),
+    setStepMeta: wizard.setStepMeta.bind(wizard),
+    updateStepMeta: wizard.updateStepMeta.bind(wizard),
+    getStepMeta: wizard.getStepMeta.bind(wizard),
+    getStepError: wizard.getStepError.bind(wizard),
+    getAllErrors: wizard.getAllErrors.bind(wizard),
+    clearStepError: wizard.clearStepError.bind(wizard),
+    clearAllErrors: wizard.clearAllErrors.bind(wizard),
+    getStep: wizard.getStep.bind(wizard),
+    getCurrentStep: wizard.getCurrentStep.bind(wizard),
+    getCurrent: wizard.getCurrent.bind(wizard),
+    markError: wizard.markError.bind(wizard),
+    markTerminated: wizard.markTerminated.bind(wizard),
+    markLoading: wizard.markLoading.bind(wizard),
+    markIdle: wizard.markIdle.bind(wizard),
+    markSkipped: wizard.markSkipped.bind(wizard),
+  };
+
+  boundMethodCache.set(wizard, methods);
+  return methods;
+}
+
+function useResolvedWizard<C, S extends string, D extends Record<S, unknown>, E>(
+  wizard?: WizardWithComponents<C, S, D, E>
+): WizardWithComponents<C, S, D, E> {
+  const wizardFromContext = useContext(WizardContext) as
+    | WizardWithComponents<C, S, D, E>
+    | null;
+
+  if (wizard) {
+    return wizard;
+  }
+
+  if (!wizardFromContext) {
+    throw new Error(
+      'Wizard context not found. Pass a wizard instance or wrap with <WizardProvider>.'
+    );
+  }
+
+  return wizardFromContext;
+}
+
+function getStepComponentGetter<C, S extends string, D extends Record<S, unknown>, E>(
+  wizard: WizardWithComponents<C, S, D, E>
+) {
+  return (stepName: S) => wizard.getStepComponent?.(stepName);
+}
+
+type UseWizardReturn<C, S extends string, D extends Record<S, unknown>, E> = {
+  step: S;
+  currentStep: ReactWizardStep<S, D[S], C, S, D>;
+  data: Partial<D>;
+  context: C;
+  meta: WizardState<C, S, D>['meta'];
+  history: WizardState<C, S, D>['history'];
+  visitedSteps: S[];
+  runtime: WizardState<C, S, D>['runtime'];
+  errors: WizardState<C, S, D>['errors'];
+  isLoading: boolean;
+  isTransitioning: boolean;
+  helpers: Wizard<C, S, D, E>['helpers'];
+  store: Wizard<C, S, D, E>['store'];
+} & BoundMethods<C, S, D, E>;
+
 export function useWizard<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: Wizard<C, S, D, E> & { getStepComponent?: (stepName: S) => any }) {
-  const state = useStore(wizard.store);
-
-  // Wrap getCurrentStep with React component support
-  const getComponent = (stepName: S) => wizard.getStepComponent?.(stepName);
-  const currentStep = wrapWithReactStep(wizard.getCurrentStep(), getComponent);
+>(wizard: WizardWithComponents<C, S, D, E>): UseWizardReturn<C, S, D, E>;
+export function useWizard<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(): UseWizardReturn<C, S, D, E>;
+export function useWizard<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(wizard?: WizardWithComponents<C, S, D, E>): UseWizardReturn<C, S, D, E> {
+  const resolvedWizard = useResolvedWizard(wizard);
+  const state = useStore(resolvedWizard.store);
+  const currentStep = wrapWithReactStep(
+    resolvedWizard.getCurrentStep(),
+    getStepComponentGetter(resolvedWizard)
+  );
+  const methods = getBoundMethods(resolvedWizard);
 
   return {
-    // Flattened state properties
     step: state.step,
     currentStep,
     data: state.data,
     context: state.context,
     meta: state.meta,
     history: state.history,
-    visitedSteps: state.history.map(h => h.step),
+    visitedSteps: state.history.map((entry) => entry.step),
     runtime: state.runtime,
     errors: state.errors,
     isLoading: state.isLoading,
     isTransitioning: state.isTransitioning,
-
-    // Navigation methods
-    next: wizard.next.bind(wizard),
-    back: wizard.back.bind(wizard),
-    goTo: wizard.goTo.bind(wizard),
-    reset: wizard.reset.bind(wizard),
-
-    // Data methods
-    updateStepData: wizard.updateStepData.bind(wizard),
-    setStepData: wizard.setStepData.bind(wizard),
-    getStepData: wizard.getStepData.bind(wizard),
-    updateContext: wizard.updateContext.bind(wizard),
-    getContext: wizard.getContext.bind(wizard),
-
-    // Meta methods
-    setStepMeta: wizard.setStepMeta.bind(wizard),
-    updateStepMeta: wizard.updateStepMeta.bind(wizard),
-    getStepMeta: wizard.getStepMeta.bind(wizard),
-
-    // Error methods
-    getStepError: wizard.getStepError.bind(wizard),
-    getAllErrors: wizard.getAllErrors.bind(wizard),
-    clearStepError: wizard.clearStepError.bind(wizard),
-    clearAllErrors: wizard.clearAllErrors.bind(wizard),
-
-    // Step accessors
-    getStep: wizard.getStep.bind(wizard),
-    getCurrentStep: wizard.getCurrentStep.bind(wizard),
-    getCurrent: wizard.getCurrent.bind(wizard),
-
-    // Status methods
-    markError: wizard.markError.bind(wizard),
-    markTerminated: wizard.markTerminated.bind(wizard),
-    markLoading: wizard.markLoading.bind(wizard),
-    markIdle: wizard.markIdle.bind(wizard),
-    markSkipped: wizard.markSkipped.bind(wizard),
-
-    // Helpers
-    helpers: wizard.helpers,
-
-    // Store reference for advanced usage
-    store: wizard.store,
+    helpers: resolvedWizard.helpers,
+    store: resolvedWizard.store,
+    ...methods,
   };
 }
 
-/**
- * Returns the current active step wrapper with React component support.
- *
- * @param wizard - The wizard instance
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const step = useCurrentStep(FormWizard);
- *   return <div>Current step: {step.name}</div>;
- * }
- *
- * // Or create a typed convenience hook:
- * export const useFormWizardCurrentStep = () => useCurrentStep(FormWizard);
- * ```
- */
 export function useCurrentStep<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: Wizard<C, S, D, E> & { getStepComponent?: (stepName: S) => any }): ReactWizardStep<S, D[S], C, S, D> {
-  // Subscribe to current step changes
-  useStore(wizard.store, (state) => state.step);
-  const getComponent = (stepName: S) => wizard.getStepComponent?.(stepName);
-  return wrapWithReactStep(wizard.getCurrentStep(), getComponent);
+>(wizard: WizardWithComponents<C, S, D, E>): ReactWizardStep<S, D[S], C, S, D>;
+export function useCurrentStep<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(): ReactWizardStep<S, D[S], C, S, D>;
+export function useCurrentStep<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(wizard?: WizardWithComponents<C, S, D, E>): ReactWizardStep<S, D[S], C, S, D> {
+  const resolvedWizard = useResolvedWizard(wizard);
+  useStore(resolvedWizard.store, (state) => state.step);
+  return wrapWithReactStep(
+    resolvedWizard.getCurrentStep(),
+    getStepComponentGetter(resolvedWizard)
+  );
 }
 
-/**
- * Returns a specific step wrapper by name with React component support.
- *
- * @param wizard - The wizard instance
- * @param stepName - The name of the step to get
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const accountStep = useWizardStep(FormWizard, 'account');
- *   return <div>Status: {accountStep.status}</div>;
- * }
- *
- * // Or create a typed convenience hook:
- * export const useAccountStep = () => useWizardStep(FormWizard, 'account');
- * ```
- */
 export function useWizardStep<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never,
   K extends S = S
->(wizard: Wizard<C, S, D, E> & { getStepComponent?: (stepName: S) => any }, stepName: K): ReactWizardStep<K, D[K], C, S, D> {
-  // Re-render when step data or runtime changes
-  useStore(wizard.store, (state) => ({
-    data: state.data[stepName],
-    runtime: state.runtime?.[stepName],
-  }));
+>(
+  wizard: WizardWithComponents<C, S, D, E>,
+  stepName: K
+): ReactWizardStep<K, D[K], C, S, D>;
+export function useWizardStep<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never,
+  K extends S = S
+>(stepName: K): ReactWizardStep<K, D[K], C, S, D>;
+export function useWizardStep<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never,
+  K extends S = S
+>(
+  wizardOrStepName: WizardWithComponents<C, S, D, E> | K,
+  maybeStepName?: K
+): ReactWizardStep<K, D[K], C, S, D> {
+  const hasWizardArg = typeof wizardOrStepName !== 'string';
+  const resolvedWizard = useResolvedWizard(
+    hasWizardArg ? (wizardOrStepName as WizardWithComponents<C, S, D, E>) : undefined
+  );
+  const stepName = (hasWizardArg ? maybeStepName : wizardOrStepName) as K | undefined;
 
-  const getComponent = (stepName: S) => wizard.getStepComponent?.(stepName);
-  return wrapWithReactStep(wizard.getStep(stepName), getComponent);
+  if (!stepName) {
+    throw new Error('useWizardStep requires a step name.');
+  }
+
+  useStore(resolvedWizard.store, (state) => state.data[stepName]);
+  useStore(resolvedWizard.store, (state) => state.runtime?.[stepName]?.status);
+  useStore(resolvedWizard.store, (state) => state.errors[stepName]);
+
+  return wrapWithReactStep(
+    resolvedWizard.getStep(stepName),
+    getStepComponentGetter(resolvedWizard)
+  );
 }
 
-/**
- * Returns progress metrics for the wizard.
- *
- * @param wizard - The wizard instance
- *
- * @example
- * ```tsx
- * function ProgressBar() {
- *   const { percentage, currentIndex, totalSteps } = useWizardProgress(FormWizard);
- *   return <div style={{ width: `${percentage}%` }} />;
- * }
- *
- * // Or create a typed convenience hook:
- * export const useFormWizardProgress = () => useWizardProgress(FormWizard);
- * ```
- */
 export function useWizardProgress<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: Wizard<C, S, D, E>) {
-  const progress = useStore(wizard.store, (state) => {
-    const allSteps = wizard.helpers.orderedStepNames();
-    const visibleSteps = allSteps.filter(
-      (name) => state.runtime?.[name]?.status !== 'terminated' &&
-                state.meta[name]?.hidden !== true
-    );
-    const currentIndex = visibleSteps.indexOf(state.step);
-    const totalSteps = visibleSteps.length;
-    const percentage = totalSteps > 0 ? ((currentIndex + 1) / totalSteps) * 100 : 0;
+>(
+  wizard: WizardWithComponents<C, S, D, E>
+): {
+  currentIndex: number;
+  totalSteps: number;
+  percentage: number;
+  visitedSteps: S[];
+  isFirstStep: boolean;
+  isLastStep: boolean;
+};
+export function useWizardProgress<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(): {
+  currentIndex: number;
+  totalSteps: number;
+  percentage: number;
+  visitedSteps: S[];
+  isFirstStep: boolean;
+  isLastStep: boolean;
+};
+export function useWizardProgress<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(
+  wizard?: WizardWithComponents<C, S, D, E>
+): {
+  currentIndex: number;
+  totalSteps: number;
+  percentage: number;
+  visitedSteps: S[];
+  isFirstStep: boolean;
+  isLastStep: boolean;
+} {
+  const resolvedWizard = useResolvedWizard(wizard);
+  const step = useStore(resolvedWizard.store, (state) => state.step);
+  const visitedSteps = useStore(resolvedWizard.store, (state) =>
+    state.history.map((entry) => entry.step)
+  );
+  useStore(resolvedWizard.store, (state) =>
+    resolvedWizard.helpers
+      .orderedStepNames()
+      .map(
+        (name) =>
+          `${state.runtime?.[name]?.status ?? 'idle'}:${state.meta[name]?.hidden === true ? '1' : '0'}`
+      )
+      .join('|')
+  );
 
-    return {
-      currentIndex,
-      totalSteps,
-      percentage,
-      visitedSteps: state.history.map(h => h.step),
-      isFirstStep: currentIndex === 0,
-      isLastStep: currentIndex === totalSteps - 1,
-    };
-  });
+  const snapshot = resolvedWizard.store.state;
+  const allSteps = resolvedWizard.helpers.orderedStepNames();
+  const visibleSteps = allSteps.filter(
+    (name) =>
+      snapshot.runtime?.[name]?.status !== 'terminated' &&
+      snapshot.meta[name]?.hidden !== true
+  );
+  const currentIndex = visibleSteps.indexOf(step);
+  const totalSteps = visibleSteps.length;
+  const percentage = totalSteps > 0 ? ((currentIndex + 1) / totalSteps) * 100 : 0;
 
-  return progress;
+  return {
+    currentIndex,
+    totalSteps,
+    percentage,
+    visitedSteps,
+    isFirstStep: currentIndex === 0,
+    isLastStep: totalSteps > 0 && currentIndex === totalSteps - 1,
+  };
 }
 
-/**
- * Returns only the navigation actions.
- * This hook never re-renders since it only returns functions.
- *
- * @param wizard - The wizard instance
- *
- * @example
- * ```tsx
- * function NavigationButtons() {
- *   const { next, back, goTo } = useWizardActions(FormWizard);
- *   return (
- *     <div>
- *       <button onClick={back}>Back</button>
- *       <button onClick={next}>Next</button>
- *     </div>
- *   );
- * }
- *
- * // Or create a typed convenience hook:
- * export const useFormWizardActions = () => useWizardActions(FormWizard);
- * ```
- */
 export function useWizardActions<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: Wizard<C, S, D, E>) {
+>(wizard: WizardWithComponents<C, S, D, E>): Pick<
+  BoundMethods<C, S, D, E>,
+  'next' | 'back' | 'goTo' | 'reset' | 'updateStepData' | 'setStepData' | 'updateContext'
+>;
+export function useWizardActions<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(): Pick<
+  BoundMethods<C, S, D, E>,
+  'next' | 'back' | 'goTo' | 'reset' | 'updateStepData' | 'setStepData' | 'updateContext'
+>;
+export function useWizardActions<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(
+  wizard?: WizardWithComponents<C, S, D, E>
+): Pick<
+  BoundMethods<C, S, D, E>,
+  'next' | 'back' | 'goTo' | 'reset' | 'updateStepData' | 'setStepData' | 'updateContext'
+> {
+  const resolvedWizard = useResolvedWizard(wizard);
+  const methods = getBoundMethods(resolvedWizard);
   return {
-    next: wizard.next.bind(wizard),
-    back: wizard.back.bind(wizard),
-    goTo: wizard.goTo.bind(wizard),
-    reset: wizard.reset.bind(wizard),
-    updateStepData: wizard.updateStepData.bind(wizard),
-    setStepData: wizard.setStepData.bind(wizard),
-    updateContext: wizard.updateContext.bind(wizard),
+    next: methods.next,
+    back: methods.back,
+    goTo: methods.goTo,
+    reset: methods.reset,
+    updateStepData: methods.updateStepData,
+    setStepData: methods.setStepData,
+    updateContext: methods.updateContext,
   };
 }
 
-/**
- * Returns helper utilities.
- *
- * @param wizard - The wizard instance
- *
- * @example
- * ```tsx
- * function StepList() {
- *   const { helpers, visitedSteps } = useWizardHelpers(FormWizard);
- *   return (
- *     <ul>
- *       {helpers.allSteps().map(step => (
- *         <li key={step.name}>{step.name}</li>
- *       ))}
- *     </ul>
- *   );
- * }
- *
- * // Or create a typed convenience hook:
- * export const useFormWizardHelpers = () => useWizardHelpers(FormWizard);
- * ```
- */
 export function useWizardHelpers<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: Wizard<C, S, D, E>) {
-  // Subscribe to history for visitedSteps
-  const history = useStore(wizard.store, (state) => state.history);
+>(wizard: WizardWithComponents<C, S, D, E>): {
+  helpers: Wizard<C, S, D, E>['helpers'];
+  getStep: BoundMethods<C, S, D, E>['getStep'];
+  getCurrentStep: BoundMethods<C, S, D, E>['getCurrentStep'];
+  visitedSteps: S[];
+  history: WizardState<C, S, D>['history'];
+};
+export function useWizardHelpers<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(): {
+  helpers: Wizard<C, S, D, E>['helpers'];
+  getStep: BoundMethods<C, S, D, E>['getStep'];
+  getCurrentStep: BoundMethods<C, S, D, E>['getCurrentStep'];
+  visitedSteps: S[];
+  history: WizardState<C, S, D>['history'];
+};
+export function useWizardHelpers<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(
+  wizard?: WizardWithComponents<C, S, D, E>
+): {
+  helpers: Wizard<C, S, D, E>['helpers'];
+  getStep: BoundMethods<C, S, D, E>['getStep'];
+  getCurrentStep: BoundMethods<C, S, D, E>['getCurrentStep'];
+  visitedSteps: S[];
+  history: WizardState<C, S, D>['history'];
+} {
+  const resolvedWizard = useResolvedWizard(wizard);
+  const history = useStore(resolvedWizard.store, (state) => state.history);
+  const methods = getBoundMethods(resolvedWizard);
 
   return {
-    helpers: wizard.helpers,
-    getStep: wizard.getStep.bind(wizard),
-    getCurrentStep: wizard.getCurrentStep.bind(wizard),
-    visitedSteps: history.map(h => h.step),
+    helpers: resolvedWizard.helpers,
+    getStep: methods.getStep,
+    getCurrentStep: methods.getCurrentStep,
+    visitedSteps: history.map((entry) => entry.step),
     history,
   };
 }
 
-/**
- * Returns error for a specific step (or current step if not specified).
- *
- * @param wizard - The wizard instance
- * @param stepName - Optional step name. If not provided, returns error for current step.
- *
- * @example
- * ```tsx
- * function ErrorDisplay() {
- *   const error = useStepError(FormWizard, 'account');
- *   if (!error) return null;
- *   return <div className="error">{String(error)}</div>;
- * }
- *
- * // Or create a typed convenience hook:
- * export const useAccountStepError = () => useStepError(FormWizard, 'account');
- * ```
- */
 export function useStepError<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: Wizard<C, S, D, E>, stepName?: S) {
-  const error = useStore(wizard.store, (state) => {
-    const name = stepName || state.step;
-    return state.errors[name];
-  });
+>(wizard: WizardWithComponents<C, S, D, E>, stepName?: S): unknown;
+export function useStepError<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(stepName?: S): unknown;
+export function useStepError<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never
+>(
+  wizardOrStepName?: WizardWithComponents<C, S, D, E> | S,
+  maybeStepName?: S
+): unknown {
+  const hasWizardArg =
+    wizardOrStepName !== undefined && typeof wizardOrStepName !== 'string';
+  const resolvedWizard = useResolvedWizard(
+    hasWizardArg ? (wizardOrStepName as WizardWithComponents<C, S, D, E>) : undefined
+  );
+  const stepName = (hasWizardArg ? maybeStepName : wizardOrStepName) as S | undefined;
 
-  return error;
+  return useStore(resolvedWizard.store, (state) => {
+    const target = stepName ?? state.step;
+    return state.errors[target];
+  });
 }
 
-/**
- * Performance-optimized hook that lets you select specific data from wizard state.
- * Use this for fine-grained control over re-renders.
- *
- * @param wizard - The wizard instance
- * @param selector - Function to select data from wizard state
- *
- * @example
- * ```tsx
- * function UserEmail() {
- *   const email = useWizardSelector(FormWizard, state => state.data.account?.email);
- *   return <div>{email}</div>;
- * }
- * ```
- */
 export function useWizardSelector<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never,
-  Selected = any
+  Selected = unknown
 >(
-  wizard: Wizard<C, S, D, E>,
+  wizard: WizardWithComponents<C, S, D, E>,
   selector: (state: WizardState<C, S, D>) => Selected
-) {
-  return useStore(wizard.store, selector);
+): Selected;
+export function useWizardSelector<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never,
+  Selected = unknown
+>(selector: (state: WizardState<C, S, D>) => Selected): Selected;
+export function useWizardSelector<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never,
+  Selected = unknown
+>(
+  wizardOrSelector:
+    | WizardWithComponents<C, S, D, E>
+    | ((state: WizardState<C, S, D>) => Selected),
+  maybeSelector?: (state: WizardState<C, S, D>) => Selected
+): Selected {
+  const hasWizardArg = typeof wizardOrSelector !== 'function';
+  const resolvedWizard = useResolvedWizard(
+    hasWizardArg ? (wizardOrSelector as WizardWithComponents<C, S, D, E>) : undefined
+  );
+  const selector = (hasWizardArg ? maybeSelector : wizardOrSelector) as
+    | ((state: WizardState<C, S, D>) => Selected)
+    | undefined;
+
+  if (!selector) {
+    throw new Error('useWizardSelector requires a selector function.');
+  }
+
+  return useStore(resolvedWizard.store, selector);
 }

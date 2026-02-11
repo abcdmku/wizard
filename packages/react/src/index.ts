@@ -20,14 +20,23 @@ export {
 } from './hooks';
 
 // React-specific factory
-export { createReactWizardFactory, reactWizardWithContext } from './factory';
+export { createReactWizardFactory } from './factory';
+export type { ReactWizardInstance } from './factory';
 
-// TanStack Router integration
-export { createWizardRouteComponent } from './tanstack-router';
-export type { CreateWizardRouteConfig } from './tanstack-router';
+// Router integration
+export { useSyncWizardWithRouter } from './router';
+export type { SyncWizardWithRouterOptions } from './router';
+export { useTanStackWizardRouter } from './tanstack-router';
+export type { TanStackWizardRouterOptions } from './tanstack-router';
 
 // React-specific types
-export type { ReactWizardStep, StepMetaUI, ReactStepDefinition } from './types';
+export type {
+  ReactWizardStep,
+  StepMetaUI,
+  ReactStepDefinition,
+  StepComponent,
+  StepComponentProps,
+} from './types';
 
 // Re-export core types for convenience
 export type {

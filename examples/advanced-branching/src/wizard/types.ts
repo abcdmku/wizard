@@ -7,8 +7,7 @@ export type StepName =
   | 'adminPanel'
   | 'managerDashboard'
   | 'sharedReview'
-  | 'sendReminder'
-  | 'new';
+  | 'sendReminder';
 
 export interface WizardContext {
   role: UserRole | '';

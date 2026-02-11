@@ -1,598 +1,63 @@
----
-slug: /typedoc/core
-title: '@wizard/core API Reference'
----
+# `@wizard/core` API
 
-# @wizard/core API Reference
+Source of truth: `packages/core/src/index.ts`
 
-Complete API reference for the core wizard library.
+## Functions
 
-import { Callout, Badge, Tabs, Tab } from '../../components'
+### `createWizard(opts)`
 
-## Main Functions
-
-### `createWizard`
-
-Creates a fully-featured wizard instance with type-safe state management.
-
-```typescript
-function createWizard<C, S extends string, D extends Record<S, unknown>, E = never>(
-  config: WizardConfig<C, S, D, E>
-): Wizard<C, S, D, E>
+```ts
+createWizard<C, E, const TDefs extends Record<string, any>>(opts: {
+  context: C;
+  steps: TDefs;
+  order?: readonly (keyof TDefs & string)[];
+  onStatusChange?: (a: { step: keyof TDefs & string; prev?: StepStatus; next: StepStatus }) => void;
+}): Wizard<C, StepIds<TDefs>, DataMapFromDefs<TDefs>, E>
 ```
 
-**Parameters:**
-- `config` - Complete wizard configuration object
+### `createWizardFactory<C, E>()`
 
-**Returns:** `Wizard` instance with all methods and helpers
+Factory returning:
 
-**Example:**
-```typescript
-const wizard = createWizard({
-  initialStep: 'user',
-  initialContext: { sessionId: '123' },
-  steps: {
-    user: { next: ['address'], validate: (data) => { /* ... */ } },
-    address: { next: ['payment'], load: async (ctx) => { /* ... */ } },
-    payment: { next: [] }
-  }
-});
-```
+- `defineSteps(defs)`
+- `step(definition)`
+- `createWizard(steps, options?)`
 
+### `defineSteps(defs)`
 
-### `createWizardFactory`
+Identity helper for preserving literal step keys and inference.
 
-Creates a type-safe wizard factory that provides helper functions for defining steps with proper type inference.
+### `step(definition)`
 
-```typescript
-function createWizardFactory<C = Record<string, never>, E = never>(): {
-  defineSteps: (defs: T) => T;
-  step: (def: StepDefinition) => StepDefinition;
-  createWizard: (steps, options) => Wizard;
-}
-```
+Typed step helper that brands step data for inference.
 
-### `wizardWithContext`
+### `stepWithValidation(validateFn, definition)`
 
-Convenience wrapper around `createWizardFactory` that binds the context type.
+Same as `step`, with explicit `validate`.
 
-```typescript
-function wizardWithContext<C, E = never>(context: C): Factory
-```
+### `resolve(valueOrFn, args)`
 
-## Step Helpers
+Resolves `ValOrFn<T, A>`.
 
-These helper functions are available when using `createWizardFactory` or imported directly.
+### `resolveMetaCore(meta, args)`
 
-### `step`
+Resolves runtime meta values (`label`, `hidden`, etc).
 
-Identity function for defining a step. Provides type inference for step data and options.
+## Key Types
 
-```typescript
-function step<Data>(def: StepDefinition<C, S, Data, E>): StepDefinition
-```
+- `Wizard`
+- `WizardState`
+- `WizardHelpers`
+- `StepDefinition`
+- `StepArgs`, `StepEnterArgs`, `StepExitArgs`, `ValidateArgs`
+- `StepMetaCore`
+- `StepStatus`
+- `DataMapFromDefs`, `DataTypeOf`, `InferStepData`
+- `CreateWizardOptions`
+- `WizardStep`
 
-### `defineSteps`
+## Notes
 
-Identity function for defining the map of all steps.
-
-```typescript
-function defineSteps<T>(defs: T): T
-```
-
-### `dataStep`, `transitionStep`, `conditionalStep`
-
-Specialized step helpers for common patterns.
-
-
-### `createHelpers`
-
-Creates helper utilities for wizard state management. Usually called internally by `createWizard`.
-
-```typescript
-function createHelpers<C, S extends string, D extends Record<S, unknown>>(
-  config: WizardConfig<C, S, D>,
-  store: Store<WizardState<C, S, D>>
-): WizardHelpers<C, S, D>
-```
-
-## Core Types
-
-### `WizardConfig`
-
-Main configuration object for creating a wizard.
-
-```typescript
-type WizardConfig<C, S extends string, D extends Record<S, unknown>, E = never> = {
-  // Required fields
-  initialStep: S;
-  initialContext: C;
-  steps: { [K in S]: StepDefinition<C, S, D[K], E> };
-
-  // Optional fields
-  onTransition?: (ev: WizardTransitionEvent<C, S, D, E>) => void | Promise<void>;
-  persistence?: WizardPersistence<C, S, D>;
-  keepHistory?: boolean;  // default: true
-  maxHistorySize?: number; // default: 10
-
-  // New optional fields for advanced features
-  order?: readonly S[];                                    // Explicit step order
-  weights?: Partial<Record<S, number>>;                   // Progress weights
-  prerequisites?: Partial<Record<S, readonly S[]>>;       // Step dependencies (DAG)
-  isStepComplete?: (args: {                               // Custom completion logic
-    step: S;
-    data: Partial<D>;
-    ctx: Readonly<C>
-  }) => boolean;
-  isOptional?: (step: S, ctx: Readonly<C>) => boolean;    // Optional step check
-  isRequired?: (step: S, ctx: Readonly<C>) => boolean;    // Required step check
-  onStatusChange?: (args: {                               // Status change hook
-    step: S;
-    prev?: StepStatus;
-    next: StepStatus
-  }) => void;
-}
-```
-
-### `StepDefinition`
-
-Configuration for a single wizard step.
-
-```typescript
-type StepDefinition<C, S extends string, Data, E> = {
-  // Navigation
-  next: S[] | ((args: {
-    ctx: Readonly<C>;
-    data: Readonly<Data>
-  }) => S | readonly S[]);
-
-  // Validation
-  validate?: (data: unknown, ctx: Readonly<C>) => asserts data is Data;
-
-  // Guards
-  canEnter?: (args: { ctx: Readonly<C> }) => boolean | Promise<boolean>;
-  canExit?: (args: {
-    ctx: Readonly<C>;
-    data: Readonly<Data>
-  }) => boolean | Promise<boolean>;
-
-  // Lifecycle hooks
-  load?: (args: {
-    ctx: Readonly<C>;
-    setStepData: (data: Data) => void;
-    updateContext: (updater: (ctx: C) => void) => void;
-  }) => void | Promise<void>;
-
-  beforeExit?: (args: {
-    ctx: Readonly<C>;
-    data: Readonly<Data>;
-    updateContext: (updater: (ctx: C) => void) => void;
-    emit: (event: E) => void;
-  }) => void | Promise<void>;
-}
-```
-
-### `WizardState`
-
-Current state snapshot of the wizard.
-
-```typescript
-type WizardState<C, S extends string, D extends Record<S, unknown>> = {
-  step: S;                                    // Current step ID
-  context: C;                                 // Global shared context
-  data: Partial<D>;                          // Per-step data map
-  errors: Partial<Record<S, unknown>>;       // Validation errors
-  history: Array<{                           // Navigation history
-    step: S;
-    context: C;
-    data: Partial<D>;
-  }>;
-  isLoading: boolean;                        // Loading state
-  isTransitioning: boolean;                  // Transition state
-  runtime?: Partial<Record<S, StepRuntime>>; // Runtime tracking
-}
-```
-
-### `StepRuntime`
-
-Runtime metadata for step execution tracking.
-
-```typescript
-type StepRuntime = {
-  status?: StepStatus;     // Current status override
-  attempts?: number;       // Number of attempts
-  startedAt?: number;      // Start timestamp (ms)
-  finishedAt?: number;     // Finish timestamp (ms)
-}
-```
-
-### `StepStatus`
-
-All possible step statuses (9 states).
-
-```typescript
-type StepStatus =
-  | 'unavailable'  // Blocked by guards/prerequisites
-  | 'optional'     // Step can be skipped (meta status)
-  | 'current'      // Currently active step
-  | 'completed'    // Finished successfully
-  | 'required'     // Must be completed (meta status)
-  | 'skipped'      // Intentionally bypassed
-  | 'error'        // Failed but retryable
-  | 'terminated'   // Permanently failed (unrecoverable)
-  | 'loading';     // Async operation in progress
-```
-
-## Wizard Instance API
-
-### Navigation Methods
-
-```typescript
-interface Wizard<C, S, D, E> {
-  // Core navigation
-  next(args?: { data?: D[S] }): Promise<void>;
-  goTo(step: S, args?: { data?: D[S] }): Promise<void>;
-  back(): Promise<void>;
-  reset(): void;
-
-  // Context & data management
-  updateContext(updater: (ctx: C) => void): void;
-  setStepData(step: S, data: D[S]): void;
-  getContext(): Readonly<C>;
-  getCurrent(): {
-    step: S;
-    data: Readonly<D[S]> | undefined;
-    ctx: Readonly<C>
-  };
-
-  // State management
-  subscribe(cb: (state: WizardState<C, S, D>) => void): () => void;
-  snapshot(): WizardState<C, S, D>;
-  restore(snap: WizardState<C, S, D>): void;
-  destroy(): void;
-
-  // Event emission
-  emit(event: E): void;
-
-  // Status management (mark methods)
-  markError(step: S, err: unknown): void;
-  markTerminated(step: S, err?: unknown): void;
-  markLoading(step: S): void;
-  markIdle(step: S): void;
-  markSkipped(step: S): void;
-
-  // Reactive store
-  store: Store<WizardState<C, S, D>>;
-
-  // Helper utilities
-  helpers: WizardHelpers<C, S, D>;
-}
-```
-
-## Validation Adapters
-
-Helper functions for using Zod schema validation (exported from `@wizard/core/zod`).
-
-### `createZodValidator`
-
-Creates a validation function from a Zod schema.
-
-```typescript
-function createZodValidator<T>(schema: z.ZodSchema<T>): (data: unknown, ctx: unknown) => asserts data is T
-```
-
-### `createContextualZodValidator`
-
-Creates a validation function that generates a schema based on the current context.
-
-```typescript
-function createContextualZodValidator<T, C>(
-  schemaFactory: (ctx: Readonly<C>) => z.ZodSchema<T>
-): (data: unknown, ctx: Readonly<C>) => asserts data is T
-```
-
-### `InferSchema`
-
-Type helper to extract the inferred type from a Zod schema.
-
-```typescript
-type InferSchema<T> = T extends z.ZodSchema<infer U> ? U : never;
-```
-
-## WizardHelpers API
-
-The helpers object provides 30+ utility methods for querying and managing wizard state.
-
-### Identity & Ordering
-
-```typescript
-interface WizardHelpers<C, S, D> {
-  allSteps(): readonly S[];              // Get all step IDs
-  orderedSteps(): readonly S[];          // Get ordered step IDs
-  stepCount(): number;                   // Count total steps
-  stepIndex(step: S): number;            // Get step position
-  currentIndex(): number;                // Get current position
-}
-```
-
-### Status & Classification
-
-```typescript
-interface WizardHelpers<C, S, D> {
-  stepStatus(step: S): StepStatus;       // Get current status of step
-  isOptional(step: S): boolean;          // Check if step is optional
-  isRequired(step: S): boolean;          // Check if step is required
-}
-```
-
-### Availability & Navigation
-
-```typescript
-interface WizardHelpers<C, S, D> {
-  availableSteps(): readonly S[];        // Get all available steps
-  unavailableSteps(): readonly S[];      // Get blocked steps
-  refreshAvailability(): Promise<void>;  // Re-check all guards
-
-  canGoNext(): boolean;                  // Check if can proceed
-  canGoBack(): boolean;                  // Check if can go back
-  canGoTo(step: S): boolean;            // Check if step is accessible
-
-  findNextAvailable(from?: S): S | null; // Find next available step
-  findPrevAvailable(from?: S): S | null; // Find previous available
-  jumpToNextRequired(): S | null;        // Skip to next required
-}
-```
-
-### Progress & Completion
-
-```typescript
-interface WizardHelpers<C, S, D> {
-  completedSteps(): readonly S[];        // Get completed step IDs
-  remainingSteps(): readonly S[];        // Get remaining steps
-  firstIncompleteStep(): S | null;       // Find first incomplete
-  lastCompletedStep(): S | null;         // Find last completed
-  remainingRequiredCount(): number;      // Count required steps left
-  isComplete(): boolean;                 // Check if wizard complete
-
-  progress(): {                          // Get progress metrics
-    ratio: number;                       // 0-1 completion ratio
-    percent: number;                     // 0-100 percentage
-    label: string;                       // "3 / 5" format
-  };
-}
-```
-
-### Graph & Reachability
-
-```typescript
-interface WizardHelpers<C, S, D> {
-  isReachable(step: S): boolean;              // Check if step is reachable
-  prerequisitesFor(step: S): readonly S[];    // Get step prerequisites
-  successorsOf(step: S): readonly S[];        // Get possible next steps
-}
-```
-
-### Diagnostics & Metrics
-
-```typescript
-interface WizardHelpers<C, S, D> {
-  stepAttempts(step: S): number;              // Get retry count
-  stepDuration(step: S): number | null;       // Get time spent (ms)
-  percentCompletePerStep(): Record<S, number>; // Get completion map
-  snapshot(): WizardState<C, S, D>;           // Get state snapshot
-}
-```
-
-## Pure Selectors
-
-Tree-shakable selector functions for use outside of wizard instance.
-
-```typescript
-import { selectors } from '@wizard/core';
-
-// All selectors follow the same pattern:
-// selectors.functionName(config, state, ...args)
-
-// Examples:
-const steps = selectors.allSteps(config);
-const isComplete = selectors.isComplete(config, state);
-const progress = selectors.progress(config, state);
-const status = selectors.stepStatus(config, state, 'payment');
-```
-
-Available selectors:
-- `allSteps(config)` - Get all step IDs
-- `orderedSteps(config)` - Get ordered steps
-- `isStepComplete(config, state, step)` - Check step completion
-- `completedSteps(config, state)` - Get completed steps
-- `isRequired(config, state, step)` - Check if required
-- `isOptional(config, state, step)` - Check if optional
-- `prerequisitesMet(config, state, step)` - Check prerequisites
-- `stepStatus(config, state, step)` - Get step status
-- `progress(config, state)` - Calculate progress
-- `isComplete(config, state)` - Check wizard completion
-- `firstIncompleteStep(config, state)` - Find first incomplete
-- `remainingSteps(config, state)` - Get remaining steps
-- `remainingRequiredCount(config, state)` - Count required left
-- `stepAttempts(state, step)` - Get attempt count
-- `stepDuration(state, step)` - Get step duration
-
-## Persistence
-
-Interface for implementing wizard state persistence.
-
-```typescript
-interface WizardPersistence<C, S, D> {
-  save(state: WizardState<C, S, D>): void | Promise<void>;
-  load?(): WizardState<C, S, D> | null | Promise<WizardState<C, S, D> | null>;
-  clear?(): void | Promise<void>;
-}
-
-// Example implementation
-const persistence: WizardPersistence<Context, Steps, Data> = {
-  save: async (state) => {
-    localStorage.setItem('wizard-state', JSON.stringify(state));
-  },
-  load: async () => {
-    const saved = localStorage.getItem('wizard-state');
-    return saved ? JSON.parse(saved) : null;
-  },
-  clear: () => {
-    localStorage.removeItem('wizard-state');
-  }
-};
-```
-
-## Complete Example
-
-```typescript
-import { createWizard, type WizardConfig } from '@wizard/core';
-
-// Define types
-type Context = {
-  userId: string;
-  sessionId: string;
-  paymentMethod?: 'card' | 'bank';
-};
-
-type Steps = 'user' | 'shipping' | 'payment' | 'review' | 'confirm';
-
-type StepData = {
-  user: { name: string; email: string };
-  shipping: { address: string; method: string };
-  payment: { cardNumber: string; cvv: string };
-  review: { accepted: boolean };
-  confirm: { orderId: string };
-};
-
-// Create wizard with all features
-const config: WizardConfig<Context, Steps, StepData> = {
-  initialStep: 'user',
-  initialContext: {
-    userId: '',
-    sessionId: crypto.randomUUID()
-  },
-
-  // Define prerequisites (creates DAG)
-  prerequisites: {
-    shipping: ['user'],
-    payment: ['shipping'],
-    review: ['payment'],
-    confirm: ['review']
-  },
-
-  // Assign weights for accurate progress
-  weights: {
-    user: 2,
-    shipping: 3,
-    payment: 4,
-    review: 1,
-    confirm: 1
-  },
-
-  // Mark optional steps
-  isOptional: (step) => step === 'review',
-
-  // Custom completion logic
-  isStepComplete: ({ step, data }) => {
-    if (step === 'payment') {
-      return !!data.payment?.cardNumber && !!data.payment?.cvv;
-    }
-    return data[step] != null;
-  },
-
-  // Track status changes
-  onStatusChange: ({ step, prev, next }) => {
-    console.log(`[${step}] ${prev} → ${next}`);
-  },
-
-  // Define steps
-  steps: {
-    user: {
-      next: ['shipping'],
-      validate: (data) => {
-        if (!data.name || !data.email) {
-          throw new Error('Name and email required');
-        }
-      },
-      beforeExit: ({ data, updateContext }) => {
-        updateContext(ctx => {
-          ctx.userId = data.email;
-        });
-      }
-    },
-
-    shipping: {
-      next: ['payment'],
-      canEnter: ({ ctx }) => !!ctx.userId,
-      load: async ({ ctx, setStepData }) => {
-        const methods = await fetchShippingMethods(ctx.userId);
-        setStepData({ address: '', method: methods[0] });
-      }
-    },
-
-    payment: {
-      next: ({ ctx }) => ctx.paymentMethod === 'bank' ? ['confirm'] : ['review'],
-      validate: (data) => {
-        if (!validateCard(data.cardNumber)) {
-          throw new Error('Invalid card number');
-        }
-      }
-    },
-
-    review: {
-      next: ['confirm'],
-      canExit: ({ data }) => data.accepted === true
-    },
-
-    confirm: {
-      next: [],
-      load: async ({ setStepData }) => {
-        const orderId = await createOrder();
-        setStepData({ orderId });
-      }
-    }
-  },
-
-  // Persistence
-  persistence: {
-    save: (state) => sessionStorage.setItem('checkout', JSON.stringify(state)),
-    load: () => {
-      const saved = sessionStorage.getItem('checkout');
-      return saved ? JSON.parse(saved) : null;
-    }
-  }
-};
-
-// Create and use wizard
-const wizard = createWizard(config);
-
-// Use helpers
-console.log(wizard.helpers.progress()); // { ratio: 0, percent: 0, label: "0 / 5" }
-console.log(wizard.helpers.canGoNext()); // true
-console.log(wizard.helpers.stepStatus('payment')); // 'unavailable'
-
-// Navigate
-await wizard.next({ data: { name: 'John', email: 'john@example.com' } });
-
-// Mark status
-wizard.markLoading('shipping');
-// ... async operation
-wizard.markIdle('shipping');
-
-// Error handling with retry
-try {
-  await wizard.goTo('payment', { data: paymentData });
-} catch (error) {
-  const attempts = wizard.helpers.stepAttempts('payment');
-  if (attempts < 3) {
-    wizard.markError('payment', error);
-  } else {
-    wizard.markTerminated('payment', error);
-  }
-}
-```
-
-<Callout type="info">
-For React integration, see the [@wizard/react API Reference](/typedoc/react).
-</Callout>
+- `wizardWithContext` is removed from the core API.
+- `dataStep`, `transitionStep`, and `conditionalStep` are removed.
+- State subscription is via `wizard.store` (`@tanstack/store`).

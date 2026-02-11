@@ -1,89 +1,82 @@
-import { useEffect } from 'react';
-import { useWizard, useWizardStep } from './hooks';
+import { useEffect, useRef } from 'react';
+import type { Wizard } from '@wizard/core';
+import { useWizardSelector } from './hooks';
 
-/**
- * Options for syncing wizard with router
- */
 export interface SyncWizardWithRouterOptions<S extends string> {
-  /** URL parameter name for step (e.g., "stepId") */
+  /**
+   * URL parameter name for the current step.
+   */
   param: string;
-  /** Convert URL param to step ID */
+  /**
+   * Convert URL param value to a wizard step.
+   */
   toStep: (param: string) => S | null;
-  /** Convert step ID to URL */
+  /**
+   * Convert wizard step to route navigation options.
+   */
   toUrl: (step: S) => { to: string; search?: Record<string, string> };
-  /** Router navigation function */
+  /**
+   * Router navigation function.
+   */
   navigate: (options: { to: string; search?: Record<string, string> }) => void;
-  /** Get current param value from router */
+  /**
+   * Read current URL param value.
+   */
   getParam: () => string | undefined;
 }
 
 /**
- * Hook to sync wizard state with router
- * Keeps URL and wizard step in sync bidirectionally
+ * Keep wizard state and router param in sync without mutating wizard methods.
  */
 export function useSyncWizardWithRouter<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never
->(wizard: import('@wizard/core').Wizard<C, S, D, E>, options: SyncWizardWithRouterOptions<S>) {
+>(
+  wizard: Wizard<C, S, D, E>,
+  options: SyncWizardWithRouterOptions<S>
+) {
   const { toStep, toUrl, navigate, getParam } = options;
-  const { step: currentStep } = useWizard(wizard);
+  const currentStep = useWizardSelector(wizard, (state) => state.step);
+  const syncingFromRouter = useRef(false);
+  const syncingFromWizard = useRef(false);
 
-  // Sync wizard → router
   useEffect(() => {
-    const urlOptions = toUrl(currentStep);
-    const currentParam = getParam();
-    const expectedParam = urlOptions.to.split('/').pop(); // Simple extraction
-
-    if (currentParam !== expectedParam) {
-      navigate(urlOptions);
+    if (syncingFromRouter.current) {
+      syncingFromRouter.current = false;
+      return;
     }
-  }, [currentStep, toUrl, navigate, getParam]);
 
-  // Sync router → wizard
+    const currentParam = getParam();
+    const targetParam = String(currentStep);
+    if (currentParam === targetParam) {
+      return;
+    }
+
+    syncingFromWizard.current = true;
+    navigate(toUrl(currentStep));
+  }, [currentStep, getParam, navigate, toUrl]);
+
   useEffect(() => {
     const currentParam = getParam();
-    if (!currentParam) return;
+    if (!currentParam) {
+      return;
+    }
+
+    if (syncingFromWizard.current) {
+      syncingFromWizard.current = false;
+      return;
+    }
 
     const targetStep = toStep(currentParam);
-    if (!targetStep) return;
-
-    if (targetStep !== currentStep) {
-      wizard.goTo(targetStep).catch((error) => {
-        // If can't navigate to step, redirect to current valid step
-        console.warn(`Cannot navigate to step ${targetStep}:`, error);
-        const validUrl = toUrl(currentStep);
-        navigate(validUrl);
-      });
+    if (!targetStep || targetStep === currentStep) {
+      return;
     }
-  }, [getParam, toStep, currentStep, wizard, toUrl, navigate]);
-}
 
-/**
- * Helper for TanStack Router v1 integration
- * This is a convenience wrapper around useSyncWizardWithRouter
- */
-export function useTanStackRouterSync<
-  C,
-  S extends string,
-  D extends Record<S, unknown>,
-  E = never
->(
-  wizard: import('@wizard/core').Wizard<C, S, D, E>,
-  options: Omit<SyncWizardWithRouterOptions<S>, 'navigate' | 'getParam'> & {
-    // These would come from TanStack Router hooks
-    // Users need to provide them since we don't have hard dependency
-    useNavigate: () => (options: any) => void;
-    useParams: () => Record<string, string>;
-  }
-) {
-  const navigate = options.useNavigate();
-  const params = options.useParams();
-
-  return useSyncWizardWithRouter<C, S, D, E>(wizard, {
-    ...options,
-    navigate,
-    getParam: () => params[options.param],
-  });
+    syncingFromRouter.current = true;
+    void wizard.goTo(targetStep).catch(() => {
+      syncingFromRouter.current = false;
+    });
+  }, [currentStep, getParam, toStep, wizard]);
 }

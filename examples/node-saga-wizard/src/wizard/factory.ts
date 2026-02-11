@@ -1,8 +1,7 @@
-import { wizardWithContext } from "@wizard/core";
+import { createWizardFactory } from "@wizard/core";
 import type { OrderContext } from "./types";
 
-// Create factory with context type and destructure methods for cleaner usage
-export const { defineSteps, step, createWizard } = wizardWithContext<OrderContext>({
+const INITIAL_CONTEXT: OrderContext = {
   orderId: "",
   customerId: "",
   inventoryReserved: false,
@@ -10,4 +9,11 @@ export const { defineSteps, step, createWizard } = wizardWithContext<OrderContex
   emailSent: false,
   totalAmount: 0,
   error: "",
-});
+};
+
+const wizardFactory = createWizardFactory<OrderContext>();
+
+export const { defineSteps, step } = wizardFactory;
+
+export const createWizard = <const TDefs extends Record<string, any>>(steps: TDefs) =>
+  wizardFactory.createWizard(steps, { context: structuredClone(INITIAL_CONTEXT) });

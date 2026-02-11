@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useReviewStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useRouter } from '@tanstack/react-router';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
 import { formatError } from '../utils/formatError';
 
 export function ReviewStep() {
-  const { data, error, updateData } = useReviewStep();
+  const { data, error, back, updateData } = useReviewStep();
   const { context, reset } = useCheckoutWizard();
-  const router = useRouter();
 
   const accountData = checkoutWizard.getStepData('account');
   const shippingData = checkoutWizard.getStepData('shipping');
@@ -44,11 +42,6 @@ export function ReviewStep() {
   const handleReset = () => {
     reset();
     // Navigation happens automatically via wizard route sync when reset changes the step
-  };
-
-  const handleBack = () => {
-    // Use browser back button for true history navigation
-    router.history.back();
   };
 
   if (isSubmitted) {
@@ -113,7 +106,7 @@ export function ReviewStep() {
       </div>
 
       <div className="flex gap-4">
-        <Button type="button" onClick={handleBack} variant="secondary" fullWidth>
+        <Button type="button" onClick={back} variant="secondary" fullWidth>
           Back
         </Button>
         <Button

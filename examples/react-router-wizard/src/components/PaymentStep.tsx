@@ -1,15 +1,13 @@
 import { useState, useEffect } from 'react';
 import { usePaymentStep, useCheckoutWizard, checkoutWizard } from '../wizard';
-import { useRouter } from '@tanstack/react-router';
 import { FormField } from './ui/FormField';
 import { Button } from './ui/Button';
 import { ErrorMessage } from './ui/ErrorMessage';
 import { formatError } from '../utils/formatError';
 
 export function PaymentStep() {
-  const { data, error, next, updateData } = usePaymentStep();
+  const { data, error, next, back, updateData } = usePaymentStep();
   const { context, updateContext } = useCheckoutWizard();
-  const router = useRouter();
   const [couponInput, setCouponInput] = useState(context.coupon || '');
 
   // Clear error when leaving the step
@@ -27,11 +25,6 @@ export function PaymentStep() {
     } catch (error) {
       console.error('Validation failed:', error);
     }
-  };
-
-  const handleBack = () => {
-    // Use browser back button for true history navigation
-    router.history.back();
   };
 
   const applyCoupon = () => {
@@ -90,7 +83,7 @@ export function PaymentStep() {
       {error != null && <ErrorMessage message={formatError(error)} />}
 
       <div className="flex gap-4">
-        <Button type="button" onClick={handleBack} variant="secondary" fullWidth>
+        <Button type="button" onClick={back} variant="secondary" fullWidth>
           Back
         </Button>
         <Button type="submit" variant="primary" fullWidth>

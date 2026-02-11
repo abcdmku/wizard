@@ -1,10 +1,16 @@
-import { wizardWithContext } from "@wizard/core";
+import { createWizardFactory } from "@wizard/core";
 import type { GuardContext } from "./types";
 
-// Create factory with context type and destructure methods for cleaner usage
-export const { defineSteps, step, createWizard } = wizardWithContext<GuardContext>({
+const INITIAL_CONTEXT: GuardContext = {
   isAuthenticated: false,
   hasUnsavedChanges: false,
   lockedSteps: [],
   completedSteps: []
-});
+};
+
+const wizardFactory = createWizardFactory<GuardContext>();
+
+export const { defineSteps, step } = wizardFactory;
+
+export const createWizard = <const TDefs extends Record<string, any>>(steps: TDefs) =>
+  wizardFactory.createWizard(steps, { context: structuredClone(INITIAL_CONTEXT) });

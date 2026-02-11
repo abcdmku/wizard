@@ -1,99 +1,46 @@
-# Quick Start with React
+# React Quick Start
 
-To use Wizard with React, you'll need the `@wizard/react` package.
-
-## Installation
-
-```bash
-npm install @wizard/core @wizard/react
-```
-
-## 1. Define Your Wizard
-
-It's best practice to define your wizard logic in a separate file (e.g., `wizard.config.ts`).
-
-```typescript
-// wizard.config.ts
-import { wizardWithContext } from '@wizard/core';
-import type { AppContext } from './types';
-
-// 1. Create factory with context type
-const { defineSteps, createWizard, step } = wizardWithContext<AppContext>({
-  userId: 'guest',
-  theme: 'light'
-});
-
-// 2. Define steps
-const steps = defineSteps({
-  name: step({
-    data: { firstName: '', lastName: '' },
-    next: ['email']
-  }),
-  email: step({
-    data: { email: '' },
-    next: ['confirm']
-  }),
-  confirm: step({
-    next: []
-  })
-});
-
-// 3. Export the instance
-export const wizard = createWizard(steps);
-```
-
-## 2. Setup the Provider
-
-Wrap your application (or the specific route) with the `WizardProvider`.
+Use `createReactWizardFactory` to define steps with components.
 
 ```tsx
-// App.tsx
-import { WizardProvider } from '@wizard/react';
-import { wizard } from './wizard.config';
-import { WizardFlow } from './WizardFlow';
+import { createReactWizardFactory } from '@wizard/react';
 
-export default function App() {
-  return (
-    <WizardProvider wizard={wizard}>
-      <WizardFlow />
-    </WizardProvider>
-  );
+type Context = { total: number };
+
+const factory = createReactWizardFactory<Context>();
+const { defineSteps, step } = factory;
+
+function AccountStep() {
+  return <div>Account</div>;
 }
+
+const steps = defineSteps({
+  account: step({
+    data: { email: '' },
+    component: AccountStep,
+    next: ['review'],
+  }),
+  review: step({
+    data: { agreed: false },
+    next: [],
+  }),
+});
+
+export const wizard = factory.createWizard(steps, {
+  context: { total: 0 },
+});
 ```
 
-## 3. Build Your Components
-
-Use the `useWizard` and `useWizardStep` hooks to interact with the state.
+Use hooks with a wizard instance:
 
 ```tsx
-// WizardFlow.tsx
 import { useWizard, useWizardStep } from '@wizard/react';
 
-export function WizardFlow() {
-  const { step, next, back } = useWizard();
-
-  return (
-    <div className="wizard-container">
-      {step === 'name' && <NameStep />}
-      {step === 'email' && <EmailStep />}
-      {step === 'confirm' && <ConfirmStep />}
-    </div>
-  );
-}
-
-function NameStep() {
-  // Use step-specific hook for data and updates
-  const { data, setStepData, next } = useWizardStep('name');
-
-  return (
-    <div>
-      <h2>What is your name?</h2>
-      <input 
-        value={data.firstName}
-        onChange={e => setStepData({ firstName: e.target.value })}
-      />
-      <button onClick={next}>Next</button>
-    </div>
-  );
+function Screen() {
+  const { step } = useWizard(wizard);
+  const account = useWizardStep(wizard, 'account');
+  return <div>{step} / {account.status}</div>;
 }
 ```
+
+`WizardProvider` is optional and can be used to avoid passing the wizard argument in every hook call.

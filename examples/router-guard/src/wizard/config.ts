@@ -1,6 +1,6 @@
 import { defineSteps, step, createWizard } from "./factory";
 import { useWizard, useWizardStep } from "@wizard/react";
-import type { WizardStepData, IntroductionData, AuthenticationData, SecureData, ConfirmationData } from "./types";
+import type { WizardStepData } from "./types";
 
 const initialData: WizardStepData = {
   introduction: { agreed: false },
@@ -14,8 +14,7 @@ const steps = defineSteps({
     data: initialData.introduction,
     next: ["authentication"],
     canExit: ({ data }) => {
-      const stepData = data as IntroductionData;
-      if (!stepData.agreed) {
+      if (!data.agreed) {
         return window.confirm("You haven't agreed to the terms. Are you sure you want to continue?");
       }
       return true;
@@ -30,17 +29,16 @@ const steps = defineSteps({
     data: initialData.authentication,
     next: ["secureData"],
     canExit: ({ data, updateContext }) => {
-      const stepData = data as AuthenticationData;
-      if (!stepData.verified && stepData.username && stepData.password) {
+      if (!data.verified && data.username && data.password) {
         const proceed = window.confirm("You haven't verified your credentials. Continue anyway?");
         if (!proceed) return false;
       }
       
       // Update authentication status
-      if (stepData.verified) {
+      if (data.verified) {
         updateContext(ctx => {
           ctx.isAuthenticated = true;
-          ctx.userId = stepData.username;
+          ctx.userId = data.username;
         });
       }
       return true;
@@ -52,11 +50,10 @@ const steps = defineSteps({
       });
     },
     validate: ({ data }) => {
-      const stepData = data as AuthenticationData;
-      if (!stepData.username || stepData.username.length < 3) {
+      if (!data.username || data.username.length < 3) {
         throw new Error("Username must be at least 3 characters");
       }
-      if (!stepData.password || stepData.password.length < 8) {
+      if (!data.password || data.password.length < 8) {
         throw new Error("Password must be at least 8 characters");
       }
     },
@@ -90,11 +87,10 @@ const steps = defineSteps({
       });
     },
     validate: ({ data }) => {
-      const stepData = data as SecureData;
-      if (!stepData.secretKey) {
+      if (!data.secretKey) {
         throw new Error("Secret key is required");
       }
-      if (!stepData.apiEndpoint || !stepData.apiEndpoint.startsWith("https://")) {
+      if (!data.apiEndpoint || !data.apiEndpoint.startsWith("https://")) {
         throw new Error("API endpoint must be a secure HTTPS URL");
       }
     },
@@ -128,8 +124,7 @@ const steps = defineSteps({
       return { confirmed: false, timestamp: new Date() };
     },
     beforeExit: ({ data, updateContext }) => {
-      const stepData = data as ConfirmationData;
-      if (stepData.confirmed) {
+      if (data.confirmed) {
         updateContext(ctx => {
           ctx.completedSteps.push("confirmation");
           ctx.lockedSteps = ["introduction", "authentication", "secureData", "confirmation"];
@@ -137,8 +132,7 @@ const steps = defineSteps({
       }
     },
     validate: ({ data }) => {
-      const stepData = data as ConfirmationData;
-      if (!stepData.confirmed) {
+      if (!data.confirmed) {
         throw new Error("You must confirm to complete the process");
       }
     },
@@ -149,7 +143,7 @@ const steps = defineSteps({
   })
 });
 
-export const wizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+export const wizard = createWizard(steps);
 
 /**
  * Typed convenience hook for using wizard.

@@ -22,7 +22,7 @@
     "validate:react": "pnpm run --filter @wizard/react build",
     "validate:build": "node ./scripts/validate-build.mjs",
     "check": "pnpm run check:links && pnpm run check:examples && pnpm run check:api",
-    "check:api": "pnpm run typedoc -- --dry-run",
+    "check:api": "typedoc --tsconfig ./tsconfig.typedoc.json --options typedoc.json --emit none",
     "check:links": "echo 'Link check not yet configured'",
     "check:examples": "node ./scripts/check-examples-build.mjs",
     "preview": "pnpm run build && pnpm run start"

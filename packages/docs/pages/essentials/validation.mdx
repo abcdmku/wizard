@@ -1,91 +1,38 @@
 # Validation
 
-Validation ensures your wizard collects correct and complete data before moving forward.
+Use `validate` on each step.
 
-## Validation Points
-
-You can validate data at several points in the lifecycle:
-1.  **`canExit`**: Prevent leaving a step (most common).
-2.  **`validate`**: Explicit validation function called on demand.
-3.  **`load`**: Validate data when initializing a step.
-
-## Zod Integration (Recommended)
-
-The easiest way to validate data is using [Zod](https://zod.dev) with our built-in helpers.
-
-```typescript
-import { createZodValidator, step } from '@wizard/core';
-import { z } from 'zod';
-
-// 1. Define Schema
-const UserSchema = z.object({
-  email: z.string().email(),
-  age: z.number().min(18)
+```ts
+const steps = defineSteps({
+  account: step({
+    data: { email: '' },
+    next: ['review'],
+    validate: ({ data }) => {
+      if (!data.email.includes('@')) {
+        throw new Error('Invalid email');
+      }
+    },
+  }),
+  review: step({
+    data: { agreed: false },
+    next: [],
+  }),
 });
-
-// 2. Use in Step
-step({
-  // Infer data shape from Schema type
-  data: { email: '', age: 0 },
-  
-  // Create exact validator
-  validate: createZodValidator(UserSchema),
-
-  // Or use in guard
-  canExit: ({ data }) => UserSchema.safeParse(data).success
-})
 ```
 
-## Custom Validation
+Validation runs on `wizard.next()` before transition.
 
-You don't have to use Zod. You can write any custom validation logic.
-
-```typescript
-step({
-  data: { password: '' },
-  validate: ({ data }) => {
-    if (data.password.length < 8) {
-      throw new Error("Password too short");
-    }
-  }
-})
-```
-
-### Async Validation
-Validation can be asynchronous (e.g., checking if a username is taken).
-
-```typescript
-step({
-  load: async ({ data }) => {
-    const isTaken = await api.checkUsername(data.username);
-    if (isTaken) throw new Error("Username taken");
-  }
-})
-```
-
-## Handling Errors
-
-When validation fails, the wizard enters an `error` state.
-
-### In Code
-```typescript
-try {
-  await wizard.next();
-} catch (e) {
-  console.log("Validation failed:", e);
-}
-```
-
-### In UI (React)
-Use the `useStepError` hook to display errors.
+## React error handling
 
 ```tsx
-const { error } = useStepError('myStep');
+import { useStepError } from '@wizard/react';
 
-if (error) {
-  return <div className="error">{error.message}</div>;
-}
+const error = useStepError(wizard, 'account');
 ```
 
-## Next Steps
-- Build your UI with [React Integration](/react/quick-start).
+Or with a step wrapper:
+
+```tsx
+const step = useWizardStep(wizard, 'account');
+step.error; // same underlying error
+```

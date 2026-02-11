@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Build validation script for Wziard documentation
+ * Build validation script for Wizard documentation
  * Validates that the build output contains all expected files and content
  */
 
@@ -94,8 +94,8 @@ async function validateTypeDocBuild() {
 
   // Check for key content
   const expectedContent = [
-    'Wziard API Documentation',
-    'wizardWithContext',
+    'Wizard API Documentation',
+    'createWizardFactory',
     '@wizard/core',
     '@wizard/react'
   ];
@@ -261,7 +261,7 @@ async function generateBuildReport() {
 
 async function main() {
   try {
-    log(colors.cyan, '\n🚀 Starting Wziard documentation build validation...');
+    log(colors.cyan, '\n🚀 Starting Wizard documentation build validation...');
 
     await validateNextBuild();
     await validateTypeDocBuild();

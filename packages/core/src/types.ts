@@ -1,23 +1,32 @@
 /**
  * @wizard/core - Core Types
- * Server-safe isomorphic types with inference-first authoring
+ * Server-safe isomorphic types with inference-first authoring.
  */
 
 import { Store } from '@tanstack/store';
+import type { WizardStep } from './step-wrapper';
 
 // ===== 1. Utility Types & Resolvers =====
 
 export type JSONValue =
-  | string | number | boolean | null
+  | string
+  | number
+  | boolean
+  | null
   | { [k: string]: JSONValue }
   | JSONValue[];
 
 export type ValOrFn<T, A> = T | ((args: A) => T);
 
+/**
+ * NOTE:
+ * The cast is required because TypeScript cannot safely narrow callable union members
+ * when T itself may be callable.
+ */
 export const resolve = <T, A>(v: ValOrFn<T, A>, a: A): T =>
-  typeof v === 'function' ? (v as any)(a) : v;
+  typeof v === 'function' ? (v as (args: A) => T)(a) : v;
 
-// ===== 2. Callback Args (use inferred Data) =====
+// ===== 2. Callback Args =====
 
 export type StepArgs<C, S extends string, Data, E> = {
   step: S;
@@ -40,29 +49,30 @@ export type ValidateArgs<C, Data = unknown> = {
   data: Data;
 };
 
-// ===== 3. Server-Safe Meta (core) + Resolver =====
+// ===== 3. Server-safe Meta =====
 
 export type StepMetaCore<C, S extends string, Data, E> = {
   id?: string;
-  label?: ValOrFn<string, StepArgs<C,S,Data,E>>;
-  shortLabel?: ValOrFn<string, StepArgs<C,S,Data,E>>;
-  description?: ValOrFn<string, StepArgs<C,S,Data,E>>;
-  tooltip?: ValOrFn<string, StepArgs<C,S,Data,E>>;
-  iconKey?: ValOrFn<string, StepArgs<C,S,Data,E>>;
-  category?: ValOrFn<string, StepArgs<C,S,Data,E>>;
-  tags?: ValOrFn<readonly string[], StepArgs<C,S,Data,E>>;
-  hidden?: ValOrFn<boolean, StepArgs<C,S,Data,E>>;
+  label?: ValOrFn<string, StepArgs<C, S, Data, E>>;
+  shortLabel?: ValOrFn<string, StepArgs<C, S, Data, E>>;
+  description?: ValOrFn<string, StepArgs<C, S, Data, E>>;
+  tooltip?: ValOrFn<string, StepArgs<C, S, Data, E>>;
+  iconKey?: ValOrFn<string, StepArgs<C, S, Data, E>>;
+  category?: ValOrFn<string, StepArgs<C, S, Data, E>>;
+  tags?: ValOrFn<readonly string[], StepArgs<C, S, Data, E>>;
+  hidden?: ValOrFn<boolean, StepArgs<C, S, Data, E>>;
   docsUrl?: string;
-  ariaLabel?: ValOrFn<string, StepArgs<C,S,Data,E>>;
+  ariaLabel?: ValOrFn<string, StepArgs<C, S, Data, E>>;
   extra?: Record<string, JSONValue>;
 };
 
-export function resolveMetaCore<C,S extends string,Data,E>(
-  meta: StepMetaCore<C,S,Data,E> | undefined,
-  args: StepArgs<C,S,Data,E>
+export function resolveMetaCore<C, S extends string, Data, E>(
+  meta: StepMetaCore<C, S, Data, E> | undefined,
+  args: StepArgs<C, S, Data, E>
 ) {
   const r = <T>(v: ValOrFn<T, typeof args> | undefined, d: T): T =>
-    (typeof v === 'function' ? (v as any)(args) : (v ?? d));
+    typeof v === 'function' ? (v as (a: typeof args) => T)(args) : (v ?? d);
+
   return {
     id: meta?.id ?? args.step,
     label: r(meta?.label, args.step),
@@ -71,8 +81,8 @@ export function resolveMetaCore<C,S extends string,Data,E>(
     tooltip: r(meta?.tooltip, ''),
     iconKey: r(meta?.iconKey, ''),
     category: r(meta?.category, ''),
-    tags: r(meta?.tags as any, [] as string[]),
-    hidden: r(meta?.hidden as any, false),
+    tags: r(meta?.tags, [] as readonly string[]),
+    hidden: r(meta?.hidden, false),
     docsUrl: meta?.docsUrl ?? '',
     ariaLabel: r(meta?.ariaLabel, r(meta?.label, args.step)),
     extra: meta?.extra ?? {},
@@ -82,150 +92,119 @@ export function resolveMetaCore<C,S extends string,Data,E>(
 // ===== 4. Status Vocabulary =====
 
 export type StepStatus =
-  | 'unavailable'  // guards/prereqs fail
-  | 'optional'     // meta classification
-  | 'current'      // active
-  | 'completed'    // success
-  | 'required'     // meta classification
-  | 'skipped'      // intentionally bypassed
-  | 'error'        // retryable failure
-  | 'terminated'   // terminal failure
-  | 'loading';     // async in progress
+  | 'unavailable'
+  | 'optional'
+  | 'current'
+  | 'completed'
+  | 'required'
+  | 'skipped'
+  | 'error'
+  | 'terminated'
+  | 'loading';
 
-// ===== 5. Step Definition (value-or-fn, typed via inference) =====
+// ===== 5. Step Definitions =====
 
-export type StepDefinition<C,S extends string,Data,E = never> = {
-  next: readonly S[] | "any" | ((args: StepArgs<C,S,Data,E>) => S | readonly S[] | "any");
-  data?: ValOrFn<Data, StepEnterArgs<C,S,Data,E>>;
+export type StepDefinition<C, S extends string, Data, E = never> = {
+  next:
+    | readonly S[]
+    | 'any'
+    | ((args: StepArgs<C, S, Data, E>) => S | readonly S[] | 'any');
+  data?: ValOrFn<Data, StepEnterArgs<C, S, Data, E>>;
 
   beforeEnter?: (
-    args: StepEnterArgs<C,S,Data,E>
-  ) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
+    args: StepEnterArgs<C, S, Data, E>
+  ) =>
+    | void
+    | Partial<Data>
+    | Data
+    | Promise<void | Partial<Data> | Data>;
 
   validate?: (args: ValidateArgs<C, Data>) => void;
 
-  complete?: ValOrFn<boolean, StepArgs<C,S,Data,E>>;
-  canEnter?: ValOrFn<boolean, StepEnterArgs<C,S,Data,E>>;
-  canExit?: ValOrFn<boolean, StepExitArgs<C,S,Data,E>>;
+  complete?: ValOrFn<boolean, StepArgs<C, S, Data, E>>;
+  canEnter?: ValOrFn<boolean, StepEnterArgs<C, S, Data, E>>;
+  canExit?: ValOrFn<boolean, StepExitArgs<C, S, Data, E>>;
 
-  beforeExit?: (args: StepExitArgs<C,S,Data,E>) => void | Promise<void>;
+  beforeExit?: (args: StepExitArgs<C, S, Data, E>) => void | Promise<void>;
 
-  weight?: ValOrFn<number, StepArgs<C,S,Data,E>>;
-  required?: ValOrFn<boolean, StepArgs<C,S,Data,E>>;
-  maxRetries?: ValOrFn<number, StepArgs<C,S,Data,E>>;
-  retryDelay?: ValOrFn<number, StepArgs<C,S,Data,E>>; // ms
-  prerequisites?: readonly S[];  // Steps that must be completed before this step can be entered
+  weight?: ValOrFn<number, StepArgs<C, S, Data, E>>;
+  required?: ValOrFn<boolean, StepArgs<C, S, Data, E>>;
+  maxRetries?: ValOrFn<number, StepArgs<C, S, Data, E>>;
+  retryDelay?: ValOrFn<number, StepArgs<C, S, Data, E>>;
+  prerequisites?: readonly S[];
 
-  meta?: StepMetaCore<C,S,Data,E>;
+  meta?: StepMetaCore<C, S, Data, E>;
 };
 
-// ===== 6. Inference Engine (defineSteps → infer Data per step) =====
+// ===== 6. Data Inference =====
 
-// Infer Data from validate() → beforeEnter() return → data initializer
-type InferFromValidate<TDef> =
-  TDef extends { validate: (args: ValidateArgs<any, infer Data>) => any }
-    ? Data
-    : TDef extends { validate: (args: { context: any; data: infer Data }) => any }
-      ? Data
-      : never;
+export declare const DATA_BRAND: unique symbol;
+export type WithDataBrand<Data> = { readonly [DATA_BRAND]: Data };
 
-type InferFromBeforeEnter<TDef> =
-  TDef extends { beforeEnter: (...args: any[]) => infer R | Promise<infer R> }
-    ? R extends void
-      ? never
-      : R extends Partial<infer D>
-        ? D
-        : R
-    : never;
+type FnValue<T> = T extends (...args: any[]) => infer R ? R : T;
 
-type InferFromData<TDef> =
-  TDef extends { data: infer D }
-    ? D extends ValOrFn<infer X, any>
-      ? X
-      : D
-    : never;
+/**
+ * Unified step data extraction priority:
+ * 1) explicit brand from step()/factory helpers
+ * 2) validate callback args
+ * 3) data field value/function
+ * 4) unknown
+ */
+export type DataTypeOf<TDef> =
+  TDef extends WithDataBrand<infer Branded>
+    ? Branded
+    : TDef extends { validate: (args: ValidateArgs<any, infer VD>) => any }
+      ? VD
+      : TDef extends { validate: (args: { context: any; data: infer VD }) => any }
+        ? VD
+        : TDef extends { data?: infer D }
+          ? FnValue<D>
+          : unknown;
 
-// IMPROVED: Better union handling with priority-based selection
-export type InferStepData<TDef> =
-  InferFromValidate<TDef> extends never
-    ? InferFromBeforeEnter<TDef> extends never
-      ? InferFromData<TDef> extends never
-        ? unknown  // Fallback to unknown if no inference possible
-        : InferFromData<TDef>
-      : InferFromBeforeEnter<TDef>
-    : InferFromValidate<TDef>;
+export type InferStepData<TDef> = DataTypeOf<TDef>;
 
-// Authoring surface (callbacks see inferred Data)
-export type PartialStepDefinition<C,S extends string,E,TDef> = {
-  next: readonly S[] | "any" | ((args: StepArgs<C,S,InferStepData<TDef>,E>) => S | readonly S[] | "any");
-  data?: ValOrFn<InferStepData<TDef>, StepEnterArgs<C,S,InferStepData<TDef>,E>>;
+export type PartialStepDefinition<C, S extends string, E, TDef> = {
+  next:
+    | readonly S[]
+    | 'any'
+    | ((args: StepArgs<C, S, InferStepData<TDef>, E>) => S | readonly S[] | 'any');
+  data?: ValOrFn<InferStepData<TDef>, StepEnterArgs<C, S, InferStepData<TDef>, E>>;
   beforeEnter?: (
-    args: StepEnterArgs<C,S,InferStepData<TDef>,E>
-  ) => void | Partial<InferStepData<TDef>> | InferStepData<TDef> | Promise<void | Partial<InferStepData<TDef>> | InferStepData<TDef>>;
+    args: StepEnterArgs<C, S, InferStepData<TDef>, E>
+  ) =>
+    | void
+    | Partial<InferStepData<TDef>>
+    | InferStepData<TDef>
+    | Promise<void | Partial<InferStepData<TDef>> | InferStepData<TDef>>;
   validate?: (args: ValidateArgs<C, InferStepData<TDef>>) => void;
-  complete?: ValOrFn<boolean, StepArgs<C,S,InferStepData<TDef>,E>>;
-  canEnter?: ValOrFn<boolean, StepEnterArgs<C,S,InferStepData<TDef>,E>>;
-  canExit?: ValOrFn<boolean, StepExitArgs<C,S,InferStepData<TDef>,E>>;
-  beforeExit?: (args: StepExitArgs<C,S,InferStepData<TDef>,E>) => void | Promise<void>;
-  weight?: ValOrFn<number, StepArgs<C,S,InferStepData<TDef>,E>>;
-  required?: ValOrFn<boolean, StepArgs<C,S,InferStepData<TDef>,E>>;
-  maxRetries?: ValOrFn<number, StepArgs<C,S,InferStepData<TDef>,E>>;
-  retryDelay?: ValOrFn<number, StepArgs<C,S,InferStepData<TDef>,E>>;
-  meta?: StepMetaCore<C,S,InferStepData<TDef>,E>;
+  complete?: ValOrFn<boolean, StepArgs<C, S, InferStepData<TDef>, E>>;
+  canEnter?: ValOrFn<boolean, StepEnterArgs<C, S, InferStepData<TDef>, E>>;
+  canExit?: ValOrFn<boolean, StepExitArgs<C, S, InferStepData<TDef>, E>>;
+  beforeExit?: (
+    args: StepExitArgs<C, S, InferStepData<TDef>, E>
+  ) => void | Promise<void>;
+  weight?: ValOrFn<number, StepArgs<C, S, InferStepData<TDef>, E>>;
+  required?: ValOrFn<boolean, StepArgs<C, S, InferStepData<TDef>, E>>;
+  maxRetries?: ValOrFn<number, StepArgs<C, S, InferStepData<TDef>, E>>;
+  retryDelay?: ValOrFn<number, StepArgs<C, S, InferStepData<TDef>, E>>;
+  meta?: StepMetaCore<C, S, InferStepData<TDef>, E>;
 };
 
 export type StepIds<T> = keyof T & string;
-export type DataMapFromDefs<TDefs> = { [K in keyof TDefs & string]: InferStepData<TDefs[K]> };
-
-// ===== 6.5. Advanced Type Transformation for Callback Inference =====
-
-
-
-// FINAL FIX: Direct approach using intersection types and proper data extraction
-
-
-// Define properly typed step args for callbacks
-type TypedStepArgs<StepName extends string, Data, Context = unknown> = {
-  step: StepName;
-  context: Readonly<Context>;
-  data: Readonly<Data>;
-  updateContext: (fn: (context: Context) => void) => void;
-  setStepData: (data: Data) => void;
-  emit: (event: never) => void;
+export type DataMapFromDefs<TDefs> = {
+  [K in keyof TDefs & string]: DataTypeOf<TDefs[K]>;
 };
 
-type TypedStepEnterArgs<StepName extends string, Data, Context = unknown> = TypedStepArgs<StepName, Data, Context> & {
-  from?: StepName | null;
-};
+// Kept as alias for compatibility.
+export type EnhancedDataMapFromDefs<TDefs> = DataMapFromDefs<TDefs>;
 
-type TypedStepExitArgs<StepName extends string, Data, Context = unknown> = TypedStepArgs<StepName, Data, Context> & {
-  to?: StepName | null;
-};
-
-// The ACTUAL fix: overload defineSteps to directly type the input properly
-export function defineSteps<T extends Record<string, any>>(defs: T): {
-  [K in keyof T]: T[K] extends {
-    data: infer Data;
-    validate?: (args: ValidateArgs<any, any> | { context: any; data: any }) => any;
-  } ? T[K] & {
-    beforeExit?: (args: TypedStepExitArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => void | Promise<void>;
-    beforeEnter?: (args: TypedStepEnterArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => void | Partial<T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data> | (T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data) | Promise<void | Partial<T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data> | (T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data)>;
-    canEnter?: boolean | ((args: TypedStepEnterArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => boolean);
-    canExit?: boolean | ((args: TypedStepExitArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => boolean);
-    complete?: boolean | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => boolean);
-    weight?: number | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => number);
-    required?: boolean | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => boolean);
-    maxRetries?: number | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => number);
-    retryDelay?: number | ((args: TypedStepArgs<K & string, T[K] extends { validate: (args: { data: infer VD }) => any } ? VD : Data>) => number);
-  } : T[K]
-} {
+export function defineSteps<const T extends Record<string, any>>(defs: T): T {
   return defs;
 }
 
+// ===== 7. Wizard State + Helpers =====
 
-// ===== 7. Wizard State + Store + Helpers =====
-
-export type WizardState<C,S extends string,D extends Record<S, unknown>> = {
+export type WizardState<C, S extends string, D extends Record<S, unknown>> = {
   step: S;
   context: C;
   data: Partial<D>;
@@ -234,13 +213,20 @@ export type WizardState<C,S extends string,D extends Record<S, unknown>> = {
   history: Array<{ step: S; context: C; data: Partial<D> }>;
   isLoading: boolean;
   isTransitioning: boolean;
-  runtime?: Partial<Record<S, {
-    status?: StepStatus; attempts?: number; startedAt?: number; finishedAt?: number;
-  }>>;
+  runtime?: Partial<
+    Record<
+      S,
+      {
+        status?: StepStatus;
+        attempts?: number;
+        startedAt?: number;
+        finishedAt?: number;
+      }
+    >
+  >;
 };
 
-export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
-  // Step name helpers
+export type WizardHelpers<C, S extends string, D extends Record<S, unknown>> = {
   allStepNames(): readonly S[];
   orderedStepNames(): readonly S[];
   availableStepNames(): readonly S[];
@@ -248,15 +234,13 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
   completedStepNames(): readonly S[];
   remainingStepNames(): readonly S[];
 
-  // Step object helpers (return full step wrapper)
-  allSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
-  orderedSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
-  availableSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
-  unavailableSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
-  completedSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
-  remainingSteps(): ReadonlyArray<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
+  allSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
+  orderedSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
+  availableSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
+  unavailableSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
+  completedSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
+  remainingSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
 
-  // Legacy methods (kept for compatibility, but now return names)
   stepCount(): number;
   stepIndex(step: S): number;
   currentIndex(): number;
@@ -267,8 +251,8 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
 
   refreshAvailability(): Promise<void>;
 
-  firstIncompleteStep(): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
-  lastCompletedStep(): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
+  firstIncompleteStep(): WizardStep<S, D[S], C, S, D> | null;
+  lastCompletedStep(): WizardStep<S, D[S], C, S, D> | null;
   firstIncompleteStepName(): S | null;
   lastCompletedStepName(): S | null;
 
@@ -279,11 +263,11 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
   canGoNext(): boolean;
   canGoBack(): boolean;
   canGoTo(step: S): boolean;
-  findNextAvailable(from?: S): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
-  findPrevAvailable(from?: S): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
+  findNextAvailable(from?: S): WizardStep<S, D[S], C, S, D> | null;
+  findPrevAvailable(from?: S): WizardStep<S, D[S], C, S, D> | null;
   findNextAvailableName(from?: S): S | null;
   findPrevAvailableName(from?: S): S | null;
-  jumpToNextRequired(): import('./step-wrapper').WizardStep<S, D[S], C, S, D> | null;
+  jumpToNextRequired(): WizardStep<S, D[S], C, S, D> | null;
   jumpToNextRequiredName(): S | null;
 
   isReachable(step: S): boolean;
@@ -294,13 +278,12 @@ export type WizardHelpers<C,S extends string,D extends Record<S,unknown>> = {
   stepDuration(step: S): number | null;
 
   percentCompletePerStep(): Record<S, number>;
-  snapshot(): WizardState<C,S,D>;
+  snapshot(): WizardState<C, S, D>;
 };
 
-export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
-  store: Store<WizardState<C,S,D>>;
+export type Wizard<C, S extends string, D extends Record<S, unknown>, _E> = {
+  store: Store<WizardState<C, S, D>>;
 
-  // Exposed store state as direct properties
   readonly step: S;
   readonly context: Readonly<C>;
   readonly data: Partial<D>;
@@ -309,19 +292,35 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   readonly history: Array<{ step: S; context: C; data: Partial<D> }>;
   readonly isLoading: boolean;
   readonly isTransitioning: boolean;
-  readonly runtime?: Partial<Record<S, { status?: StepStatus; attempts?: number; startedAt?: number; finishedAt?: number }>>;
+  readonly runtime?: Partial<
+    Record<
+      S,
+      { status?: StepStatus; attempts?: number; startedAt?: number; finishedAt?: number }
+    >
+  >;
 
-  next(args?: { data?: D[S] }): Promise<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
-  goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<import('./step-wrapper').WizardStep<K, D[K], C, S, D>>;
-  back(): Promise<import('./step-wrapper').WizardStep<S, D[S], C, S, D>>;
+  next(args?: { data?: D[S] }): Promise<WizardStep<S, D[S], C, S, D>>;
+  goTo<K extends S>(
+    step: K,
+    args?: { data?: D[K] }
+  ): Promise<WizardStep<K, D[K], C, S, D>>;
+  back(): Promise<WizardStep<S, D[S], C, S, D>>;
   reset(): void;
 
   updateContext(fn: (context: C) => void): void;
   setStepData<K extends S>(step: K, data: D[K]): void;
-  updateStepData<K extends S>(step: K, updater: Partial<D[K]> | ((current: D[K] | undefined) => Partial<D[K]>)): void;
+  updateStepData<K extends S>(
+    step: K,
+    updater: Partial<D[K]> | ((current: D[K] | undefined) => Partial<D[K]>)
+  ): void;
   getStepData<K extends S>(step: K): D[K] | undefined;
   setStepMeta<K extends S>(step: K, meta: StepMetaCore<C, S, D[K], never>): void;
-  updateStepMeta<K extends S>(step: K, updater: Partial<StepMetaCore<C, S, D[K], never>> | ((current: StepMetaCore<C, S, D[K], never> | undefined) => Partial<StepMetaCore<C, S, D[K], never>>)): void;
+  updateStepMeta<K extends S>(
+    step: K,
+    updater:
+      | Partial<StepMetaCore<C, S, D[K], never>>
+      | ((current: StepMetaCore<C, S, D[K], never> | undefined) => Partial<StepMetaCore<C, S, D[K], never>>)
+  ): void;
   getStepMeta<K extends S>(step: K): StepMetaCore<C, S, D[K], never> | undefined;
   getStepError<K extends S>(step: K): unknown;
   getAllErrors(): Partial<Record<S, unknown>>;
@@ -330,36 +329,37 @@ export type Wizard<C,S extends string,D extends Record<S, unknown>,_E> = {
   getContext(): Readonly<C>;
   getCurrent(): { step: S; data: Readonly<D[S]> | undefined; context: Readonly<C> };
 
-  // Enhanced step access methods
-  getStep<K extends S>(step: K): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
-  getCurrentStep(): import('./step-wrapper').WizardStep<S, D[S], C, S, D>;
+  getStep<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
+  getCurrentStep(): WizardStep<S, D[S], C, S, D>;
 
-  markError<K extends S>(step: K, err: unknown): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
-  markTerminated<K extends S>(step: K, err?: unknown): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
-  markLoading<K extends S>(step: K): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
-  markIdle<K extends S>(step: K): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
-  markSkipped<K extends S>(step: K): import('./step-wrapper').WizardStep<K, D[K], C, S, D>;
+  markError<K extends S>(step: K, err: unknown): WizardStep<K, D[K], C, S, D>;
+  markTerminated<K extends S>(step: K, err?: unknown): WizardStep<K, D[K], C, S, D>;
+  markLoading<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
+  markIdle<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
+  markSkipped<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
 
-  helpers: WizardHelpers<C,S,D>;
+  helpers: WizardHelpers<C, S, D>;
 };
 
-// ===== 8. Factory: createWizard (keeps inference) =====
-// Implementation is in ./wizard.ts
+// ===== 8. Factory typing =====
 
 export type CreateWizardOptions<C, _E, TDefs extends Record<string, any>> = {
   context: C;
-  steps: TDefs;                   // from defineSteps()
+  steps: TDefs;
   order?: readonly (keyof TDefs & string)[];
-  onStatusChange?: (a: { step: keyof TDefs & string; prev?: StepStatus; next: StepStatus }) => void;
+  onStatusChange?: (a: {
+    step: keyof TDefs & string;
+    prev?: StepStatus;
+    next: StepStatus;
+  }) => void;
 };
 
-export declare function createWizard<C, E, TDefs extends Record<string, any>>(
+export declare function createWizard<C, E, const TDefs extends Record<string, any>>(
   opts: CreateWizardOptions<C, E, TDefs>
 ): Wizard<C, StepIds<TDefs>, DataMapFromDefs<TDefs>, E>;
 
-// ===== 9. Compatibility Layer - Legacy Type Exports =====
+// ===== 9. Compatibility Layer =====
 
-// Legacy 4-parameter WizardConfig for backward compatibility
 export type WizardConfig<C, S extends string, D extends Record<S, unknown>, E = never> = {
   steps: Record<S, StepDefinition<C, S, D[S], E>>;
   order?: readonly S[];
@@ -371,103 +371,37 @@ export type WizardConfig<C, S extends string, D extends Record<S, unknown>, E = 
   onStatusChange?: (a: { step: S; prev?: StepStatus; next: StepStatus }) => void;
 };
 
-// New API type alias for convenience
-export type WizardCreateOptions<C, E, TDefs extends Record<string, any>> = CreateWizardOptions<C, E, TDefs>;
+export type WizardCreateOptions<C, E, TDefs extends Record<string, any>> =
+  CreateWizardOptions<C, E, TDefs>;
+
 export type WizardTransitionEvent = {
   step: string;
   prev?: StepStatus;
   next: StepStatus;
 };
+
 export type InferContext<T> = T extends { context: infer C } ? C : unknown;
 export type InferSteps<T> = T extends { steps: infer S } ? keyof S & string : string;
 export type InferDataMap<T> = T extends { steps: infer S } ? DataMapFromDefs<S> : Record<string, unknown>;
+
 export type StepRuntime = {
   status?: StepStatus;
   attempts?: number;
   startedAt?: number;
   finishedAt?: number;
 };
+
 export type WizardPersistence<T = any> = {
   save: (key: string, value: T) => void | Promise<void>;
   load: (key: string) => T | null | Promise<T | null>;
   remove: (key: string) => void | Promise<void>;
 };
 
-// ===== 10. Enhanced Wizard API with Fluent Interface =====
+// ===== 10. Enhanced Wizard alias =====
 
-// Import step wrapper types
-import type { WizardStep } from './step-wrapper';
-
-// Type extraction utilities for proper step data inference
-export type ExtractStepDataType<TDefs, StepName extends keyof TDefs> =
-  TDefs[StepName] extends { validate: (args: { data: infer ValidateData }) => any }
-    ? ValidateData
-    : TDefs[StepName] extends { data: infer DataProp }
-      ? DataProp extends ValOrFn<infer DataType, any>
-        ? DataType
-        : DataProp
-      : TDefs[StepName] extends { beforeEnter: (...args: any[]) => infer ReturnType }
-        ? ReturnType extends void ? never : ReturnType
-        : unknown;
-
-// Enhanced data map that preserves step-specific types
-// Using direct data extraction for better compatibility with step() helper
-// Prioritize extracting from '__data' phantom property (added by step<Data>()),
-// then 'data' property, then fall back to 'validate'
-type DirectExtractDataType<T> =
-  T extends { __data?: infer D }
-    ? D
-    : T extends { data?: infer D }
-      ? D extends (...args: any[]) => infer R
-        ? R
-        : D
-      : T extends { data: infer D }
-        ? D extends (...args: any[]) => infer R
-          ? R
-          : D
-        : T extends { validate: (args: { data: infer D }) => any }
-          ? D
-          : unknown;
-
-export type EnhancedDataMapFromDefs<TDefs> = {
-  [K in keyof TDefs & string]: DirectExtractDataType<TDefs[K]>;
-};
-
-/**
- * Enhanced Wizard interface that extends the base Wizard with fluent API capabilities
- */
 export type EnhancedWizard<C, S extends string, D extends Record<S, unknown>, E> =
-  Wizard<C, S, D, E> & {
+  Wizard<C, S, D, E>;
 
-  // Enhanced methods with proper return types
-  getStep<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
-  getCurrentStep(): WizardStep<S, D[S], C, S, D>;
-
-  // Navigation methods that return step objects
-  next(args?: { data?: D[S] }): Promise<WizardStep<S, D[S], C, S, D>>;
-  goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<WizardStep<K, D[K], C, S, D>>;
-  back(): Promise<WizardStep<S, D[S], C, S, D>>;
-
-  // Enhanced data access with proper typing
-  getStepData<K extends S>(step: K): D[K] | undefined;
-  updateStepData<K extends S>(step: K, updater: Partial<D[K]> | ((current: D[K] | undefined) => Partial<D[K]>)): void;
-  getStepMeta<K extends S>(step: K): StepMetaCore<C, S, D[K], never> | undefined;
-  updateStepMeta<K extends S>(step: K, updater: Partial<StepMetaCore<C, S, D[K], never>> | ((current: StepMetaCore<C, S, D[K], never> | undefined) => Partial<StepMetaCore<C, S, D[K], never>>)): void;
-  getStepError<K extends S>(step: K): unknown;
-  getAllErrors(): Partial<Record<S, unknown>>;
-  clearStepError<K extends S>(step: K): void;
-  clearAllErrors(): void;
-  getCurrent(): { step: S; data: Readonly<D[S]> | undefined; context: Readonly<C> };
-
-  // Fluent step operations
-  markIdle<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
-  markLoading<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
-  markSkipped<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
-  markError<K extends S>(step: K, err: unknown): WizardStep<K, D[K], C, S, D>;
-  markTerminated<K extends S>(step: K, err?: unknown): WizardStep<K, D[K], C, S, D>;
-};
-
-// Factory function type for creating enhanced wizards
 export type EnhancedWizardFactory<C, E = never> = {
   defineSteps<T extends Record<string, any>>(defs: T): T;
   step(definition: any): any;
@@ -475,22 +409,5 @@ export type EnhancedWizardFactory<C, E = never> = {
     context: C,
     steps: TDefs,
     options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
-  ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
-};
-
-// Helper type for step creation with proper data inference
-export type StepWithData<Data> = {
-  data?: Data;
-  next: readonly string[] | ((args: any) => string | readonly string[]);
-  beforeExit?: (args: any) => void | Promise<void>;
-  beforeEnter?: (args: any) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
-  canEnter?: boolean | ((args: any) => boolean);
-  canExit?: boolean | ((args: any) => boolean);
-  complete?: boolean | ((args: any) => boolean);
-  validate?: (args: any) => void;
-  weight?: number | ((args: any) => number);
-  required?: boolean | ((args: any) => boolean);
-  maxRetries?: number | ((args: any) => number);
-  retryDelay?: number | ((args: any) => number);
-  meta?: any;
+  ): EnhancedWizard<C, keyof TDefs & string, DataMapFromDefs<TDefs>, E>;
 };

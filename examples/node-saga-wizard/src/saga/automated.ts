@@ -1,4 +1,5 @@
 import { orderWizard } from "../wizard/orderWizard";
+import { handleCompleteExit } from "./handlers";
 import {
   showTitle,
   showBanner,
@@ -76,15 +77,7 @@ export async function runAutomatedSaga() {
     orderWizard.setStepData("complete", {
       confirmed: true,
     });
-    // Complete is the final step, we just need to exit it (no next step)
-    const completeStep = orderWizard.getStep("complete");
-    if (completeStep?.beforeExit) {
-      await completeStep.beforeExit({
-        data: { confirmed: true },
-        context: orderWizard.getContext(),
-        updateContext: orderWizard.updateContext.bind(orderWizard),
-      });
-    }
+    handleCompleteExit({ data: { confirmed: true } });
     spinner.succeed("Order completed successfully!");
     showProgress(5, stepCount, "Workflow Progress");
 

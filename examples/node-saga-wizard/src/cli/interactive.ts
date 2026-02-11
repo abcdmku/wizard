@@ -2,12 +2,12 @@ import readlineSync from "readline-sync";
 import chalk from "chalk";
 import { orderWizard } from "../wizard/orderWizard";
 import type { ChargeData } from "../wizard/types";
+import { handleCompleteExit } from "../saga/handlers";
 import {
   showTitle,
   showBanner,
   showSuccess,
   showError,
-  showWarning,
   showInfo,
   showStep,
   showProgress,
@@ -213,15 +213,8 @@ export async function runInteractiveCLI() {
     if (finalConfirm) {
       const spinner5 = createSpinner("Finalizing order...");
 
-      // Complete is the final step, so we call beforeExit directly
-      const completeStep = orderWizard.getStep("complete");
-      if (completeStep?.beforeExit) {
-        await completeStep.beforeExit({
-          data: { confirmed: finalConfirm },
-          context: orderWizard.getContext(),
-          updateContext: orderWizard.updateContext.bind(orderWizard),
-        });
-      }
+      orderWizard.setStepData("complete", { confirmed: finalConfirm });
+      handleCompleteExit({ data: { confirmed: finalConfirm } });
 
       spinner5.succeed("Order completed!");
       showProgress(5, stepCount, "Wizard Progress");
@@ -247,7 +240,7 @@ export async function runInteractiveCLI() {
 
     // Show helpful information
     const currentStep = orderWizard.getCurrent();
-    const completedCount = orderWizard.helpers.completedSteps().length;
+    const completedCount = orderWizard.helpers.completedStepNames().length;
     showDivider();
     showError(`Failed at step: ${currentStep.step} (${completedCount}/${stepCount} completed)`);
   }

@@ -1,6 +1,5 @@
 /**
- * Wizard Factory with Context-Aware defineSteps
- * This provides proper context type inference in step callbacks
+ * Wizard factory with context-aware step authoring.
  */
 
 import type {
@@ -8,12 +7,14 @@ import type {
   ValOrFn,
   EnhancedWizard,
   CreateWizardOptions,
-  EnhancedDataMapFromDefs,
-  StepMetaCore
+  DataMapFromDefs,
+  StepMetaCore,
+  WithDataBrand,
 } from './types';
 import { createWizard as createWizardImpl } from './wizard';
 
 // Context-aware step definition types
+
 type ContextAwareStepArgs<C, S extends string, Data, E> = {
   step: S;
   context: Readonly<C>;
@@ -21,23 +22,28 @@ type ContextAwareStepArgs<C, S extends string, Data, E> = {
   updateContext: (fn: (context: C) => void) => void;
   setStepData: (data: Data) => void;
   emit: (event: E) => void;
+  getAllStepNames: () => readonly S[];
 };
 
-type ContextAwareStepEnterArgs<C, S extends string, Data, E> = ContextAwareStepArgs<C, S, Data, E> & {
-  from?: S | null;
-};
+type ContextAwareStepEnterArgs<C, S extends string, Data, E> =
+  ContextAwareStepArgs<C, S, Data, E> & { from?: S | null };
 
-type ContextAwareStepExitArgs<C, S extends string, Data, E> = ContextAwareStepArgs<C, S, Data, E> & {
-  to?: S | null;
-};
+type ContextAwareStepExitArgs<C, S extends string, Data, E> =
+  ContextAwareStepArgs<C, S, Data, E> & { to?: S | null };
 
-// Context-aware step definition
 type ContextAwareStepDefinition<C, S extends string, Data, E> = {
-  next: readonly S[] | ((args: ContextAwareStepArgs<C, S, Data, E>) => S | readonly S[]);
+  next:
+    | readonly S[]
+    | 'any'
+    | ((args: ContextAwareStepArgs<C, S, Data, E>) => S | readonly S[] | 'any');
   data?: ValOrFn<Data, ContextAwareStepEnterArgs<C, S, Data, E>>;
   validate?: (args: ValidateArgs<C, Data>) => void;
-  beforeExit?: (args: ContextAwareStepExitArgs<C, S, Data, E>) => void | Promise<void>;
-  beforeEnter?: (args: ContextAwareStepEnterArgs<C, S, Data, E>) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
+  beforeExit?: (
+    args: ContextAwareStepExitArgs<C, S, Data, E>
+  ) => void | Promise<void>;
+  beforeEnter?: (
+    args: ContextAwareStepEnterArgs<C, S, Data, E>
+  ) => void | Partial<Data> | Data | Promise<void | Partial<Data> | Data>;
   canEnter?: ValOrFn<boolean, ContextAwareStepEnterArgs<C, S, Data, E>>;
   canExit?: ValOrFn<boolean, ContextAwareStepExitArgs<C, S, Data, E>>;
   complete?: ValOrFn<boolean, ContextAwareStepArgs<C, S, Data, E>>;
@@ -48,62 +54,28 @@ type ContextAwareStepDefinition<C, S extends string, Data, E> = {
   meta?: StepMetaCore<C, S, Data, E>;
 };
 
-
-/**
- * Creates a wizard factory with context-aware step definitions
- */
-export function createWizardFactory<C = any, E = never>() {
+export function createWizardFactory<C = Record<string, never>, E = never>() {
   return {
-    /**
-     * Define steps with proper context typing
-     * Returns the definitions as const to preserve literal types across module boundaries
-     */
     defineSteps<const T extends Record<string, any>>(defs: T): T {
       return defs;
     },
 
-    /**
-     * Helper for creating a typed step with context awareness
-     * Explicitly captures the Data type to preserve it through module boundaries
-     */
     step<Data>(
       definition: ContextAwareStepDefinition<C, string, Data, E>
-    ): ContextAwareStepDefinition<C, string, Data, E> & { __data?: Data } {
-      return definition as ContextAwareStepDefinition<C, string, Data, E> & { __data?: Data };
+    ): ContextAwareStepDefinition<C, string, Data, E> & WithDataBrand<Data> {
+      return definition as ContextAwareStepDefinition<C, string, Data, E> &
+        WithDataBrand<Data>;
     },
 
-    /**
-     * Create the wizard with the defined steps
-     * @param steps The wizard step definitions
-     * @param options Optional configuration including context
-     */
-    createWizard<TDefs extends Record<string, any>>(
+    createWizard<const TDefs extends Record<string, any>>(
       steps: TDefs,
       options?: Partial<Omit<CreateWizardOptions<C, E, TDefs>, 'steps'>>
-    ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> {
+    ): EnhancedWizard<C, keyof TDefs & string, DataMapFromDefs<TDefs>, E> {
       return createWizardImpl({
-        context: {} as C,  // Default empty context if not provided
+        context: ({} as C),
         ...options,
-        steps
-      }) as EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E>;
-    }
-  };
-}
-
-/**
- * Convenience function for creating a wizard with pre-bound context
- * @param context The context to bind to the wizard
- */
-export function wizardWithContext<C, E = never>(context: C) {
-  const factory = createWizardFactory<C, E>();
-
-  return {
-    defineSteps: factory.defineSteps,
-    step: factory.step,
-    createWizard: <TDefs extends Record<string, any>>(
-      steps: TDefs,
-      options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
-    ): EnhancedWizard<C, keyof TDefs & string, EnhancedDataMapFromDefs<TDefs>, E> =>
-      factory.createWizard(steps, { context, ...options })
+        steps,
+      }) as EnhancedWizard<C, keyof TDefs & string, DataMapFromDefs<TDefs>, E>;
+    },
   };
 }

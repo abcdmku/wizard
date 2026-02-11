@@ -40,7 +40,7 @@ const mockUserSubmissions = [
 
 export function AdminPanel() {
   const step = useAdminPanelStep();
-  const { context, goTo } = useBranchingWizard();
+  const { goTo } = useBranchingWizard();
   const { error, back } = step;
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);

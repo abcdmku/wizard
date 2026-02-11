@@ -1,61 +1,57 @@
 # Getting Started
 
-Wizard is a headless, type-safe state manager for multi-step flows. It works in any environment (Node, React, Vue, etc.).
+This guide uses the current `@wizard/core` API.
 
-## Installation
+## 1. Create a typed factory
 
-```bash
-npm install @wizard/core
+```ts
+import { createWizardFactory } from '@wizard/core';
+
+type Context = {
+  userId?: string;
+  total: number;
+};
+
+const factory = createWizardFactory<Context>();
+const { defineSteps, step } = factory;
 ```
 
-If you are using React, also install the adapter:
+## 2. Define steps
 
-```bash
-npm install @wizard/react
-```
-
-## Core Concept
-
-At its heart, Wizard is just a state machine.
-
-1.  **Define Steps**: What steps exist and how they connect.
-2.  **Create Wizard**: Instantiate the machine.
-3.  **Interact**: Call `next()`, `back()`, `setData()`.
-
-## Basic Usage (Vanilla JS/TS)
-
-```typescript
-import { createWizard, step, defineSteps } from '@wizard/core';
-
-// 1. Define Steps
+```ts
 const steps = defineSteps({
-  intro: step({
-    next: ['details']
+  account: step({
+    data: { email: '' },
+    next: ['review'],
+    validate: ({ data }) => {
+      if (!data.email.includes('@')) throw new Error('Invalid email');
+    },
   }),
-  details: step({
-    data: { name: '' },
-    next: ['finish']
+  review: step({
+    data: { agreed: false },
+    next: [],
   }),
-  finish: step({
-    next: []
-  })
 });
-
-// 2. Create Instance
-const wizard = createWizard(steps);
-
-// 3. Interact
-console.log(wizard.state.step); // 'intro'
-
-await wizard.next();
-console.log(wizard.state.step); // 'details'
-
-wizard.setStepData('details', { name: 'Alice' });
-await wizard.next();
-console.log(wizard.state.step); // 'finish'
 ```
 
-## Next Steps
+## 3. Create wizard instance
 
-- **React Users**: Jump to the [React Quick Start](/react/quick-start).
-- **Architecture**: Learn about [Defining Flows](/essentials/defining-flows).
+```ts
+export const wizard = factory.createWizard(steps, {
+  context: { total: 0 },
+});
+```
+
+## 4. Navigate
+
+```ts
+wizard.setStepData('account', { email: 'user@example.com' });
+await wizard.next();
+console.log(wizard.step); // "review"
+```
+
+## Notes
+
+- Current state is exposed through getters like `wizard.step`, `wizard.context`, and `wizard.data`.
+- Use `wizard.helpers` for progress/status/navigation checks.
+- Step wrappers are available through `wizard.getStep(name)` and `wizard.getCurrentStep()`.

@@ -21,7 +21,7 @@ const roles: { value: UserRole; label: string; description: string }[] = [
 
 export function RoleSelection() {
   const step = useRoleSelectionStep();
-  const { updateContext, context } = useBranchingWizard();
+  const { updateContext } = useBranchingWizard();
   const { data, error, next, updateData } = step;
 
   const selectedRole = data?.role || "user";

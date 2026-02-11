@@ -4,7 +4,14 @@
  */
 
 import * as React from 'react';
-import { ValOrFn, StepArgs, PartialStepDefinition, InferStepData, WizardStep as CoreWizardStep } from '@wizard/core';
+import type {
+  InferStepData,
+  PartialStepDefinition,
+  StepArgs,
+  ValOrFn,
+  Wizard,
+  WizardStep as CoreWizardStep,
+} from '@wizard/core';
 
 // ===== 1. UI Meta + Component (value-or-fn) + Resolver =====
 
@@ -21,6 +28,27 @@ export interface ReactWizardStep<
   readonly component: React.ReactNode;
 }
 
+export type StepComponentProps<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E,
+  K extends S = S
+> = {
+  step: K;
+  data: D[K] | undefined;
+  context: Readonly<C>;
+  wizard: Wizard<C, S, D, E>;
+};
+
+export type StepComponent<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E,
+  K extends S = S
+> = React.ComponentType<StepComponentProps<C, S, D, E, K>>;
+
 export type StepMetaUI<C, S extends string, Data, E> = {
   icon?: ValOrFn<React.ReactNode, StepArgs<C, S, Data, E>>;
   renderBadge?: ValOrFn<React.ReactNode, StepArgs<C, S, Data, E>>;
@@ -31,24 +59,31 @@ export function resolveMetaUI<C, S extends string, Data, E>(
   meta: StepMetaUI<C, S, Data, E> | undefined,
   args: StepArgs<C, S, Data, E>
 ) {
-  const r = <T>(v: ValOrFn<T, typeof args> | undefined): T | undefined =>
-    typeof v === 'function' ? (v as any)(args) : v;
+  const r = <T>(v: ValOrFn<T, typeof args> | undefined): T | undefined => {
+    if (typeof v === 'function') {
+      return (v as (input: typeof args) => T)(args);
+    }
+    return v;
+  };
   return { icon: r(meta?.icon), renderBadge: r(meta?.renderBadge), uiExtra: meta?.uiExtra };
 }
 
 export type ReactStepDefinition<C, S extends string, E, TDef> =
   PartialStepDefinition<C, S, E, TDef> & {
-    component?: ValOrFn<React.ReactNode, StepArgs<C, S, InferStepData<TDef>, E>>;
+    component?: React.ComponentType<{
+      step: S;
+      data: InferStepData<TDef> | undefined;
+      context: Readonly<C>;
+    }>;
     uiMeta?: StepMetaUI<C, S, InferStepData<TDef>, E>;
   };
 
-export function resolveStepComponent<C, S extends string, Data, E>(
-  comp: ValOrFn<React.ReactNode, StepArgs<C, S, Data, E>> | undefined,
-  args: StepArgs<C, S, Data, E>
+export function resolveStepComponent<Props extends object>(
+  component: React.ComponentType<Props> | undefined,
+  props: Props
 ): React.ReactNode {
-  if (!comp) return null;
-  if (typeof comp === 'function') {
-    return (comp as any)(args);
+  if (!component) {
+    return null;
   }
-  return comp;
+  return React.createElement(component, props);
 }

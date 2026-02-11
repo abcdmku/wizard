@@ -13,19 +13,19 @@ import type {
   StepArgs,
   StepEnterArgs,
   StepExitArgs,
-  EnhancedDataMapFromDefs,
+  DataMapFromDefs,
 } from './types';
 import { resolve } from './types';
 import { createStepWrapper, createCurrentStepWrapper, type WizardStep } from './step-wrapper';
 
-export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
+export function createWizard<C, E, const TDefs extends Record<string, any>>(opts: {
   context: C;
   steps: TDefs;
   order?: readonly (keyof TDefs & string)[];
   onStatusChange?: (a: { step: keyof TDefs & string; prev?: StepStatus; next: StepStatus }) => void;
-}): Wizard<C, StepIds<TDefs>, EnhancedDataMapFromDefs<TDefs>, E> {
+}): Wizard<C, StepIds<TDefs>, DataMapFromDefs<TDefs>, E> {
   type S = StepIds<TDefs>;
-  type D = EnhancedDataMapFromDefs<TDefs>;
+  type D = DataMapFromDefs<TDefs>;
 
   const { context: initialContext, steps, order } = opts;
 
@@ -391,8 +391,94 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
     snapshot: () => store.state,
   };
 
+  type GoToInternalOptions<K extends S> = {
+    data?: D[K];
+    skipBeforeExit?: boolean;
+    skipGuards?: boolean;
+  };
+
+  let wizard!: Wizard<C, S, D, E>;
+
+  const goToInternal = async <K extends S>(
+    step: K,
+    args?: GoToInternalOptions<K>
+  ): Promise<WizardStep<K, D[K], C, S, D>> => {
+    if (!args?.skipGuards && !helpers.canGoTo(step)) {
+      throw new Error(`Cannot go to step: ${step}`);
+    }
+
+    const currentStep = store.state.step;
+    store.setState(state => ({ ...state, isTransitioning: true }));
+
+    try {
+      if (args?.data !== undefined) {
+        store.setState(state => ({
+          ...state,
+          data: { ...state.data, [step]: args.data },
+        }));
+      }
+
+      const currentStepDef = steps[currentStep];
+      if (currentStepDef.beforeExit && !args?.skipBeforeExit && !args?.skipGuards) {
+        const currentData = store.state.data[currentStep];
+        const exitArgs = {
+          ...createStepArgs(currentStep, currentData),
+          to: step,
+        };
+        await currentStepDef.beforeExit(exitArgs);
+      }
+
+      store.setState(state => ({
+        ...state,
+        history: [
+          ...state.history,
+          { step: currentStep, context: state.context, data: state.data },
+        ].slice(-10),
+      }));
+
+      const stepDef = steps[step];
+      if (stepDef.beforeEnter && !args?.skipGuards) {
+        const currentData = store.state.data[step] as D[K] | undefined;
+        const stepArgs = createStepArgs(step, currentData);
+        const enterArgs = { ...stepArgs, from: currentStep };
+
+        const result = await stepDef.beforeEnter(enterArgs);
+        if (result !== undefined) {
+          const mergedData =
+            typeof result === 'object' && result !== null
+              ? ({ ...(currentData ?? {}), ...result } as D[K])
+              : (result as D[K]);
+
+          store.setState(state => ({
+            ...state,
+            data: { ...state.data, [step]: mergedData },
+          }));
+        }
+      }
+
+      store.setState(state => ({ ...state, step }));
+
+      const stepData = store.state.data[step] as D[K] | undefined;
+      return createStepWrapper(wizard, step, stepData, store.state.context);
+    } finally {
+      store.setState(state => ({ ...state, isTransitioning: false }));
+    }
+  };
+
+  const validateCurrentStep = <K extends S>(step: K) => {
+    const stepDef = steps[step];
+    if (!stepDef.validate) {
+      return;
+    }
+
+    stepDef.validate({
+      context: store.state.context,
+      data: store.state.data[step] as D[K],
+    });
+  };
+
   // Wizard implementation
-  const wizard: Wizard<C, S, D, E> = {
+  wizard = {
     store,
 
     // ===== Exposed Store State Properties =====
@@ -465,7 +551,15 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       store.setState(state => {
         const currentData = state.data[step] as D[K] | undefined;
         const updates = typeof updater === 'function' ? updater(currentData) : updater;
-        const newData = { ...(currentData || {} as any), ...updates } as D[K];
+        const base =
+          currentData && typeof currentData === 'object'
+            ? (currentData as Record<string, unknown>)
+            : {};
+        const patch =
+          updates && typeof updates === 'object'
+            ? (updates as Record<string, unknown>)
+            : {};
+        const newData = { ...base, ...patch } as D[K];
         return {
           ...state,
           data: { ...state.data, [step]: newData },
@@ -488,7 +582,15 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       store.setState(state => {
         const currentMeta = state.meta[step] as import('./types').StepMetaCore<C, S, D[K], never> | undefined;
         const updates = typeof updater === 'function' ? updater(currentMeta) : updater;
-        const newMeta = { ...(currentMeta || {} as any), ...updates } as import('./types').StepMetaCore<C, S, D[K], never>;
+        const base =
+          currentMeta && typeof currentMeta === 'object'
+            ? (currentMeta as Record<string, unknown>)
+            : {};
+        const patch =
+          updates && typeof updates === 'object'
+            ? (updates as Record<string, unknown>)
+            : {};
+        const newMeta = { ...base, ...patch } as import('./types').StepMetaCore<C, S, D[K], never>;
         return {
           ...state,
           meta: { ...state.meta, [step]: newMeta },
@@ -556,22 +658,15 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
 
       // Validate current step before leaving
       const currentStepDef = steps[currentStep];
-      if (currentStepDef.validate) {
-        const currentData = store.state.data[currentStep];
-        try {
-          currentStepDef.validate({
-            context: store.state.context,
-            data: currentData as any,
-          });
-        } catch (err) {
-          // Mark step as error and store the error
-          updateRuntime(currentStep, { status: 'error' });
-          store.setState(state => ({
-            ...state,
-            errors: { ...state.errors, [currentStep]: err },
-          }));
-          throw err;
-        }
+      try {
+        validateCurrentStep(currentStep);
+      } catch (err) {
+        updateRuntime(currentStep, { status: 'error' });
+        store.setState(state => ({
+          ...state,
+          errors: { ...state.errors, [currentStep]: err },
+        }));
+        throw err;
       }
 
       // Execute beforeExit BEFORE finding next step, so context updates are available for canEnter checks
@@ -591,82 +686,14 @@ export function createWizard<C, E, TDefs extends Record<string, any>>(opts: {
       }
 
       // Transition to next step (beforeExit already executed above)
-      await wizard.goTo(nextStep, { skipBeforeExit: true } as any);
+      await goToInternal(nextStep, { skipBeforeExit: true });
 
       // Return step wrapper for the new current step
       return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
     },
 
-    async goTo<K extends S>(step: K, args?: { data?: D[K]; skipBeforeExit?: boolean; skipGuards?: boolean }): Promise<WizardStep<K, D[K], C, S, D>> {
-      // Skip guard checks if requested (e.g., for browser history navigation)
-      if (!args?.skipGuards && !helpers.canGoTo(step)) {
-        throw new Error(`Cannot go to step: ${step}`);
-      }
-
-      const currentStep = store.state.step;
-
-      // Set transitioning state
-      store.setState(state => ({ ...state, isTransitioning: true }));
-
-      try {
-        // Set step data if provided
-        if (args?.data) {
-          store.setState(state => ({
-            ...state,
-            data: { ...state.data, [step]: args.data },
-          }));
-        }
-
-        // Execute beforeExit on current step if defined (unless skipped)
-        const currentStepDef = steps[currentStep];
-        if (currentStepDef.beforeExit && !args?.skipBeforeExit && !args?.skipGuards) {
-          const currentData = store.state.data[currentStep];
-          const exitArgs = {
-            ...createStepArgs(currentStep, currentData),
-            to: step,
-          };
-          await currentStepDef.beforeExit(exitArgs);
-        }
-
-        // Save to history
-        store.setState(state => ({
-          ...state,
-          history: [
-            ...state.history,
-            { step: currentStep, context: state.context, data: state.data },
-          ].slice(-10), // Keep last 10 entries
-        }));
-
-        // Execute beforeEnter if defined (unless guards are skipped)
-        const stepDef = steps[step];
-        if (stepDef.beforeEnter && !args?.skipGuards) {
-          const currentData = store.state.data[step] as D[K] | undefined;
-          const stepArgs = createStepArgs(step, currentData);
-          const enterArgs = { ...stepArgs, from: currentStep };
-
-          const result = await stepDef.beforeEnter(enterArgs);
-          if (result !== undefined) {
-            const mergedData = typeof result === 'object' && result !== null
-              ? { ...(currentData || {}), ...result } as D[K]
-              : result as D[K];
-
-            store.setState(state => ({
-              ...state,
-              data: { ...state.data, [step]: mergedData },
-            }));
-          }
-        }
-
-        // Update current step
-        store.setState(state => ({ ...state, step }));
-
-        // Return step wrapper for the target step
-        const stepData = store.state.data[step] as D[K] | undefined;
-        return createStepWrapper(wizard, step, stepData, store.state.context);
-      } finally {
-        // Clear transitioning state
-        store.setState(state => ({ ...state, isTransitioning: false }));
-      }
+    async goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<WizardStep<K, D[K], C, S, D>> {
+      return goToInternal(step, args);
     },
 
     async back(): Promise<WizardStep<S, D[S], C, S, D>> {

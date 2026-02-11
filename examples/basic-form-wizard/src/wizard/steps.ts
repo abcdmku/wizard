@@ -44,7 +44,11 @@ const { defineSteps, step, createWizard } = createReactWizardFactory();
 
 export const steps = defineSteps({
   account: step({
-    data: {} as AccountData,
+    data: {
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
     next: ["personal"],
     meta: { label: "Account", iconKey: "user" },
     validate: validateAccountData,
@@ -52,14 +56,24 @@ export const steps = defineSteps({
   }),
   personal: step({
     validate: validatePersonalData,
-    data: {} as PersonalData,
+    data: {
+      firstName: "",
+      lastName: "",
+      dateOfBirth: "",
+    },
     next: ["address"],
     meta: { label: "Personal", iconKey: "person" },
     component: PersonalStep
   }),
   address: step({
     validate: validateAddressData,
-    data: {} as AddressData,
+    data: {
+      street: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      country: "",
+    },
     next: ["summary"],
     meta: { label: "Address", iconKey: "location" },
     component: AddressStep

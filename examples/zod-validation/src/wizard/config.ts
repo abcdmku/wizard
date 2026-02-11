@@ -11,19 +11,24 @@ import {
   type Review
 } from "./types";
 
-const initialData = {
+const initialData: {
+  personalInfo: PersonalInfo;
+  address: Address;
+  preferences: Preferences;
+  review: Review;
+} = {
   personalInfo: {
     firstName: "",
     lastName: "",
     email: "",
     age: 18
-  } as PersonalInfo,
+  },
   address: {
     street: "",
     city: "",
     state: "",
     zipCode: ""
-  } as Address,
+  },
   preferences: {
     newsletter: false,
     notifications: {
@@ -33,11 +38,11 @@ const initialData = {
     },
     theme: "auto" as const,
     language: "en" as const
-  } as Preferences,
+  },
   review: {
     agreeToTerms: false,
     dataProcessing: false
-  } as Review
+  }
 };
 
 const steps = defineSteps({
@@ -134,8 +139,7 @@ const steps = defineSteps({
       });
     },
     canExit: ({ data }) => {
-      const reviewData = data as Review;
-      if (!reviewData.agreeToTerms || !reviewData.dataProcessing) {
+      if (!data.agreeToTerms || !data.dataProcessing) {
         return window.confirm("You haven't accepted all terms. Are you sure you want to leave?");
       }
       return true;
@@ -147,7 +151,7 @@ const steps = defineSteps({
   })
 });
 
-export const wizard = createWizard(steps) as ReturnType<typeof createWizard<typeof steps>>;
+export const wizard = createWizard(steps);
 
 /**
  * Typed convenience hook for using wizard.

@@ -1,17 +1,15 @@
-import type { StepName, WizardContext } from "./types";
-import { reactWizardWithContext } from "@wizard/react";
+import { createReactWizardFactory } from "@wizard/react";
+import type { WizardContext } from "./types";
 
-// Create factory with context type
-const wizardFactory = reactWizardWithContext<WizardContext>({
-  role: 'user',
+const INITIAL_CONTEXT: WizardContext = {
+  role: "user",
   requiresApproval: false,
-  completedSteps: []
-});
+  completedSteps: [],
+};
 
-// Create a typed builder with all step names
-const { step, build } = wizardFactory.builder<StepName>();
+const wizardFactory = createReactWizardFactory<WizardContext>();
 
-// Export for use in config
-export { step };
-export const defineSteps = build;
-export const createWizard = wizardFactory.createWizard;
+export const { defineSteps, step } = wizardFactory;
+
+export const createWizard = <const TDefs extends Record<string, any>>(steps: TDefs) =>
+  wizardFactory.createWizard(steps, { context: structuredClone(INITIAL_CONTEXT) });

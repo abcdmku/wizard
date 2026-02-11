@@ -1,5 +1,5 @@
 /**
- * Custom TypeDoc plugin for Wziard
+ * Custom TypeDoc plugin for Wizard
  * Adds enhanced functionality and custom processing
  */
 
@@ -24,7 +24,7 @@ export function load(app) {
 
   // Custom converter for better organization
   app.converter.on('resolveBegin', (context) => {
-    console.log('Starting TypeDoc generation for Wziard...');
+    console.log('Starting TypeDoc generation for Wizard...');
 
     // Add custom metadata to reflections
     for (const reflection of context.project.getReflectionsByKind(ReflectionKind.All)) {
@@ -80,14 +80,13 @@ export function load(app) {
       // Custom sorting for better organization
       navigation.children?.sort((a, b) => {
         const order = [
-          'wizardWithContext',
           'createWizard',
+          'createWizardFactory',
           'defineSteps',
           'step',
           'stepWithValidation',
-          'dataStep',
-          'transitionStep',
-          'conditionalStep'
+          'useWizard',
+          'useWizardStep'
         ];
 
         const aIndex = order.indexOf(a.text || '');
@@ -111,19 +110,19 @@ export function load(app) {
       const welcomeContent = `
         <div class="tsd-panel tsd-welcome-panel">
           <div class="tsd-panel-group">
-            <h2>Welcome to Wziard API Documentation</h2>
+            <h2>Welcome to Wizard API Documentation</h2>
             <p>
               This API documentation covers all public interfaces, functions, and types
-              available in Wziard. Use the navigation on the left to explore different
+              available in Wizard. Use the navigation on the left to explore different
               modules and their functionality.
             </p>
             <div class="tsd-quick-links">
               <h3>Quick Start</h3>
               <ul>
-                <li><a href="modules/_wizard_core.html#wizardWithContext">wizardWithContext</a> - Factory pattern for type-safe wizards</li>
+                <li><a href="modules/_wizard_core.html#createWizardFactory">createWizardFactory</a> - Factory pattern for type-safe wizards</li>
                 <li><a href="modules/_wizard_core.html#step">step</a> - Basic step definition helper</li>
                 <li><a href="modules/_wizard_react.html#useWizard">useWizard</a> - React hook for wizard access</li>
-                <li><a href="modules/_wizard_react.html#useWizardStep">useWizardStep</a> - Get current step name</li>
+                <li><a href="modules/_wizard_react.html#useWizardStep">useWizardStep</a> - Get a typed step wrapper</li>
               </ul>
             </div>
           </div>
@@ -138,5 +137,5 @@ export function load(app) {
     }
   });
 
-  console.log('Wziard TypeDoc plugin loaded successfully');
+  console.log('Wizard TypeDoc plugin loaded successfully');
 }

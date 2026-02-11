@@ -1,55 +1,32 @@
 # Complex Flows
 
-For sophisticated wizards, linear arrays often aren't enough. Wizard supports Directed Acyclic Graphs (DAGs) and weighted progress tracking.
+Complex flows are built from:
 
-## DAG Prerequisites
+- Dynamic `next` resolution
+- `canEnter` / `canExit` guards
+- `order` for deterministic helper/progress behavior
+- `prerequisites` for dependency-aware metadata
 
-Instead of defining a strict order, you can define *dependencies*. The wizard will automatically calculate the topological sort order.
-
-```typescript
-const wizard = createWizard({
-  // Define dependencies
-  prerequisites: {
-    'shipping': ['account'],
-    'billing': ['account'],
-    'payment': ['shipping', 'billing'], // Requires both to be complete!
-    'review': ['payment']
-  },
-
-  steps: {
-    // ... step definitions
-  }
+```ts
+const steps = defineSteps({
+  role: step({
+    data: { value: 'user' as const },
+    next: ({ data }) => (data.value === 'admin' ? ['admin'] : ['profile']),
+  }),
+  profile: step({
+    data: { firstName: '' },
+    next: ['review'],
+    canEnter: ({ context }) => context.role === 'user',
+  }),
+  admin: step({
+    data: { access: '' },
+    next: ['review'],
+    canEnter: ({ context }) => context.role === 'admin',
+  }),
+  review: step({
+    data: { approved: false },
+    next: [],
+    prerequisites: ['role'],
+  }),
 });
-```
-
-### Reachability
-
-The wizard provides helpers to check if a step is reachable (i.e., all prerequisites are met).
-
-```typescript
-if (wizard.helpers.isReachable('payment')) {
-  // Safe to navigate
-}
-```
-
-## Weighted Progress
-
-By default, every step counts as "1" unit of progress. You can assign custom weights to make some steps count for more.
-
-```typescript
-const wizard = createWizard({
-  weights: {
-    'intro': 1,
-    'complex-form': 5, // counts as 5 steps
-    'review': 2
-  },
-  
-  steps: { /* ... */ }
-});
-```
-
-The `wizard.helpers.progress()` method will return the weighted percentage.
-
-```typescript
-const { percent } = wizard.helpers.progress(); // Weighted percentage
 ```

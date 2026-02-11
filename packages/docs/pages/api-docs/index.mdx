@@ -1,78 +1,11 @@
----
-title: API Documentation
----
+# API Docs
 
-# API Documentation
+- [`@wizard/core`](/api-docs/core)
+- [`@wizard/react`](/api-docs/react)
 
-Complete API references for all Wizard packages.
+These pages summarize source exports.  
+For generated symbol-level docs, run:
 
-## Browse Full API Documentation
-
-**[📖 API Reference](/typedoc/core)** - Detailed function signatures, types, and examples.
-
-## Package Overview
-
-### [@wizard/core](core)
-Core wizard library with type-safe state management, helpers, and advanced features.
-
-### [@wizard/react](react)
-React adapter with hooks, providers, and router integration.
-
-## Quick Links
-
-### Core API
-- [Main Functions](core#main-functions) - `createWizard`, `createHelpers`
-- [Core Types](core#core-types) - `WizardConfig`, `StepDefinition`, `WizardState`
-- [Wizard Instance](core#wizard-instance-api) - Navigation, state, and status methods
-- [WizardHelpers](core#wizardhelpers-api) - 30+ utility methods
-- [Pure Selectors](core#pure-selectors) - Tree-shakable state selectors
-
-### React API
-- [Provider Component](react#provider-component) - `WizardProvider`
-- [Core Hooks](react#core-hooks) - State, actions, and data hooks
-- [Router Integration](react#router-integration-hooks) - Sync with routing
-- [Advanced Patterns](react#advanced-patterns) - Custom hooks and optimization
-
-## Package Versions
-
-- `@wizard/core`: 1.0.0
-- `@wizard/react`: 1.0.0
-
-## TypeScript Support
-
-All packages are written in TypeScript and provide full type definitions. The wizard system is deeply type-safe, catching errors at compile time for:
-
-- Invalid step names
-- Incorrect data shapes
-- Context mutations
-- Navigation paths
-- Helper method usage
-
-## Import Examples
-
-```typescript
-// Core library
-import { createWizard, type WizardConfig } from '@wizard/core';
-import { selectors } from '@wizard/core';
-
-// React adapter
-import {
-  WizardProvider,
-  useWizard,
-  useWizardState,
-  useWizardActions
-} from '@wizard/react';
-
-// Router integration
-import {
-  useSyncWizardWithRouter,
-  useTanStackRouterSync
-} from '@wizard/react';
+```bash
+pnpm --filter @wizard/docs build:api
 ```
-
-## Need Help?
-
-- Read the [Getting Started](/getting-started) guide
-- Check out [Advanced Guides](/advanced/complex-flows) for complex patterns
-- Browse [Examples](/examples) for complete implementations
-- Review [Essentials](/essentials/defining-flows) to understand the architecture

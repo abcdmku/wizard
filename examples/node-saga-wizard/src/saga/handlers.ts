@@ -1,10 +1,17 @@
-import type { OrderContext } from "../wizard/types";
+import type {
+  ChargeData,
+  CompleteData,
+  InitData,
+  NotifyData,
+  OrderContext,
+  ReserveData,
+} from "../wizard/types";
 
 export const handleInitExit = ({
   data,
   updateContext
 }: {
-  data: any;
+  data: InitData;
   updateContext: (fn: (ctx: OrderContext) => void) => void
 }) => {
   updateContext((ctx) => {
@@ -15,10 +22,10 @@ export const handleInitExit = ({
 };
 
 export const handleReserveExit = async ({
-  data,
+  data: _data,
   updateContext
 }: {
-  data: any;
+  data: ReserveData;
   updateContext: (fn: (ctx: OrderContext) => void) => void
 }) => {
   // Simulate async inventory reservation
@@ -31,11 +38,9 @@ export const handleReserveExit = async ({
 
 export const handleChargeExit = async ({
   data,
-  context,
   updateContext
 }: {
-  data: any;
-  context: OrderContext;
+  data: ChargeData;
   updateContext: (fn: (ctx: OrderContext) => void) => void
 }) => {
   if (!data.confirmed) {
@@ -52,10 +57,10 @@ export const handleChargeExit = async ({
 };
 
 export const handleNotifyExit = async ({
-  data,
+  data: _data,
   updateContext
 }: {
-  data: any;
+  data: NotifyData;
   updateContext: (fn: (ctx: OrderContext) => void) => void
 }) => {
   // Simulate async email sending
@@ -69,8 +74,7 @@ export const handleNotifyExit = async ({
 export const handleCompleteExit = ({
   data
 }: {
-  data: any;
-  context: OrderContext
+  data: CompleteData;
 }) => {
   if (!data.confirmed) {
     throw new Error("Order not confirmed");

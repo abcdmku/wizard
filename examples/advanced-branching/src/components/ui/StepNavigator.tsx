@@ -1,6 +1,6 @@
 import { useBranchingWizard } from "../../wizard/config";
 import { getAvailableStepsForRole } from "../../wizard/navigation";
-import type { StepName } from "../../wizard/stepNames";
+import type { StepName } from "../../wizard/types";
 
 const stepLabels: Partial<Record<StepName, string>> = {
   roleSelection: "Select Role",
