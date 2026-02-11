@@ -2,48 +2,96 @@
 
 Source of truth: `packages/react/src/index.ts`
 
-## Provider
-
-### `WizardProvider`
+## Canonical Usage
 
 ```tsx
-<WizardProvider wizard={wizard}>{children}</WizardProvider>
+import { WizardProvider, useWizard, useWizardStep } from '@wizard/react';
+import { wizard } from './wizard';
+
+function AccountStep() {
+  const step = useWizardStep(wizard, 'account');
+  return (
+    <button
+      onClick={() => {
+        step.updateData({ email: 'user@example.com' });
+        void step.next();
+      }}
+    >
+      Continue
+    </button>
+  );
+}
+
+export function App() {
+  const { step } = useWizard(wizard);
+
+  return (
+    <WizardProvider wizard={wizard}>
+      <div>Current step: {step}</div>
+      <AccountStep />
+    </WizardProvider>
+  );
+}
 ```
 
-Provider usage is optional. Hooks also accept wizard instances directly.
+Provider usage is optional. Hooks support either explicit wizard injection or provider-based lookup.
 
-## Hooks
+## Runtime API
 
-- `useWizard(wizard?)`
-- `useCurrentStep(wizard?)`
-- `useWizardStep(wizard?, stepName)`
-- `useWizardProgress(wizard?)`
-- `useWizardActions(wizard?)`
-- `useWizardHelpers(wizard?)`
-- `useStepError(wizard?, stepName?)`
-- `useWizardSelector(wizard?, selector)`
+- `WizardProvider`
+- `useWizard`
+- `useCurrentStep`
+- `useWizardStep`
+- `useWizardProgress`
+- `useWizardActions`
+- `useWizardHelpers`
+- `useStepError`
+- `useWizardSelector`
+- `createReactWizardFactory`
+- `useSyncWizardWithRouter`
+- `useTanStackWizardRouter`
 
-## Factory
+## Removed API
 
-### `createReactWizardFactory<C, E>()`
+- `createWizardRouteComponent` is removed.
 
-Returns:
+## Exhaustive Exports (Auto-Synced)
 
-- `defineSteps(defs)`
-- `step(definition)` (supports `component` and `uiMeta`)
-- `createWizard(steps, options?)`
-
-## Router Integration
-
-- `useSyncWizardWithRouter(wizard, options)`
-- `useTanStackWizardRouter(wizard, options)`
-
-`createWizardRouteComponent` is removed.
-
-## Key React Types
-
-- `ReactWizardStep`
-- `StepComponent`
-- `StepComponentProps`
-- `ReactStepDefinition`
-- `StepMetaUI`
+{/* AUTO-EXPORTS:START */}
+Generated from package entrypoint exports via `scripts/sync-api-reference.mjs`.
+| Symbol | Kind | Category |
+| --- | --- | --- |
+| `WizardProvider` | `value` | Provider |
+| `WizardProviderProps` | `type` | Provider |
+| `useCurrentStep` | `value` | Hooks |
+| `useStepError` | `value` | Hooks |
+| `useWizard` | `value` | Hooks |
+| `useWizardActions` | `value` | Hooks |
+| `useWizardHelpers` | `value` | Hooks |
+| `useWizardProgress` | `value` | Hooks |
+| `useWizardSelector` | `value` | Hooks |
+| `useWizardStep` | `value` | Hooks |
+| `createReactWizardFactory` | `value` | Factory |
+| `SyncWizardWithRouterOptions` | `type` | Router integration |
+| `TanStackWizardRouterOptions` | `type` | Router integration |
+| `useSyncWizardWithRouter` | `value` | Router integration |
+| `useTanStackWizardRouter` | `value` | Router integration |
+| `ReactStepDefinition` | `type` | React-specific types |
+| `ReactWizardInstance` | `type` | React-specific types |
+| `ReactWizardStep` | `type` | React-specific types |
+| `StepComponent` | `type` | React-specific types |
+| `StepComponentProps` | `type` | React-specific types |
+| `StepMetaUI` | `type` | React-specific types |
+| `JSONValue` | `type` | Core re-exports |
+| `StepArgs` | `type` | Core re-exports |
+| `StepDefinition` | `type` | Core re-exports |
+| `StepEnterArgs` | `type` | Core re-exports |
+| `StepExitArgs` | `type` | Core re-exports |
+| `StepMetaCore` | `type` | Core re-exports |
+| `StepStatus` | `type` | Core re-exports |
+| `ValidateArgs` | `type` | Core re-exports |
+| `ValOrFn` | `type` | Core re-exports |
+| `Wizard` | `type` | Core re-exports |
+| `WizardState` | `type` | Core re-exports |
+| `WizardStep` | `type` | Core re-exports |
+{/* AUTO-EXPORTS:END */}

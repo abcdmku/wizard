@@ -2,62 +2,104 @@
 
 Source of truth: `packages/core/src/index.ts`
 
-## Functions
-
-### `createWizard(opts)`
+## Canonical Authoring Pattern
 
 ```ts
-createWizard<C, E, const TDefs extends Record<string, any>>(opts: {
-  context: C;
-  steps: TDefs;
-  order?: readonly (keyof TDefs & string)[];
-  onStatusChange?: (a: { step: keyof TDefs & string; prev?: StepStatus; next: StepStatus }) => void;
-}): Wizard<C, StepIds<TDefs>, DataMapFromDefs<TDefs>, E>
+import { createWizardFactory } from '@wizard/core';
+
+type Context = { userId?: string };
+
+const factory = createWizardFactory<Context>();
+const { defineSteps, step } = factory;
+
+const steps = defineSteps({
+  account: step({
+    data: { email: '' },
+    next: ['review'],
+    validate: ({ data }) => {
+      if (!data.email.includes('@')) throw new Error('Invalid email');
+    },
+  }),
+  review: step({
+    data: { confirmed: false },
+    next: [],
+  }),
+});
+
+export const wizard = factory.createWizard(steps, {
+  context: {},
+});
 ```
 
-### `createWizardFactory<C, E>()`
+## Runtime API
 
-Factory returning:
-
+- `createWizard(opts)`
+- `createWizardFactory<C, E>()`
 - `defineSteps(defs)`
 - `step(definition)`
-- `createWizard(steps, options?)`
+- `stepWithValidation(validateFn, definition)`
+- `resolve(valueOrFn, args)`
+- `resolveMetaCore(meta, args)`
 
-### `defineSteps(defs)`
+## Compatibility-focused exports
 
-Identity helper for preserving literal step keys and inference.
+The following exports are retained for migration and compatibility paths. Prefer the canonical types and factory-first authoring pattern for new code.
 
-### `step(definition)`
+- `WizardConfig`
+- `WizardTransitionEvent`
+- `WizardPersistence`
+- `InferContext`
+- `InferSteps`
+- `InferDataMap`
+- `EnhancedWizard`
+- `EnhancedDataMapFromDefs`
+- `StepRuntime`
 
-Typed step helper that brands step data for inference.
+## Removed APIs
 
-### `stepWithValidation(validateFn, definition)`
-
-Same as `step`, with explicit `validate`.
-
-### `resolve(valueOrFn, args)`
-
-Resolves `ValOrFn<T, A>`.
-
-### `resolveMetaCore(meta, args)`
-
-Resolves runtime meta values (`label`, `hidden`, etc).
-
-## Key Types
-
-- `Wizard`
-- `WizardState`
-- `WizardHelpers`
-- `StepDefinition`
-- `StepArgs`, `StepEnterArgs`, `StepExitArgs`, `ValidateArgs`
-- `StepMetaCore`
-- `StepStatus`
-- `DataMapFromDefs`, `DataTypeOf`, `InferStepData`
-- `CreateWizardOptions`
-- `WizardStep`
-
-## Notes
-
-- `wizardWithContext` is removed from the core API.
+- `wizardWithContext` is removed.
 - `dataStep`, `transitionStep`, and `conditionalStep` are removed.
-- State subscription is via `wizard.store` (`@tanstack/store`).
+
+## Exhaustive Exports (Auto-Synced)
+
+{/* AUTO-EXPORTS:START */}
+Generated from package entrypoint exports via `scripts/sync-api-reference.mjs`.
+| Symbol | Kind | Category |
+| --- | --- | --- |
+| `createWizard` | `value` | Runtime |
+| `createWizardFactory` | `value` | Runtime |
+| `defineSteps` | `value` | Runtime |
+| `resolve` | `value` | Runtime |
+| `resolveMetaCore` | `value` | Runtime |
+| `step` | `value` | Runtime |
+| `stepWithValidation` | `value` | Runtime |
+| `CreateWizardOptions` | `type` | Primary types |
+| `DataMapFromDefs` | `type` | Primary types |
+| `DataTypeOf` | `type` | Primary types |
+| `JSONValue` | `type` | Primary types |
+| `PartialStepDefinition` | `type` | Primary types |
+| `StepArgs` | `type` | Primary types |
+| `StepDefinition` | `type` | Primary types |
+| `StepEnterArgs` | `type` | Primary types |
+| `StepExitArgs` | `type` | Primary types |
+| `StepIds` | `type` | Primary types |
+| `StepMetaCore` | `type` | Primary types |
+| `StepStatus` | `type` | Primary types |
+| `ValidateArgs` | `type` | Primary types |
+| `ValOrFn` | `type` | Primary types |
+| `WithDataBrand` | `type` | Primary types |
+| `Wizard` | `type` | Primary types |
+| `WizardHelpers` | `type` | Primary types |
+| `WizardState` | `type` | Primary types |
+| `WizardStep` | `type` | Primary types |
+| `EnhancedDataMapFromDefs` | `type` | Compatibility aliases |
+| `EnhancedWizard` | `type` | Compatibility aliases |
+| `InferContext` | `type` | Compatibility aliases |
+| `InferDataMap` | `type` | Compatibility aliases |
+| `InferStepData` | `type` | Compatibility aliases |
+| `InferSteps` | `type` | Compatibility aliases |
+| `StepRuntime` | `type` | Compatibility aliases |
+| `WizardConfig` | `type` | Compatibility aliases |
+| `WizardPersistence` | `type` | Compatibility aliases |
+| `WizardTransitionEvent` | `type` | Compatibility aliases |
+{/* AUTO-EXPORTS:END */}

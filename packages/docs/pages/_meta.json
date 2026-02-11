@@ -2,13 +2,10 @@
   "index": "Introduction",
   "getting-started": "Getting Started",
   "essentials": {
-    "type": "page",
+    "type": "doc",
     "title": "Essentials",
     "theme": {
-      "sidebar": {
-        "auto": true,
-        "collapsed": false
-      }
+      "collapsed": false
     },
     "children": [
       "essentials/defining-flows",
@@ -17,13 +14,10 @@
     ]
   },
   "react": {
-    "type": "page",
+    "type": "doc",
     "title": "React",
     "theme": {
-      "sidebar": {
-        "auto": true,
-        "collapsed": false
-      }
+      "collapsed": false
     },
     "children": [
       "react/quick-start",
@@ -32,13 +26,10 @@
     ]
   },
   "advanced": {
-    "type": "page",
+    "type": "doc",
     "title": "Advanced Guides",
     "theme": {
-      "sidebar": {
-        "auto": true,
-        "collapsed": true
-      }
+      "collapsed": true
     },
     "children": [
       "advanced/persistence",

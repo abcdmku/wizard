@@ -29,3 +29,16 @@
   - canonical pattern: factory-first + step helper + direct wizard hook usage
   - provider-based hook usage allowed, but explicit wizard arg is default in examples
   - removed `as ReturnType<...>` and step-data cast patterns from in-scope examples
+
+## Round 4: Docs Navigation + API Parity Debate
+- Parties: `docs-nav-ia` + `docs-truth-audit` vs `dx-minimality-arbiter`
+- Question: stable global sidebar and API docs maintenance model?
+- Winner: joint `docs-nav-ia` + `docs-truth-audit`
+- Rationale:
+  - section-scoped top-level `type: "page"` entries caused sidebar root switching and sparse home navigation
+  - converting top-level docs groups to `type: "doc"` keeps one global docs tree and removes section-tab side effects
+  - API pages use a hybrid model: curated guidance + auto-synced exhaustive export list from package entrypoints
+- Contract adopted:
+  - root docs sidebar is invariant across routes
+  - API reference export maps are generated and checked in CI
+  - compatibility exports are explicitly labeled to avoid canonical DX confusion

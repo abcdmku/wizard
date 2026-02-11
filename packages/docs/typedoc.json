@@ -1,6 +1,6 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "name": "Wziard API Documentation",
+  "name": "Wizard API Documentation",
   "entryPoints": [
     "../../packages/core/src/index.ts",
     "../../packages/react/src/index.ts"
@@ -71,7 +71,7 @@
   "excludeInternal": false,
   "includeVersion": true,
   "disableSources": false,
-  "sourceLinkTemplate": "https://github.com/your-org/wizardopus/blob/main/{path}#L{line}",
+  "sourceLinkTemplate": "https://github.com/user/wizard/blob/main/{path}#L{line}",
   "navigation": {
     "includeCategories": true,
     "includeGroups": true,
@@ -80,17 +80,17 @@
   "searchInComments": true,
   "searchInDocuments": true,
   "cleanOutputDir": true,
-  "titleLink": "https://wizardopus.dev",
+  "titleLink": "https://github.com/user/wizard",
   "navigationLinks": {
-    "Documentation": "https://wizardopus.dev",
-    "GitHub": "https://github.com/your-org/wizardopus",
-    "Examples": "https://wizardopus.dev/examples"
+    "Documentation": "https://github.com/user/wizard/tree/main/packages/docs",
+    "GitHub": "https://github.com/user/wizard",
+    "Examples": "https://github.com/user/wizard/tree/main/examples"
   },
   "sidebarLinks": {
-    "Getting Started": "https://wizardopus.dev/getting-started",
-    "Core Concepts": "https://wizardopus.dev/concepts",
-    "React Integration": "https://wizardopus.dev/react",
-    "Examples": "https://wizardopus.dev/examples"
+    "Getting Started": "https://github.com/user/wizard/tree/main/packages/docs/pages/getting-started.mdx",
+    "Core API": "https://github.com/user/wizard/tree/main/packages/docs/pages/api-docs/core.mdx",
+    "React API": "https://github.com/user/wizard/tree/main/packages/docs/pages/api-docs/react.mdx",
+    "Examples": "https://github.com/user/wizard/tree/main/packages/docs/pages/examples"
   },
   "hideGenerator": false,
   "customCss": "./styles/typedoc-custom.css",
