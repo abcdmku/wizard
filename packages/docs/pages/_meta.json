@@ -1,5 +1,10 @@
 {
-  "index": "Introduction",
+  "index": {
+    "title": "Introduction",
+    "theme": {
+      "layout": "raw"
+    }
+  },
   "getting-started": "Getting Started",
   "essentials": {
     "type": "doc",

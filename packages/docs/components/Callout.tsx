@@ -1,7 +1,13 @@
-import React from 'react';
-import { AlertCircle, Info, AlertTriangle, CheckCircle, Lightbulb } from 'lucide-react';
+import React from "react";
+import {
+  AlertCircle,
+  Info,
+  AlertTriangle,
+  CheckCircle,
+  Lightbulb,
+} from "lucide-react";
 
-export type CalloutType = 'info' | 'warning' | 'error' | 'success' | 'tip';
+export type CalloutType = "info" | "warning" | "error" | "success" | "tip";
 
 interface CalloutProps {
   type?: CalloutType;
@@ -18,71 +24,36 @@ const icons = {
 };
 
 const styles = {
-  info: 'border-blue-500 bg-blue-50 dark:bg-blue-950/50',
-  warning: 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/50',
-  error: 'border-red-500 bg-red-50 dark:bg-red-950/50',
-  success: 'border-green-500 bg-green-50 dark:bg-green-950/50',
-  tip: 'border-purple-500 bg-purple-50 dark:bg-purple-950/50',
+  info: "border-blue-500 bg-blue-50 dark:bg-blue-950/50",
+  warning: "border-yellow-500 bg-yellow-50 dark:bg-yellow-950/50",
+  error: "border-red-500 bg-red-50 dark:bg-red-950/50",
+  success: "border-green-500 bg-green-50 dark:bg-green-950/50",
+  tip: "border-purple-500 bg-purple-50 dark:bg-purple-950/50",
 };
 
 const iconStyles = {
-  info: 'text-blue-500',
-  warning: 'text-yellow-500',
-  error: 'text-red-500',
-  success: 'text-green-500',
-  tip: 'text-purple-500',
+  info: "text-blue-500",
+  warning: "text-yellow-500",
+  error: "text-red-500",
+  success: "text-green-500",
+  tip: "text-purple-500",
 };
 
-export function Callout({ type = 'info', title, children }: CalloutProps) {
+export function Callout({ type = "info", title, children }: CalloutProps) {
   const Icon = icons[type];
 
   return (
-    <div 
-      style={{
-        margin: '1.5rem 0',
-        padding: '1rem',
-        borderRadius: '0.5rem',
-        borderLeft: '4px solid',
-        display: 'flex',
-        gap: '0.75rem',
-        backgroundColor: type === 'info' ? 'rgba(59, 130, 246, 0.1)' :
-                         type === 'warning' ? 'rgba(245, 158, 11, 0.1)' :
-                         type === 'error' ? 'rgba(239, 68, 68, 0.1)' :
-                         type === 'success' ? 'rgba(34, 197, 94, 0.1)' :
-                         'rgba(168, 85, 247, 0.1)',
-        borderLeftColor: type === 'info' ? '#3b82f6' :
-                        type === 'warning' ? '#f59e0b' :
-                        type === 'error' ? '#ef4444' :
-                        type === 'success' ? '#22c55e' :
-                        '#a855f7'
-      }}
+    <div
+      className={`my-6 p-4 rounded-lg border-l-4 flex gap-3 ${styles[type]}`}
     >
-      <Icon 
-        style={{
-          width: '20px',
-          height: '20px',
-          flexShrink: 0,
-          marginTop: '2px',
-          color: type === 'info' ? '#3b82f6' :
-                 type === 'warning' ? '#f59e0b' :
-                 type === 'error' ? '#ef4444' :
-                 type === 'success' ? '#22c55e' :
-                 '#a855f7'
-        }}
-      />
-      <div style={{ flex: 1 }}>
+      <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${iconStyles[type]}`} />
+      <div className="flex-1">
         {title && (
-          <div style={{ 
-            fontWeight: 600, 
-            marginBottom: '0.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+          <div className="font-semibold mb-1 flex items-center gap-2">
             {title}
           </div>
         )}
-        <div style={{ fontSize: '0.95rem', lineHeight: '1.6' }}>{children}</div>
+        <div className="text-[0.95rem] leading-relaxed">{children}</div>
       </div>
     </div>
   );

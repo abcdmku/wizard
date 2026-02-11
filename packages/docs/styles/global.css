@@ -1,54 +1,9 @@
-/* Tailwind CSS directives */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ========== CLEAN CODE BLOCK STYLING ========== */
+/* ========== SHIKI SYNTAX HIGHLIGHTING TOKENS ========== */
 
-/* Base code block styling - remove overflow from pre */
-pre {
-  background: transparent !important;
-  color: #334155 !important;
-  border-radius: 0 !important;
-  border: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: visible !important;
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace !important;
-  font-size: 0.875rem !important;
-  line-height: 1.5 !important;
-}
-
-/* Dark mode code blocks */
-.dark pre {
-  background: transparent !important;
-  color: #d4d4d4 !important;
-  border: none !important;
-}
-
-/* Code element styling - handle overflow and padding with high specificity */
-pre > code,
-pre[class*="nx-"] > code[class*="nx-"],
-div[class*="nextra"] pre > code {
-  display: block !important;
-  padding: 8px 0 16px 0 !important;
-  margin: 8px 0 !important;
-  overflow-x: auto !important;
-  overflow-y: visible !important;
-  background: #f8fafc !important;
-  width: 100% !important;
-}
-
-/* Dark mode code element with high specificity */
-.dark pre > code,
-.dark pre[class*="nx-"] > code[class*="nx-"],
-.dark div[class*="nextra"] pre > code {
-  background: #0a0a0a !important;
-}
-
-/* ========== SHIKI VSCODE SYNTAX HIGHLIGHTING ========== */
-
-/* Override Shiki CSS variables with VSCode colors - Light Theme */
 :root {
   --shiki-color-text: #334155;
   --shiki-color-background: transparent;
@@ -61,431 +16,79 @@ div[class*="nextra"] pre > code {
   --shiki-token-string-expression: #a31515;
   --shiki-token-punctuation: #000000;
   --shiki-token-link: #0000ff;
-  /* TypeScript types */
   --shiki-token-class-name: #267f99;
   --shiki-token-type: #267f99;
   --shiki-token-interface: #267f99;
 }
 
-/* Override Shiki CSS variables with VSCode Dark Plus theme colors */
 html.dark {
-    --shiki-color-text: #9CDCFE;
-    --shiki-color-background: transparent;
-    --shiki-token-constant: #4EC9B0;
-    --shiki-token-string: #CE9178;
-    --shiki-token-comment: #6A9955;
-    --shiki-token-keyword: #569CD6;
-    --shiki-token-parameter: #9CDCFE;
-    --shiki-token-function: #DCDCAA;
-    --shiki-token-string-expression: #CE9178;
-    --shiki-token-punctuation: #D4D4D4;
-    --shiki-token-link: #569CD6;
-    --shiki-token-class-name: #4EC9B0;
-    --shiki-token-type: #4EC9B0;
-    --shiki-token-interface: #4EC9B0;
-    --shiki-token-variable: #9CDCFE;
-    --shiki-token-property: #9CDCFE;
-    --shiki-token-operator: #D4D4D4;
-    --shiki-token-number: #B5CEA8;
-    --shiki-token-control: #C586C0;
-    --shiki-token-constant-other: #4FC1FF;
-    --shiki-token-regex: #D16969;
-    --shiki-token-invalid: #F44747;
-    --shiki-token-escape: #D7BA7D;
+  --shiki-color-text: #9CDCFE;
+  --shiki-color-background: transparent;
+  --shiki-token-constant: #4EC9B0;
+  --shiki-token-string: #CE9178;
+  --shiki-token-comment: #6A9955;
+  --shiki-token-keyword: #569CD6;
+  --shiki-token-parameter: #9CDCFE;
+  --shiki-token-function: #DCDCAA;
+  --shiki-token-string-expression: #CE9178;
+  --shiki-token-punctuation: #D4D4D4;
+  --shiki-token-link: #569CD6;
+  --shiki-token-class-name: #4EC9B0;
+  --shiki-token-type: #4EC9B0;
+  --shiki-token-interface: #4EC9B0;
+  --shiki-token-variable: #9CDCFE;
+  --shiki-token-property: #9CDCFE;
+  --shiki-token-operator: #D4D4D4;
+  --shiki-token-number: #B5CEA8;
+  --shiki-token-control: #C586C0;
+  --shiki-token-constant-other: #4FC1FF;
+  --shiki-token-regex: #D16969;
+  --shiki-token-invalid: #F44747;
+  --shiki-token-escape: #D7BA7D;
 }
 
-/* ========== LEGACY TOKEN CLASS SUPPORT ========== */
+/* ========== CODE BLOCKS ========== */
 
-/* VSCode Dark Plus Theme Colors - Multiple selectors for compatibility */
-.dark pre > code .token.comment,
-.dark pre > code .token.prolog,
-.dark pre > code .token.doctype,
-.dark pre > code .token.cdata,
-.dark pre code [data-theme="dark"] .token.comment,
-.dark pre code .hljs-comment {
-  color: #6A9955 !important; /* VSCode Dark Plus comment green */
+@layer components {
+  pre {
+    @apply bg-transparent text-slate-700 font-mono text-sm leading-relaxed;
+    border: none;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .dark pre {
+    @apply text-neutral-300;
+  }
+
+  pre > code {
+    @apply block overflow-x-auto w-full bg-code-bg;
+    padding: 8px 0 16px 0;
+    margin: 8px 0;
+  }
+
+  .dark pre > code {
+    @apply bg-code-bg-dark;
+  }
+
+  /* Inline code */
+  :not(pre) > code {
+    @apply bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[0.875em] border border-slate-200;
+  }
+
+  .dark :not(pre) > code {
+    @apply bg-slate-800 text-slate-300 border-slate-600;
+  }
 }
 
-.dark pre > code .token.punctuation,
-.dark pre code [data-theme="dark"] .token.punctuation,
-.dark pre code .hljs-punctuation {
-  color: #D4D4D4 !important; /* VSCode Dark Plus punctuation */
-}
+/* ========== NEXTRA CODE BLOCK OVERRIDES ========== */
 
-.dark pre > code .token.property,
-.dark pre > code .token.tag,
-.dark pre > code .token.boolean,
-.dark pre > code .token.number,
-.dark pre > code .token.constant,
-.dark pre > code .token.symbol,
-.dark pre > code .token.deleted,
-.dark pre code [data-theme="dark"] .token.number,
-.dark pre code .hljs-number,
-.dark pre code .hljs-literal {
-  color: #B5CEA8 !important; /* VSCode Dark Plus number/constant */
-}
-
-.dark pre > code .token.selector,
-.dark pre > code .token.attr-name,
-.dark pre > code .token.string,
-.dark pre > code .token.char,
-.dark pre > code .token.builtin,
-.dark pre > code .token.inserted,
-.dark pre code [data-theme="dark"] .token.string,
-.dark pre code .hljs-string {
-  color: #CE9178 !important; /* VSCode Dark Plus string orange */
-}
-
-.dark pre > code .token.operator,
-.dark pre > code .token.entity,
-.dark pre > code .token.url,
-.dark pre > code .language-css .token.string,
-.dark pre > code .style .token.string,
-.dark pre code [data-theme="dark"] .token.operator,
-.dark pre code .hljs-operator {
-  color: #D4D4D4 !important; /* VSCode Dark Plus operator */
-}
-
-.dark pre > code .token.atrule,
-.dark pre > code .token.attr-value,
-.dark pre > code .token.keyword,
-.dark pre code [data-theme="dark"] .token.keyword,
-.dark pre code .hljs-keyword {
-  color: #569CD6 !important; /* VSCode Dark Plus keyword blue */
-}
-
-.dark pre > code .token.function,
-.dark pre code [data-theme="dark"] .token.function,
-.dark pre code .hljs-function,
-.dark pre code .hljs-title {
-  color: #DCDCAA !important; /* VSCode Dark Plus function yellow */
-}
-
-/* Variables and parameters - light blue like in VSCode */
-.dark pre > code .token.variable,
-.dark pre > code .token.parameter,
-.dark pre code [data-theme="dark"] .token.variable,
-.dark pre code .hljs-variable {
-  color: #9CDCFE !important; /* VSCode Dark Plus variable light blue */
-}
-
-/* Types, classes, interfaces - cyan/teal */
-.dark pre > code .token.class-name,
-.dark pre > code .token.type-annotation,
-.dark pre > code .token.type,
-.dark pre code .hljs-built_in,
-.dark pre code .hljs-type,
-.dark pre code .hljs-class {
-  color: #4EC9B0 !important; /* VSCode Dark Plus type cyan */
-}
-
-.dark pre > code .token.regex,
-.dark pre > code .token.important {
-  color: #D16969 !important; /* VSCode Dark Plus regex red */
-}
-
-/* Light theme syntax highlighting - VSCode Light Theme - Multiple selectors for compatibility */
-pre > code .token.comment,
-pre > code .token.prolog,
-pre > code .token.doctype,
-pre > code .token.cdata,
-pre code [data-theme="light"] .token.comment,
-pre code .hljs-comment {
-  color: #008000 !important; /* VSCode light comment green */
-}
-
-pre > code .token.punctuation,
-pre code [data-theme="light"] .token.punctuation,
-pre code .hljs-punctuation {
-  color: #000000 !important; /* VSCode light punctuation */
-}
-
-pre > code .token.property,
-pre > code .token.tag,
-pre > code .token.boolean,
-pre > code .token.number,
-pre > code .token.constant,
-pre > code .token.symbol,
-pre > code .token.deleted,
-pre code [data-theme="light"] .token.number,
-pre code .hljs-number,
-pre code .hljs-literal {
-  color: #098658 !important; /* VSCode light number/constant green */
-}
-
-pre > code .token.selector,
-pre > code .token.attr-name,
-pre > code .token.string,
-pre > code .token.char,
-pre > code .token.builtin,
-pre > code .token.inserted,
-pre code [data-theme="light"] .token.string,
-pre code .hljs-string {
-  color: #a31515 !important; /* VSCode light string red */
-}
-
-pre > code .token.operator,
-pre > code .token.entity,
-pre > code .token.url,
-pre > code .language-css .token.string,
-pre > code .style .token.string,
-pre code [data-theme="light"] .token.operator,
-pre code .hljs-operator {
-  color: #000000 !important; /* VSCode light operator */
-}
-
-pre > code .token.atrule,
-pre > code .token.attr-value,
-pre > code .token.keyword,
-pre code [data-theme="light"] .token.keyword,
-pre code .hljs-keyword {
-  color: #0000ff !important; /* VSCode light keyword blue */
-}
-
-pre > code .token.function,
-pre > code .token.class-name,
-pre code [data-theme="light"] .token.function,
-pre code .hljs-function,
-pre code .hljs-title {
-  color: #795e26 !important; /* VSCode light function brown */
-}
-
-pre > code .token.regex,
-pre > code .token.important,
-pre > code .token.variable,
-pre code [data-theme="light"] .token.variable,
-pre code .hljs-variable {
-  color: #001080 !important; /* VSCode light variable blue */
-}
-
-/* Additional comprehensive syntax highlighting - Light Theme */
-pre code .hljs-built_in,
-pre code .hljs-type,
-pre code .hljs-class,
-pre > code .token.builtin,
-pre > code .token.class-name,
-pre > code .token.type-annotation,
-pre > code .token.type {
-  color: #267f99 !important; /* VSCode light type/class teal */
-}
-
-pre code .hljs-attr,
-pre code .hljs-attribute,
-pre > code .token.attr-name {
-  color: #0451a5 !important; /* VSCode light attribute blue */
-}
-
-pre code .hljs-tag,
-pre > code .token.tag {
-  color: #800000 !important; /* VSCode light tag red */
-}
-
-/* Additional comprehensive syntax highlighting - Dark Theme */
-.dark pre code .hljs-built_in,
-.dark pre code .hljs-type,
-.dark pre code .hljs-class,
-.dark pre > code .token.builtin,
-.dark pre > code .token.class-name,
-.dark pre > code .token.type-annotation,
-.dark pre > code .token.type {
-  color: #4EC9B0 !important; /* VSCode dark type/class cyan */
-}
-
-.dark pre code .hljs-attr,
-.dark pre code .hljs-attribute,
-.dark pre > code .token.attr-name {
-  color: #9CDCFE !important; /* VSCode dark attribute light blue */
-}
-
-.dark pre code .hljs-tag,
-.dark pre > code .token.tag {
-  color: #569CD6 !important; /* VSCode dark tag blue */
-}
-
-/* Control keywords - purple/magenta */
-.dark pre > code .token.control,
-.dark pre > code .token.keyword.control,
-.dark pre code .hljs-keyword.control {
-  color: #C586C0 !important; /* VSCode dark control keywords purple */
-}
-
-/* Constants and enum members - bright blue */
-.dark pre > code .token.constant.other,
-.dark pre > code .token.variable.other.constant,
-.dark pre > code .token.variable.other.enummember,
-.dark pre code .hljs-constant {
-  color: #4FC1FF !important; /* VSCode dark constants bright blue */
-}
-
-/* Escape characters - yellow/gold */
-.dark pre > code .token.escape,
-.dark pre > code .token.character.escape,
-.dark pre code .hljs-escape {
-  color: #D7BA7D !important; /* VSCode dark escape characters yellow */
-}
-
-/* Invalid/error tokens - bright red */
-.dark pre > code .token.invalid,
-.dark pre > code .token.error,
-.dark pre code .hljs-error {
-  color: #F44747 !important; /* VSCode dark invalid/error bright red */
-}
-
-/* Inline code */
-:not(pre) > code {
-  background: #f1f5f9 !important;
-  color: #475569 !important;
-  padding: 0.125rem 0.375rem !important;
-  border-radius: 0.25rem !important;
-  font-size: 0.875em !important;
-  border: 1px solid #e2e8f0 !important;
-}
-
-.dark :not(pre) > code {
-  background: #1e293b !important;
-  color: #cbd5e1 !important;
-  border: 1px solid #475569 !important;
-}
-
-/* ========== TAB SYSTEM FOR CODE BLOCKS ========== */
-
-/* Tab container - remove outer borders and background */
-.code-tabs {
-  margin: 1.5rem 0 !important;
-  border-radius: 0 !important;
-  border: none !important;
-  overflow: hidden !important;
-}
-
-.dark .code-tabs {
-  border: none !important;
-}
-
-/* Tab header */
-.code-tabs-header {
-  background: #f8fafc !important;
-  border-bottom: 1px solid #e2e8f0 !important;
-  padding: 0.5rem !important;
-  display: flex !important;
-  gap: 0.25rem !important;
-}
-
-.dark .code-tabs-header {
-  background: #1e293b !important;
-  border-bottom: 1px solid #334155 !important;
-}
-
-/* Tab buttons */
-.code-tabs-header button {
-  background: transparent !important;
-  border: none !important;
-  padding: 0.5rem 0.75rem !important;
-  border-radius: 6px !important;
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-  color: #64748b !important;
-  cursor: pointer !important;
-  transition: all 0.15s ease !important;
-}
-
-.code-tabs-header button:hover {
-  background: #e2e8f0 !important;
-  color: #475569 !important;
-}
-
-.code-tabs-header button.active {
-  background: white !important;
-  color: #3b82f6 !important;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Dark mode tab buttons */
-.dark .code-tabs-header button {
-  color: #94a3b8 !important;
-}
-
-.dark .code-tabs-header button:hover {
-  background: #334155 !important;
-  color: #cbd5e1 !important;
-}
-
-.dark .code-tabs-header button.active {
-  background: #0f172a !important;
-  color: #60a5fa !important;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3) !important;
-}
-
-/* Tab content area - full width, no padding */
-.code-tabs-content {
-  background: inherit !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-/* Code blocks inside tabs - full width, no borders */
-.code-tabs pre {
-  margin: 0 !important;
-  border: none !important;
-  border-radius: 0 !important;
-  background: inherit !important;
-  padding: 0 !important;
-  overflow: visible !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-/* ========== COPY BUTTON ========== */
-
-.copy-button {
-  position: absolute !important;
-  top: 0.75rem !important;
-  right: 0.75rem !important;
-  background: rgba(0, 0, 0, 0.5) !important;
-  color: white !important;
-  border: none !important;
-  padding: 0.375rem 0.5rem !important;
-  border-radius: 4px !important;
-  font-size: 0.75rem !important;
-  cursor: pointer !important;
-  opacity: 0 !important;
-  transition: opacity 0.2s ease !important;
-  z-index: 10 !important;
-}
-
-pre:hover .copy-button {
-  opacity: 1 !important;
-}
-
-.copy-button:hover {
-  background: rgba(0, 0, 0, 0.8) !important;
-}
-
-/* ========== BRACKET RAINBOW COLORS ========== */
-
-/* Use JavaScript-powered bracket coloring since CSS can't target partial text content */
-.dark pre code {
-  position: relative;
-}
-
-/* Style classes for JavaScript-applied bracket colors */
-.dark .bracket-level-1 {
-  color: #DCDCAA !important; /* Yellow */
-}
-
-.dark .bracket-level-2 {
-  color: #C586C0 !important; /* Magenta */
-}
-
-.dark .bracket-level-3 {
-  color: #569CD6 !important; /* Blue */
-}
-
-/* Ensure bracket colors override other styles */
-.dark .bracket-level-1,
-.dark .bracket-level-2,
-.dark .bracket-level-3 {
-  font-weight: inherit !important;
-  font-style: inherit !important;
+pre,
+pre[class*="nx-"] {
+  --tw-ring-color: transparent;
+  --tw-ring-shadow: 0 0 transparent;
+  box-shadow: none;
 }
 
 /* ========== SCROLLBAR ========== */
@@ -516,93 +119,66 @@ pre::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
 
-/* ========== OVERRIDE CONFLICTING NEXTRA STYLES ========== */
+/* ========== DOCS LINK POLISH ========== */
 
-/* Remove all Nextra code styling that conflicts */
-.nextra-code-block,
-.nextra-code-block pre,
-.nextra-code,
-div[data-rehype-pretty-code-fragment],
-div[data-rehype-pretty-code-fragment] pre,
-[class*="nx-"] pre {
-  border: none !important;
-  box-shadow: none !important;
-  background: inherit !important;
-  margin: 0 !important;
-  padding: inherit !important;
+:root {
+  --docs-link-color: #0f4fd8;
+  --docs-link-hover-color: #0b3ca8;
+  --docs-link-visited-color: #1762f0;
+  --docs-link-underline: rgba(15, 79, 216, 0.5);
+  --docs-link-hover-underline: rgba(11, 60, 168, 0.9);
+  --docs-link-hover-bg: rgba(15, 79, 216, 0.1);
+  --docs-link-focus-ring: rgba(15, 79, 216, 0.45);
 }
 
-/* Restore main content padding but override for code blocks only */
-main.nx-w-full.nx-min-w-0.nx-max-w-6xl.nx-px-6.nx-pt-4,
-main[class*="nx-px-6"],
-main[class*="nx-px-12"] {
-  padding-left: 1.5rem !important;
-  padding-right: 1.5rem !important;
+.dark {
+  --docs-link-color: #7dd3fc;
+  --docs-link-hover-color: #bae6fd;
+  --docs-link-visited-color: #a5f3fc;
+  --docs-link-underline: rgba(125, 211, 252, 0.55);
+  --docs-link-hover-underline: rgba(186, 230, 253, 0.95);
+  --docs-link-hover-bg: rgba(56, 189, 248, 0.2);
+  --docs-link-focus-ring: rgba(125, 211, 252, 0.55);
 }
 
-/* Override Nextra code block containers */
-.nextra-code-block.nx-relative.nx-mt-6 {
-  padding: 0 !important;
-  margin: 0 !important;
+.nextra-content :where(p, li, td, blockquote, figcaption) a[href],
+article :where(p, li, td, blockquote, figcaption) a[href] {
+  color: var(--docs-link-color);
+  border-radius: 0.3rem;
+  text-decoration-line: underline;
+  text-decoration-thickness: 0.1em;
+  text-underline-offset: 0.18em;
+  text-decoration-color: var(--docs-link-underline);
+  text-decoration-skip-ink: auto;
+  transition:
+    color 0.16s ease,
+    text-decoration-color 0.16s ease,
+    text-underline-offset 0.16s ease,
+    background-color 0.16s ease;
 }
 
-/* Override pre elements with Nextra classes - remove all visual styling */
-pre.nx-bg-primary-700\/5.nx-mb-4.nx-overflow-x-auto.nx-rounded-xl,
-pre[class*="nx-bg-primary"],
-pre[class*="nx-mb-"],
-pre[class*="nx-overflow-x-auto"],
-pre[class*="nx-rounded"] {
-  padding: 0 !important;
-  margin: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  border: none !important;
-  overflow: visible !important;
+.nextra-content :where(p, li, td, blockquote, figcaption) a[href]:visited,
+article :where(p, li, td, blockquote, figcaption) a[href]:visited {
+  color: var(--docs-link-visited-color);
 }
 
-/* Ensure tab panels have no padding */
-div[role="tabpanel"],
-.tab-content,
-.tabs-panel {
-  padding: 0 !important;
-  margin: 0 !important;
+.nextra-content :where(p, li, td, blockquote, figcaption) a[href]:hover,
+.nextra-content :where(p, li, td, blockquote, figcaption) a[href]:focus-visible,
+article :where(p, li, td, blockquote, figcaption) a[href]:hover,
+article :where(p, li, td, blockquote, figcaption) a[href]:focus-visible {
+  color: var(--docs-link-hover-color);
+  text-decoration-color: var(--docs-link-hover-underline);
+  text-underline-offset: 0.22em;
+  background-color: var(--docs-link-hover-bg);
 }
 
-/* Remove styling from any nested containers */
-div[style*="background"] pre,
-div[style*="#0b0b0b"] pre,
-div[style*="#1e1e1e"] pre,
-div[style*="minHeight"] pre {
-  border: none !important;
-  border-radius: 0 !important;
-  margin: 0 !important;
-  box-shadow: none !important;
-  padding: 1rem !important;
+.nextra-content :where(p, li, td, blockquote, figcaption) a[href]:focus-visible,
+article :where(p, li, td, blockquote, figcaption) a[href]:focus-visible {
+  outline: 2px solid var(--docs-link-focus-ring);
+  outline-offset: 2px;
 }
 
-/* Aggressive override for code tabs - remove all padding and margins from wrappers */
-.code-tabs .code-tabs-content > *,
-.code-tabs .code-tabs-content > * > *,
-.code-tabs .code-tabs-content > * > * > * {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Ensure code blocks in tabs span full width */
-.code-tabs .code-tabs-content pre {
-  width: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
-  border: none !important;
-}
-
-/* Override any Nextra container styles */
-.code-tabs [class*="nextra"],
-.code-tabs [class*="nx-"],
-.code-tabs div[class*="code"] {
-  padding: 0 !important;
-  margin: 0 !important;
-  border: none !important;
-  background: transparent !important;
+.nextra-content :where(p, li, td, blockquote, figcaption) a[href] > code,
+article :where(p, li, td, blockquote, figcaption) a[href] > code {
+  color: inherit;
 }
