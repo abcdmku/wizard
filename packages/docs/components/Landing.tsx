@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 
 import { useDarkMode } from "./hooks/useDarkMode";
 
@@ -68,6 +69,7 @@ function CopyBtn({ text, isDark }: { text: string; isDark: boolean }) {
 
 export function Landing() {
   const isDark = useDarkMode();
+  const { setTheme } = useTheme();
 
   const bg = isDark ? "#0a0a0a" : "#fff";
   const fg = isDark ? "#e5e5e5" : "#0a0a0a";
@@ -81,7 +83,33 @@ export function Landing() {
     <div style={{ background: bg, minHeight: "100vh" }}>
       {/* hero */}
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 24px" }}>
-        <div style={{ paddingTop: 100, paddingBottom: 64 }}>
+        {/* dark mode toggle */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            paddingTop: 16,
+          }}
+        >
+          <button
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            aria-label="Toggle dark mode"
+            style={{
+              background: "none",
+              border: `1px solid ${faint}`,
+              borderRadius: 6,
+              padding: "6px 8px",
+              cursor: "pointer",
+              color: dim,
+              fontSize: 14,
+              lineHeight: 1,
+            }}
+          >
+            {isDark ? "\u2600" : "\u263E"}
+          </button>
+        </div>
+
+        <div style={{ paddingTop: 64, paddingBottom: 64 }}>
           <h1
             style={{
               fontSize: "clamp(40px, 7vw, 72px)",
