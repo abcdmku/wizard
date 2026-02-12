@@ -3,8 +3,10 @@ import { FormWizard } from "../wizard/steps";
 
 export function StepIndicator() {
   const { step: currentStep, helpers } = useWizard(FormWizard);
-  const steps = helpers.allSteps().filter(step => !step?.meta?.hidden); // Only include steps that are not hidden
+  const steps = helpers.allSteps().filter((step) => !step?.meta?.hidden);
   const currentIndex = helpers.stepIndex(currentStep);
+  const progressPercent =
+    steps.length <= 1 ? 0 : (Math.max(currentIndex, 0) / (steps.length - 1)) * 100;
 
   return (
     <div className="w-full">
@@ -16,9 +18,7 @@ export function StepIndicator() {
         <div
           className="absolute left-6 top-6 h-0.5 bg-blue-600 dark:bg-blue-500 transition-all duration-300 ease-in-out"
           style={{
-            width: currentIndex === 0 ? '0%' :
-                   currentIndex === 1 ? 'calc(50% - 24px)' :
-                   'calc(100% - 48px)'
+            width: `calc(${progressPercent}% - ${(progressPercent / 100) * 48}px)`,
           }}
         />
 

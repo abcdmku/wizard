@@ -6,6 +6,8 @@ const repoUrl =
     ? `https://github.com/${process.env.GITHUB_REPOSITORY}`
     : "https://github.com/user/wizard";
 
+const currentYear = new Date().getUTCFullYear();
+
 const config: DocsThemeConfig = {
   logo: <span className="font-semibold text-lg">Wizard</span>,
   project: {
@@ -17,8 +19,8 @@ const config: DocsThemeConfig = {
   docsRepositoryBase: `${repoUrl}/tree/main/packages/docs`,
   footer: {
     text: (
-      <span>
-        {new Date().getFullYear()} &copy; Wizard - Type-Safe Multi-Step Wizards
+      <span suppressHydrationWarning>
+        {currentYear} &copy; Wizard - Type-Safe Multi-Step Wizards
         for TypeScript
       </span>
     ),

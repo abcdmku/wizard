@@ -1,69 +1,430 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import type { Monaco } from "@monaco-editor/react";
 
-import { useDarkMode } from "./hooks/useDarkMode";
+type StepId = "info" | "plan" | "pay" | "done";
 
-/* ── code snippets ─────────────────────────────────────── */
+type IdeFile =
+  | "src/wizard.ts"
+  | "src/Signup.tsx"
+  | "src/components/steps/InfoStep.tsx"
+  | "src/components/steps/PlanStep.tsx"
+  | "src/components/steps/PaymentStep.tsx";
 
-const DEFINE = `import { createWizardFactory } from '@wizard/core';
+interface DemoConfig {
+  next: Record<StepId, StepId[]>;
+  labels: Record<StepId, string>;
+  titles: Record<StepId, string>;
+  descriptions: Record<StepId, string>;
+  placeholders: {
+    info: string;
+    pay: string;
+  };
+  doneMessage: string;
+  resetLabel: string;
+  nav: {
+    backLabel: string;
+    nextLabel: string;
+    completeLabel: string;
+  };
+}
 
-const factory = createWizardFactory<{
-  userId?: string;
-}>();
+interface ParseResult {
+  config: DemoConfig;
+  error: string | null;
+}
+
+const MonacoEditor = dynamic(
+  () => import("@monaco-editor/react").then((module) => module.default),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          minHeight: 520,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#6b7280",
+          fontSize: 12,
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        }}
+      >
+        Loading editor...
+      </div>
+    ),
+  },
+);
+
+const STEP_ORDER: StepId[] = ["info", "plan", "pay", "done"];
+const PHOTO_EDITOR_DARK_THEME = "wizard-photo-dark";
+const PHOTO_EDITOR_LIGHT_THEME = "wizard-photo-light";
+
+function configurePhotoEditorThemes(monaco: Monaco) {
+  monaco.editor.defineTheme(PHOTO_EDITOR_DARK_THEME, {
+    base: "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: "6A9955" },
+      { token: "keyword", foreground: "C586C0" },
+      { token: "string", foreground: "CE9178" },
+      { token: "number", foreground: "B5CEA8" },
+      { token: "regexp", foreground: "D16969" },
+      { token: "identifier", foreground: "9CDCFE" },
+      { token: "variable", foreground: "9CDCFE" },
+      { token: "type", foreground: "4EC9B0" },
+      { token: "type.identifier", foreground: "4EC9B0" },
+      { token: "function", foreground: "DCDCAA" },
+      { token: "delimiter", foreground: "D4D4D4" },
+      { token: "operator", foreground: "D4D4D4" },
+    ],
+    colors: {
+      "editor.background": "#1E1E1E",
+      "editor.foreground": "#D4D4D4",
+      "editorLineNumber.foreground": "#6E7681",
+      "editorLineNumber.activeForeground": "#D4D4D4",
+      "editorCursor.foreground": "#AEAFAD",
+      "editor.selectionBackground": "#264F78",
+      "editor.inactiveSelectionBackground": "#3A3D41",
+      "editorIndentGuide.background1": "#404040",
+      "editorIndentGuide.activeBackground1": "#707070",
+      "editorBracketHighlight.foreground1": "#FFD700",
+      "editorBracketHighlight.foreground2": "#DA70D6",
+      "editorBracketHighlight.foreground3": "#4EC9B0",
+      "editorBracketHighlight.foreground4": "#569CD6",
+      "editorBracketHighlight.foreground5": "#D7BA7D",
+      "editorBracketHighlight.foreground6": "#C586C0",
+      "editorBracketHighlight.unexpectedBracket.foreground": "#F44747",
+    },
+  });
+
+  monaco.editor.defineTheme(PHOTO_EDITOR_LIGHT_THEME, {
+    base: "vs",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: "6A737D" },
+      { token: "keyword", foreground: "AF00DB" },
+      { token: "string", foreground: "A31515" },
+      { token: "number", foreground: "098658" },
+      { token: "regexp", foreground: "811F3F" },
+      { token: "identifier", foreground: "001080" },
+      { token: "variable", foreground: "001080" },
+      { token: "type", foreground: "267F99" },
+      { token: "type.identifier", foreground: "267F99" },
+      { token: "function", foreground: "795E26" },
+      { token: "delimiter", foreground: "24292E" },
+      { token: "operator", foreground: "24292E" },
+    ],
+    colors: {
+      "editor.background": "#FFFFFF",
+      "editor.foreground": "#24292E",
+      "editorLineNumber.foreground": "#9CA3AF",
+      "editorLineNumber.activeForeground": "#4B5563",
+      "editorCursor.foreground": "#111827",
+      "editor.selectionBackground": "#BFDBFE",
+      "editor.inactiveSelectionBackground": "#DBEAFE",
+      "editorIndentGuide.background1": "#E5E7EB",
+      "editorIndentGuide.activeBackground1": "#CBD5E1",
+      "editorBracketHighlight.foreground1": "#0EA5E9",
+      "editorBracketHighlight.foreground2": "#F59E0B",
+      "editorBracketHighlight.foreground3": "#8B5CF6",
+      "editorBracketHighlight.foreground4": "#10B981",
+      "editorBracketHighlight.foreground5": "#EF4444",
+      "editorBracketHighlight.foreground6": "#2563EB",
+      "editorBracketHighlight.unexpectedBracket.foreground": "#DC2626",
+    },
+  });
+}
+
+const IDE_FILES: Record<IdeFile, string> = {
+  "src/wizard.ts": `import { createWizardFactory } from '@wizard/core';
+
+const factory = createWizardFactory();
 
 const steps = factory.defineSteps({
-  info:  factory.step({ data: { name: '' },  next: ['plan'] }),
-  plan:  factory.step({ data: { tier: '' },  next: ['pay'] }),
-  pay:   factory.step({ data: { card: '' },  next: ['done'] }),
-  done:  factory.step({ data: { ok: false }, next: [] }),
+  info: factory.step({
+    data: { name: '' },
+    next: ['plan'],
+    meta: {
+      label: 'Info',
+      title: "What's your name?",
+      description: "Let's start with the basics.",
+      placeholder: 'Enter your name...',
+    },
+  }),
+  plan: factory.step({
+    data: { tier: '' },
+    next: ['pay'],
+    meta: {
+      label: 'Plan',
+      title: 'Choose your plan',
+      description: 'Pick the tier that fits your needs.',
+    },
+  }),
+  pay: factory.step({
+    data: { card: '' },
+    next: ['done'],
+    meta: {
+      label: 'Payment',
+      title: 'Payment details',
+      description: 'Enter your card to complete signup.',
+      placeholder: '4242 4242 4242 4242',
+    },
+  }),
+  done: factory.step({
+    data: { ok: false },
+    next: [],
+    meta: {
+      label: 'Done',
+      title: 'All done!',
+      doneMessage: 'Your wizard flow is complete.',
+      resetLabel: 'start over',
+    },
+  }),
 });
 
 export const wizard = factory.createWizard(steps, {
   context: {},
-});`;
-
-const REACT = `import { useWizard } from '@wizard/react';
+});`,
+  "src/Signup.tsx": `import { useWizard } from '@wizard/react';
 import { wizard } from './wizard';
 
-function Signup() {
-  const { step, data, goTo, next, back, helpers } = useWizard(wizard);
+const backLabel = 'Back';
+const nextLabel = 'Next';
+const completeLabel = 'Complete';
+
+export function Signup() {
+  const { step, next, back, helpers } = useWizard(wizard);
   const { percent } = helpers.progress();
 
   return (
     <div>
       <ProgressBar value={percent} />
-      <h2>Step: {step}</h2>
+      <StepTitle id={step} />
 
-      {step === 'info' && (
-        <InfoForm
-          value={data.name}
-          onNext={() => next()}
-        />
-      )}
+      <WizardStepRenderer
+        step={step}
+        onBack={back}
+        onNext={next}
+        labels={{ backLabel, nextLabel, completeLabel }}
+      />
     </div>
   );
-}`;
+}`,
+  "src/components/steps/InfoStep.tsx": `export function InfoStep() {
+  return (
+    <Field
+      label="Name"
+      placeholder="Enter your name..."
+    />
+  );
+}`,
+  "src/components/steps/PlanStep.tsx": `const plans = [
+  { id: 'free', label: 'Free', price: '$0/mo' },
+  { id: 'pro', label: 'Pro', price: '$12/mo' },
+  { id: 'team', label: 'Team', price: '$49/mo' },
+];
 
-/* ── helpers ───────────────────────────────────────────── */
+export function PlanStep() {
+  return <PlanCards plans={plans} />;
+}`,
+  "src/components/steps/PaymentStep.tsx": `export function PaymentStep() {
+  return (
+    <Field
+      label="Card number"
+      placeholder="4242 4242 4242 4242"
+    />
+  );
+}`,
+};
+
+const IDE_FILE_ORDER: IdeFile[] = [
+  "src/wizard.ts",
+  "src/Signup.tsx",
+  "src/components/steps/InfoStep.tsx",
+  "src/components/steps/PlanStep.tsx",
+  "src/components/steps/PaymentStep.tsx",
+];
+
+function displayFileName(file: IdeFile) {
+  const parts = file.split("/");
+  return parts[parts.length - 1];
+}
+
+const PLAN_OPTIONS = [
+  { id: "free", label: "Free", price: "$0/mo" },
+  { id: "pro", label: "Pro", price: "$12/mo" },
+  { id: "team", label: "Team", price: "$49/mo" },
+] as const;
+
+const BASE_CONFIG: DemoConfig = {
+  next: {
+    info: ["plan"],
+    plan: ["pay"],
+    pay: ["done"],
+    done: [],
+  },
+  labels: {
+    info: "Info",
+    plan: "Plan",
+    pay: "Payment",
+    done: "Done",
+  },
+  titles: {
+    info: "What's your name?",
+    plan: "Choose your plan",
+    pay: "Payment details",
+    done: "All done!",
+  },
+  descriptions: {
+    info: "Let's start with the basics.",
+    plan: "Pick the tier that fits your needs.",
+    pay: "Enter your card to complete signup.",
+    done: "Your wizard flow is complete.",
+  },
+  placeholders: {
+    info: "Enter your name...",
+    pay: "4242 4242 4242 4242",
+  },
+  doneMessage: "Your wizard flow is complete.",
+  resetLabel: "start over",
+  nav: {
+    backLabel: "Back",
+    nextLabel: "Next",
+    completeLabel: "Complete",
+  },
+};
+
+function cloneConfig(config: DemoConfig): DemoConfig {
+  return {
+    next: {
+      info: [...config.next.info],
+      plan: [...config.next.plan],
+      pay: [...config.next.pay],
+      done: [...config.next.done],
+    },
+    labels: { ...config.labels },
+    titles: { ...config.titles },
+    descriptions: { ...config.descriptions },
+    placeholders: { ...config.placeholders },
+    doneMessage: config.doneMessage,
+    resetLabel: config.resetLabel,
+    nav: { ...config.nav },
+  };
+}
+
+function extractObjectString(source: string, key: string): string | null {
+  const pattern = new RegExp(`${key}\\s*:\\s*[\"']([^\"']+)[\"']`);
+  const match = source.match(pattern);
+  return match ? match[1] : null;
+}
+
+function extractConstString(source: string, key: string): string | null {
+  const pattern = new RegExp(`${key}\\s*=\\s*[\"']([^\"']+)[\"']`);
+  const match = source.match(pattern);
+  return match ? match[1] : null;
+}
+
+function extractStepBody(code: string, stepId: StepId): string | null {
+  const pattern = new RegExp(
+    `${stepId}\\s*:\\s*factory\\.step\\(\\{([\\s\\S]*?)\\}\\),?`,
+    "m",
+  );
+  const match = code.match(pattern);
+  return match ? match[1] : null;
+}
+
+function parseWizardConfig(code: string): ParseResult {
+  const config = cloneConfig(BASE_CONFIG);
+  let parsedStepCount = 0;
+
+  for (const stepId of STEP_ORDER) {
+    const body = extractStepBody(code, stepId);
+    if (!body) {
+      continue;
+    }
+
+    parsedStepCount += 1;
+
+    const nextMatch = body.match(/next\s*:\s*\[(.*?)\]/);
+    if (nextMatch) {
+      const parsedNext = Array.from(
+        nextMatch[1].matchAll(/["'](info|plan|pay|done)["']/g),
+      ).map((value) => value[1] as StepId);
+      config.next[stepId] = parsedNext;
+    }
+
+    const label = extractObjectString(body, "label");
+    if (label) config.labels[stepId] = label;
+
+    const title = extractObjectString(body, "title");
+    if (title) config.titles[stepId] = title;
+
+    const description = extractObjectString(body, "description");
+    if (description) config.descriptions[stepId] = description;
+
+    if (stepId === "info") {
+      const placeholder = extractObjectString(body, "placeholder");
+      if (placeholder) config.placeholders.info = placeholder;
+    }
+
+    if (stepId === "pay") {
+      const placeholder = extractObjectString(body, "placeholder");
+      if (placeholder) config.placeholders.pay = placeholder;
+    }
+
+    if (stepId === "done") {
+      const doneMessage = extractObjectString(body, "doneMessage");
+      if (doneMessage) config.doneMessage = doneMessage;
+
+      const resetLabel = extractObjectString(body, "resetLabel");
+      if (resetLabel) config.resetLabel = resetLabel;
+    }
+  }
+
+  if (parsedStepCount === 0) {
+    return {
+      config,
+      error:
+        "Could not parse wizard.ts. Keep factory.step({ ... }) blocks for info/plan/pay/done.",
+    };
+  }
+
+  return { config, error: null };
+}
+
+function parseSignupLabels(code: string): Partial<DemoConfig["nav"]> {
+  return {
+    backLabel: extractConstString(code, "backLabel") ?? undefined,
+    nextLabel: extractConstString(code, "nextLabel") ?? undefined,
+    completeLabel: extractConstString(code, "completeLabel") ?? undefined,
+  };
+}
 
 function CopyBtn({ text, isDark }: { text: string; isDark: boolean }) {
   const [copied, setCopied] = useState(false);
+
   return (
     <button
       onClick={() => {
         navigator.clipboard.writeText(text);
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setTimeout(() => setCopied(false), 1800);
       }}
-      className="border-none cursor-pointer text-[11px] font-mono px-2 py-0.5 rounded transition-colors"
       style={{
+        border: "none",
+        cursor: "pointer",
+        fontSize: 11,
+        borderRadius: 5,
+        padding: "3px 8px",
         background: copied
           ? isDark
             ? "rgba(255,255,255,0.08)"
             : "rgba(0,0,0,0.06)"
           : "transparent",
-        color: isDark ? "#555" : "#999",
+        color: isDark ? "#666" : "#999",
       }}
     >
       {copied ? "copied" : "copy"}
@@ -71,786 +432,475 @@ function CopyBtn({ text, isDark }: { text: string; isDark: boolean }) {
   );
 }
 
-/* ── simulated wizard state ────────────────────────────── */
-
-type StepId = "info" | "plan" | "pay" | "done";
-
-interface WizardState {
-  step: StepId;
-  data: Record<StepId, Record<string, unknown>>;
-  history: StepId[];
-  visited: StepId[];
-}
-
-const STEP_CONFIG: Record<
-  StepId,
-  { next: StepId[]; dataKey: string; defaultData: Record<string, unknown> }
-> = {
-  info: { next: ["plan"], dataKey: "name", defaultData: { name: "" } },
-  plan: { next: ["pay"], dataKey: "tier", defaultData: { tier: "" } },
-  pay: { next: ["done"], dataKey: "card", defaultData: { card: "" } },
-  done: { next: [], dataKey: "ok", defaultData: { ok: false } },
-};
-
-const STEP_ORDER: StepId[] = ["info", "plan", "pay", "done"];
-
-function initialState(): WizardState {
-  return {
-    step: "info",
-    data: {
-      info: { name: "" },
-      plan: { tier: "" },
-      pay: { card: "" },
-      done: { ok: false },
-    },
-    history: ["info"],
-    visited: ["info"],
-  };
-}
-
-function getProgress(state: WizardState) {
-  const idx = STEP_ORDER.indexOf(state.step);
-  return Math.round((idx / STEP_ORDER.length) * 100);
-}
-
-/* ── visual wizard demo ────────────────────────────────── */
-
-const STEP_LABELS: Record<StepId, string> = {
-  info: "Info",
-  plan: "Plan",
-  pay: "Payment",
-  done: "Done",
-};
-
-interface ActionLogEntry {
-  action: string;
-  result: string;
-}
-
-function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
-  const [state, setState] = useState<WizardState>(initialState);
-  const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
-
-  const dim = isDark ? "#555" : "#999";
-  const faint = isDark ? "#1e1e1e" : "#e5e5e5";
-  const accent = isDark ? "#fff" : "#0a0a0a";
-  const green = isDark ? "#4ade80" : "#16a34a";
-  const blue = isDark ? "#60a5fa" : "#2563eb";
-  const panelBg = isDark ? "#0d0d0d" : "#f7f7f7";
-  const inputBg = isDark ? "#1a1a1a" : "#fff";
-  const surfaceBg = isDark ? "#111" : "#fafafa";
-
-  const progress = getProgress(state);
-  const idx = STEP_ORDER.indexOf(state.step);
-
-  function logAction(action: string, result: string) {
-    setActionLog((l) => [...l.slice(-4), { action, result }]);
-  }
-
-  function goNext() {
-    const cfg = STEP_CONFIG[state.step];
-    if (cfg.next.length === 0) return;
-    const nextStep = cfg.next[0];
-    setState((s) => ({
-      ...s,
-      step: nextStep,
-      history: [...s.history, nextStep],
-      visited: s.visited.includes(nextStep)
-        ? s.visited
-        : [...s.visited, nextStep],
-    }));
-    logAction("next()", `\u2192 step: '${nextStep}'`);
-  }
-
-  function goBack() {
-    if (state.history.length <= 1) return;
-    const newHistory = state.history.slice(0, -1);
-    const prev = newHistory[newHistory.length - 1];
-    setState((s) => ({ ...s, step: prev, history: newHistory }));
-    logAction("back()", `\u2190 step: '${prev}'`);
-  }
-
-  function resetWizard() {
-    setState(initialState());
-    setActionLog([]);
-  }
-
-  function updateData(key: string, value: unknown) {
-    setState((s) => ({
-      ...s,
-      data: {
-        ...s.data,
-        [s.step]: { ...s.data[s.step], [key]: value },
-      },
-    }));
-  }
-
-  function isStepValid(stepId: StepId): boolean {
-    const d = state.data[stepId];
-    switch (stepId) {
-      case "info":
-        return (d.name as string).trim().length > 0;
-      case "plan":
-        return (d.tier as string).length > 0;
-      case "pay":
-        return (d.card as string).trim().length >= 4;
-      case "done":
-        return true;
-    }
-  }
-
-  function canNavigateTo(stepId: StepId): boolean {
-    const targetIdx = STEP_ORDER.indexOf(stepId);
-    if (targetIdx === idx) return false; // already here
-    if (targetIdx < idx) return true; // can always go back
-    // can go forward only if all steps before target are valid
-    for (let i = 0; i < targetIdx; i++) {
-      if (!isStepValid(STEP_ORDER[i])) return false;
-    }
-    return true;
-  }
-
-  function goToStep(stepId: StepId) {
-    if (!canNavigateTo(stepId)) return;
-    setState((s) => ({
-      ...s,
-      step: stepId,
-      history: [
-        ...s.history.filter(
-          (h) => STEP_ORDER.indexOf(h) < STEP_ORDER.indexOf(stepId),
-        ),
-        stepId,
-      ],
-      visited: s.visited.includes(stepId) ? s.visited : [...s.visited, stepId],
-    }));
-    logAction(`goTo('${stepId}')`, `\u2192 step: '${stepId}'`);
-  }
-
-  const canGoBack = state.history.length > 1;
-  const canGoNext = STEP_CONFIG[state.step].next.length > 0;
-  const stepValid = isStepValid(state.step);
+function DocsMonacoEditor({
+  value,
+  onChange,
+  fileName,
+  mono,
+  isDark,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  fileName: string;
+  mono: string;
+  isDark: boolean;
+}) {
+  const editorSurface = isDark ? "#1e1e1e" : "#ffffff";
+  const editorTheme = isDark ? PHOTO_EDITOR_DARK_THEME : PHOTO_EDITOR_LIGHT_THEME;
 
   return (
     <div
       style={{
-        border: `1px solid ${faint}`,
-        borderRadius: 10,
+        width: "100%",
+        minHeight: 520,
+        maxHeight: 700,
+        background: editorSurface,
         overflow: "hidden",
+        boxSizing: "border-box",
       }}
     >
-      {/* step indicator */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "center",
-          padding: "24px 32px 16px",
-          gap: 0,
+      <MonacoEditor
+        beforeMount={configurePhotoEditorThemes}
+        path={fileName}
+        language="typescript"
+        theme={editorTheme}
+        value={value}
+        onChange={(nextValue) => onChange(nextValue ?? "")}
+        height="520px"
+        options={{
+          readOnly: false,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          fontSize: 13,
+          fontFamily: mono,
+          lineNumbers: "on",
+          lineNumbersMinChars: 1,
+          glyphMargin: false,
+          folding: false,
+          lineDecorationsWidth: 0,
+          overviewRulerLanes: 0,
+          overviewRulerBorder: false,
+          renderLineHighlight: "none",
+          tabSize: 2,
+          automaticLayout: true,
+          renderWhitespace: "selection",
+          bracketPairColorization: { enabled: true },
+          scrollbar: {
+            vertical: "auto",
+            horizontal: "auto",
+            verticalScrollbarSize: 8,
+            horizontalScrollbarSize: 8,
+          },
+          padding: { top: 6, bottom: 6 },
         }}
-      >
-        {STEP_ORDER.map((stepId, i) => {
-          const isActive = i === idx;
-          const isCompleted =
-            !isActive && isStepValid(stepId) && state.visited.includes(stepId);
-          const navigable = canNavigateTo(stepId);
-          const locked = !isActive && !navigable;
+      />
+    </div>
+  );
+}
+
+function LiveWizardPreview({
+  config,
+  isDark,
+  mono,
+}: {
+  config: DemoConfig;
+  isDark: boolean;
+  mono: string;
+}) {
+  const [step, setStep] = useState<StepId>("info");
+  const [history, setHistory] = useState<StepId[]>(["info"]);
+  const [data, setData] = useState({
+    info: { name: "" },
+    plan: { tier: "" },
+    pay: { card: "" },
+    done: { ok: false },
+  });
+
+  const dim = isDark ? "#888" : "#666";
+  const faint = isDark ? "#2b2b2b" : "#e5e5e5";
+  const bg = isDark ? "#0a0a0a" : "#fff";
+  const fg = isDark ? "#ececec" : "#111";
+
+  const index = STEP_ORDER.indexOf(step);
+
+  function updateStepData(patch: Record<string, unknown>) {
+    setData((current) => ({
+      ...current,
+      [step]: {
+        ...(current[step] as Record<string, unknown>),
+        ...patch,
+      },
+    }));
+  }
+
+  function validate(id: StepId): boolean {
+    if (id === "info") return data.info.name.trim().length > 0;
+    if (id === "plan") return data.plan.tier.trim().length > 0;
+    if (id === "pay") return data.pay.card.trim().length >= 4;
+    return true;
+  }
+
+  function goBack() {
+    if (history.length <= 1) return;
+    const nextHistory = history.slice(0, -1);
+    setHistory(nextHistory);
+    setStep(nextHistory[nextHistory.length - 1]);
+  }
+
+  function goNext() {
+    const nextStep = (config.next[step] ?? [])[0];
+    if (!nextStep || !validate(step)) return;
+    setStep(nextStep);
+    setHistory((current) => [...current, nextStep]);
+  }
+
+  function reset() {
+    setStep("info");
+    setHistory(["info"]);
+    setData({
+      info: { name: "" },
+      plan: { tier: "" },
+      pay: { card: "" },
+      done: { ok: false },
+    });
+  }
+
+  return (
+    <div style={{ border: `1px solid ${faint}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ display: "flex", gap: 8, padding: 10, borderBottom: `1px solid ${faint}` }}>
+        {STEP_ORDER.map((id, i) => {
+          const active = id === step;
+          const complete = i < index;
           return (
-            <React.Fragment key={stepId}>
-              {i > 0 && (
-                <div
-                  style={{
-                    width: 48,
-                    height: 2,
-                    marginTop: 13,
-                    borderRadius: 1,
-                    background: isCompleted || isActive ? accent : faint,
-                    transition: "background 0.3s ease",
-                  }}
-                />
-              )}
-              <div
-                onClick={() => goToStep(stepId)}
-                role={navigable ? "button" : undefined}
-                title={locked ? "Complete previous steps first" : undefined}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 6,
-                  minWidth: 56,
-                  cursor: navigable ? "pointer" : "default",
-                  opacity: locked ? 0.35 : 1,
-                  transition: "opacity 0.2s ease",
-                }}
-              >
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    fontFamily: mono,
-                    transition: "all 0.3s ease",
-                    background: isActive ? accent : "transparent",
-                    color: isActive
-                      ? isDark
-                        ? "#0a0a0a"
-                        : "#fff"
-                      : isCompleted
-                        ? green
-                        : navigable
-                          ? isDark
-                            ? "#aaa"
-                            : "#555"
-                          : dim,
-                    border: `1.5px solid ${isActive ? accent : isCompleted ? green : locked ? (isDark ? "#222" : "#ddd") : navigable ? (isDark ? "#666" : "#aaa") : faint}`,
-                  }}
-                >
-                  {isCompleted ? (
-                    "\u2713"
-                  ) : locked ? (
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                  ) : (
-                    i + 1
-                  )}
-                </div>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontFamily: mono,
-                    color: isActive
-                      ? accent
-                      : isCompleted
-                        ? green
-                        : navigable
-                          ? isDark
-                            ? "#aaa"
-                            : "#555"
-                          : dim,
-                    fontWeight: isActive ? 600 : 400,
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  {STEP_LABELS[stepId]}
-                </span>
-              </div>
-            </React.Fragment>
+            <button
+              key={id}
+              onClick={() => {
+                if (i <= index) setStep(id);
+              }}
+              style={{
+                border: `1px solid ${active ? fg : faint}`,
+                background: active ? (isDark ? "#161616" : "#f5f5f5") : "transparent",
+                color: complete ? (isDark ? "#86efac" : "#15803d") : fg,
+                borderRadius: 6,
+                padding: "4px 8px",
+                fontSize: 11,
+                fontFamily: mono,
+                cursor: i <= index ? "pointer" : "default",
+                opacity: i <= index ? 1 : 0.5,
+              }}
+            >
+              {config.labels[id]}
+            </button>
           );
         })}
       </div>
 
-      {/* step content */}
-      <div style={{ padding: "28px 32px 8px", minHeight: 190 }}>
-        {state.step === "info" && (
-          <div>
-            <h3
-              style={{
-                margin: "0 0 4px",
-                fontSize: 17,
-                fontWeight: 700,
-                color: accent,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              What's your name?
-            </h3>
-            <p
-              style={{
-                margin: "0 0 16px",
-                fontSize: 13,
-                color: dim,
-                lineHeight: 1.5,
-              }}
-            >
-              Let's start with the basics.
-            </p>
-            <input
-              type="text"
-              placeholder="Enter your name..."
-              value={(state.data.info.name as string) || ""}
-              onChange={(e) => updateData("name", e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                fontSize: 13,
-                fontFamily: mono,
-                borderRadius: 6,
-                border: `1px solid ${faint}`,
-                background: inputBg,
-                color: accent,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
+      <div style={{ padding: 14, minHeight: 220, background: bg }}>
+        <h3 style={{ margin: "0 0 4px", color: fg, fontSize: 17 }}>{config.titles[step]}</h3>
+        <p style={{ margin: "0 0 14px", color: dim, fontSize: 13 }}>{config.descriptions[step]}</p>
+
+        {step === "info" && (
+          <input
+            value={data.info.name}
+            onChange={(event) => updateStepData({ name: event.target.value })}
+            placeholder={config.placeholders.info}
+            style={{
+              width: "100%",
+              border: `1px solid ${faint}`,
+              borderRadius: 6,
+              padding: "10px 12px",
+              background: isDark ? "#111" : "#fff",
+              color: fg,
+            }}
+          />
+        )}
+
+        {step === "plan" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+            {PLAN_OPTIONS.map((plan) => {
+              const selected = data.plan.tier === plan.id;
+              return (
+                <button
+                  key={plan.id}
+                  onClick={() => updateStepData({ tier: plan.id })}
+                  style={{
+                    border: `1px solid ${selected ? fg : faint}`,
+                    borderRadius: 8,
+                    padding: 10,
+                    background: selected
+                      ? isDark
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.03)"
+                      : "transparent",
+                    color: fg,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{plan.label}</div>
+                  <div style={{ fontSize: 12, color: dim }}>{plan.price}</div>
+                </button>
+              );
+            })}
           </div>
         )}
 
-        {state.step === "plan" && (
-          <div>
-            <h3
-              style={{
-                margin: "0 0 4px",
-                fontSize: 17,
-                fontWeight: 700,
-                color: accent,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Choose your plan
-            </h3>
-            <p
-              style={{
-                margin: "0 0 16px",
-                fontSize: 13,
-                color: dim,
-                lineHeight: 1.5,
-              }}
-            >
-              Pick the tier that fits your needs.
-            </p>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 10,
-              }}
-            >
-              {[
-                {
-                  id: "free",
-                  label: "Free",
-                  price: "$0",
-                  desc: "For side projects",
-                },
-                {
-                  id: "pro",
-                  label: "Pro",
-                  price: "$12",
-                  desc: "For professionals",
-                },
-                {
-                  id: "team",
-                  label: "Team",
-                  price: "$49",
-                  desc: "For organizations",
-                },
-              ].map((plan) => {
-                const selected = state.data.plan.tier === plan.id;
-                return (
-                  <button
-                    key={plan.id}
-                    onClick={() => {
-                      updateData("tier", plan.id);
-                      logAction(
-                        `setStepData('plan', { tier: '${plan.id}' })`,
-                        `data.tier = '${plan.id}'`,
-                      );
-                    }}
-                    style={{
-                      padding: "16px 12px",
-                      borderRadius: 8,
-                      border: `1.5px solid ${selected ? accent : faint}`,
-                      background: selected
-                        ? isDark
-                          ? "rgba(255,255,255,0.04)"
-                          : "rgba(0,0,0,0.02)"
-                        : "transparent",
-                      cursor: "pointer",
-                      textAlign: "center",
-                      transition: "all 0.15s ease",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: accent,
-                      }}
-                    >
-                      {plan.label}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 20,
-                        fontWeight: 700,
-                        color: accent,
-                        margin: "6px 0 2px",
-                      }}
-                    >
-                      {plan.price}
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 400,
-                          color: dim,
-                        }}
-                      >
-                        /mo
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 10, color: dim }}>{plan.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        {step === "pay" && (
+          <input
+            value={data.pay.card}
+            onChange={(event) => {
+              const raw = event.target.value.replace(/\D/g, "").slice(0, 16);
+              const formatted = raw.replace(/(.{4})/g, "$1 ").trim();
+              updateStepData({ card: formatted });
+            }}
+            placeholder={config.placeholders.pay}
+            style={{
+              width: "100%",
+              border: `1px solid ${faint}`,
+              borderRadius: 6,
+              padding: "10px 12px",
+              background: isDark ? "#111" : "#fff",
+              color: fg,
+            }}
+          />
         )}
 
-        {state.step === "pay" && (
+        {step === "done" && (
           <div>
-            <h3
-              style={{
-                margin: "0 0 4px",
-                fontSize: 17,
-                fontWeight: 700,
-                color: accent,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Payment details
-            </h3>
-            <p
-              style={{
-                margin: "0 0 16px",
-                fontSize: 13,
-                color: dim,
-                lineHeight: 1.5,
-              }}
-            >
-              Enter your card to complete signup.
-            </p>
-            <div style={{ display: "grid", gap: 10 }}>
-              <input
-                type="text"
-                placeholder="4242 4242 4242 4242"
-                value={(state.data.pay.card as string) || ""}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/\D/g, "").slice(0, 16);
-                  const formatted = raw.replace(/(.{4})/g, "$1 ").trim();
-                  updateData("card", formatted);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  fontSize: 13,
-                  fontFamily: mono,
-                  borderRadius: 6,
-                  border: `1px solid ${faint}`,
-                  background: inputBg,
-                  color: accent,
-                  outline: "none",
-                  boxSizing: "border-box",
-                  letterSpacing: "0.05em",
-                }}
-              />
-              {(state.data.pay.card as string).trim().length > 0 &&
-                (state.data.pay.card as string).trim().length < 4 && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: isDark ? "#f87171" : "#dc2626",
-                    }}
-                  >
-                    Enter a valid card number
-                  </span>
-                )}
-            </div>
-          </div>
-        )}
-
-        {state.step === "done" && (
-          <div style={{ textAlign: "center", padding: "12px 0" }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                background: green,
-                color: "#fff",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 22,
-                fontWeight: 700,
-                marginBottom: 12,
-              }}
-            >
-              {"\u2713"}
-            </div>
-            <h3
-              style={{
-                margin: "0 0 4px",
-                fontSize: 17,
-                fontWeight: 700,
-                color: accent,
-              }}
-            >
-              All done!
-            </h3>
-            <p
-              style={{
-                margin: "0 0 16px",
-                fontSize: 13,
-                color: dim,
-              }}
-            >
-              Your wizard flow is complete.
-            </p>
+            <p style={{ color: dim, marginBottom: 12 }}>{config.doneMessage}</p>
             <button
-              onClick={resetWizard}
+              onClick={reset}
               style={{
-                padding: "6px 16px",
-                fontSize: 12,
-                fontFamily: mono,
-                borderRadius: 6,
                 border: `1px solid ${faint}`,
                 background: "transparent",
-                color: dim,
-                cursor: "pointer",
+                borderRadius: 6,
+                padding: "8px 12px",
+                color: fg,
               }}
             >
-              start over
+              {config.resetLabel}
             </button>
           </div>
         )}
       </div>
 
-      {/* navigation buttons */}
-      {state.step !== "done" && (
+      {step !== "done" && (
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
-            padding: "0 32px 24px",
+            borderTop: `1px solid ${faint}`,
+            padding: 12,
+            background: isDark ? "#0d0d0d" : "#fafafa",
           }}
         >
           <button
-            onClick={() => {
-              goBack();
-            }}
-            disabled={!canGoBack}
+            onClick={goBack}
+            disabled={history.length <= 1}
             style={{
-              padding: "8px 16px",
-              fontSize: 13,
-              fontWeight: 500,
-              borderRadius: 6,
-              border: canGoBack
-                ? `1px solid ${faint}`
-                : "1px solid transparent",
+              border: `1px solid ${faint}`,
               background: "transparent",
-              color: canGoBack ? accent : "transparent",
-              cursor: canGoBack ? "pointer" : "default",
-              fontFamily: "inherit",
-              transition: "all 0.15s ease",
+              borderRadius: 6,
+              padding: "7px 12px",
+              color: history.length <= 1 ? "transparent" : fg,
+              cursor: history.length <= 1 ? "default" : "pointer",
             }}
           >
-            Back
+            {config.nav.backLabel}
           </button>
           <button
-            onClick={() => {
-              if (stepValid) goNext();
-            }}
-            disabled={!stepValid}
+            onClick={goNext}
+            disabled={!validate(step)}
             style={{
-              padding: "8px 20px",
-              fontSize: 13,
-              fontWeight: 600,
-              borderRadius: 6,
               border: "none",
-              background: stepValid ? accent : isDark ? "#333" : "#ccc",
-              color: stepValid
-                ? isDark
-                  ? "#0a0a0a"
-                  : "#fff"
-                : isDark
-                  ? "#666"
-                  : "#999",
-              cursor: stepValid ? "pointer" : "not-allowed",
-              fontFamily: "inherit",
-              transition: "all 0.15s ease",
+              borderRadius: 6,
+              padding: "7px 12px",
+              color: isDark ? "#111" : "#fff",
+              background: validate(step) ? (isDark ? "#e5e5e5" : "#111") : isDark ? "#333" : "#ccc",
+              cursor: validate(step) ? "pointer" : "not-allowed",
             }}
           >
-            {state.step === "pay" ? "Complete" : "Next"}
+            {step === "pay" ? config.nav.completeLabel : config.nav.nextLabel}
           </button>
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* state inspector panel */}
+function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
+  const [files, setFiles] = useState<Record<IdeFile, string>>(IDE_FILES);
+  const [activeFile, setActiveFile] = useState<IdeFile>("src/wizard.ts");
+
+  const parseResult = useMemo(
+    () => parseWizardConfig(files["src/wizard.ts"]),
+    [files["src/wizard.ts"]],
+  );
+  const signupLabels = useMemo(
+    () => parseSignupLabels(files["src/Signup.tsx"]),
+    [files["src/Signup.tsx"]],
+  );
+
+  const previewConfig = useMemo(() => {
+    const config = cloneConfig(parseResult.config);
+    config.nav = { ...config.nav, ...signupLabels };
+    return config;
+  }, [parseResult, signupLabels]);
+
+  const faint = isDark ? "#2b2b2b" : "#e5e5e5";
+  const panelBg = isDark ? "#0d0d0d" : "#f8f8f8";
+  const editorBg = isDark ? "#1e1e1e" : "#ffffff";
+  const fg = isDark ? "#eaeaea" : "#121212";
+  const dim = isDark ? "#808080" : "#666";
+
+  return (
+    <div style={{ border: `1px solid ${faint}`, borderRadius: 12, overflow: "hidden", marginBottom: 64 }}>
       <div
         style={{
-          borderTop: `1px solid ${faint}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          borderBottom: `1px solid ${faint}`,
+          padding: "10px 12px",
           background: panelBg,
-          fontFamily: mono,
-          fontSize: 11,
         }}
       >
-        {/* header */}
-        <div
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f59e0b" }} />
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />
+          <span style={{ fontSize: 11, color: dim, fontFamily: mono, marginLeft: 6 }}>Wizard IDE</span>
+        </div>
+        <CopyBtn text={files[activeFile]} isDark={isDark} />
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap" }}>
+        <aside
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "8px 16px",
-            borderBottom: `1px solid ${faint}`,
+            flex: "0 0 220px",
+            minWidth: 180,
+            borderRight: `1px solid ${faint}`,
+            background: panelBg,
+            padding: 12,
           }}
         >
-          <span
-            style={{
-              fontSize: 10,
-              color: dim,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              fontWeight: 600,
-            }}
-          >
-            wizard state
-          </span>
-          <span style={{ fontSize: 10, color: dim }}>{progress}% complete</span>
-        </div>
-
-        {/* state values row */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 0,
-          }}
-        >
-          {[
-            { label: "step", value: `'${state.step}'` },
-            {
-              label: "data",
-              value: JSON.stringify(state.data[state.step]),
-            },
-            {
-              label: "history",
-              value: JSON.stringify(state.history),
-            },
-          ].map((item, i) => (
-            <div
-              key={item.label}
-              style={{
-                padding: "10px 16px",
-                borderRight: i < 2 ? `1px solid ${faint}` : "none",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  color: dim,
-                  fontSize: 10,
-                  marginBottom: 4,
-                }}
-              >
-                {item.label}
-              </div>
-              <div
-                style={{
-                  color: accent,
-                  fontSize: 11,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  lineHeight: 1.4,
-                }}
-                title={item.value}
-              >
-                {item.value}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* action log */}
-        {actionLog.length > 0 && (
           <div
             style={{
-              borderTop: `1px solid ${faint}`,
-              padding: "8px 16px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
+              fontFamily: mono,
+              fontSize: 11,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: dim,
+              marginBottom: 8,
             }}
           >
-            {actionLog.slice(-3).map((entry, i) => (
-              <div key={i} style={{ color: dim, fontSize: 10 }}>
-                <span style={{ color: blue }}>{"\u203A "}</span>
-                <span>{entry.action}</span>
-                <span style={{ color: green, marginLeft: 8 }}>
-                  {entry.result}
-                </span>
-              </div>
-            ))}
+            files
           </div>
-        )}
+          <div style={{ display: "grid", gap: 4 }}>
+            {IDE_FILE_ORDER.map((file) => {
+              const selected = file === activeFile;
+              return (
+                <button
+                  key={file}
+                  onClick={() => setActiveFile(file)}
+                  style={{
+                    textAlign: "left",
+                    border: `1px solid ${selected ? fg : "transparent"}`,
+                    background: selected
+                      ? isDark
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.03)"
+                      : "transparent",
+                    color: selected ? fg : dim,
+                    borderRadius: 6,
+                    padding: "7px 8px",
+                    fontSize: 12,
+                    fontFamily: mono,
+                    cursor: "pointer",
+                  }}
+                >
+                  {displayFileName(file)}
+                </button>
+              );
+            })}
+          </div>
+          <p style={{ marginTop: 12, fontSize: 11, color: dim, lineHeight: 1.45 }}>
+            Edit <code>wizard.ts</code> and <code>Signup.tsx</code> to update the preview.
+          </p>
+        </aside>
+
+        <div style={{ flex: "1 1 700px", minWidth: 280, display: "flex", flexWrap: "wrap" }}>
+          <section
+            style={{
+              flex: "1 1 440px",
+              minWidth: 260,
+              borderRight: `1px solid ${faint}`,
+              background: editorBg,
+            }}
+          >
+            <div
+              style={{
+                borderBottom: `1px solid ${faint}`,
+                padding: "8px 12px",
+                fontFamily: mono,
+                fontSize: 12,
+                color: dim,
+              }}
+            >
+              {displayFileName(activeFile)}
+            </div>
+            <DocsMonacoEditor
+              value={files[activeFile]}
+              onChange={(content) =>
+                setFiles((current) => ({ ...current, [activeFile]: content }))
+              }
+              fileName={activeFile}
+              mono={mono}
+              isDark={isDark}
+            />
+          </section>
+
+          <section style={{ flex: "1 1 320px", minWidth: 280, padding: 12, background: isDark ? "#0a0a0a" : "#fff" }}>
+            <div
+              style={{
+                border: `1px solid ${faint}`,
+                borderRadius: 8,
+                marginBottom: 10,
+                padding: "8px 10px",
+                fontSize: 12,
+                color: parseResult.error ? (isDark ? "#fca5a5" : "#b91c1c") : dim,
+                background: isDark ? "#0d0d0d" : "#fafafa",
+              }}
+            >
+              {parseResult.error
+                ? parseResult.error
+                : "Live preview is synced with your code changes."}
+            </div>
+            <LiveWizardPreview config={previewConfig} isDark={isDark} mono={mono} />
+          </section>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ── main component ────────────────────────────────────── */
-
 export function Landing() {
-  const isDark = useDarkMode();
-  const { setTheme } = useTheme();
+  const { resolvedTheme } = useTheme();
+  const isThemeReady = resolvedTheme === "dark" || resolvedTheme === "light";
+  const isDark = resolvedTheme === "dark";
+
+  if (!isThemeReady) {
+    return <div style={{ minHeight: "100vh" }} />;
+  }
 
   const bg = isDark ? "#0a0a0a" : "#fff";
   const fg = isDark ? "#e5e5e5" : "#0a0a0a";
   const dim = isDark ? "#555" : "#999";
   const faint = isDark ? "#333" : "#e5e5e5";
-  const codeBg = isDark ? "#111" : "#fafafa";
-  const codeFg = isDark ? "#aaa" : "#555";
-  const mono =
-    "'SF Mono', ui-monospace, Consolas, 'Liberation Mono', monospace";
+  const mono = "'SF Mono', ui-monospace, Consolas, 'Liberation Mono', monospace";
+  const currentYear = new Date().getUTCFullYear();
 
   return (
     <div style={{ background: bg, minHeight: "100vh" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 24px" }}>
-        {/* dark mode toggle */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            paddingTop: 16,
-          }}
-        >
-          <button
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            aria-label="Toggle dark mode"
-            style={{
-              background: "none",
-              border: `1px solid ${faint}`,
-              borderRadius: 6,
-              padding: "6px 8px",
-              cursor: "pointer",
-              color: dim,
-              fontSize: 14,
-              lineHeight: 1,
-            }}
-          >
-            {isDark ? "\u2600" : "\u263E"}
-          </button>
-        </div>
-
-        {/* hero */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
         <div style={{ paddingTop: 64, paddingBottom: 56 }}>
           <h1
             style={{
@@ -870,21 +920,13 @@ export function Landing() {
               lineHeight: 1.6,
               color: dim,
               margin: "16px 0 0",
-              maxWidth: 480,
+              maxWidth: 560,
             }}
           >
-            Type-safe multi-step flows. Headless engine, full TypeScript
-            inference, zero UI lock-in.
+            Type-safe multi-step flows. Headless engine, full TypeScript inference, zero UI lock-in.
           </p>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              marginTop: 32,
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 32 }}>
             <Link
               href="/getting-started"
               className="no-underline"
@@ -899,21 +941,12 @@ export function Landing() {
             >
               Get Started
             </Link>
-            <Link
-              href="/examples"
-              className="no-underline"
-              style={{
-                fontSize: 14,
-                fontWeight: 500,
-                color: dim,
-              }}
-            >
+            <Link href="/examples" className="no-underline" style={{ fontSize: 14, fontWeight: 500, color: dim }}>
               Examples
             </Link>
           </div>
         </div>
 
-        {/* install */}
         <div
           style={{
             display: "flex",
@@ -921,11 +954,11 @@ export function Landing() {
             gap: 8,
             fontFamily: mono,
             fontSize: 13,
-            color: codeFg,
+            color: isDark ? "#aaa" : "#555",
             padding: "10px 16px",
             border: `1px solid ${faint}`,
             borderRadius: 8,
-            marginBottom: 48,
+            marginBottom: 40,
           }}
         >
           <span style={{ color: dim, userSelect: "none" }}>$</span>
@@ -933,72 +966,8 @@ export function Landing() {
           <CopyBtn text="npm i @wizard/core @wizard/react" isDark={isDark} />
         </div>
 
-        {/* interactive demo */}
-        <div style={{ marginBottom: 48 }}>
-          <VisualWizardDemo isDark={isDark} mono={mono} />
-        </div>
+        <WizardIde isDark={isDark} mono={mono} />
 
-        {/* code blocks */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(min(100%, 400px), 1fr))",
-            gap: 16,
-            paddingBottom: 80,
-          }}
-        >
-          {[
-            { label: "wizard.ts", code: DEFINE },
-            { label: "Signup.tsx", code: REACT },
-          ].map((block) => (
-            <div
-              key={block.label}
-              style={{
-                border: `1px solid ${faint}`,
-                borderRadius: 8,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "8px 16px",
-                  borderBottom: `1px solid ${faint}`,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: mono,
-                    fontSize: 12,
-                    color: dim,
-                  }}
-                >
-                  {block.label}
-                </span>
-                <CopyBtn text={block.code} isDark={isDark} />
-              </div>
-              <pre
-                style={{
-                  fontFamily: mono,
-                  fontSize: 12,
-                  lineHeight: 1.7,
-                  margin: 0,
-                  padding: "16px 16px",
-                  background: codeBg,
-                  color: codeFg,
-                  overflowX: "auto",
-                }}
-              >
-                {block.code}
-              </pre>
-            </div>
-          ))}
-        </div>
-
-        {/* footer */}
         <div
           style={{
             borderTop: `1px solid ${faint}`,
@@ -1008,29 +977,20 @@ export function Landing() {
             justifyContent: "space-between",
             fontSize: 13,
             color: dim,
+            marginBottom: 20,
           }}
         >
-          <span>{new Date().getFullYear()} &copy; Wizard</span>
+          <span suppressHydrationWarning>
+            {currentYear} &copy; Wizard
+          </span>
           <div style={{ display: "flex", gap: 20 }}>
-            <Link
-              href="/getting-started"
-              className="no-underline"
-              style={{ color: dim }}
-            >
+            <Link href="/getting-started" className="no-underline" style={{ color: dim }}>
               Docs
             </Link>
-            <Link
-              href="/api-docs"
-              className="no-underline"
-              style={{ color: dim }}
-            >
+            <Link href="/api-docs" className="no-underline" style={{ color: dim }}>
               API
             </Link>
-            <Link
-              href="/examples"
-              className="no-underline"
-              style={{ color: dim }}
-            >
+            <Link href="/examples" className="no-underline" style={{ color: dim }}>
               Examples
             </Link>
           </div>

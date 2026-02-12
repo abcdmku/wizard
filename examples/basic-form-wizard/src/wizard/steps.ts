@@ -1,88 +1,69 @@
 import { createReactWizardFactory } from "@wizard/react";
-import { AccountStep } from "../components/steps/AccountStep";
-import { PersonalStep } from "../components/steps/PersonalStep";
-import { AddressStep } from "../components/steps/AddressStep";
-import { SummaryStep } from "../components/steps/SummaryStep";
+import { DoneStep } from "../components/steps/DoneStep";
+import { InfoStep } from "../components/steps/InfoStep";
+import { PaymentStep } from "../components/steps/PaymentStep";
+import { PlanStep } from "../components/steps/PlanStep";
 
-export interface AccountData {
-  email: string;
-  password: string;
-  confirmPassword: string;
+export interface InfoData {
+  name: string;
 }
 
-export interface PersonalData {
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
+export interface PlanData {
+  tier: "" | "free" | "pro" | "team";
 }
 
-export interface AddressData {
-  street: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
+export interface PaymentData {
+  card: string;
 }
 
-
-export const validateAccountData = ({data}: {data: AccountData}) => {
-  if (!data?.email || !data.email.includes("@")) throw new Error("Please enter a valid email");
-  if (data.password !== data.confirmPassword) throw new Error("Passwords do not match");
+export const validateInfoData = ({ data }: { data: InfoData }) => {
+  if (!data?.name.trim()) {
+    throw new Error("Please enter your name");
+  }
 };
 
-export const validatePersonalData = ({data}: {data: PersonalData}) => {
-  if (!data?.firstName || !data?.lastName) throw new Error("Please enter your full name");
-  if (!data?.dateOfBirth) throw new Error("Please enter your date of birth");
+export const validatePlanData = ({ data }: { data: PlanData }) => {
+  if (!data?.tier) {
+    throw new Error("Please choose a plan");
+  }
 };
 
-export const validateAddressData = ({data}: {data: AddressData}) => {
-  if ( !data?.street || !data?.city || !data?.state || !data?.zipCode || !data?.country )
-    throw new Error("Please fill in all address fields");
+export const validatePaymentData = ({ data }: { data: PaymentData }) => {
+  const digits = data?.card.replace(/\D/g, "") ?? "";
+  if (digits.length < 12) {
+    throw new Error("Please enter a valid card number");
+  }
 };
 
 const { defineSteps, step, createWizard } = createReactWizardFactory();
 
 export const steps = defineSteps({
-  account: step({
-    data: {
-      email: "",
-      password: "",
-      confirmPassword: "",
-    },
-    next: ["personal"],
-    meta: { label: "Account", iconKey: "user" },
-    validate: validateAccountData,
-    component: AccountStep
+  info: step({
+    data: { name: "" },
+    next: ["plan"],
+    meta: { label: "Info", iconKey: "user" },
+    validate: validateInfoData,
+    component: InfoStep,
   }),
-  personal: step({
-    validate: validatePersonalData,
-    data: {
-      firstName: "",
-      lastName: "",
-      dateOfBirth: "",
-    },
-    next: ["address"],
-    meta: { label: "Personal", iconKey: "person" },
-    component: PersonalStep
+  plan: step({
+    data: { tier: "" },
+    next: ["pay"],
+    meta: { label: "Plan", iconKey: "plan" },
+    validate: validatePlanData,
+    component: PlanStep,
   }),
-  address: step({
-    validate: validateAddressData,
-    data: {
-      street: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      country: "",
-    },
-    next: ["summary"],
-    meta: { label: "Address", iconKey: "location" },
-    component: AddressStep
+  pay: step({
+    data: { card: "" },
+    next: ["done"],
+    meta: { label: "Payment", iconKey: "payment" },
+    validate: validatePaymentData,
+    component: PaymentStep,
   }),
-  summary: step({
-    data: {},
+  done: step({
+    data: { ok: false },
     next: [],
-    meta: { label: "Complete", iconKey: "check", hidden: true },
-    component: SummaryStep,
+    meta: { label: "Done", iconKey: "check", hidden: true },
+    component: DoneStep,
   }),
 });
 
