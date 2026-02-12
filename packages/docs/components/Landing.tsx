@@ -302,8 +302,12 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                         : "#fff"
                       : isCompleted
                         ? green
-                        : dim,
-                    border: `1.5px solid ${isActive ? accent : isCompleted ? green : locked ? (isDark ? "#222" : "#ddd") : faint}`,
+                        : navigable
+                          ? isDark
+                            ? "#aaa"
+                            : "#555"
+                          : dim,
+                    border: `1.5px solid ${isActive ? accent : isCompleted ? green : locked ? (isDark ? "#222" : "#ddd") : navigable ? (isDark ? "#666" : "#aaa") : faint}`,
                   }}
                 >
                   {isCompleted ? (
@@ -330,7 +334,15 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                   style={{
                     fontSize: 10,
                     fontFamily: mono,
-                    color: isActive ? accent : isCompleted ? green : dim,
+                    color: isActive
+                      ? accent
+                      : isCompleted
+                        ? green
+                        : navigable
+                          ? isDark
+                            ? "#aaa"
+                            : "#555"
+                          : dim,
                     fontWeight: isActive ? 600 : 400,
                     letterSpacing: "0.02em",
                   }}
