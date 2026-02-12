@@ -213,7 +213,7 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                     height: 2,
                     marginTop: 13,
                     borderRadius: 1,
-                    background: isComplete ? accent : faint,
+                    background: isComplete || isActive ? accent : faint,
                     transition: "background 0.3s ease",
                   }}
                 />
