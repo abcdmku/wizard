@@ -1,17 +1,19 @@
 {
-  "timestamp": "2026-02-11T19:02:19.767Z",
-  "nextjs": {
-    "built": true,
-    "buildId": "h7VLj7V75LwGkNCNEAR2o"
+  "timestamp": "2026-02-12T22:08:15.325Z",
+  "staticSite": {
+    "clientBuilt": true,
+    "serverBundleBuilt": true,
+    "prerenderPages": 22
   },
   "typedoc": {
-    "built": true,
-    "indexExists": true
+    "embedded": true
+  },
+  "search": {
+    "pagefindIndexed": true,
+    "querySmokePassed": true
   },
   "pages": {
-    "total": 23
-  },
-  "examples": {
-    "total": 7
+    "sourceMdxCount": 22,
+    "prerenderedHtmlCount": 97
   }
 }

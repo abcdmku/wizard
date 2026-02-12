@@ -1,11 +1,15 @@
 # Complex Flows
 
+## Building blocks
+
 Complex flows are built from:
 
 - Dynamic `next` resolution
 - `canEnter` / `canExit` guards
 - `order` for deterministic helper/progress behavior
 - `prerequisites` for dependency-aware metadata
+
+## Example flow definition
 
 ```ts
 const steps = defineSteps({

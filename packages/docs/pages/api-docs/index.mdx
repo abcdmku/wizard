@@ -1,9 +1,13 @@
 # API Docs
 
+## Package references
+
 - [`@wizard/core`](/api-docs/core)
 - [`@wizard/react`](/api-docs/react)
 
 These pages combine curated guidance with auto-synced export tables from package entrypoints.
+
+## Sync export tables
 
 Sync the MDX export tables:
 
@@ -11,11 +15,15 @@ Sync the MDX export tables:
 pnpm --filter @wizard/docs run sync:api-ref
 ```
 
+## Validate parity
+
 Validate parity (CI-safe):
 
 ```bash
 pnpm --filter @wizard/docs run check:api-parity
 ```
+
+## Generate symbol docs
 
 For generated symbol-level docs, run:
 

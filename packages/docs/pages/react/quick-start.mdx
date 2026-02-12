@@ -1,5 +1,7 @@
 # React Quick Start
 
+## Define a typed wizard
+
 Use `createReactWizardFactory` to define steps with components.
 
 ```tsx
@@ -31,6 +33,8 @@ export const wizard = factory.createWizard(steps, {
 });
 ```
 
+## Bind wizard state in components
+
 Use hooks with a wizard instance:
 
 ```tsx
@@ -42,5 +46,7 @@ function Screen() {
   return <div>{step} / {account.status}</div>;
 }
 ```
+
+## Optional provider
 
 `WizardProvider` is optional and can be used to avoid passing the wizard argument in every hook call.

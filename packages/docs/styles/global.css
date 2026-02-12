@@ -49,27 +49,52 @@ html.dark {
 
 /* ========== CODE BLOCKS ========== */
 
+code[data-theme*=' '],
+code[data-theme*=' '] span {
+  color: var(--shiki-light);
+}
+
+html.dark code[data-theme*=' '],
+html.dark code[data-theme*=' '] span {
+  color: var(--shiki-dark);
+}
+
 @layer components {
-  pre {
-    @apply bg-transparent text-slate-700 font-mono text-sm leading-relaxed;
+  .docs-article [data-rehype-pretty-code-figure] {
+    @apply my-6 overflow-hidden rounded-lg border border-code-border bg-code-bg;
+  }
+
+  .dark .docs-article [data-rehype-pretty-code-figure] {
+    @apply border-code-border-dark bg-code-bg-dark;
+  }
+
+  .docs-article [data-rehype-pretty-code-title] {
+    @apply border-b border-code-border bg-code-header px-4 py-2 text-xs font-medium text-slate-600;
+  }
+
+  .dark .docs-article [data-rehype-pretty-code-title] {
+    @apply border-code-border-dark bg-code-header-dark text-slate-300;
+  }
+
+  .docs-article [data-rehype-pretty-code-figure] pre {
+    @apply m-0 overflow-x-auto bg-transparent px-4 py-3 text-sm leading-relaxed;
     border: none;
-    margin: 0;
-    padding: 0;
-    overflow: visible;
   }
 
-  .dark pre {
-    @apply text-neutral-300;
+  .docs-article [data-rehype-pretty-code-figure] code {
+    @apply block min-w-full font-mono;
   }
 
-  pre > code {
-    @apply block overflow-x-auto w-full bg-code-bg;
-    padding: 8px 0 16px 0;
-    margin: 8px 0;
+  .docs-article > pre {
+    @apply my-6 overflow-x-auto rounded-lg border border-code-border bg-code-bg px-4 py-3 text-sm leading-relaxed;
   }
 
-  .dark pre > code {
-    @apply bg-code-bg-dark;
+  .dark .docs-article > pre {
+    @apply border-code-border-dark bg-code-bg-dark text-slate-200;
+  }
+
+  .docs-article > pre > code {
+    @apply block min-w-full font-mono;
   }
 
   /* Inline code */
@@ -80,15 +105,6 @@ html.dark {
   .dark :not(pre) > code {
     @apply bg-slate-800 text-slate-300 border-slate-600;
   }
-}
-
-/* ========== NEXTRA CODE BLOCK OVERRIDES ========== */
-
-pre,
-pre[class*="nx-"] {
-  --tw-ring-color: transparent;
-  --tw-ring-shadow: 0 0 transparent;
-  box-shadow: none;
 }
 
 /* ========== SCROLLBAR ========== */
@@ -141,7 +157,7 @@ pre::-webkit-scrollbar-thumb:hover {
   --docs-link-focus-ring: rgba(125, 211, 252, 0.55);
 }
 
-.nextra-content :where(p, li, td, blockquote, figcaption) a[href],
+.docs-article :where(p, li, td, blockquote, figcaption) a[href],
 article :where(p, li, td, blockquote, figcaption) a[href] {
   color: var(--docs-link-color);
   border-radius: 0.3rem;
@@ -157,13 +173,13 @@ article :where(p, li, td, blockquote, figcaption) a[href] {
     background-color 0.16s ease;
 }
 
-.nextra-content :where(p, li, td, blockquote, figcaption) a[href]:visited,
+.docs-article :where(p, li, td, blockquote, figcaption) a[href]:visited,
 article :where(p, li, td, blockquote, figcaption) a[href]:visited {
   color: var(--docs-link-visited-color);
 }
 
-.nextra-content :where(p, li, td, blockquote, figcaption) a[href]:hover,
-.nextra-content :where(p, li, td, blockquote, figcaption) a[href]:focus-visible,
+.docs-article :where(p, li, td, blockquote, figcaption) a[href]:hover,
+.docs-article :where(p, li, td, blockquote, figcaption) a[href]:focus-visible,
 article :where(p, li, td, blockquote, figcaption) a[href]:hover,
 article :where(p, li, td, blockquote, figcaption) a[href]:focus-visible {
   color: var(--docs-link-hover-color);
@@ -172,13 +188,63 @@ article :where(p, li, td, blockquote, figcaption) a[href]:focus-visible {
   background-color: var(--docs-link-hover-bg);
 }
 
-.nextra-content :where(p, li, td, blockquote, figcaption) a[href]:focus-visible,
+.docs-article :where(p, li, td, blockquote, figcaption) a[href]:focus-visible,
 article :where(p, li, td, blockquote, figcaption) a[href]:focus-visible {
   outline: 2px solid var(--docs-link-focus-ring);
   outline-offset: 2px;
 }
 
-.nextra-content :where(p, li, td, blockquote, figcaption) a[href] > code,
+.docs-article :where(p, li, td, blockquote, figcaption) a[href] > code,
 article :where(p, li, td, blockquote, figcaption) a[href] > code {
   color: inherit;
+}
+
+/* ========== DOCS ARTICLE TYPOGRAPHY ========== */
+
+.docs-article {
+  @apply text-[15px] leading-7 text-slate-700 dark:text-slate-200;
+}
+
+.docs-article h1,
+.docs-article h2,
+.docs-article h3,
+.docs-article h4 {
+  @apply font-semibold tracking-tight text-slate-900 dark:text-slate-100;
+}
+
+.docs-article h1 {
+  @apply mb-4 mt-0 text-4xl;
+}
+
+.docs-article h2 {
+  @apply mb-3 mt-10 border-b border-slate-200 pb-2 text-2xl dark:border-slate-800;
+}
+
+.docs-article h3 {
+  @apply mb-2 mt-8 text-xl;
+}
+
+.docs-article h4 {
+  @apply mb-2 mt-6 text-lg;
+}
+
+.docs-article p {
+  @apply my-4;
+}
+
+.docs-article ul,
+.docs-article ol {
+  @apply my-4 pl-6;
+}
+
+.docs-article li {
+  @apply my-1;
+}
+
+.docs-article blockquote {
+  @apply my-4 border-l-4 border-slate-300 pl-4 text-slate-600 dark:border-slate-600 dark:text-slate-300;
+}
+
+.docs-article hr {
+  @apply my-8 border-slate-200 dark:border-slate-800;
 }

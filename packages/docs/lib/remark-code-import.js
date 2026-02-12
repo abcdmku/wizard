@@ -47,10 +47,16 @@ export function remarkCodeImport() {
 
                 node.value = content;
                 
-                // Add filename as title if not present
-                if (!node.lang || !node.lang.includes('title=')) {
-                  const filename = path.basename(filePath);
-                  node.lang = node.lang ? `${node.lang} title="${filename}"` : `title="${filename}"`;
+                const filename = path.basename(filePath);
+
+                // Infer language from imported filename when omitted.
+                if (!node.lang) {
+                  node.lang = inferLanguageFromFilename(filename);
+                }
+
+                // Preserve title in fence meta so rehype/MDX plugins can read it.
+                if (!node.meta || !/(^|\s)title=/.test(node.meta)) {
+                  node.meta = appendMeta(node.meta, `title="${filename}"`);
                 }
               } catch (error) {
                 console.error(`Failed to import code from ${filePath}:`, error);
@@ -96,4 +102,36 @@ function parseLineRanges(linesStr) {
   }
 
   return ranges;
+}
+
+function appendMeta(existingMeta, value) {
+  if (!existingMeta || existingMeta.trim().length === 0) {
+    return value;
+  }
+  return `${existingMeta} ${value}`;
+}
+
+function inferLanguageFromFilename(filename) {
+  const extension = path.extname(filename).toLowerCase();
+  const languageMap = {
+    '.ts': 'ts',
+    '.tsx': 'tsx',
+    '.js': 'js',
+    '.jsx': 'jsx',
+    '.mjs': 'js',
+    '.cjs': 'js',
+    '.json': 'json',
+    '.md': 'md',
+    '.mdx': 'mdx',
+    '.css': 'css',
+    '.scss': 'scss',
+    '.html': 'html',
+    '.xml': 'xml',
+    '.yml': 'yaml',
+    '.yaml': 'yaml',
+    '.sh': 'bash',
+    '.bash': 'bash',
+  };
+
+  return languageMap[extension] ?? 'text';
 }

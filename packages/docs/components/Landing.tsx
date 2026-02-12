@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react";
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useTheme } from "next-themes";
+import React, { Suspense, lazy, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useTheme } from "../src/theme/theme-provider";
+import { withBase } from "../src/lib/base-path";
 import type { Monaco } from "@monaco-editor/react";
 
 type StepId = "info" | "plan" | "pay" | "done";
@@ -36,26 +36,8 @@ interface ParseResult {
   error: string | null;
 }
 
-const MonacoEditor = dynamic(
-  () => import("@monaco-editor/react").then((module) => module.default),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        style={{
-          minHeight: 520,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#6b7280",
-          fontSize: 12,
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-        }}
-      >
-        Loading editor...
-      </div>
-    ),
-  },
+const MonacoEditor = lazy(() =>
+  import("@monaco-editor/react").then((module) => ({ default: module.default })),
 );
 
 const STEP_ORDER: StepId[] = ["info", "plan", "pay", "done"];
@@ -81,7 +63,7 @@ function configurePhotoEditorThemes(monaco: Monaco) {
       { token: "operator", foreground: "D4D4D4" },
     ],
     colors: {
-      "editor.background": "#1E1E1E",
+      "editor.background": "#0D0D0D",
       "editor.foreground": "#D4D4D4",
       "editorLineNumber.foreground": "#6E7681",
       "editorLineNumber.activeForeground": "#D4D4D4",
@@ -118,7 +100,7 @@ function configurePhotoEditorThemes(monaco: Monaco) {
       { token: "operator", foreground: "24292E" },
     ],
     colors: {
-      "editor.background": "#FFFFFF",
+      "editor.background": "#F8F8F8",
       "editor.foreground": "#24292E",
       "editorLineNumber.foreground": "#9CA3AF",
       "editorLineNumber.activeForeground": "#4B5563",
@@ -445,7 +427,7 @@ function DocsMonacoEditor({
   mono: string;
   isDark: boolean;
 }) {
-  const editorSurface = isDark ? "#1e1e1e" : "#ffffff";
+  const editorSurface = isDark ? "#0d0d0d" : "#f8f8f8";
   const editorTheme = isDark ? PHOTO_EDITOR_DARK_THEME : PHOTO_EDITOR_LIGHT_THEME;
 
   return (
@@ -459,41 +441,59 @@ function DocsMonacoEditor({
         boxSizing: "border-box",
       }}
     >
-      <MonacoEditor
-        beforeMount={configurePhotoEditorThemes}
-        path={fileName}
-        language="typescript"
-        theme={editorTheme}
-        value={value}
-        onChange={(nextValue) => onChange(nextValue ?? "")}
-        height="520px"
-        options={{
-          readOnly: false,
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          fontSize: 13,
-          fontFamily: mono,
-          lineNumbers: "on",
-          lineNumbersMinChars: 1,
-          glyphMargin: false,
-          folding: false,
-          lineDecorationsWidth: 0,
-          overviewRulerLanes: 0,
-          overviewRulerBorder: false,
-          renderLineHighlight: "none",
-          tabSize: 2,
-          automaticLayout: true,
-          renderWhitespace: "selection",
-          bracketPairColorization: { enabled: true },
-          scrollbar: {
-            vertical: "auto",
-            horizontal: "auto",
-            verticalScrollbarSize: 8,
-            horizontalScrollbarSize: 8,
-          },
-          padding: { top: 6, bottom: 6 },
-        }}
-      />
+      <Suspense
+        fallback={
+          <div
+            style={{
+              minHeight: 520,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#6b7280",
+              fontSize: 12,
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            }}
+          >
+            Loading editor...
+          </div>
+        }
+      >
+        <MonacoEditor
+          beforeMount={configurePhotoEditorThemes}
+          path={fileName}
+          language="typescript"
+          theme={editorTheme}
+          value={value}
+          onChange={(nextValue) => onChange(nextValue ?? "")}
+          height="520px"
+          options={{
+            readOnly: false,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            fontSize: 13,
+            fontFamily: mono,
+            lineNumbers: "on",
+            lineNumbersMinChars: 3,
+            glyphMargin: false,
+            folding: false,
+            lineDecorationsWidth: 8,
+            overviewRulerLanes: 0,
+            overviewRulerBorder: false,
+            renderLineHighlight: "none",
+            tabSize: 2,
+            automaticLayout: true,
+            renderWhitespace: "selection",
+            bracketPairColorization: { enabled: true },
+            scrollbar: {
+              vertical: "auto",
+              horizontal: "auto",
+              verticalScrollbarSize: 8,
+              horizontalScrollbarSize: 8,
+            },
+            padding: { top: 6, bottom: 6 },
+          }}
+        />
+      </Suspense>
     </div>
   );
 }
@@ -747,7 +747,7 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
 
   const faint = isDark ? "#2b2b2b" : "#e5e5e5";
   const panelBg = isDark ? "#0d0d0d" : "#f8f8f8";
-  const editorBg = isDark ? "#1e1e1e" : "#ffffff";
+  const editorBg = panelBg;
   const fg = isDark ? "#eaeaea" : "#121212";
   const dim = isDark ? "#808080" : "#666";
 
@@ -884,12 +884,7 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
 
 export function Landing() {
   const { resolvedTheme } = useTheme();
-  const isThemeReady = resolvedTheme === "dark" || resolvedTheme === "light";
   const isDark = resolvedTheme === "dark";
-
-  if (!isThemeReady) {
-    return <div style={{ minHeight: "100vh" }} />;
-  }
 
   const bg = isDark ? "#0a0a0a" : "#fff";
   const fg = isDark ? "#e5e5e5" : "#0a0a0a";
@@ -928,7 +923,8 @@ export function Landing() {
 
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 32 }}>
             <Link
-              href="/getting-started"
+              to="/$"
+              params={{ _splat: "getting-started" }}
               className="no-underline"
               style={{
                 fontSize: 14,
@@ -941,7 +937,12 @@ export function Landing() {
             >
               Get Started
             </Link>
-            <Link href="/examples" className="no-underline" style={{ fontSize: 14, fontWeight: 500, color: dim }}>
+            <Link
+              to="/$"
+              params={{ _splat: "examples" }}
+              className="no-underline"
+              style={{ fontSize: 14, fontWeight: 500, color: dim }}
+            >
               Examples
             </Link>
           </div>
@@ -984,13 +985,27 @@ export function Landing() {
             {currentYear} &copy; Wizard
           </span>
           <div style={{ display: "flex", gap: 20 }}>
-            <Link href="/getting-started" className="no-underline" style={{ color: dim }}>
+            <Link
+              to="/$"
+              params={{ _splat: "getting-started" }}
+              className="no-underline"
+              style={{ color: dim }}
+            >
               Docs
             </Link>
-            <Link href="/api-docs" className="no-underline" style={{ color: dim }}>
+            <a
+              href={withBase("/typedoc/")}
+              className="no-underline"
+              style={{ color: dim }}
+            >
               API
-            </Link>
-            <Link href="/examples" className="no-underline" style={{ color: dim }}>
+            </a>
+            <Link
+              to="/$"
+              params={{ _splat: "examples" }}
+              className="no-underline"
+              style={{ color: dim }}
+            >
               Examples
             </Link>
           </div>

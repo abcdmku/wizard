@@ -47,10 +47,6 @@ jobs:
           
       - name: Setup Pages
         uses: actions/configure-pages@v4
-        with:
-          # Automatically inject basePath in your Next.js configuration file and disable
-          # server side image optimization (https://nextjs.org/docs/api-reference/next/image#unoptimized).
-          static_site_generator: next
           
       - name: Install dependencies
         run: |
@@ -70,30 +66,31 @@ jobs:
       - name: Build documentation
         run: |
           echo "Building documentation..."
-          cd packages/docs
-          rm -rf .next out node_modules/.cache public/api
-          cd ../..
+          rm -rf packages/docs/dist
           echo "Running docs build with API generation..."
           pnpm --filter @wizard/docs build
         env:
           NODE_ENV: production
           GITHUB_ACTIONS: true
           GITHUB_REPOSITORY: ${{ github.repository }}
-          NEXT_PUBLIC_GITHUB_REPO_URL: https://github.com/${{ github.repository }}
+          VITE_GITHUB_REPO_URL: https://github.com/${{ github.repository }}
+          VITE_GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Verify build output
         run: |
           echo "Verifying build output..."
-          ls -la packages/docs/out/
-          echo "Files in out directory:"
-          find packages/docs/out -type f | head -10
+          ls -la packages/docs/dist/client/
+          echo "Files in dist/client directory:"
+          find packages/docs/dist/client -type f | head -20
           echo "Checking for API documentation:"
-          ls -la packages/docs/out/api/ || echo "API docs directory not found in output"
+          ls -la packages/docs/dist/client/typedoc/ || echo "API docs directory not found in output"
+          echo "Checking for Pagefind search index:"
+          ls -la packages/docs/dist/client/pagefind/ || echo "Pagefind index directory not found in output"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./packages/docs/out
+          path: ./packages/docs/dist/client
 
   # Deployment job
   deploy:

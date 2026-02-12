@@ -62,8 +62,7 @@
     "**/build/**/*",
     "**/examples/**/*",
     "**/packages/docs/**/*",
-    "../../test-wizard-types.ts",
-    "../../theme.config.tsx"
+    "../../test-wizard-types.ts"
   ],
   "excludePrivate": true,
   "excludeProtected": false,
@@ -71,7 +70,7 @@
   "excludeInternal": false,
   "includeVersion": true,
   "disableSources": false,
-  "sourceLinkTemplate": "https://github.com/user/wizard/blob/main/{path}#L{line}",
+  "sourceLinkTemplate": "https://github.com/abcdmku/wizard/blob/main/{path}#L{line}",
   "navigation": {
     "includeCategories": true,
     "includeGroups": true,
@@ -80,17 +79,17 @@
   "searchInComments": true,
   "searchInDocuments": true,
   "cleanOutputDir": true,
-  "titleLink": "https://github.com/user/wizard",
+  "titleLink": "https://github.com/abcdmku/wizard",
   "navigationLinks": {
-    "Documentation": "https://github.com/user/wizard/tree/main/packages/docs",
-    "GitHub": "https://github.com/user/wizard",
-    "Examples": "https://github.com/user/wizard/tree/main/examples"
+    "Documentation": "https://github.com/abcdmku/wizard/tree/main/packages/docs",
+    "GitHub": "https://github.com/abcdmku/wizard",
+    "Examples": "https://github.com/abcdmku/wizard/tree/main/examples"
   },
   "sidebarLinks": {
-    "Getting Started": "https://github.com/user/wizard/tree/main/packages/docs/pages/getting-started.mdx",
-    "Core API": "https://github.com/user/wizard/tree/main/packages/docs/pages/api-docs/core.mdx",
-    "React API": "https://github.com/user/wizard/tree/main/packages/docs/pages/api-docs/react.mdx",
-    "Examples": "https://github.com/user/wizard/tree/main/packages/docs/pages/examples"
+    "Getting Started": "https://github.com/abcdmku/wizard/tree/main/packages/docs/pages/getting-started.mdx",
+    "Core API": "https://github.com/abcdmku/wizard/tree/main/packages/docs/pages/api-docs/core.mdx",
+    "React API": "https://github.com/abcdmku/wizard/tree/main/packages/docs/pages/api-docs/react.mdx",
+    "Examples": "https://github.com/abcdmku/wizard/tree/main/packages/docs/pages/examples"
   },
   "hideGenerator": false,
   "customCss": "./styles/typedoc-custom.css",
