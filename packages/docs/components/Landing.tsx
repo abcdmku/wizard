@@ -244,7 +244,8 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
       >
         {STEP_ORDER.map((stepId, i) => {
           const isActive = i === idx;
-          const isComplete = i < idx;
+          const isCompleted = !isActive && isStepValid(stepId) && i <= idx;
+          const isReached = i <= idx;
           return (
             <React.Fragment key={stepId}>
               {i > 0 && (
@@ -254,7 +255,7 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                     height: 2,
                     marginTop: 13,
                     borderRadius: 1,
-                    background: isComplete || isActive ? accent : faint,
+                    background: isReached ? accent : faint,
                     transition: "background 0.3s ease",
                   }}
                 />
@@ -283,23 +284,28 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                     fontWeight: 600,
                     fontFamily: mono,
                     transition: "all 0.3s ease",
-                    background: isComplete || isActive ? accent : "transparent",
-                    color:
-                      isComplete || isActive
-                        ? isDark
-                          ? "#0a0a0a"
-                          : "#fff"
+                    background: isActive
+                      ? accent
+                      : isCompleted
+                        ? "transparent"
+                        : "transparent",
+                    color: isActive
+                      ? isDark
+                        ? "#0a0a0a"
+                        : "#fff"
+                      : isCompleted
+                        ? green
                         : dim,
-                    border: `1.5px solid ${isComplete || isActive ? accent : faint}`,
+                    border: `1.5px solid ${isActive ? accent : isCompleted ? green : faint}`,
                   }}
                 >
-                  {isComplete ? "\u2713" : i + 1}
+                  {isCompleted ? "\u2713" : i + 1}
                 </div>
                 <span
                   style={{
                     fontSize: 10,
                     fontFamily: mono,
-                    color: isActive ? accent : dim,
+                    color: isActive ? accent : isCompleted ? green : dim,
                     fontWeight: isActive ? 600 : 400,
                     letterSpacing: "0.02em",
                   }}
