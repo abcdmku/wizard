@@ -79,6 +79,7 @@ interface WizardState {
   step: StepId;
   data: Record<StepId, Record<string, unknown>>;
   history: StepId[];
+  visited: StepId[];
 }
 
 const STEP_CONFIG: Record<
@@ -103,6 +104,7 @@ function initialState(): WizardState {
       done: { ok: false },
     },
     history: ["info"],
+    visited: ["info"],
   };
 }
 
@@ -153,6 +155,9 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
       ...s,
       step: nextStep,
       history: [...s.history, nextStep],
+      visited: s.visited.includes(nextStep)
+        ? s.visited
+        : [...s.visited, nextStep],
     }));
     logAction("next()", `\u2192 step: '${nextStep}'`);
   }
@@ -216,6 +221,7 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
         ),
         stepId,
       ],
+      visited: s.visited.includes(stepId) ? s.visited : [...s.visited, stepId],
     }));
     logAction(`goTo('${stepId}')`, `\u2192 step: '${stepId}'`);
   }
@@ -244,8 +250,8 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
       >
         {STEP_ORDER.map((stepId, i) => {
           const isActive = i === idx;
-          const isCompleted = !isActive && isStepValid(stepId) && i <= idx;
-          const isReached = i <= idx;
+          const isCompleted =
+            !isActive && isStepValid(stepId) && state.visited.includes(stepId);
           return (
             <React.Fragment key={stepId}>
               {i > 0 && (
@@ -255,7 +261,7 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                     height: 2,
                     marginTop: 13,
                     borderRadius: 1,
-                    background: isReached ? accent : faint,
+                    background: isCompleted || isActive ? accent : faint,
                     transition: "background 0.3s ease",
                   }}
                 />
