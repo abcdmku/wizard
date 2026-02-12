@@ -252,6 +252,8 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
           const isActive = i === idx;
           const isCompleted =
             !isActive && isStepValid(stepId) && state.visited.includes(stepId);
+          const navigable = canNavigateTo(stepId);
+          const locked = !isActive && !navigable;
           return (
             <React.Fragment key={stepId}>
               {i > 0 && (
@@ -268,14 +270,17 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
               )}
               <div
                 onClick={() => goToStep(stepId)}
-                role={canNavigateTo(stepId) ? "button" : undefined}
+                role={navigable ? "button" : undefined}
+                title={locked ? "Complete previous steps first" : undefined}
                 style={{
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   gap: 6,
                   minWidth: 56,
-                  cursor: canNavigateTo(stepId) ? "pointer" : "default",
+                  cursor: navigable ? "pointer" : "default",
+                  opacity: locked ? 0.35 : 1,
+                  transition: "opacity 0.2s ease",
                 }}
               >
                 <div
@@ -290,11 +295,7 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                     fontWeight: 600,
                     fontFamily: mono,
                     transition: "all 0.3s ease",
-                    background: isActive
-                      ? accent
-                      : isCompleted
-                        ? "transparent"
-                        : "transparent",
+                    background: isActive ? accent : "transparent",
                     color: isActive
                       ? isDark
                         ? "#0a0a0a"
@@ -302,10 +303,10 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                       : isCompleted
                         ? green
                         : dim,
-                    border: `1.5px solid ${isActive ? accent : isCompleted ? green : faint}`,
+                    border: `1.5px solid ${isActive ? accent : isCompleted ? green : locked ? (isDark ? "#222" : "#ddd") : faint}`,
                   }}
                 >
-                  {isCompleted ? "\u2713" : i + 1}
+                  {isCompleted ? "\u2713" : locked ? "\u{1F512}" : i + 1}
                 </div>
                 <span
                   style={{
