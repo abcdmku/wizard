@@ -210,8 +210,9 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                 <div
                   style={{
                     width: 48,
-                    height: 1,
-                    marginTop: 14,
+                    height: 2,
+                    marginTop: 13,
+                    borderRadius: 1,
                     background: isComplete ? accent : faint,
                     transition: "background 0.3s ease",
                   }}
@@ -265,18 +266,6 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
             </React.Fragment>
           );
         })}
-      </div>
-
-      {/* progress bar */}
-      <div style={{ height: 1, background: faint, margin: "0 32px" }}>
-        <div
-          style={{
-            height: "100%",
-            width: `${progress}%`,
-            background: accent,
-            transition: "width 0.4s ease",
-          }}
-        />
       </div>
 
       {/* step content */}
