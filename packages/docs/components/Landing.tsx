@@ -306,7 +306,25 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                     border: `1.5px solid ${isActive ? accent : isCompleted ? green : locked ? (isDark ? "#222" : "#ddd") : faint}`,
                   }}
                 >
-                  {isCompleted ? "\u2713" : locked ? "\u{1F512}" : i + 1}
+                  {isCompleted ? (
+                    "\u2713"
+                  ) : locked ? (
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  ) : (
+                    i + 1
+                  )}
                 </div>
                 <span
                   style={{
