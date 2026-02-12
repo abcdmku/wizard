@@ -180,8 +180,49 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
     }));
   }
 
+  function isStepValid(stepId: StepId): boolean {
+    const d = state.data[stepId];
+    switch (stepId) {
+      case "info":
+        return (d.name as string).trim().length > 0;
+      case "plan":
+        return (d.tier as string).length > 0;
+      case "pay":
+        return (d.card as string).trim().length >= 4;
+      case "done":
+        return true;
+    }
+  }
+
+  function canNavigateTo(stepId: StepId): boolean {
+    const targetIdx = STEP_ORDER.indexOf(stepId);
+    if (targetIdx === idx) return false; // already here
+    if (targetIdx < idx) return true; // can always go back
+    // can go forward only if all steps before target are valid
+    for (let i = 0; i < targetIdx; i++) {
+      if (!isStepValid(STEP_ORDER[i])) return false;
+    }
+    return true;
+  }
+
+  function goToStep(stepId: StepId) {
+    if (!canNavigateTo(stepId)) return;
+    setState((s) => ({
+      ...s,
+      step: stepId,
+      history: [
+        ...s.history.filter(
+          (h) => STEP_ORDER.indexOf(h) < STEP_ORDER.indexOf(stepId),
+        ),
+        stepId,
+      ],
+    }));
+    logAction(`goTo('${stepId}')`, `\u2192 step: '${stepId}'`);
+  }
+
   const canGoBack = state.history.length > 1;
   const canGoNext = STEP_CONFIG[state.step].next.length > 0;
+  const stepValid = isStepValid(state.step);
 
   return (
     <div
@@ -219,12 +260,15 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                 />
               )}
               <div
+                onClick={() => goToStep(stepId)}
+                role={canNavigateTo(stepId) ? "button" : undefined}
                 style={{
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   gap: 6,
                   minWidth: 56,
+                  cursor: canNavigateTo(stepId) ? "pointer" : "default",
                 }}
               >
                 <div
@@ -454,7 +498,11 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                 type="text"
                 placeholder="4242 4242 4242 4242"
                 value={(state.data.pay.card as string) || ""}
-                onChange={(e) => updateData("card", e.target.value)}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "").slice(0, 16);
+                  const formatted = raw.replace(/(.{4})/g, "$1 ").trim();
+                  updateData("card", formatted);
+                }}
                 style={{
                   width: "100%",
                   padding: "10px 14px",
@@ -469,6 +517,17 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
                   letterSpacing: "0.05em",
                 }}
               />
+              {(state.data.pay.card as string).trim().length > 0 &&
+                (state.data.pay.card as string).trim().length < 4 && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: isDark ? "#f87171" : "#dc2626",
+                    }}
+                  >
+                    Enter a valid card number
+                  </span>
+                )}
             </div>
           </div>
         )}
@@ -564,17 +623,24 @@ function VisualWizardDemo({ isDark, mono }: { isDark: boolean; mono: string }) {
           </button>
           <button
             onClick={() => {
-              goNext();
+              if (stepValid) goNext();
             }}
+            disabled={!stepValid}
             style={{
               padding: "8px 20px",
               fontSize: 13,
               fontWeight: 600,
               borderRadius: 6,
               border: "none",
-              background: accent,
-              color: isDark ? "#0a0a0a" : "#fff",
-              cursor: "pointer",
+              background: stepValid ? accent : isDark ? "#333" : "#ccc",
+              color: stepValid
+                ? isDark
+                  ? "#0a0a0a"
+                  : "#fff"
+                : isDark
+                  ? "#666"
+                  : "#999",
+              cursor: stepValid ? "pointer" : "not-allowed",
               fontFamily: "inherit",
               transition: "all 0.15s ease",
             }}
