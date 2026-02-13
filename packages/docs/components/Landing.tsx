@@ -1063,9 +1063,9 @@ export function Landing() {
       className={`${isDark ? "bg-[#0a0a0a]" : "bg-white"} min-h-screen lg:h-dvh lg:overflow-hidden flex flex-col`}
     >
       {/* Main content — unified single canvas */}
-      <div className="flex-1 flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-0 px-6 lg:px-10 xl:px-14 py-8 lg:py-0 min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row lg:items-center lg:justify-center gap-8 lg:gap-12 xl:gap-16 px-6 lg:px-10 xl:px-14 py-8 lg:py-0 min-h-0">
         {/* Hero */}
-        <div className="shrink-0 lg:w-[36%] xl:w-[34%] lg:pr-10 xl:pr-14">
+        <div className="shrink-0 lg:text-right lg:max-w-[340px] xl:max-w-[380px]">
           <h1
             className={`text-5xl lg:text-6xl xl:text-7xl font-black leading-[0.92] ${
               isDark ? "text-white" : "text-[#0a0a0a]"
@@ -1087,7 +1087,7 @@ export function Landing() {
             </span>
           </p>
 
-          <div className="flex items-center gap-4 mt-5">
+          <div className="flex items-center lg:justify-end gap-4 mt-5">
             <Link
               to="/$"
               params={{ _splat: "getting-started" }}
@@ -1114,7 +1114,7 @@ export function Landing() {
 
           {/* Install command */}
           <div
-            className={`inline-flex items-center gap-3 mt-5 text-[13px] rounded-lg px-4 py-2.5 border ${
+            className={`inline-flex items-center gap-3 mt-5 text-[13px] rounded-lg px-4 py-2.5 border lg:ml-auto ${
               isDark
                 ? "border-neutral-800 text-neutral-400"
                 : "border-neutral-200 text-neutral-500"
@@ -1134,7 +1134,7 @@ export function Landing() {
         </div>
 
         {/* IDE — 16:10 aspect ratio, height-driven on desktop */}
-        <div className="flex-1 flex items-center justify-end min-w-0">
+        <div className="flex-1 flex items-center min-w-0">
           {/* Mobile header */}
           <div className="lg:hidden w-full">
             <h2
