@@ -870,7 +870,10 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
         border: `1px solid ${faint}`,
         borderRadius: 12,
         overflow: "hidden",
-        marginBottom: 64,
+        marginBottom: 48,
+        boxShadow: isDark
+          ? "0 4px 40px rgba(0,0,0,0.5)"
+          : "0 4px 40px rgba(0,0,0,0.07)",
       }}
     >
       <div
@@ -1062,141 +1065,203 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
   );
 }
 
+const FEATURES = [
+  {
+    title: "Type-Safe",
+    desc: "Full TypeScript inference across steps, transitions, and data schemas.",
+  },
+  {
+    title: "Headless",
+    desc: "Bring your own UI. Zero styling opinions, zero constraints.",
+  },
+  {
+    title: "Tiny Bundle",
+    desc: "Under 5KB gzipped. Zero runtime dependencies.",
+  },
+  {
+    title: "React Ready",
+    desc: "First-class hooks with a framework-agnostic core.",
+  },
+];
+
 export function Landing() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
-
-  const bg = isDark ? "#0a0a0a" : "#fff";
-  const fg = isDark ? "#e5e5e5" : "#0a0a0a";
-  const dim = isDark ? "#555" : "#999";
-  const faint = isDark ? "#333" : "#e5e5e5";
   const mono =
     "'SF Mono', ui-monospace, Consolas, 'Liberation Mono', monospace";
   const currentYear = new Date().getUTCFullYear();
 
   return (
-    <div style={{ background: bg, minHeight: "100vh" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
-        <div style={{ paddingTop: 64, paddingBottom: 56 }}>
+    <div
+      className={isDark ? "bg-[#0a0a0a]" : "bg-white"}
+      style={{ minHeight: "100vh" }}
+    >
+      <div className="max-w-[1200px] mx-auto px-6">
+        {/* Hero */}
+        <section className="pt-28 md:pt-36 pb-16 md:pb-24">
+          <p
+            className={`text-[11px] font-medium tracking-[0.15em] uppercase mb-6 ${
+              isDark ? "text-neutral-500" : "text-neutral-400"
+            }`}
+          >
+            Open-source wizard engine
+          </p>
           <h1
-            style={{
-              fontSize: "clamp(40px, 7vw, 72px)",
-              fontWeight: 800,
-              lineHeight: 1.05,
-              letterSpacing: "-0.035em",
-              color: fg,
-              margin: 0,
-            }}
+            className={`text-7xl md:text-8xl lg:text-[6.5rem] font-black leading-[0.95] ${
+              isDark ? "text-white" : "text-[#0a0a0a]"
+            }`}
+            style={{ letterSpacing: "-0.045em" }}
           >
             Wizard
           </h1>
           <p
-            style={{
-              fontSize: 17,
-              lineHeight: 1.6,
-              color: dim,
-              margin: "16px 0 0",
-              maxWidth: 560,
-            }}
+            className={`text-lg md:text-xl leading-relaxed mt-6 max-w-xl ${
+              isDark ? "text-neutral-400" : "text-neutral-500"
+            }`}
           >
-            Type-safe multi-step flows. Headless engine, full TypeScript
-            inference, zero UI lock-in.
+            Type-safe multi-step flows.{" "}
+            <span className={isDark ? "text-neutral-300" : "text-neutral-600"}>
+              Headless engine, full TypeScript inference, zero UI lock-in.
+            </span>
           </p>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              marginTop: 32,
-            }}
-          >
+          <div className="flex items-center gap-5 mt-10">
             <Link
               to="/$"
               params={{ _splat: "getting-started" }}
-              className="no-underline"
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: isDark ? "#0a0a0a" : "#fff",
-                background: isDark ? "#e5e5e5" : "#0a0a0a",
-                padding: "8px 20px",
-                borderRadius: 6,
-              }}
+              className={`no-underline text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-colors ${
+                isDark
+                  ? "bg-white text-[#0a0a0a] hover:bg-neutral-200"
+                  : "bg-[#0a0a0a] text-white hover:bg-neutral-800"
+              }`}
             >
               Get Started
             </Link>
             <Link
               to="/$"
               params={{ _splat: "examples" }}
-              className="no-underline"
-              style={{ fontSize: 14, fontWeight: 500, color: dim }}
+              className={`no-underline text-[13px] font-medium transition-colors ${
+                isDark
+                  ? "text-neutral-500 hover:text-white"
+                  : "text-neutral-400 hover:text-[#0a0a0a]"
+              }`}
             >
-              Examples
+              Examples &rarr;
             </Link>
           </div>
-        </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontFamily: mono,
-            fontSize: 13,
-            color: isDark ? "#aaa" : "#555",
-            padding: "10px 16px",
-            border: `1px solid ${faint}`,
-            borderRadius: 8,
-            marginBottom: 40,
-          }}
+          {/* Install */}
+          <div
+            className={`inline-flex items-center gap-3 mt-10 text-[13px] rounded-lg px-4 py-2.5 border ${
+              isDark
+                ? "border-neutral-800 text-neutral-400"
+                : "border-neutral-200 text-neutral-500"
+            }`}
+            style={{ fontFamily: mono }}
+          >
+            <span
+              className={`select-none ${
+                isDark ? "text-neutral-600" : "text-neutral-300"
+              }`}
+            >
+              $
+            </span>
+            <span>npm i @wizard/core @wizard/react</span>
+            <CopyBtn text="npm i @wizard/core @wizard/react" isDark={isDark} />
+          </div>
+        </section>
+
+        {/* Features */}
+        <section
+          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-8 py-16 border-y ${
+            isDark ? "border-neutral-800" : "border-neutral-200"
+          }`}
         >
-          <span style={{ color: dim, userSelect: "none" }}>$</span>
-          <code style={{ flex: 1 }}>npm i @wizard/core @wizard/react</code>
-          <CopyBtn text="npm i @wizard/core @wizard/react" isDark={isDark} />
-        </div>
+          {FEATURES.map((f) => (
+            <div key={f.title}>
+              <h3
+                className={`text-[13px] font-semibold ${
+                  isDark ? "text-white" : "text-[#0a0a0a]"
+                }`}
+              >
+                {f.title}
+              </h3>
+              <p
+                className={`text-[13px] leading-relaxed mt-1.5 ${
+                  isDark ? "text-neutral-500" : "text-neutral-500"
+                }`}
+              >
+                {f.desc}
+              </p>
+            </div>
+          ))}
+        </section>
+
+        {/* IDE Section */}
+        <section className="pt-20 pb-6">
+          <h2
+            className={`text-3xl md:text-4xl font-bold tracking-tight ${
+              isDark ? "text-white" : "text-[#0a0a0a]"
+            }`}
+          >
+            Try it live
+          </h2>
+          <p
+            className={`text-[15px] mt-3 mb-12 max-w-md ${
+              isDark ? "text-neutral-500" : "text-neutral-400"
+            }`}
+          >
+            Edit the wizard config and watch the preview update in real time.
+          </p>
+        </section>
 
         <WizardIde isDark={isDark} mono={mono} />
 
-        <div
-          style={{
-            borderTop: `1px solid ${faint}`,
-            padding: "24px 0",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            fontSize: 13,
-            color: dim,
-            marginBottom: 20,
-          }}
+        {/* Footer */}
+        <footer
+          className={`border-t py-8 flex items-center justify-between text-[13px] ${
+            isDark
+              ? "border-neutral-800 text-neutral-600"
+              : "border-neutral-200 text-neutral-400"
+          }`}
+          style={{ marginBottom: 24 }}
         >
-          <span suppressHydrationWarning>{currentYear} &copy; Wizard</span>
-          <div style={{ display: "flex", gap: 20 }}>
+          <span suppressHydrationWarning>&copy; {currentYear} Wizard</span>
+          <div className="flex gap-6">
             <Link
               to="/$"
               params={{ _splat: "getting-started" }}
-              className="no-underline"
-              style={{ color: dim }}
+              className={`no-underline transition-colors ${
+                isDark
+                  ? "text-neutral-600 hover:text-white"
+                  : "text-neutral-400 hover:text-[#0a0a0a]"
+              }`}
             >
               Docs
             </Link>
             <a
               href={withBase("/typedoc/")}
-              className="no-underline"
-              style={{ color: dim }}
+              className={`no-underline transition-colors ${
+                isDark
+                  ? "text-neutral-600 hover:text-white"
+                  : "text-neutral-400 hover:text-[#0a0a0a]"
+              }`}
             >
               API
             </a>
             <Link
               to="/$"
               params={{ _splat: "examples" }}
-              className="no-underline"
-              style={{ color: dim }}
+              className={`no-underline transition-colors ${
+                isDark
+                  ? "text-neutral-600 hover:text-white"
+                  : "text-neutral-400 hover:text-[#0a0a0a]"
+              }`}
             >
               Examples
             </Link>
           </div>
-        </div>
+        </footer>
       </div>
     </div>
   );
