@@ -1134,7 +1134,7 @@ export function Landing() {
         </div>
 
         {/* IDE — 16:10 aspect ratio, height-driven on desktop */}
-        <div className="flex-1 flex items-center justify-center min-w-0">
+        <div className="flex-1 flex items-center justify-end min-w-0">
           {/* Mobile header */}
           <div className="lg:hidden w-full">
             <h2
