@@ -865,7 +865,7 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
 
   return (
     <div
-      className="flex flex-col h-[460px] lg:h-full"
+      className="flex flex-col h-full"
       style={{
         border: `1px solid ${faint}`,
         borderRadius: 12,
@@ -1051,25 +1051,6 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
   );
 }
 
-const FEATURES = [
-  {
-    title: "Type-Safe",
-    desc: "Full TypeScript inference across steps, transitions, and data schemas.",
-  },
-  {
-    title: "Headless",
-    desc: "Bring your own UI. Zero styling opinions, zero constraints.",
-  },
-  {
-    title: "Tiny Bundle",
-    desc: "Under 5KB gzipped. Zero runtime dependencies.",
-  },
-  {
-    title: "React Ready",
-    desc: "First-class hooks with a framework-agnostic core.",
-  },
-];
-
 export function Landing() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -1079,219 +1060,117 @@ export function Landing() {
 
   return (
     <div
-      className={`${isDark ? "bg-[#0a0a0a]" : "bg-white"} min-h-screen lg:h-dvh lg:overflow-hidden`}
+      className={`${isDark ? "bg-[#0a0a0a]" : "bg-white"} min-h-screen lg:h-dvh lg:overflow-hidden flex flex-col`}
     >
-      <div className="flex flex-col lg:grid lg:grid-cols-2 h-full">
-        {/* Left column - Hero */}
-        <div
-          className={`flex flex-col px-6 py-8 lg:py-6 lg:px-10 xl:px-14 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r ${
-            isDark ? "border-neutral-800" : "border-neutral-200"
-          }`}
-        >
-          <div className="flex-1 flex items-center">
-            <div className="w-full">
-              <h1
-                className={`text-5xl lg:text-6xl xl:text-7xl font-black leading-[0.92] ${
-                  isDark ? "text-white" : "text-[#0a0a0a]"
-                }`}
-                style={{ letterSpacing: "-0.045em" }}
-              >
-                Open
-                <br />
-                Wizard
-              </h1>
-              <p
-                className={`text-[15px] leading-relaxed mt-5 ${
-                  isDark ? "text-neutral-400" : "text-neutral-500"
-                }`}
-              >
-                Type-safe multi-step flows.{" "}
-                <span
-                  className={isDark ? "text-neutral-300" : "text-neutral-600"}
-                >
-                  Headless engine, full TypeScript inference, zero UI lock-in.
-                </span>
-              </p>
-
-              <div className="flex items-center gap-4 mt-5">
-                <Link
-                  to="/$"
-                  params={{ _splat: "getting-started" }}
-                  className={`no-underline text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-colors ${
-                    isDark
-                      ? "bg-white text-[#0a0a0a] hover:bg-neutral-200"
-                      : "bg-[#0a0a0a] text-white hover:bg-neutral-800"
-                  }`}
-                >
-                  Get Started
-                </Link>
-                <Link
-                  to="/$"
-                  params={{ _splat: "examples" }}
-                  className={`no-underline text-[13px] font-medium transition-colors ${
-                    isDark
-                      ? "text-neutral-500 hover:text-white"
-                      : "text-neutral-400 hover:text-[#0a0a0a]"
-                  }`}
-                >
-                  Examples &rarr;
-                </Link>
-              </div>
-
-              {/* Install command */}
-              <div
-                className={`inline-flex items-center gap-3 mt-5 text-[13px] rounded-lg px-4 py-2.5 border ${
-                  isDark
-                    ? "border-neutral-800 text-neutral-400"
-                    : "border-neutral-200 text-neutral-500"
-                }`}
-                style={{ fontFamily: mono }}
-              >
-                <span
-                  className={`select-none ${
-                    isDark ? "text-neutral-600" : "text-neutral-300"
-                  }`}
-                >
-                  $
-                </span>
-                <span>npm i @wizard/core @wizard/react</span>
-                <CopyBtn
-                  text="npm i @wizard/core @wizard/react"
-                  isDark={isDark}
-                />
-              </div>
-
-              {/* Feature badges */}
-              <div className="grid grid-cols-2 gap-2.5 mt-6">
-                {FEATURES.map((f) => (
-                  <div
-                    key={f.title}
-                    className={`rounded-lg px-3 py-2 border ${
-                      isDark
-                        ? "border-neutral-800 bg-neutral-900/50"
-                        : "border-neutral-200 bg-neutral-50"
-                    }`}
-                  >
-                    <div
-                      className={`text-[12px] font-semibold ${
-                        isDark ? "text-neutral-200" : "text-neutral-800"
-                      }`}
-                    >
-                      {f.title}
-                    </div>
-                    <div
-                      className={`text-[10px] mt-0.5 leading-snug ${
-                        isDark ? "text-neutral-500" : "text-neutral-400"
-                      }`}
-                    >
-                      {f.desc}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Footer - visible on desktop only */}
-          <footer
-            className={`hidden lg:flex mt-4 pt-3 items-center justify-between text-[11px] border-t ${
-              isDark
-                ? "border-neutral-800 text-neutral-600"
-                : "border-neutral-200 text-neutral-400"
+      {/* Main content — unified single canvas */}
+      <div className="flex-1 flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-0 px-6 lg:px-10 xl:px-14 py-8 lg:py-0 min-h-0">
+        {/* Hero */}
+        <div className="shrink-0 lg:w-[36%] xl:w-[34%] lg:pr-10 xl:pr-14">
+          <h1
+            className={`text-5xl lg:text-6xl xl:text-7xl font-black leading-[0.92] ${
+              isDark ? "text-white" : "text-[#0a0a0a]"
+            }`}
+            style={{ letterSpacing: "-0.045em" }}
+          >
+            Open
+            <br />
+            Wizard
+          </h1>
+          <p
+            className={`text-[15px] leading-relaxed mt-5 ${
+              isDark ? "text-neutral-400" : "text-neutral-500"
             }`}
           >
-            <span suppressHydrationWarning>&copy; {currentYear} Wizard</span>
-            <div className="flex gap-3">
-              <Link
-                to="/$"
-                params={{ _splat: "getting-started" }}
-                className={`no-underline transition-colors ${
-                  isDark
-                    ? "text-neutral-600 hover:text-white"
-                    : "text-neutral-400 hover:text-[#0a0a0a]"
-                }`}
-              >
-                Docs
-              </Link>
-              <a
-                href={withBase("/typedoc/")}
-                className={`no-underline transition-colors ${
-                  isDark
-                    ? "text-neutral-600 hover:text-white"
-                    : "text-neutral-400 hover:text-[#0a0a0a]"
-                }`}
-              >
-                API
-              </a>
-              <Link
-                to="/$"
-                params={{ _splat: "examples" }}
-                className={`no-underline transition-colors ${
-                  isDark
-                    ? "text-neutral-600 hover:text-white"
-                    : "text-neutral-400 hover:text-[#0a0a0a]"
-                }`}
-              >
-                Examples
-              </Link>
-            </div>
-          </footer>
-        </div>
-
-        {/* Right column - IDE */}
-        <div className="px-4 pb-4 lg:p-4 flex flex-col min-h-0">
-          {/* Desktop "Try it live" label */}
-          <div className="hidden lg:flex items-baseline gap-3 mb-2 px-1">
-            <h2
-              className={`text-sm font-semibold tracking-tight ${
-                isDark ? "text-neutral-300" : "text-neutral-700"
-              }`}
-            >
-              Try it live
-            </h2>
-            <span
-              className={`text-[11px] ${
-                isDark ? "text-neutral-600" : "text-neutral-400"
-              }`}
-            >
-              Edit the config and watch the preview update
+            Type-safe multi-step flows.{" "}
+            <span className={isDark ? "text-neutral-300" : "text-neutral-600"}>
+              Headless engine, full TypeScript inference, zero UI lock-in.
             </span>
+          </p>
+
+          <div className="flex items-center gap-4 mt-5">
+            <Link
+              to="/$"
+              params={{ _splat: "getting-started" }}
+              className={`no-underline text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-colors ${
+                isDark
+                  ? "bg-white text-[#0a0a0a] hover:bg-neutral-200"
+                  : "bg-[#0a0a0a] text-white hover:bg-neutral-800"
+              }`}
+            >
+              Get Started
+            </Link>
+            <Link
+              to="/$"
+              params={{ _splat: "examples" }}
+              className={`no-underline text-[13px] font-medium transition-colors ${
+                isDark
+                  ? "text-neutral-500 hover:text-white"
+                  : "text-neutral-400 hover:text-[#0a0a0a]"
+              }`}
+            >
+              Examples &rarr;
+            </Link>
           </div>
 
-          {/* Mobile "Try it live" header */}
-          <div className="lg:hidden mb-3 mt-2">
+          {/* Install command */}
+          <div
+            className={`inline-flex items-center gap-3 mt-5 text-[13px] rounded-lg px-4 py-2.5 border ${
+              isDark
+                ? "border-neutral-800 text-neutral-400"
+                : "border-neutral-200 text-neutral-500"
+            }`}
+            style={{ fontFamily: mono }}
+          >
+            <span
+              className={`select-none ${
+                isDark ? "text-neutral-600" : "text-neutral-300"
+              }`}
+            >
+              $
+            </span>
+            <span>npm i @wizard/core @wizard/react</span>
+            <CopyBtn text="npm i @wizard/core @wizard/react" isDark={isDark} />
+          </div>
+        </div>
+
+        {/* IDE — 16:10 aspect ratio, height-driven on desktop */}
+        <div className="flex-1 flex items-center justify-center min-w-0">
+          {/* Mobile header */}
+          <div className="lg:hidden w-full">
             <h2
-              className={`text-2xl font-bold tracking-tight ${
+              className={`text-2xl font-bold tracking-tight mb-3 ${
                 isDark ? "text-white" : "text-[#0a0a0a]"
               }`}
             >
               Try it live
             </h2>
-            <p
-              className={`text-[13px] mt-1 ${
-                isDark ? "text-neutral-500" : "text-neutral-400"
-              }`}
-            >
-              Edit the wizard config and watch the preview update.
-            </p>
+            <div className="h-[460px]">
+              <WizardIde isDark={isDark} mono={mono} />
+            </div>
           </div>
 
-          <div className="flex-1 min-h-0">
+          {/* Desktop IDE — height constrained, 16:10 aspect */}
+          <div
+            className="hidden lg:block w-auto"
+            style={{
+              height: "min(calc(100dvh - 120px), 640px)",
+              aspectRatio: "16 / 10",
+              maxWidth: "100%",
+            }}
+          >
             <WizardIde isDark={isDark} mono={mono} />
           </div>
         </div>
       </div>
 
-      {/* Mobile footer */}
+      {/* Footer — unified, always visible */}
       <footer
-        className={`lg:hidden px-6 py-6 flex items-center justify-between text-[12px] border-t ${
-          isDark
-            ? "border-neutral-800 text-neutral-600"
-            : "border-neutral-200 text-neutral-400"
+        className={`shrink-0 px-6 lg:px-10 xl:px-14 py-3 flex items-center justify-between text-[11px] ${
+          isDark ? "text-neutral-600" : "text-neutral-400"
         }`}
       >
         <span suppressHydrationWarning>&copy; {currentYear} Wizard</span>
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <Link
             to="/$"
             params={{ _splat: "getting-started" }}
