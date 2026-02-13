@@ -1057,15 +1057,27 @@ export function Landing() {
   const mono =
     "'SF Mono', ui-monospace, Consolas, 'Liberation Mono', monospace";
   const currentYear = new Date().getUTCFullYear();
+  const pageTextureStyle = isDark
+    ? {
+        backgroundColor: "#0a0a0a",
+        backgroundImage:
+          "radial-gradient(circle at 15% 12%, rgba(255,255,255,0.045), transparent 42%), radial-gradient(circle at 88% 0%, rgba(255,255,255,0.035), transparent 36%), repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 28px), repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 28px)",
+      }
+    : {
+        backgroundColor: "#ffffff",
+        backgroundImage:
+          "radial-gradient(circle at 12% 10%, rgba(15,23,42,0.055), transparent 40%), radial-gradient(circle at 92% 2%, rgba(15,23,42,0.04), transparent 34%), repeating-linear-gradient(0deg, rgba(15,23,42,0.04) 0, rgba(15,23,42,0.04) 1px, transparent 1px, transparent 28px), repeating-linear-gradient(90deg, rgba(15,23,42,0.025) 0, rgba(15,23,42,0.025) 1px, transparent 1px, transparent 28px)",
+      };
 
   return (
     <div
-      className={`${isDark ? "bg-[#0a0a0a]" : "bg-white"} min-h-screen lg:h-dvh lg:overflow-hidden flex flex-col`}
+      className="min-h-screen lg:h-dvh lg:overflow-hidden flex flex-col"
+      style={pageTextureStyle}
     >
       {/* Main content — unified single canvas */}
       <div className="flex-1 flex flex-col lg:flex-row lg:items-center lg:justify-center gap-8 lg:gap-12 xl:gap-16 px-6 lg:px-10 xl:px-14 py-8 lg:py-0 min-h-0">
         {/* Hero */}
-        <div className="shrink-0 lg:text-right">
+        <div className="shrink-0 lg:text-right lg:-translate-y-[8vh]">
           <h1
             className={`text-5xl lg:text-7xl xl:text-8xl font-black leading-[0.92] ${
               isDark ? "text-white" : "text-[#0a0a0a]"
@@ -1075,7 +1087,7 @@ export function Landing() {
             OpenWizard
           </h1>
           <p
-            className={`text-[15px] leading-relaxed mt-5 ${
+            className={`text-[15px] leading-relaxed mt-5 lg:max-w-[56%] lg:ml-auto ${
               isDark ? "text-neutral-400" : "text-neutral-500"
             }`}
           >
@@ -1084,31 +1096,6 @@ export function Landing() {
               Headless engine, full TypeScript inference, zero UI lock-in.
             </span>
           </p>
-
-          <div className="flex items-center lg:justify-end gap-4 mt-5">
-            <Link
-              to="/$"
-              params={{ _splat: "getting-started" }}
-              className={`no-underline text-[13px] font-medium px-5 py-2.5 rounded-lg transition-colors ${
-                isDark
-                  ? "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                  : "bg-neutral-200 text-neutral-600 hover:bg-neutral-300"
-              }`}
-            >
-              View Docs
-            </Link>
-            <Link
-              to="/$"
-              params={{ _splat: "examples" }}
-              className={`no-underline text-[13px] font-medium transition-colors ${
-                isDark
-                  ? "text-neutral-500 hover:text-white"
-                  : "text-neutral-400 hover:text-[#0a0a0a]"
-              }`}
-            >
-              Examples &rarr;
-            </Link>
-          </div>
 
           {/* Install command */}
           <div
@@ -1129,6 +1116,20 @@ export function Landing() {
             <span>npm i @wizard/core @wizard/react</span>
             <CopyBtn text="npm i @wizard/core @wizard/react" isDark={isDark} />
           </div>
+
+          <div className="mt-3 flex lg:justify-end">
+            <Link
+              to="/$"
+              params={{ _splat: "getting-started" }}
+              className={`no-underline text-[13px] font-medium transition-colors ${
+                isDark
+                  ? "text-neutral-500 hover:text-white"
+                  : "text-neutral-400 hover:text-[#0a0a0a]"
+              }`}
+            >
+              View Docs &rarr;
+            </Link>
+          </div>
         </div>
 
         {/* IDE — 16:10 aspect ratio, height-driven on desktop */}
@@ -1142,7 +1143,7 @@ export function Landing() {
             >
               Try it live
             </h2>
-            <div className="h-[460px]">
+            <div className="h-[520px]">
               <WizardIde isDark={isDark} mono={mono} />
             </div>
           </div>
@@ -1151,9 +1152,9 @@ export function Landing() {
           <div
             className="hidden lg:block"
             style={{
-              height: "min(calc(100dvh - 100px), 660px)",
+              height: "min(calc(100dvh - 72px), 740px)",
               aspectRatio: "16 / 10",
-              maxWidth: "min(52vw, 860px)",
+              maxWidth: "min(62vw, 1040px)",
             }}
           >
             <WizardIde isDark={isDark} mono={mono} />
