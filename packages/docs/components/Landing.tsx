@@ -507,8 +507,7 @@ function DocsMonacoEditor({
     <div
       style={{
         width: "100%",
-        minHeight: 520,
-        maxHeight: 700,
+        height: "100%",
         background: editorSurface,
         overflow: "hidden",
         boxSizing: "border-box",
@@ -518,7 +517,7 @@ function DocsMonacoEditor({
         fallback={
           <div
             style={{
-              minHeight: 520,
+              height: "100%",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -543,7 +542,7 @@ function DocsMonacoEditor({
           theme={editorTheme}
           value={value}
           onChange={(nextValue) => onChange(nextValue ?? "")}
-          height="520px"
+          height="100%"
           options={{
             readOnly: false,
             minimap: { enabled: false },
@@ -842,6 +841,7 @@ function LiveWizardPreview({
 function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
   const [files, setFiles] = useState<Record<IdeFile, string>>(IDE_FILES);
   const [activeFile, setActiveFile] = useState<IdeFile>("src/wizard.ts");
+  const [mobileView, setMobileView] = useState<"code" | "preview">("code");
 
   const parseResult = useMemo(
     () => parseWizardConfig(files["src/wizard.ts"]),
@@ -860,33 +860,31 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
 
   const faint = isDark ? "#2b2b2b" : "#e5e5e5";
   const panelBg = isDark ? "#0d0d0d" : "#f8f8f8";
-  const editorBg = panelBg;
   const fg = isDark ? "#eaeaea" : "#121212";
   const dim = isDark ? "#808080" : "#666";
 
   return (
     <div
+      className="flex flex-col h-[460px] lg:h-full"
       style={{
         border: `1px solid ${faint}`,
         borderRadius: 12,
         overflow: "hidden",
-        marginBottom: 48,
         boxShadow: isDark
           ? "0 4px 40px rgba(0,0,0,0.5)"
           : "0 4px 40px rgba(0,0,0,0.07)",
       }}
     >
+      {/* Title bar */}
       <div
+        className="flex items-center justify-between shrink-0"
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
           borderBottom: `1px solid ${faint}`,
-          padding: "10px 12px",
+          padding: "8px 12px",
           background: panelBg,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="flex items-center gap-2">
           <span
             style={{
               width: 10,
@@ -916,7 +914,7 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
               fontSize: 11,
               color: dim,
               fontFamily: mono,
-              marginLeft: 6,
+              marginLeft: 4,
             }}
           >
             Wizard IDE
@@ -925,96 +923,88 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
         <CopyBtn text={files[activeFile]} isDark={isDark} />
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap" }}>
-        <aside
-          style={{
-            flex: "0 0 220px",
-            minWidth: 180,
-            borderRight: `1px solid ${faint}`,
-            background: panelBg,
-            padding: 12,
-          }}
-        >
-          <div
+      {/* Mobile toggle: Code / Preview */}
+      <div
+        className="flex lg:hidden shrink-0"
+        style={{
+          borderBottom: `1px solid ${faint}`,
+          background: panelBg,
+        }}
+      >
+        {(["code", "preview"] as const).map((view) => (
+          <button
+            key={view}
+            onClick={() => setMobileView(view)}
             style={{
+              flex: 1,
+              padding: "8px 0",
+              fontSize: 12,
               fontFamily: mono,
-              fontSize: 11,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              color: dim,
-              marginBottom: 8,
+              textTransform: "capitalize",
+              border: "none",
+              borderBottom:
+                mobileView === view
+                  ? `2px solid ${fg}`
+                  : "2px solid transparent",
+              background: "transparent",
+              color: mobileView === view ? fg : dim,
+              cursor: "pointer",
             }}
           >
-            files
-          </div>
-          <div style={{ display: "grid", gap: 4 }}>
-            {IDE_FILE_ORDER.map((file) => {
-              const selected = file === activeFile;
-              return (
-                <button
-                  key={file}
-                  onClick={() => setActiveFile(file)}
-                  style={{
-                    textAlign: "left",
-                    border: `1px solid ${selected ? fg : "transparent"}`,
-                    background: selected
-                      ? isDark
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(0,0,0,0.03)"
-                      : "transparent",
-                    color: selected ? fg : dim,
-                    borderRadius: 6,
-                    padding: "7px 8px",
-                    fontSize: 12,
-                    fontFamily: mono,
-                    cursor: "pointer",
-                  }}
-                >
-                  {displayFileName(file)}
-                </button>
-              );
-            })}
-          </div>
-          <p
-            style={{
-              marginTop: 12,
-              fontSize: 11,
-              color: dim,
-              lineHeight: 1.45,
-            }}
-          >
-            Edit <code>wizard.ts</code> and <code>Signup.tsx</code> to update
-            the preview.
-          </p>
-        </aside>
+            {view}
+          </button>
+        ))}
+      </div>
 
-        <div
-          style={{
-            flex: "1 1 700px",
-            minWidth: 280,
-            display: "flex",
-            flexWrap: "wrap",
-          }}
-        >
-          <section
-            style={{
-              flex: "1 1 440px",
-              minWidth: 260,
-              borderRight: `1px solid ${faint}`,
-              background: editorBg,
-            }}
-          >
-            <div
+      {/* File tabs */}
+      <div
+        className={`shrink-0 overflow-x-auto ${mobileView === "preview" ? "hidden lg:flex" : "flex"}`}
+        style={{
+          borderBottom: `1px solid ${faint}`,
+          background: panelBg,
+          padding: "0 8px",
+          gap: 2,
+        }}
+      >
+        {IDE_FILE_ORDER.map((file) => {
+          const selected = file === activeFile;
+          return (
+            <button
+              key={file}
+              onClick={() => setActiveFile(file)}
               style={{
-                borderBottom: `1px solid ${faint}`,
-                padding: "8px 12px",
-                fontFamily: mono,
+                padding: "8px 10px",
                 fontSize: 12,
-                color: dim,
+                fontFamily: mono,
+                border: "none",
+                borderBottom: selected
+                  ? `2px solid ${fg}`
+                  : "2px solid transparent",
+                background: "transparent",
+                color: selected ? fg : dim,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
-              {displayFileName(activeFile)}
-            </div>
+              {displayFileName(file)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Content area */}
+      <div className="flex flex-1 min-h-0">
+        {/* Editor panel */}
+        <div
+          className={`min-w-0 min-h-0 ${mobileView === "preview" ? "hidden lg:block" : "block"} flex-1`}
+          style={{
+            position: "relative",
+            borderRight: `1px solid ${faint}`,
+            background: panelBg,
+          }}
+        >
+          <div style={{ position: "absolute", inset: 0 }}>
             <DocsMonacoEditor
               value={files[activeFile]}
               onChange={(content) =>
@@ -1024,41 +1014,37 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
               mono={mono}
               isDark={isDark}
             />
-          </section>
+          </div>
+        </div>
 
-          <section
+        {/* Preview panel */}
+        <div
+          className={`lg:w-[280px] xl:w-[340px] shrink-0 overflow-y-auto ${mobileView === "code" ? "hidden lg:block" : "block w-full"}`}
+          style={{
+            padding: 12,
+            background: isDark ? "#0a0a0a" : "#fff",
+          }}
+        >
+          <div
             style={{
-              flex: "1 1 320px",
-              minWidth: 280,
-              padding: 12,
-              background: isDark ? "#0a0a0a" : "#fff",
+              border: `1px solid ${faint}`,
+              borderRadius: 8,
+              marginBottom: 10,
+              padding: "6px 10px",
+              fontSize: 11,
+              color: parseResult.error ? (isDark ? "#fca5a5" : "#b91c1c") : dim,
+              background: isDark ? "#0d0d0d" : "#fafafa",
             }}
           >
-            <div
-              style={{
-                border: `1px solid ${faint}`,
-                borderRadius: 8,
-                marginBottom: 10,
-                padding: "8px 10px",
-                fontSize: 12,
-                color: parseResult.error
-                  ? isDark
-                    ? "#fca5a5"
-                    : "#b91c1c"
-                  : dim,
-                background: isDark ? "#0d0d0d" : "#fafafa",
-              }}
-            >
-              {parseResult.error
-                ? parseResult.error
-                : "Live preview is synced with your code changes."}
-            </div>
-            <LiveWizardPreview
-              config={previewConfig}
-              isDark={isDark}
-              mono={mono}
-            />
-          </section>
+            {parseResult.error
+              ? parseResult.error
+              : "Live preview synced with your code."}
+          </div>
+          <LiveWizardPreview
+            config={previewConfig}
+            isDark={isDark}
+            mono={mono}
+          />
         </div>
       </div>
     </div>
@@ -1093,143 +1079,253 @@ export function Landing() {
 
   return (
     <div
-      className={isDark ? "bg-[#0a0a0a]" : "bg-white"}
-      style={{ minHeight: "100vh" }}
+      className={`${isDark ? "bg-[#0a0a0a]" : "bg-white"} min-h-screen lg:h-dvh lg:overflow-hidden`}
     >
-      <div className="max-w-[1200px] mx-auto px-6">
-        {/* Hero */}
-        <section className="pt-8">
-          <h1
-            className={`text-7xl md:text-8xl lg:text-[6.5rem] font-black leading-[0.95] ${
-              isDark ? "text-white" : "text-[#0a0a0a]"
-            }`}
-            style={{ letterSpacing: "-0.045em" }}
-          >
-            OpenWizard
-          </h1>
-          <p
-            className={`text-lg md:text-xl leading-relaxed mt-6 max-w-xl ${
-              isDark ? "text-neutral-400" : "text-neutral-500"
-            }`}
-          >
-            Type-safe multi-step flows.{" "}
-            <span className={isDark ? "text-neutral-300" : "text-neutral-600"}>
-              Headless engine, full TypeScript inference, zero UI lock-in.
-            </span>
-          </p>
-
-          <div className="flex items-center gap-5 mt-5">
-            <Link
-              to="/$"
-              params={{ _splat: "getting-started" }}
-              className={`no-underline text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-colors ${
-                isDark
-                  ? "bg-white text-[#0a0a0a] hover:bg-neutral-200"
-                  : "bg-[#0a0a0a] text-white hover:bg-neutral-800"
-              }`}
-            >
-              Get Started
-            </Link>
-            <Link
-              to="/$"
-              params={{ _splat: "examples" }}
-              className={`no-underline text-[13px] font-medium transition-colors ${
-                isDark
-                  ? "text-neutral-500 hover:text-white"
-                  : "text-neutral-400 hover:text-[#0a0a0a]"
-              }`}
-            >
-              Examples &rarr;
-            </Link>
-          </div>
-
-          {/* Install */}
-          <div
-            className={`inline-flex items-center gap-3 mt-5 text-[13px] rounded-lg px-4 py-2.5 border ${
-              isDark
-                ? "border-neutral-800 text-neutral-400"
-                : "border-neutral-200 text-neutral-500"
-            }`}
-            style={{ fontFamily: mono }}
-          >
-            <span
-              className={`select-none ${
-                isDark ? "text-neutral-600" : "text-neutral-300"
-              }`}
-            >
-              $
-            </span>
-            <span>npm i @wizard/core @wizard/react</span>
-            <CopyBtn text="npm i @wizard/core @wizard/react" isDark={isDark} />
-          </div>
-        </section>
-
-        {/* IDE Section */}
-        <section className="pt-6">
-          <h2
-            className={`text-3xl md:text-4xl font-bold tracking-tight ${
-              isDark ? "text-white" : "text-[#0a0a0a]"
-            }`}
-          >
-            Try it live
-          </h2>
-          <p
-            className={`text-[15px] mt-3 mb-12 max-w-md ${
-              isDark ? "text-neutral-500" : "text-neutral-400"
-            }`}
-          >
-            Edit the wizard config and watch the preview update in real time.
-          </p>
-        </section>
-
-        <WizardIde isDark={isDark} mono={mono} />
-
-        {/* Footer */}
-        <footer
-          className={`border-t py-8 flex items-center justify-between text-[13px] ${
-            isDark
-              ? "border-neutral-800 text-neutral-600"
-              : "border-neutral-200 text-neutral-400"
+      <div className="flex flex-col lg:grid lg:grid-cols-2 h-full">
+        {/* Left column - Hero */}
+        <div
+          className={`flex flex-col px-6 py-8 lg:py-6 lg:px-10 xl:px-14 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r ${
+            isDark ? "border-neutral-800" : "border-neutral-200"
           }`}
-          style={{ marginBottom: 24 }}
         >
-          <span suppressHydrationWarning>&copy; {currentYear} Wizard</span>
-          <div className="flex gap-6">
-            <Link
-              to="/$"
-              params={{ _splat: "getting-started" }}
-              className={`no-underline transition-colors ${
-                isDark
-                  ? "text-neutral-600 hover:text-white"
-                  : "text-neutral-400 hover:text-[#0a0a0a]"
-              }`}
-            >
-              Docs
-            </Link>
-            <a
-              href={withBase("/typedoc/")}
-              className={`no-underline transition-colors ${
-                isDark
-                  ? "text-neutral-600 hover:text-white"
-                  : "text-neutral-400 hover:text-[#0a0a0a]"
-              }`}
-            >
-              API
-            </a>
-            <Link
-              to="/$"
-              params={{ _splat: "examples" }}
-              className={`no-underline transition-colors ${
-                isDark
-                  ? "text-neutral-600 hover:text-white"
-                  : "text-neutral-400 hover:text-[#0a0a0a]"
-              }`}
-            >
-              Examples
-            </Link>
+          <div className="flex-1 flex items-center">
+            <div className="w-full">
+              <h1
+                className={`text-5xl lg:text-6xl xl:text-7xl font-black leading-[0.92] ${
+                  isDark ? "text-white" : "text-[#0a0a0a]"
+                }`}
+                style={{ letterSpacing: "-0.045em" }}
+              >
+                Open
+                <br />
+                Wizard
+              </h1>
+              <p
+                className={`text-[15px] leading-relaxed mt-5 ${
+                  isDark ? "text-neutral-400" : "text-neutral-500"
+                }`}
+              >
+                Type-safe multi-step flows.{" "}
+                <span
+                  className={isDark ? "text-neutral-300" : "text-neutral-600"}
+                >
+                  Headless engine, full TypeScript inference, zero UI lock-in.
+                </span>
+              </p>
+
+              <div className="flex items-center gap-4 mt-5">
+                <Link
+                  to="/$"
+                  params={{ _splat: "getting-started" }}
+                  className={`no-underline text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-colors ${
+                    isDark
+                      ? "bg-white text-[#0a0a0a] hover:bg-neutral-200"
+                      : "bg-[#0a0a0a] text-white hover:bg-neutral-800"
+                  }`}
+                >
+                  Get Started
+                </Link>
+                <Link
+                  to="/$"
+                  params={{ _splat: "examples" }}
+                  className={`no-underline text-[13px] font-medium transition-colors ${
+                    isDark
+                      ? "text-neutral-500 hover:text-white"
+                      : "text-neutral-400 hover:text-[#0a0a0a]"
+                  }`}
+                >
+                  Examples &rarr;
+                </Link>
+              </div>
+
+              {/* Install command */}
+              <div
+                className={`inline-flex items-center gap-3 mt-5 text-[13px] rounded-lg px-4 py-2.5 border ${
+                  isDark
+                    ? "border-neutral-800 text-neutral-400"
+                    : "border-neutral-200 text-neutral-500"
+                }`}
+                style={{ fontFamily: mono }}
+              >
+                <span
+                  className={`select-none ${
+                    isDark ? "text-neutral-600" : "text-neutral-300"
+                  }`}
+                >
+                  $
+                </span>
+                <span>npm i @wizard/core @wizard/react</span>
+                <CopyBtn
+                  text="npm i @wizard/core @wizard/react"
+                  isDark={isDark}
+                />
+              </div>
+
+              {/* Feature badges */}
+              <div className="grid grid-cols-2 gap-2.5 mt-6">
+                {FEATURES.map((f) => (
+                  <div
+                    key={f.title}
+                    className={`rounded-lg px-3 py-2 border ${
+                      isDark
+                        ? "border-neutral-800 bg-neutral-900/50"
+                        : "border-neutral-200 bg-neutral-50"
+                    }`}
+                  >
+                    <div
+                      className={`text-[12px] font-semibold ${
+                        isDark ? "text-neutral-200" : "text-neutral-800"
+                      }`}
+                    >
+                      {f.title}
+                    </div>
+                    <div
+                      className={`text-[10px] mt-0.5 leading-snug ${
+                        isDark ? "text-neutral-500" : "text-neutral-400"
+                      }`}
+                    >
+                      {f.desc}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </footer>
+
+          {/* Footer - visible on desktop only */}
+          <footer
+            className={`hidden lg:flex mt-4 pt-3 items-center justify-between text-[11px] border-t ${
+              isDark
+                ? "border-neutral-800 text-neutral-600"
+                : "border-neutral-200 text-neutral-400"
+            }`}
+          >
+            <span suppressHydrationWarning>&copy; {currentYear} Wizard</span>
+            <div className="flex gap-3">
+              <Link
+                to="/$"
+                params={{ _splat: "getting-started" }}
+                className={`no-underline transition-colors ${
+                  isDark
+                    ? "text-neutral-600 hover:text-white"
+                    : "text-neutral-400 hover:text-[#0a0a0a]"
+                }`}
+              >
+                Docs
+              </Link>
+              <a
+                href={withBase("/typedoc/")}
+                className={`no-underline transition-colors ${
+                  isDark
+                    ? "text-neutral-600 hover:text-white"
+                    : "text-neutral-400 hover:text-[#0a0a0a]"
+                }`}
+              >
+                API
+              </a>
+              <Link
+                to="/$"
+                params={{ _splat: "examples" }}
+                className={`no-underline transition-colors ${
+                  isDark
+                    ? "text-neutral-600 hover:text-white"
+                    : "text-neutral-400 hover:text-[#0a0a0a]"
+                }`}
+              >
+                Examples
+              </Link>
+            </div>
+          </footer>
+        </div>
+
+        {/* Right column - IDE */}
+        <div className="px-4 pb-4 lg:p-4 flex flex-col min-h-0">
+          {/* Desktop "Try it live" label */}
+          <div className="hidden lg:flex items-baseline gap-3 mb-2 px-1">
+            <h2
+              className={`text-sm font-semibold tracking-tight ${
+                isDark ? "text-neutral-300" : "text-neutral-700"
+              }`}
+            >
+              Try it live
+            </h2>
+            <span
+              className={`text-[11px] ${
+                isDark ? "text-neutral-600" : "text-neutral-400"
+              }`}
+            >
+              Edit the config and watch the preview update
+            </span>
+          </div>
+
+          {/* Mobile "Try it live" header */}
+          <div className="lg:hidden mb-3 mt-2">
+            <h2
+              className={`text-2xl font-bold tracking-tight ${
+                isDark ? "text-white" : "text-[#0a0a0a]"
+              }`}
+            >
+              Try it live
+            </h2>
+            <p
+              className={`text-[13px] mt-1 ${
+                isDark ? "text-neutral-500" : "text-neutral-400"
+              }`}
+            >
+              Edit the wizard config and watch the preview update.
+            </p>
+          </div>
+
+          <div className="flex-1 min-h-0">
+            <WizardIde isDark={isDark} mono={mono} />
+          </div>
+        </div>
       </div>
+
+      {/* Mobile footer */}
+      <footer
+        className={`lg:hidden px-6 py-6 flex items-center justify-between text-[12px] border-t ${
+          isDark
+            ? "border-neutral-800 text-neutral-600"
+            : "border-neutral-200 text-neutral-400"
+        }`}
+      >
+        <span suppressHydrationWarning>&copy; {currentYear} Wizard</span>
+        <div className="flex gap-4">
+          <Link
+            to="/$"
+            params={{ _splat: "getting-started" }}
+            className={`no-underline transition-colors ${
+              isDark
+                ? "text-neutral-600 hover:text-white"
+                : "text-neutral-400 hover:text-[#0a0a0a]"
+            }`}
+          >
+            Docs
+          </Link>
+          <a
+            href={withBase("/typedoc/")}
+            className={`no-underline transition-colors ${
+              isDark
+                ? "text-neutral-600 hover:text-white"
+                : "text-neutral-400 hover:text-[#0a0a0a]"
+            }`}
+          >
+            API
+          </a>
+          <Link
+            to="/$"
+            params={{ _splat: "examples" }}
+            className={`no-underline transition-colors ${
+              isDark
+                ? "text-neutral-600 hover:text-white"
+                : "text-neutral-400 hover:text-[#0a0a0a]"
+            }`}
+          >
+            Examples
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 }
