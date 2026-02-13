@@ -1089,13 +1089,13 @@ export function Landing() {
             <Link
               to="/$"
               params={{ _splat: "getting-started" }}
-              className={`no-underline text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-colors ${
+              className={`no-underline text-[13px] font-medium px-5 py-2.5 rounded-lg transition-colors ${
                 isDark
-                  ? "bg-white text-[#0a0a0a] hover:bg-neutral-200"
-                  : "bg-[#0a0a0a] text-white hover:bg-neutral-800"
+                  ? "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                  : "bg-neutral-200 text-neutral-600 hover:bg-neutral-300"
               }`}
             >
-              Get Started
+              View Docs
             </Link>
             <Link
               to="/$"
