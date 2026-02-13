@@ -1065,9 +1065,9 @@ export function Landing() {
       {/* Main content — unified single canvas */}
       <div className="flex-1 flex flex-col lg:flex-row lg:items-center lg:justify-center gap-8 lg:gap-12 xl:gap-16 px-6 lg:px-10 xl:px-14 py-8 lg:py-0 min-h-0">
         {/* Hero */}
-        <div className="shrink-0 lg:text-right lg:max-w-[340px] xl:max-w-[380px]">
+        <div className="shrink-0 lg:text-right">
           <h1
-            className={`text-5xl lg:text-6xl xl:text-7xl font-black leading-[0.92] ${
+            className={`text-5xl lg:text-7xl xl:text-8xl font-black leading-[0.92] ${
               isDark ? "text-white" : "text-[#0a0a0a]"
             }`}
             style={{ letterSpacing: "-0.045em" }}
@@ -1151,9 +1151,9 @@ export function Landing() {
           <div
             className="hidden lg:block"
             style={{
-              height: "min(calc(100dvh - 120px), 600px)",
+              height: "min(calc(100dvh - 100px), 660px)",
               aspectRatio: "16 / 10",
-              maxWidth: "min(60vw, 900px)",
+              maxWidth: "min(52vw, 860px)",
             }}
           >
             <WizardIde isDark={isDark} mono={mono} />
