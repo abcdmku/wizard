@@ -1098,21 +1098,14 @@ export function Landing() {
     >
       <div className="max-w-[1200px] mx-auto px-6">
         {/* Hero */}
-        <section className="pt-28 md:pt-36 pb-16 md:pb-24">
-          <p
-            className={`text-[11px] font-medium tracking-[0.15em] uppercase mb-6 ${
-              isDark ? "text-neutral-500" : "text-neutral-400"
-            }`}
-          >
-            Open-source wizard engine
-          </p>
+        <section className="pt-8">
           <h1
             className={`text-7xl md:text-8xl lg:text-[6.5rem] font-black leading-[0.95] ${
               isDark ? "text-white" : "text-[#0a0a0a]"
             }`}
             style={{ letterSpacing: "-0.045em" }}
           >
-            Wizard
+            OpenWizard
           </h1>
           <p
             className={`text-lg md:text-xl leading-relaxed mt-6 max-w-xl ${
@@ -1125,7 +1118,7 @@ export function Landing() {
             </span>
           </p>
 
-          <div className="flex items-center gap-5 mt-10">
+          <div className="flex items-center gap-5 mt-5">
             <Link
               to="/$"
               params={{ _splat: "getting-started" }}
@@ -1152,7 +1145,7 @@ export function Landing() {
 
           {/* Install */}
           <div
-            className={`inline-flex items-center gap-3 mt-10 text-[13px] rounded-lg px-4 py-2.5 border ${
+            className={`inline-flex items-center gap-3 mt-5 text-[13px] rounded-lg px-4 py-2.5 border ${
               isDark
                 ? "border-neutral-800 text-neutral-400"
                 : "border-neutral-200 text-neutral-500"
@@ -1171,34 +1164,8 @@ export function Landing() {
           </div>
         </section>
 
-        {/* Features */}
-        <section
-          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-8 py-16 border-y ${
-            isDark ? "border-neutral-800" : "border-neutral-200"
-          }`}
-        >
-          {FEATURES.map((f) => (
-            <div key={f.title}>
-              <h3
-                className={`text-[13px] font-semibold ${
-                  isDark ? "text-white" : "text-[#0a0a0a]"
-                }`}
-              >
-                {f.title}
-              </h3>
-              <p
-                className={`text-[13px] leading-relaxed mt-1.5 ${
-                  isDark ? "text-neutral-500" : "text-neutral-500"
-                }`}
-              >
-                {f.desc}
-              </p>
-            </div>
-          ))}
-        </section>
-
         {/* IDE Section */}
-        <section className="pt-20 pb-6">
+        <section className="pt-6">
           <h2
             className={`text-3xl md:text-4xl font-bold tracking-tight ${
               isDark ? "text-white" : "text-[#0a0a0a]"
