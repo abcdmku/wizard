@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { useTheme } from "../src/theme/theme-provider";
 import { withBase } from "../src/lib/base-path";
 import type { Monaco } from "@monaco-editor/react";
+import coreTypesDts from "../../core/dist/index.d.ts?raw";
+import reactTypesDts from "../../react/dist/index.d.ts?raw";
 
 type StepId = "info" | "plan" | "pay" | "done";
 
@@ -37,7 +39,9 @@ interface ParseResult {
 }
 
 const MonacoEditor = lazy(() =>
-  import("@monaco-editor/react").then((module) => ({ default: module.default })),
+  import("@monaco-editor/react").then((module) => ({
+    default: module.default,
+  })),
 );
 
 const STEP_ORDER: StepId[] = ["info", "plan", "pay", "done"];
@@ -118,6 +122,73 @@ function configurePhotoEditorThemes(monaco: Monaco) {
       "editorBracketHighlight.unexpectedBracket.foreground": "#DC2626",
     },
   });
+}
+
+let typesConfigured = false;
+function configureMonacoTypes(monaco: Monaco) {
+  if (typesConfigured) return;
+  typesConfigured = true;
+
+  const ts = monaco.languages.typescript.typescriptDefaults;
+
+  ts.setCompilerOptions({
+    target: monaco.languages.typescript.ScriptTarget.ESNext,
+    module: monaco.languages.typescript.ModuleKind.ESNext,
+    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
+    strict: true,
+    esModuleInterop: true,
+    allowNonTsExtensions: true,
+  });
+
+  // @tanstack/store stub (dependency of @wizard/core)
+  ts.addExtraLib(
+    `declare module '@tanstack/store' {
+  export class Store<TState> {
+    state: TState;
+    subscribe(listener: () => void): () => void;
+    setState(updater: (state: TState) => TState): void;
+  }
+}`,
+    "file:///node_modules/@tanstack/store/index.d.ts",
+  );
+
+  // React type stubs
+  ts.addExtraLib(
+    `declare module 'react' {
+  export type ReactNode = string | number | boolean | null | undefined | ReactElement | ReactNode[];
+  export interface ReactElement<P = any> { type: any; props: P; key: string | null; }
+  export type ComponentType<P = {}> = (props: P) => ReactNode;
+  export type FC<P = {}> = ComponentType<P>;
+  export function createElement(type: any, props?: any, ...children: any[]): ReactElement;
+  export function useState<T>(initial: T | (() => T)): [T, (value: T | ((prev: T) => T)) => void];
+  export function useEffect(effect: () => void | (() => void), deps?: readonly any[]): void;
+  export function useMemo<T>(factory: () => T, deps: readonly any[]): T;
+  export function useCallback<T extends Function>(callback: T, deps: readonly any[]): T;
+  export function useRef<T>(initial: T): { current: T };
+  export function useContext<T>(context: Context<T>): T;
+  export interface Context<T> {}
+  export function createContext<T>(defaultValue: T): Context<T>;
+}`,
+    "file:///node_modules/@types/react/index.d.ts",
+  );
+
+  ts.addExtraLib(
+    `declare module 'react/jsx-runtime' {
+  export namespace JSX {
+    type Element = any;
+    interface IntrinsicElements { [key: string]: any; }
+  }
+}`,
+    "file:///node_modules/@types/react/jsx-runtime.d.ts",
+  );
+
+  // @wizard/core and @wizard/react types from built packages
+  ts.addExtraLib(coreTypesDts, "file:///node_modules/@wizard/core/index.d.ts");
+  ts.addExtraLib(
+    reactTypesDts,
+    "file:///node_modules/@wizard/react/index.d.ts",
+  );
 }
 
 const IDE_FILES: Record<IdeFile, string> = {
@@ -428,7 +499,9 @@ function DocsMonacoEditor({
   isDark: boolean;
 }) {
   const editorSurface = isDark ? "#0d0d0d" : "#f8f8f8";
-  const editorTheme = isDark ? PHOTO_EDITOR_DARK_THEME : PHOTO_EDITOR_LIGHT_THEME;
+  const editorTheme = isDark
+    ? PHOTO_EDITOR_DARK_THEME
+    : PHOTO_EDITOR_LIGHT_THEME;
 
   return (
     <div
@@ -459,9 +532,14 @@ function DocsMonacoEditor({
         }
       >
         <MonacoEditor
-          beforeMount={configurePhotoEditorThemes}
+          beforeMount={(monaco) => {
+            configurePhotoEditorThemes(monaco);
+            configureMonacoTypes(monaco);
+          }}
           path={fileName}
-          language="typescript"
+          language={
+            fileName.endsWith(".tsx") ? "typescriptreact" : "typescript"
+          }
           theme={editorTheme}
           value={value}
           onChange={(nextValue) => onChange(nextValue ?? "")}
@@ -566,8 +644,21 @@ function LiveWizardPreview({
   }
 
   return (
-    <div style={{ border: `1px solid ${faint}`, borderRadius: 10, overflow: "hidden" }}>
-      <div style={{ display: "flex", gap: 8, padding: 10, borderBottom: `1px solid ${faint}` }}>
+    <div
+      style={{
+        border: `1px solid ${faint}`,
+        borderRadius: 10,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          padding: 10,
+          borderBottom: `1px solid ${faint}`,
+        }}
+      >
         {STEP_ORDER.map((id, i) => {
           const active = id === step;
           const complete = i < index;
@@ -579,7 +670,11 @@ function LiveWizardPreview({
               }}
               style={{
                 border: `1px solid ${active ? fg : faint}`,
-                background: active ? (isDark ? "#161616" : "#f5f5f5") : "transparent",
+                background: active
+                  ? isDark
+                    ? "#161616"
+                    : "#f5f5f5"
+                  : "transparent",
                 color: complete ? (isDark ? "#86efac" : "#15803d") : fg,
                 borderRadius: 6,
                 padding: "4px 8px",
@@ -596,8 +691,12 @@ function LiveWizardPreview({
       </div>
 
       <div style={{ padding: 14, minHeight: 220, background: bg }}>
-        <h3 style={{ margin: "0 0 4px", color: fg, fontSize: 17 }}>{config.titles[step]}</h3>
-        <p style={{ margin: "0 0 14px", color: dim, fontSize: 13 }}>{config.descriptions[step]}</p>
+        <h3 style={{ margin: "0 0 4px", color: fg, fontSize: 17 }}>
+          {config.titles[step]}
+        </h3>
+        <p style={{ margin: "0 0 14px", color: dim, fontSize: 13 }}>
+          {config.descriptions[step]}
+        </p>
 
         {step === "info" && (
           <input
@@ -616,7 +715,13 @@ function LiveWizardPreview({
         )}
 
         {step === "plan" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: 8,
+            }}
+          >
             {PLAN_OPTIONS.map((plan) => {
               const selected = data.plan.tier === plan.id;
               return (
@@ -635,7 +740,9 @@ function LiveWizardPreview({
                     color: fg,
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{plan.label}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>
+                    {plan.label}
+                  </div>
                   <div style={{ fontSize: 12, color: dim }}>{plan.price}</div>
                 </button>
               );
@@ -714,7 +821,13 @@ function LiveWizardPreview({
               borderRadius: 6,
               padding: "7px 12px",
               color: isDark ? "#111" : "#fff",
-              background: validate(step) ? (isDark ? "#e5e5e5" : "#111") : isDark ? "#333" : "#ccc",
+              background: validate(step)
+                ? isDark
+                  ? "#e5e5e5"
+                  : "#111"
+                : isDark
+                  ? "#333"
+                  : "#ccc",
               cursor: validate(step) ? "pointer" : "not-allowed",
             }}
           >
@@ -752,7 +865,14 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
   const dim = isDark ? "#808080" : "#666";
 
   return (
-    <div style={{ border: `1px solid ${faint}`, borderRadius: 12, overflow: "hidden", marginBottom: 64 }}>
+    <div
+      style={{
+        border: `1px solid ${faint}`,
+        borderRadius: 12,
+        overflow: "hidden",
+        marginBottom: 64,
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -764,10 +884,40 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
-          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f59e0b" }} />
-          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />
-          <span style={{ fontSize: 11, color: dim, fontFamily: mono, marginLeft: 6 }}>Wizard IDE</span>
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "#ef4444",
+            }}
+          />
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "#f59e0b",
+            }}
+          />
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "#10b981",
+            }}
+          />
+          <span
+            style={{
+              fontSize: 11,
+              color: dim,
+              fontFamily: mono,
+              marginLeft: 6,
+            }}
+          >
+            Wizard IDE
+          </span>
         </div>
         <CopyBtn text={files[activeFile]} isDark={isDark} />
       </div>
@@ -822,12 +972,27 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
               );
             })}
           </div>
-          <p style={{ marginTop: 12, fontSize: 11, color: dim, lineHeight: 1.45 }}>
-            Edit <code>wizard.ts</code> and <code>Signup.tsx</code> to update the preview.
+          <p
+            style={{
+              marginTop: 12,
+              fontSize: 11,
+              color: dim,
+              lineHeight: 1.45,
+            }}
+          >
+            Edit <code>wizard.ts</code> and <code>Signup.tsx</code> to update
+            the preview.
           </p>
         </aside>
 
-        <div style={{ flex: "1 1 700px", minWidth: 280, display: "flex", flexWrap: "wrap" }}>
+        <div
+          style={{
+            flex: "1 1 700px",
+            minWidth: 280,
+            display: "flex",
+            flexWrap: "wrap",
+          }}
+        >
           <section
             style={{
               flex: "1 1 440px",
@@ -858,7 +1023,14 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
             />
           </section>
 
-          <section style={{ flex: "1 1 320px", minWidth: 280, padding: 12, background: isDark ? "#0a0a0a" : "#fff" }}>
+          <section
+            style={{
+              flex: "1 1 320px",
+              minWidth: 280,
+              padding: 12,
+              background: isDark ? "#0a0a0a" : "#fff",
+            }}
+          >
             <div
               style={{
                 border: `1px solid ${faint}`,
@@ -866,7 +1038,11 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
                 marginBottom: 10,
                 padding: "8px 10px",
                 fontSize: 12,
-                color: parseResult.error ? (isDark ? "#fca5a5" : "#b91c1c") : dim,
+                color: parseResult.error
+                  ? isDark
+                    ? "#fca5a5"
+                    : "#b91c1c"
+                  : dim,
                 background: isDark ? "#0d0d0d" : "#fafafa",
               }}
             >
@@ -874,7 +1050,11 @@ function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
                 ? parseResult.error
                 : "Live preview is synced with your code changes."}
             </div>
-            <LiveWizardPreview config={previewConfig} isDark={isDark} mono={mono} />
+            <LiveWizardPreview
+              config={previewConfig}
+              isDark={isDark}
+              mono={mono}
+            />
           </section>
         </div>
       </div>
@@ -890,7 +1070,8 @@ export function Landing() {
   const fg = isDark ? "#e5e5e5" : "#0a0a0a";
   const dim = isDark ? "#555" : "#999";
   const faint = isDark ? "#333" : "#e5e5e5";
-  const mono = "'SF Mono', ui-monospace, Consolas, 'Liberation Mono', monospace";
+  const mono =
+    "'SF Mono', ui-monospace, Consolas, 'Liberation Mono', monospace";
   const currentYear = new Date().getUTCFullYear();
 
   return (
@@ -918,10 +1099,18 @@ export function Landing() {
               maxWidth: 560,
             }}
           >
-            Type-safe multi-step flows. Headless engine, full TypeScript inference, zero UI lock-in.
+            Type-safe multi-step flows. Headless engine, full TypeScript
+            inference, zero UI lock-in.
           </p>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 32 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              marginTop: 32,
+            }}
+          >
             <Link
               to="/$"
               params={{ _splat: "getting-started" }}
@@ -981,9 +1170,7 @@ export function Landing() {
             marginBottom: 20,
           }}
         >
-          <span suppressHydrationWarning>
-            {currentYear} &copy; Wizard
-          </span>
+          <span suppressHydrationWarning>{currentYear} &copy; Wizard</span>
           <div style={{ display: "flex", gap: 20 }}>
             <Link
               to="/$"
