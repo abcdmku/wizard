@@ -1072,9 +1072,7 @@ export function Landing() {
             }`}
             style={{ letterSpacing: "-0.045em" }}
           >
-            Open
-            <br />
-            Wizard
+            OpenWizard
           </h1>
           <p
             className={`text-[15px] leading-relaxed mt-5 ${
