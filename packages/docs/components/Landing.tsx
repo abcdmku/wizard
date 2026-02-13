@@ -1132,7 +1132,7 @@ export function Landing() {
         </div>
 
         {/* IDE — 16:10 aspect ratio, height-driven on desktop */}
-        <div className="flex-1 flex items-center min-w-0">
+        <div className="min-w-0 flex items-center">
           {/* Mobile header */}
           <div className="lg:hidden w-full">
             <h2
@@ -1149,11 +1149,11 @@ export function Landing() {
 
           {/* Desktop IDE — height constrained, 16:10 aspect */}
           <div
-            className="hidden lg:block w-auto"
+            className="hidden lg:block"
             style={{
-              height: "min(calc(100dvh - 120px), 640px)",
+              height: "min(calc(100dvh - 120px), 600px)",
               aspectRatio: "16 / 10",
-              maxWidth: "100%",
+              maxWidth: "min(60vw, 900px)",
             }}
           >
             <WizardIde isDark={isDark} mono={mono} />
