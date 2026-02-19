@@ -9,11 +9,11 @@ import reactTypesDts from "../../react/dist/index.d.ts?raw";
 type StepId = "info" | "plan" | "pay" | "done";
 
 type IdeFile =
+  | "src/main.tsx"
+  | "src/App.tsx"
+  | "src/schema.ts"
   | "src/wizard.ts"
-  | "src/Signup.tsx"
-  | "src/components/steps/InfoStep.tsx"
-  | "src/components/steps/PlanStep.tsx"
-  | "src/components/steps/PaymentStep.tsx";
+  | "src/Signup.tsx";
 
 interface DemoConfig {
   next: Record<StepId, StepId[]>;
@@ -183,6 +183,48 @@ function configureMonacoTypes(monaco: Monaco) {
     "file:///node_modules/@types/react/jsx-runtime.d.ts",
   );
 
+  ts.addExtraLib(
+    `declare module 'react-dom/client' {
+  import type { ReactNode } from 'react';
+  export interface Root {
+    render(children: ReactNode): void;
+    unmount(): void;
+  }
+  export function createRoot(container: Element | DocumentFragment): Root;
+}`,
+    "file:///node_modules/@types/react-dom/client.d.ts",
+  );
+
+  ts.addExtraLib(
+    `declare module 'zod' {
+  export interface ZodType<T = unknown> {
+    parse(data: unknown): T;
+    safeParse(data: unknown):
+      | { success: true; data: T }
+      | { success: false; error: { issues: Array<{ message: string }> } };
+    optional(): ZodType<T | undefined>;
+    default(value: T): ZodType<T>;
+    trim(): ZodType<T>;
+    min(value: number, message?: string): ZodType<T>;
+    max(value: number, message?: string): ZodType<T>;
+    email(message?: string): ZodType<T>;
+    regex(pattern: RegExp, message?: string): ZodType<T>;
+    int(): ZodType<T>;
+  }
+
+  type InferSchema<T extends ZodType<any>> = T extends ZodType<infer U> ? U : never;
+
+  export const z: {
+    string(): ZodType<string>;
+    number(): ZodType<number>;
+    boolean(): ZodType<boolean>;
+    enum<const T extends readonly [string, ...string[]]>(values: T): ZodType<T[number]>;
+    object<const T extends Record<string, ZodType<any>>>(shape: T): ZodType<{ [K in keyof T]: InferSchema<T[K]> }>;
+  };
+}`,
+    "file:///node_modules/zod/index.d.ts",
+  );
+
   // @wizard/core and @wizard/react types from built packages
   ts.addExtraLib(coreTypesDts, "file:///node_modules/@wizard/core/index.d.ts");
   ts.addExtraLib(
@@ -192,113 +234,236 @@ function configureMonacoTypes(monaco: Monaco) {
 }
 
 const IDE_FILES: Record<IdeFile, string> = {
-  "src/wizard.ts": `import { createWizardFactory } from '@wizard/core';
+  "src/main.tsx": `import { createRoot } from 'react-dom/client';
+import { App } from './App';
 
-const factory = createWizardFactory();
+const container = document.getElementById('root');
+if (!container) throw new Error('Missing #root element');
 
-const steps = factory.defineSteps({
+createRoot(container).render(<App />);`,
+  "src/App.tsx": `import { Signup } from './Signup';
+
+export function App() {
+  return (
+    <main>
+      <h1>OpenWizard Signup</h1>
+      <Signup />
+    </main>
+  );
+}`,
+  "src/schema.ts": `import { z } from 'zod';
+
+export const infoSchema = z.object({
+  name: z.string().trim().min(2, 'Name is required'),
+  email: z.string().email('Enter a valid email'),
+});
+
+export const planSchema = z.object({
+  tier: z.enum(['free', 'pro', 'team']),
+  seats: z.number().int().min(1).max(50),
+});
+
+export const paymentSchema = z.object({
+  card: z.string().regex(/^\\d{4}\\s\\d{4}\\s\\d{4}\\s\\d{4}$/, 'Use 16 digits'),
+  saveCard: z.boolean(),
+});
+
+export type InfoInput = ReturnType<typeof infoSchema.parse>;
+export type PlanInput = ReturnType<typeof planSchema.parse>;
+export type PaymentInput = ReturnType<typeof paymentSchema.parse>;`,
+  "src/wizard.ts": `import { createWizardFactory, type DataMapFromDefs } from '@wizard/core';
+import {
+  infoSchema,
+  planSchema,
+  paymentSchema,
+  type InfoInput,
+  type PlanInput,
+  type PaymentInput,
+} from './schema';
+
+type SignupContext = { locale: 'en' | 'fr' };
+
+const factory = createWizardFactory<SignupContext>();
+
+export const steps = factory.defineSteps({
   info: factory.step({
-    data: { name: '' },
+    data: { name: '', email: '' } as InfoInput,
     next: ['plan'],
-    meta: {
-      label: 'Info',
-      title: "What's your name?",
-      description: "Let's start with the basics.",
-      placeholder: 'Enter your name...',
+    validate: ({ data }) => {
+      infoSchema.parse(data);
     },
+    meta: { label: 'Info' },
   }),
   plan: factory.step({
-    data: { tier: '' },
+    data: { tier: 'pro', seats: 1 } as PlanInput,
     next: ['pay'],
-    meta: {
-      label: 'Plan',
-      title: 'Choose your plan',
-      description: 'Pick the tier that fits your needs.',
+    validate: ({ data }) => {
+      planSchema.parse(data);
     },
+    meta: { label: 'Plan' },
   }),
   pay: factory.step({
-    data: { card: '' },
+    data: { card: '', saveCard: true } as PaymentInput,
     next: ['done'],
-    meta: {
-      label: 'Payment',
-      title: 'Payment details',
-      description: 'Enter your card to complete signup.',
-      placeholder: '4242 4242 4242 4242',
+    validate: ({ data }) => {
+      paymentSchema.parse(data);
     },
+    meta: { label: 'Payment' },
   }),
   done: factory.step({
-    data: { ok: false },
+    data: { ok: true },
     next: [],
-    meta: {
-      label: 'Done',
-      title: 'All done!',
-      doneMessage: 'Your wizard flow is complete.',
-      resetLabel: 'start over',
-    },
+    meta: { label: 'Done' },
   }),
 });
 
+export type SignupDataMap = DataMapFromDefs<typeof steps>;
+
 export const wizard = factory.createWizard(steps, {
-  context: {},
+  context: { locale: 'en' },
 });`,
   "src/Signup.tsx": `import { useWizard } from '@wizard/react';
 import { wizard } from './wizard';
+import type { PlanInput } from './schema';
 
 const backLabel = 'Back';
 const nextLabel = 'Next';
 const completeLabel = 'Complete';
 
-export function Signup() {
-  const { step, next, back, helpers } = useWizard(wizard);
-  const { percent } = helpers.progress();
-
-  return (
-    <div>
-      <ProgressBar value={percent} />
-      <StepTitle id={step} />
-
-      <WizardStepRenderer
-        step={step}
-        onBack={back}
-        onNext={next}
-        labels={{ backLabel, nextLabel, completeLabel }}
-      />
-    </div>
-  );
-}`,
-  "src/components/steps/InfoStep.tsx": `export function InfoStep() {
-  return (
-    <Field
-      label="Name"
-      placeholder="Enter your name..."
-    />
-  );
-}`,
-  "src/components/steps/PlanStep.tsx": `const plans = [
-  { id: 'free', label: 'Free', price: '$0/mo' },
-  { id: 'pro', label: 'Pro', price: '$12/mo' },
-  { id: 'team', label: 'Team', price: '$49/mo' },
+const plans: Array<{
+  id: PlanInput['tier'];
+  label: string;
+  price: string;
+  seats: number;
+}> = [
+  { id: 'free', label: 'Free', price: '$0/mo', seats: 1 },
+  { id: 'pro', label: 'Pro', price: '$12/mo', seats: 3 },
+  { id: 'team', label: 'Team', price: '$49/mo', seats: 10 },
 ];
 
-export function PlanStep() {
-  return <PlanCards plans={plans} />;
-}`,
-  "src/components/steps/PaymentStep.tsx": `export function PaymentStep() {
+function formatCard(input: string) {
+  const raw = input.replace(/\\D/g, '').slice(0, 16);
+  return raw.replace(/(.{4})/g, '$1 ').trim();
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function Signup() {
+  const {
+    step,
+    data,
+    next,
+    back,
+    goTo,
+    reset,
+    updateStepData,
+    getStepError,
+    clearStepError,
+    helpers,
+  } = useWizard(wizard);
+
+  const { percent, label } = helpers.progress();
+  const currentError = getStepError(step);
+
+  // updateStepData('plan', { tier: 'enterprise' }); // Type error: tier is 'free' | 'pro' | 'team'
+
+  async function handleNext() {
+    clearStepError(step);
+
+    if (step === 'plan' && data.plan?.tier === 'free') {
+      await goTo('done');
+      return;
+    }
+
+    await next();
+  }
+
   return (
-    <Field
-      label="Card number"
-      placeholder="4242 4242 4242 4242"
-    />
+    <section>
+      <p>{label} ({percent}%)</p>
+
+      {step === 'info' ? (
+        <div>
+          <input
+            value={data.info?.name ?? ''}
+            placeholder="Name"
+            onChange={(event) => updateStepData('info', { name: event.target.value })}
+          />
+          <input
+            value={data.info?.email ?? ''}
+            placeholder="Email"
+            onChange={(event) => updateStepData('info', { email: event.target.value })}
+          />
+        </div>
+      ) : null}
+
+      {step === 'plan' ? (
+        <div>
+          {plans.map((plan) => (
+            <button
+              key={plan.id}
+              onClick={() => updateStepData('plan', { tier: plan.id, seats: plan.seats })}
+              aria-pressed={data.plan?.tier === plan.id}
+            >
+              {plan.label} - {plan.price}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {step === 'pay' ? (
+        <div>
+          <input
+            value={data.pay?.card ?? ''}
+            placeholder="4242 4242 4242 4242"
+            onChange={(event) => updateStepData('pay', { card: formatCard(event.target.value) })}
+          />
+          <label>
+            <input
+              type="checkbox"
+              checked={data.pay?.saveCard ?? true}
+              onChange={(event) => updateStepData('pay', { saveCard: event.target.checked })}
+            />
+            Save card
+          </label>
+        </div>
+      ) : null}
+
+      {step === 'done' ? (
+        <div>
+          <p>Welcome {data.info?.name ?? 'friend'}.</p>
+          <p>Plan: {data.plan?.tier ?? 'none'}</p>
+          <button onClick={reset}>Start over</button>
+        </div>
+      ) : null}
+
+      {currentError ? <p>{errorMessage(currentError)}</p> : null}
+
+      {step !== 'done' && (
+        <footer>
+          <button onClick={back} disabled={!helpers.canGoBack()}>
+            {backLabel}
+          </button>
+          <button onClick={handleNext}>
+            {step === 'pay' || (step === 'plan' && data.plan?.tier === 'free')
+              ? completeLabel
+              : nextLabel}
+          </button>
+        </footer>
+      )}
+    </section>
   );
 }`,
 };
 
 const IDE_FILE_ORDER: IdeFile[] = [
+  "src/main.tsx",
+  "src/App.tsx",
+  "src/schema.ts",
   "src/wizard.ts",
   "src/Signup.tsx",
-  "src/components/steps/InfoStep.tsx",
-  "src/components/steps/PlanStep.tsx",
-  "src/components/steps/PaymentStep.tsx",
 ];
 
 function displayFileName(file: IdeFile) {
@@ -536,9 +701,7 @@ function DocsMonacoEditor({
             configureMonacoTypes(monaco);
           }}
           path={fileName}
-          language={
-            fileName.endsWith(".tsx") ? "typescriptreact" : "typescript"
-          }
+          language="typescript"
           theme={editorTheme}
           value={value}
           onChange={(nextValue) => onChange(nextValue ?? "")}
@@ -840,7 +1003,7 @@ function LiveWizardPreview({
 
 function WizardIde({ isDark, mono }: { isDark: boolean; mono: string }) {
   const [files, setFiles] = useState<Record<IdeFile, string>>(IDE_FILES);
-  const [activeFile, setActiveFile] = useState<IdeFile>("src/wizard.ts");
+  const [activeFile, setActiveFile] = useState<IdeFile>("src/main.tsx");
   const [mobileView, setMobileView] = useState<"code" | "preview">("code");
 
   const parseResult = useMemo(

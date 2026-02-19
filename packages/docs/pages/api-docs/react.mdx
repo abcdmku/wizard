@@ -35,6 +35,7 @@ export function App() {
 ```
 
 Provider usage is optional. Hooks support either explicit wizard injection or provider-based lookup.
+Step components receive injected props via `StepComponentProps` (`step` wrapper object, `data`, `wizardData`, `context`, `wizard`).
 
 ## Runtime API
 
@@ -47,7 +48,7 @@ Provider usage is optional. Hooks support either explicit wizard injection or pr
 - `useWizardHelpers`
 - `useStepError`
 - `useWizardSelector`
-- `createReactWizardFactory`
+- `createReactWizardFactory<C, DefaultError, E>`
 - `useSyncWizardWithRouter`
 - `useTanStackWizardRouter`
 
@@ -94,4 +95,7 @@ Generated from package entrypoint exports via `scripts/sync-api-reference.mjs`.
 | `Wizard` | `type` | Core re-exports |
 | `WizardState` | `type` | Core re-exports |
 | `WizardStep` | `type` | Core re-exports |
+| `ErrorMapFromDefs` | `type` | Types |
+| `ErrorTypeOf` | `type` | Types |
+| `WithErrorBrand` | `type` | Types |
 {/* AUTO-EXPORTS:END */}

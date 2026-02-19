@@ -3,6 +3,9 @@
 Use `validate` on each step.
 
 ```ts
+const factory = createWizardFactory<{}, Error>();
+const { defineSteps, step } = factory;
+
 const steps = defineSteps({
   account: step({
     data: { email: '' },
@@ -28,6 +31,7 @@ Validation runs on `wizard.next()` before transition.
 import { useStepError } from '@wizard/react';
 
 const error = useStepError(wizard, 'account');
+error?.message;
 ```
 
 Or with a step wrapper:

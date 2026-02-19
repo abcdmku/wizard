@@ -15,7 +15,11 @@
     "strictNullChecks": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@wizard/core": ["../../packages/core/src/index.ts"],
+      "@wizard/core/*": ["../../packages/core/src/*"],
+      "@wizard/react": ["../../packages/react/src/index.ts"],
+      "@wizard/react/*": ["../../packages/react/src/*"]
     }
   },
   "include": [

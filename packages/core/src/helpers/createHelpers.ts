@@ -74,6 +74,9 @@ export function createHelpers<
     }
 
     const next = stepDef.next;
+    if (next == null) {
+      return [];
+    }
     if (typeof next === 'function') {
       try {
         const snapshot = state.get();
@@ -90,6 +93,10 @@ export function createHelpers<
       } catch {
         return [];
       }
+    }
+
+    if (next === 'any') {
+      return [];
     }
 
     return [...next];

@@ -33,6 +33,9 @@ export type {
   EnhancedWizard,
   DataTypeOf,
   WithDataBrand,
+  WithErrorBrand,
+  ErrorTypeOf,
+  ErrorMapFromDefs,
   // compatibility exports
   WizardConfig,
   WizardTransitionEvent,

@@ -16,9 +16,10 @@ export function useTanStackWizardRouter<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(
-  wizard: Wizard<C, S, D, E>,
+  wizard: Wizard<C, S, D, E, EM>,
   options: TanStackWizardRouterOptions<S>
 ) {
   const navigate = useNavigate();

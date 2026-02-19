@@ -14,18 +14,32 @@ import type {
   StepEnterArgs,
   StepExitArgs,
   DataMapFromDefs,
+  ErrorMapFromDefs,
 } from './types';
 import { resolve } from './types';
 import { createStepWrapper, createCurrentStepWrapper, type WizardStep } from './step-wrapper';
 
-export function createWizard<C, E, const TDefs extends Record<string, any>>(opts: {
+export function createWizard<
+  C,
+  E,
+  const TDefs extends Record<string, any>,
+  DefaultError = unknown
+>(opts: {
   context: C;
   steps: TDefs;
   order?: readonly (keyof TDefs & string)[];
   onStatusChange?: (a: { step: keyof TDefs & string; prev?: StepStatus; next: StepStatus }) => void;
-}): Wizard<C, StepIds<TDefs>, DataMapFromDefs<TDefs>, E> {
+}): Wizard<
+  C,
+  StepIds<TDefs>,
+  DataMapFromDefs<TDefs>,
+  E,
+  ErrorMapFromDefs<TDefs, DefaultError>
+> {
   type S = StepIds<TDefs>;
   type D = DataMapFromDefs<TDefs>;
+  type EM = ErrorMapFromDefs<TDefs, DefaultError>;
+  type StepErrors = Partial<{ [K in S]: EM[K] }>;
 
   const { context: initialContext, steps, order } = opts;
 
@@ -47,12 +61,12 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
   }
 
   // Initialize store with @tanstack/store
-  const initialState: WizardState<C, S, D> = {
+  const initialState: WizardState<C, S, D, EM> = {
     step: orderedSteps[0],
     context: structuredClone(initialContext),
     data: initialData,
     meta: initialMeta,
-    errors: {},
+    errors: {} as StepErrors,
     history: [],
     isLoading: false,
     isTransitioning: false,
@@ -105,15 +119,25 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
     });
   };
 
+  const setStepError = <K extends S>(step: K, error: EM[K]) => {
+    store.setState(state => ({
+      ...state,
+      errors: {
+        ...state.errors,
+        [step]: error,
+      } as StepErrors,
+    }));
+  };
+
   // Helper functions implementation (24 functions as per PRP)
-  const helpers: WizardHelpers<C, S, D> = {
+  const helpers: WizardHelpers<C, S, D, EM> = {
     // Step name helpers
     allStepNames: () => allStepIds,
     orderedStepNames: () => orderedSteps,
 
     // Step object helpers - These will be defined after wizard is created
-    allSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
-    orderedSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
+    allSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>,
+    orderedSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>,
     stepCount: () => orderedSteps.length,
     stepIndex: (step: S) => orderedSteps.indexOf(step),
     currentIndex: () => orderedSteps.indexOf(store.state.step),
@@ -158,13 +182,13 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
       });
     },
 
-    availableSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
+    availableSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>,
 
     unavailableStepNames: () => {
       return orderedSteps.filter(step => !helpers.availableStepNames().includes(step));
     },
 
-    unavailableSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
+    unavailableSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>,
 
     refreshAvailability: async () => {
       availabilityCache.clear();
@@ -194,14 +218,14 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
       });
     },
 
-    completedSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
+    completedSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>,
 
     remainingStepNames: () => {
       const completed = helpers.completedStepNames();
       return orderedSteps.filter(step => !completed.includes(step));
     },
 
-    remainingSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D>>,
+    remainingSteps: () => [] as ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>,
 
     firstIncompleteStep: () => {
       const remaining = helpers.remainingSteps();
@@ -316,7 +340,7 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
       return null;
     },
 
-    findNextAvailable: () => null as WizardStep<S, D[S], C, S, D> | null,
+    findNextAvailable: () => null as WizardStep<S, D[S], C, S, D, EM> | null,
 
     findPrevAvailableName: (from?: S) => {
       const currentStep = from || store.state.step;
@@ -331,7 +355,7 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
       return null;
     },
 
-    findPrevAvailable: () => null as WizardStep<S, D[S], C, S, D> | null,
+    findPrevAvailable: () => null as WizardStep<S, D[S], C, S, D, EM> | null,
 
     jumpToNextRequired: () => {
       const remaining = helpers.remainingSteps();
@@ -397,12 +421,12 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
     skipGuards?: boolean;
   };
 
-  let wizard!: Wizard<C, S, D, E>;
+  let wizard!: Wizard<C, S, D, E, EM>;
 
   const goToInternal = async <K extends S>(
     step: K,
     args?: GoToInternalOptions<K>
-  ): Promise<WizardStep<K, D[K], C, S, D>> => {
+  ): Promise<WizardStep<K, D[K], C, S, D, EM>> => {
     if (!args?.skipGuards && !helpers.canGoTo(step)) {
       throw new Error(`Cannot go to step: ${step}`);
     }
@@ -498,7 +522,7 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
       return store.state.meta;
     },
 
-    get errors(): Partial<Record<S, unknown>> {
+    get errors(): StepErrors {
       return store.state.errors;
     },
 
@@ -524,7 +548,7 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
         context: structuredClone(initialContext),
         data: {} as Partial<D>,
         meta: initialMeta,
-        errors: {},
+        errors: {} as StepErrors,
         history: [],
         isLoading: false,
         isTransitioning: false,
@@ -602,24 +626,24 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
       return store.state.meta[step] as import('./types').StepMetaCore<C, S, D[K], never> | undefined;
     },
 
-    getStepError<K extends S>(step: K): unknown {
-      return store.state.errors[step];
+    getStepError<K extends S>(step: K): EM[K] | undefined {
+      return store.state.errors[step] as EM[K] | undefined;
     },
 
-    getAllErrors(): Partial<Record<S, unknown>> {
+    getAllErrors(): StepErrors {
       return store.state.errors;
     },
 
     clearStepError<K extends S>(step: K): void {
       store.setState(state => {
-        const newErrors = { ...state.errors };
+        const newErrors = { ...state.errors } as StepErrors;
         delete newErrors[step];
         return { ...state, errors: newErrors };
       });
     },
 
     clearAllErrors(): void {
-      store.setState(state => ({ ...state, errors: {} }));
+      store.setState(state => ({ ...state, errors: {} as StepErrors }));
     },
 
     getContext: () => store.state.context,
@@ -635,17 +659,17 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
     // ===== Enhanced Wizard API Methods =====
 
     // Enhanced step access methods
-    getStep<K extends S>(step: K): WizardStep<K, D[K], C, S, D> {
+    getStep<K extends S>(step: K): WizardStep<K, D[K], C, S, D, EM> {
       const stepData = store.state.data[step] as D[K] | undefined;
       return createStepWrapper(wizard, step, stepData, store.state.context);
     },
 
-    getCurrentStep(): WizardStep<S, D[S], C, S, D> {
+    getCurrentStep(): WizardStep<S, D[S], C, S, D, EM> {
       return createCurrentStepWrapper(wizard);
     },
 
     // Enhanced navigation methods that return step objects
-    async next(args?: { data?: D[S] }): Promise<WizardStep<S, D[S], C, S, D>> {
+    async next(args?: { data?: D[S] }): Promise<WizardStep<S, D[S], C, S, D, EM>> {
       const currentStep = store.state.step;
 
       // Set step data if provided
@@ -662,10 +686,7 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
         validateCurrentStep(currentStep);
       } catch (err) {
         updateRuntime(currentStep, { status: 'error' });
-        store.setState(state => ({
-          ...state,
-          errors: { ...state.errors, [currentStep]: err },
-        }));
+        setStepError(currentStep, err as EM[typeof currentStep]);
         throw err;
       }
 
@@ -689,14 +710,14 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
       await goToInternal(nextStep, { skipBeforeExit: true });
 
       // Return step wrapper for the new current step
-      return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
+      return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D, EM>;
     },
 
-    async goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<WizardStep<K, D[K], C, S, D>> {
+    async goTo<K extends S>(step: K, args?: { data?: D[K] }): Promise<WizardStep<K, D[K], C, S, D, EM>> {
       return goToInternal(step, args);
     },
 
-    async back(): Promise<WizardStep<S, D[S], C, S, D>> {
+    async back(): Promise<WizardStep<S, D[S], C, S, D, EM>> {
       const history = store.state.history;
       if (history.length === 0) {
         throw new Error('No previous step in history');
@@ -718,7 +739,7 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
         }));
 
         // Return step wrapper for the restored step
-        return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D>;
+        return createCurrentStepWrapper(wizard) as WizardStep<S, D[S], C, S, D, EM>;
       } finally {
         // Clear transitioning state
         store.setState(state => ({ ...state, isTransitioning: false }));
@@ -726,40 +747,34 @@ export function createWizard<C, E, const TDefs extends Record<string, any>>(opts
     },
 
     // Enhanced mark methods that return step objects
-    markIdle<K extends S>(step: K): WizardStep<K, D[K], C, S, D> {
+    markIdle<K extends S>(step: K): WizardStep<K, D[K], C, S, D, EM> {
       updateRuntime(step, { status: undefined });
       const stepData = store.state.data[step] as D[K] | undefined;
       return createStepWrapper(wizard, step, stepData, store.state.context);
     },
 
-    markLoading<K extends S>(step: K): WizardStep<K, D[K], C, S, D> {
+    markLoading<K extends S>(step: K): WizardStep<K, D[K], C, S, D, EM> {
       updateRuntime(step, { status: 'loading' });
       const stepData = store.state.data[step] as D[K] | undefined;
       return createStepWrapper(wizard, step, stepData, store.state.context);
     },
 
-    markSkipped<K extends S>(step: K): WizardStep<K, D[K], C, S, D> {
+    markSkipped<K extends S>(step: K): WizardStep<K, D[K], C, S, D, EM> {
       updateRuntime(step, { status: 'skipped' });
       const stepData = store.state.data[step] as D[K] | undefined;
       return createStepWrapper(wizard, step, stepData, store.state.context);
     },
 
-    markError<K extends S>(step: K, err: unknown): WizardStep<K, D[K], C, S, D> {
-      store.setState(state => ({
-        ...state,
-        errors: { ...state.errors, [step]: err },
-      }));
+    markError<K extends S>(step: K, err: EM[K]): WizardStep<K, D[K], C, S, D, EM> {
+      setStepError(step, err);
       updateRuntime(step, { status: 'error' });
       const stepData = store.state.data[step] as D[K] | undefined;
       return createStepWrapper(wizard, step, stepData, store.state.context);
     },
 
-    markTerminated<K extends S>(step: K, err?: unknown): WizardStep<K, D[K], C, S, D> {
-      if (err) {
-        store.setState(state => ({
-          ...state,
-          errors: { ...state.errors, [step]: err },
-        }));
+    markTerminated<K extends S>(step: K, err?: EM[K]): WizardStep<K, D[K], C, S, D, EM> {
+      if (err !== undefined) {
+        setStepError(step, err);
       }
       updateRuntime(step, { status: 'terminated' });
       const stepData = store.state.data[step] as D[K] | undefined;

@@ -32,9 +32,10 @@ export function useSyncWizardWithRouter<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(
-  wizard: Wizard<C, S, D, E>,
+  wizard: Wizard<C, S, D, E, EM>,
   options: SyncWizardWithRouterOptions<S>
 ) {
   const { toStep, toUrl, navigate, getParam } = options;

@@ -9,52 +9,63 @@ type WizardWithComponents<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
-> = Wizard<C, S, D, E> & {
-  getStepComponent?: (stepName: S) => StepComponent<C, S, D, E, S> | undefined;
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+> = Wizard<C, S, D, E, EM> & {
+  getStepComponent?: (stepName: S) => StepComponent<C, S, D, E, S, EM> | undefined;
 };
 
-type BoundMethods<C, S extends string, D extends Record<S, unknown>, E> = {
-  next: Wizard<C, S, D, E>['next'];
-  back: Wizard<C, S, D, E>['back'];
-  goTo: Wizard<C, S, D, E>['goTo'];
-  reset: Wizard<C, S, D, E>['reset'];
-  updateStepData: Wizard<C, S, D, E>['updateStepData'];
-  setStepData: Wizard<C, S, D, E>['setStepData'];
-  getStepData: Wizard<C, S, D, E>['getStepData'];
-  updateContext: Wizard<C, S, D, E>['updateContext'];
-  getContext: Wizard<C, S, D, E>['getContext'];
-  setStepMeta: Wizard<C, S, D, E>['setStepMeta'];
-  updateStepMeta: Wizard<C, S, D, E>['updateStepMeta'];
-  getStepMeta: Wizard<C, S, D, E>['getStepMeta'];
-  getStepError: Wizard<C, S, D, E>['getStepError'];
-  getAllErrors: Wizard<C, S, D, E>['getAllErrors'];
-  clearStepError: Wizard<C, S, D, E>['clearStepError'];
-  clearAllErrors: Wizard<C, S, D, E>['clearAllErrors'];
-  getStep: Wizard<C, S, D, E>['getStep'];
-  getCurrentStep: Wizard<C, S, D, E>['getCurrentStep'];
-  getCurrent: Wizard<C, S, D, E>['getCurrent'];
-  markError: Wizard<C, S, D, E>['markError'];
-  markTerminated: Wizard<C, S, D, E>['markTerminated'];
-  markLoading: Wizard<C, S, D, E>['markLoading'];
-  markIdle: Wizard<C, S, D, E>['markIdle'];
-  markSkipped: Wizard<C, S, D, E>['markSkipped'];
+type BoundMethods<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E,
+  EM extends Record<S, unknown>
+> = {
+  next: Wizard<C, S, D, E, EM>['next'];
+  back: Wizard<C, S, D, E, EM>['back'];
+  goTo: Wizard<C, S, D, E, EM>['goTo'];
+  reset: Wizard<C, S, D, E, EM>['reset'];
+  updateStepData: Wizard<C, S, D, E, EM>['updateStepData'];
+  setStepData: Wizard<C, S, D, E, EM>['setStepData'];
+  getStepData: Wizard<C, S, D, E, EM>['getStepData'];
+  updateContext: Wizard<C, S, D, E, EM>['updateContext'];
+  getContext: Wizard<C, S, D, E, EM>['getContext'];
+  setStepMeta: Wizard<C, S, D, E, EM>['setStepMeta'];
+  updateStepMeta: Wizard<C, S, D, E, EM>['updateStepMeta'];
+  getStepMeta: Wizard<C, S, D, E, EM>['getStepMeta'];
+  getStepError: Wizard<C, S, D, E, EM>['getStepError'];
+  getAllErrors: Wizard<C, S, D, E, EM>['getAllErrors'];
+  clearStepError: Wizard<C, S, D, E, EM>['clearStepError'];
+  clearAllErrors: Wizard<C, S, D, E, EM>['clearAllErrors'];
+  getStep: Wizard<C, S, D, E, EM>['getStep'];
+  getCurrentStep: Wizard<C, S, D, E, EM>['getCurrentStep'];
+  getCurrent: Wizard<C, S, D, E, EM>['getCurrent'];
+  markError: Wizard<C, S, D, E, EM>['markError'];
+  markTerminated: Wizard<C, S, D, E, EM>['markTerminated'];
+  markLoading: Wizard<C, S, D, E, EM>['markLoading'];
+  markIdle: Wizard<C, S, D, E, EM>['markIdle'];
+  markSkipped: Wizard<C, S, D, E, EM>['markSkipped'];
 };
 
 const boundMethodCache = new WeakMap<
-  Wizard<any, any, any, any>,
-  BoundMethods<any, any, any, any>
+  Wizard<any, any, any, any, any>,
+  BoundMethods<any, any, any, any, any>
 >();
 
-function getBoundMethods<C, S extends string, D extends Record<S, unknown>, E>(
-  wizard: Wizard<C, S, D, E>
-): BoundMethods<C, S, D, E> {
+function getBoundMethods<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E,
+  EM extends Record<S, unknown>
+>(wizard: Wizard<C, S, D, E, EM>): BoundMethods<C, S, D, E, EM> {
   const cached = boundMethodCache.get(wizard);
   if (cached) {
-    return cached as BoundMethods<C, S, D, E>;
+    return cached as BoundMethods<C, S, D, E, EM>;
   }
 
-  const methods: BoundMethods<C, S, D, E> = {
+  const methods: BoundMethods<C, S, D, E, EM> = {
     next: wizard.next.bind(wizard),
     back: wizard.back.bind(wizard),
     goTo: wizard.goTo.bind(wizard),
@@ -85,11 +96,15 @@ function getBoundMethods<C, S extends string, D extends Record<S, unknown>, E>(
   return methods;
 }
 
-function useResolvedWizard<C, S extends string, D extends Record<S, unknown>, E>(
-  wizard?: WizardWithComponents<C, S, D, E>
-): WizardWithComponents<C, S, D, E> {
+function useResolvedWizard<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E,
+  EM extends Record<S, unknown>
+>(wizard?: WizardWithComponents<C, S, D, E, EM>): WizardWithComponents<C, S, D, E, EM> {
   const wizardFromContext = useContext(WizardContext) as
-    | WizardWithComponents<C, S, D, E>
+    | WizardWithComponents<C, S, D, E, EM>
     | null;
 
   if (wizard) {
@@ -105,46 +120,65 @@ function useResolvedWizard<C, S extends string, D extends Record<S, unknown>, E>
   return wizardFromContext;
 }
 
-function getStepComponentGetter<C, S extends string, D extends Record<S, unknown>, E>(
-  wizard: WizardWithComponents<C, S, D, E>
+function getStepComponentGetter<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E,
+  EM extends Record<S, unknown>
+>(
+  wizard: WizardWithComponents<C, S, D, E, EM>
 ) {
   return (stepName: S) => wizard.getStepComponent?.(stepName);
 }
 
-type UseWizardReturn<C, S extends string, D extends Record<S, unknown>, E> = {
+type UseWizardReturn<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E,
+  EM extends Record<S, unknown>
+> = {
   step: S;
-  currentStep: ReactWizardStep<S, D[S], C, S, D>;
+  currentStep: ReactWizardStep<S, D[S], C, S, D, EM>;
   data: Partial<D>;
   context: C;
-  meta: WizardState<C, S, D>['meta'];
-  history: WizardState<C, S, D>['history'];
+  meta: WizardState<C, S, D, EM>['meta'];
+  history: WizardState<C, S, D, EM>['history'];
   visitedSteps: S[];
-  runtime: WizardState<C, S, D>['runtime'];
-  errors: WizardState<C, S, D>['errors'];
+  runtime: WizardState<C, S, D, EM>['runtime'];
+  errors: WizardState<C, S, D, EM>['errors'];
   isLoading: boolean;
   isTransitioning: boolean;
-  helpers: Wizard<C, S, D, E>['helpers'];
-  store: Wizard<C, S, D, E>['store'];
-} & BoundMethods<C, S, D, E>;
+  helpers: Wizard<C, S, D, E, EM>['helpers'];
+  store: Wizard<C, S, D, E, EM>['store'];
+} & BoundMethods<C, S, D, E, EM>;
 
 export function useWizard<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(wizard: WizardWithComponents<C, S, D, E>): UseWizardReturn<C, S, D, E>;
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(
+  wizard: WizardWithComponents<C, S, D, E, EM>
+): UseWizardReturn<C, S, D, E, EM>;
 export function useWizard<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(): UseWizardReturn<C, S, D, E>;
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(): UseWizardReturn<C, S, D, E, EM>;
 export function useWizard<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(wizard?: WizardWithComponents<C, S, D, E>): UseWizardReturn<C, S, D, E> {
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(
+  wizard?: WizardWithComponents<C, S, D, E, EM>
+): UseWizardReturn<C, S, D, E, EM> {
   const resolvedWizard = useResolvedWizard(wizard);
   const state = useStore(resolvedWizard.store);
   const currentStep = wrapWithReactStep(
@@ -175,22 +209,31 @@ export function useCurrentStep<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(wizard: WizardWithComponents<C, S, D, E>): ReactWizardStep<S, D[S], C, S, D>;
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(
+  wizard: WizardWithComponents<C, S, D, E, EM>
+): ReactWizardStep<S, D[S], C, S, D, EM>;
 export function useCurrentStep<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(): ReactWizardStep<S, D[S], C, S, D>;
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(): ReactWizardStep<S, D[S], C, S, D, EM>;
 export function useCurrentStep<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(wizard?: WizardWithComponents<C, S, D, E>): ReactWizardStep<S, D[S], C, S, D> {
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(
+  wizard?: WizardWithComponents<C, S, D, E, EM>
+): ReactWizardStep<S, D[S], C, S, D, EM> {
   const resolvedWizard = useResolvedWizard(wizard);
   useStore(resolvedWizard.store, (state) => state.step);
+  useStore(resolvedWizard.store, (state) => state.data);
+  useStore(resolvedWizard.store, (state) => state.context);
   return wrapWithReactStep(
     resolvedWizard.getCurrentStep(),
     getStepComponentGetter(resolvedWizard)
@@ -202,31 +245,36 @@ export function useWizardStep<
   S extends string,
   D extends Record<S, unknown>,
   E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>,
   K extends S = S
 >(
-  wizard: WizardWithComponents<C, S, D, E>,
+  wizard: WizardWithComponents<C, S, D, E, EM>,
   stepName: K
-): ReactWizardStep<K, D[K], C, S, D>;
+): ReactWizardStep<K, D[K], C, S, D, EM>;
 export function useWizardStep<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>,
   K extends S = S
->(stepName: K): ReactWizardStep<K, D[K], C, S, D>;
+>(stepName: K): ReactWizardStep<K, D[K], C, S, D, EM>;
 export function useWizardStep<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>,
   K extends S = S
 >(
-  wizardOrStepName: WizardWithComponents<C, S, D, E> | K,
+  wizardOrStepName: WizardWithComponents<C, S, D, E, EM> | K,
   maybeStepName?: K
-): ReactWizardStep<K, D[K], C, S, D> {
+): ReactWizardStep<K, D[K], C, S, D, EM> {
   const hasWizardArg = typeof wizardOrStepName !== 'string';
   const resolvedWizard = useResolvedWizard(
-    hasWizardArg ? (wizardOrStepName as WizardWithComponents<C, S, D, E>) : undefined
+    hasWizardArg
+      ? (wizardOrStepName as WizardWithComponents<C, S, D, E, EM>)
+      : undefined
   );
   const stepName = (hasWizardArg ? maybeStepName : wizardOrStepName) as K | undefined;
 
@@ -248,9 +296,10 @@ export function useWizardProgress<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(
-  wizard: WizardWithComponents<C, S, D, E>
+  wizard: WizardWithComponents<C, S, D, E, EM>
 ): {
   currentIndex: number;
   totalSteps: number;
@@ -263,7 +312,8 @@ export function useWizardProgress<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(): {
   currentIndex: number;
   totalSteps: number;
@@ -276,9 +326,10 @@ export function useWizardProgress<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(
-  wizard?: WizardWithComponents<C, S, D, E>
+  wizard?: WizardWithComponents<C, S, D, E, EM>
 ): {
   currentIndex: number;
   totalSteps: number;
@@ -327,29 +378,32 @@ export function useWizardActions<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(wizard: WizardWithComponents<C, S, D, E>): Pick<
-  BoundMethods<C, S, D, E>,
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(wizard: WizardWithComponents<C, S, D, E, EM>): Pick<
+  BoundMethods<C, S, D, E, EM>,
   'next' | 'back' | 'goTo' | 'reset' | 'updateStepData' | 'setStepData' | 'updateContext'
 >;
 export function useWizardActions<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(): Pick<
-  BoundMethods<C, S, D, E>,
+  BoundMethods<C, S, D, E, EM>,
   'next' | 'back' | 'goTo' | 'reset' | 'updateStepData' | 'setStepData' | 'updateContext'
 >;
 export function useWizardActions<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(
-  wizard?: WizardWithComponents<C, S, D, E>
+  wizard?: WizardWithComponents<C, S, D, E, EM>
 ): Pick<
-  BoundMethods<C, S, D, E>,
+  BoundMethods<C, S, D, E, EM>,
   'next' | 'back' | 'goTo' | 'reset' | 'updateStepData' | 'setStepData' | 'updateContext'
 > {
   const resolvedWizard = useResolvedWizard(wizard);
@@ -369,39 +423,42 @@ export function useWizardHelpers<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(wizard: WizardWithComponents<C, S, D, E>): {
-  helpers: Wizard<C, S, D, E>['helpers'];
-  getStep: BoundMethods<C, S, D, E>['getStep'];
-  getCurrentStep: BoundMethods<C, S, D, E>['getCurrentStep'];
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(wizard: WizardWithComponents<C, S, D, E, EM>): {
+  helpers: Wizard<C, S, D, E, EM>['helpers'];
+  getStep: BoundMethods<C, S, D, E, EM>['getStep'];
+  getCurrentStep: BoundMethods<C, S, D, E, EM>['getCurrentStep'];
   visitedSteps: S[];
-  history: WizardState<C, S, D>['history'];
+  history: WizardState<C, S, D, EM>['history'];
 };
 export function useWizardHelpers<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(): {
-  helpers: Wizard<C, S, D, E>['helpers'];
-  getStep: BoundMethods<C, S, D, E>['getStep'];
-  getCurrentStep: BoundMethods<C, S, D, E>['getCurrentStep'];
+  helpers: Wizard<C, S, D, E, EM>['helpers'];
+  getStep: BoundMethods<C, S, D, E, EM>['getStep'];
+  getCurrentStep: BoundMethods<C, S, D, E, EM>['getCurrentStep'];
   visitedSteps: S[];
-  history: WizardState<C, S, D>['history'];
+  history: WizardState<C, S, D, EM>['history'];
 };
 export function useWizardHelpers<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(
-  wizard?: WizardWithComponents<C, S, D, E>
+  wizard?: WizardWithComponents<C, S, D, E, EM>
 ): {
-  helpers: Wizard<C, S, D, E>['helpers'];
-  getStep: BoundMethods<C, S, D, E>['getStep'];
-  getCurrentStep: BoundMethods<C, S, D, E>['getCurrentStep'];
+  helpers: Wizard<C, S, D, E, EM>['helpers'];
+  getStep: BoundMethods<C, S, D, E, EM>['getStep'];
+  getCurrentStep: BoundMethods<C, S, D, E, EM>['getCurrentStep'];
   visitedSteps: S[];
-  history: WizardState<C, S, D>['history'];
+  history: WizardState<C, S, D, EM>['history'];
 } {
   const resolvedWizard = useResolvedWizard(wizard);
   const history = useStore(resolvedWizard.store, (state) => state.history);
@@ -420,34 +477,48 @@ export function useStepError<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(wizard: WizardWithComponents<C, S, D, E>, stepName?: S): unknown;
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>,
+  K extends S = S
+>(wizard: WizardWithComponents<C, S, D, E, EM>, stepName: K): EM[K] | undefined;
 export function useStepError<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
->(stepName?: S): unknown;
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>,
+  K extends S = S
+>(stepName: K): EM[K] | undefined;
 export function useStepError<
   C,
   S extends string,
   D extends Record<S, unknown>,
-  E = never
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
+>(wizard?: WizardWithComponents<C, S, D, E, EM>): EM[S] | undefined;
+export function useStepError<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>
 >(
-  wizardOrStepName?: WizardWithComponents<C, S, D, E> | S,
+  wizardOrStepName?: WizardWithComponents<C, S, D, E, EM> | S,
   maybeStepName?: S
-): unknown {
+): EM[S] | undefined {
   const hasWizardArg =
     wizardOrStepName !== undefined && typeof wizardOrStepName !== 'string';
   const resolvedWizard = useResolvedWizard(
-    hasWizardArg ? (wizardOrStepName as WizardWithComponents<C, S, D, E>) : undefined
+    hasWizardArg
+      ? (wizardOrStepName as WizardWithComponents<C, S, D, E, EM>)
+      : undefined
   );
   const stepName = (hasWizardArg ? maybeStepName : wizardOrStepName) as S | undefined;
 
   return useStore(resolvedWizard.store, (state) => {
     const target = stepName ?? state.step;
     return state.errors[target];
-  });
+  }) as EM[S] | undefined;
 }
 
 export function useWizardSelector<
@@ -455,36 +526,41 @@ export function useWizardSelector<
   S extends string,
   D extends Record<S, unknown>,
   E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>,
   Selected = unknown
 >(
-  wizard: WizardWithComponents<C, S, D, E>,
-  selector: (state: WizardState<C, S, D>) => Selected
+  wizard: WizardWithComponents<C, S, D, E, EM>,
+  selector: (state: WizardState<C, S, D, EM>) => Selected
 ): Selected;
 export function useWizardSelector<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>,
   Selected = unknown
->(selector: (state: WizardState<C, S, D>) => Selected): Selected;
+>(selector: (state: WizardState<C, S, D, EM>) => Selected): Selected;
 export function useWizardSelector<
   C,
   S extends string,
   D extends Record<S, unknown>,
   E = never,
+  EM extends Record<S, unknown> = Record<S, unknown>,
   Selected = unknown
 >(
   wizardOrSelector:
-    | WizardWithComponents<C, S, D, E>
-    | ((state: WizardState<C, S, D>) => Selected),
-  maybeSelector?: (state: WizardState<C, S, D>) => Selected
+    | WizardWithComponents<C, S, D, E, EM>
+    | ((state: WizardState<C, S, D, EM>) => Selected),
+  maybeSelector?: (state: WizardState<C, S, D, EM>) => Selected
 ): Selected {
   const hasWizardArg = typeof wizardOrSelector !== 'function';
   const resolvedWizard = useResolvedWizard(
-    hasWizardArg ? (wizardOrSelector as WizardWithComponents<C, S, D, E>) : undefined
+    hasWizardArg
+      ? (wizardOrSelector as WizardWithComponents<C, S, D, E, EM>)
+      : undefined
   );
   const selector = (hasWizardArg ? maybeSelector : wizardOrSelector) as
-    | ((state: WizardState<C, S, D>) => Selected)
+    | ((state: WizardState<C, S, D, EM>) => Selected)
     | undefined;
 
   if (!selector) {

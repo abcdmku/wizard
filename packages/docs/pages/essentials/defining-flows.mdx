@@ -47,3 +47,14 @@ const wizard = factory.createWizard(steps, {
 - Keep `next` explicit (`['step']`), dynamic (`(args) => ...`), or `'any'`.
 - Put guard logic in `canEnter` / `canExit`.
 - Put data validation in `validate`.
+
+## Step generics
+
+Factory step generics are:
+
+- `step<Data>()` for data typing only
+- `step<Data, StepError>()` to override per-step error type
+
+Standalone helper `step` has a different order:
+
+- `step<Data, Context, StepError>()`

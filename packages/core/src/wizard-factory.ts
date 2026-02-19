@@ -8,8 +8,10 @@ import type {
   EnhancedWizard,
   CreateWizardOptions,
   DataMapFromDefs,
+  ErrorMapFromDefs,
   StepMetaCore,
   WithDataBrand,
+  WithErrorBrand,
 } from './types';
 import { createWizard as createWizardImpl } from './wizard';
 
@@ -32,7 +34,7 @@ type ContextAwareStepExitArgs<C, S extends string, Data, E> =
   ContextAwareStepArgs<C, S, Data, E> & { to?: S | null };
 
 type ContextAwareStepDefinition<C, S extends string, Data, E> = {
-  next:
+  next?:
     | readonly S[]
     | 'any'
     | ((args: ContextAwareStepArgs<C, S, Data, E>) => S | readonly S[] | 'any');
@@ -54,28 +56,103 @@ type ContextAwareStepDefinition<C, S extends string, Data, E> = {
   meta?: StepMetaCore<C, S, Data, E>;
 };
 
-export function createWizardFactory<C = Record<string, never>, E = never>() {
+type WizardFactoryApi<Context, DefaultError, Event> = {
+  /**
+   * Freezes and returns step definitions with literal key preservation.
+   */
+  defineSteps<const T extends Record<string, any>>(defs: T): T;
+
+  /**
+   * Creates a typed step definition.
+   *
+   * @template Data Per-step data shape.
+   * @template StepError Per-step error type. Defaults to the factory-level `DefaultError`.
+   */
+  step<Data, StepError = DefaultError>(
+    definition: ContextAwareStepDefinition<Context, string, Data, Event>
+  ): ContextAwareStepDefinition<Context, string, Data, Event> &
+    WithDataBrand<Data> &
+    WithErrorBrand<StepError>;
+
+  /**
+   * Creates a wizard instance from previously defined steps.
+   */
+  createWizard<const TDefs extends Record<string, any>>(
+    steps: TDefs,
+    options?: Partial<Omit<CreateWizardOptions<Context, Event, TDefs>, 'steps'>>
+  ): EnhancedWizard<
+    Context,
+    keyof TDefs & string,
+    DataMapFromDefs<TDefs>,
+    Event,
+    ErrorMapFromDefs<TDefs, DefaultError>
+  >;
+};
+
+/**
+ * Creates a strongly typed factory for wizard authoring.
+ *
+ * @template Context Shared wizard context shape.
+ * @template DefaultError Default error type used by steps that do not override `StepError`.
+ * @template Event Event type accepted by `emit()` in step callbacks.
+ *
+ * @example
+ * ```ts
+ * const factory = createWizardFactory<{ locale: 'en' | 'fr' }>();
+ * ```
+ *
+ * @example
+ * ```ts
+ * const factory = createWizardFactory<{ locale: 'en' | 'fr' }, Error>();
+ * ```
+ *
+ * @example
+ * ```ts
+ * type WizardEvent = { type: 'analytics'; step: string };
+ * const factory = createWizardFactory<{ locale: 'en' | 'fr' }, Error, WizardEvent>();
+ * ```
+ */
+export function createWizardFactory<
+  Context = Record<string, never>,
+  DefaultError = unknown,
+  Event = never
+>(): WizardFactoryApi<Context, DefaultError, Event> {
   return {
     defineSteps<const T extends Record<string, any>>(defs: T): T {
       return defs;
     },
 
-    step<Data>(
-      definition: ContextAwareStepDefinition<C, string, Data, E>
-    ): ContextAwareStepDefinition<C, string, Data, E> & WithDataBrand<Data> {
-      return definition as ContextAwareStepDefinition<C, string, Data, E> &
-        WithDataBrand<Data>;
+    step<Data, StepError = DefaultError>(
+      definition: ContextAwareStepDefinition<Context, string, Data, Event>
+    ): ContextAwareStepDefinition<Context, string, Data, Event> &
+      WithDataBrand<Data> &
+      WithErrorBrand<StepError> {
+      return definition as ContextAwareStepDefinition<Context, string, Data, Event> &
+        WithDataBrand<Data> &
+        WithErrorBrand<StepError>;
     },
 
     createWizard<const TDefs extends Record<string, any>>(
       steps: TDefs,
-      options?: Partial<Omit<CreateWizardOptions<C, E, TDefs>, 'steps'>>
-    ): EnhancedWizard<C, keyof TDefs & string, DataMapFromDefs<TDefs>, E> {
+      options?: Partial<Omit<CreateWizardOptions<Context, Event, TDefs>, 'steps'>>
+    ): EnhancedWizard<
+      Context,
+      keyof TDefs & string,
+      DataMapFromDefs<TDefs>,
+      Event,
+      ErrorMapFromDefs<TDefs, DefaultError>
+    > {
       return createWizardImpl({
-        context: ({} as C),
+        context: ({} as Context),
         ...options,
         steps,
-      }) as EnhancedWizard<C, keyof TDefs & string, DataMapFromDefs<TDefs>, E>;
+      }) as EnhancedWizard<
+        Context,
+        keyof TDefs & string,
+        DataMapFromDefs<TDefs>,
+        Event,
+        ErrorMapFromDefs<TDefs, DefaultError>
+      >;
     },
   };
 }

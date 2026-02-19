@@ -52,4 +52,7 @@ export type {
   StepMetaCore,
   JSONValue,
   ValOrFn,
+  WithErrorBrand,
+  ErrorTypeOf,
+  ErrorMapFromDefs,
 } from '@wizard/core';

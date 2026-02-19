@@ -23,8 +23,9 @@ export interface ReactWizardStep<
   Data extends DataMap[StepName],
   Context,
   AllSteps extends string = string,
-  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
-> extends CoreWizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>,
+  ErrorMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
+> extends CoreWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
   readonly component: React.ReactNode;
 }
 
@@ -33,12 +34,14 @@ export type StepComponentProps<
   S extends string,
   D extends Record<S, unknown>,
   E,
-  K extends S = S
+  K extends S = S,
+  EM extends Record<S, unknown> = Record<S, unknown>
 > = {
-  step: K;
+  step: ReactWizardStep<K, D[K], C, S, D, EM>;
   data: D[K] | undefined;
+  wizardData: Partial<D>;
   context: Readonly<C>;
-  wizard: Wizard<C, S, D, E>;
+  wizard: Wizard<C, S, D, E, EM>;
 };
 
 export type StepComponent<
@@ -46,8 +49,9 @@ export type StepComponent<
   S extends string,
   D extends Record<S, unknown>,
   E,
-  K extends S = S
-> = React.ComponentType<StepComponentProps<C, S, D, E, K>>;
+  K extends S = S,
+  EM extends Record<S, unknown> = Record<S, unknown>
+> = React.ComponentType<StepComponentProps<C, S, D, E, K, EM>>;
 
 export type StepMetaUI<C, S extends string, Data, E> = {
   icon?: ValOrFn<React.ReactNode, StepArgs<C, S, Data, E>>;
@@ -70,11 +74,16 @@ export function resolveMetaUI<C, S extends string, Data, E>(
 
 export type ReactStepDefinition<C, S extends string, E, TDef> =
   PartialStepDefinition<C, S, E, TDef> & {
-    component?: React.ComponentType<{
-      step: S;
-      data: InferStepData<TDef> | undefined;
-      context: Readonly<C>;
-    }>;
+    component?: React.ComponentType<
+      StepComponentProps<
+        C,
+        S,
+        Record<S, InferStepData<TDef>>,
+        E,
+        S,
+        Record<S, unknown>
+      >
+    >;
     uiMeta?: StepMetaUI<C, S, InferStepData<TDef>, E>;
   };
 

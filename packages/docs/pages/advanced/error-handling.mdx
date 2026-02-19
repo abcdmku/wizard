@@ -5,12 +5,15 @@ Use step validation and status markers.
 ## Validation errors
 
 ```ts
+const factory = createWizardFactory<{ locale: 'en' | 'fr' }, Error>();
+const { defineSteps, step } = factory;
+
 const steps = defineSteps({
-  payment: step({
+  payment: step<{ cardLast4: string }, TypeError>({
     data: { cardLast4: '' },
     next: [],
     validate: ({ data }) => {
-      if (data.cardLast4.length !== 4) throw new Error('Card last4 is required');
+      if (data.cardLast4.length !== 4) throw new TypeError('Card last4 is required');
     },
   }),
 });
@@ -19,10 +22,10 @@ const steps = defineSteps({
 ## Runtime status markers
 
 ```ts
-wizard.markError('payment', new Error('Gateway timeout'));
+wizard.markError('payment', new TypeError('Gateway timeout'));
 wizard.markLoading('payment');
 wizard.markIdle('payment');
-wizard.markTerminated('payment', new Error('Hard failure'));
+wizard.markTerminated('payment', new TypeError('Hard failure'));
 ```
 
 ## Reading errors in React
@@ -30,4 +33,7 @@ wizard.markTerminated('payment', new Error('Hard failure'));
 ```tsx
 const error = useStepError(wizard, 'payment');
 const payment = useWizardStep(wizard, 'payment');
+
+error?.message;
+payment.error?.message;
 ```

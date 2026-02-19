@@ -5,15 +5,47 @@
 Use `createReactWizardFactory` to define steps with components.
 
 ```tsx
-import { createReactWizardFactory } from '@wizard/react';
+import {
+  createReactWizardFactory,
+  type StepComponentProps,
+} from '@wizard/react';
 
 type Context = { total: number };
+type StepName = 'account' | 'review';
+type WizardData = {
+  account: { email: string };
+  review: { agreed: boolean };
+};
+
+type AccountStepProps = StepComponentProps<
+  Context,
+  StepName,
+  WizardData,
+  never,
+  'account'
+>;
+
+type ReviewStepProps = StepComponentProps<
+  Context,
+  StepName,
+  WizardData,
+  never,
+  'review'
+>;
 
 const factory = createReactWizardFactory<Context>();
 const { defineSteps, step } = factory;
 
-function AccountStep() {
-  return <div>Account</div>;
+function AccountStep({ step, data }: AccountStepProps) {
+  return (
+    <button onClick={() => step.updateData({ email: 'user@example.com' })}>
+      {data?.email ?? 'Set email'}
+    </button>
+  );
+}
+
+function ReviewStep({ wizardData }: ReviewStepProps) {
+  return <pre>{JSON.stringify(wizardData, null, 2)}</pre>;
 }
 
 const steps = defineSteps({
@@ -24,6 +56,7 @@ const steps = defineSteps({
   }),
   review: step({
     data: { agreed: false },
+    component: ReviewStep,
     next: [],
   }),
 });

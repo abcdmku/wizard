@@ -15,38 +15,39 @@ export interface WizardStep<
   Data extends DataMap[StepName],
   Context,
   AllSteps extends string = string,
-  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
+  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>,
+  ErrorMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
 > {
   readonly name: StepName;
   readonly data: Readonly<Data> | undefined;
   readonly meta: import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined;
   readonly context: Readonly<Context>;
-  readonly wizard: Wizard<Context, AllSteps, DataMap, never>;
-  readonly error: unknown;
+  readonly wizard: Wizard<Context, AllSteps, DataMap, never, ErrorMap>;
+  readonly error: ErrorMap[StepName] | undefined;
   readonly status: import('./types').StepStatus;
 
   // Fluent step operations
-  markIdle(): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  markLoading(): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  markSkipped(): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  markError(error: unknown): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  markTerminated(error?: unknown): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
+  markIdle(): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  markLoading(): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  markSkipped(): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  markError(error: ErrorMap[StepName]): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  markTerminated(error?: ErrorMap[StepName]): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
 
   // Data operations
-  setData(data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  updateData(updater: Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  updateData(updater: (data: Data | undefined) => Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
+  setData(data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  updateData(updater: Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  updateData(updater: (data: Data | undefined) => Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
 
   // Meta operations
-  setMeta(meta: import('./types').StepMetaCore<Context, AllSteps, Data, never>): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  updateMeta(updater: Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>> | ((meta: import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined) => Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>>)): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
+  setMeta(meta: import('./types').StepMetaCore<Context, AllSteps, Data, never>): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  updateMeta(updater: Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>> | ((meta: import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined) => Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>>)): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
 
   // Navigation that returns step objects
-  next(): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>>;
+  next(): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap, ErrorMap>>;
   goTo<Target extends AllSteps>(
     step: Target
-  ): Promise<WizardStep<Target, DataMap[Target], Context, AllSteps, DataMap>>;
-  back(): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>>;
+  ): Promise<WizardStep<Target, DataMap[Target], Context, AllSteps, DataMap, ErrorMap>>;
+  back(): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap, ErrorMap>>;
 
   // Utility methods
   canNavigateNext(): boolean;
@@ -65,11 +66,12 @@ export class WizardStepImpl<
   Data extends DataMap[StepName],
   Context,
   AllSteps extends string = string,
-  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
-> implements WizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>,
+  ErrorMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
+> implements WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
 
   constructor(
-    public readonly wizard: Wizard<Context, AllSteps, DataMap, never>,
+    public readonly wizard: Wizard<Context, AllSteps, DataMap, never, ErrorMap>,
     public readonly name: StepName,
     public readonly data: Readonly<Data> | undefined,
     public readonly context: Readonly<Context>
@@ -83,8 +85,10 @@ export class WizardStepImpl<
     return this.wizard.getStepMeta(this.name as unknown as AllSteps) as import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined;
   }
 
-  get error(): unknown {
-    return this.wizard.getStepError(this.name as unknown as AllSteps);
+  get error(): ErrorMap[StepName] | undefined {
+    return this.wizard.getStepError(this.name as unknown as AllSteps) as
+      | ErrorMap[StepName]
+      | undefined;
   }
 
   get status(): import('./types').StepStatus {
@@ -93,41 +97,45 @@ export class WizardStepImpl<
 
   // ===== Fluent Step Operations =====
 
-  markIdle = (): WizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  markIdle = (): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     this.wizard.markIdle(this.name as unknown as AllSteps);
     return this.createFreshInstance();
   }
 
-  markLoading = (): WizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  markLoading = (): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     this.wizard.markLoading(this.name as unknown as AllSteps);
     return this.createFreshInstance();
   }
 
-  markSkipped = (): WizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  markSkipped = (): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     this.wizard.markSkipped(this.name as unknown as AllSteps);
     return this.createFreshInstance();
   }
 
-  markError = (error: unknown): WizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  markError = (
+    error: ErrorMap[StepName]
+  ): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     this.wizard.markError(this.name as unknown as AllSteps, error);
     return this.createFreshInstance();
   }
 
-  markTerminated = (error?: unknown): WizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  markTerminated = (
+    error?: ErrorMap[StepName]
+  ): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     this.wizard.markTerminated(this.name as unknown as AllSteps, error);
     return this.createFreshInstance();
   }
 
   // ===== Data Operations =====
 
-  setData = (data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  setData = (data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     this.wizard.setStepData(this.name as unknown as AllSteps, data as DataMap[AllSteps]);
     return this.createFreshInstanceWithData(data);
   }
 
-  updateData(updater: Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  updateData(updater: (data: Data | undefined) => Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap>;
-  updateData(updater: Partial<Data> | ((data: Data | undefined) => Partial<Data>)): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  updateData(updater: Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  updateData(updater: (data: Data | undefined) => Partial<Data>): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
+  updateData(updater: Partial<Data> | ((data: Data | undefined) => Partial<Data>)): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
     // Use the wizard's atomic updateStepData method to avoid race conditions
     if (typeof updater === 'function') {
       // For function form, create a properly typed wrapper that preserves the Data type
@@ -147,19 +155,19 @@ export class WizardStepImpl<
 
   // ===== Meta Operations =====
 
-  setMeta = (meta: import('./types').StepMetaCore<Context, AllSteps, Data, never>): WizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  setMeta = (meta: import('./types').StepMetaCore<Context, AllSteps, Data, never>): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     this.wizard.setStepMeta(this.name as unknown as AllSteps, meta as any);
     return this.createFreshInstance();
   }
 
-  updateMeta = (updater: Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>> | ((meta: import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined) => Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>>)): WizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  updateMeta = (updater: Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>> | ((meta: import('./types').StepMetaCore<Context, AllSteps, Data, never> | undefined) => Partial<import('./types').StepMetaCore<Context, AllSteps, Data, never>>)): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     this.wizard.updateStepMeta(this.name as unknown as AllSteps, updater as any);
     return this.createFreshInstance();
   }
 
   // ===== Navigation Methods =====
 
-  next = async (): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>> => {
+  next = async (): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap, ErrorMap>> => {
     await this.wizard.next();
     const current = this.wizard.getCurrent();
     return new WizardStepImpl(
@@ -172,7 +180,7 @@ export class WizardStepImpl<
 
   goTo = async <Target extends AllSteps>(
     step: Target
-  ): Promise<WizardStep<Target, DataMap[Target], Context, AllSteps, DataMap>> => {
+  ): Promise<WizardStep<Target, DataMap[Target], Context, AllSteps, DataMap, ErrorMap>> => {
     await this.wizard.goTo(step);
     const stepData = this.wizard.getStepData(step);
     return new WizardStepImpl(
@@ -183,7 +191,7 @@ export class WizardStepImpl<
     );
   }
 
-  back = async (): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>> => {
+  back = async (): Promise<WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap, ErrorMap>> => {
     await this.wizard.back();
     const current = this.wizard.getCurrent();
     return new WizardStepImpl(
@@ -214,7 +222,7 @@ export class WizardStepImpl<
 
   // ===== Private Helper Methods =====
 
-  private createFreshInstance(): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  private createFreshInstance(): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
     const currentData = this.wizard.getStepData(this.name as unknown as AllSteps) as Data | undefined;
     return new WizardStepImpl(
       this.wizard,
@@ -224,7 +232,7 @@ export class WizardStepImpl<
     );
   }
 
-  private createFreshInstanceWithData(data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  private createFreshInstanceWithData(data: Data): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
     return new WizardStepImpl(
       this.wizard,
       this.name,
@@ -244,13 +252,14 @@ export function createStepWrapper<
   Data extends DataMap[StepName],
   Context,
   AllSteps extends string,
-  DataMap extends Record<AllSteps, unknown>
+  DataMap extends Record<AllSteps, unknown>,
+  ErrorMap extends Record<AllSteps, unknown>
 >(
-  wizard: Wizard<Context, AllSteps, DataMap, never>,
+  wizard: Wizard<Context, AllSteps, DataMap, never, ErrorMap>,
   stepName: StepName,
   data: Data | undefined,
   context: Context
-): WizardStep<StepName, Data, Context, AllSteps, DataMap> {
+): WizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
   return new WizardStepImpl(wizard, stepName, data, context);
 }
 
@@ -260,10 +269,11 @@ export function createStepWrapper<
 export function createCurrentStepWrapper<
   Context,
   AllSteps extends string,
-  DataMap extends Record<AllSteps, unknown>
+  DataMap extends Record<AllSteps, unknown>,
+  ErrorMap extends Record<AllSteps, unknown>
 >(
-  wizard: Wizard<Context, AllSteps, DataMap, never>
-): WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap> {
+  wizard: Wizard<Context, AllSteps, DataMap, never, ErrorMap>
+): WizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap, ErrorMap> {
   const current = wizard.getCurrent();
   return new WizardStepImpl(wizard, current.step, current.data as DataMap[AllSteps], current.context);
 }

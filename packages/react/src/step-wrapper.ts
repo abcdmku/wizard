@@ -16,13 +16,28 @@ export class ReactWizardStepImpl<
   Data extends DataMap[StepName],
   Context,
   AllSteps extends string = string,
-  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
-> implements ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  DataMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>,
+  ErrorMap extends Record<AllSteps, unknown> = Record<AllSteps, unknown>
+> implements ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
   constructor(
-    private readonly coreStep: CoreWizardStep<StepName, Data, Context, AllSteps, DataMap>,
+    private readonly coreStep: CoreWizardStep<
+      StepName,
+      Data,
+      Context,
+      AllSteps,
+      DataMap,
+      ErrorMap
+    >,
     private readonly getComponentForStep: (
       stepName: AllSteps
-    ) => StepComponent<Context, AllSteps, DataMap, never, AllSteps> | undefined
+    ) => StepComponent<
+      Context,
+      AllSteps,
+      DataMap,
+      never,
+      AllSteps,
+      ErrorMap
+    > | undefined
   ) {
     this.updateData = this.updateData.bind(this);
   }
@@ -61,9 +76,24 @@ export class ReactWizardStepImpl<
       return null;
     }
 
-    const props: StepComponentProps<Context, AllSteps, DataMap, never, AllSteps> = {
-      step: this.name as AllSteps,
+    const props: StepComponentProps<
+      Context,
+      AllSteps,
+      DataMap,
+      never,
+      AllSteps,
+      ErrorMap
+    > = {
+      step: this as unknown as ReactWizardStep<
+        AllSteps,
+        DataMap[AllSteps],
+        Context,
+        AllSteps,
+        DataMap,
+        ErrorMap
+      >,
       data: this.data as DataMap[AllSteps] | undefined,
+      wizardData: this.wizard.data,
       context: this.context,
       wizard: this.wizard,
     };
@@ -71,44 +101,44 @@ export class ReactWizardStepImpl<
     return React.createElement(Component, props);
   }
 
-  markIdle = (): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  markIdle = (): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     return new ReactWizardStepImpl(this.coreStep.markIdle(), this.getComponentForStep);
   };
 
-  markLoading = (): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  markLoading = (): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     return new ReactWizardStepImpl(this.coreStep.markLoading(), this.getComponentForStep);
   };
 
-  markSkipped = (): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  markSkipped = (): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     return new ReactWizardStepImpl(this.coreStep.markSkipped(), this.getComponentForStep);
   };
 
   markError = (
-    error: unknown
-  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+    error: ErrorMap[StepName]
+  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     return new ReactWizardStepImpl(this.coreStep.markError(error), this.getComponentForStep);
   };
 
   markTerminated = (
-    error?: unknown
-  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+    error?: ErrorMap[StepName]
+  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     return new ReactWizardStepImpl(
       this.coreStep.markTerminated(error),
       this.getComponentForStep
     );
   };
 
-  setData = (data: Data): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  setData = (data: Data): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     return new ReactWizardStepImpl(this.coreStep.setData(data), this.getComponentForStep);
   };
 
-  updateData(updater: Partial<Data>): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap>;
+  updateData(updater: Partial<Data>): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
   updateData(
     updater: (data: Data | undefined) => Partial<Data>
-  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap>;
+  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>;
   updateData(
     updater: Partial<Data> | ((data: Data | undefined) => Partial<Data>)
-  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
     if (typeof updater === 'function') {
       return new ReactWizardStepImpl(
         this.coreStep.updateData(updater),
@@ -124,7 +154,7 @@ export class ReactWizardStepImpl<
 
   setMeta = (
     meta: StepMetaCore<Context, AllSteps, Data, never>
-  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     return new ReactWizardStepImpl(this.coreStep.setMeta(meta), this.getComponentForStep);
   };
 
@@ -134,23 +164,23 @@ export class ReactWizardStepImpl<
       | ((
           meta: StepMetaCore<Context, AllSteps, Data, never> | undefined
         ) => Partial<StepMetaCore<Context, AllSteps, Data, never>>)
-  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> => {
+  ): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> => {
     return new ReactWizardStepImpl(this.coreStep.updateMeta(updater), this.getComponentForStep);
   };
 
-  next = async (): Promise<ReactWizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>> => {
+  next = async (): Promise<ReactWizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap, ErrorMap>> => {
     const result = await this.coreStep.next();
     return new ReactWizardStepImpl(result, this.getComponentForStep);
   };
 
   goTo = async <Target extends AllSteps>(
     step: Target
-  ): Promise<ReactWizardStep<Target, DataMap[Target], Context, AllSteps, DataMap>> => {
+  ): Promise<ReactWizardStep<Target, DataMap[Target], Context, AllSteps, DataMap, ErrorMap>> => {
     const result = await this.coreStep.goTo(step);
     return new ReactWizardStepImpl(result, this.getComponentForStep);
   };
 
-  back = async (): Promise<ReactWizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap>> => {
+  back = async (): Promise<ReactWizardStep<AllSteps, DataMap[AllSteps], Context, AllSteps, DataMap, ErrorMap>> => {
     const result = await this.coreStep.back();
     return new ReactWizardStepImpl(result, this.getComponentForStep);
   };
@@ -169,12 +199,20 @@ export function wrapWithReactStep<
   Data extends DataMap[StepName],
   Context,
   AllSteps extends string,
-  DataMap extends Record<AllSteps, unknown>
+  DataMap extends Record<AllSteps, unknown>,
+  ErrorMap extends Record<AllSteps, unknown>
 >(
-  coreStep: CoreWizardStep<StepName, Data, Context, AllSteps, DataMap>,
+  coreStep: CoreWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap>,
   getComponentForStep: (
     stepName: AllSteps
-  ) => StepComponent<Context, AllSteps, DataMap, never, AllSteps> | undefined
-): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap> {
+  ) => StepComponent<
+    Context,
+    AllSteps,
+    DataMap,
+    never,
+    AllSteps,
+    ErrorMap
+  > | undefined
+): ReactWizardStep<StepName, Data, Context, AllSteps, DataMap, ErrorMap> {
   return new ReactWizardStepImpl(coreStep, getComponentForStep);
 }

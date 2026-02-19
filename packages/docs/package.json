@@ -9,6 +9,7 @@
     "build:site": "vite build",
     "build:search": "pagefind --site dist/client --output-subdir pagefind",
     "build:api": "pnpm run clean:api && pnpm run typedoc",
+    "build:docs": "pnpm run build",
     "generate:manifest": "node ./scripts/generate-docs-manifest.mjs",
     "sync:api-ref": "node ./scripts/sync-api-reference.mjs",
     "typedoc": "typedoc --tsconfig ./tsconfig.typedoc.json --options typedoc.json",
@@ -21,8 +22,8 @@
     "clean": "pnpm run clean:api && pnpm run clean:build && pnpm run clean:dev",
     "prebuild": "pnpm run validate:core",
     "postbuild": "pnpm run validate:build",
-    "validate:core": "pnpm run --filter @wizard/core build",
-    "validate:react": "pnpm run --filter @wizard/react build",
+    "validate:core": "pnpm --filter @wizard/core build",
+    "validate:react": "pnpm --filter @wizard/react build",
     "validate:build": "node ./scripts/validate-build.mjs",
     "check": "pnpm run check:api-parity && pnpm run check:doc-imports && pnpm run check:nav && pnpm run check:links && pnpm run check:examples && pnpm run check:api",
     "check:api-parity": "node ./scripts/sync-api-reference.mjs --check",
@@ -44,7 +45,8 @@
     "monaco-editor": "^0.54.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "unist-util-visit": "^5.0.0"
+    "unist-util-visit": "^5.0.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@mdx-js/rollup": "^3.1.1",

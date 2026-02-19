@@ -105,7 +105,7 @@ export type StepStatus =
 // ===== 5. Step Definitions =====
 
 export type StepDefinition<C, S extends string, Data, E = never> = {
-  next:
+  next?:
     | readonly S[]
     | 'any'
     | ((args: StepArgs<C, S, Data, E>) => S | readonly S[] | 'any');
@@ -140,6 +140,8 @@ export type StepDefinition<C, S extends string, Data, E = never> = {
 
 export declare const DATA_BRAND: unique symbol;
 export type WithDataBrand<Data> = { readonly [DATA_BRAND]: Data };
+export declare const ERROR_BRAND: unique symbol;
+export type WithErrorBrand<Error> = { readonly [ERROR_BRAND]: Error };
 
 type FnValue<T> = T extends (...args: any[]) => infer R ? R : T;
 
@@ -162,9 +164,11 @@ export type DataTypeOf<TDef> =
           : unknown;
 
 export type InferStepData<TDef> = DataTypeOf<TDef>;
+export type ErrorTypeOf<TDef, Fallback = unknown> =
+  TDef extends WithErrorBrand<infer BrandedError> ? BrandedError : Fallback;
 
 export type PartialStepDefinition<C, S extends string, E, TDef> = {
-  next:
+  next?:
     | readonly S[]
     | 'any'
     | ((args: StepArgs<C, S, InferStepData<TDef>, E>) => S | readonly S[] | 'any');
@@ -194,6 +198,9 @@ export type StepIds<T> = keyof T & string;
 export type DataMapFromDefs<TDefs> = {
   [K in keyof TDefs & string]: DataTypeOf<TDefs[K]>;
 };
+export type ErrorMapFromDefs<TDefs, DefaultError = unknown> = {
+  [K in keyof TDefs & string]: ErrorTypeOf<TDefs[K], DefaultError>;
+};
 
 // Kept as alias for compatibility.
 export type EnhancedDataMapFromDefs<TDefs> = DataMapFromDefs<TDefs>;
@@ -204,12 +211,17 @@ export function defineSteps<const T extends Record<string, any>>(defs: T): T {
 
 // ===== 7. Wizard State + Helpers =====
 
-export type WizardState<C, S extends string, D extends Record<S, unknown>> = {
+export type WizardState<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  EM extends Record<S, unknown> = Record<S, unknown>
+> = {
   step: S;
   context: C;
   data: Partial<D>;
   meta: Partial<Record<S, StepMetaCore<C, S, unknown, never>>>;
-  errors: Partial<Record<S, unknown>>;
+  errors: Partial<{ [K in S]: EM[K] }>;
   history: Array<{ step: S; context: C; data: Partial<D> }>;
   isLoading: boolean;
   isTransitioning: boolean;
@@ -226,7 +238,12 @@ export type WizardState<C, S extends string, D extends Record<S, unknown>> = {
   >;
 };
 
-export type WizardHelpers<C, S extends string, D extends Record<S, unknown>> = {
+export type WizardHelpers<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  EM extends Record<S, unknown> = Record<S, unknown>
+> = {
   allStepNames(): readonly S[];
   orderedStepNames(): readonly S[];
   availableStepNames(): readonly S[];
@@ -234,12 +251,12 @@ export type WizardHelpers<C, S extends string, D extends Record<S, unknown>> = {
   completedStepNames(): readonly S[];
   remainingStepNames(): readonly S[];
 
-  allSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
-  orderedSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
-  availableSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
-  unavailableSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
-  completedSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
-  remainingSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D>>;
+  allSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>;
+  orderedSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>;
+  availableSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>;
+  unavailableSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>;
+  completedSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>;
+  remainingSteps(): ReadonlyArray<WizardStep<S, D[S], C, S, D, EM>>;
 
   stepCount(): number;
   stepIndex(step: S): number;
@@ -251,8 +268,8 @@ export type WizardHelpers<C, S extends string, D extends Record<S, unknown>> = {
 
   refreshAvailability(): Promise<void>;
 
-  firstIncompleteStep(): WizardStep<S, D[S], C, S, D> | null;
-  lastCompletedStep(): WizardStep<S, D[S], C, S, D> | null;
+  firstIncompleteStep(): WizardStep<S, D[S], C, S, D, EM> | null;
+  lastCompletedStep(): WizardStep<S, D[S], C, S, D, EM> | null;
   firstIncompleteStepName(): S | null;
   lastCompletedStepName(): S | null;
 
@@ -263,11 +280,11 @@ export type WizardHelpers<C, S extends string, D extends Record<S, unknown>> = {
   canGoNext(): boolean;
   canGoBack(): boolean;
   canGoTo(step: S): boolean;
-  findNextAvailable(from?: S): WizardStep<S, D[S], C, S, D> | null;
-  findPrevAvailable(from?: S): WizardStep<S, D[S], C, S, D> | null;
+  findNextAvailable(from?: S): WizardStep<S, D[S], C, S, D, EM> | null;
+  findPrevAvailable(from?: S): WizardStep<S, D[S], C, S, D, EM> | null;
   findNextAvailableName(from?: S): S | null;
   findPrevAvailableName(from?: S): S | null;
-  jumpToNextRequired(): WizardStep<S, D[S], C, S, D> | null;
+  jumpToNextRequired(): WizardStep<S, D[S], C, S, D, EM> | null;
   jumpToNextRequiredName(): S | null;
 
   isReachable(step: S): boolean;
@@ -278,17 +295,23 @@ export type WizardHelpers<C, S extends string, D extends Record<S, unknown>> = {
   stepDuration(step: S): number | null;
 
   percentCompletePerStep(): Record<S, number>;
-  snapshot(): WizardState<C, S, D>;
+  snapshot(): WizardState<C, S, D, EM>;
 };
 
-export type Wizard<C, S extends string, D extends Record<S, unknown>, _E> = {
-  store: Store<WizardState<C, S, D>>;
+export type Wizard<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  _E,
+  EM extends Record<S, unknown> = Record<S, unknown>
+> = {
+  store: Store<WizardState<C, S, D, EM>>;
 
   readonly step: S;
   readonly context: Readonly<C>;
   readonly data: Partial<D>;
   readonly meta: Partial<Record<S, StepMetaCore<C, S, unknown, never>>>;
-  readonly errors: Partial<Record<S, unknown>>;
+  readonly errors: Partial<{ [K in S]: EM[K] }>;
   readonly history: Array<{ step: S; context: C; data: Partial<D> }>;
   readonly isLoading: boolean;
   readonly isTransitioning: boolean;
@@ -299,12 +322,12 @@ export type Wizard<C, S extends string, D extends Record<S, unknown>, _E> = {
     >
   >;
 
-  next(args?: { data?: D[S] }): Promise<WizardStep<S, D[S], C, S, D>>;
+  next(args?: { data?: D[S] }): Promise<WizardStep<S, D[S], C, S, D, EM>>;
   goTo<K extends S>(
     step: K,
     args?: { data?: D[K] }
-  ): Promise<WizardStep<K, D[K], C, S, D>>;
-  back(): Promise<WizardStep<S, D[S], C, S, D>>;
+  ): Promise<WizardStep<K, D[K], C, S, D, EM>>;
+  back(): Promise<WizardStep<S, D[S], C, S, D, EM>>;
   reset(): void;
 
   updateContext(fn: (context: C) => void): void;
@@ -322,23 +345,23 @@ export type Wizard<C, S extends string, D extends Record<S, unknown>, _E> = {
       | ((current: StepMetaCore<C, S, D[K], never> | undefined) => Partial<StepMetaCore<C, S, D[K], never>>)
   ): void;
   getStepMeta<K extends S>(step: K): StepMetaCore<C, S, D[K], never> | undefined;
-  getStepError<K extends S>(step: K): unknown;
-  getAllErrors(): Partial<Record<S, unknown>>;
+  getStepError<K extends S>(step: K): EM[K] | undefined;
+  getAllErrors(): Partial<{ [K in S]: EM[K] }>;
   clearStepError<K extends S>(step: K): void;
   clearAllErrors(): void;
   getContext(): Readonly<C>;
   getCurrent(): { step: S; data: Readonly<D[S]> | undefined; context: Readonly<C> };
 
-  getStep<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
-  getCurrentStep(): WizardStep<S, D[S], C, S, D>;
+  getStep<K extends S>(step: K): WizardStep<K, D[K], C, S, D, EM>;
+  getCurrentStep(): WizardStep<S, D[S], C, S, D, EM>;
 
-  markError<K extends S>(step: K, err: unknown): WizardStep<K, D[K], C, S, D>;
-  markTerminated<K extends S>(step: K, err?: unknown): WizardStep<K, D[K], C, S, D>;
-  markLoading<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
-  markIdle<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
-  markSkipped<K extends S>(step: K): WizardStep<K, D[K], C, S, D>;
+  markError<K extends S>(step: K, err: EM[K]): WizardStep<K, D[K], C, S, D, EM>;
+  markTerminated<K extends S>(step: K, err?: EM[K]): WizardStep<K, D[K], C, S, D, EM>;
+  markLoading<K extends S>(step: K): WizardStep<K, D[K], C, S, D, EM>;
+  markIdle<K extends S>(step: K): WizardStep<K, D[K], C, S, D, EM>;
+  markSkipped<K extends S>(step: K): WizardStep<K, D[K], C, S, D, EM>;
 
-  helpers: WizardHelpers<C, S, D>;
+  helpers: WizardHelpers<C, S, D, EM>;
 };
 
 // ===== 8. Factory typing =====
@@ -354,9 +377,20 @@ export type CreateWizardOptions<C, _E, TDefs extends Record<string, any>> = {
   }) => void;
 };
 
-export declare function createWizard<C, E, const TDefs extends Record<string, any>>(
+export declare function createWizard<
+  C,
+  E,
+  const TDefs extends Record<string, any>,
+  DefaultError = unknown
+>(
   opts: CreateWizardOptions<C, E, TDefs>
-): Wizard<C, StepIds<TDefs>, DataMapFromDefs<TDefs>, E>;
+): Wizard<
+  C,
+  StepIds<TDefs>,
+  DataMapFromDefs<TDefs>,
+  E,
+  ErrorMapFromDefs<TDefs, DefaultError>
+>;
 
 // ===== 9. Compatibility Layer =====
 
@@ -399,15 +433,26 @@ export type WizardPersistence<T = any> = {
 
 // ===== 10. Enhanced Wizard alias =====
 
-export type EnhancedWizard<C, S extends string, D extends Record<S, unknown>, E> =
-  Wizard<C, S, D, E>;
+export type EnhancedWizard<
+  C,
+  S extends string,
+  D extends Record<S, unknown>,
+  E,
+  EM extends Record<S, unknown> = Record<S, unknown>
+> = Wizard<C, S, D, E, EM>;
 
-export type EnhancedWizardFactory<C, E = never> = {
+export type EnhancedWizardFactory<C, DefaultError = unknown, E = never> = {
   defineSteps<T extends Record<string, any>>(defs: T): T;
   step(definition: any): any;
   createWizard<TDefs extends Record<string, any>>(
     context: C,
     steps: TDefs,
     options?: Omit<CreateWizardOptions<C, E, TDefs>, 'context' | 'steps'>
-  ): EnhancedWizard<C, keyof TDefs & string, DataMapFromDefs<TDefs>, E>;
+  ): EnhancedWizard<
+    C,
+    keyof TDefs & string,
+    DataMapFromDefs<TDefs>,
+    E,
+    ErrorMapFromDefs<TDefs, DefaultError>
+  >;
 };

@@ -9,7 +9,7 @@ import { createWizardFactory } from '@wizard/core';
 
 type Context = { userId?: string };
 
-const factory = createWizardFactory<Context>();
+const factory = createWizardFactory<Context, Error>();
 const { defineSteps, step } = factory;
 
 const steps = defineSteps({
@@ -20,7 +20,7 @@ const steps = defineSteps({
       if (!data.email.includes('@')) throw new Error('Invalid email');
     },
   }),
-  review: step({
+  review: step<{ confirmed: boolean }, TypeError>({
     data: { confirmed: false },
     next: [],
   }),
@@ -31,15 +31,59 @@ export const wizard = factory.createWizard(steps, {
 });
 ```
 
+## Migration Note
+
+`createWizardFactory` generic order is now:
+
+- New: `createWizardFactory<Context, DefaultError, Event>()`
+- Old: `createWizardFactory<Context, Event, DefaultError>()`
+
+This is a breaking change. Update old 3-generic calls accordingly.
+
 ## Runtime API
 
 - `createWizard(opts)`
-- `createWizardFactory<C, E>()`
+- `createWizardFactory<C, DefaultError, E>()`
 - `defineSteps(defs)`
 - `step(definition)`
 - `stepWithValidation(validateFn, definition)`
 - `resolve(valueOrFn, args)`
 - `resolveMetaCore(meta, args)`
+
+## Step Typing
+
+Factory step typing:
+
+```ts
+const factory = createWizardFactory<{ locale: 'en' | 'fr' }, Error>();
+
+const steps = factory.defineSteps({
+  account: factory.step({
+    data: { email: '' },
+    next: ['review'],
+  }),
+  review: factory.step<{ agreed: boolean }, TypeError>({
+    data: { agreed: false },
+    next: [],
+  }),
+});
+```
+
+`Data` is inferred automatically from `data` (or `validate`), so you usually do not need `step<Data>(...)`.
+Only specify `Data` explicitly when needed, for example when also overriding `StepError`.
+
+Standalone helper typing (generic order differs):
+
+```ts
+import { step } from '@wizard/core';
+
+const account = step<{ email: string }, { locale: string }, TypeError>({
+  data: { email: '' },
+  next: [],
+});
+```
+
+Helper order is `step<Data, Context, StepError>`, while factory order is `step<Data, StepError>`.
 
 ## Compatibility-focused exports
 
@@ -76,6 +120,8 @@ Generated from package entrypoint exports via `scripts/sync-api-reference.mjs`.
 | `CreateWizardOptions` | `type` | Primary types |
 | `DataMapFromDefs` | `type` | Primary types |
 | `DataTypeOf` | `type` | Primary types |
+| `ErrorMapFromDefs` | `type` | Primary types |
+| `ErrorTypeOf` | `type` | Primary types |
 | `JSONValue` | `type` | Primary types |
 | `PartialStepDefinition` | `type` | Primary types |
 | `StepArgs` | `type` | Primary types |
@@ -88,6 +134,7 @@ Generated from package entrypoint exports via `scripts/sync-api-reference.mjs`.
 | `ValidateArgs` | `type` | Primary types |
 | `ValOrFn` | `type` | Primary types |
 | `WithDataBrand` | `type` | Primary types |
+| `WithErrorBrand` | `type` | Primary types |
 | `Wizard` | `type` | Primary types |
 | `WizardHelpers` | `type` | Primary types |
 | `WizardState` | `type` | Primary types |
