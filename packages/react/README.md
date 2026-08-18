@@ -76,17 +76,18 @@ Peer dependencies: `react ^18 || ^19`, `@openwizard/core` (same minor).
 | Export | Kind | Summary | Source |
 |---|---|---|---|
 | `Actions` | interface | The command methods of the source (`useActions()`) — the same sugar as `Wizard` / `Mirror`, | [src](../../packages/react/src/types.ts#L92) |
-| `bindReact` | function | Create a typed React binding for a flow or a projection. The type parameter is the only | [src](../../packages/react/src/bind-react.tsx#L263) |
+| `bindReact` | function | Create a typed React binding for a flow or a projection. The type parameter is the only | [src](../../packages/react/src/bind-react.tsx#L59) |
 | `BindTarget` | type | What `bindReact<T>()` accepts: a flow (the source is a `Wizard`) or a projection (the source | [src](../../packages/react/src/types.ts#L40) |
-| `ChildBinding` | interface | What `useChild(step)` returns: hooks bound to the child slice of the state (`S`), typed by the | [src](../../packages/react/src/types.ts#L256) |
-| `ChildBindingId` | type | Ids of the flow steps whose child state the binding can read with `useChild(step)`: over a | [src](../../packages/react/src/types.ts#L211) |
-| `ChildStateOf` | type | The child slice `useChild(step)` reads: the projected child `ClientState` over a projection, | [src](../../packages/react/src/types.ts#L224) |
-| `ChildStepHelpers` | type | Helpers `useChild(step).useStep(id)` binds to a child step: the scoped `MirrorChild` sugar of | [src](../../packages/react/src/types.ts#L236) |
+| `ChildBinding` | interface | What `useChild(step)` returns: hooks bound to the child slice of the state (`S`), typed by the | [src](../../packages/react/src/types.ts#L263) |
+| `ChildBindingId` | type | Ids of the flow steps whose child state the binding can read with `useChild(step)`: over a | [src](../../packages/react/src/types.ts#L220) |
+| `ChildStateOf` | type | The child slice `useChild(step)` reads: the projected child `ClientState` over a projection, | [src](../../packages/react/src/types.ts#L229) |
+| `ChildStepHelpers` | type | Helpers `useChild(step).useStep(id)` binds to a child step: the scoped `MirrorChild` sugar of | [src](../../packages/react/src/types.ts#L241) |
 | `CurrentOf` | type | What `useCurrent()` returns: the record of the current view step, or `null`. | [src](../../packages/react/src/types.ts#L174) |
+| `ExposedChildId` | type | The steps of flow `F` whose record in the projected slice `S` carries a nested child state | [src](../../packages/react/src/types.ts#L210) |
 | `FlowOf` | type | The flow behind a bind target (the projection's flow, or the flow itself). | [src](../../packages/react/src/types.ts#L46) |
 | `NavResultOf` | type | Result of the navigation actions: `NavResult` from a Wizard, the ack's `CommandResult` from a Mirror. | [src](../../packages/react/src/types.ts#L77) |
 | `ProviderProps` | interface | `Provider` props: the `source` (`Wizard` or `Mirror`), an optional `fallback` rendered until | [src](../../packages/react/src/types.ts#L191) |
-| `ReactBinding` | interface | What `bindReact<T>()` returns: a `Provider` plus hooks typed by `T`. Every hook must be used | [src](../../packages/react/src/types.ts#L285) |
+| `ReactBinding` | interface | What `bindReact<T>()` returns: a `Provider` plus hooks typed by `T`. Every hook must be used | [src](../../packages/react/src/types.ts#L292) |
 | `SendResultOf` | type | Result of the `send` action: `SendResult` from a Wizard, the ack's `CommandResult` from a Mirror. | [src](../../packages/react/src/types.ts#L83) |
 | `SourceOf` | type | The live object a binding's `Provider` takes: `Wizard<F>` for a flow, `Mirror<P>` for a projection. | [src](../../packages/react/src/types.ts#L56) |
 | `StateOf` | type | The state the hooks read: `Snapshot<F>['state']` over a Wizard, `ProjectionOutput<P>` | [src](../../packages/react/src/types.ts#L67) |

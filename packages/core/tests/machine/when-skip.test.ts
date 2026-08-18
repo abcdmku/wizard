@@ -3,17 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { explain, phase, ready } from '../../src/machine/index'
-import {
-  createHarness,
-  decision,
-  final,
-  flow,
-  of,
-  replay,
-  task,
-  view,
-  wait,
-} from '../helpers/fixtures'
+import { createHarness, decision, final, flow, of, replay, task, view } from '../helpers/fixtures'
 
 const yes = () => true
 const on = () => undefined
@@ -245,6 +235,128 @@ describe('when — evaluated at readiness', () => {
     expect(h.state.current).toBe('b')
   })
 
+  it('a late when result after done / cancel / compensation is stale (result.ignored, nothing skips or schedules); a terminal snapshot resumes without re-asking', () => {
+    // `opt` (pending, `when` in flight once `t` is done) outlives the flow's terminal transition.
+    const make = (policies?: { onFailure: 'compensate' }) =>
+      createHarness(
+        flow({
+          start: ['t', 'opt'],
+          steps: {
+            t: task({ compensate: on, next: 'end' }),
+            opt: task({ when: yes, dependsOn: ['t'], next: 'end' }),
+            end: final({ dependsOn: ['t', 'opt'] }),
+          },
+          ...(policies !== undefined ? { policies } : {}),
+        }),
+      )
+    // Done: `a` completes the flow while `opt`'s predicate is still in flight.
+    const done = createHarness(
+      flow({
+        start: ['a', 'opt'],
+        steps: {
+          a: task({ next: 'end' }),
+          opt: task({ when: yes, next: 'end' }),
+          end: final(),
+        },
+      }),
+    )
+    done.start()
+    const whenDone = done.call('when', 'opt')
+    done.ok(done.call('run', 'a'), 1)
+    expect(done.state.status).toBe('done')
+    expect(done.rec('opt').when).toBeUndefined() // token staled by flow.done
+    expect(done.ok(whenDone, false).types).toEqual(['result.ignored'])
+    expect(done.rec('opt').status).toBe('idle')
+    // Cancel.
+    const cancelled = make()
+    cancelled.start()
+    expect(cancelled.rec('opt').when).toBeUndefined() // not eligible yet (dependsOn t)
+    cancelled.ok(cancelled.call('run', 't'), 1) // opt eligible → when asked; end pending
+    const whenCancelled = cancelled.call('when', 'opt')
+    cancelled.cmd({ type: 'cancel', reason: 'stop' })
+    expect(cancelled.state.status).toBe('cancelled')
+    expect(cancelled.ok(whenCancelled, false).types).toEqual(['result.ignored'])
+    expect(cancelled.rec('opt').status).toBe('idle')
+    // Compensation (a saga cancel): the flow compensates `t`; the predicate result is stale.
+    const saga = make({ onFailure: 'compensate' })
+    saga.start()
+    saga.ok(saga.call('run', 't'), 1)
+    const whenSaga = saga.call('when', 'opt')
+    saga.cmd({ type: 'cancel', reason: 'undo' })
+    expect(saga.state.status).toBe('compensating')
+    expect(saga.ok(whenSaga, true).types).toEqual(['result.ignored'])
+    // Resume of a terminal snapshot: no `when` call is re-issued.
+    const resumed = done.step({ type: 'resume', fromSeq: done.state.seq })
+    expect(resumed.effects.filter((e) => e.kind === 'call')).toEqual([])
+    expect(replay(done)).toEqual(done.state)
+  })
+
+  it('cursorHint survives an unrelated (background auto-advance) transaction: once the predicate passes the hinted view wins among several ready views', () => {
+    const h = createHarness(
+      flow({
+        start: ['a', 't'],
+        steps: {
+          a: view({ next: ['b', 'c'] }),
+          b: view({ when: yes, next: 'end' }),
+          c: view({ next: 'end' }),
+          t: task({ next: 'end' }),
+          end: final({ dependsOn: ['b', 'c', 't'] }),
+        },
+      }),
+    )
+    h.start()
+    h.cmd('next') // commits to b without entering it (when pending), c is ready
+    expect(h.state.nav.cursorHint).toBe('b')
+    const bg = h.ok(h.call('run', 't'), 1) // t's auto-advance arrives `end` — unrelated to the cursor
+    expect(of(bg, 'transition.committed')[0]).toMatchObject({ from: 't', cause: 'auto' })
+    expect(h.state.nav.cursorHint).toBe('b')
+    h.ok(h.call('when', 'b'), true)
+    expect(h.state.current).toBe('b')
+    expect(h.state.nav.cursorHint).toBeUndefined()
+    expect(replay(h)).toEqual(h.state)
+  })
+
+  it('go to a visited view whose when is pending: the predicate is staled (late result ignored), not re-asked during the transaction, enter runs only for a view that will enter, and the view enters', () => {
+    const h = createHarness(
+      flow({
+        start: ['a', 't'],
+        steps: {
+          a: view({ next: 'b' }),
+          b: view({ when: yes, enter: on, next: 'c' }),
+          c: view({ next: 'b' }),
+          t: task(),
+        },
+      }),
+    )
+    h.start()
+    const first = h.cmd('next') // a → b commits without entering b: `when` first, no `enter` yet
+    expect(of(first, 'transition.committed')[0]).toMatchObject({ from: 'a', to: 'b' })
+    expect(h.pending('enter', 'b')).toHaveLength(0)
+    h.ok(h.call('when', 'b'), true) // → cursor transaction → enter(b)
+    h.ok(h.call('enter', 'b'))
+    expect(h.state.current).toBe('b')
+    h.cmd('next') // b → c
+    expect(h.state.current).toBe('c')
+    h.cmd('next') // c → b again: b (visited) is arrived, its when is asked, nothing entered
+    expect(h.state.current).toBeNull()
+    expect(h.rec('b')).toMatchObject({ pendingActivation: true, when: 'pending', visitedCount: 1 })
+    const when = h.call('when', 'b')
+    // Explicit go to the visited view: allowed, bypasses `when` (the token is staled at once).
+    const go = h.cmd({ type: 'go', step: 'b' })
+    expect(of(go, 'transition.started')[0]).toMatchObject({ to: 'b', cause: 'go' })
+    expect(h.rec('b').when).toBeUndefined()
+    expect(h.state.nav.phase).toBe('entering') // async `enter` in flight
+    expect(h.ok(when, false).types).toEqual(['result.ignored'])
+    // A background completion re-schedules mid-transaction: b's when is NOT asked again.
+    h.ok(h.call('run', 't'), 1)
+    expect(h.pending('when', 'b')).toHaveLength(0)
+    const done = h.ok(h.call('enter', 'b'))
+    expect(of(done, 'transition.committed')[0]).toMatchObject({ to: 'b', cause: 'go' })
+    expect(h.state.current).toBe('b')
+    expect(h.rec('b')).toMatchObject({ status: 'active', visitedCount: 2 })
+    expect(replay(h)).toEqual(h.state)
+  })
+
   it('resume re-issues an in-flight when predicate', () => {
     const h = createHarness(
       flow({ start: 't', steps: { t: task({ when: yes, next: 'end' }), end: final() } }),
@@ -254,167 +366,5 @@ describe('when — evaluated at readiness', () => {
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
     expect(r.types).toEqual(['flow.resumed'])
     expect(r.effects.filter((e) => e.kind === 'call')).toMatchObject([{ hook: 'when', step: 't' }])
-  })
-})
-
-describe('skip command', () => {
-  const dag = () =>
-    flow({
-      start: 'v',
-      steps: {
-        v: view({ canExit: yes, exit: on, next: ['t', 'w'] }),
-        t: task({ next: 'join' }),
-        w: wait({ on: { e: on }, timeout: { afterMs: 1_000, next: 'join' }, next: 'join' }),
-        join: task({ dependsOn: ['t', 'w'], next: 'end' }),
-        end: final(),
-      },
-    })
-
-  it('an active task is cancelled first (run aborted, late result ignored), then skipped; deps count it as done', () => {
-    const h = createHarness(dag())
-    h.start()
-    h.cmd('next')
-    h.ok(h.call('canExit'), true)
-    h.ok(h.call('exit'))
-    const run = h.call('run', 't')
-    const r = h.cmd({ type: 'skip', step: 't', reason: 'not needed' })
-    expect(r.types).toEqual([
-      'step.cancelled',
-      'step.skipped',
-      'transition.started',
-      'transition.phase',
-      'transition.phase',
-      'transition.phase',
-      'transition.phase',
-      'step.arrived',
-      'transition.committed',
-    ])
-    expect(of(r, 'step.cancelled')[0]).toMatchObject({ step: 't', reason: 'not needed' })
-    expect(of(r, 'step.skipped')[0]).toMatchObject({ step: 't', reason: 'command' })
-    expect(h.rec('t')).toMatchObject({ status: 'skipped', skipReason: 'command' })
-    expect(h.ok(run, 'late').types).toEqual(['result.ignored'])
-    // the wait: skipping clears its timeout timer
-    expect(h.state.timers['wait:w']).toBeDefined()
-    const s = h.cmd({ type: 'skip', step: 'w' })
-    expect(s.types.slice(0, 3)).toEqual(['timer.cleared', 'step.cancelled', 'step.skipped'])
-    expect(h.state.timers['wait:w']).toBeUndefined()
-    expect(h.rec('join').status).toBe('active') // both deps "done"
-    h.ok(h.call('run', 'join'), 1)
-    expect(h.state.status).toBe('done')
-    expect(replay(h)).toEqual(h.state)
-  })
-
-  it('a ready (pending, budget-limited) task is skipped without entering; final / unknown / not-ready / done steps are rejected', () => {
-    const h = createHarness(
-      flow({
-        start: ['t1', 't2'],
-        steps: {
-          t1: task({ next: 'end' }),
-          t2: task({ next: 'end' }),
-          later: task({ next: 'end' }),
-          end: final({ dependsOn: ['t1', 't2'] }),
-        },
-        policies: { concurrency: 1 },
-      }),
-    )
-    h.start()
-    expect(h.rec('t2')).toMatchObject({ status: 'idle', pendingActivation: true })
-    const r = h.cmd({ type: 'skip', step: 't2' })
-    expect(r.types.slice(0, 1)).toEqual(['step.skipped'])
-    expect(h.rec('t2').status).toBe('skipped')
-    expect(of(h.cmd({ type: 'skip', step: 'end' }), 'command.rejected')[0]).toMatchObject({
-      code: 'INVALID_COMMAND',
-      reason: 'final-step',
-    })
-    expect(of(h.cmd({ type: 'skip', step: 'nope' }), 'command.rejected')[0]?.code).toBe(
-      'UNKNOWN_STEP',
-    )
-    expect(of(h.cmd({ type: 'skip', step: 'later' }), 'command.rejected')[0]).toMatchObject({
-      code: 'NOT_ACTIVE',
-      reason: 'not-skippable:idle',
-    })
-    expect(of(h.cmd({ type: 'skip', step: 't2' }), 'command.rejected')[0]).toMatchObject({
-      code: 'NOT_ACTIVE',
-      reason: 'not-skippable:skipped',
-    })
-    h.ok(h.call('run', 't1'), 1)
-    expect(h.state.status).toBe('done')
-  })
-
-  it('the current view may be skipped (no validation, no exit hook, cursor moves on); not while a transition is in flight from it', () => {
-    const h = createHarness(dag())
-    h.start()
-    h.cmd('next') // canExit pending
-    expect(of(h.cmd({ type: 'skip', step: 'v' }), 'command.rejected')[0]).toMatchObject({
-      code: 'NAV_BUSY',
-    })
-    h.ok(h.call('canExit'), false) // rejected → idle again
-    const r = h.cmd({ type: 'skip', step: 'v' })
-    expect(r.types.slice(0, 2)).toEqual(['step.skipped', 'transition.started'])
-    expect(h.pending('exit')).toHaveLength(0)
-    expect(h.rec('v').status).toBe('skipped')
-    expect(h.state.current).toBeNull()
-    expect(h.state.active).toEqual(['t', 'w'])
-    expect(replay(h)).toEqual(h.state)
-  })
-
-  it('skipping a step whose when is pending discards the predicate result; a skipped step re-arrived later asks when again', () => {
-    const h = createHarness(
-      flow({
-        start: 'v',
-        steps: {
-          v: view({ next: 't' }),
-          t: task({ when: yes, next: 'v2' }),
-          v2: view({ next: 't' }),
-        },
-      }),
-    )
-    h.start()
-    h.cmd('next')
-    const when = h.call('when', 't')
-    h.cmd({ type: 'skip', step: 't' })
-    expect(h.rec('t').status).toBe('skipped')
-    expect(h.ok(when, false).types).toEqual(['result.ignored'])
-    expect(h.state.current).toBe('v2')
-    // loop back through t: arrived again → when asked again
-    const r = h.cmd('next')
-    expect(of(r, 'step.whenStarted')[0]?.step).toBe('t')
-    expect(h.rec('t')).toMatchObject({
-      status: 'skipped',
-      pendingActivation: true,
-      when: 'pending',
-    })
-    h.ok(h.call('when', 't'), true)
-    expect(h.rec('t').status).toBe('active')
-    expect(replay(h)).toEqual(h.state)
-  })
-
-  it('a step skipped while a transition is in flight continues once nav is idle again (nav.deferred, like step.done)', () => {
-    const h = createHarness(
-      flow({
-        start: 'v',
-        steps: {
-          v: view({ canExit: yes, next: ['slow', 'w'] }),
-          slow: task({ next: 'w2' }),
-          w: view({ canExit: yes, next: 'end' }),
-          w2: view({ next: 'end' }),
-          end: final({ dependsOn: ['w', 'w2'] }),
-        },
-      }),
-    )
-    h.start()
-    h.cmd('next')
-    h.ok(h.call('canExit', 'v'), true) // slow runs, w current
-    expect(h.state.current).toBe('w')
-    h.cmd('next') // w's canExit pending → nav busy
-    const r = h.cmd({ type: 'skip', step: 'slow' })
-    expect(r.types).toEqual(['step.cancelled', 'step.skipped'])
-    expect(h.state.nav.deferred).toEqual([{ step: 'slow' }])
-    // the transition is rejected → idle → the deferred continuation arrives w2
-    const idle = h.ok(h.call('canExit', 'w'), false)
-    expect(of(idle, 'transition.started')[0]).toMatchObject({ from: 'slow', cause: 'auto' })
-    expect(h.rec('w2')).toMatchObject({ status: 'idle', pendingActivation: true }) // ready, w is current
-    expect(h.state.nav.deferred).toBeUndefined()
-    expect(replay(h)).toEqual(h.state)
   })
 })

@@ -34,9 +34,14 @@ export function listPackages() {
     .map((dir) => {
       const pkg = require(join(dir, 'package.json'))
       const short = pkg.name.replace('@openwizard/', '')
-      const subpaths = Object.keys(pkg.exports ?? { '.': true }).filter(
-        (key) => key !== './package.json',
-      )
+      // Public code entries only: `./package.json` and asset subpaths (`./style.css`) are not
+      // TypeScript surfaces.
+      const exportsMap = pkg.exports ?? { '.': true }
+      const subpaths = Object.keys(exportsMap).filter((key) => {
+        if (key === './package.json') return false
+        const target = exportsMap[key]
+        return typeof target !== 'string' || /\.(m?js|cjs|ts)$/.test(target)
+      })
       const entries = subpaths.map((subpath) => {
         const entry = subpath === '.' ? 'index' : subpath.replace(/^\.\//, '')
         return {

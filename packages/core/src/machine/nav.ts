@@ -1,51 +1,23 @@
 /**
- * Navigation pipeline (§1): `next` / `go` / `back` transactions, the phase
- * machine (skip arrows are decided here; effects come from `plan`), commit,
- * auto-advance for non-view completions (§1.4) and the deferred auto-advance
- * queue (`nav.deferred`, drained whenever `nav` returns to idle).
+ * Navigation pipeline (§1): `next` / `go` / `back` transactions, rejections, commit (§1.3),
+ * auto-advance for non-view completions (§1.4) and the deferred auto-advance queue
+ * (`nav.deferred`, drained whenever `nav` returns to idle). The phase machine and the
+ * transaction hook results live in `nav-phases.ts`.
  *
  * @internal
  */
 
 import type { Batch } from './batch'
 import { emit, rec, stepDef } from './batch'
-import type { EffectResult } from './commands'
 import type { TransitionRejectReason } from './events'
+import { phaseList, runPhases } from './nav-phases'
 import { enterStep, hasOnHandlers, schedule } from './scheduler'
-import { cursorTarget, eligible, isTerminal, ready } from './selectors'
-import type { Issue, NavCause, NavPhase, SerializedError } from './state'
+import { cursorTarget, eligible, isExplicitCause, isTerminal, ready } from './selectors'
+import type { Issue, NavCause, SerializedError } from './state'
 import { normalizeTargets } from './util'
 import { drainInbox } from './wait'
 
-const PHASES_FULL: readonly NavPhase[] = [
-  'parsingInput',
-  'validating',
-  'canExit',
-  'resolvingTarget',
-  'canEnter',
-  'exiting',
-  'entering',
-]
-const PHASES_TARGETED: readonly NavPhase[] = ['canEnter', 'exiting', 'entering']
-const PHASES_AUTO: readonly NavPhase[] = ['resolvingTarget', 'canEnter', 'exiting', 'entering']
-
 export const AUTO_ADVANCE_LIMIT = 1000
-
-function phaseList(b: Batch): readonly NavPhase[] {
-  const nav = b.state.nav
-  const fromIsView = nav.from != null && stepDef(b, nav.from)?.kind === 'view'
-  switch (nav.cause) {
-    case 'next':
-      return PHASES_FULL
-    case 'go':
-      return fromIsView ? PHASES_FULL : PHASES_TARGETED
-    case 'back':
-      return PHASES_TARGETED
-    default:
-      // cursor rule (from null) vs. auto-advance from a completed non-view step
-      return nav.from == null ? PHASES_TARGETED : PHASES_AUTO
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Rejections
@@ -68,7 +40,7 @@ export function rejectNav(
   if (opts.deferIdle !== true) onNavIdle(b)
 }
 
-function rejectCurrent(
+export function rejectCurrent(
   b: Batch,
   reason: TransitionRejectReason,
   opts: { step?: string; issues?: readonly Issue[] } = {},
@@ -76,7 +48,7 @@ function rejectCurrent(
   rejectNav(b, reason, { ...opts, txId: b.state.nav.txId ?? b.env.id('tx') })
 }
 
-function failCurrent(b: Batch, step: string, error: SerializedError): void {
+export function failCurrent(b: Batch, step: string, error: SerializedError): void {
   emit(b, { type: 'transition.failed', txId: b.state.nav.txId ?? b.env.id('tx'), step, error })
   onNavIdle(b)
 }
@@ -134,16 +106,17 @@ export function navBack(b: Batch): void {
   startTransaction(b, 'back', s.current, prev)
 }
 
-function startTransaction(b: Batch, cause: NavCause, from: string | null, to?: string): void {
+/** Start a transaction (`from` = the current view or null; `to` = an explicit target). */
+export function startTransaction(
+  b: Batch,
+  cause: NavCause,
+  from: string | null,
+  to?: string,
+): void {
   const txId = b.env.id('tx')
   emit(b, { type: 'transition.started', txId, from, cause, ...(to !== undefined ? { to } : {}) })
   const first = phaseList(b)[0]
   if (first !== undefined) runPhases(b, first)
-}
-
-/** Cursor rule (§3.2.3): move the (null) cursor to the single ready view through a transaction. */
-export function startCursorTransaction(b: Batch, cause: NavCause, view: string): void {
-  startTransaction(b, cause, null, view)
 }
 
 // ---------------------------------------------------------------------------
@@ -236,126 +209,10 @@ export function startEventTransition(b: Batch, view: string, to: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Phase machine
-// ---------------------------------------------------------------------------
-
-type PhaseOutcome = 'wait' | 'continue' | 'stop'
-
-/** Walk phases from `start`; stop when a phase needs an effect result (or the tx ended); commit at the end. */
-export function runPhases(b: Batch, start: NavPhase, targets?: readonly string[]): void {
-  const list = phaseList(b)
-  let i = list.indexOf(start)
-  if (i < 0) return
-  let known = targets
-  while (i < list.length) {
-    const phase = list[i]
-    if (phase === undefined) return
-    const outcome = enterPhase(b, phase, known)
-    known = undefined
-    if (outcome !== 'continue') return
-    i++
-  }
-  commit(b)
-}
-
-function phaseEvent(b: Batch, phase: NavPhase, targets?: readonly string[]): void {
-  emit(b, {
-    type: 'transition.phase',
-    txId: b.state.nav.txId ?? '',
-    phase,
-    ...(targets !== undefined ? { targets } : {}),
-  })
-}
-
-function enterPhase(b: Batch, phase: NavPhase, targets?: readonly string[]): PhaseOutcome {
-  const from = b.state.nav.from ?? null
-  const fromDef = from !== null ? stepDef(b, from) : undefined
-  switch (phase) {
-    case 'parsingInput': {
-      phaseEvent(b, phase)
-      if (fromDef?.input !== undefined) return 'wait'
-      if (from !== null) {
-        const input = rec(b, from)?.input
-        emit(b, { type: 'step.validated', step: from, output: input })
-      }
-      return 'continue'
-    }
-    case 'validating':
-      phaseEvent(b, phase)
-      return fromDef?.hooks.validate !== undefined ? 'wait' : 'continue'
-    case 'canExit':
-      phaseEvent(b, phase)
-      return fromDef?.hooks.canExit !== undefined ? 'wait' : 'continue'
-    case 'resolvingTarget':
-      return resolveTargets(b, from, targets)
-    case 'canEnter':
-      phaseEvent(b, phase, targets)
-      return (b.state.nav.pendingSteps?.length ?? 0) > 0 ? 'wait' : 'continue'
-    case 'exiting':
-      phaseEvent(b, phase)
-      // A skipped `from` (v0.2) never entered: its `exit` hook does not run.
-      return fromDef?.hooks.exit !== undefined && rec(b, from ?? '')?.status !== 'skipped'
-        ? 'wait'
-        : 'continue'
-    case 'entering':
-      phaseEvent(b, phase)
-      return (b.state.nav.pendingSteps?.length ?? 0) > 0 ? 'wait' : 'continue'
-    default:
-      return 'stop'
-  }
-}
-
-function resolveTargets(b: Batch, from: string | null, known?: readonly string[]): PhaseOutcome {
-  const nav = b.state.nav
-  if (known !== undefined) return applyTargets(b, from, known)
-  if (nav.targets !== undefined) {
-    phaseEvent(b, 'resolvingTarget')
-    return 'continue'
-  }
-  const def = from !== null ? stepDef(b, from) : undefined
-  if (def === undefined) {
-    phaseEvent(b, 'resolvingTarget')
-    rejectCurrent(b, 'no-target')
-    return 'stop'
-  }
-  // A decision's output IS its target list — unless it was skipped (v0.2): then its `next`
-  // hook is asked like any dynamic `next`.
-  if (def.kind === 'decision' && rec(b, from ?? '')?.status !== 'skipped')
-    return applyTargets(b, from, normalizeTargets(rec(b, from ?? '')?.output))
-  if (def.next.kind === 'dynamic') {
-    phaseEvent(b, 'resolvingTarget')
-    return 'wait'
-  }
-  const targets = def.next.kind === 'static' ? def.next.targets : []
-  return applyTargets(b, from, targets)
-}
-
-/** Record resolved targets (validated) via the `resolvingTarget` phase event. */
-function applyTargets(b: Batch, from: string | null, targets: readonly string[]): PhaseOutcome {
-  if (targets.length === 0) {
-    phaseEvent(b, 'resolvingTarget')
-    rejectCurrent(b, 'no-target', from !== null ? { step: from } : {})
-    return 'stop'
-  }
-  const unknown = targets.find((t) => stepDef(b, t) === undefined)
-  if (unknown !== undefined) {
-    phaseEvent(b, 'resolvingTarget')
-    failCurrent(b, from ?? unknown, {
-      name: 'WizardError',
-      message: `unknown next target '${unknown}'`,
-      code: 'UNKNOWN_STEP',
-    })
-    return 'stop'
-  }
-  phaseEvent(b, 'resolvingTarget', targets)
-  return 'continue'
-}
-
-// ---------------------------------------------------------------------------
 // Commit (§1.3)
 // ---------------------------------------------------------------------------
 
-function commit(b: Batch): void {
+export function commit(b: Batch): void {
   const nav = b.state.nav
   const from = nav.from ?? null
   const targets = nav.targets ?? []
@@ -381,7 +238,7 @@ function commit(b: Batch): void {
   const cursor = cursorTarget(b.env.def, b.state, targets, from)
   // v0.2: a `when` predicate gates automatic entry (`next` / auto / cursor rule); a view the user
   // navigated to explicitly (`go` / `back`) enters when eligible — explicit intent overrides `when`.
-  const explicit = cause === 'go' || cause === 'back'
+  const explicit = isExplicitCause(cause)
   if (
     cursor !== undefined &&
     (explicit ? eligible(b.env.def, b.state, cursor) : ready(b.env.def, b.state, cursor))
@@ -390,124 +247,4 @@ function commit(b: Batch): void {
   emit(b, { type: 'transition.committed', txId, from, to: first, cause, direction })
   schedule(b)
   onNavIdle(b)
-}
-
-// ---------------------------------------------------------------------------
-// Effect results for transaction hooks (token.txId === nav.txId, checked by the caller)
-// ---------------------------------------------------------------------------
-
-export function onNavResult(
-  b: Batch,
-  msg: Extract<EffectResult, { type: 'res.ok' | 'res.err' }>,
-): boolean {
-  const nav = b.state.nav
-  const from = nav.from ?? null
-  const ok = msg.type === 'res.ok'
-  const value = ok ? msg.value : undefined
-  const error: SerializedError = ok ? { name: 'Error', message: '' } : msg.error
-  switch (msg.hook) {
-    case 'parseInput': {
-      if (nav.phase !== 'parsingInput' || from === null) return false
-      if (ok) {
-        emit(b, { type: 'step.validated', step: from, output: value })
-        runPhases(b, 'validating')
-      } else {
-        const issues = msg.issues ?? [{ message: error.message }]
-        emit(b, { type: 'step.validationFailed', step: from, issues })
-        rejectCurrent(b, 'validation', { step: from, issues })
-      }
-      return true
-    }
-    case 'validate': {
-      if (nav.phase !== 'validating' || from === null) return false
-      const issues: readonly Issue[] | undefined = ok
-        ? Array.isArray(value) && value.length > 0
-          ? (value as readonly Issue[])
-          : undefined
-        : (msg.issues ?? [{ message: error.message }])
-      if (issues === undefined) {
-        runPhases(b, 'canExit')
-      } else {
-        emit(b, { type: 'step.validationFailed', step: from, issues })
-        rejectCurrent(b, 'validation', { step: from, issues })
-      }
-      return true
-    }
-    case 'canExit': {
-      if (nav.phase !== 'canExit' || from === null) return false
-      if (ok && value !== false) {
-        emit(b, { type: 'step.guardEvaluated', step: from, hook: 'canExit', ok: true })
-        runPhases(b, 'resolvingTarget')
-      } else {
-        emit(b, {
-          type: 'step.guardEvaluated',
-          step: from,
-          hook: 'canExit',
-          ok: false,
-          ...(ok ? {} : { reason: error.message }),
-        })
-        rejectCurrent(b, 'guard-canExit', { step: from })
-      }
-      return true
-    }
-    case 'next': {
-      if (nav.phase !== 'resolvingTarget' || from === null) return false
-      if (ok) {
-        const targets = normalizeTargets(value)
-        if (targets.length === 0) {
-          rejectCurrent(b, 'no-target', { step: from })
-        } else {
-          const unknown = targets.find((t) => stepDef(b, t) === undefined)
-          if (unknown !== undefined) {
-            failCurrent(b, from, {
-              name: 'WizardError',
-              message: `unknown next target '${unknown}'`,
-              code: 'UNKNOWN_STEP',
-            })
-          } else {
-            runPhases(b, 'canEnter', targets)
-          }
-        }
-      } else {
-        failCurrent(b, from, error)
-      }
-      return true
-    }
-    case 'canEnter': {
-      const step = msg.token.step
-      if (nav.phase !== 'canEnter' || !(nav.pendingSteps ?? []).includes(step)) return false
-      if (ok && value !== false) {
-        emit(b, { type: 'step.guardEvaluated', step, hook: 'canEnter', ok: true })
-        if ((b.state.nav.pendingSteps?.length ?? 0) === 0) runPhases(b, 'exiting')
-      } else {
-        emit(b, {
-          type: 'step.guardEvaluated',
-          step,
-          hook: 'canEnter',
-          ok: false,
-          ...(ok ? {} : { reason: error.message }),
-        })
-        rejectCurrent(b, 'guard-canEnter', { step })
-      }
-      return true
-    }
-    case 'exit': {
-      if (nav.phase !== 'exiting' || from === null) return false
-      if (ok) runPhases(b, 'entering')
-      else failCurrent(b, from, error)
-      return true
-    }
-    case 'enter': {
-      const step = msg.token.step
-      if (nav.phase !== 'entering' || !(nav.pendingSteps ?? []).includes(step)) return false
-      if (ok) {
-        // Atomic multi-target entry: commit only once every target's `enter` resolved.
-        emit(b, { type: 'step.enterCompleted', step })
-        if ((b.state.nav.pendingSteps?.length ?? 0) === 0) commit(b)
-      } else failCurrent(b, step, error)
-      return true
-    }
-    default:
-      return false
-  }
 }

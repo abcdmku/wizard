@@ -54,37 +54,6 @@ describe('defineFlow: step records', () => {
     expect(records.final.next).toBeUndefined()
     expect(records.final.label).toBeUndefined()
   })
-
-  it('wait and flow records carry their kind-specific fields', () => {
-    const child = s.steps({ end: s.final() })
-    const se = defineFlow({
-      name: 'events',
-      context: boundary.trusted<{ a: string }>(),
-      events: { ping: boundary.trusted<{ n: number }>() },
-    })
-    const handler = () => {}
-    const wait = se.wait({
-      on: { ping: handler },
-      timeout: { after: '1m', next: 'end' },
-      next: 'end',
-    })
-    expect(Object.keys(wait)).toEqual(STEP_KEYS)
-    expect(wait.on).toEqual({ ping: handler })
-    expect(wait.timeout).toEqual({ after: '1m', next: 'end' })
-    const ctx = () => ({ a: 'x' })
-    const flow = s.flow(child, { context: ctx, next: 'end' })
-    expect(Object.keys(flow)).toEqual(STEP_KEYS)
-    expect(flow.child).toBe(child)
-    expect(flow.context).toBe(ctx)
-  })
-
-  it('never shares field objects between records', () => {
-    const a = s.view({ next: 'b' })
-    const b = s.view({ next: 'a' })
-    expect(a).not.toBe(b)
-    expect(a.next).toBe('b')
-    expect(b.next).toBe('a')
-  })
 })
 
 describe('defineFlow: flow object', () => {

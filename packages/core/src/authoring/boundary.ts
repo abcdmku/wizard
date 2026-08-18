@@ -12,7 +12,8 @@
  */
 
 import type { StandardSchemaV1 } from '@standard-schema/spec'
-import { WizardError } from '../errors'
+import { describeError, WizardError } from '../errors'
+import { getThen } from '../interpreter/thenable'
 import type { BoundaryResult, RuntimeBoundary } from './compiled'
 import { type Boundary, CHECKER, type Checker, type CheckerKind, type Issue } from './types'
 
@@ -195,15 +196,7 @@ function issuesFromError(error: unknown): readonly Issue[] {
   return [{ message: describeError(error) }]
 }
 
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
+/** A Standard Schema `validate` may return its result synchronously or as a thenable. */
 function isThenable(value: unknown): value is PromiseLike<StandardSchemaV1.Result<unknown>> {
-  return (
-    (typeof value === 'object' || typeof value === 'function') &&
-    value !== null &&
-    'then' in value &&
-    typeof value.then === 'function'
-  )
+  return getThen(value) !== undefined
 }

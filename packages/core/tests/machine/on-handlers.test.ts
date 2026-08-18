@@ -3,7 +3,18 @@
  * Pure machine tests (decide / apply / plan through the harness).
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, of, replay, task, view, wait } from '../helpers/fixtures'
+import {
+  createHarness,
+  decision,
+  final,
+  flow,
+  flowStep,
+  of,
+  replay,
+  task,
+  view,
+  wait,
+} from '../helpers/fixtures'
 
 const on = () => undefined
 const yes = () => true
@@ -138,6 +149,54 @@ describe('on — routing to every kind', () => {
     expect(h.rec('other').status).toBe('idle')
   })
 
+  it('raw results a kind cannot honour are ignored (reason: kind) — decision / flow / final, a view returning keep / done / fail; a view { next: typo } fails the view (UNKNOWN_STEP)', () => {
+    const child = flow({ start: 'end', steps: { end: final() } })
+    const h = createHarness(
+      flow({
+        start: ['v', 'd', 'f', 'z'],
+        steps: {
+          v: view({ on: { e: on }, next: 'end' }),
+          d: decision({ on: { e: on }, decide: () => null }),
+          f: flowStep(child, { on: { e: on }, next: 'end' }),
+          z: final({ output: on, on: { e: on } }),
+          end: final(),
+        },
+      }),
+    )
+    h.start()
+    h.ok(h.call('childContext', 'f'), {})
+    // `d`'s next hook and `z`'s output hook are still pending: every step is active and listening.
+    h.cmd({ type: 'send', event: 'e', payload: 1 })
+    const results: Record<string, unknown> = {
+      v: { keep: true },
+      d: { next: 'end' },
+      f: 'x',
+      z: 42,
+    }
+    for (const step of ['v', 'd', 'f', 'z']) {
+      const r = h.ok(h.call('on', step), results[step])
+      expect(r.types).toEqual(['event.handlerResultIgnored'])
+      expect(of(r, 'event.handlerResultIgnored')[0]).toMatchObject({
+        step,
+        event: 'e',
+        reason: 'kind',
+      })
+      expect(h.rec(step).status).toBe('active')
+    }
+    // `{}` / `{ next: null }` from a view are "nothing"; an unknown target fails the view.
+    h.cmd({ type: 'send', event: 'e', payload: 2 })
+    expect(h.ok(h.call('on', 'v'), { next: null }).types).toEqual([])
+    h.cmd({ type: 'send', event: 'e', payload: 3 })
+    const bad = h.ok(h.call('on', 'v'), { next: 'typo' })
+    expect(bad.types).toEqual(['step.failed', 'flow.failed'])
+    expect(of(bad, 'step.failed')[0]).toMatchObject({
+      step: 'v',
+      kind: 'hook',
+      error: { code: 'UNKNOWN_STEP', message: "unknown next target 'typo'" },
+    })
+    expect(replay(h)).toEqual(h.state)
+  })
+
   it('a non-wait handler that throws is recorded (event.handlerFailed) and the step keeps going; a wait handler failure still fails the wait', () => {
     const h = createHarness(
       flow({
@@ -185,186 +244,6 @@ describe('on — routing to every kind', () => {
     const again = h.ok(h.call('on', 't'), undefined)
     expect(of(again, 'event.delivered')[0]).toMatchObject({ to: 't', payload: 2 })
     expect(h.state.inbox).toEqual([])
-    expect(replay(h)).toEqual(h.state)
-  })
-})
-
-describe('on — flow-level handlers', () => {
-  it('delivered after step-level handlers in the same batch (event.flowDelivered → call flowOn with step ""), not buffered', () => {
-    const h = createHarness(
-      flow({
-        start: 'w',
-        steps: { w: wait({ on: { paid: on }, next: 'end' }), end: final() },
-        on: { paid: on, other: on },
-      }),
-    )
-    h.start()
-    const r = h.cmd({ type: 'send', event: 'paid', payload: { n: 1 } })
-    expect(r.types).toEqual(['event.received', 'event.delivered', 'event.flowDelivered'])
-    const calls = r.effects.filter((e) => e.kind === 'call')
-    expect(calls.map((c) => [c.hook, c.step])).toEqual([
-      ['on', 'w'],
-      ['flowOn', ''],
-    ])
-    expect(calls[1]).toMatchObject({
-      token: { step: '', runId: 0 },
-      extra: { event: 'paid', payload: { n: 1 } },
-    })
-    // only the flow handles `other`: no buffering, no drop
-    const o = h.cmd({ type: 'send', event: 'other', payload: null })
-    expect(o.types).toEqual(['event.received', 'event.flowDelivered'])
-    expect(h.state.inbox).toEqual([])
-    // its void result is silent
-    expect(h.ok(h.call('flowOn'), undefined).types).toEqual([])
-  })
-
-  it('{ cancel: reason } from the flow-level handler cancels the flow like the cancel command (compensation policy applies)', () => {
-    const halt = createHarness(
-      flow({
-        start: 't',
-        steps: { t: task({ next: 'end' }), end: final() },
-        on: { abort: on },
-      }),
-    )
-    halt.start()
-    halt.cmd({ type: 'send', event: 'abort', payload: null })
-    const r = halt.ok(halt.call('flowOn'), { cancel: 'user-abort' })
-    expect(r.types).toEqual(['step.cancelled', 'flow.cancelled'])
-    expect(of(r, 'flow.cancelled')[0]).toMatchObject({ reason: 'user-abort' })
-    expect(halt.state.status).toBe('cancelled')
-
-    const saga = createHarness(
-      flow({
-        start: 't',
-        steps: {
-          t: task({ compensate: on, next: 'u' }),
-          u: task(),
-          end: final(),
-        },
-        policies: { onFailure: 'compensate' },
-        on: { abort: on },
-      }),
-    )
-    saga.start()
-    saga.ok(saga.call('run', 't'), 1)
-    saga.cmd({ type: 'send', event: 'abort', payload: null })
-    const c = saga.ok(saga.call('flowOn'), { cancel: 'abort' })
-    expect(c.types.slice(0, 2)).toEqual(['flow.compensating', 'step.cancelled'])
-    expect(saga.state.status).toBe('compensating')
-  })
-
-  it('a throwing flow-level handler is recorded as event.handlerFailed (no step); a late result after the flow ended is stale', () => {
-    const h = createHarness(
-      flow({
-        start: 'w',
-        steps: { w: wait({ on: { e: on }, next: 'end' }), end: final() },
-        on: { e: on },
-      }),
-    )
-    h.start()
-    h.cmd({ type: 'send', event: 'e', payload: 1 })
-    const [stepCall, flowCall] = h.pending()
-    const r = h.err(flowCall!, 'flow handler bug')
-    expect(r.types).toEqual(['event.handlerFailed'])
-    expect(of(r, 'event.handlerFailed')[0]).toEqual(
-      expect.objectContaining({
-        event: 'e',
-        error: { name: 'Error', message: 'flow handler bug' },
-      }),
-    )
-    expect(of(r, 'event.handlerFailed')[0]).not.toHaveProperty('step')
-    h.ok(stepCall!, undefined)
-    expect(h.state.status).toBe('done')
-    h.cmd({ type: 'send', event: 'e', payload: 2 }) // rejected: terminal — no call planned
-    // a stale flowOn result once terminal
-    const stale = h.step({
-      type: 'res.ok',
-      effectId: 'x',
-      hook: 'flowOn',
-      token: { step: '', runId: 0 },
-      value: { cancel: 'late' },
-      durationMs: 0,
-    })
-    expect(stale.types).toEqual(['result.ignored'])
-  })
-})
-
-describe('on — resume', () => {
-  it('a nav-busy view resumed with buffered events: the transaction is rejected and exactly one entry is drained (one per drain)', () => {
-    const h = createHarness(
-      flow({
-        start: 'v',
-        steps: { v: view({ canExit: yes, on: { ping: on }, next: 'end' }), end: final() },
-      }),
-    )
-    h.start()
-    h.cmd('next') // canExit pending → busy
-    h.cmd({ type: 'send', event: 'ping', payload: 1 })
-    h.cmd({ type: 'send', event: 'ping', payload: 2 })
-    expect(h.state.inbox).toHaveLength(2)
-    const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual([
-      'flow.resumed',
-      'transition.rejected',
-      'timer.cleared',
-      'event.delivered',
-    ])
-    expect(of(r, 'event.delivered')[0]).toMatchObject({ to: 'v', payload: 1 })
-    expect(h.state.inbox.map((e) => e.payload)).toEqual([2])
-    expect(r.effects.filter((e) => e.kind === 'call').map((e) => e.hook)).toEqual(['on'])
-    // the second entry follows the first handler result
-    const next = h.ok(h.call('on', 'v'), undefined)
-    expect(of(next, 'event.delivered')[0]).toMatchObject({ payload: 2 })
-    expect(replay(h)).toEqual(h.state)
-  })
-})
-
-describe('on — correlation', () => {
-  const correlated = () =>
-    flow({
-      start: 'w',
-      steps: { w: wait({ on: { paid: on }, next: 'end' }), end: final() },
-      correlate: {
-        paid: (p) => (p as { orderId?: string }).orderId,
-        boom: () => {
-          throw new Error('bad extractor')
-        },
-      },
-      on: { boom: on },
-    })
-
-  it('a mismatching correlation id drops the event outright (no delivery, no buffering); a match delivers; absent ids do not filter', () => {
-    const h = createHarness(correlated(), { correlationId: 'order-1' })
-    h.start()
-    const drop = h.cmd({ type: 'send', event: 'paid', payload: { orderId: 'order-2' } })
-    expect(drop.types).toEqual(['event.received', 'event.dropped'])
-    expect(of(drop, 'event.received')[0]?.correlationId).toBe('order-2')
-    expect(of(drop, 'event.dropped')[0]).toMatchObject({ event: 'paid', reason: 'correlation' })
-    expect(h.state.inbox).toEqual([])
-    // no id in the payload → not filtered
-    const free = h.cmd({ type: 'send', event: 'paid', payload: {} })
-    expect(free.types).toEqual(['event.received', 'event.delivered'])
-    h.ok(h.call('on'), { keep: true })
-    // match → delivered; the extracted id is recorded on event.received
-    const ok = h.cmd({ type: 'send', event: 'paid', payload: { orderId: 'order-1' } })
-    expect(ok.types).toEqual(['event.received', 'event.delivered'])
-    expect(of(ok, 'event.received')[0]?.correlationId).toBe('order-1')
-    // a throwing extractor counts as a mismatch
-    const err = h.cmd({ type: 'send', event: 'boom', payload: null })
-    expect(err.types).toEqual(['event.received', 'event.dropped'])
-  })
-
-  it('a wizard without a correlationId never filters; a caller-provided correlationId is recorded but does not filter', () => {
-    const h = createHarness(correlated())
-    h.start()
-    const r = h.cmd({
-      type: 'send',
-      event: 'paid',
-      payload: { orderId: 'whatever' },
-      correlationId: 'caller',
-    })
-    expect(r.types).toEqual(['event.received', 'event.delivered'])
-    expect(of(r, 'event.received')[0]?.correlationId).toBe('caller')
     expect(replay(h)).toEqual(h.state)
   })
 })

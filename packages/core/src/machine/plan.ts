@@ -10,39 +10,14 @@
  * @internal
  */
 
-import type { HookName, ResultToken } from './commands'
-import type { CallEffect, Effect } from './effects'
+import type { Effect } from './effects'
 import type { DomainEvent } from './events'
+import { call } from './plan-call'
+import { planPhase } from './plan-phase'
 import { DEFAULT_COMPENSATION_GRACE_MS } from './saga'
+import { isTerminal } from './selectors'
 import type { StepRecord, WizardState } from './state'
 import type { MachineEnv } from './types'
-
-interface CallOpts {
-  readonly extra?: Readonly<Record<string, unknown>>
-  readonly attempt?: number
-  readonly txId?: string
-  readonly timeoutMs?: number
-  /** Token runId override (compensation targets a stack entry, not the record's current run). */
-  readonly runId?: number
-}
-
-function call(env: MachineEnv, rec: StepRecord, hook: HookName, opts: CallOpts = {}): CallEffect {
-  const token: ResultToken = {
-    step: rec.id,
-    runId: opts.runId ?? rec.runId,
-    ...(opts.attempt !== undefined ? { attempt: opts.attempt } : {}),
-    ...(opts.txId !== undefined ? { txId: opts.txId } : {}),
-  }
-  return {
-    kind: 'call',
-    effectId: env.id('fx'),
-    step: rec.id,
-    hook,
-    token,
-    ...(opts.extra !== undefined ? { extra: opts.extra } : {}),
-    ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
-  }
-}
 
 const FINAL_EVENTS: ReadonlySet<string> = new Set([
   'flow.done',
@@ -119,13 +94,13 @@ function planEvent(env: MachineEnv, state: WizardState, ev: DomainEvent, out: Ef
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status !== 'active' || rec.runId !== ev.runId) return
       if (rec.entering === true) out.push(call(env, rec, 'enter', { extra: { from: ev.from } }))
-      else planKindStart(env, state, rec, out)
+      else planKindStart(env, rec, out)
       return
     }
     case 'step.enterCompleted': {
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status !== 'active' || rec.entering === true) return
-      planKindStart(env, state, rec, out)
+      planKindStart(env, rec, out)
       return
     }
     case 'step.whenStarted': {
@@ -252,76 +227,12 @@ function planEvent(env: MachineEnv, state: WizardState, ev: DomainEvent, out: Ef
   }
 }
 
-function planPhase(
-  env: MachineEnv,
-  state: WizardState,
-  ev: Extract<DomainEvent, { type: 'transition.phase' }>,
-  out: Effect[],
-): void {
-  const nav = state.nav
-  if (nav.phase !== ev.phase || nav.txId !== ev.txId) return
-  const txId = ev.txId
-  const from = nav.from != null ? state.steps[nav.from] : undefined
-  const targets = nav.targets ?? []
-  const to = targets[0] ?? null
-  switch (ev.phase) {
-    case 'parsingInput':
-      if (from !== undefined) out.push(call(env, from, 'parseInput', { txId }))
-      return
-    case 'validating':
-      if (from !== undefined)
-        out.push(call(env, from, 'validate', { txId, extra: { input: from.output } }))
-      return
-    case 'canExit':
-      if (from !== undefined) out.push(call(env, from, 'canExit', { txId, extra: { to } }))
-      return
-    case 'resolvingTarget':
-      // A decision's targets are its output — unless it was skipped (v0.2): then its `next` hook is asked.
-      if (
-        from !== undefined &&
-        (from.kind !== 'decision' || from.status === 'skipped') &&
-        env.def.steps[from.id]?.next.kind === 'dynamic'
-      ) {
-        out.push(call(env, from, 'next', { txId, extra: { output: from.output } }))
-      }
-      return
-    case 'canEnter':
-      for (const t of nav.pendingSteps ?? []) {
-        const rec = state.steps[t]
-        if (rec !== undefined)
-          out.push(call(env, rec, 'canEnter', { txId, extra: { from: nav.from ?? null } }))
-      }
-      return
-    case 'exiting':
-      if (from !== undefined)
-        out.push(
-          call(env, from, 'exit', { txId, extra: { to, direction: nav.direction ?? 'forward' } }),
-        )
-      return
-    case 'entering':
-      for (const t of nav.pendingSteps ?? []) {
-        const rec = state.steps[t]
-        if (rec !== undefined)
-          out.push(call(env, rec, 'enter', { txId, extra: { from: nav.from ?? null } }))
-      }
-      return
-    default:
-      return
-  }
-}
-
 /**
  * Kind-specific effects once a step is entered and its `enter` hook (if any) has resolved.
  * `resume` = re-issuing after a restart: a task still waiting for its `idempotencyKey` hook
  * (attempt 0) gets that call again (on a live entry the `step.idempotencyKeyRequested` event plans it).
  */
-function planKindStart(
-  env: MachineEnv,
-  _state: WizardState,
-  rec: StepRecord,
-  out: Effect[],
-  resume = false,
-): void {
+function planKindStart(env: MachineEnv, rec: StepRecord, out: Effect[], resume = false): void {
   const def = env.def.steps[rec.id]
   if (def === undefined) return
   switch (def.kind) {
@@ -383,14 +294,17 @@ function planResume(
       out.push(call(env, rec, 'enter', { extra: { from: null } }))
       continue
     }
-    planKindStart(env, state, rec, out, true)
+    planKindStart(env, rec, out, true)
   }
+  // v0.2 (§10.2): a `when` predicate that was in flight is asked again — only while the flow is
+  // live (a terminal or compensating snapshot schedules nothing; the token stays stale).
+  const live = !isTerminal(state) && state.status !== 'compensating'
   for (const id of Object.keys(state.steps)) {
     const rec = state.steps[id]
     if (rec === undefined || fresh.has(id)) continue
     if (rec.status === 'compensating') planCompensate(env, state, rec, out)
-    // v0.2 (§10.2): a `when` predicate that was in flight is asked again.
-    else if (rec.status !== 'active' && rec.when === 'pending') out.push(call(env, rec, 'when'))
+    else if (live && rec.status !== 'active' && rec.when === 'pending')
+      out.push(call(env, rec, 'when'))
   }
   const now = env.now()
   const timers = Object.entries(state.timers).sort((a, b) => a[1].at - b[1].at)

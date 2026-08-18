@@ -1,0 +1,204 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --color-ink: #0a0a0a;
+  --color-ink-2: #0d0d0d;
+  --color-paper: #ffffff;
+  --color-paper-2: #f8f8f8;
+}
+
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+body {
+  @apply bg-paper text-neutral-800 antialiased dark:bg-ink dark:text-neutral-200;
+  font-family: var(--font-sans);
+}
+
+/* ---------- Shiki (rehype-pretty-code) dual theme ---------- */
+code[data-theme*=" "],
+code[data-theme*=" "] span {
+  color: var(--shiki-light);
+}
+.dark code[data-theme*=" "],
+.dark code[data-theme*=" "] span {
+  color: var(--shiki-dark);
+}
+
+/* ---------- Article typography ---------- */
+.docs-article {
+  @apply text-[15px] leading-7 text-neutral-700 dark:text-neutral-300;
+}
+.docs-article > :first-child {
+  margin-top: 0;
+}
+.docs-article h1,
+.docs-article h2,
+.docs-article h3,
+.docs-article h4 {
+  @apply scroll-mt-24 font-semibold tracking-tight text-neutral-900 dark:text-neutral-50;
+}
+.docs-article h1 {
+  @apply mt-0 mb-5 text-3xl md:text-4xl;
+  letter-spacing: -0.03em;
+}
+.docs-article h2 {
+  @apply mt-12 mb-4 border-b border-neutral-200 pb-2 text-2xl dark:border-neutral-800;
+}
+.docs-article h3 {
+  @apply mt-8 mb-3 text-xl;
+}
+.docs-article h4 {
+  @apply mt-6 mb-2 text-base;
+}
+.docs-article p {
+  @apply my-4;
+}
+.docs-article ul {
+  @apply my-4 list-disc pl-6;
+}
+.docs-article ol {
+  @apply my-4 list-decimal pl-6;
+}
+.docs-article li {
+  @apply my-1.5;
+}
+.docs-article li > p {
+  @apply my-1;
+}
+.docs-article strong {
+  @apply font-semibold text-neutral-900 dark:text-neutral-100;
+}
+.docs-article a:not(.no-style) {
+  @apply text-neutral-900 underline decoration-neutral-400 underline-offset-[3px] transition-colors hover:decoration-neutral-900 dark:text-neutral-100 dark:decoration-neutral-600 dark:hover:decoration-neutral-200;
+}
+.docs-article blockquote {
+  @apply my-4 border-l-2 border-neutral-300 pl-4 text-neutral-600 dark:border-neutral-700 dark:text-neutral-400;
+}
+.docs-article hr {
+  @apply my-10 border-neutral-200 dark:border-neutral-800;
+}
+.docs-article table {
+  @apply my-6 block w-full max-w-full overflow-x-auto text-[13.5px] leading-6;
+  border-collapse: collapse;
+}
+.docs-article thead th {
+  @apply border-b border-neutral-300 px-3 py-2 text-left font-semibold text-neutral-900 dark:border-neutral-700 dark:text-neutral-100;
+}
+.docs-article tbody td {
+  @apply border-b border-neutral-200 px-3 py-2 align-top dark:border-neutral-800;
+}
+.docs-article tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Inline code */
+.docs-article :not(pre) > code {
+  @apply rounded border border-neutral-200 bg-neutral-100 px-1.5 py-0.5 font-mono text-[0.85em] text-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200;
+}
+.docs-article a > code {
+  color: inherit;
+}
+
+/* Code blocks: every <pre> is wrapped in div.code-block by the MDX components; highlighted ones sit in a figure */
+.docs-article figure[data-rehype-pretty-code-figure] {
+  @apply my-6 overflow-hidden rounded-lg border border-neutral-200 bg-paper-2 dark:border-neutral-800 dark:bg-ink-2;
+}
+.docs-article figure[data-rehype-pretty-code-figure] figcaption[data-rehype-pretty-code-title] {
+  @apply border-b border-neutral-200 px-4 py-2 font-mono text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400;
+}
+.docs-article .code-block pre {
+  @apply m-0 overflow-x-auto px-4 py-3 font-mono text-[13px] leading-6;
+  tab-size: 2;
+}
+.docs-article .code-block:not(figure > .code-block) {
+  @apply my-6 overflow-hidden rounded-lg border border-neutral-200 bg-paper-2 dark:border-neutral-800 dark:bg-ink-2;
+}
+.docs-article pre > code {
+  @apply grid min-w-full font-mono;
+  counter-reset: line;
+}
+.docs-article pre > code > [data-line] {
+  @apply px-0;
+}
+.docs-article pre > code [data-highlighted-line] {
+  @apply -mx-4 border-l-2 border-neutral-500 bg-neutral-200/60 px-4 dark:bg-neutral-800/60;
+}
+.docs-article code[data-line-numbers] {
+  counter-reset: line;
+}
+.docs-article code[data-line-numbers] > [data-line]::before {
+  counter-increment: line;
+  content: counter(line);
+  @apply mr-5 inline-block w-4 text-right text-neutral-400 dark:text-neutral-600;
+}
+
+/* Thin scrollbars for code */
+pre::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+pre::-webkit-scrollbar-thumb {
+  @apply rounded bg-neutral-300 dark:bg-neutral-700;
+}
+
+/* ---------- Landing canvas: textured gradient + grid, in CSS so the first paint has the right theme ---------- */
+.landing-canvas {
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(circle at 12% 10%, rgba(15, 23, 42, 0.055), transparent 40%),
+    radial-gradient(circle at 92% 2%, rgba(15, 23, 42, 0.04), transparent 34%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(15, 23, 42, 0.04) 0,
+      rgba(15, 23, 42, 0.04) 1px,
+      transparent 1px,
+      transparent 28px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0.025) 0,
+      rgba(15, 23, 42, 0.025) 1px,
+      transparent 1px,
+      transparent 28px
+    );
+}
+.dark .landing-canvas {
+  background-color: #0a0a0a;
+  background-image:
+    radial-gradient(circle at 15% 12%, rgba(255, 255, 255, 0.045), transparent 42%),
+    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.035), transparent 36%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 28px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.015) 0,
+      rgba(255, 255, 255, 0.015) 1px,
+      transparent 1px,
+      transparent 28px
+    );
+}
+
+/* ---------- Pagefind excerpt marks ---------- */
+mark {
+  @apply rounded-sm bg-neutral-200 px-0.5 text-inherit dark:bg-neutral-700;
+}

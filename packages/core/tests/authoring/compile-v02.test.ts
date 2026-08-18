@@ -77,36 +77,23 @@ describe('compile v0.2: `on` on every kind', () => {
     { start: 'review' },
   )
   const def = compile(flow)
-
-  it('compiles `hooks.on` for view / task / decision / wait / final', () => {
-    for (const id of ['review', 'post', 'route', 'hold', 'done'])
-      expect(Object.keys(def.steps[id]?.hooks.on ?? {})).toEqual(['note.added'])
-  })
-  it('a view handler may return `{ next }` (validated id) or nothing', async () => {
-    const on = def.steps.review?.hooks.on?.['note.added']
-    expect(await on?.(args({ payload: { text: 'go' } }))).toEqual({ next: 'post' })
-    expect(await on?.(args({ payload: { text: 'stay' } }))).toBeUndefined()
-  })
-  it('a wait handler may return `{ keep: true }`, `{ next }`, `{ next: null }` (= nothing) or nothing', async () => {
-    const on = def.steps.hold?.hooks.on?.['note.added']
-    expect(await on?.(args({ payload: { text: 'wait' } }))).toEqual({ keep: true })
-    expect(await on?.(args({ payload: { text: 'go' } }))).toEqual({ next: 'done' })
-    expect(await on?.(args({ payload: { text: 'x' } }))).toBeUndefined()
-  })
-  it('a task / decision / final handler must return nothing — anything else is a TypeError at delivery', async () => {
+  it('handler results reach the machine RAW for every kind (the machine applies the per-kind contract)', async () => {
+    const view = def.steps.review?.hooks.on?.['note.added']
+    expect(await view?.(args({ payload: { text: 'go' } }))).toEqual({ next: 'post' })
+    expect(await view?.(args({ payload: { text: 'stay' } }))).toBeUndefined()
+    const hold = def.steps.hold?.hooks.on?.['note.added']
+    expect(await hold?.(args({ payload: { text: 'wait' } }))).toEqual({ keep: true })
+    expect(await hold?.(args({ payload: { text: 'x' } }))).toEqual({ next: null })
+    // Untyped (JS-style) handlers returning what their kind cannot honour are NOT wrapped: the
+    // machine ignores / fails them at delivery (`event.handlerResultIgnored`, `UNKNOWN_STEP`).
     const raw = defineFlow({
       name: 'raw',
       context: boundary.trusted<{}>(),
       events: { e: boundary.trusted<unknown>() },
     })
-    // Untyped (JS-style) handlers that return values the kind does not allow.
     const bad = raw.steps({
       t: raw.task(async () => 1, {
         on: { e: (() => ({ next: 'end' })) as unknown as () => undefined },
-        next: 'end',
-      }),
-      v: raw.view({
-        on: { e: (() => ({ keep: true })) as unknown as () => undefined },
         next: 'end',
       }),
       w: raw.wait({
@@ -116,14 +103,8 @@ describe('compile v0.2: `on` on every kind', () => {
       end: raw.final(),
     })
     const d = compile(bad)
-    await expect(async () => d.steps.t?.hooks.on?.e?.(args())).rejects.toThrow(
-      "a task step's on handler must return void",
-    )
-    // A view handler ignores `keep` (not a wait) — `{ keep: true }` has no `next` → nothing.
-    expect(await d.steps.v?.hooks.on?.e?.(args())).toBeUndefined()
-    await expect(async () => d.steps.w?.hooks.on?.e?.(args())).rejects.toThrow(
-      "wait handler returned an unknown next target 'typo'",
-    )
+    expect(await d.steps.t?.hooks.on?.e?.(args())).toEqual({ next: 'end' })
+    expect(await d.steps.w?.hooks.on?.e?.(args())).toEqual({ next: 'typo' })
   })
   it('a wait still needs `on`; other kinds do not; undeclared events are problems everywhere', () => {
     const raw = defineFlow({
@@ -212,16 +193,10 @@ describe('compile v0.2: flow-level `on` and `correlate`', () => {
       defineFlow({ name: 'x', context: boundary.trusted<{}>(), correlate: 'x' as never }),
     ).toThrow("'correlate' must be an object of functions keyed by event name")
   })
-  it('a flow without `on` / `correlate` compiles without them', () => {
-    const plain = defineFlow({ name: 'plain', context: boundary.trusted<{}>() })
-    const d = compile(plain.steps({ end: plain.final() }))
-    expect(d.on).toBeUndefined()
-    expect(d.correlate).toBeUndefined()
-  })
 })
 
 describe('compile v0.2: `when`, `idempotent`, `mapError`', () => {
-  it('`when` compiles to hooks.when on every non-final kind', () => {
+  it('`when` compiles to hooks.when on every non-final kind', async () => {
     const flow = s.steps({
       v: s.view({ when: () => true, next: 'end' }),
       t: s.task(async () => 1, { when: async () => false, next: 'end' }),
@@ -230,9 +205,9 @@ describe('compile v0.2: `when`, `idempotent`, `mapError`', () => {
       end: s.final(),
     })
     const def = compile(flow)
-    for (const id of ['v', 't', 'w', 'd']) expect(def.steps[id]?.hooks.when).toBeTypeOf('function')
+    for (const id of ['v', 'w', 'd']) expect(await def.steps[id]?.hooks.when?.(args())).toBe(true)
+    expect(await def.steps.t?.hooks.when?.(args())).toBe(false)
     expect(def.steps.end?.hooks.when).toBeUndefined()
-    expect(def.steps.v?.hooks.when?.(args())).toBe(true)
   })
   it('`idempotent: true` → `idempotent: true` (no key hook); a function → key hook + idempotent', async () => {
     const flow = s.steps({

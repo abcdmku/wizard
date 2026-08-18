@@ -14,6 +14,7 @@ export type {
   ChildStateOf,
   ChildStepHelpers,
   CurrentOf,
+  ExposedChildId,
   FlowOf,
   NavResultOf,
   ProviderProps,

@@ -11,9 +11,9 @@
  * `parseWireCommand(flow, input)` is the strict decoder for the client → server direction: exact
  * shape, nested `command` decoded with `parseCommand(flow, …)` (shape AND ids checked against
  * the flow, so `command` is a `Command<F>`). `parseFrame(input)` is the envelope check for the
- * server → client direction (the Mirror runs it on every frame; the projected `state` itself is
- * only checked to be an object — its shape is the projection's). Both accept plain objects only
- * and never throw. Nothing here touches the machine.
+ * server → client direction (the Mirror runs it on every frame; the projected `state` may be any
+ * JSON value — its shape is the projection's). Both accept plain objects only and never throw.
+ * Nothing here touches the machine.
  *
  * @packageDocumentation
  */
@@ -21,9 +21,11 @@
 import type { BoundaryResult } from '../authoring/compiled'
 import type { AnyFlow } from '../authoring/types'
 import type { Issue } from '../machine/state'
+import { isPlainObject as isRecord } from '../machine/util'
 import type { Command } from '../wizard/create-wizard'
 import { parseCommand } from '../wizard/parse-command'
 import type { CommandResult } from '../wizard/results'
+import { isNonNegativeInt } from '../wizard/snapshot-checks'
 
 /**
  * Server → client: one full projected snapshot (`state`) of instance `instanceId`, tagged with
@@ -139,11 +141,12 @@ export function parseWireCommand<F extends AnyFlow>(
 
 /**
  * Strictly check an untrusted value as a `Frame` envelope: exact property allow-list,
- * `kind: 'snapshot'`, a non-empty `instanceId`, non-negative integer `epoch` / `seq`, and an
- * object `state` whose own `instanceId` / `epoch` / `seq` (the projection's base facts), when
- * present, match the envelope. The projected state's SHAPE is the projection's business and is
- * not checked here. `createMirror` runs it on every frame (invalid frames are ignored); hosts
- * that relay frames can run it themselves.
+ * `kind: 'snapshot'`, a non-empty `instanceId`, non-negative integer `epoch` / `seq`, and a
+ * `state` (any JSON value — a `select` projection may produce a primitive, an array or `null`)
+ * whose own `instanceId` / `epoch` / `seq` (the projection's base facts), when it is an object
+ * that carries them, match the envelope. The projected state's SHAPE is the projection's
+ * business and is not checked here. `createMirror` runs it on every frame (invalid frames are
+ * ignored); hosts that relay frames can run it themselves.
  * @public
  */
 export function parseFrame(input: unknown): BoundaryResult<Frame<unknown>> {
@@ -163,9 +166,11 @@ export function parseFrame(input: unknown): BoundaryResult<Frame<unknown>> {
   const epoch = nonNegativeInt(input, 'epoch', issues)
   const seq = nonNegativeInt(input, 'seq', issues)
   const state = input.state
-  if (!isRecord(state)) {
-    issues.push({ message: "'state' must be an object", path: ['state'] })
-  } else {
+  if (!Object.hasOwn(input, 'state')) {
+    issues.push({ message: "'state' is required", path: ['state'] })
+  } else if (isRecord(state)) {
+    // Any JSON value is a valid projected state (a `select` projection may return a primitive,
+    // an array or `null`); the base facts are cross-checked only when the state carries them.
     const facts: readonly ['instanceId' | 'epoch' | 'seq', unknown][] = [
       ['instanceId', instanceId],
       ['epoch', epoch],
@@ -181,17 +186,6 @@ export function parseFrame(input: unknown): BoundaryResult<Frame<unknown>> {
     return { ok: false, issues }
   }
   return { ok: true, value: { kind: 'snapshot', instanceId, epoch, seq, state } }
-}
-
-/** Plain objects only (`Object.prototype` or `null` prototype). */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
-}
-
-function isNonNegativeInt(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0
 }
 
 function nonNegativeInt(

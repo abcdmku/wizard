@@ -203,17 +203,22 @@ type ChildSliceOf<R> = R extends { readonly child?: infer CS }
   : never
 
 /**
+ * The steps of flow `F` whose record in the projected slice `S` carries a nested child state
+ * (exposed with `child: ExposeSpec`) — the only children a Mirror binding can read.
+ * @public
+ */
+export type ExposedChildId<F extends AnyFlow, S> = {
+  [K in StepId<F>]: [ChildSliceOf<StepRecordIn<S, K>>] extends [never] ? never : K
+}[StepId<F>]
+
+/**
  * Ids of the flow steps whose child state the binding can read with `useChild(step)`: over a
  * projection, the flow steps exposed with a nested `child: ExposeSpec` (their projected slice
  * carries `steps`); over a Wizard, every flow step (`Snapshot.children[step]`).
  * @public
  */
 export type ChildBindingId<T extends BindTarget> = T extends AnyProjection
-  ? {
-      [K in StepId<FlowOf<T>>]: [ChildSliceOf<StepRecordIn<StateOf<T>, K>>] extends [never]
-        ? never
-        : K
-    }[StepId<FlowOf<T>>]
+  ? ExposedChildId<FlowOf<T>, StateOf<T>>
   : ChildStepId<FlowOf<T>>
 
 /**
@@ -250,7 +255,9 @@ export type ChildStepHelpers<CF extends AnyFlow, K extends StepId<CF>> = {
  * been entered); `useStep` throws in that case, so render it under a `useSnapshot()` guard.
  * `useActions()` is the scoped `MirrorChild` sugar (every command wrapped as a `child` command);
  * `useChild` nests further (`Source` says how the grandchild slice is read: `'mirror'` from
- * `steps[step].child` of this slice, `'wizard'` from the child snapshot's `children[step]`).
+ * `steps[step].child` of this slice — only the grandchildren the projection exposes with a
+ * nested `child: ExposeSpec` —, `'wizard'` from the child snapshot's `children[step]`, every
+ * flow step).
  * @public
  */
 export interface ChildBinding<
@@ -264,13 +271,13 @@ export interface ChildBinding<
   useStep<K extends StepId<CF>>(step: K): StepRecordIn<S, K> & ChildStepHelpers<CF, K>
   /** The child's command sugar (stable identity per source and path). */
   useActions(): MirrorChild<CF>
-  /** A grandchild binding. */
-  useChild<K extends ChildStepId<CF>>(
+  /** A grandchild binding (over a Mirror: only a grandchild exposed in this slice). */
+  useChild<K extends Source extends 'wizard' ? ChildStepId<CF> : ExposedChildId<CF, S>>(
     step: K,
   ): ChildBinding<
-    ChildFlowOf<CF, K>,
+    ChildFlowOf<CF, K & StepId<CF>>,
     Source extends 'wizard'
-      ? Snapshot<ChildFlowOf<CF, K>>['state']
+      ? Snapshot<ChildFlowOf<CF, K & StepId<CF>>>['state']
       : ChildSliceOf<StepRecordIn<S, K>>,
     Source
   >

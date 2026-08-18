@@ -1,0 +1,206 @@
+/* ---- graph ------------------------------------------------------------------------------- */
+.owd-graph {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  background: var(--owd-bg);
+}
+.owd-graph .react-flow {
+  --xy-background-color: var(--owd-bg);
+  --xy-background-pattern-dots-color: var(--owd-border);
+  --xy-minimap-background-color: var(--owd-surface);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--owd-muted) 70%, transparent);
+  --xy-minimap-node-background-color: var(--owd-border);
+  --xy-controls-button-background-color: var(--owd-surface);
+  --xy-controls-button-background-color-hover: var(--owd-muted);
+  --xy-controls-button-color: var(--owd-text);
+  --xy-controls-button-color-hover: var(--owd-text);
+  --xy-controls-button-border-color: var(--owd-border);
+  --xy-attribution-background-color: transparent;
+}
+.owd-graph .react-flow__attribution a {
+  color: var(--owd-subtle);
+}
+.owd-graph .react-flow__handle {
+  width: 6px;
+  height: 6px;
+  min-width: 6px;
+  min-height: 6px;
+  border: none;
+  background: var(--owd-border);
+  opacity: 0;
+}
+.owd-graph .react-flow__node {
+  font-family: var(--owd-font);
+}
+.owd-node-card {
+  width: 200px;
+  height: 72px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--owd-border);
+  border-left: 4px solid var(--owd-status, var(--owd-border));
+  background: var(--owd-surface);
+  color: var(--owd-text);
+  box-shadow: var(--owd-shadow);
+  overflow: hidden;
+  cursor: pointer;
+}
+.owd-node-card[data-status="idle"] {
+  border-left-color: var(--owd-border);
+}
+.owd-node-card[data-status="skipped"] {
+  border-left-style: dashed;
+  opacity: 0.75;
+}
+.owd-node-card[data-current="true"] {
+  box-shadow:
+    var(--owd-shadow),
+    0 0 0 3px color-mix(in srgb, var(--owd-accent) 45%, transparent);
+}
+.owd-node-card[data-selected="true"],
+.owd-group[data-selected="true"] {
+  outline: 2px solid var(--owd-accent);
+  outline-offset: 1px;
+}
+.owd-node-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.owd-node-id {
+  font-family: var(--owd-mono);
+  font-weight: 700;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.owd-node-head .owd-status-dot {
+  margin-left: auto;
+}
+.owd-start {
+  border-color: var(--owd-success);
+  color: var(--owd-success);
+}
+.owd-warning {
+  border-color: var(--owd-warn);
+  color: var(--owd-warn);
+  background: color-mix(in srgb, var(--owd-warn) 12%, transparent);
+}
+.owd-node-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  overflow: hidden;
+  max-height: 32px;
+}
+.owd-node-label {
+  color: var(--owd-subtle);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.owd-flag {
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--owd-border);
+  background: var(--owd-muted);
+  color: var(--owd-subtle);
+  white-space: nowrap;
+}
+.owd-flag-more {
+  border-style: dashed;
+}
+.owd-group {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  border: 1.5px dashed var(--owd-edge);
+  background: color-mix(in srgb, var(--owd-edge) 6%, transparent);
+  color: var(--owd-text);
+}
+.owd-group[data-status="active"] {
+  border-style: solid;
+}
+.owd-group[data-status="done"] {
+  border-color: var(--owd-success);
+}
+.owd-group[data-status="failed"] {
+  border-color: var(--owd-danger);
+}
+.owd-graph .react-flow__node.selected .owd-node-card,
+.owd-graph .react-flow__node.selected .owd-group {
+  outline: 2px solid var(--owd-accent);
+  outline-offset: 1px;
+}
+.owd-group-head {
+  padding: 8px 12px;
+  border-bottom: 1px dashed var(--owd-border);
+  background: color-mix(in srgb, var(--owd-surface) 80%, transparent);
+  border-radius: 14px 14px 0 0;
+}
+.owd-marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1.5px solid var(--owd-subtle);
+  background: var(--owd-surface);
+  color: var(--owd-subtle);
+}
+.owd-marker[data-variant="entry"] {
+  border-color: var(--owd-success);
+  color: var(--owd-success);
+  padding-left: 2px;
+}
+.owd-marker[data-variant="dynamic"] {
+  border-style: dashed;
+}
+.owd-edge-label {
+  position: absolute;
+  pointer-events: all;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--owd-border);
+  background: var(--owd-surface);
+  color: var(--owd-subtle);
+  font-family: var(--owd-font);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.owd-edge-label[data-kind="dependsOn"] {
+  color: var(--owd-warn);
+  border-color: var(--owd-warn);
+}
+.owd-edge-label[data-kind="timeout"] {
+  color: var(--owd-accent-2);
+  border-color: var(--owd-accent-2);
+}
+.owd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--owd-border);
+  background: var(--owd-surface);
+  color: var(--owd-text);
+}
+.owd-minimap {
+  border: 1px solid var(--owd-border);
+  border-radius: 8px;
+}

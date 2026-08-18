@@ -1,0 +1,27 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "OpenWizard API",
+  "entryPoints": ["typedoc/core.ts", "typedoc/core-testing.ts", "typedoc/react.ts"],
+  "tsconfig": "tsconfig.typedoc.json",
+  "out": "dist/typedoc",
+  "readme": "none",
+  "includeVersion": false,
+  "hideGenerator": true,
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "disableSources": true,
+  "githubPages": false,
+  "sort": ["kind", "alphabetical"],
+  "navigation": { "includeCategories": false, "includeGroups": true, "includeFolders": false },
+  "lightHighlightTheme": "github-light",
+  "darkHighlightTheme": "github-dark",
+  "titleLink": "../",
+  "navigationLinks": {
+    "Docs": "../",
+    "GitHub": "https://github.com/abcdmku/wizard"
+  },
+  "validation": { "notExported": false, "invalidLink": false, "notDocumented": false },
+  "treatWarningsAsErrors": false,
+  "logLevel": "Warn"
+}

@@ -1,0 +1,78 @@
+# Boundaries
+
+A boundary is a data door: `Boundary<O, I = O> = StandardSchemaV1<I, O> | Checker<O, I>`. Any
+[Standard Schema](https://standardschema.dev) — Zod 4, Valibot, ArkType — is a boundary, and so
+is a branded `Checker` you build from a plain function. Plain functions themselves are rejected
+(guard or parse? ambiguous), and the brand is a private symbol: only `boundary.*` mints checkers,
+a hand-written `{ '~checker': 'assert' }` is `DEFINITION_INVALID`.
+
+```ts
+import { boundary } from '@openwizard/core'
+
+const Address = boundary.parse((v) => {
+  if (typeof v !== 'object' || v === null || !('city' in v)) throw new Error('city required')
+  return v as { city: string } // parse: return the value (transformed) or throw
+})
+const IsCount = boundary.guard((v): v is number => typeof v === 'number' && v >= 0)
+const AssertId = boundary.assert((v): asserts v is string => {
+  if (typeof v !== 'string') throw new Error('id must be a string')
+})
+const Deps = boundary.trusted<{ mailer: { send(to: string): Promise<void> } }>() // no runtime check
+```
+
+## Exactly four doors
+
+Everything that enters the state passes through a declared boundary, exactly once:
+
+1. **`context`** — at `createWizard({ context })` / `createWizardAsync`; the INPUT side is what you
+   pass (`ContextInput<F>`), the OUTPUT side is what hooks see (`Ctx<F>`). Defaults and coercions
+   in the schema apply here.
+2. **A view's `input`** — `setInput(view, patch)` merges a draft (`DraftOf<F, K>`, partial, INPUT
+   side); `next()` / `go()` parse the whole draft and hand the OUTPUT side to `validate`, `exit`
+   and `steps[k].output`.
+3. **`send(event, payload)`** — the payload is `unknown` and goes through `events[event]` first; a
+   handler only ever sees the parsed payload.
+4. **`resumeWizard(flow, unknown)`** — every boundary runs again over the snapshot (context, view
+   outputs, task / flow outputs and their copies on the compensation stack, event payloads in the
+   inbox, nested children).
+
+A task's `output` boundary is an optional fifth check on values returning from other systems; a
+flow step's `context` / `deps` mappers feed the child's boundaries once, at creation.
+`boundary.trusted<T>()` is the grep-able exception — for `deps` built by the host and for
+defaults you already trust.
+
+## Rejections are values
+
+A boundary that rejects never throws into your code. It becomes an event
+(`step.validationFailed`, `event.rejected`) and a result with Standard-Schema-shaped issues:
+
+```ts
+const result = await wizard.next()
+// { ok: false, reason: 'validation', code: 'INVALID_INPUT', step: 'profile', issues: [{ message, path }] }
+
+const sent = await wizard.send('payment.captured', { paymentId: 42 })
+// { ok: false, reason: 'rejected', code: 'BOUNDARY_REJECTED', issues: [...] }
+```
+
+`validate(view)` is a pure query — `input` boundary + `validate` hook over the current draft, no
+events, no state change — for live form feedback.
+
+The two exceptions are programmer errors at the door: `createWizard` throws
+`WizardError('BOUNDARY_REJECTED')` when the context (or deps) fails its boundary, and
+`WizardError('DEFINITION_INVALID')` for a broken flow.
+
+<Callout type="warning" title="Dates, secrets and other things that do not survive JSON">
+  Snapshots are JSON-checked before every store write. A `Date` (any object with `toJSON()`) is
+  accepted exactly where a schema boundary re-parses its JSON form on resume — a task `output`, a
+  view `input`, the flow `context`, an event boundary (`z.coerce.date()` turns the stored ISO
+  string back into a `Date`). Anywhere else, store the JSON form. Secrets follow the same advice:
+  never in `context` / outputs — pass them through `deps`, store references and tokens. See
+  [Persistence and resume](/concepts/persistence).
+</Callout>
+
+## Standard Schema, not Zod
+
+The core has no runtime dependency; it calls `schema['~standard'].validate(value)` and reads the
+Standard Schema issue shape. Any library that implements the spec works, synchronously or
+asynchronously (`createWizardAsync` / `resumeWizardAsync` for async boundaries). The examples use
+Zod 4 because it is the most common — nothing else in the docs depends on it.

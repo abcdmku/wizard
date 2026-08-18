@@ -1,0 +1,41 @@
+# Concepts
+
+OpenWizard has a small vocabulary. Everything else — wizards, DAGs, sagas, hybrids — is a
+combination of these ideas rather than a mode switch.
+
+**A flow is data.** `defineFlow({ name, context, events?, deps?, …policies })` gives you six
+pre-bound step constructors and `steps()`, which assembles an inert `Flow`. Every step id you
+reference in `next`, `dependsOn`, `timeout.next` or `start` is checked when the flow is
+assembled — at compile time for TypeScript callers, at runtime for everyone. See
+[Defining flows](/concepts/defining-flows) and [Steps and kinds](/concepts/steps).
+
+**Boundaries are the only doors.** Data enters through `context` (at `createWizard`), a view's
+`input` (parsed on `next()` / `go()`), `send()` (through `events[name]`) and `resume` (everything
+again) — each through a schema you declared. Rejections are values, not throws. See
+[Boundaries](/concepts/boundaries) and [Results as values](/concepts/results).
+
+**Policies are data, not code paths.** `onFailure`, `retry`, `timeout`, `autoRun`, `concurrency`,
+`unmatchedEvents` describe how the runtime behaves; `inspect()` can show them. See
+[Policies](/concepts/policies).
+
+**Every change is a typed event.** `observe()` / `log()` stream domain events with a causal `seq`
+and a `path` for nested flows; `inspect(flow)` is the static graph; `explain(step)` the live
+reasons. See [Events and observability](/concepts/observability).
+
+**State is a JSON snapshot.** Auto-saved to a `Store` after every change, JSON-checked before
+every write, re-validated on `resumeWizard()`, with a recovery matrix for interrupted work. See
+[Persistence and resume](/concepts/persistence).
+
+**Clients see projections.** `defineProjection(flow, { expose })` is deny-by-default; the Mirror is
+a read-only client replica with the same typed command sugar; `@openwizard/react` binds either
+to hooks. See [Projections and the Mirror](/concepts/projections) and [React](/concepts/react).
+
+## Reading order
+
+1. [Steps and kinds](/concepts/steps) — the six constructors and their options.
+2. [Defining flows](/concepts/defining-flows) — the builder, flow options, what the types guarantee.
+3. [Boundaries](/concepts/boundaries), [Results as values](/concepts/results), [Policies](/concepts/policies).
+4. [Events and observability](/concepts/observability), [Persistence and resume](/concepts/persistence).
+5. [External events](/concepts/external-events), [Nesting](/concepts/nesting), [DAGs](/concepts/dag).
+6. [Projections and the Mirror](/concepts/projections), [React](/concepts/react), [Testing](/concepts/testing).
+7. [Guarantees](/concepts/guarantees) — the promises the runtime keeps.

@@ -128,12 +128,18 @@ type ChildSliceOf<R> = R extends {
   readonly steps: unknown;
 }] ? NonNullable<CS> : never : never;
 /**
+ * The steps of flow `F` whose record in the projected slice `S` carries a nested child state
+ * (exposed with `child: ExposeSpec`) — the only children a Mirror binding can read.
+ * @public
+ */
+type ExposedChildId<F extends AnyFlow, S> = { [K in StepId<F>]: [ChildSliceOf<StepRecordIn<S, K>>] extends [never] ? never : K; }[StepId<F>];
+/**
  * Ids of the flow steps whose child state the binding can read with `useChild(step)`: over a
  * projection, the flow steps exposed with a nested `child: ExposeSpec` (their projected slice
  * carries `steps`); over a Wizard, every flow step (`Snapshot.children[step]`).
  * @public
  */
-type ChildBindingId<T extends BindTarget> = T extends AnyProjection ? { [K in StepId<FlowOf<T>>]: [ChildSliceOf<StepRecordIn<StateOf<T>, K>>] extends [never] ? never : K; }[StepId<FlowOf<T>>] : ChildStepId<FlowOf<T>>;
+type ChildBindingId<T extends BindTarget> = T extends AnyProjection ? ExposedChildId<FlowOf<T>, StateOf<T>> : ChildStepId<FlowOf<T>>;
 /**
  * The child slice `useChild(step)` reads: the projected child `ClientState` over a projection,
  * `Snapshot<Child>['state']` over a Wizard.
@@ -159,7 +165,9 @@ type ChildStepHelpers<CF extends AnyFlow, K extends StepId<CF>> = {
  * been entered); `useStep` throws in that case, so render it under a `useSnapshot()` guard.
  * `useActions()` is the scoped `MirrorChild` sugar (every command wrapped as a `child` command);
  * `useChild` nests further (`Source` says how the grandchild slice is read: `'mirror'` from
- * `steps[step].child` of this slice, `'wizard'` from the child snapshot's `children[step]`).
+ * `steps[step].child` of this slice — only the grandchildren the projection exposes with a
+ * nested `child: ExposeSpec` —, `'wizard'` from the child snapshot's `children[step]`, every
+ * flow step).
  * @public
  */
 interface ChildBinding<CF extends AnyFlow, S, Source extends 'wizard' | 'mirror' = 'mirror'> {
@@ -169,8 +177,8 @@ interface ChildBinding<CF extends AnyFlow, S, Source extends 'wizard' | 'mirror'
   useStep<K extends StepId<CF>>(step: K): StepRecordIn<S, K> & ChildStepHelpers<CF, K>;
   /** The child's command sugar (stable identity per source and path). */
   useActions(): MirrorChild<CF>;
-  /** A grandchild binding. */
-  useChild<K extends ChildStepId<CF>>(step: K): ChildBinding<ChildFlowOf<CF, K>, Source extends 'wizard' ? Snapshot<ChildFlowOf<CF, K>>['state'] : ChildSliceOf<StepRecordIn<S, K>>, Source>;
+  /** A grandchild binding (over a Mirror: only a grandchild exposed in this slice). */
+  useChild<K extends Source extends 'wizard' ? ChildStepId<CF> : ExposedChildId<CF, S>>(step: K): ChildBinding<ChildFlowOf<CF, K & StepId<CF>>, Source extends 'wizard' ? Snapshot<ChildFlowOf<CF, K & StepId<CF>>>['state'] : ChildSliceOf<StepRecordIn<S, K>>, Source>;
 }
 /**
  * What `bindReact<T>()` returns: a `Provider` plus hooks typed by `T`. Every hook must be used
@@ -207,5 +215,5 @@ interface ReactBinding<T extends BindTarget> {
  */
 declare function bindReact<T extends BindTarget>(): ReactBinding<T>;
 //#endregion
-export { type Actions, type BindTarget, type ChildBinding, type ChildBindingId, type ChildStateOf, type ChildStepHelpers, type CurrentOf, type FlowOf, type NavResultOf, type ProviderProps, type ReactBinding, type SendResultOf, type SourceOf, type StateOf, type StepHelpers, type StepRecordIn, type StepRecordOf, type UseStepResult, bindReact };
+export { type Actions, type BindTarget, type ChildBinding, type ChildBindingId, type ChildStateOf, type ChildStepHelpers, type CurrentOf, type ExposedChildId, type FlowOf, type NavResultOf, type ProviderProps, type ReactBinding, type SendResultOf, type SourceOf, type StateOf, type StepHelpers, type StepRecordIn, type StepRecordOf, type UseStepResult, bindReact };
 //# sourceMappingURL=index.d.ts.map

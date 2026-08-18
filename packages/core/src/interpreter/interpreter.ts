@@ -29,7 +29,9 @@ import type { Machine, MachineEnv } from '../machine/types'
 import type { Snapshot } from '../wizard/snapshot'
 import { type ChildBridge, type ChildFactory, type ChildHandle, createChildBridge } from './child'
 import type { RuntimeEnv } from './env'
-import { buildHookArgs, createExecutor, type Executor, type ExecutorOptions } from './executor'
+import { causeOf, envelope } from './envelope'
+import { createExecutor, type Executor, type ExecutorOptions } from './executor'
+import { buildHookArgs } from './hook-args'
 import { createTimerRegistry } from './timers'
 
 export interface InterpreterOptions<H extends ChildHandle = ChildHandle, P = Snapshot> {
@@ -221,7 +223,7 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
       safely(() => opts.onProcessed?.(msg, [], state))
       return
     }
-    const batch = envelope(bodies, msg, causedBy)
+    const batch = envelope(bodies, { seq: state.seq, at: env.clock.now(), path, msg, causedBy })
     let next = state
     for (const event of batch) next = machine.apply(menv, next, event)
     const effects = machine.plan(menv, next, batch)
@@ -245,30 +247,6 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
     }
 
     for (const effect of effects) execute(effect, batch)
-  }
-
-  const envelope = (
-    bodies: readonly DomainEventBody[],
-    msg: Message,
-    causedBy: number | undefined,
-  ): DomainEvent[] => {
-    const at = env.clock.now()
-    const durationMs = msg.type === 'res.ok' || msg.type === 'res.err' ? msg.durationMs : undefined
-    let seq = state.seq
-    return bodies.map((body) => {
-      seq += 1
-      // Two body fields collide with the envelope (see the contract note in the report):
-      // - `at` on `timer.scheduled` / `step.retryScheduled` is a *payload* (due time) → body wins;
-      // - `path` on `child.started` is informational → the envelope's routing path wins.
-      return {
-        seq,
-        at,
-        ...(causedBy !== undefined ? { causedBy } : {}),
-        ...(durationMs !== undefined ? { durationMs } : {}),
-        ...body,
-        path,
-      }
-    })
   }
 
   const appendLog = (batch: readonly DomainEvent[]): void => {
@@ -371,37 +349,5 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
       bridge.restore(step, plan)
     },
     inflight: () => executor.inflight(),
-  }
-}
-
-/**
- * Best-effort causal link for a planned effect: the last event of the batch
- * that names the same step / timer, else the batch's last event.
- */
-function causeOf(effect: Effect, batch: readonly DomainEvent[]): number | undefined {
-  const last = batch[batch.length - 1]
-  if (last === undefined) return undefined
-  switch (effect.kind) {
-    case 'call':
-    case 'child.create':
-    case 'child.send':
-    case 'child.dispose': {
-      for (let i = batch.length - 1; i >= 0; i -= 1) {
-        const event = batch[i]
-        if (event !== undefined && 'step' in event && event.step === effect.step) return event.seq
-      }
-      return last.seq
-    }
-    case 'timer.set':
-    case 'timer.clear': {
-      for (let i = batch.length - 1; i >= 0; i -= 1) {
-        const event = batch[i]
-        if (event !== undefined && 'timerId' in event && event.timerId === effect.timerId)
-          return event.seq
-      }
-      return last.seq
-    }
-    default:
-      return last.seq
   }
 }

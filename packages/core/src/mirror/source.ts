@@ -20,7 +20,7 @@
 
 import type { BoundaryResult } from '../authoring/compiled'
 import type { AnyFlow } from '../authoring/types'
-import { WizardError } from '../errors'
+import { describeError, WizardError } from '../errors'
 import type { Projection } from '../projection/define-projection'
 import type { Snapshot, Wizard } from '../wizard/create-wizard'
 import type { CommandResult } from '../wizard/results'
@@ -110,7 +110,7 @@ export function createMirrorSource<F extends AnyFlow, S>(
         ack(commandIdOf(input), {
           ok: false,
           code: 'INVALID_COMMAND',
-          message: `invalid wire command: ${describe(error)}`,
+          message: `invalid wire command: ${describeError(error)}`,
         }),
       )
     }
@@ -215,8 +215,4 @@ function commandIdOf(input: unknown): string {
     if (typeof id === 'string') return id
   }
   return ''
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

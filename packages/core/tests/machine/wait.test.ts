@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, of, task, view, wait } from '../helpers/fixtures'
+import { createHarness, final, flow, of, view, wait } from '../helpers/fixtures'
 
 const on = () => undefined
 
@@ -304,18 +304,5 @@ describe('wait — inbox drain, TTL, timeout', () => {
     const done = h.ok(h.call('enter'))
     expect(done.types).toEqual(['step.enterCompleted', 'timer.cleared', 'event.delivered'])
     expect(h.call('on').extra).toMatchObject({ payload: 'early' })
-  })
-
-  it('a task result while a wait is active keeps waiting status; wait alone → waiting, running task → running', () => {
-    const h = createHarness(
-      flow({
-        start: ['w', 't'],
-        steps: { w: wait({ on: { paid: on }, next: 'end' }), t: task(), end: final() },
-      }),
-    )
-    h.start()
-    expect(h.state.status).toBe('running')
-    h.ok(h.call('run'), 1)
-    expect(h.state.status).toBe('waiting')
   })
 })

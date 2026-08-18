@@ -185,7 +185,10 @@ describe('invalidate', () => {
     expect(h.rec('t').error).toBeUndefined()
     expect(h.state.status).toBe('waiting')
     // and the user can route through the failed step again
-    expect(of(h.cmd({ type: 'go', step: 'v' }), 'transition.committed')[0]).toBeDefined()
+    expect(of(h.cmd({ type: 'go', step: 'v' }), 'transition.committed')[0]).toMatchObject({
+      to: 'v',
+      cause: 'go',
+    })
     h.cmd('next')
     expect(h.rec('t')).toMatchObject({ status: 'active', runId: 2 })
     h.ok(h.call('run'), 'ok')

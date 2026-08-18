@@ -28,8 +28,10 @@ import type { CompiledFlow, CompiledStep, HookArgs } from '../authoring/compiled
 import { WizardError } from '../errors'
 import type { EffectResult, HookName, Message } from '../machine/commands'
 import type { CallEffect } from '../machine/effects'
-import type { Issue, SerializedError, StepRecord, WizardState } from '../machine/state'
+import type { StepRecord, WizardState } from '../machine/state'
 import type { Clock, Scheduler } from './env'
+import { BoundaryRejection, codedError, toSerializedError, unwrapBoundary } from './errors'
+import { buildHookArgs } from './hook-args'
 import { chain, getThen, type Then } from './thenable'
 
 export interface ExecutorOptions {
@@ -72,16 +74,6 @@ interface InFlight {
   aborted: boolean
   timeout: unknown
   grace: unknown
-}
-
-/** Thrown internally when a boundary rejects a value; carries the issues. */
-export class BoundaryRejection extends Error {
-  readonly issues: readonly Issue[]
-  constructor(issues: readonly Issue[], what: string) {
-    super(`${what} rejected by boundary: ${issues.map((i) => i.message).join('; ')}`)
-    this.name = 'BoundaryRejection'
-    this.issues = issues
-  }
 }
 
 /** The raw value a failed `run` threw, kept for the task's `mapError` call (v0.2). */
@@ -400,100 +392,8 @@ function invokeFlowOn(def: CompiledFlow, args: HookArgs): unknown {
   return hook(args)
 }
 
-function unwrapBoundary(result: unknown, what: string): unknown {
-  if (typeof result === 'object' && result !== null && 'ok' in result) {
-    if (result.ok === true && 'value' in result) return result.value
-    if (result.ok === false && 'issues' in result && Array.isArray(result.issues)) {
-      throw new BoundaryRejection(result.issues.map(toIssue), what)
-    }
-  }
-  throw codedError(
-    'BoundaryError',
-    'BOUNDARY_INVALID_RESULT',
-    `${what} boundary returned an invalid result`,
-  )
-}
-
-function toIssue(raw: unknown): Issue {
-  if (
-    typeof raw === 'object' &&
-    raw !== null &&
-    'message' in raw &&
-    typeof raw.message === 'string'
-  ) {
-    const path = 'path' in raw && Array.isArray(raw.path) ? raw.path : undefined
-    return path === undefined ? { message: raw.message } : { message: raw.message, path }
-  }
-  return { message: String(raw) }
-}
-
 function missingHook(step: string, hook: string): Error {
   return codedError('HookMissingError', 'HOOK_MISSING', `step '${step}' has no '${hook}' hook`)
 }
 
 function noop(): void {}
-
-// ---------------------------------------------------------------------------
-// Hook args
-// ---------------------------------------------------------------------------
-
-export interface BuildHookArgsInput {
-  readonly def: CompiledFlow
-  readonly path: readonly string[]
-  readonly instanceId: string
-  readonly deps: unknown
-  readonly state: WizardState
-  readonly step: string
-  readonly signal: AbortSignal
-  readonly update: (patch: Record<string, unknown>) => void
-  readonly extra?: Readonly<Record<string, unknown>> | undefined
-}
-
-/** Build the argument object every hook receives (extras override base fields). */
-export function buildHookArgs(input: BuildHookArgsInput): HookArgs {
-  const rec = input.state.steps[input.step]
-  const runId = rec?.runId ?? 0
-  const base: HookArgs = {
-    step: input.step,
-    path: input.path,
-    context: input.state.context,
-    deps: input.deps,
-    input: rec?.input,
-    output: rec?.output,
-    steps: input.state.steps,
-    signal: input.signal,
-    attempt: rec?.attempt ?? 0,
-    runId,
-    // The run's stored key (custom `idempotencyKey` hook or default, set by `step.runStarted`), else the default.
-    idempotencyKey: rec?.idempotencyKey ?? `${input.instanceId}:${input.step}:${runId}`,
-    update: input.update,
-  }
-  return input.extra === undefined ? base : { ...base, ...input.extra }
-}
-
-// ---------------------------------------------------------------------------
-// Errors
-// ---------------------------------------------------------------------------
-
-/** Serialize any thrown value into `{ name, message, code? }` — never a stack. */
-export function toSerializedError(error: unknown): SerializedError {
-  if (error instanceof Error) {
-    const code = 'code' in error && typeof error.code === 'string' ? error.code : undefined
-    return code === undefined
-      ? { name: error.name, message: error.message }
-      : { name: error.name, message: error.message, code }
-  }
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    const message = String(error.message)
-    const name = 'name' in error && typeof error.name === 'string' ? error.name : 'Error'
-    const code = 'code' in error && typeof error.code === 'string' ? error.code : undefined
-    return code === undefined ? { name, message } : { name, message, code }
-  }
-  return { name: 'Error', message: String(error) }
-}
-
-function codedError(name: string, code: string, message: string): Error & { code: string } {
-  const error = Object.assign(new Error(message), { code })
-  error.name = name
-  return error
-}

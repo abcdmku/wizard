@@ -18,7 +18,6 @@ import {
   activeTaskCount,
   awaitingWhen,
   eligible,
-  isNavBusy,
   isTerminal,
   phase,
   ready,
@@ -44,7 +43,7 @@ export function explain(def: CompiledFlow, state: WizardState, stepId: string): 
   if (state.status === 'idle') reasons.push('flow-not-started')
   else if (isTerminal(state)) reasons.push('flow-terminal')
   else if (state.status === 'compensating') reasons.push('flow-compensating')
-  if (isNavBusy(state)) reasons.push('nav-busy')
+  if (state.nav.phase !== 'idle') reasons.push('nav-busy')
 
   if (rec.status === 'active') {
     if (rec.entering === true) reasons.push('entering')

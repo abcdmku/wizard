@@ -137,7 +137,7 @@ Two options exist on (almost) every kind since v0.2:
 
 | Option | Kinds | Meaning |
 |---|---|---|
-| `on?: { [event]: (a: EventArgs) => … }` | all | External-event handlers while the step is ACTIVE (`send()` routes to every active step with a handler, then to the flow-level `on`). Return contract by kind: wait `void \| { keep: true } \| { next: id }`, view `void \| { next: id }` (an event moves the cursor: `cause: 'event'`, runs `canEnter` / `exit` / `enter`, skips input parsing / `validate` / `canExit`; a `nav-busy` view keeps the event buffered until idle), task / decision / flow / final `void` (they may `update()` context; `{ next }` does not compile). A throw fails the step (`kind: 'hook'`). |
+| `on?: { [event]: (a: EventArgs) => … }` | all | External-event handlers while the step is ACTIVE (`send()` routes to every active step with a handler, then to the flow-level `on`). Return contract by kind: wait `void \| { keep: true } \| { next: id } \| { done: output } \| { fail: reason }`, view `void \| { next: id }` (an event moves the cursor: `cause: 'event'`, runs `canEnter` / `exit` / `enter`, skips input parsing / `validate` / `canExit`; a `nav-busy` view keeps the event buffered until idle; an unknown target fails the view `UNKNOWN_STEP`), task / decision / flow / final `void` (they may `update()` context; `{ next }` does not compile — at runtime any non-void value is ignored: `event.handlerResultIgnored { reason: 'kind' }`). A throw fails a wait step (`kind: 'hook'`); for every other kind it is recorded as `event.handlerFailed` and the step keeps going. |
 | `when?: (a: BaseArgs) => boolean` | all but final | Skip predicate, evaluated once the step is ready (after `dependsOn` gating, before `enter`): `false` → `step.skipped { reason: 'when' }` — the step counts as done for `dependsOn`, its `next` targets are still arrived, the cursor never lands on a skipped view. |
 
 **`s.view(cfg)`** — waits for a user; the cursor (`getState().current`) is the active view.
@@ -170,7 +170,7 @@ a `timeout` (`WaitOutput<Ev, T>` — a wait without `timeout` never sees the mar
 
 | Option | Meaning |
 |---|---|
-| `on: { [event]: (a: EventArgs) => void \| { keep: true } \| { next?: id } }` (required) | One handler per event the step listens for (payload already parsed). Returning `{ next }` overrides the static `next`, `{ keep: true }` consumes the event and keeps waiting; a throw fails the step (`kind: 'hook'`). |
+| `on: { [event]: (a: EventArgs) => void \| { keep: true } \| { next?: id } \| { done: output; next?: id } \| { fail: reason } }` (required) | One handler per event the step listens for (payload already parsed). Returning `{ next }` overrides the static `next`, `{ keep: true }` consumes the event and keeps waiting, `{ done }` completes with that output (a `WaitOutput` of the step) instead of `{ event, payload }`, `{ fail }` fails the step; a throw fails the step (`kind: 'hook'`). |
 | `timeout?: { after: Duration; next: id }` | Absolute `deadline` in state; fires `timer.fired` and routes to `next`. |
 | `enter?`, `exit?`, `when?`, `next?`, `dependsOn?` | As above. |
 
@@ -391,6 +391,23 @@ made Mermaid-safe and unique; the output is deterministic — see
 import { inspect, toMermaid } from '@openwizard/core'
 
 console.log(toMermaid(inspect(checkout))) // paste into mermaid.live or a Markdown file
+```
+
+`replay(flow, events, options)` (v0.2) rebuilds the state at any point of an event log by folding
+the events with the machine's own reducer — no hook runs, nothing is executed. Give it the
+`context` input the wizard was created with (parsed through the context boundary; the events
+must then start at `seq` 1) or a base state with `from` (`getState()` captured earlier — events
+with `seq <= from.seq` are skipped, so a log truncated by `logSize` or a resumed wizard work
+from that point); `upTo` stops the fold at that `seq` (inclusive). Child events (`path`
+non-empty) and `persist.failed` are skipped. For a fresh wizard whose log was not truncated,
+`replay(flow, wizard.log(), { context, instanceId: wizard.id })` deep-equals `wizard.getState()` —
+this is what the `@openwizard/devtools` timeline uses for time travel.
+
+```ts
+import { replay } from '@openwizard/core'
+
+const at12 = replay(checkout, wizard.log(), { context: { cartId: 'c1', total: 42 }, upTo: 12 })
+const later = replay(checkout, wizard.log(), { from: earlierState }) // fold onto a captured state
 ```
 
 ## 8. Persistence
@@ -614,100 +631,102 @@ const mirror = createMirror<typeof checkoutClient>({
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `AnyFlow` | type | Any flow — the constraint of every extractor and of `Wizard<F>`; `any`-free (a flow's | [src](../../packages/core/src/authoring/types.ts#L765) |
+| `AnyFlow` | type | Any flow — the constraint of every extractor and of `Wizard<F>`; `any`-free (a flow's | [src](../../packages/core/src/authoring/types/flow.ts#L125) |
 | `AnyProjection` | interface | Any projection (the constraint of `ProjectionOutput`, `Mirror`, the React binding): the | [src](../../packages/core/src/projection/define-projection.ts#L192) |
-| `boundary` | const | Build a branded `Checker` from a plain function: `parse` (returns the value or throws), | [src](../../packages/core/src/authoring/boundary.ts#L41) |
-| `Boundary` | type | A data door: any Standard Schema (Zod 4 / Valibot / ArkType / …) or a branded `Checker`. | [src](../../packages/core/src/authoring/types.ts#L157) |
-| `Checker` | interface | A branded runtime checker built by `boundary.parse/guard/assert/trusted`. `I` is the | [src](../../packages/core/src/authoring/types.ts#L147) |
-| `ChildCommand` | type | A command addressed to a nested flow: `path: [flowStep]` with a `Command` of that child, or a | [src](../../packages/core/src/wizard/create-wizard.ts#L204) |
-| `ChildFlowOf` | type | Child flow of a `flow` step (`never` for other kinds). | [src](../../packages/core/src/authoring/types.ts#L874) |
-| `ChildStepId` | type | Ids of the `flow` steps (`child()` accepts these). | [src](../../packages/core/src/authoring/types.ts#L917) |
+| `boundary` | const | Build a branded `Checker` from a plain function: `parse` (returns the value or throws), | [src](../../packages/core/src/authoring/boundary.ts#L42) |
+| `Boundary` | type | A data door: any Standard Schema (Zod 4 / Valibot / ArkType / …) or a branded `Checker`. | [src](../../packages/core/src/authoring/types/boundary.ts#L40) |
+| `Checker` | interface | A branded runtime checker built by `boundary.parse/guard/assert/trusted`. `I` is the | [src](../../packages/core/src/authoring/types/boundary.ts#L30) |
+| `ChildCommand` | type | A command addressed to a nested flow: `path: [flowStep]` with a `Command` of that child, or a | [src](../../packages/core/src/wizard/create-wizard/command.ts#L47) |
+| `ChildFlowOf` | type | Child flow of a `flow` step (`never` for other kinds). | [src](../../packages/core/src/authoring/types/extractors.ts#L72) |
+| `ChildStepId` | type | Ids of the `flow` steps (`child()` accepts these). | [src](../../packages/core/src/authoring/types/extractors.ts#L115) |
 | `ChildSummary` | type | Compact status of a child flow as stored on the parent's flow step (`status`, `current`, | [src](../../packages/core/src/projection/define-projection.ts#L58) |
-| `ChildWizardEvent` | type | A domain event forwarded from a child flow (`path.length > 0`, the child's wizard path): step | [src](../../packages/core/src/wizard/create-wizard.ts#L143) |
+| `ChildWizardEvent` | type | A domain event forwarded from a child flow (`path.length > 0`, the child's wizard path): step | [src](../../packages/core/src/wizard/create-wizard/state.ts#L109) |
 | `ClientState` | type | The projected (client-safe) state of a wizard for exposure spec `E`. `Depth` counts the child | [src](../../packages/core/src/projection/define-projection.ts#L149) |
 | `ClientStepError` | interface | A step error as a projection exposes it (`error: true`): `{ name, message, code? }` — never a | [src](../../packages/core/src/projection/define-projection.ts#L114) |
 | `ClientStepState` | type | Projected state of one step: base facts (`id`, `kind`, `status`, `phase`, `attempt`) plus | [src](../../packages/core/src/projection/define-projection.ts#L124) |
 | `Clock` | interface | Wall clock the runtime reads for timestamps and timer deadlines (`createWizard({ clock })`). | [src](../../packages/core/src/interpreter/env.ts#L17) |
-| `Command` | type | A wire command (JSON), typed by the flow: `go` / `setInput` / `resetInput` take a `ViewId<F>` | [src](../../packages/core/src/wizard/create-wizard.ts#L239) |
+| `Command` | type | A wire command (JSON), typed by the flow: `go` / `setInput` / `resetInput` take a `ViewId<F>` | [src](../../packages/core/src/wizard/create-wizard/command.ts#L82) |
 | `CommandResult` | type | Result of `dispatch()` and of every non-navigation command method (`start`, `setInput`, `retry`, …). | [src](../../packages/core/src/wizard/results.ts#L19) |
-| `ContextInput` | type | Context input type of a flow (boundary INPUT side — what `createWizard` accepts). | [src](../../packages/core/src/authoring/types.ts#L821) |
+| `ContextInput` | type | Context input type of a flow (boundary INPUT side — what `createWizard` accepts). | [src](../../packages/core/src/authoring/types/extractors.ts#L19) |
 | `createMemoryStore` | function | In-memory `Store` (JSON round-trip on every `set`/`get`) for tests, examples and single-process use. | [src](../../packages/core/src/persistence/memory-store.ts#L27) |
-| `createMirror` | function | Create a Mirror over `transport`. Subscribes immediately; the server sends the current frame | [src](../../packages/core/src/mirror/create-mirror.ts#L137) |
+| `createMirror` | function | Create a Mirror over `transport`. Subscribes immediately; the server sends the current frame | [src](../../packages/core/src/mirror/create-mirror.ts#L138) |
 | `createMirrorSource` | function | Create the server half of a Mirror for `wizard` seen through `projection` (which must be | [src](../../packages/core/src/mirror/source.ts#L57) |
-| `createWizard` | function | Create a wizard from a flow: parses `context` (and `deps`) through the flow's boundaries | [src](../../packages/core/src/wizard/create-wizard.ts#L444) |
-| `createWizardAsync` | function | Like `createWizard`, for flows whose context / deps boundaries are asynchronous. | [src](../../packages/core/src/wizard/create-wizard.ts#L461) |
-| `Ctx` | type | Parsed context type of a flow (boundary OUTPUT side). | [src](../../packages/core/src/authoring/types.ts#L816) |
+| `createWizard` | function | Create a wizard from a flow: parses `context` (and `deps`) through the flow's boundaries | [src](../../packages/core/src/wizard/create-wizard/index.ts#L54) |
+| `createWizardAsync` | function | Like `createWizard`, for flows whose context / deps boundaries are asynchronous. | [src](../../packages/core/src/wizard/create-wizard/index.ts#L71) |
+| `Ctx` | type | Parsed context type of a flow (boundary OUTPUT side). | [src](../../packages/core/src/authoring/types/extractors.ts#L14) |
 | `defineFlow` | function | Start a flow definition: `const s = defineFlow({ name, context, events?, deps?, …policies })`, | [src](../../packages/core/src/authoring/define-flow.ts#L73) |
 | `defineProjection` | function | Define a projection of a flow. `{ expose }`: deny-by-default — only the listed step inputs / | [src](../../packages/core/src/projection/define-projection.ts#L218) |
-| `DepsOf` | type | Deps type of a flow (`unknown` when the flow declares no `deps` boundary). | [src](../../packages/core/src/authoring/types.ts#L826) |
-| `DraftOf` | type | Draft patch type of a view (`Partial` of the INPUT side) — what `setInput` accepts. | [src](../../packages/core/src/authoring/types.ts#L863) |
-| `Duration` | type | A duration: milliseconds as a number, or a string with a unit (`'250ms'`, `'15m'`, `'2h'`, `'1d'`). | [src](../../packages/core/src/authoring/types.ts#L62) |
-| `ErrorOf` | type | Mapped error type of a task (`s.task(run, { mapError })` → the value stored as | [src](../../packages/core/src/authoring/types.ts#L880) |
-| `EventType` | type | Declared event names of a flow. | [src](../../packages/core/src/authoring/types.ts#L836) |
-| `Explanation` | type | Result of `wizard.explain(step)`: the step's stored `status` (`'unknown'` for an unknown id), | [src](../../packages/core/src/wizard/create-wizard.ts#L171) |
+| `DepsOf` | type | Deps type of a flow (`unknown` when the flow declares no `deps` boundary). | [src](../../packages/core/src/authoring/types/extractors.ts#L24) |
+| `DraftOf` | type | Draft patch type of a view (`Partial` of the INPUT side) — what `setInput` accepts. | [src](../../packages/core/src/authoring/types/extractors.ts#L61) |
+| `Duration` | type | A duration: milliseconds as a number, or a string with a unit (`'250ms'`, `'15m'`, `'2h'`, `'1d'`). | [src](../../packages/core/src/authoring/types/primitives.ts#L26) |
+| `ErrorOf` | type | Mapped error type of a task (`s.task(run, { mapError })` → the value stored as | [src](../../packages/core/src/authoring/types/extractors.ts#L78) |
+| `EventType` | type | Declared event names of a flow. | [src](../../packages/core/src/authoring/types/extractors.ts#L34) |
+| `Explanation` | type | Result of `wizard.explain(step)`: the step's stored `status` (`'unknown'` for an unknown id), | [src](../../packages/core/src/wizard/create-wizard/state.ts#L137) |
 | `ExposeSpec` | interface | What a projection exposes: per-step flags, the context keys that cross the wire, whether the | [src](../../packages/core/src/projection/define-projection.ts#L81) |
-| `Flow` | interface | A defined flow. `T` is the COMPACT steps map (`{ [id]: FlowStep<…> }`); the runtime object | [src](../../packages/core/src/authoring/types.ts#L732) |
-| `FlowBuilder` | interface | What `defineFlow(options)` returns: the pre-bound constructors plus `steps()`. | [src](../../packages/core/src/authoring/types.ts#L797) |
+| `Flow` | interface | A defined flow. `T` is the COMPACT steps map (`{ [id]: FlowStep<…> }`); the runtime object | [src](../../packages/core/src/authoring/types/flow.ts#L92) |
+| `FlowBuilder` | interface | What `defineFlow(options)` returns: the pre-bound constructors plus `steps()`. | [src](../../packages/core/src/authoring/types/flow.ts#L157) |
 | `FlowGraph` | interface | The static graph of a flow: nodes, edges and analysis warnings (recursively for child flows). | [src](../../packages/core/src/inspect/graph.ts#L53) |
-| `FlowOutput` | type | Output type of a flow: the union of its `final` steps' outputs. | [src](../../packages/core/src/authoring/types.ts#L924) |
-| `FlowStep` | interface | What `Flow.steps[k]` is typed as: the per-step facts only (kind + phantom). `C`/`Ev`/`D` are | [src](../../packages/core/src/authoring/types.ts#L479) |
-| `FlowWarning` | interface | A static-analysis warning about a flow (advisory; never thrown). | [src](../../packages/core/src/authoring/compile.ts#L61) |
-| `Frame` | interface | Server → client: one full projected snapshot (`state`) of instance `instanceId`, tagged with | [src](../../packages/core/src/mirror/wire.ts#L34) |
-| `InputOf` | type | Raw input (draft, INPUT side of the view's `input` boundary) type of a step; `never` without a draft. | [src](../../packages/core/src/authoring/types.ts#L858) |
+| `FlowOutput` | type | Output type of a flow: the union of its `final` steps' outputs. | [src](../../packages/core/src/authoring/types/extractors.ts#L122) |
+| `FlowStep` | interface | What `Flow.steps[k]` is typed as: the per-step facts only (kind + phantom). `C`/`Ev`/`D` are | [src](../../packages/core/src/authoring/types/step.ts#L101) |
+| `FlowWarning` | interface | A static-analysis warning about a flow (advisory; never thrown). | [src](../../packages/core/src/authoring/compile/index.ts#L46) |
+| `Frame` | interface | Server → client: one full projected snapshot (`state`) of instance `instanceId`, tagged with | [src](../../packages/core/src/mirror/wire.ts#L36) |
+| `InputOf` | type | Raw input (draft, INPUT side of the view's `input` boundary) type of a step; `never` without a draft. | [src](../../packages/core/src/authoring/types/extractors.ts#L56) |
 | `inspect` | function | Build the static graph of a flow (compiles it if needed; throws `DEFINITION_INVALID` for a | [src](../../packages/core/src/inspect/graph.ts#L66) |
-| `isChildEvent` | function | True for events forwarded from a child flow (`event.path.length > 0`); narrows a | [src](../../packages/core/src/wizard/create-wizard.ts#L159) |
-| `Issue` | type | A validation problem (Standard Schema issue shape): a message and an optional path. | [src](../../packages/core/src/authoring/types.ts#L77) |
+| `isChildEvent` | function | True for events forwarded from a child flow (`event.path.length > 0`); narrows a | [src](../../packages/core/src/wizard/create-wizard/state.ts#L125) |
+| `Issue` | type | A validation problem (Standard Schema issue shape): a message and an optional path. | [src](../../packages/core/src/authoring/types/primitives.ts#L41) |
 | `isWizardError` | function | Type guard for `WizardError`. | [src](../../packages/core/src/errors.ts#L75) |
 | `MemoryStore` | interface | What `createMemoryStore()` returns: a `Store` plus `keys()` / `clear()` for tests and diagnostics. | [src](../../packages/core/src/persistence/memory-store.ts#L16) |
-| `Mirror` | interface | Client-side replica of a wizard through projection `P`: read the projected state | [src](../../packages/core/src/mirror/create-mirror.ts#L119) |
-| `MirrorChild` | interface | A scoped sender for a nested flow (`mirror.child(step)`, `.child(step).child(step2)`): the | [src](../../packages/core/src/mirror/create-mirror.ts#L106) |
-| `MirrorCommands` | interface | The typed command sugar of a Mirror (and of a `MirrorChild`), typed by flow `F`: the same | [src](../../packages/core/src/mirror/create-mirror.ts#L65) |
-| `MirrorOptions` | interface | `createMirror` options: the `transport` (typed by the projected state), an optional id | [src](../../packages/core/src/mirror/create-mirror.ts#L53) |
+| `Mirror` | interface | Client-side replica of a wizard through projection `P`: read the projected state | [src](../../packages/core/src/mirror/create-mirror.ts#L120) |
+| `MirrorChild` | interface | A scoped sender for a nested flow (`mirror.child(step)`, `.child(step).child(step2)`): the | [src](../../packages/core/src/mirror/create-mirror.ts#L107) |
+| `MirrorCommands` | interface | The typed command sugar of a Mirror (and of a `MirrorChild`), typed by flow `F`: the same | [src](../../packages/core/src/mirror/create-mirror.ts#L66) |
+| `MirrorOptions` | interface | `createMirror` options: the `transport` (typed by the projected state), an optional id | [src](../../packages/core/src/mirror/create-mirror.ts#L54) |
 | `MirrorSource` | interface | Server half of a Mirror: frames out, wire commands in. `S` is the projected state type of | [src](../../packages/core/src/mirror/source.ts#L35) |
 | `NavResult` | type | Result of the navigation methods `next()`, `back()` and `go()`. | [src](../../packages/core/src/wizard/results.ts#L34) |
-| `OutputOf` | type | Output type of a step: parsed input (view), run result (task), `{ event, payload }` (wait), | [src](../../packages/core/src/authoring/types.ts#L869) |
-| `parseCommand` | function | Strictly decode an untrusted wire value into a `Command<F>` of `flow`: exact per-type field | [src](../../packages/core/src/wizard/parse-command.ts#L69) |
-| `parseFrame` | function | Strictly check an untrusted value as a `Frame` envelope: exact property allow-list, | [src](../../packages/core/src/mirror/wire.ts#L149) |
-| `parseWireCommand` | function | Strictly decode an untrusted value into a `WireCommand<F>` for `flow`: exact property | [src](../../packages/core/src/mirror/wire.ts#L80) |
-| `PayloadOf` | type | Parsed payload type of one event. | [src](../../packages/core/src/authoring/types.ts#L841) |
-| `Progress` | type | Progress of a wizard (`wizard.progress()`, `ClientState.progress` with `expose.progress: true`): | [src](../../packages/core/src/authoring/types.ts#L119) |
+| `OutputOf` | type | Output type of a step: parsed input (view), run result (task), `{ event, payload }` (wait), | [src](../../packages/core/src/authoring/types/extractors.ts#L67) |
+| `parseCommand` | function | Strictly decode an untrusted wire value into a `Command<F>` of `flow`: exact per-type field | [src](../../packages/core/src/wizard/parse-command.ts#L70) |
+| `parseFrame` | function | Strictly check an untrusted value as a `Frame` envelope: exact property allow-list, | [src](../../packages/core/src/mirror/wire.ts#L152) |
+| `parseWireCommand` | function | Strictly decode an untrusted value into a `WireCommand<F>` for `flow`: exact property | [src](../../packages/core/src/mirror/wire.ts#L82) |
+| `PayloadOf` | type | Parsed payload type of one event. | [src](../../packages/core/src/authoring/types/extractors.ts#L39) |
+| `Progress` | type | Progress of a wizard (`wizard.progress()`, `ClientState.progress` with `expose.progress: true`): | [src](../../packages/core/src/authoring/types/primitives.ts#L83) |
 | `Projection` | interface | A projection of flow `F` producing the client state type `S` — either deny-by-default | [src](../../packages/core/src/projection/define-projection.ts#L177) |
 | `ProjectionFlow` | type | The flow type a projection was defined for. | [src](../../packages/core/src/projection/define-projection.ts#L201) |
 | `ProjectionOutput` | type | The projected state type of a projection (`ClientState` of its flow for its exposure spec, or | [src](../../packages/core/src/projection/define-projection.ts#L208) |
 | `ProjectionSelect` | type | A `select` projection's mapper: from the typed wizard state to the projected value. | [src](../../packages/core/src/projection/define-projection.ts#L168) |
-| `ResumeOptions` | type | `resumeWizard` options: `WizardOptions` without `context` / `instanceId` / `correlationId` | [src](../../packages/core/src/wizard/create-wizard.ts#L430) |
-| `resumeWizard` | function | Resume a wizard from a persisted snapshot: the envelope, flow identity, step set and every | [src](../../packages/core/src/wizard/create-wizard.ts#L485) |
-| `resumeWizardAsync` | function | Like `resumeWizard`, for flows with asynchronous boundaries (context, deps, view inputs, task | [src](../../packages/core/src/wizard/create-wizard.ts#L506) |
-| `RetryPolicy` | type | Retry policy for tasks (plain data, so `inspect()` shows it; the retry STATE — `attempt`, the | [src](../../packages/core/src/authoring/types.ts#L111) |
-| `RootWizardEvent` | type | A domain event of the wizard's OWN flow (`path` is `[]`), typed by the flow: `step` is a | [src](../../packages/core/src/wizard/create-wizard.ts#L133) |
+| `replay` | function | Fold `events` (a `log()` slice or anything captured with `observe()`, in `seq` order) with the | [src](../../packages/core/src/replay.ts#L53) |
+| `ReplayOptions` | type | `replay` options. Either `context` (the context INPUT the wizard was created with, parsed | [src](../../packages/core/src/replay.ts#L33) |
+| `ResumeOptions` | type | `resumeWizard` options: `WizardOptions` without `context` / `instanceId` / `correlationId` | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L188) |
+| `resumeWizard` | function | Resume a wizard from a persisted snapshot: the envelope, flow identity, step set and every | [src](../../packages/core/src/wizard/create-wizard/index.ts#L95) |
+| `resumeWizardAsync` | function | Like `resumeWizard`, for flows with asynchronous boundaries (context, deps, view inputs, task | [src](../../packages/core/src/wizard/create-wizard/index.ts#L116) |
+| `RetryPolicy` | type | Retry policy for tasks (plain data, so `inspect()` shows it; the retry STATE — `attempt`, the | [src](../../packages/core/src/authoring/types/primitives.ts#L75) |
+| `RootWizardEvent` | type | A domain event of the wizard's OWN flow (`path` is `[]`), typed by the flow: `step` is a | [src](../../packages/core/src/wizard/create-wizard/state.ts#L99) |
 | `Scheduler` | interface | Timer scheduler the runtime arms retries, wait timeouts and inbox TTLs with | [src](../../packages/core/src/interpreter/env.ts#L28) |
 | `SendResult` | type | Result of `send(event, payload)`: delivered/buffered, rejected by the event boundary | [src](../../packages/core/src/wizard/results.ts#L67) |
-| `SerializedError` | type | A serializable error (`name`, `message`, optional `code`) — never carries a stack. | [src](../../packages/core/src/authoring/types.ts#L83) |
-| `SetInputCommand` | type | `setInput` correlated per view: `step: K` with `patch: DraftOf<F, K>`. | [src](../../packages/core/src/wizard/create-wizard.ts#L193) |
-| `Snapshot` | interface | The versioned, JSON-safe snapshot of a wizard (what `getSnapshot()` returns, what a `Store` | [src](../../packages/core/src/wizard/create-wizard.ts#L105) |
-| `SnapshotMigration` | type | Snapshot migration (`resumeWizard(flow, snapshot, { migrate })`): called with the raw | [src](../../packages/core/src/wizard/create-wizard.ts#L417) |
-| `Step` | interface | One step as returned by a constructor. `C` context, `Ev` event map, `D` deps, `I` raw input | [src](../../packages/core/src/authoring/types.ts#L429) |
-| `StepApi` | interface | Constructors pre-bound to `C`/`Ev`/`D`. Only `N` captures literals; no `const` params. | [src](../../packages/core/src/authoring/types.ts#L616) |
-| `StepErrorOf` | type | A step's stored error typed by the step: `SerializedError` (`name`, `message`, `code?`) plus | [src](../../packages/core/src/wizard/create-wizard.ts#L64) |
+| `SerializedError` | type | A serializable error (`name`, `message`, optional `code`) — never carries a stack. | [src](../../packages/core/src/authoring/types/primitives.ts#L47) |
+| `SetInputCommand` | type | `setInput` correlated per view: `step: K` with `patch: DraftOf<F, K>`. | [src](../../packages/core/src/wizard/create-wizard/command.ts#L36) |
+| `Snapshot` | interface | The versioned, JSON-safe snapshot of a wizard (what `getSnapshot()` returns, what a `Store` | [src](../../packages/core/src/wizard/create-wizard/state.ts#L71) |
+| `SnapshotMigration` | type | Snapshot migration (`resumeWizard(flow, snapshot, { migrate })`): called with the raw | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L175) |
+| `Step` | interface | One step as returned by a constructor. `C` context, `Ev` event map, `D` deps, `I` raw input | [src](../../packages/core/src/authoring/types/step.ts#L51) |
+| `StepApi` | interface | Constructors pre-bound to `C`/`Ev`/`D`. Only `N` captures literals; no `const` params. | [src](../../packages/core/src/authoring/types/step-config.ts#L147) |
+| `StepErrorOf` | type | A step's stored error typed by the step: `SerializedError` (`name`, `message`, `code?`) plus | [src](../../packages/core/src/wizard/create-wizard/state.ts#L30) |
 | `StepExpose` | type | Exposure of one step: its draft `input`, its `output`, its validation `issues`, its sanitized | [src](../../packages/core/src/projection/define-projection.ts#L67) |
-| `StepId` | type | Step ids of a flow. | [src](../../packages/core/src/authoring/types.ts#L846) |
-| `StepKind` | type | The six step kinds: `view \| task \| wait \| decision \| flow \| final`. | [src](../../packages/core/src/authoring/types.ts#L89) |
-| `StepState` | type | Typed view of one step's stored record: `input` is the draft (`DraftOf`), `output` the | [src](../../packages/core/src/wizard/create-wizard.ts#L74) |
-| `StepStatus` | type | Stored status of a step: `idle \| active \| done \| failed \| skipped \| cancelled \| compensating \| compensated`. | [src](../../packages/core/src/authoring/types.ts#L95) |
+| `StepId` | type | Step ids of a flow. | [src](../../packages/core/src/authoring/types/extractors.ts#L44) |
+| `StepKind` | type | The six step kinds: `view \| task \| wait \| decision \| flow \| final`. | [src](../../packages/core/src/authoring/types/primitives.ts#L53) |
+| `StepState` | type | Typed view of one step's stored record: `input` is the draft (`DraftOf`), `output` the | [src](../../packages/core/src/wizard/create-wizard/state.ts#L40) |
+| `StepStatus` | type | Stored status of a step: `idle \| active \| done \| failed \| skipped \| cancelled \| compensating \| compensated`. | [src](../../packages/core/src/authoring/types/primitives.ts#L59) |
 | `Store` | interface | Store — the persistence port. One snapshot per key; the value is whatever | [src](../../packages/core/src/persistence/store.ts#L15) |
-| `TaskId` | type | Ids of the task steps (`retry`, `run` accept these). | [src](../../packages/core/src/authoring/types.ts#L910) |
+| `TaskId` | type | Ids of the task steps (`retry`, `run` accept these). | [src](../../packages/core/src/authoring/types/extractors.ts#L108) |
 | `toMermaid` | function | Render a `FlowGraph` as Mermaid (`flowchart TD`): nodes `id (kind)`, `next` edges, labelled | [src](../../packages/core/src/inspect/mermaid.ts#L33) |
 | `Transport` | interface | Client-side transport of the wire protocol: `subscribe` delivers frames (the server sends the | [src](../../packages/core/src/mirror/transport.ts#L17) |
-| `ViewId` | type | Ids of the view steps (`go`, `setInput`, `resetInput`, `validate` accept these). | [src](../../packages/core/src/authoring/types.ts#L903) |
-| `WaitOutput` | type | Output of a wait step: the resolving `{ event, payload }` (union over every flow event), | [src](../../packages/core/src/authoring/types.ts#L328) |
-| `WireAck` | interface | Server → client: the `CommandResult` of the command `commandId`, plus the instance `seq` | [src](../../packages/core/src/mirror/wire.ts#L61) |
-| `WireCommand` | interface | Client → server: a wire `Command` (JSON, decoded with `parseCommand` on the server) addressed | [src](../../packages/core/src/mirror/wire.ts#L49) |
-| `Wizard` | interface | A live wizard instance, typed by its flow. Navigation returns `NavResult`, everything else a | [src](../../packages/core/src/wizard/create-wizard.ts#L271) |
+| `ViewId` | type | Ids of the view steps (`go`, `setInput`, `resetInput`, `validate` accept these). | [src](../../packages/core/src/authoring/types/extractors.ts#L101) |
+| `WaitOutput` | type | Output of a wait step: the resolving `{ event, payload }` (union over every flow event), | [src](../../packages/core/src/authoring/types/hook-args.ts#L163) |
+| `WireAck` | interface | Server → client: the `CommandResult` of the command `commandId`, plus the instance `seq` | [src](../../packages/core/src/mirror/wire.ts#L63) |
+| `WireCommand` | interface | Client → server: a wire `Command` (JSON, decoded with `parseCommand` on the server) addressed | [src](../../packages/core/src/mirror/wire.ts#L51) |
+| `Wizard` | interface | A live wizard instance, typed by its flow. Navigation returns `NavResult`, everything else a | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L33) |
 | `WizardError` | class | Error thrown for programmer errors (misuse of the API): unknown event names, | [src](../../packages/core/src/errors.ts#L52) |
 | `WizardErrorCode` | type | Stable error codes carried by `WizardError` and by `{ ok: false }` results. | [src](../../packages/core/src/errors.ts#L20) |
-| `WizardEvent` | type | A domain event of a wizard (`observe()` / `log()`): either an event of its own flow, typed by | [src](../../packages/core/src/wizard/create-wizard.ts#L152) |
-| `WizardOptions` | type | `createWizard` options: the context input (parsed by the flow's context boundary), `deps` | [src](../../packages/core/src/wizard/create-wizard.ts#L375) |
-| `WizardStatus` | type | Status of a wizard instance: `idle \| running \| waiting \| done \| failed \| compensating \| cancelled`. | [src](../../packages/core/src/authoring/types.ts#L101) |
+| `WizardEvent` | type | A domain event of a wizard (`observe()` / `log()`): either an event of its own flow, typed by | [src](../../packages/core/src/wizard/create-wizard/state.ts#L118) |
+| `WizardOptions` | type | `createWizard` options: the context input (parsed by the flow's context boundary), `deps` | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L133) |
+| `WizardStatus` | type | Status of a wizard instance: `idle \| running \| waiting \| done \| failed \| compensating \| cancelled`. | [src](../../packages/core/src/authoring/types/primitives.ts#L65) |
 
 ### `@openwizard/core/testing`
 

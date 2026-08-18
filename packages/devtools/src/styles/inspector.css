@@ -1,0 +1,36 @@
+/* ---- inspector --------------------------------------------------------------------------- */
+.owd-inspector {
+  background: var(--owd-surface);
+  overflow: auto;
+  height: 100%;
+}
+.owd-inspector-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.owd-inspector-title {
+  font-size: 14px;
+}
+.owd-tab-inspector {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--owd-surface);
+}
+.owd-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--owd-border);
+}
+.owd-picker .owd-select {
+  min-width: 260px;
+}
+.owd-tab-inspector .owd-inspector {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}

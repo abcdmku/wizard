@@ -10,12 +10,12 @@
 
 import type { Batch } from './batch'
 import { emit, rec, stepDef } from './batch'
-import { startAuto, startCursorTransaction } from './nav'
+import { startAuto, startTransaction } from './nav'
 import { startCompensation } from './saga'
 import {
   activeTaskCount,
-  awaitingWhen,
   eligibleSteps,
+  explicitTarget,
   isTerminal,
   readySteps,
   readyViews,
@@ -129,9 +129,14 @@ export interface ScheduleOptions {
 export function schedule(b: Batch, opts: ScheduleOptions = {}): void {
   if (schedulingFrozen(b)) return
   const def = b.env.def
-  // v0.2 (§10.2): eligible steps with an unevaluated `when` predicate ask it first (any kind, any autoRun).
+  // v0.2 (§10.2): eligible steps with an unevaluated `when` predicate ask it first (any kind, any
+  // autoRun) — except the target of an in-flight `go` / `back`, whose `when` is bypassed.
   for (const id of eligibleSteps(def, b.state)) {
-    if (def.steps[id]?.hooks.when !== undefined && rec(b, id)?.when === undefined) {
+    if (
+      def.steps[id]?.hooks.when !== undefined &&
+      rec(b, id)?.when === undefined &&
+      !explicitTarget(b.state, id)
+    ) {
       emit(b, { type: 'step.whenStarted', step: id })
     }
   }
@@ -167,7 +172,7 @@ function cursorRule(b: Batch, cause: NavCause): void {
   const view =
     views.length === 1 ? views[0] : hint !== undefined && views.includes(hint) ? hint : undefined
   if (view === undefined) return
-  startCursorTransaction(b, cause, view)
+  startTransaction(b, cause, null, view)
 }
 
 // ---------------------------------------------------------------------------
@@ -223,9 +228,4 @@ export function failStep(
     return
   }
   emit(b, { type: 'flow.failed', step, error, code: 'STEP_FAILED' })
-}
-
-/** True when `step` is eligible but its `when` predicate is still unresolved (for rejection reasons). */
-export function whenPending(b: Batch, step: string): boolean {
-  return awaitingWhen(b.env.def, b.state, step)
 }

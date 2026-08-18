@@ -117,3 +117,5 @@ export {
 // be able to name them when it exports a flow, a step or a store — TS4023 otherwise.)
 export type { FlowStep, Step } from './authoring/types'
 export type { MemoryStore } from './persistence/memory-store'
+// ---- replay (devtools / audits) ------------------------------------------------
+export { replay, type ReplayOptions } from './replay'

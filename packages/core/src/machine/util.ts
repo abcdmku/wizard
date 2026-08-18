@@ -23,3 +23,38 @@ export function normalizeTargets(value: unknown): readonly string[] {
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string')
   return []
 }
+
+/** Element-wise equality of two wizard paths. */
+export function samePath(a: readonly string[], b: readonly string[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
+  return true
+}
+
+/** Own-property write even for `__proto__` (a plain assignment would change the prototype). */
+export function setOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  if (key === '__proto__') {
+    Object.defineProperty(target, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
+  } else {
+    target[key] = value
+  }
+}
+
+/** The `UNKNOWN_STEP` error of a `next` target that names no step. */
+export function unknownTarget(target: unknown): {
+  readonly name: string
+  readonly message: string
+  readonly code: string
+} {
+  return {
+    name: 'WizardError',
+    message: `unknown next target '${String(target)}'`,
+    code: 'UNKNOWN_STEP',
+  }
+}

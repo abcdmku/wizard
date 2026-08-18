@@ -3,7 +3,7 @@ import { parseFrame, parseWireCommand } from '../../src/mirror/wire'
 import { checkout } from './fixture'
 
 describe('parseWireCommand', () => {
-  it('decodes a valid wire command and re-encodes the nested command through parseCommand', () => {
+  it('decodes a valid wire command (expectedSeq optional) and re-encodes the nested command through parseCommand', () => {
     const result = parseWireCommand(checkout, {
       commandId: 'cmd-1',
       instanceId: 'wiz-1',
@@ -19,19 +19,17 @@ describe('parseWireCommand', () => {
         command: { type: 'setInput', step: 'shipping', patch: { address: 'x' } },
       },
     })
-  })
-
-  it('omits expectedSeq when absent', () => {
-    const result = parseWireCommand(checkout, {
+    // `expectedSeq` is optional and absent (not `undefined`) when not sent.
+    const bare = parseWireCommand(checkout, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'next' },
     })
-    expect(result).toEqual({
+    expect(bare).toEqual({
       ok: true,
       value: { commandId: 'c', instanceId: 'w', command: { type: 'next' } },
     })
-    expect(result.ok && 'expectedSeq' in result.value).toBe(false)
+    expect(bare.ok && 'expectedSeq' in bare.value).toBe(false)
   })
 
   it('rejects non-objects', () => {
@@ -62,16 +60,13 @@ describe('parseWireCommand', () => {
       ]),
     )
     expect(result.issues.find((i) => i.message.includes('extra'))?.path).toEqual(['extra'])
-  })
-
-  it('rejects a fractional expectedSeq', () => {
-    const result = parseWireCommand(checkout, {
+    const fractional = {
       commandId: 'c',
       instanceId: 'w',
       expectedSeq: 1.5,
       command: { type: 'next' },
-    })
-    expect(result.ok).toBe(false)
+    }
+    expect(parseWireCommand(checkout, fractional).ok).toBe(false)
   })
 
   it('requires command and decodes it strictly (issues are prefixed with the command path)', () => {
@@ -190,9 +185,18 @@ describe('parseFrame', () => {
     )
   })
 
-  it('requires an object state whose own instanceId / epoch / seq match the envelope', () => {
-    expect(parseFrame({ ...good, state: 'x' }).ok).toBe(false)
-    expect(parseFrame({ ...good, state: null }).ok).toBe(false)
+  it('accepts any JSON state (a select projection may yield a primitive / array / null) but requires it; an object state whose own instanceId / epoch / seq differ from the envelope is rejected', () => {
+    expect(parseFrame({ ...good, state: 'x' })).toEqual({
+      ok: true,
+      value: { ...good, state: 'x' },
+    })
+    expect(parseFrame({ ...good, state: null }).ok).toBe(true)
+    expect(parseFrame({ ...good, state: [1, 2] }).ok).toBe(true)
+    expect(parseFrame({ ...good, state: 0 }).ok).toBe(true)
+    const { state: _omitted, ...missing } = good
+    const noState = parseFrame(missing)
+    expect(noState.ok).toBe(false)
+    if (!noState.ok) expect(noState.issues[0]?.message).toBe("'state' is required")
     const mismatch = parseFrame({ ...good, state: { ...state, seq: 4 } })
     expect(mismatch.ok).toBe(false)
     if (!mismatch.ok)

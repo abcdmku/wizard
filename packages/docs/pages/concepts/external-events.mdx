@@ -1,0 +1,110 @@
+# External events
+
+Webhooks, queue messages, user actions from another tab — anything that arrives from outside
+enters through `wizard.send(event, payload)`. The flow declares its events as boundaries, so a
+handler only ever sees a parsed payload; events nobody listens for yet wait in an inbox; a
+correlation id keeps another instance's webhook out; and a wait step's deadline is state that
+survives a restart.
+
+```ts
+import { defineFlow } from '@openwizard/core'
+import { z } from 'zod'
+
+const s = defineFlow({
+  name: 'checkout',
+  context: z.object({ orderId: z.string(), paymentId: z.string().optional(), declineReason: z.string().optional() }),
+  events: {
+    'payment.captured': z.object({ paymentId: z.string(), amount: z.number().positive(), orderId: z.string().optional() }),
+    'payment.failed': z.object({ reason: z.string() }),
+    'order.cancelled': z.object({ orderId: z.string(), reason: z.string() }),
+  },
+  on: { 'order.cancelled': ({ payload }) => ({ cancel: payload.reason }) }, // flow-level, whatever step is active
+  correlate: { 'payment.captured': (payload) => payload.orderId }, //          compared with createWizard({ correlationId })
+  unmatchedEvents: { buffer: true, ttl: '10m' }, //                            the "webhook arrived early" inbox
+})
+
+export const checkout = s.steps({
+  review: s.view({ next: 'awaitPayment' }),
+  awaitPayment: s.wait({
+    on: {
+      'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
+      'payment.failed': ({ payload, update }) => {
+        update({ declineReason: payload.reason })
+        return { next: 'declined' } // a handler may override the static `next`
+      },
+    },
+    timeout: { after: '30m', next: 'expired' },
+    next: 'paid',
+  }),
+  paid: s.final({ output: ({ context }) => `paid (${context.paymentId})` }),
+  declined: s.final({ output: ({ context }) => `declined: ${context.declineReason}` }),
+  expired: s.final({ output: () => 'expired: no payment within 30 minutes' }),
+})
+```
+
+## `send()`: one door, a value back
+
+`send(event, payload, { correlationId? })` — the payload is `unknown`; it is parsed by
+`events[event]` first. An unknown event NAME is a programmer error (`WizardError('UNKNOWN_EVENT')`
+— the types already prevent it); a bad BODY is `event.rejected` + `{ ok: false, reason:
+'rejected', code: 'BOUNDARY_REJECTED', issues }`. A good body is `event.received`, then routed:
+
+- **Delivered** — to every ACTIVE step whose `on` has the event (`event.delivered { to }`), then
+  to the flow-level `on[event]` if any. Each step consumes independently.
+- **Buffered** — nothing listened and `unmatchedEvents.buffer` is on: `event.buffered
+  { expiresAt }`, `state.inbox`; delivered (oldest first) the moment a step handling it enters,
+  before that step's timeout is armed. `event.expired` after `ttl`.
+- **Dropped** — `event.dropped { reason: 'no-listener' }` with buffering off, or `{ reason:
+  'correlation' }` when the extracted id differs from the wizard's `correlationId` (never buffered).
+
+`SendResult` resolves when the routing decision is committed: `{ ok: true, delivered: StepId[],
+buffered: boolean }`; handler completion is observable through events, not through `send`. The
+wire door does the same: `dispatch({ type: 'send', event, payload })` runs the same boundary and
+answers a `CommandResult` (`BOUNDARY_REJECTED`).
+
+## `on` handlers on every kind
+
+Any active step may declare `on: { [event]: handler }`; `send()` routes to every active step
+with a handler, then to the flow-level `on`. What a handler may return depends on the kind:
+
+| Kind | Handler returns |
+|---|---|
+| `wait` | `void` \| `{ keep: true }` (consume, keep waiting) \| `{ next: id }` (override the static `next`) |
+| `view` | `void` \| `{ next: id }` — an external event moves the cursor (`cause: 'event'`): runs `canEnter` / `exit` / `enter`, skips input parsing / `validate` / `canExit`; a `nav-busy` view keeps the event buffered until idle |
+| `task`, `decision`, `flow`, `final` | `void` — they may `update()` context; `{ next }` does not compile |
+| flow-level `on` | `void` \| `{ cancel: reason }` — cancels the flow (compensation policy applies); runs after step-level handlers in the same batch |
+
+A throwing handler fails the step (`kind: 'hook'`) and the `onFailure` policy applies.
+
+## Correlation
+
+`defineFlow({ correlate: { [event]: (payload) => string | undefined } })` +
+`createWizard(flow, { correlationId })`: a delivered event whose extractor returns an id
+different from the wizard's is `event.dropped { reason: 'correlation' }`. `undefined` means "no
+filtering for this payload"; without `correlate` nothing is filtered. The correlation id is
+persisted in the state, so a resumed instance keeps filtering.
+
+## Timers are state
+
+`timeout: { after, next }` on a wait step stores an absolute `deadline`; `timer.fired` routes to
+`next` and the wait's output is `{ event: 'timeout' }`. Retries and inbox TTLs are timers too.
+All of them persist with the snapshot and are re-armed on resume from their absolute times (they
+fire immediately when overdue). The runtime never calls `setTimeout` or `Date.now()` directly —
+it uses the injectable `scheduler` / `clock`, which is how [tests](/concepts/testing) drive time.
+
+## `attach()`: hook up a source
+
+`wizard.attach(source)` — `source(send)` receives the typed `send` and returns its teardown, which
+runs when the returned function is called or on `dispose()`:
+
+```ts
+const detach = wizard.attach((send) => {
+  const onMessage = (message: MessageEvent<{ event: 'payment.captured'; body: unknown }>) =>
+    void send(message.data.event, message.data.body)
+  channel.addEventListener('message', onMessage)
+  return () => channel.removeEventListener('message', onMessage)
+})
+```
+
+[Example 05](/examples/05-external-events) sends a bad body, a webhook for another order, and a
+good one that arrives early — and shows it delivered the moment the wait step enters.

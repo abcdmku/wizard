@@ -368,6 +368,41 @@ declare namespace StandardSchemaV1 {
   type InferOutput<Schema extends StandardTypedV1> = StandardTypedV1.InferOutput<Schema>;
 }
 //#endregion
+//#region src/authoring/types/boundary.d.ts
+/**
+ * Runtime brand of a `Checker`. A module-private `Symbol()` (deliberately not `Symbol.for`,
+ * which anyone could look up): only `boundary.parse/guard/assert/trusted` can mint a checker,
+ * so a forged `{ '~checker': 'assert' }` object is never a boundary. Not exported from the
+ * package; the `Checker` type is nominal through this key.
+ * @internal
+ */
+declare const CHECKER: unique symbol;
+/**
+ * The four checker kinds: `parse` (return or throw), `guard` (predicate), `assert` (assertion
+ * function) and `trusted` (no runtime check).
+ * @public
+ */
+type CheckerKind = 'parse' | 'guard' | 'assert' | 'trusted';
+/**
+ * A branded runtime checker built by `boundary.parse/guard/assert/trusted`. `I` is the
+ * input (draft) type — equal to `O` for checkers; the (private, nominal) brand keeps plain
+ * functions and hand-written objects out.
+ * @public
+ */
+interface Checker<O, I = O> {
+  readonly [CHECKER]: CheckerKind;
+  readonly '~types'?: {
+    readonly input: I;
+    readonly output: O;
+  };
+}
+/**
+ * A data door: any Standard Schema (Zod 4 / Valibot / ArkType / …) or a branded `Checker`.
+ * `O` is the parsed output type, `I` the accepted input (draft) type.
+ * @public
+ */
+type Boundary<O, I = O> = StandardSchemaV1<I, O> | Checker<O, I>;
+//#endregion
 //#region src/machine/selectors.d.ts
 /** UI-facing live phase of a step (undefined when the step has no live phase: idle/done/failed/…). */
 type StepPhase$1 = 'blocked' | 'ready' | 'entering' | 'validating' | 'running' | 'retrying' | 'waiting' | 'exiting' | 'compensating';
@@ -379,7 +414,7 @@ interface Progress$1 {
   readonly ratio: number;
 }
 //#endregion
-//#region src/authoring/types.d.ts
+//#region src/authoring/types/primitives.d.ts
 /**
  * A value or a promise of it — every hook may be sync or async.
  * @public
@@ -439,39 +474,8 @@ type RetryPolicy = RetryPolicy$1;
  * @public
  */
 type Progress = Progress$1;
-/**
- * Runtime brand of a `Checker`. A module-private `Symbol()` (deliberately not `Symbol.for`,
- * which anyone could look up): only `boundary.parse/guard/assert/trusted` can mint a checker,
- * so a forged `{ '~checker': 'assert' }` object is never a boundary. Not exported from the
- * package; the `Checker` type is nominal through this key.
- * @internal
- */
-declare const CHECKER: unique symbol;
-/**
- * The four checker kinds: `parse` (return or throw), `guard` (predicate), `assert` (assertion
- * function) and `trusted` (no runtime check).
- * @public
- */
-type CheckerKind = 'parse' | 'guard' | 'assert' | 'trusted';
-/**
- * A branded runtime checker built by `boundary.parse/guard/assert/trusted`. `I` is the
- * input (draft) type — equal to `O` for checkers; the (private, nominal) brand keeps plain
- * functions and hand-written objects out.
- * @public
- */
-interface Checker<O, I = O> {
-  readonly [CHECKER]: CheckerKind;
-  readonly '~types'?: {
-    readonly input: I;
-    readonly output: O;
-  };
-}
-/**
- * A data door: any Standard Schema (Zod 4 / Valibot / ArkType / …) or a branded `Checker`.
- * `O` is the parsed output type, `I` the accepted input (draft) type.
- * @public
- */
-type Boundary<O, I = O> = StandardSchemaV1<I, O> | Checker<O, I>;
+//#endregion
+//#region src/authoring/types/hook-args.d.ts
 /**
  * String keys of a steps map.
  * @public
@@ -619,16 +623,25 @@ type WaitOutput<Ev, T = unknown> = { [E in keyof Ev]: {
 }; }[keyof Ev] | ([T] extends [undefined] ? never : {
   readonly event: 'timeout';
 });
+//#endregion
+//#region src/authoring/types/handlers.d.ts
 /**
- * What a `wait` step's `on[event]` handler may return: nothing (the event completes the step
- * through its static `next`), `{ next }` (a single id overriding it; `null` / `undefined` = no
- * override) or `{ keep: true }` (consume the event, keep waiting).
+ * What a `wait` step's `on[event]` handler may return: nothing (the event completes the step —
+ * output `{ event, payload }` — through its static `next`), `{ next }` (a single id overriding
+ * it; `null` / `undefined` = no override), `{ keep: true }` (consume the event, keep waiting),
+ * `{ done: output, next? }` (complete with that output — `O`, the step's `WaitOutput` — instead
+ * of the event) or `{ fail: reason }` (fail the step, `kind: 'hook'`).
  * @public
  */
-type WaitOnResult<N extends string> = void | undefined | {
+type WaitOnResult<N extends string, O = unknown> = void | undefined | {
   readonly next?: N | null | undefined;
 } | {
   readonly keep: true;
+} | {
+  readonly done: O;
+  readonly next?: N | null | undefined;
+} | {
+  readonly fail: string;
 };
 /**
  * What a `view` step's `on[event]` handler may return: nothing, or `{ next }` — an external
@@ -674,6 +687,8 @@ type FlowOnHandlers<C, Ev, D> = { readonly [E in keyof Ev]?: (a: FlowOnArgs<C, D
  * @public
  */
 type CorrelateSpec<Ev> = { readonly [E in keyof Ev]?: (payload: Ev[E]) => string | undefined; };
+//#endregion
+//#region src/authoring/types/step.d.ts
 /**
  * Phantom facts of a step: input (draft) type, output type, referenced ids, child flow and the
  * `mapError` value type (`E`, `never` without `mapError`).
@@ -752,6 +767,8 @@ type CompactStep<S> = S extends {
   readonly kind: infer K extends StepKind;
   readonly '~types': StepTypes<infer I, infer O, infer N, infer CF, infer E> | undefined;
 } ? FlowStep<I, O, N, K, CF, E> : never;
+//#endregion
+//#region src/authoring/types/step-config.d.ts
 /**
  * `s.view` configuration. `I` / `O` are inferred from `input` ONLY (`NoInfer` everywhere else):
  * without `input` the view has no draft (`I = never`, `O = undefined`) and `initial` is rejected.
@@ -808,7 +825,8 @@ interface TaskOptions<C, Ev, D, O, N extends string, E = never> {
  */
 interface WaitCfg<C, Ev, D, N extends string, T = unknown> {
   readonly label?: string;
-  readonly on: OnHandlers<C, Ev, D, WaitOnResult<N>>;
+  /** One handler per event; `{ done }` overrides the output with a `WaitOutput` of this step. */
+  readonly on: OnHandlers<C, Ev, D, WaitOnResult<N, NoInfer<WaitOutput<Ev, T>>>>;
   readonly timeout?: {
     readonly after: Duration;
     readonly next: N;
@@ -877,6 +895,8 @@ interface StepApi<C, Ev, D> {
   flow<CF extends AnyFlow, O = FlowOutput<CF>, N extends string = never>(child: CF, cfg: FlowCfg<C, Ev, D, CF, O, N>): Step<C, Ev, D, never, O, N, 'flow', CF>;
   final<O = undefined>(cfg?: FinalCfg<C, Ev, D, O>): Step<C, Ev, D, never, O, never, 'final', never>;
 }
+//#endregion
+//#region src/authoring/types/flow.d.ts
 /**
  * Ids a step references (phantom `refs`).
  * @public
@@ -1020,6 +1040,8 @@ interface FlowBuilder<C, CIn, Ev, D> extends StepApi<C, Ev, D> {
     readonly start?: NoInfer<Ids<T> | readonly Ids<T>[]>;
   }): Flow<C, CIn, Ev, D, { readonly [K in keyof T]: CompactStep<T[K]>; }>;
 }
+//#endregion
+//#region src/authoring/types/extractors.d.ts
 /**
  * Parsed context type of a flow (boundary OUTPUT side).
  * @public
@@ -1174,7 +1196,7 @@ declare class WizardError extends Error {
  */
 declare function isWizardError(value: unknown): value is WizardError;
 //#endregion
-//#region src/authoring/compile.d.ts
+//#region src/authoring/compile/index.d.ts
 /**
  * A static-analysis warning about a flow (advisory; never thrown).
  * @public
@@ -1664,14 +1686,6 @@ type DomainEventBody = {
 type TransitionRejectReason = 'nav-busy' | 'not-a-view' | 'not-active' | 'not-reachable' | 'validation' | 'guard-canExit' | 'guard-canEnter' | 'no-target' | 'no-history' | 'flow-terminal' | 'flow-not-started' | 'flow-compensating' | 'resumed' | 'auto-advance-loop';
 type DomainEvent = Envelope & DomainEventBody;
 //#endregion
-//#region src/machine/explain.d.ts
-interface Explanation$1 {
-  readonly status: StepStatus$1 | 'unknown';
-  readonly phase: StepPhase$1 | undefined;
-  readonly reasons: readonly string[];
-  readonly candidates: readonly string[];
-}
-//#endregion
 //#region src/wizard/results.d.ts
 /**
  * Result of `dispatch()` and of every non-navigation command method (`start`, `setInput`, `retry`, …).
@@ -1746,7 +1760,15 @@ type SendResult = {
   readonly message: string;
 };
 //#endregion
-//#region src/wizard/runtime.d.ts
+//#region src/machine/explain.d.ts
+interface Explanation$1 {
+  readonly status: StepStatus$1 | 'unknown';
+  readonly phase: StepPhase$1 | undefined;
+  readonly reasons: readonly string[];
+  readonly candidates: readonly string[];
+}
+//#endregion
+//#region src/wizard/runtime/types.d.ts
 /**
  * v0.2 (§9.5): rewrite a snapshot persisted by an older flow version. Called only when the
  * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
@@ -1758,7 +1780,103 @@ type SnapshotMigration$1 = (snapshot: unknown, from: {
   readonly version: number;
 }) => unknown;
 //#endregion
-//#region src/wizard/create-wizard.d.ts
+//#region src/wizard/create-wizard/command.d.ts
+/** Depth budget for typed child commands: `Prev[D]` = one child level deeper; `Prev[0]` = `never` = beyond. */
+type CommandDepthPrev = [never, 0, 1, 2, 3, 4, 5, 6, 7];
+/**
+ * A `child` command with `string` ids: what typed child commands widen to for a wildcard flow
+ * (`AnyFlow`) or beyond the depth budget.
+ * @public
+ */
+interface AnyChildCommand {
+  readonly type: 'child';
+  readonly path: readonly [string, ...string[]];
+  readonly command: Command<AnyFlow>;
+}
+/**
+ * `setInput` correlated per view: `step: K` with `patch: DraftOf<F, K>`.
+ * @public
+ */
+type SetInputCommand<F extends AnyFlow> = { [K in ViewId<F>]: {
+  readonly type: 'setInput';
+  readonly step: K;
+  readonly patch: DraftOf<F, K>;
+}; }[ViewId<F>];
+/**
+ * A command addressed to a nested flow: `path: [flowStep]` with a `Command` of that child, or a
+ * longer path (`[flowStep, grandChildStep, …]`) whose `command` is typed for the flow at its end
+ * — the flattened form of nesting `child` commands. For a wildcard flow or beyond the depth
+ * budget (8 child levels) it is `AnyChildCommand` (ids widen to `string`).
+ * @public
+ */
+type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] extends [never] ? AnyChildCommand : string extends ChildStepId<F> ? AnyChildCommand : { [K in ChildStepId<F>]: {
+  readonly type: 'child';
+  readonly path: readonly [K];
+  readonly command: Command<ChildFlowOf<F, K>, CommandDepthPrev[Depth]>;
+} | (ChildCommand<ChildFlowOf<F, K>, CommandDepthPrev[Depth]> extends (infer Inner) ? Inner extends {
+  readonly path: infer P extends readonly string[];
+  readonly command: infer C;
+} ? {
+  readonly type: 'child';
+  readonly path: readonly [K, ...P];
+  readonly command: C;
+} : never : never); }[ChildStepId<F>];
+/**
+ * A wire command (JSON), typed by the flow: `go` / `setInput` / `resetInput` take a `ViewId<F>`
+ * (`setInput.patch` is that view's `DraftOf`), `run` / `retry` a `TaskId<F>`, `send` an
+ * `EventType<F>` (its `payload` stays `unknown` — it is re-parsed by the event boundary),
+ * `compensate.from` / `skip.step` / `invalidate.step` a `StepId<F>`, and `child` a typed
+ * `ChildCommand<F>`. `Depth` bounds the child recursion (8 child levels; beyond it ids widen to
+ * `string`). Untrusted input becomes a `Command<F>` through `parseCommand(flow, input)`;
+ * `Command<AnyFlow>` is the untyped shape.
+ * @public
+ */
+type Command<F extends AnyFlow = AnyFlow, Depth extends number = 8> = {
+  readonly type: 'start';
+} | {
+  readonly type: 'next';
+} | {
+  readonly type: 'back';
+} | {
+  readonly type: 'go';
+  readonly step: ViewId<F>;
+  readonly reason?: string;
+} | SetInputCommand<F> | {
+  readonly type: 'resetInput';
+  readonly step: ViewId<F>;
+} | {
+  readonly type: 'send';
+  readonly event: EventType<F>;
+  readonly payload: unknown;
+  readonly correlationId?: string;
+} | {
+  readonly type: 'run';
+  readonly step: TaskId<F>;
+} | {
+  readonly type: 'runReady';
+} | {
+  readonly type: 'retry';
+  readonly step: TaskId<F>;
+} | {
+  readonly type: 'cancel';
+  readonly reason?: string;
+} | {
+  readonly type: 'compensate';
+  readonly from?: StepId<F>;
+  readonly reason?: string;
+} | {
+  readonly type: 'reset';
+} | {
+  readonly type: 'skip';
+  readonly step: StepId<F>;
+  readonly reason?: string;
+} | {
+  readonly type: 'invalidate';
+  readonly step: StepId<F>;
+  readonly cascade?: boolean;
+} | ChildCommand<F, Depth>;
+//#endregion
+//#region src/wizard/create-wizard/state.d.ts
 /**
  * A step's stored error typed by the step: `SerializedError` (`name`, `message`, `code?`) plus
  * `kind`, `at`, `attempt?`, `issues?` and — for a task with `mapError` — `data` (`ErrorOf<F, K>`).
@@ -1861,100 +1979,8 @@ declare function isChildEvent(event: WizardEvent): event is ChildWizardEvent;
 type Explanation<F extends AnyFlow = AnyFlow> = Omit<Explanation$1, 'candidates'> & {
   readonly candidates: readonly ViewId<F>[];
 };
-/** Depth budget for typed child commands: `Prev[D]` = one child level deeper; `Prev[0]` = `never` = beyond. */
-type CommandDepthPrev = [never, 0, 1, 2, 3, 4, 5, 6, 7];
-/**
- * A `child` command with `string` ids: what typed child commands widen to for a wildcard flow
- * (`AnyFlow`) or beyond the depth budget.
- * @public
- */
-interface AnyChildCommand {
-  readonly type: 'child';
-  readonly path: readonly [string, ...string[]];
-  readonly command: Command<AnyFlow>;
-}
-/**
- * `setInput` correlated per view: `step: K` with `patch: DraftOf<F, K>`.
- * @public
- */
-type SetInputCommand<F extends AnyFlow> = { [K in ViewId<F>]: {
-  readonly type: 'setInput';
-  readonly step: K;
-  readonly patch: DraftOf<F, K>;
-}; }[ViewId<F>];
-/**
- * A command addressed to a nested flow: `path: [flowStep]` with a `Command` of that child, or a
- * longer path (`[flowStep, grandChildStep, …]`) whose `command` is typed for the flow at its end
- * — the flattened form of nesting `child` commands. For a wildcard flow or beyond the depth
- * budget (8 child levels) it is `AnyChildCommand` (ids widen to `string`).
- * @public
- */
-type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] extends [never] ? AnyChildCommand : string extends ChildStepId<F> ? AnyChildCommand : { [K in ChildStepId<F>]: {
-  readonly type: 'child';
-  readonly path: readonly [K];
-  readonly command: Command<ChildFlowOf<F, K>, CommandDepthPrev[Depth]>;
-} | (ChildCommand<ChildFlowOf<F, K>, CommandDepthPrev[Depth]> extends (infer Inner) ? Inner extends {
-  readonly path: infer P extends readonly string[];
-  readonly command: infer C;
-} ? {
-  readonly type: 'child';
-  readonly path: readonly [K, ...P];
-  readonly command: C;
-} : never : never); }[ChildStepId<F>];
-/**
- * A wire command (JSON), typed by the flow: `go` / `setInput` / `resetInput` take a `ViewId<F>`
- * (`setInput.patch` is that view's `DraftOf`), `run` / `retry` a `TaskId<F>`, `send` an
- * `EventType<F>` (its `payload` stays `unknown` — it is re-parsed by the event boundary),
- * `compensate.from` / `skip.step` / `invalidate.step` a `StepId<F>`, and `child` a typed
- * `ChildCommand<F>`. `Depth` bounds the child recursion (8 child levels; beyond it ids widen to
- * `string`). Untrusted input becomes a `Command<F>` through `parseCommand(flow, input)`;
- * `Command<AnyFlow>` is the untyped shape.
- * @public
- */
-type Command<F extends AnyFlow = AnyFlow, Depth extends number = 8> = {
-  readonly type: 'start';
-} | {
-  readonly type: 'next';
-} | {
-  readonly type: 'back';
-} | {
-  readonly type: 'go';
-  readonly step: ViewId<F>;
-  readonly reason?: string;
-} | SetInputCommand<F> | {
-  readonly type: 'resetInput';
-  readonly step: ViewId<F>;
-} | {
-  readonly type: 'send';
-  readonly event: EventType<F>;
-  readonly payload: unknown;
-  readonly correlationId?: string;
-} | {
-  readonly type: 'run';
-  readonly step: TaskId<F>;
-} | {
-  readonly type: 'runReady';
-} | {
-  readonly type: 'retry';
-  readonly step: TaskId<F>;
-} | {
-  readonly type: 'cancel';
-  readonly reason?: string;
-} | {
-  readonly type: 'compensate';
-  readonly from?: StepId<F>;
-  readonly reason?: string;
-} | {
-  readonly type: 'reset';
-} | {
-  readonly type: 'skip';
-  readonly step: StepId<F>;
-  readonly reason?: string;
-} | {
-  readonly type: 'invalidate';
-  readonly step: StepId<F>;
-  readonly cascade?: boolean;
-} | ChildCommand<F, Depth>;
+//#endregion
+//#region src/wizard/create-wizard/wizard.d.ts
 /**
  * A live wizard instance, typed by its flow. Navigation returns `NavResult`, everything else a
  * `CommandResult` / `SendResult`; nothing throws for data problems.
@@ -2113,6 +2139,8 @@ type SharedOptions<F extends AnyFlow> = Omit<WizardOptions<F>, 'context' | 'inst
 type ResumeOptions<F extends AnyFlow> = SharedOptions<F> & {
   readonly migrate?: SnapshotMigration;
 };
+//#endregion
+//#region src/wizard/create-wizard/index.d.ts
 /**
  * Create a wizard from a flow: parses `context` (and `deps`) through the flow's boundaries
  * synchronously (async boundaries → use `createWizardAsync`), compiles the flow and starts a
@@ -2385,11 +2413,12 @@ interface WireAck {
 declare function parseWireCommand<F extends AnyFlow>(flow: F, input: unknown): BoundaryResult<WireCommand<F>>;
 /**
  * Strictly check an untrusted value as a `Frame` envelope: exact property allow-list,
- * `kind: 'snapshot'`, a non-empty `instanceId`, non-negative integer `epoch` / `seq`, and an
- * object `state` whose own `instanceId` / `epoch` / `seq` (the projection's base facts), when
- * present, match the envelope. The projected state's SHAPE is the projection's business and is
- * not checked here. `createMirror` runs it on every frame (invalid frames are ignored); hosts
- * that relay frames can run it themselves.
+ * `kind: 'snapshot'`, a non-empty `instanceId`, non-negative integer `epoch` / `seq`, and a
+ * `state` (any JSON value — a `select` projection may produce a primitive, an array or `null`)
+ * whose own `instanceId` / `epoch` / `seq` (the projection's base facts), when it is an object
+ * that carries them, match the envelope. The projected state's SHAPE is the projection's
+ * business and is not checked here. `createMirror` runs it on every frame (invalid frames are
+ * ignored); hosts that relay frames can run it themselves.
  * @public
  */
 declare function parseFrame(input: unknown): BoundaryResult<Frame<unknown>>;
@@ -2526,5 +2555,39 @@ interface MirrorSource<S> {
  */
 declare function createMirrorSource<F extends AnyFlow, S>(wizard: Wizard<F>, projection: Projection<F, S>): MirrorSource<S>;
 //#endregion
-export { type AnyFlow, type AnyProjection, type Boundary, type Checker, type ChildCommand, type ChildFlowOf, type ChildStepId, type ChildSummary, type ChildWizardEvent, type ClientState, type ClientStepError, type ClientStepState, type Clock, type Command, type CommandResult, type ContextInput, type Ctx, type DepsOf, type DraftOf, type Duration, type ErrorOf, type EventType, type Explanation, type ExposeSpec, type Flow, type FlowBuilder, type FlowGraph, type FlowOutput, type FlowStep, type FlowWarning, type Frame, type InputOf, type Issue$1 as Issue, type MemoryStore, type Mirror, type MirrorChild, type MirrorCommands, type MirrorOptions, type MirrorSource, type NavResult, type OutputOf, type PayloadOf, type Progress, type Projection, type ProjectionFlow, type ProjectionOutput, type ProjectionSelect, type ResumeOptions, type RetryPolicy, type RootWizardEvent, type Scheduler, type SendResult, type SerializedError, type SetInputCommand, type Snapshot, type SnapshotMigration, type Step, type StepApi, type StepErrorOf, type StepExpose, type StepId, type StepKind, type StepState, type StepStatus, type Store, type TaskId, type Transport, type ViewId, type WaitOutput, type WireAck, type WireCommand, type Wizard, WizardError, type WizardErrorCode, type WizardEvent, type WizardOptions, type WizardStatus, boundary, createMemoryStore, createMirror, createMirrorSource, createWizard, createWizardAsync, defineFlow, defineProjection, inspect, isChildEvent, isWizardError, parseCommand, parseFrame, parseWireCommand, resumeWizard, resumeWizardAsync, toMermaid };
+//#region src/replay.d.ts
+/**
+ * `replay` options. Either `context` (the context INPUT the wizard was created with, parsed
+ * through the flow's context boundary — the fold starts from the initial state, so the events
+ * must begin at `seq` 1) or `from` (a base state — `getState()` captured earlier — the fold
+ * starts there and events with `seq <= from.seq` are skipped; a truncated log or a resumed
+ * wizard need it). `upTo` stops the fold after that `seq` (inclusive); `instanceId` /
+ * `correlationId` seed the initial state (`from` carries its own).
+ * @public
+ */
+type ReplayOptions<F extends AnyFlow> = {
+  readonly upTo?: number;
+  readonly instanceId?: string;
+  readonly correlationId?: string;
+} & ({
+  readonly context: ContextInput<F>;
+  readonly from?: undefined;
+} | {
+  readonly from: Snapshot<F>['state'];
+  readonly context?: undefined;
+});
+/**
+ * Fold `events` (a `log()` slice or anything captured with `observe()`, in `seq` order) with the
+ * machine's `apply`, from the initial state built from `options.context` (parsed through the
+ * flow's context boundary; async boundary → `DEFINITION_INVALID`, rejection →
+ * `BOUNDARY_REJECTED`) or from `options.from`, up to `options.upTo` (inclusive). Returns the
+ * state at that point — read-only, no hook runs, no effect. Child events (`path` non-empty) and
+ * `persist.failed` are skipped. Pure and deterministic: for a fresh wizard whose log was not
+ * truncated by `logSize`, `replay(flow, wizard.log(), { context, instanceId: wizard.id })` deep-equals
+ * `wizard.getState()`.
+ * @public
+ */
+declare function replay<F extends AnyFlow>(flow: F, events: readonly WizardEvent<F>[], options: ReplayOptions<F>): Snapshot<F>['state'];
+//#endregion
+export { type AnyFlow, type AnyProjection, type Boundary, type Checker, type ChildCommand, type ChildFlowOf, type ChildStepId, type ChildSummary, type ChildWizardEvent, type ClientState, type ClientStepError, type ClientStepState, type Clock, type Command, type CommandResult, type ContextInput, type Ctx, type DepsOf, type DraftOf, type Duration, type ErrorOf, type EventType, type Explanation, type ExposeSpec, type Flow, type FlowBuilder, type FlowGraph, type FlowOutput, type FlowStep, type FlowWarning, type Frame, type InputOf, type Issue$1 as Issue, type MemoryStore, type Mirror, type MirrorChild, type MirrorCommands, type MirrorOptions, type MirrorSource, type NavResult, type OutputOf, type PayloadOf, type Progress, type Projection, type ProjectionFlow, type ProjectionOutput, type ProjectionSelect, type ReplayOptions, type ResumeOptions, type RetryPolicy, type RootWizardEvent, type Scheduler, type SendResult, type SerializedError, type SetInputCommand, type Snapshot, type SnapshotMigration, type Step, type StepApi, type StepErrorOf, type StepExpose, type StepId, type StepKind, type StepState, type StepStatus, type Store, type TaskId, type Transport, type ViewId, type WaitOutput, type WireAck, type WireCommand, type Wizard, WizardError, type WizardErrorCode, type WizardEvent, type WizardOptions, type WizardStatus, boundary, createMemoryStore, createMirror, createMirrorSource, createWizard, createWizardAsync, defineFlow, defineProjection, inspect, isChildEvent, isWizardError, parseCommand, parseFrame, parseWireCommand, replay, resumeWizard, resumeWizardAsync, toMermaid };
 //# sourceMappingURL=index.d.ts.map

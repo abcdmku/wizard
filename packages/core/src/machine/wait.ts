@@ -8,13 +8,12 @@
  * @internal
  */
 
-import type { OnHandlerResult } from '../authoring/compiled'
 import type { Batch } from './batch'
 import { emit, rec, stepDef } from './batch'
 import { completeStep, startEventTransition } from './nav'
 import { clearStepTimers, failStep, inboxTimerId, waitTimerId } from './scheduler'
-import { expiredInbox } from './selectors'
 import type { InboxEntry, SerializedError } from './state'
+import { unknownTarget } from './util'
 
 /**
  * A step is listening for `event` when active, past its `enter` hook, and has a handler.
@@ -113,7 +112,8 @@ export function routeEvent(
 
 /** Lazily drop expired inbox entries (their TTL timers are cleared too). */
 export function expireInbox(b: Batch): void {
-  for (const id of expiredInbox(b.state, b.env.now())) expireEntry(b, id)
+  const now = b.env.now()
+  for (const entry of b.state.inbox) if (entry.expiresAt <= now) expireEntry(b, entry.id)
 }
 
 export function expireEntry(b: Batch, inboxId: string): void {
@@ -164,81 +164,80 @@ function armWaitTimeout(b: Batch, step: string): void {
   })
 }
 
-type HandlerObject = Exclude<OnHandlerResult, undefined>
-
-function asObject(value: OnHandlerResult): HandlerObject | undefined {
-  return typeof value === 'object' && value !== null ? value : undefined
+/** A handler result object (`{ next?, keep?, done?, fail? }`), or `undefined` for anything else. */
+function asObject(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
 }
 
 /**
- * `res.ok(on)` — value: `{ next?, keep?, done?, fail? } | void`. Contract by kind (§10.1):
- * wait — unchanged v0.1 semantics; view — `{ next }` starts an event transition (`cause: 'event'`)
- * when `nav` is idle, else the result is ignored (`event.handlerResultIgnored { reason: 'nav-busy' }`);
- * task/decision/flow/final — `void` only, anything else is ignored (`reason: 'kind'`).
+ * `res.ok(on)` — the RAW value the handler returned (the compiler does not touch it); the
+ * contract is applied here, per kind (§10.1). Wait: `void | { keep } | { next } | { done } |
+ * { fail }` (§4.2). View: `void`, or `{ next }` → an event transition (`cause: 'event'`) while
+ * `nav` is idle, else `event.handlerResultIgnored { reason: 'nav-busy' }`; an unknown target
+ * fails the step (`UNKNOWN_STEP`); anything else is ignored (`reason: 'kind'`). Task / decision /
+ * flow / final: `void` only — every other value is ignored (`reason: 'kind'`).
  */
 export function onHandlerResult(
   b: Batch,
   step: string,
-  value: OnHandlerResult,
+  value: unknown,
   delivered: { readonly event?: string; readonly payload?: unknown },
 ): void {
   const def = stepDef(b, step)
   if (def === undefined) return
-  const event = typeof delivered.event === 'string' ? delivered.event : ''
-  const result = asObject(value)
   if (def.kind === 'wait') {
-    onWaitHandlerResult(b, step, result, delivered)
+    onWaitHandlerResult(b, step, asObject(value), delivered)
     return
   }
-  const next = typeof result?.next === 'string' ? result.next : undefined
-  const other =
-    result !== undefined &&
-    (result.keep !== undefined || result.done !== undefined || result.fail !== undefined)
-  if (def.kind === 'view' && next !== undefined) {
-    if (stepDef(b, next) === undefined) {
-      failStep(
-        b,
-        step,
-        { name: 'WizardError', message: `unknown next target '${next}'`, code: 'UNKNOWN_STEP' },
-        'hook',
-      )
+  const event = typeof delivered.event === 'string' ? delivered.event : ''
+  const next = def.kind === 'view' ? asObject(value)?.next : undefined
+  if (next !== undefined && next !== null) {
+    if (typeof next !== 'string' || stepDef(b, next) === undefined) {
+      failUnknownTarget(b, step, next)
       return
     }
-    if (b.state.nav.phase !== 'idle') {
-      emit(b, { type: 'event.handlerResultIgnored', step, event, reason: 'nav-busy' })
-    } else {
+    if (b.state.nav.phase === 'idle') {
       startEventTransition(b, step, next)
       return
     }
-  } else if (next !== undefined || other) {
+    emit(b, { type: 'event.handlerResultIgnored', step, event, reason: 'nav-busy' })
+  } else if (value !== undefined && value !== null && !isVoidViewResult(def.kind, value)) {
     emit(b, { type: 'event.handlerResultIgnored', step, event, reason: 'kind' })
   }
   // Still listening: the next buffered entry (if any) is delivered.
   drainInbox(b, step)
 }
 
+/** A view's `{}` / `{ next: null }` means "nothing" (the typed contract allows it). */
+function isVoidViewResult(kind: string, value: unknown): boolean {
+  const result = asObject(value)
+  return kind === 'view' && result !== undefined && Object.keys(result).every((k) => k === 'next')
+}
+
+function failUnknownTarget(b: Batch, step: string, target: unknown): void {
+  failStep(b, step, unknownTarget(target), 'hook')
+}
+
 function onWaitHandlerResult(
   b: Batch,
   step: string,
-  result: HandlerObject | undefined,
+  result: Record<string, unknown> | undefined,
   delivered: { readonly event?: string; readonly payload?: unknown },
 ): void {
-  if (result !== undefined && result.keep === true) {
+  if (result?.keep === true) {
     drainInbox(b, step)
     return
   }
-  if (result !== undefined && typeof result.fail === 'string') {
+  if (typeof result?.fail === 'string') {
     failStep(b, step, { name: 'Error', message: result.fail }, 'hook')
     return
   }
-  const next = result?.next
-  if (next !== undefined && b.env.def.steps[next] === undefined) {
-    failStep(
-      b,
-      step,
-      { name: 'WizardError', message: `unknown next target '${next}'`, code: 'UNKNOWN_STEP' },
-      'hook',
-    )
+  // `{ next }`: a single id overriding the static `next`; `null` / `undefined` = no override.
+  const next = result?.next ?? undefined
+  if (next !== undefined && (typeof next !== 'string' || stepDef(b, next) === undefined)) {
+    failUnknownTarget(b, step, next)
     return
   }
   const output =

@@ -27,9 +27,11 @@
 import type { CompiledFlow, HookArgs } from '../authoring/compiled'
 import type { Command, Message, ResultToken } from '../machine/commands'
 import type { DomainEvent } from '../machine/events'
-import { progress } from '../machine/selectors'
-import type { ChildSummary, SerializedError, WizardState, WizardStatus } from '../machine/state'
+import type { SerializedError, WizardState, WizardStatus } from '../machine/state'
+import { samePath } from '../machine/util'
 import type { Snapshot } from '../wizard/snapshot'
+import { resolveDeps } from './child-deps'
+import { failureOf, summarize } from './child-summary'
 
 /** What the bridge needs from a nested runtime (`WizardRuntime` satisfies it). */
 export interface ChildHandle {
@@ -104,10 +106,6 @@ export interface ChildBridge<H extends ChildHandle, P = Snapshot> {
 }
 
 const DEFAULT_MAX_DEPTH = 8
-
-type DepsResolution =
-  | { readonly ok: true; readonly value: unknown }
-  | { readonly ok: false; readonly error: SerializedError }
 
 interface Attached<H extends ChildHandle> {
   readonly handle: H
@@ -204,80 +202,14 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     return entry
   }
 
-  /**
-   * The child's deps: run the flow step's RAW `deps` mapper (if any) and parse its value
-   * through the child's `deps` boundary exactly once; no mapper → the parent's deps object.
-   * Any problem is a `SerializedError` for the flow step (never thrown into the drain).
-   */
-  const resolveDeps = (
-    step: string,
-    childDef: CompiledFlow,
-    causedBy: number | undefined,
-  ): DepsResolution => {
-    const mapper = opts.def.steps[step]?.hooks.childDeps
-    if (mapper === undefined) return { ok: true, value: opts.deps }
-    let mapped: unknown
-    try {
-      mapped = mapper(opts.hookArgs(step, causedBy))
-    } catch (error) {
-      return { ok: false, error: toError(error, `deps mapper of '${step}' threw`) }
-    }
-    if (isThenable(mapped)) {
-      return {
-        ok: false,
-        error: {
-          name: 'WizardError',
-          code: 'DEFINITION_INVALID',
-          message: `deps mapper of '${step}' must be synchronous`,
-        },
-      }
-    }
-    const boundary = childDef.deps
-    if (boundary === undefined) return { ok: true, value: mapped }
-    let result: unknown
-    try {
-      result = boundary.parse(mapped)
-    } catch (error) {
-      return { ok: false, error: toError(error, `deps boundary of '${childDef.name}' threw`) }
-    }
-    if (isThenable(result)) {
-      return {
-        ok: false,
-        error: {
-          name: 'WizardError',
-          code: 'DEFINITION_INVALID',
-          message: `deps boundary of child flow '${childDef.name}' must be synchronous`,
-        },
-      }
-    }
-    if (typeof result === 'object' && result !== null && 'ok' in result) {
-      if (result.ok === true && 'value' in result) return { ok: true, value: result.value }
-      if (result.ok === false) {
-        const issues = 'issues' in result && Array.isArray(result.issues) ? result.issues : []
-        const detail = issues
-          .map((i: unknown) =>
-            typeof i === 'object' && i !== null && 'message' in i ? String(i.message) : String(i),
-          )
-          .join('; ')
-        return {
-          ok: false,
-          error: {
-            name: 'BoundaryError',
-            code: 'BOUNDARY_REJECTED',
-            message: `deps of child flow '${childDef.name}' rejected by boundary${detail.length > 0 ? `: ${detail}` : ''}`,
-          },
-        }
-      }
-    }
-    return {
-      ok: false,
-      error: {
-        name: 'BoundaryError',
-        code: 'BOUNDARY_INVALID_RESULT',
-        message: `deps boundary of child flow '${childDef.name}' returned an invalid result`,
-      },
-    }
-  }
+  const childDeps = (step: string, childDef: CompiledFlow, causedBy: number | undefined) =>
+    resolveDeps({
+      step,
+      mapper: opts.def.steps[step]?.hooks.childDeps,
+      childDef,
+      parentDeps: opts.deps,
+      args: () => opts.hookArgs(step, causedBy),
+    })
 
   return {
     create(step, context, causedBy) {
@@ -319,7 +251,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
         )
         return
       }
-      const deps = resolveDeps(step, childDef, causedBy)
+      const deps = childDeps(step, childDef, causedBy)
       if (!deps.ok) {
         fail(step, deps.error, causedBy)
         return
@@ -339,7 +271,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     restore(step, plan) {
       const childDef = childDefOf(step)
       if (childDef === undefined) return
-      const deps = resolveDeps(step, childDef, undefined)
+      const deps = childDeps(step, childDef, undefined)
       if (!deps.ok) {
         fail(step, deps.error)
         return
@@ -386,67 +318,6 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
       return out
     },
   }
-}
-
-// ---------------------------------------------------------------------------
-// Summaries
-// ---------------------------------------------------------------------------
-
-/**
- * Compact child status for the parent's step record and Mirrors. `progress` is the `progress`
- * selector's ratio over the child's definition (v0.2 §9.6: finals excluded, skipped counts as
- * done, 1 once the child is done).
- */
-export function summarize(state: WizardState, def: CompiledFlow): ChildSummary {
-  return {
-    status: state.status,
-    current: state.current,
-    progress: progress(state, def).ratio,
-    seq: state.seq,
-  }
-}
-
-/** The error of the (most recently failed) failed step, or a generic child failure. */
-function failureOf(state: WizardState): SerializedError {
-  let failed: WizardState['steps'][string] | undefined
-  for (const rec of Object.values(state.steps)) {
-    if (rec.status !== 'failed' || rec.error === undefined) continue
-    if (failed?.error === undefined || rec.error.at >= failed.error.at) failed = rec
-  }
-  if (failed?.error !== undefined) {
-    const { name, message, code } = failed.error
-    return code === undefined ? { name, message } : { name, message, code }
-  }
-  return {
-    name: 'ChildFlowFailed',
-    message: `child flow '${state.flow.name}' failed`,
-    code: 'CHILD_FAILED',
-  }
-}
-
-function toError(error: unknown, fallback: string): SerializedError {
-  if (error instanceof Error) {
-    const code = 'code' in error && typeof error.code === 'string' ? error.code : undefined
-    return code === undefined
-      ? { name: error.name, message: error.message }
-      : { name: error.name, message: error.message, code }
-  }
-  return { name: 'Error', message: `${fallback}: ${String(error)}` }
-}
-
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    (typeof value === 'object' || typeof value === 'function') &&
-    value !== null &&
-    'then' in value &&
-    typeof value.then === 'function'
-  )
-}
-
-function samePath(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
-  return true
 }
 
 function noop(): void {}

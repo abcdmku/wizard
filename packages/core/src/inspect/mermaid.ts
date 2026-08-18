@@ -147,8 +147,27 @@ function sanitize(segment: string): string {
   return segment.replace(/^\$/, '_').replace(/[^A-Za-z0-9_]/g, '_')
 }
 
+/**
+ * Mermaid entity codes for the characters that would end (`"`), break (`;`, `[` / `]`) or
+ * reinterpret (`&`, `<`, `>`, `#` — HTML / entity syntax) a quoted label.
+ */
+const ENTITIES: Readonly<Record<string, string>> = {
+  '"': '#quot;',
+  '&': '#amp;',
+  '<': '#lt;',
+  '>': '#gt;',
+  '#': '#35;',
+  ';': '#59;',
+  '[': '#91;',
+  ']': '#93;',
+}
+
+/**
+ * Text safe inside a quoted Mermaid label: line breaks become spaces (a raw CR / LF ends the
+ * statement) and every entity / syntax character is written as a Mermaid entity code.
+ */
 function quote(text: string): string {
-  return text.replace(/"/g, '#quot;')
+  return text.replace(/\r\n|\r|\n/g, ' ').replace(/["&<>#;[\]]/g, (c) => ENTITIES[c] ?? c)
 }
 
 function shape(kind: FlowGraphNode['kind'], label: string): string {

@@ -1,0 +1,147 @@
+# Steps and kinds
+
+A flow is a map of steps built by six **pre-bound** constructors returned by `defineFlow`. Two
+words carry most of the semantics:
+
+- `next` is a **navigation edge** — where completion arrives: one id, an array (fan-out) or a
+  function of the step's output (a `NextRef`, or a promise of one).
+- `dependsOn` is **data readiness** — an arrived step only becomes ready once every listed step
+  is done (`{ any: [...] }` for an OR-join).
+
+One rule covers wizards, DAGs and hybrids: a step activates by arrival (`start`, or a completed
+step's `next`), and `dependsOn` gates that activation. Ready `task` / `wait` / `decision` /
+`flow` steps run automatically (`autoRun: 'ready'`); ready views wait for the cursor.
+
+| Kind | Enters when | Completes when | Notable options |
+|---|---|---|---|
+| `s.view(cfg)` | the cursor arrives (`start` / `next` / `go` / `back`) | `next()` parses the draft through `input`, then `validate`, `canExit` | `input`, `initial`, `validate`, `canEnter`, `canExit`, `enter`, `exit`, `next` |
+| `s.task(run, opts)` | it is ready (auto-run) | `run` settles (optionally re-checked by `output`) | `retry`, `timeout`, `compensate`, `output`, `idempotent`, `mapError`, `next`, `dependsOn` |
+| `s.wait(cfg)` | it is ready | an `on[event]` handler resolves or `timeout.after` fires | `on`, `timeout: { after, next }`, `next` |
+| `s.decision(cfg)` | it is ready | `next(args)` returns a target | `next` (function), `dependsOn` |
+| `s.flow(child, cfg)` | it is ready → child wizard created | the child reaches a `final` | `context` (parent → child), `deps`, `output`, `exit`, `next` |
+| `s.final(cfg)` | it is ready | immediately; the flow is `done` | `output` |
+
+Every kind may declare `on: { [event]: handler }` (external events while the step is active) and
+every non-final kind a `when` predicate (`false` skips the step once it is ready). `label` is
+free text for tooling.
+
+## `s.view(cfg)` — waits for a user
+
+The cursor (`getState().current`) is the active view. `setInput(view, patch)` shallow-merges a
+draft (`DraftOf<F, K>`, the INPUT side of the `input` boundary, partial); `next()` / `go()` parse
+the whole draft through `input`, then run `validate`, `canExit`, resolve `next`, run the target's
+`canEnter`, then `exit` and `enter`.
+
+| Option | Meaning |
+|---|---|
+| `input?: Boundary<O, I>` | Parsed on `next()` / `go()`; the OUTPUT side is what hooks and `steps[k].output` see. |
+| `initial?: Partial<I>` | Seeds the draft on first entry. |
+| `validate?: (a: OutputArgs) => void \| Issue[]` | Runs after `input` parsed; issues reject the transition (`INVALID_INPUT`). |
+| `canEnter?`, `canExit?: (a) => boolean` | Guards; `false` rejects with `GUARD_BLOCKED`. Fan-out evaluates every target's `canEnter` first (atomic). |
+| `enter?`, `exit?` | Effects on entering / leaving (`exit` sees `output`, `to`, `direction`). |
+| `on?`, `when?`, `next?`, `dependsOn?` | As above. A view's `on` handler may return `{ next }` to move the cursor (`cause: 'event'`). |
+
+```ts
+import { defineFlow } from '@openwizard/core'
+import { z } from 'zod'
+
+const s = defineFlow({ name: 'signup', context: z.object({ email: z.string().optional() }) })
+
+export const signup = s.steps({
+  account: s.view({
+    input: z.object({ email: z.email() }),
+    exit: ({ output, update }) => update({ email: output.email }), // the typed hand-off
+    next: 'done',
+  }),
+  done: s.final({ output: ({ context }) => context.email }),
+})
+```
+
+## `s.task(run, options?)` — runs when ready
+
+`run` may return a value or a promise; its type is the step's output (`OutputOf<F, K>`) unless
+`options.output` re-checks it. Two arguments, so `options.next` / `compensate` see `output`
+regardless of property order.
+
+| Option | Meaning |
+|---|---|
+| `output?: Boundary<O, unknown>` | Re-check the value returning from another system; a rejection fails the task with the issues. |
+| `retry?: RetryPolicy` | Overrides the flow default. Retries are timers (`step.retryScheduled { dueAt }`); the attempt counter and deadline persist and are re-armed on resume. |
+| `timeout?: Duration` | Aborts the run (`signal`), then fails with `kind: 'timeout'` after the retries. |
+| `compensate?: (a) => unknown` | Undo hook for `onFailure: 'compensate'` / `cancel()`; receives the task's own `output`. |
+| `idempotent?: true \| (a: RunArgs) => string` | The run receives `args.idempotencyKey`; on resume a `running` idempotent task is RE-RUN with the same key instead of failing `interrupted`. |
+| `mapError?: (error, a) => E` | Maps a failure to a JSON-safe value stored as `steps[k].error.data` (`ErrorOf<F, K>`), exposable to clients with `error: true`. |
+| `enter?`, `exit?`, `on?`, `when?`, `next?`, `dependsOn?` | As above. |
+
+```ts
+import { boundary, defineFlow } from '@openwizard/core'
+import { z } from 'zod'
+
+interface Deps {
+  ledger: { post(id: string, opts: { idempotencyKey: string }): Promise<{ ref: string }> }
+}
+
+const s = defineFlow({
+  name: 'post-invoice',
+  context: z.object({ invoiceId: z.string() }),
+  deps: boundary.trusted<Deps>(),
+})
+
+export const postInvoice = s.steps({
+  post: s.task(
+    ({ context, deps, idempotencyKey }) => deps.ledger.post(context.invoiceId, { idempotencyKey }),
+    {
+      retry: { attempts: 3, backoff: 'exponential' },
+      idempotent: ({ context }) => `invoice:${context.invoiceId}`,
+      mapError: (error, { attempt }) => ({ attempt, message: String(error) }),
+      next: 'done',
+    },
+  ),
+  done: s.final(),
+})
+```
+
+## `s.wait(cfg)` — waits for an event or a deadline
+
+Output: `{ event, payload }` for the resolving event, plus `{ event: 'timeout' }` when the step
+declares a `timeout` (`WaitOutput<Ev, T>` — a wait without `timeout` never sees the marker).
+
+| Option | Meaning |
+|---|---|
+| `on: { [event]: (a: EventArgs) => void \| { keep: true } \| { next?: id } }` (required) | One handler per event the step listens for (payload already parsed). `{ next }` overrides the static `next`, `{ keep: true }` consumes the event and keeps waiting; a throw fails the step (`kind: 'hook'`). |
+| `timeout?: { after: Duration; next: id }` | Absolute `deadline` in state; fires `timer.fired` and routes to `next`. |
+| `enter?`, `exit?`, `when?`, `next?`, `dependsOn?` | As above. |
+
+See [External events](/concepts/external-events) for the inbox, correlation and flow-level handlers.
+
+## `s.decision(cfg)` — chooses the target
+
+`next: (a) => NextRef` (required) picks the target(s) from context / output; `dependsOn?` makes it
+a join (the gate of a DAG). Its output (`steps[k].output`) is the normalized list of chosen ids
+(`'a'` → `['a']`, `null` → `[]`).
+
+## `s.flow(child, cfg)` — embeds another flow
+
+A child wizard with its own queue, instance id and snapshot (`Snapshot.children[step]`); events
+forwarded with `path`. Max depth 8; embedding an ancestor throws `NESTING_CYCLE`.
+
+| Option | Meaning |
+|---|---|
+| `context: (a) => ContextInput<Child>` (required) | Builds the child's context INPUT — parsed by the child's context boundary once, when the child is created. |
+| `deps?: (a) => DepsOf<Child>` | Builds the child's deps (parsed by the child's `deps` boundary). Omitted → the child receives the parent's `deps` unchanged. |
+| `output?: Boundary<O, unknown>` | Re-check / retype the child's output (default `FlowOutput<Child>`). |
+| `exit?`, `on?`, `when?`, `next?`, `dependsOn?` | As above (`exit` sees the child's output). |
+
+See [Nesting](/concepts/nesting).
+
+## `s.final(cfg?)` — ends the flow
+
+`output?: (a) => O` becomes `getState().output` (`FlowOutput<F>` = union of the finals' outputs);
+other active steps are cancelled (`step.cancelled { reason: 'flow-done' }`). `on?` as above
+(`void` only).
+
+## Per-kind allow-lists
+
+Every step kind accepts only its own options — `input` on a task or `when` on a final is
+`DEFINITION_INVALID`, listed with every other problem of the whole tree, nested flows included.
+The type-level check lands on the offending property; the runtime check protects JS callers.

@@ -260,6 +260,23 @@ describe('useChild over a projection (Mirror source)', () => {
     // @ts-expect-error `confirm` is not a flow step of `fulfilment`
     child.useChild('confirm')
   })
+  it('a nested useChild only accepts grandchildren the projection exposes with a child slice (never types are rejected at compile time)', () => {
+    const summaryOnly = defineProjection(order, {
+      expose: {
+        steps: {
+          fulfil: { child: { steps: { confirm: { input: true }, pack: { child: true } } } },
+        },
+      },
+    })
+    const bound = bindReact<typeof summaryOnly>()
+    const child = bound.useChild('fulfil')
+    // `pack` exposes its summary only (`child: true`): no grandchild slice to bind to.
+    // @ts-expect-error `pack` is not exposed with a nested child spec in this projection
+    child.useChild('pack')
+    // The exposed variant still binds the grandchild, typed by its slice.
+    const grand = ow.useChild('fulfil').useChild('pack')
+    expectTypeOf(grand.useStep('pick').input).toEqualTypeOf<{ bin?: string } | undefined>()
+  })
   it('root actions gained skip / invalidate', () => {
     const actions = ow.useActions()
     expectTypeOf(actions.skip('pay', 'ops')).toEqualTypeOf<Promise<CommandResult>>()

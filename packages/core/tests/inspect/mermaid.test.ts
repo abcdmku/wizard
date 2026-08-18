@@ -107,4 +107,32 @@ describe('toMermaid', () => {
     // The output is stable.
     expect(toMermaid(inspect(weird))).toBe(text)
   })
+
+  it('entity-escapes label text: line breaks become spaces, & < > " # ; [ ] become Mermaid entities (node labels and subgraph titles)', () => {
+    const inner = defineFlow({ name: 'inner', context: boundary.trusted<{}>() })
+    const child = inner.steps({ 'a & b': inner.final() })
+    const s = defineFlow({ name: 'hostile', context: boundary.trusted<{}>() })
+    const hostile = s.steps(
+      {
+        'line\r\nbreak\n<b>': s.view({ next: 'sub[0]; #1' }),
+        'sub[0]; #1': s.flow(child, { context: () => ({}), next: 'end' }),
+        end: s.final(),
+      },
+      { start: 'line\r\nbreak\n<b>' },
+    )
+    const text = toMermaid(inspect(hostile))
+    const labels = [...text.matchAll(/"([^"]*)"/g)].map((m) => m[1] ?? '')
+    // Once the entities are stripped, no line break / & / < / > / # / ; / [ / ] survives in a label.
+    for (const label of labels) {
+      expect(label.replace(/#[a-z0-9]+;/g, '')).not.toMatch(/[\r\n&<>#;[\]]/)
+    }
+    expect(text).toContain('["line break #lt;b#gt; (view)"]')
+    expect(text).toContain('[/"sub#91;0#93;#59; #35;1 (flow)"/]')
+    expect(text).toContain('subgraph sub_0____1___flow ["sub#91;0#93;#59; #35;1"]')
+    expect(text).toContain('(("a #amp; b (final)"))')
+    // Statements stay one per line: a label never introduces a new line.
+    expect(text.split('\n').every((line) => /^ {2,}\S/.test(line) || line === 'flowchart TD')).toBe(
+      true,
+    )
+  })
 })

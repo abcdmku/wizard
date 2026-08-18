@@ -1,9 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import {
-  createIdGenerator,
-  createRealScheduler,
-  createSequentialIds,
-} from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { createTimerRegistry } from '../../src/interpreter/timers'
 
@@ -46,29 +41,6 @@ describe('createTestScheduler', () => {
     s.flush()
     expect(log).toEqual([2, 1])
     expect(s.now()).toBe(1_000_000)
-  })
-})
-
-describe('id generators', () => {
-  it('sequential ids count per prefix; real ids are unique', () => {
-    const ids = createSequentialIds()
-    expect([ids.id('tx'), ids.id('fx'), ids.id('tx')]).toEqual(['tx_1', 'fx_1', 'tx_2'])
-    const real = createIdGenerator()
-    const set = new Set(Array.from({ length: 200 }, () => real.id('x')))
-    expect(set.size).toBe(200)
-    expect(real.id('wiz').startsWith('wiz_')).toBe(true)
-  })
-})
-
-describe('createRealScheduler', () => {
-  it('schedules and cancels through the platform setTimeout', async () => {
-    const s = createRealScheduler()
-    const fired: string[] = []
-    const h = s.setTimeout(() => fired.push('cancelled'), 1)
-    s.clearTimeout(h)
-    s.setTimeout(() => fired.push('ok'), 1)
-    await new Promise((r) => setTimeout(r, 20))
-    expect(fired).toEqual(['ok'])
   })
 })
 

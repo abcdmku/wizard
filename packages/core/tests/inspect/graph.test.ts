@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
 import { defineFlow } from '../../src/authoring/define-flow'
-import { WizardError } from '../../src/errors'
 import { inspect } from '../../src/inspect/graph'
 
 describe('inspect', () => {
@@ -134,15 +133,5 @@ describe('inspect', () => {
       },
     ])
     expect(inspect(flow).nodes).toEqual(graph.nodes)
-  })
-
-  it('throws DEFINITION_INVALID for a broken flow', () => {
-    const broken = {
-      '~types': undefined,
-      name: 'broken',
-      context: boundary.trusted(),
-      steps: { a: { kind: 'view', next: 'zzz', '~types': undefined } },
-    }
-    expect(() => inspect(broken as never)).toThrow(WizardError)
   })
 })

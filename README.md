@@ -1,6 +1,7 @@
 # OpenWizard
 
 [![CI](https://github.com/abcdmku/wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/abcdmku/wizard/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-abcdmku.github.io%2Fwizard-0a0a0a)](https://abcdmku.github.io/wizard/)
 
 **A TypeScript-first, type-safe orchestrator for sync and async workflows — on the server, in the browser, at the edge.**
 
@@ -199,6 +200,7 @@ pnpm --filter example-07-dag-pipeline start     # run one example's walk-through
 
 ## Documentation
 
+- [abcdmku.github.io/wizard](https://abcdmku.github.io/wizard/) — the docs site: getting started, concepts, the examples with their sources, the API reference (this README rendered + TypeDoc), the design docs, and a playground that runs every example in the browser against the real package (`pnpm docs:dev` runs it locally; `packages/docs`).
 - [`packages/core/README.md`](packages/core/README.md) — the API reference: authoring shape, step kinds, hooks, boundaries, `createWizard`, `Wizard` methods, persistence, projections, testing, guarantees, and the generated export table.
 - [`docs/design/architecture-plan.md`](docs/design/architecture-plan.md) — architecture and semantics (binding for the engine); [`docs/design/machine-spec.md`](docs/design/machine-spec.md) — the pure machine; [`docs/design/adr/`](docs/design/adr) — decision records ([`DECISIONS.md`](DECISIONS.md) is the index).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — the few rules that keep the library small; [`SECURITY.md`](SECURITY.md) — what the library guarantees about persistence and client exposure, and what you must do.

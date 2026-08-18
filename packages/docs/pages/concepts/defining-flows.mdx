@@ -1,0 +1,121 @@
+# Defining flows
+
+`defineFlow(options)` returns a `FlowBuilder`: the six step constructors, **pre-bound** to the
+flow's context / events / deps (so every hook is typed without generics), plus `steps()` which
+assembles the inert `Flow`. Every step id referenced by `next`, `dependsOn`, `timeout.next` or
+`start` is checked at compile time — the error lands on the offending property
+(`step 'a' references unknown step id(s): 'typo'`) — and again at runtime for JS callers.
+
+```ts
+import { boundary, defineFlow } from '@openwizard/core'
+import { z } from 'zod'
+
+interface Deps {
+  inventory: {
+    reserve(cartId: string): Promise<{ reservationId: string }>
+    release(reservationId: string): Promise<void>
+  }
+}
+
+const s = defineFlow({
+  name: 'checkout', //                                  persistence identity (with `version`)
+  version: 1,
+  context: z.object({ cartId: z.string(), total: z.number(), paymentId: z.string().optional() }),
+  events: { 'payment.captured': z.object({ paymentId: z.string() }) },
+  deps: boundary.trusted<Deps>(), //                    built by the host → no runtime check
+  onFailure: 'compensate',
+})
+
+export const checkout = s.steps(
+  {
+    shipping: s.view({ input: z.object({ address: z.string().min(1) }), next: 'reserve' }),
+    reserve: s.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
+      retry: { attempts: 3, backoff: 'exponential' },
+      compensate: ({ output, deps }) => deps.inventory.release(output.reservationId),
+      next: 'awaitPayment',
+    }),
+    awaitPayment: s.wait({
+      on: { 'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }) },
+      timeout: { after: '15m', next: 'expired' },
+      next: 'route',
+    }),
+    route: s.decision({ next: ({ context }) => (context.paymentId ? 'receipt' : 'expired') }),
+    receipt: s.final({ output: ({ context }) => ({ paymentId: context.paymentId }) }),
+    expired: s.final(),
+  },
+  { start: 'shipping' },
+)
+```
+
+## Flow options
+
+| Option | Type | Meaning |
+|---|---|---|
+| `name` | `string` (required) | Flow identity; with `version` it is checked on resume. |
+| `version` | `number` (default `1`) | Bump when the step set changes incompatibly. |
+| `context` | `Boundary<C, CIn>` (required) | Parsed at `createWizard({ context })` and on resume. `boundary.trusted<C>()` for defaults you already trust. |
+| `events` | `{ [name]: Boundary }` | Declares `send(name, payload)` and the `on` handlers of steps. |
+| `deps` | `Boundary<D>` | Declares `createWizard({ deps })` (required iff present); hooks receive `deps`. |
+| `on` | `{ [event]: (a: FlowOnArgs) => void \| { cancel: string } }` | Flow-level event handlers: run for the event after the step-level handlers, whatever is active; `{ cancel: reason }` cancels the flow (compensation policy applies). |
+| `correlate` | `{ [event]: (payload) => string \| undefined }` | Correlation extractors: with `createWizard({ correlationId })`, an event whose extracted id differs is `event.dropped { reason: 'correlation' }`. |
+| `onFailure` | `'halt' \| 'compensate'` (default `'halt'`) | What happens when a task fails with no retries left. |
+| `retry` | `RetryPolicy` | Default retry policy for tasks. |
+| `autoRun` | `'ready' \| 'manual'` (default `'ready'`) | Ready non-view steps start automatically, or on `runReady()`. |
+| `concurrency` | `number` (default `Infinity`) | Maximum tasks running at once. |
+| `unmatchedEvents` | `{ buffer: boolean; ttl: Duration }` (default buffer for `'5m'`) | Events with no active listener are buffered (FIFO) or dropped. |
+
+`s.steps(defs, { start })` — `start` defaults to the first declared step (a string, or an array
+for several entry points). The returned `Flow` is inert data; `inspect(flow)` shows its graph
+and `createWizard(flow, …)` runs it.
+
+## Hook arguments
+
+Every hook receives `BaseArgs<C, D>` and adds a little:
+
+| Field | On | Meaning |
+|---|---|---|
+| `context: C` | all | The parsed flow context (typed). |
+| `update(patch: Partial<C>)` | all | Patch the context (shallow merge, recorded as `context.changed`). The typed hand-off between steps. |
+| `deps: D` | all | What `createWizard({ deps })` received. |
+| `steps` | all | Sibling records (`SiblingStates`, an open map — status / attempt / input / output as `unknown`; use `context` for typed data). |
+| `step`, `path` | all | This step's id and the wizard path (`[]` root, `['fulfil']` inside a child). |
+| `signal` | all | `AbortSignalLike`; aborted on timeout, cancel, dispose. |
+| `attempt`, `idempotencyKey` | `run`, `idempotent`, `mapError` | 1-based attempt; the run's idempotency key. |
+| `from` | `enter`, `canEnter` | Previous step (or `null`). |
+| `output` | `validate`, `canExit`, `exit`, `next`, `compensate` | The step's parsed / produced output. |
+| `to`, `direction` | `exit` | Target and `'forward' \| 'back'`. |
+| `reason` | `compensate` | Why the saga runs (`cancel(reason)`), if any. |
+| `event`, `payload` | `on[event]` (any kind), flow-level `on[event]` | The event name and its parsed payload. |
+| `error` (first argument) | `mapError` | The raw thrown value / rejection of the failed run. |
+
+Every hook may be sync or async (`MaybePromise`). With `createWizard({ strict: 'sync' })` a
+thenable becomes a `SYNC_VIOLATION` failure.
+
+## What the types guarantee
+
+The builder captures every id literal a step references into a phantom type slot and checks it
+against the keys of the steps object when `steps()` runs. In practice:
+
+- `next: 'typo'` does not compile; the error is on the `next` property of that step, not on the whole call.
+- `wizard.setInput('typo', …)`, `go('save')` (not a view), `send('unknown-event', …)` do not compile.
+- Hooks see `context`, `payload`, `output`, `deps` with their real types — no generics, no casts.
+- Extractors read the phantom types: `StepId<F>`, `ViewId<F>`, `TaskId<F>`, `ChildStepId<F>`,
+  `Ctx<F>`, `ContextInput<F>`, `DepsOf<F>`, `EventType<F>`, `PayloadOf<F, E>`, `InputOf<F, K>`,
+  `DraftOf<F, K>`, `OutputOf<F, K>`, `ErrorOf<F, K>`, `ChildFlowOf<F, K>`, `FlowOutput<F>` —
+  exactly one per concept.
+
+```ts
+import type { DraftOf, OutputOf, StepId } from '@openwizard/core'
+import type { checkout } from './checkout'
+
+type Ids = StepId<typeof checkout> // 'shipping' | 'reserve' | 'awaitPayment' | 'route' | 'receipt' | 'expired'
+type ShippingDraft = DraftOf<typeof checkout, 'shipping'> // { address?: string }
+type ReserveOutput = OutputOf<typeof checkout, 'reserve'> // { reservationId: string }
+```
+
+The public surface is `any`-free and cast-free (`api/core.d.ts` is diffed in CI), so what the
+declaration files say is what you get. The `RetryPolicy` and `Duration` shapes are plain data:
+`{ attempts, backoff?, baseMs?, factor?, maxBackoffMs? }` where `attempts` counts retries after
+the first failure and `backoff` is a fixed number of ms or `'exponential'`
+(`min(baseMs × factor^(attempt-1), maxBackoffMs)`, defaults 200 ms / 2 / 30 s); a `Duration` is a
+number of ms or `'250ms' | '15s' | '15m' | '2h' | '1d'`.

@@ -26,6 +26,7 @@ import type { BoundaryResult, CompiledFlow } from '../authoring/compiled'
 import type { AnyFlow } from '../authoring/types'
 import type { Command } from '../machine/commands'
 import type { Issue } from '../machine/state'
+import { isPlainObject as isRecord } from '../machine/util'
 import type { Command as TypedCommand } from './create-wizard'
 import { firstNonJson, type JsonCheckOptions } from './json'
 
@@ -299,11 +300,4 @@ function parse(
     default:
       return undefined
   }
-}
-
-/** Plain objects only (`Object.prototype` or `null` prototype): inherited properties are never read. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
 }

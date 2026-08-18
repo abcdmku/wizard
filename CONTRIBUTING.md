@@ -26,6 +26,9 @@ Node ≥ 20, pnpm 10 (`corepack enable` picks the pinned version). Windows is a 
 8. **Boundaries are the only doors.** Data enters a wizard through `context`, `setInput`, `send`, or `resume`, each through a declared boundary. `boundary.trusted<T>()` and `!` in examples need a one-line comment saying why.
 9. **Changesets.** User-facing changes to `@openwizard/core` or `@openwizard/react` need `pnpm changeset`.
 10. **Decisions are written down.** Non-obvious design choices go in `docs/design/adr/` and `DECISIONS.md`.
+11. **Files stay small.** Under ~400 lines in most cases; split by responsibility (one message family, one event family, one component) rather than growing a file.
+12. **Functions do one thing.** No pass-through wrappers (`foo()` that only calls `bar()`), no one-line helpers used once — inline them.
+13. **No useless tests.** A test must prove behaviour a user relies on or a spec rule. No render-smoke tests that assert nothing, no duplicated cases across suites; prefer one end-to-end scenario over many micro-tests of internals.
 
 ## Layout
 

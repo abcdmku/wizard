@@ -13,6 +13,7 @@ import type { CompiledFlow } from '../authoring/compiled'
 import type { AnyFlow } from '../authoring/types'
 import { phase, progress } from '../machine'
 import type { StepError, StepRecord, WizardState } from '../machine/state'
+import { setOwn } from '../machine/util'
 import type { Snapshot } from '../wizard/snapshot'
 import type { ClientStepError, Projection } from './define-projection'
 
@@ -125,20 +126,6 @@ function pickContext(
   const source = context as Record<string, unknown>
   for (const key of keys) if (Object.hasOwn(source, key)) setOwn(out, key, source[key])
   return out
-}
-
-/** Own-property write even for `__proto__` (a plain assignment would change the prototype). */
-function setOwn(target: Record<string, unknown>, key: string, value: unknown): void {
-  if (key === '__proto__') {
-    Object.defineProperty(target, key, {
-      value,
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    })
-  } else {
-    target[key] = value
-  }
 }
 
 /**

@@ -15,7 +15,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm -r --filter \"./packages/*\" run build",
+    "build": "pnpm -r --filter \"./packages/*\" --filter \"!@openwizard/docs\" run build",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -28,10 +28,12 @@
     "check:docs": "node ./scripts/gen-export-tables.mjs --check && node ./scripts/check-doc-imports.mjs && node ./scripts/check-readme-quickstart.mjs",
     "check:public-tags": "node ./scripts/check-public-tags.mjs",
     "docs:gen": "node ./scripts/gen-export-tables.mjs",
+    "docs:dev": "pnpm --filter @openwizard/docs dev",
+    "docs:build": "pnpm --filter @openwizard/docs build",
     "examples": "pnpm -r --filter \"./examples/*\" run check",
     "size": "size-limit",
-    "publint": "pnpm -r --filter \"./packages/*\" exec publint",
-    "attw": "pnpm -r --filter \"./packages/*\" exec attw --pack",
+    "publint": "pnpm -r --filter \"./packages/*\" --filter \"!@openwizard/docs\" exec publint",
+    "attw": "pnpm -r --filter \"./packages/*\" --filter \"!@openwizard/docs\" exec attw --pack",
     "changeset": "changeset",
     "release": "pnpm build && changeset publish"
   },
@@ -55,7 +57,7 @@
     {
       "name": "@openwizard/core (esm, brotli)",
       "path": "packages/core/dist/index.js",
-      "limit": "36 kB",
+      "limit": "37 kB",
       "brotli": true
     },
     {
@@ -66,6 +68,21 @@
         "react",
         "react/jsx-runtime",
         "@openwizard/core"
+      ]
+    },
+    {
+      "name": "@openwizard/devtools",
+      "path": "packages/devtools/dist/index.js",
+      "limit": "60 kB",
+      "brotli": true,
+      "ignore": [
+        "react",
+        "react-dom",
+        "react/jsx-runtime",
+        "@openwizard/core",
+        "@xyflow/react",
+        "elkjs",
+        "elkjs/*"
       ]
     }
   ]

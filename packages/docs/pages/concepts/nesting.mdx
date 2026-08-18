@@ -1,0 +1,108 @@
+# Nesting
+
+`s.flow(child, cfg)` embeds another flow as a step. The child runs as a wizard of its own — its
+own queue, instance id and snapshot — and the parent step completes with the child's output.
+Events cross the boundary with a `path`; commands cross it as `{ type: 'child', path, command }`.
+
+```ts
+import { boundary, defineFlow } from '@openwizard/core'
+import { z } from 'zod'
+
+interface Deps {
+  payments: { charge(orderId: string, amount: number): { chargeId: string } }
+  carrier: { ship(orderId: string, warehouse: 'east' | 'west'): Promise<{ tracking: string }> }
+}
+
+const f = defineFlow({
+  name: 'fulfilment',
+  context: z.object({ orderId: z.string(), warehouse: z.enum(['east', 'west']).default('east'), tracking: z.string().optional() }),
+  deps: boundary.trusted<Deps>(), // same Deps: the parent's deps are handed down unchanged
+})
+
+export const fulfilment = f.steps({
+  pick: f.view({ input: z.object({ warehouse: z.enum(['east', 'west']) }), exit: ({ output, update }) => update(output), next: 'ship' }),
+  ship: f.task(
+    async ({ context, deps, update }) => {
+      const { tracking } = await deps.carrier.ship(context.orderId, context.warehouse)
+      update({ tracking })
+      return { tracking }
+    },
+    { next: 'shipped' },
+  ),
+  shipped: f.final({ output: ({ context }) => ({ tracking: context.tracking }) }), // FlowOutput<typeof fulfilment>
+})
+
+const s = defineFlow({
+  name: 'order',
+  context: z.object({ orderId: z.string(), amount: z.number().positive(), tracking: z.string().optional() }),
+  deps: boundary.trusted<Deps>(),
+})
+
+export const order = s.steps({
+  pay: s.task(({ context, deps }) => deps.payments.charge(context.orderId, context.amount), { next: 'fulfil' }),
+  fulfil: s.flow(fulfilment, {
+    context: ({ context }) => ({ orderId: context.orderId }), // the child's ContextInput; its boundary applies defaults
+    exit: ({ output, update }) => update({ tracking: output.tracking }), // `output` is the child's typed output
+    next: 'receipt',
+  }),
+  receipt: s.final({ output: ({ context }) => ({ orderId: context.orderId, tracking: context.tracking }) }),
+})
+```
+
+## What the flow step does
+
+- `context: (args) => ContextInput<Child>` (required) builds the child's context INPUT — parsed
+  by the child's context boundary exactly once, when the child is created (defaults apply).
+- `deps?: (args) => DepsOf<Child>` builds the child's deps (parsed by the child's `deps` boundary
+  when it declares one); omitted → the child receives the parent's `deps` object unchanged. A
+  throwing mapper or a rejecting boundary fails the flow step (`kind: 'child'`).
+- `output?: Boundary` re-checks / retypes the child's output (default `FlowOutput<Child>`);
+  `exit` sees it, `steps[k].output` stores it.
+- Max depth 8; a flow embedding an ancestor throws `NESTING_CYCLE`.
+
+## Driving the child
+
+`wizard.child('fulfil')` returns a typed `Wizard<typeof fulfilment>` once the step is active
+(`WizardError('NOT_ACTIVE')` before, `NOT_A_FLOW_STEP` for other steps) — drive it with
+`setInput()` / `next()` like any wizard:
+
+```ts
+await wizard.start() // pay → fulfil enters → child created with { orderId }
+const child = wizard.child('fulfil')
+child.getState().context // { orderId: 'o-1', warehouse: 'east' } — the child boundary's default
+await child.setInput('pick', { warehouse: 'west' })
+await child.next() // pick → ship (async) → shipped → the parent's `fulfil` step is done
+```
+
+The wire door routes the same way: `dispatch({ type: 'child', path: ['fulfil'], command })` goes
+through the parent's queue (`child.command` events). `Command<F>` types the path (it must name a
+flow step) and the nested command by the child flow; untrusted JSON is decoded with
+`parseCommand(order, body)`, which answers issues for a non-flow step. Paths nest:
+`{ path: ['fulfil', 'pack'], command }`.
+
+## Observability across levels
+
+Child events are forwarded to the parent's `observe()` / `log()` with `path: ['fulfil']`; a single
+causal stream is `(path, seq)` ordered by parent receipt. The parent emits `child.started
+{ childPath, context }` and keeps a `child` summary (`status`, `current`, `progress`, `seq`) on
+the flow step. `inspect(order)` includes the child's nodes and edges with their `path`;
+`toMermaid` draws it as a subgraph.
+
+## Persistence
+
+`Snapshot.children.fulfil` nests the child snapshot, so parent and child persist and resume
+together: on resume an active flow step's child is restored from `children[step]` (re-created if
+missing). Compensating a flow step delegates to the child, which runs its entire compensation
+before the parent continues.
+
+## On the client
+
+A projection may expose the child's projected state with a nested spec
+(`steps: { fulfil: { child: { steps: { pick: { input: true } } } } }` — deny-by-default inside
+too, up to 8 levels), and it rides in `steps.fulfil.child`; `mirror.child('fulfil')` returns a
+`MirrorChild` — the same sugar typed by the CHILD flow, every call wrapped as
+`{ type: 'child', path: ['fulfil'], command }`. In React, `ow.useChild('fulfil')` returns hooks
+bound to that slice. See [Projections and the Mirror](/concepts/projections) and
+[React](/concepts/react).
+
+[Example 06](/examples/06-nested-flow) runs this order flow end to end, including the Mirror side.

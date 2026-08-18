@@ -12,7 +12,7 @@
  */
 
 import type { CompiledFlow } from '../authoring/compiled'
-import type { NavState, SagaEntryRef, StepRecord, WizardState } from './state'
+import type { NavCause, NavState, SagaEntryRef, StepRecord, WizardState } from './state'
 
 /** UI-facing live phase of a step (undefined when the step has no live phase: idle/done/failed/…). */
 export type StepPhase =
@@ -33,6 +33,7 @@ export type StepPhase =
 interface Memo {
   readySteps?: readonly string[]
   eligibleSteps?: readonly string[]
+  readyOrCurrentViews?: readonly string[]
   progress?: Progress
   readonly deps: Map<string, boolean>
   readonly phase: Map<string, StepPhase | undefined>
@@ -201,6 +202,17 @@ export function cursorInitiated(def: CompiledFlow, nav: NavState): boolean {
   return nav.from == null || def.steps[nav.from]?.kind === 'view'
 }
 
+/** Explicit navigation (`go` / `back`): the user's intent overrides the target's `when` (v0.2). */
+export function isExplicitCause(cause: NavCause | undefined): boolean {
+  return cause === 'go' || cause === 'back'
+}
+
+/** `step` is the target of an in-flight explicit transaction — its `when` is bypassed for it. */
+export function explicitTarget(state: WizardState, step: string): boolean {
+  const nav = state.nav
+  return nav.phase !== 'idle' && isExplicitCause(nav.cause) && (nav.targets ?? []).includes(step)
+}
+
 export function sameEntry(a: SagaEntryRef, b: SagaEntryRef): boolean {
   return a.step === b.step && a.runId === b.runId
 }
@@ -209,10 +221,6 @@ export function sameEntry(a: SagaEntryRef, b: SagaEntryRef): boolean {
 export function isTerminal(state: WizardState): boolean {
   if (state.status === 'done' || state.status === 'cancelled') return true
   return state.status === 'failed' && !isRecoverableFailure(state)
-}
-
-export function isNavBusy(state: WizardState): boolean {
-  return state.nav.phase !== 'idle'
 }
 
 /** True while a task's `run` effect is in flight (result still expected). */
@@ -284,14 +292,6 @@ export function available(def: CompiledFlow, state: WizardState, id: string): bo
   return ready(def, state, id) || rec.visitedCount > 0
 }
 
-export function visited(state: WizardState, id: string): boolean {
-  return (state.steps[id]?.visitedCount ?? 0) > 0
-}
-
-export function complete(state: WizardState, id: string): boolean {
-  return isComplete(state.steps[id])
-}
-
 /**
  * v0.2 (§9.6): `{ done, total, ratio }` over the non-final steps (`done` = status `done` or
  * `skipped`); `ratio` is 1 once the flow is `done` (branches never taken do not count against a
@@ -314,14 +314,16 @@ export function progress(state: WizardState, def: CompiledFlow): Progress {
   return p
 }
 
-/** v0.2 (§9.6): views the user can be on right now — the current view plus every ready view, in declaration order. */
+/**
+ * v0.2 (§9.6): views the user can be on right now — the current view plus every ready view, in
+ * declaration order. Memoized per state (one array identity per seq).
+ */
 export function readyOrCurrentViews(def: CompiledFlow, state: WizardState): readonly string[] {
-  return def.order.filter(
+  const m = memo(state)
+  if (m.readyOrCurrentViews !== undefined) return m.readyOrCurrentViews
+  const list = def.order.filter(
     (id) => def.steps[id]?.kind === 'view' && (id === state.current || ready(def, state, id)),
   )
-}
-
-/** Buffered inbox entries whose TTL has passed. */
-export function expiredInbox(state: WizardState, now: number): readonly string[] {
-  return state.inbox.filter((e) => e.expiresAt <= now).map((e) => e.id)
+  m.readyOrCurrentViews = list
+  return list
 }

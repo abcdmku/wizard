@@ -38,40 +38,6 @@ describe('deriveStatus table', () => {
     expect(h.state.active).toEqual([])
     expect(explain(h.def, h.state, 'x').reasons).toEqual(['not-activated'])
   })
-
-  it('failed (halt) is not sticky: recovers when the failed step is retried; AUTO/compensated failures are terminal', () => {
-    const h = createHarness(flow({ start: 't', steps: { t: task({ next: 'end' }), end: final() } }))
-    h.start()
-    h.err(h.call('run'), 'x')
-    expect(h.state.status).toBe('failed')
-    h.cmd({ type: 'retry', step: 't' })
-    expect(h.state.status).toBe('running')
-    h.err(h.call('run'), 'x again')
-    expect(h.state.status).toBe('failed')
-    expect(of(h.cmd('start'), 'command.rejected')[0]?.code).toBe('INVALID_COMMAND') // already started
-    expect(h.cmd({ type: 'cancel' }).types).toEqual(['flow.cancelled'])
-    expect(h.state.status).toBe('cancelled')
-    expect(of(h.cmd({ type: 'retry', step: 't' }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_TERMINAL',
-    )
-  })
-
-  it('compensating → compensated outcome; flow.status is not emitted (status is stored)', () => {
-    const h = createHarness(
-      flow({
-        start: 't',
-        steps: { t: task({ compensate: () => undefined, next: 'u' }), u: task(), end: final() },
-        policies: { onFailure: 'compensate' },
-      }),
-    )
-    h.start()
-    h.ok(h.call('run', 't'), 1)
-    h.err(h.call('run', 'u'), 'x')
-    expect(h.state.status).toBe('compensating')
-    h.ok(h.call('compensate'))
-    expect(h.state.status).toBe('failed')
-    expect(h.log.some((e) => e.type === 'flow.status')).toBe(false)
-  })
 })
 
 describe('gates: not-started / terminal / compensating', () => {

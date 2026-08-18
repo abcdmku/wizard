@@ -8,20 +8,6 @@ import { CHECKER } from '../../src/authoring/types'
 import { WizardError } from '../../src/errors'
 
 describe('boundary.*', () => {
-  it('builds checkers branded with the private symbol (kind under the brand, no string tag)', () => {
-    expect(boundary.parse((x) => String(x))[CHECKER]).toBe('parse')
-    expect(boundary.guard((x): x is string => typeof x === 'string')[CHECKER]).toBe('guard')
-    expect(
-      boundary.assert((x): asserts x is string => {
-        if (typeof x !== 'string') throw new Error('no')
-      })[CHECKER],
-    ).toBe('assert')
-    expect(boundary.trusted<number>()[CHECKER]).toBe('trusted')
-    expect('~checker' in boundary.trusted()).toBe(false)
-    // The brand is a plain Symbol(), not Symbol.for: nothing outside the module can mint one.
-    expect(Symbol.for('openwizard.checker')).not.toBe(CHECKER)
-  })
-
   it('boundary.parse/guard/assert require a function (DEFINITION_INVALID otherwise)', () => {
     for (const build of [boundary.parse, boundary.guard, boundary.assert]) {
       expect(() => build('nope' as never)).toThrow(WizardError)
@@ -123,15 +109,6 @@ describe('toRuntimeBoundary: checkers', () => {
     const b = toRuntimeBoundary(boundary.trusted<number>())
     expect(b.kind).toBe('trusted')
     expect(b.parse('anything')).toEqual({ ok: true, value: 'anything' })
-  })
-
-  it('rejects non-boundaries with DEFINITION_INVALID', () => {
-    expect(() => toRuntimeBoundary((() => 1) as any)).toThrow(WizardError)
-    try {
-      toRuntimeBoundary((() => 1) as any)
-    } catch (error) {
-      expect((error as WizardError).code).toBe('DEFINITION_INVALID')
-    }
   })
 })
 

@@ -13,7 +13,6 @@ import type { Machine } from './types'
 
 export const machine: Machine = { decide, apply, plan }
 
-export { applyBody } from './batch'
 export { type Explanation, explain } from './explain'
 export { initialState } from './initial'
 export { AUTO_ADVANCE_LIMIT } from './nav'
@@ -22,13 +21,10 @@ export {
   activeTaskCount,
   available,
   awaitingWhen,
-  complete,
   cursorTarget,
   depsSatisfied,
   eligible,
   eligibleSteps,
-  expiredInbox,
-  isNavBusy,
   isRecoverableFailure,
   isTerminal,
   type Progress,
@@ -42,7 +38,6 @@ export {
   type StepPhase,
   unmetDeps,
   viewsAwaitingWhen,
-  visited,
 } from './selectors'
 export type { InitialState, InitialStateOptions, Machine, MachineEnv } from './types'
 export { apply, decide, deriveStatus, plan }

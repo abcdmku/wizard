@@ -1,7 +1,6 @@
 /**
- * The typed façade, v0.2 surface (plan §9): `skip` / `invalidate` sugar, `attach`,
- * `progress` / `readyViews`, `correlationId` + `correlate`, resume `migrate`, `parseCommand`
- * for the new commands, `on` on non-wait kinds and flow-level `on` end to end.
+ * The typed façade, v0.2 surface (plan §9): `skip` / `invalidate` sugar, `progress` / `readyViews`,
+ * `attach`, `correlationId` + `correlate`, `on` on non-wait kinds and flow-level `on` end to end.
  */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -9,14 +8,7 @@ import { boundary } from '../../src/authoring/boundary'
 import { defineFlow } from '../../src/authoring/define-flow'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import { createMemoryStore } from '../../src/persistence/memory-store'
-import {
-  createWizard,
-  resumeWizard,
-  resumeWizardAsync,
-  type WizardEvent,
-} from '../../src/wizard/create-wizard'
-import { parseCommand } from '../../src/wizard/parse-command'
+import { createWizard, type WizardEvent } from '../../src/wizard/create-wizard'
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -217,103 +209,68 @@ describe('Wizard v0.2: attach, correlation, flow-level `on`', () => {
     expect(wizard.getState().status).toBe('done')
     wizard.dispose()
   })
-})
 
-describe('Wizard v0.2: migrate on resume', () => {
-  const v1 = defineFlow({ name: 'approval', version: 1, context: z.object({ amount: z.number() }) })
-  const flowV1 = v1.steps({ ask: v1.view({ next: 'end' }), end: v1.final() })
-  const v2 = defineFlow({
-    name: 'approval',
-    version: 2,
-    context: z.object({ amount: z.number(), currency: z.string() }),
-  })
-  const flowV2 = v2.steps({ ask: v2.view({ next: 'end' }), end: v2.final() })
-
-  it('calls migrate(snapshot, from) when the version differs; the result must carry the flow version', async () => {
-    const store = createMemoryStore()
-    const old = createWizard(flowV1, { context: { amount: 5 }, store, key: 'k' })
-    await old.start()
-    await old.save()
-    old.dispose()
-    const saved = await store.get('k')
-    const seen: unknown[] = []
-    const resumed = resumeWizard(flowV2, saved, {
-      migrate: (snapshot, from) => {
-        seen.push(from)
-        const snap = snapshot as {
-          flow: { name: string; version: number }
-          state: { flow: { name: string; version: number }; context: object }
-        }
-        // Both the envelope and the state carry the flow identity.
-        return {
-          ...snap,
-          flow: { ...snap.flow, version: 2 },
-          state: {
-            ...snap.state,
-            flow: { ...snap.state.flow, version: 2 },
-            context: { ...snap.state.context, currency: 'EUR' },
-          },
-        }
-      },
+  it('compiled handler results reach the machine raw: a wait `{ done }` overrides the output, `{ fail }` fails the wait, a stray task `{ next }` is ignored (reason: kind)', async () => {
+    const t = defineFlow({
+      name: 'raw-results',
+      context: boundary.trusted<{}>(),
+      events: { paid: z.object({ amount: z.number() }), nudge: z.unknown() },
     })
-    expect(seen).toEqual([{ name: 'approval', version: 1 }])
-    expect(resumed.getState().context).toEqual({ amount: 5, currency: 'EUR' })
-    expect(resumed.getState().current).toBe('ask')
-    expect(resumed.epoch).toBe(1)
-    resumed.dispose()
-    // Without migrate (or when it keeps the old version) the snapshot is incompatible.
-    expect(() => resumeWizard(flowV2, saved, {})).toThrow(/SNAPSHOT_INCOMPATIBLE|version/)
-    expect(() => resumeWizard(flowV2, saved, { migrate: (snap) => snap })).toThrow(
-      /SNAPSHOT_INCOMPATIBLE|version/,
+    const f = t.steps(
+      {
+        hold: t.wait({
+          on: {
+            paid: ({ payload }) =>
+              payload.amount < 0
+                ? { fail: 'negative amount' }
+                : { done: { event: 'paid', payload: { amount: payload.amount * 2 } } },
+          },
+          next: 'work',
+        }),
+        work: t.task(() => new Promise<never>(() => {}), {
+          // A JS-style handler returning what a task cannot honour.
+          on: { nudge: (() => ({ next: 'end' })) as unknown as () => undefined },
+          next: 'end',
+        }),
+        end: t.final(),
+      },
+      { start: 'hold' },
     )
-    // Same version: migrate is not called.
-    let called = 0
-    const same = resumeWizard(flowV1, saved, {
-      migrate: (snap) => {
-        called += 1
-        return snap
-      },
+    const doneWizard = createWizard(f, { context: {} })
+    const events: WizardEvent[] = []
+    doneWizard.observe((e) => events.push(e))
+    await doneWizard.start()
+    expect(await doneWizard.send('paid', { amount: 21 })).toMatchObject({ ok: true })
+    expect(doneWizard.getState().steps.hold).toMatchObject({
+      status: 'done',
+      output: { event: 'paid', payload: { amount: 42 } },
     })
-    expect(called).toBe(0)
-    same.dispose()
-    // Async migration through resumeWizardAsync.
-    const asyncResumed = await resumeWizardAsync(flowV2, saved, {
-      migrate: async (snapshot) => {
-        const snap = snapshot as { flow: object; state: { context: object } }
-        return {
-          ...snap,
-          flow: { name: 'approval', version: 2 },
-          state: {
-            ...snap.state,
-            flow: { name: 'approval', version: 2 },
-            context: { ...snap.state.context, currency: 'USD' },
-          },
-        }
-      },
+    expect(await doneWizard.send('nudge', 1)).toMatchObject({ ok: true, delivered: ['work'] })
+    expect(events.filter((e) => e.type === 'event.handlerResultIgnored')).toMatchObject([
+      { step: 'work', event: 'nudge', reason: 'kind' },
+    ])
+    expect(doneWizard.getState().steps.work.status).toBe('active')
+    doneWizard.dispose()
+    const failed = createWizard(f, { context: {} })
+    await failed.start()
+    expect(await failed.send('paid', { amount: -1 })).toMatchObject({ ok: true })
+    expect(failed.getState().steps.hold.error).toMatchObject({
+      kind: 'hook',
+      message: 'negative amount',
     })
-    expect(asyncResumed.getState().context).toEqual({ amount: 5, currency: 'USD' })
-    asyncResumed.dispose()
+    expect(failed.getState().status).toBe('failed')
+    failed.dispose()
+  })
+
+  it('readyViews() is memoized per state (one array identity per seq)', async () => {
+    const { wizard } = make()
+    await wizard.start()
+    const first = wizard.readyViews()
+    expect(first).toEqual(['a'])
+    expect(wizard.readyViews()).toBe(first)
+    await wizard.setInput('a', { v: 'x' })
+    expect(wizard.readyViews()).not.toBe(first)
+    expect(wizard.readyViews()).toBe(wizard.readyViews())
+    wizard.dispose()
   })
 })
-
-describe('parseCommand v0.2: skip / invalidate', () => {
-  it('decodes skip / invalidate with step-id checks and exact shapes', () => {
-    expect(parseCommand(flow, { type: 'skip', step: 'a', reason: 'ops' })).toEqual({
-      ok: true,
-      value: { type: 'skip', step: 'a', reason: 'ops' },
-    })
-    expect(parseCommand(flow, { type: 'invalidate', step: 'b', cascade: false })).toEqual({
-      ok: true,
-      value: { type: 'invalidate', step: 'b', cascade: false },
-    })
-    expect(parseCommand(flow, { type: 'skip', step: 'typo' })).toMatchObject({ ok: false })
-    expect(parseCommand(flow, { type: 'invalidate', step: 'typo' })).toMatchObject({ ok: false })
-    expect(parseCommand(flow, { type: 'invalidate', step: 'a', cascade: 'yes' })).toMatchObject({
-      ok: false,
-    })
-    expect(parseCommand(flow, { type: 'skip', step: 'a', nope: 1 })).toMatchObject({ ok: false })
-  })
-})
-
-// The DSL surface the façade tests above rely on stays typed without generics.
-export const _boundaryProbe = boundary.trusted<{ n: number }>()

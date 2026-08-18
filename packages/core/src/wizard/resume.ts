@@ -31,7 +31,8 @@
  */
 
 import type { BoundaryResult, CompiledFlow, RuntimeBoundary } from '../authoring/compiled'
-import { WizardError } from '../errors'
+import { describeError, WizardError } from '../errors'
+import { getThen, type Then } from '../interpreter/thenable'
 import type { StepRecord } from '../machine/state'
 import {
   buildRuntime,
@@ -134,7 +135,12 @@ function migrationNeeded(
   return name === def.name && version !== def.version ? { name, version } : undefined
 }
 
-/** Run `migrate` synchronously; a thenable result or a throw is a reason (async → use the async door). */
+/**
+ * Run `migrate` synchronously; a thenable result or a throw is a reason (async → use the async
+ * door). The `then` accessor is read inside the same guard as the call (a hostile thenable is a
+ * reason, never an escaping exception) and an abandoned promise gets a rejection sink so it can
+ * never surface as an unhandled rejection.
+ */
 function migrateSync(
   def: CompiledFlow,
   input: unknown,
@@ -143,21 +149,46 @@ function migrateSync(
 ): unknown {
   const from = migrationNeeded(def, input)
   if (from === undefined || migrate === undefined) return input
-  let out: unknown
-  try {
-    out = migrate(input, from)
-  } catch (error) {
-    reasons.push(`migrate: threw (${describeError(error)})`)
-    return input
-  }
-  if (isThenableLike(out)) {
+  const settled = callSync(() => migrate(input, from), 'migrate:', reasons)
+  if (settled === undefined) return input
+  if (settled.async) {
     reasons.push(
       `migrate: returned a promise for ${from.name}@${from.version} (use resumeWizardAsync)`,
     )
     return input
   }
-  return out
+  return settled.value
 }
+
+/**
+ * Call `fn` at the sync door: `{ value }` for a plain result, `{ async: true }` for a thenable
+ * (silenced with a rejection sink), `undefined` after pushing a reason when `fn` — or the
+ * thenable's `then` accessor — throws.
+ */
+function callSync(
+  fn: () => unknown,
+  what: string,
+  reasons: string[],
+): { readonly value: unknown; readonly async?: false } | { readonly async: true } | undefined {
+  let value: unknown
+  let then: Then | undefined
+  try {
+    value = fn()
+    then = getThen(value)
+  } catch (error) {
+    reasons.push(`${what} threw (${describeError(error)})`)
+    return undefined
+  }
+  if (then === undefined) return { value }
+  try {
+    then.call(value, noop, noop)
+  } catch {
+    // The sink is best-effort: a `then` that throws has nothing left to reject.
+  }
+  return { async: true }
+}
+
+function noop(): void {}
 
 /** Await `migrate` (sync or async); a throw / rejection is a reason. */
 async function migrateAsync(
@@ -217,20 +248,15 @@ function instantiate(
 
 /** The synchronous parser: a thenable result is a reason (use the async variant). */
 export const parseBoundarySync: BoundaryParser = (at, boundary, value, reasons) => {
-  let result: unknown
-  try {
-    result = boundary.parse(value)
-  } catch (error) {
-    reasons.push(`${at}: boundary threw (${describeError(error)})`)
-    return undefined
-  }
-  if (isThenableLike(result)) {
+  const settled = callSync(() => boundary.parse(value), `${at}: boundary`, reasons)
+  if (settled === undefined) return undefined
+  if (settled.async) {
     reasons.push(
       `${at}: async boundaries are not supported by resumeWizard (use resumeWizardAsync)`,
     )
     return undefined
   }
-  return interpretResult(at, result, reasons)
+  return interpretResult(at, settled.value, reasons)
 }
 
 function interpretResult(
@@ -345,15 +371,6 @@ export function prepareResume(
   }
 }
 
-function isThenableLike(value: unknown): boolean {
-  return (
-    (typeof value === 'object' || typeof value === 'function') &&
-    value !== null &&
-    'then' in value &&
-    typeof value.then === 'function'
-  )
-}
-
 function isIssueLike(value: unknown): value is { readonly message: string } {
   return (
     typeof value === 'object' &&
@@ -361,8 +378,4 @@ function isIssueLike(value: unknown): value is { readonly message: string } {
     'message' in value &&
     typeof value.message === 'string'
   )
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

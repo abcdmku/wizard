@@ -16,11 +16,17 @@ import { defineConfig } from 'vitest/config'
 const coreSource = fileURLToPath(new URL('./packages/core/src/index.ts', import.meta.url))
 const coreTestingSource = fileURLToPath(new URL('./packages/core/src/testing.ts', import.meta.url))
 const reactSource = fileURLToPath(new URL('./packages/react/src/index.ts', import.meta.url))
+const devtoolsSource = fileURLToPath(new URL('./packages/devtools/src/index.ts', import.meta.url))
+const devtoolsStyle = fileURLToPath(
+  new URL('./packages/devtools/src/styles/theme.css', import.meta.url),
+)
 // Most specific first: a plain `'@openwizard/core'` alias would also swallow `…/core/testing`.
 const sourceAliases = [
   { find: '@openwizard/core/testing', replacement: coreTestingSource },
   { find: '@openwizard/core', replacement: coreSource },
   { find: '@openwizard/react', replacement: reactSource },
+  { find: '@openwizard/devtools/style.css', replacement: devtoolsStyle },
+  { find: '@openwizard/devtools', replacement: devtoolsSource },
 ]
 
 export default defineConfig({
@@ -47,6 +53,21 @@ export default defineConfig({
           root: './packages/react',
           include: ['tests/**/*.test.{ts,tsx}'],
           environment: 'jsdom',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.{ts,tsx}'],
+            tsconfig: './tsconfig.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        test: {
+          name: 'devtools',
+          root: './packages/devtools',
+          include: ['tests/**/*.test.{ts,tsx}'],
+          environment: 'jsdom',
+          setupFiles: ['./tests/setup.ts'],
           typecheck: {
             enabled: true,
             include: ['tests/**/*.test-d.{ts,tsx}'],

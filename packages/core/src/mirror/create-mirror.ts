@@ -34,6 +34,7 @@ import type {
 } from '../authoring/types'
 import { WizardError } from '../errors'
 import { createIdGenerator, type IdGenerator } from '../interpreter/env'
+import { isPlainObject, setOwn } from '../machine/util'
 import type {
   AnyProjection,
   ProjectionFlow,
@@ -339,24 +340,4 @@ function share(prev: unknown, next: unknown): unknown {
     return same ? prev : out
   }
   return next
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
-}
-
-/** Own-property write even for `__proto__` (a plain assignment would change the prototype). */
-function setOwn(target: Record<string, unknown>, key: string, value: unknown): void {
-  if (key === '__proto__') {
-    Object.defineProperty(target, key, {
-      value,
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    })
-  } else {
-    target[key] = value
-  }
 }

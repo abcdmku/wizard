@@ -75,3 +75,8 @@ export class WizardError extends Error {
 export function isWizardError(value: unknown): value is WizardError {
   return value instanceof WizardError
 }
+
+/** The message of a thrown value (`Error.message`, else its string form). @internal */
+export function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}

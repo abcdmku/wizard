@@ -78,18 +78,11 @@ export type Hook<R = unknown> = (args: HookArgs) => MaybePromise<R>
 export type FlowOnHandlerResult = void | undefined | { readonly cancel?: string }
 
 /**
- * Return contract for step-level `on[event]` handlers. Since v0.2 any kind may declare `on`:
- * `keep`/`done`/`fail` are wait-only, `next` is wait + view, other kinds return void.
+ * A step-level `on[event]` handler's result reaches the machine RAW (`machine/wait.ts`
+ * normalises it per kind: `keep`/`done`/`fail`/`next` for waits, `next` for views, `void`
+ * elsewhere — anything else is `event.handlerResultIgnored`). The compiler never touches it.
  */
-export type OnHandlerResult =
-  | void
-  | undefined
-  | {
-      readonly done?: unknown
-      readonly next?: string
-      readonly keep?: true
-      readonly fail?: string
-    }
+export type OnHandlerResult = unknown
 
 export interface CompiledStep {
   readonly id: string

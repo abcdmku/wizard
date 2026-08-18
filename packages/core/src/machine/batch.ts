@@ -29,14 +29,11 @@ export function createBatch(env: MachineEnv, state: WizardState): Batch {
   return { env, state, events: [] }
 }
 
-/** Fold one event body onto a state with a temporary envelope. */
-export function applyBody(env: MachineEnv, state: WizardState, body: DomainEventBody): WizardState {
-  return apply(env, state, { ...body, seq: state.seq + 1, at: env.now(), path: env.path })
-}
-
+/** Append the body and fold it onto the batch state with a temporary envelope. */
 export function emit(b: Batch, body: DomainEventBody): void {
   b.events.push(body)
-  b.state = applyBody(b.env, b.state, body)
+  const { env, state } = b
+  b.state = apply(env, state, { ...body, seq: state.seq + 1, at: env.now(), path: env.path })
 }
 
 export function rec(b: Batch, id: string) {
