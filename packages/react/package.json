@@ -1,0 +1,71 @@
+{
+  "name": "@openwizard/react",
+  "version": "0.0.0",
+  "description": "React binding for OpenWizard — bindReact() gives typed Provider / useSnapshot / useCurrent / useStep / useSelector / useActions hooks over a Wizard or a Mirror.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm -w exec vitest run --project react",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "peerDependencies": {
+    "@openwizard/core": "workspace:^",
+    "react": "^18 || ^19"
+  },
+  "devDependencies": {
+    "@openwizard/core": "workspace:*",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "jsdom": "^30.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "keywords": [
+    "wizard",
+    "workflow",
+    "react",
+    "hooks",
+    "typescript",
+    "type-safe"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abcdmku/wizard.git",
+    "directory": "packages/react"
+  },
+  "bugs": "https://github.com/abcdmku/wizard/issues",
+  "homepage": "https://github.com/abcdmku/wizard#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
