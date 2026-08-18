@@ -1,0 +1,31 @@
+{
+  "name": "example-08-react-mirror",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "OpenWizard example 08 — a Vite + React checkout driven only through a Mirror (loopback transport in-page; swap for SSE/WS in production).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc --noEmit -p tsconfig.json && vitest run --root . && vite build",
+    "preview": "vite preview",
+    "test": "vitest run --root ."
+  },
+  "dependencies": {
+    "@openwizard/core": "workspace:*",
+    "@openwizard/react": "workspace:*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "jsdom": "^30.0.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}
