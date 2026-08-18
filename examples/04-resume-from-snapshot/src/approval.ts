@@ -30,7 +30,7 @@ export const approval = s.steps(
         next: 'awaitDecision',
       },
     ),
-    // A wait step: the deadline is absolute state, so a resumed instance re-arms it — or fires
+    // A wait step: the deadline is absolute state, so a resumed instance re-arms it, or fires
     // it immediately when it is already overdue.
     awaitDecision: s.wait({
       on: { 'approval.decided': ({ payload, update }) => update({ decision: payload }) },
@@ -49,7 +49,7 @@ export const approval = s.steps(
 
 // ── the next version of the flow ────────────────────────────────────────────────────────
 // v2 adds `currency` to the context. Snapshots persisted by v1 carry `flow.version: 1`, so
-// `resumeWizard(approvalV2, saved, { migrate })` (v0.2) rewrites them first — see the tests.
+// `resumeWizard(approvalV2, saved, { migrate })` (v0.2) rewrites them first; see the tests.
 
 const s2 = defineFlow({
   name: 'expense-approval', // the same identity …

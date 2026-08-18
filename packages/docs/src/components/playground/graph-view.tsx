@@ -60,7 +60,7 @@ export function GraphView({ flow, wizard, selected, onSelect }: GraphViewProps) 
   if (!graph) {
     return (
       <p className="p-4 font-mono text-xs text-neutral-500">
-        Run the code — the graph is <code>inspect(flow)</code> of the wizard it creates (or of an
+        Run the code. The graph is <code>inspect(flow)</code> of the wizard it creates (or of an
         exported flow).
       </p>
     )

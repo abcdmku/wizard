@@ -1,8 +1,8 @@
 /**
  * A stand-in for the payment provider's BROWSER SDK (think Stripe.js / Braintree): the card
  * number goes from the form straight to the provider and comes back as an opaque token. The
- * wizard, the server, the snapshots and every Mirror frame only ever see that token — the PAN
- * never crosses the wire door (`setInput`) at all.
+ * wizard, the server, the snapshots and every Mirror frame only ever see that token and the
+ * last four digits; the card number never crosses the wire door (`setInput`) at all.
  *
  * Client code. In production replace `tokenizeCard` with the real SDK call.
  */

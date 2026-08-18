@@ -1,7 +1,7 @@
 import { boundary, defineFlow } from '@openwizard/core'
 import { z } from 'zod'
 
-/** Out-of-domain services the flow calls (injected through `deps`). */
+/** Services outside the flow that the tasks call (injected through `deps`). */
 export interface Deps {
   inventory: { reserve(cartId: string): Promise<{ reservationId: string }> }
   shipping: { createLabel(orderId: string): Promise<{ trackingId: string }> }

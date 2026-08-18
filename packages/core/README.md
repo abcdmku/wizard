@@ -9,33 +9,35 @@ the API reference; the [root README](../../README.md) has the pitch and the conc
 pnpm add @openwizard/core zod   # any Standard Schema library works; the examples use Zod 4
 ```
 
-Bring your own schema library — any [Standard Schema](https://standardschema.dev) (Zod 4,
-Valibot, ArkType, …) is a boundary. Node ≥ 20 or any ES2022 runtime. Test helpers
+Bring your own schema library, any [Standard Schema](https://standardschema.dev) (Zod 4,
+Valibot, ArkType, ...) is a boundary. Node ≥ 20 or any ES2022 runtime. Test helpers
 (`createTestScheduler`, `createLocalTransport`) live in the `@openwizard/core/testing` entry
 so they never end up in an application bundle (§10).
 
 ## Contents
 
-1. [Define a flow](#1-define-a-flow) — `defineFlow`, the builder, flow options
-2. [The six step kinds](#2-the-six-step-kinds) — options per kind
+1. [Define a flow](#1-define-a-flow), `defineFlow`, the builder, flow options
+2. [The six step kinds](#2-the-six-step-kinds), options per kind
 3. [Hook arguments](#3-hook-arguments)
-4. [Boundaries](#4-boundaries) — `boundary.parse / guard / assert / trusted`, Standard Schema
-5. [Run it: `createWizard`](#5-run-it-createwizard) — options
-6. [The `Wizard`](#6-the-wizard) — every method and its result type
+4. [Boundaries](#4-boundaries), `boundary.parse / guard / assert / trusted`, Standard Schema
+5. [Run it: `createWizard`](#5-run-it-createwizard), options
+6. [The `Wizard`](#6-the-wizard), every method and its result type
 7. [Events, `explain`, `inspect`](#7-events-explain-inspect)
-8. [Persistence](#8-persistence) — `Store`, `createMemoryStore`, JSON-checked writes, `resumeWizard`, recovery matrix, single-owner
-9. [Projections and the wire door](#9-projections-and-the-wire-door) — `defineProjection`, `dispatch`, `parseCommand`, the Mirror
-10. [Testing with `@openwizard/core/testing`](#10-testing-with-openwizardcoretesting) — `createTestScheduler`, `createLocalTransport`
+8. [Persistence](#8-persistence), `Store`, `createMemoryStore`, JSON-checked writes, `resumeWizard`, recovery matrix, single-owner
+9. [Projections and the wire door](#9-projections-and-the-wire-door), `defineProjection`, `dispatch`, `parseCommand`, the Mirror
+10. [Testing with `@openwizard/core/testing`](#10-testing-with-openwizardcoretesting), `createTestScheduler`, `createLocalTransport`
 11. [Guarantees](#11-guarantees)
-12. [Exports](#exports) — generated table
+12. [Exports](#exports), generated table
 
 ## 1. Define a flow
 
-`defineFlow(options)` returns a `FlowBuilder`: the six step constructors, **pre-bound** to the
-flow's context / events / deps (so every hook is typed without generics), plus `steps()` which
-assembles the inert `Flow`. Every step id referenced by `next`, `dependsOn`, `timeout.next` or
-`start` is checked at compile time — the error lands on the offending property
-(`step 'a' references unknown step id(s): 'typo'`) — and again at runtime for JS callers.
+`defineFlow(options)` returns a `FlowBuilder`: the six step constructors plus `steps()`, which
+assembles the inert `Flow`. The constructors are already bound to this flow's context, events and
+deps, so every hook is typed without you writing generics.
+
+Every step id in `next`, `dependsOn`, `timeout.next` and `start` is checked when the flow is
+assembled. TypeScript reports it on the offending property (`step 'a' references unknown step
+id(s): 'typo'`), and JS callers get the same check at runtime.
 
 ```ts
 import { boundary, defineFlow } from '@openwizard/core'
@@ -88,22 +90,22 @@ export const checkout = s.steps(
 | `events` | `{ [name]: Boundary }` | Declares `send(name, payload)` and the `on` handlers of wait steps. |
 | `deps` | `Boundary<D>` | Declares `createWizard({ deps })` (required iff present); hooks receive `deps`. |
 | `on` | `{ [event]: (a: FlowOnArgs) => void \| { cancel: string } }` | Flow-level event handlers (v0.2): run for the event after the step-level handlers, whatever is active; `{ cancel: reason }` cancels the flow (compensation policy applies). |
-| `correlate` | `{ [event]: (payload) => string \| undefined }` | Correlation extractors (v0.2): with `createWizard({ correlationId })`, an event whose extracted id differs is `event.dropped { reason: 'correlation' }` — never buffered; `undefined` = no filtering for that payload. |
+| `correlate` | `{ [event]: (payload) => string \| undefined }` | Correlation extractors (v0.2): with `createWizard({ correlationId })`, an event whose extracted id differs is `event.dropped { reason: 'correlation' }`, never buffered; `undefined` = no filtering for that payload. |
 | `onFailure` | `'halt' \| 'compensate'` (default `'halt'`) | What happens when a task fails with no retries left. |
 | `retry` | `RetryPolicy` | Default retry policy for tasks. |
 | `autoRun` | `'ready' \| 'manual'` (default `'ready'`) | Ready non-view steps start automatically, or on `runReady()`. |
 | `concurrency` | `number` (default `Infinity`) | Maximum tasks running at once. |
 | `unmatchedEvents` | `{ buffer: boolean; ttl: Duration }` (default buffer for `'5m'`) | Events with no active listener are buffered (FIFO) or dropped. |
 
-`s.steps(defs, { start })` — `start` defaults to the first declared step (a string, or an
+`s.steps(defs, { start })`, `start` defaults to the first declared step (a string, or an
 array for several entry points). The returned `Flow` is inert data; `inspect(flow)` shows its
-graph and `createWizard(flow, …)` runs it. Extractors read the phantom types: `StepId<F>`,
+graph and `createWizard(flow, ...)` runs it. Extractors read the phantom types: `StepId<F>`,
 `ViewId<F>`, `TaskId<F>`, `ChildStepId<F>`, `Ctx<F>`, `ContextInput<F>`, `DepsOf<F>`,
 `EventType<F>`, `PayloadOf<F, E>`, `InputOf<F, K>`, `DraftOf<F, K>`, `OutputOf<F, K>`,
-`ErrorOf<F, K>` (a task's `mapError` value), `ChildFlowOf<F, K>`, `FlowOutput<F>` — exactly one
+`ErrorOf<F, K>` (a task's `mapError` value), `ChildFlowOf<F, K>`, `FlowOutput<F>`, exactly one
 per concept.
 
-Flow-level `on` / `correlate` (v0.2) sit on the definition header — a cancellation is a
+Flow-level `on` / `correlate` (v0.2) sit on the definition header, a cancellation is a
 flow-wide concern, a correlation id identifies the instance:
 
 ```ts
@@ -120,27 +122,29 @@ const s = defineFlow({
 ```
 
 `RetryPolicy` (plain data, so `inspect()` can show it): `{ attempts, backoff?, baseMs?, factor?,
-maxBackoffMs? }` — `attempts` retries after the first failure (`attempts: 1` = one retry, two
+maxBackoffMs? }`, `attempts` retries after the first failure (`attempts: 1` = one retry, two
 runs); `backoff` a fixed number of ms (absent = immediately) or `'exponential'` =
 `min(baseMs × factor^(attempt-1), maxBackoffMs)` with defaults 200 ms / 2 / 30 s. The policy is
-code (it lives in the flow definition); what persists is the retry *state* — `attempt` and the
-`retryAt` deadline — which resume re-arms. `Duration` is a number of ms or `'250ms' | '15s' | '15m' | '2h' | '1d'`.
+code (it lives in the flow definition); what persists is the retry *state*, `attempt` and the
+`retryAt` deadline, which resume re-arms. `Duration` is a number of ms or `'250ms' | '15s' | '15m' | '2h' | '1d'`.
 
 ## 2. The six step kinds
 
-`next` is a **navigation edge** — where completion arrives: one id, an array (fan-out) or a
-function of the step's output (a `NextRef` or a promise of one). `dependsOn` is **data
-readiness** — an arrived step only becomes ready once every listed step is done (`{ any: [...] }`
-for an OR-join). Both accept step ids only. `label` is free text for tooling.
+`next` says where completion goes: one id, an array to fan out, or a function of the step's
+output returning a `NextRef` or a promise of one.
+
+`dependsOn` says when a step is allowed to run: an arrived step only becomes ready once every
+listed step is done, or any of them with `{ any: [...] }`. Both take step ids only, and `label`
+is free text for tooling.
 
 Two options exist on (almost) every kind since v0.2:
 
 | Option | Kinds | Meaning |
 |---|---|---|
-| `on?: { [event]: (a: EventArgs) => … }` | all | External-event handlers while the step is ACTIVE (`send()` routes to every active step with a handler, then to the flow-level `on`). Return contract by kind: wait `void \| { keep: true } \| { next: id } \| { done: output } \| { fail: reason }`, view `void \| { next: id }` (an event moves the cursor: `cause: 'event'`, runs `canEnter` / `exit` / `enter`, skips input parsing / `validate` / `canExit`; a `nav-busy` view keeps the event buffered until idle; an unknown target fails the view `UNKNOWN_STEP`), task / decision / flow / final `void` (they may `update()` context; `{ next }` does not compile — at runtime any non-void value is ignored: `event.handlerResultIgnored { reason: 'kind' }`). A throw fails a wait step (`kind: 'hook'`); for every other kind it is recorded as `event.handlerFailed` and the step keeps going. |
-| `when?: (a: BaseArgs) => boolean` | all but final | Skip predicate, evaluated once the step is ready (after `dependsOn` gating, before `enter`): `false` → `step.skipped { reason: 'when' }` — the step counts as done for `dependsOn`, its `next` targets are still arrived, the cursor never lands on a skipped view. |
+| `on?: { [event]: (a: EventArgs) => ... }` | all | External-event handlers while the step is ACTIVE (`send()` routes to every active step with a handler, then to the flow-level `on`). Return contract by kind: wait `void \| { keep: true } \| { next: id } \| { done: output } \| { fail: reason }`, view `void \| { next: id }` (an event moves the cursor: `cause: 'event'`, runs `canEnter` / `exit` / `enter`, skips input parsing / `validate` / `canExit`; a `nav-busy` view keeps the event buffered until idle; an unknown target fails the view `UNKNOWN_STEP`), task / decision / flow / final `void` (they may `update()` context; `{ next }` does not compile, at runtime any non-void value is ignored: `event.handlerResultIgnored { reason: 'kind' }`). A throw fails a wait step (`kind: 'hook'`); for every other kind it is recorded as `event.handlerFailed` and the step keeps going. |
+| `when?: (a: BaseArgs) => boolean` | all but final | Skip predicate, evaluated once the step is ready (after `dependsOn` gating, before `enter`): `false` → `step.skipped { reason: 'when' }`, the step counts as done for `dependsOn`, its `next` targets are still arrived, the cursor never lands on a skipped view. |
 
-**`s.view(cfg)`** — waits for a user; the cursor (`getState().current`) is the active view.
+**`s.view(cfg)`**, waits for a user; the cursor (`getState().current`) is the active view.
 
 | Option | Meaning |
 |---|---|
@@ -151,7 +155,7 @@ Two options exist on (almost) every kind since v0.2:
 | `enter?`, `exit?` | Effects on entering / leaving (`exit` sees `output`, `to`, `direction`). |
 | `on?`, `when?`, `next?`, `dependsOn?` | As above. |
 
-**`s.task(run, options?)`** — runs when ready. `run` may return a value or a promise; its type
+**`s.task(run, options?)`**, runs when ready. `run` may return a value or a promise; its type
 is the step's output (`OutputOf<F, K>`) unless `options.output` re-checks it.
 
 | Option | Meaning |
@@ -161,12 +165,12 @@ is the step's output (`OutputOf<F, K>`) unless `options.output` re-checks it.
 | `timeout?: Duration` | Aborts the run (`signal`), then fails with `kind: 'timeout'` after the retries. |
 | `compensate?: (a: CompensateArgs) => unknown` | Undo hook for `onFailure: 'compensate'` / `cancel()`; receives the task's own `output`. |
 | `idempotent?: true \| (a: RunArgs) => string` | v0.2. The run receives `args.idempotencyKey` (`${instanceId}:${step}:${runId}` by default, or the function's value) to hand to the service; on resume a `running` idempotent task is RE-RUN with the same key (`step.runStarted { resumed: true }`) instead of failing `interrupted`. |
-| `mapError?: (error: unknown, a: MapErrorArgs) => E` | v0.2. Maps a failure (the thrown value / rejection) to a JSON-safe value stored as `steps[k].error.data` — typed `ErrorOf<F, K>`, exposed by projections with `error: true`. `MapErrorArgs` = the run's args (`attempt` = the failed attempt). |
+| `mapError?: (error: unknown, a: MapErrorArgs) => E` | v0.2. Maps a failure (the thrown value / rejection) to a JSON-safe value stored as `steps[k].error.data`, typed `ErrorOf<F, K>`, exposed by projections with `error: true`. `MapErrorArgs` = the run's args (`attempt` = the failed attempt). |
 | `enter?`, `exit?`, `on?`, `when?`, `next?`, `dependsOn?` | As above. |
 
-**`s.wait(cfg)`** — waits for an external event (`send()`) or a deadline. Output:
+**`s.wait(cfg)`**, waits for an external event (`send()`) or a deadline. Output:
 `{ event, payload }` for the resolving event, plus `{ event: 'timeout' }` when the step declares
-a `timeout` (`WaitOutput<Ev, T>` — a wait without `timeout` never sees the marker).
+a `timeout` (`WaitOutput<Ev, T>`, a wait without `timeout` never sees the marker).
 
 | Option | Meaning |
 |---|---|
@@ -174,26 +178,26 @@ a `timeout` (`WaitOutput<Ev, T>` — a wait without `timeout` never sees the mar
 | `timeout?: { after: Duration; next: id }` | Absolute `deadline` in state; fires `timer.fired` and routes to `next`. |
 | `enter?`, `exit?`, `when?`, `next?`, `dependsOn?` | As above. |
 
-**`s.decision(cfg)`** — `next: (a) => NextRef` (required) chooses the target(s) from context /
+**`s.decision(cfg)`**, `next: (a) => NextRef` (required) chooses the target(s) from context /
 output; `dependsOn?` makes it a join (the gate of a DAG); `on?` / `when?` as above. Its output
 (`OutputOf<F, K>`, `steps[k].output`) is the normalized list of chosen ids (`readonly N[]`:
 `'a'` → `['a']`, `null` → `[]`).
 
-**`s.flow(child, cfg)`** — embeds another flow as a step: a child wizard with its own queue,
+**`s.flow(child, cfg)`**, embeds another flow as a step: a child wizard with its own queue,
 instance id and snapshot (`Snapshot.children[step]`); events forwarded with `path`.
 
 | Option | Meaning |
 |---|---|
-| `context: (a) => ContextInput<Child>` (required) | Builds the child's context INPUT — parsed by the child's context boundary exactly once, when the child is created. |
+| `context: (a) => ContextInput<Child>` (required) | Builds the child's context INPUT, parsed by the child's context boundary exactly once, when the child is created. |
 | `deps?: (a) => DepsOf<Child>` | Builds the child's deps (parsed by the child's `deps` boundary when it declares one, at creation). Omitted → the child receives the parent's `deps` object unchanged. A throwing mapper or a rejecting boundary fails the flow step (`kind: 'child'`). |
 | `output?: Boundary<O, unknown>` | Re-check / retype the child's output (default `FlowOutput<Child>`). |
 | `exit?`, `on?`, `when?`, `next?`, `dependsOn?` | As above (`exit` sees the child's output). |
 
 Max depth 8; a flow embedding an ancestor throws `NESTING_CYCLE`. Every step kind accepts only
-its own options (per-kind allow-lists — `input` on a task or `when` on a final is
+its own options (per-kind allow-lists, `input` on a task or `when` on a final is
 `DEFINITION_INVALID`, listed with every other problem of the whole tree, nested flows included).
 
-**`s.final(cfg?)`** — ends the flow: `output?: (a) => O` becomes `getState().output`
+**`s.final(cfg?)`**, ends the flow: `output?: (a) => O` becomes `getState().output`
 (`FlowOutput<F>` = union of the finals' outputs); other active steps are cancelled. `on?` as
 above (`void` only).
 
@@ -206,15 +210,15 @@ Every hook receives `BaseArgs<C, D>` and adds a little:
 | `context: C` | all | The parsed flow context (typed). |
 | `update(patch: Partial<C>)` | all | Patch the context (shallow merge, recorded as `context.changed`). The typed hand-off between steps. |
 | `deps: D` | all | What `createWizard({ deps })` received. |
-| `steps` | all | Sibling records (`SiblingStates`, an open map — status / attempt / input / output as `unknown`; use `context` for typed data). |
+| `steps` | all | Sibling records (`SiblingStates`, an open map, status / attempt / input / output as `unknown`; use `context` for typed data). |
 | `step`, `path` | all | This step's id and the wizard path (`[]` root, `['fulfil']` inside a child). |
 | `signal` | all | `AbortSignalLike`; aborted on timeout, cancel, dispose. |
-| `attempt`, `idempotencyKey` | `run`, `idempotent`, `mapError` | 1-based attempt; the run's idempotency key (default `${instanceId}:${step}:${runId}`, or the task's `idempotent` function value — the same key again on a crash re-run). |
+| `attempt`, `idempotencyKey` | `run`, `idempotent`, `mapError` | 1-based attempt; the run's idempotency key (default `${instanceId}:${step}:${runId}`, or the task's `idempotent` function value, the same key again on a crash re-run). |
 | `from` | `enter`, `canEnter` | Previous step (or `null`). |
 | `output` | `validate`, `canExit`, `exit`, `next`, `compensate` | The step's parsed / produced output. |
 | `to`, `direction` | `exit` | Target and `'forward' \| 'back'`. |
 | `reason` | `compensate` | Why the saga runs (`cancel(reason)`), if any. |
-| `event`, `payload` | `on[event]` (any kind), flow-level `on[event]` | The event name and its parsed payload. A flow-level handler gets `FlowOnArgs` — the same minus `step`. |
+| `event`, `payload` | `on[event]` (any kind), flow-level `on[event]` | The event name and its parsed payload. A flow-level handler gets `FlowOnArgs`, the same minus `step`. |
 | `error` (first argument) | `mapError` | The raw thrown value / rejection of the failed run (`mapError: (error, args) => data`). |
 
 Every hook may be sync or async (`MaybePromise`). With `createWizard({ strict: 'sync' })` a
@@ -241,10 +245,10 @@ const AssertId = boundary.assert((v): asserts v is string => {
 const Deps = boundary.trusted<{ mailer: { send(to: string): Promise<void> } }>() // no runtime check
 ```
 
-Exactly four doors, each through a declared boundary — (1) `context` at
+Exactly four doors, each through a declared boundary, (1) `context` at
 `createWizard` / `createWizardAsync`; (2) a view's `input` when `next()` / `go()` parses the
 draft; (3) `send(event, payload)` through `events[event]`; (4) `resumeWizard(flow, unknown)`,
-which re-runs every boundary over the snapshot — plus the optional task `output` re-check.
+which re-runs every boundary over the snapshot, plus the optional task `output` re-check.
 Rejections are events (`step.validationFailed`, `event.rejected`) and results (`issues:
 Issue[]`, Standard Schema issue shape), never throws.
 
@@ -274,7 +278,7 @@ const wizard = createWizard(checkout, {
 `createWizardAsync` is the same for flows whose context / deps boundaries are asynchronous
 (`resumeWizardAsync` is the resume twin, §8). Both throw `WizardError('BOUNDARY_REJECTED')` when
 the context (or deps) fails its boundary and `WizardError('DEFINITION_INVALID')` for a broken
-flow — programmer errors, at the door.
+flow, programmer errors, at the door.
 
 ## 6. The `Wizard`
 
@@ -298,7 +302,7 @@ Every method is sugar over `dispatch(command)`; every result is a value.
 | `invalidate(step, { cascade? })` | `Promise<CommandResult>` | v0.2. A `done` / `failed` / `skipped` step returns to `idle` (`step.invalidated`): a view keeps its draft, the output moves to `previousOutput`; with `cascade` (default `true`) every transitive `dependsOn` dependent that is done / failed / skipped follows (running ones are cancelled). Never automatic; rejected for an active step or the current view (use `back`). |
 | `dispatch(command)` | `Promise<CommandResult>` | The one wire door, typed by the flow (`Command<F>`, §9). |
 | `attach(source)` | `() => void` | v0.2. Hook an event source (queue consumer, `EventTarget`, socket) to the wizard: `source(send)` receives the typed `send` and returns its teardown, which runs when the returned function is called or on `dispose()`. |
-| `getState()` | `Snapshot<F>['state']` | Typed state: `status`, `current`, `active`, `context`, `steps[k]` (`StepState`, whose `error` is `StepErrorOf<F, K>` — `data` typed by `mapError`), `history`, `saga`, `inbox`, `timers`, `output`, `seq`, `epoch`, `correlationId`. |
+| `getState()` | `Snapshot<F>['state']` | Typed state: `status`, `current`, `active`, `context`, `steps[k]` (`StepState`, whose `error` is `StepErrorOf<F, K>`, `data` typed by `mapError`), `history`, `saga`, `inbox`, `timers`, `output`, `seq`, `epoch`, `correlationId`. |
 | `getSnapshot()` | `Snapshot<F>` | Versioned, JSON-safe, includes children; cached per state. |
 | `explain(step)` | `Explanation<F>` | Why a step is (not) where you expect (§7). |
 | `progress()` | `Progress` | v0.2. `{ done, total, ratio }` over the non-final steps (`skipped` counts as done; `ratio` is `1` once the flow is done). Memoized per state. |
@@ -319,11 +323,11 @@ import type { CommandResult, NavResult, SendResult } from '@openwizard/core'
 // NavResult     = { ok: true; from; to; seq }
 //               | { ok: false; reason: 'validation' | 'guard-canExit' | 'guard-canEnter' | 'nav-busy'
 //                            | 'not-a-view' | 'not-active' | 'not-reachable' | 'no-target' | 'no-history'
-//                            | 'flow-terminal' | 'flow-not-started' | …; code; message; step?; issues? }
+//                            | 'flow-terminal' | 'flow-not-started' | ...; code; message; step?; issues? }
 //               | { ok: false; reason: 'failed'; code: WizardErrorCode | 'HOOK_FAILED'; message; step?; error? }
 // SendResult    = { ok: true; delivered: string[]; buffered: boolean; seq }
 //               | { ok: false; reason: 'rejected'; code: 'BOUNDARY_REJECTED'; message; issues }
-//               | { ok: false; reason: 'dropped'; code: 'NOT_ACTIVE' | 'DISPOSED' | 'FLOW_TERMINAL' | …; message }
+//               | { ok: false; reason: 'dropped'; code: 'NOT_ACTIVE' | 'DISPOSED' | 'FLOW_TERMINAL' | ...; message }
 ```
 
 One vocabulary: every `{ ok: false }` result carries `code` (a `WizardErrorCode`, plus `STALE` /
@@ -338,33 +342,39 @@ returns the same `code` a `send()` would, as a `CommandResult`. `WizardError` (w
 ## 7. Events, `explain`, `inspect`
 
 `observe()` and `log()` deliver `WizardEvent<F>`: an envelope `{ seq, at, path, causedBy? }` plus
-the body — flow lifecycle (`flow.started/done/failed/compensating/compensated/cancelled/resumed`),
-navigation (`transition.started/phase/committed/rejected/failed`), step lifecycle
-(`step.arrived/entered/exited/done/failed/skipped/invalidated/cancelled/validated/validationFailed/guardEvaluated`),
-tasks (`step.runStarted { resumed? }/runSucceeded/runFailed/retryScheduled`), persistence (`persist.failed`), compensation
-(`step.compensationStarted/compensated/compensationFailed`), data (`input.changed`,
-`context.changed`), external events (`event.received/rejected/delivered/buffered/expired/dropped
-{ reason: 'no-listener' | 'correlation' }`), timers (`timer.scheduled/fired/cleared`), nesting
-(`child.started/summary/command`), and `command.rejected` / `result.ignored`. Child events arrive
-on the parent with their own `path`.
+the body. Child events arrive on the parent with their own `path`.
+
+| Group | Events |
+|---|---|
+| flow lifecycle | `flow.started` / `done` / `failed` / `compensating` / `compensated` / `cancelled` / `resumed` |
+| navigation | `transition.started` / `phase` / `committed` / `rejected` / `failed` |
+| step lifecycle | `step.arrived` / `entered` / `exited` / `done` / `failed` / `skipped` / `invalidated` / `cancelled` / `validated` / `validationFailed` / `guardEvaluated` |
+| tasks | `step.runStarted { resumed? }` / `runSucceeded` / `runFailed` / `retryScheduled` |
+| compensation | `step.compensationStarted` / `compensated` / `compensationFailed` |
+| data | `input.changed`, `context.changed` |
+| external events | `event.received` / `rejected` / `delivered` / `buffered` / `expired` / `dropped { reason: 'no-listener' \| 'correlation' }` |
+| timers | `timer.scheduled` / `fired` / `cleared` |
+| nesting | `child.started` / `summary` / `command` |
+| persistence | `persist.failed` |
+| queue | `command.rejected`, `result.ignored` |
 
 `WizardEvent<F>` is a union: `RootWizardEvent<F>` (the wizard's own events, `path: []`, ids
-typed by the flow) | `ChildWizardEvent` (forwarded from a child, `path: [step, …]`, ids as
+typed by the flow) | `ChildWizardEvent` (forwarded from a child, `path: [step, ...]`, ids as
 `string`). TypeScript does not narrow on `path.length`, so split them with `isChildEvent()`:
 
 ```ts
 import { isChildEvent, type WizardEvent } from '@openwizard/core'
 
 wizard.observe((event: WizardEvent<typeof checkout>) => {
-  if (isChildEvent(event)) return // a child flow's event: event.path = ['fulfil', …], ids are strings
-  if (event.type === 'step.done') event.step // 'shipping' | 'reserve' | … (typed)
+  if (isChildEvent(event)) return // a child flow's event: event.path = ['fulfil', ...], ids are strings
+  if (event.type === 'step.done') event.step // 'shipping' | 'reserve' | ... (typed)
 })
 ```
 
 (Inbox payloads, saga outputs and other `unknown` slots of `Snapshot<F>` are typed in a later
 release.)
 
-`wizard.explain(step)` → `Explanation<F> = { status, phase, reasons, candidates }` — `status`
+`wizard.explain(step)` → `Explanation<F> = { status, phase, reasons, candidates }`, `status`
 is the stored step status (`'unknown'` for an unknown id), `phase` the live UI phase (`blocked |
 ready | entering | validating | running | retrying | waiting | exiting | compensating`, or
 `undefined`), `reasons` stable codes (`flow-not-started`, `flow-terminal`, `flow-compensating`,
@@ -373,18 +383,18 @@ ready | entering | validating | running | retrying | waiting | exiting | compens
 `candidates` the ready views the cursor could move to. Never throws.
 
 `inspect(flow)` → `FlowGraph { name, version, nodes, edges, warnings }`: nodes `{ id, kind, path,
-hooks, dependsOn?, timeout?, dynamicNext?, start? }` (`hooks` by their authoring names — `when`,
+hooks, dependsOn?, timeout?, dynamicNext?, start? }` (`hooks` by their authoring names, `when`,
 `mapError`, `on:<event>`, a flow step's `context` / `deps` / `output`, a final's `output`, a
 task's `idempotent` key function), edges `{ from, to, kind: 'next' | 'dependsOn' | 'timeout' |
 'start', path }`, warnings `UNREACHABLE` / `NEVER_ACTIVATES` / `NAV_CYCLE` (a cycle through
-`next` / `timeout.next` — allowed, reported) — recursively for child flows. Runs no hook. This
+`next` / `timeout.next`, allowed, reported), recursively for child flows. Runs no hook. This
 is what a visualizer or devtools panel consumes.
 
 `toMermaid(inspect(flow))` (v0.2) renders that graph as a Mermaid `flowchart TD`: nodes
 labelled `id (kind)` and shaped by kind, a start circle per flow, solid `next` edges, labelled
 `dependsOn` / `dependsOn (any)` edges, dashed labelled `timeout` edges, a dashed edge to a `?`
 node for a dynamic `next`, and each child flow as a `subgraph` linked from its flow step. Ids are
-made Mermaid-safe and unique; the output is deterministic — see
+made Mermaid-safe and unique; the output is deterministic, see
 [`examples/09-mermaid`](../../examples/09-mermaid).
 
 ```ts
@@ -394,14 +404,14 @@ console.log(toMermaid(inspect(checkout))) // paste into mermaid.live or a Markdo
 ```
 
 `replay(flow, events, options)` (v0.2) rebuilds the state at any point of an event log by folding
-the events with the machine's own reducer — no hook runs, nothing is executed. Give it the
+the events with the machine's own reducer, no hook runs, nothing is executed. Give it the
 `context` input the wizard was created with (parsed through the context boundary; the events
-must then start at `seq` 1) or a base state with `from` (`getState()` captured earlier — events
+must then start at `seq` 1) or a base state with `from` (`getState()` captured earlier, events
 with `seq <= from.seq` are skipped, so a log truncated by `logSize` or a resumed wizard work
 from that point); `upTo` stops the fold at that `seq` (inclusive). Child events (`path`
 non-empty) and `persist.failed` are skipped. For a fresh wizard whose log was not truncated,
-`replay(flow, wizard.log(), { context, instanceId: wizard.id })` deep-equals `wizard.getState()` —
-this is what the `@openwizard/devtools` timeline uses for time travel.
+`replay(flow, wizard.log(), { context, instanceId: wizard.id })` deep-equals `wizard.getState()`.
+This is what the `@openwizard/devtools` timeline uses for time travel.
 
 ```ts
 import { replay } from '@openwizard/core'
@@ -424,22 +434,22 @@ default) a `Snapshot` is written after every committed change (`debounceMs` coal
 
 **JSON-checked before every store write; resume re-validates.** Right before `store.set` the
 value is walked: a `Map`, `Set`, `RegExp`, class instance, function, `bigint`, `NaN` /
-`Infinity` or `undefined` array slot anywhere in it means the write does not happen —
+`Infinity` or `undefined` array slot anywhere in it means the write does not happen, and
 `onPersistError` receives a `WizardError('SNAPSHOT_NOT_SERIALIZABLE')` naming the exact
 location (`state.steps.save.output.createdAt`, also on `error.issues[0].path` and
 `error.step`), a `persist.failed` event is logged, and `save()` rejects with it. The live
 `getSnapshot()` is untouched; you fix the flow. Everything that must survive persistence has to
-be a JSON value — with one deliberate exception: a `Date` (any object with `toJSON()`) is
-accepted exactly where a schema / parse boundary re-parses its JSON form on resume — a task
+be a JSON value, with one deliberate exception: a `Date` (any object with `toJSON()`) is
+accepted exactly where a schema / parse boundary re-parses its JSON form on resume, a task
 `output`, a view `input`, the flow `context`, an event boundary (`z.coerce.date()` turns the
 stored ISO string back into a `Date`; a `z.date()` there would make resume reject the snapshot
 loudly, `SNAPSHOT_INCOMPATIBLE`, instead of quietly handing you a string). Anywhere else, or
 under `boundary.trusted()` / `guard` / `assert`, store the JSON form (`toISOString()`) or keep
 the value out of the state (`deps`). Secrets follow the same advice: never in `context` /
-outputs — pass them through `deps`, store references and tokens.
+outputs, pass them through `deps`, store references and tokens.
 
 **Persistence is single-owner.** One live wizard per store key. `Store` is plain
-`get / set / delete` — no compare-and-swap, lease or fencing — so two replicas resuming the
+`get / set / delete`, no compare-and-swap, lease or fencing, so two replicas resuming the
 same snapshot at the same time would both run its side effects. Resume on another replica only
 after the first instance is disposed (a crash, a drain, a hand-over you control).
 
@@ -454,7 +464,7 @@ const other = await resumeWizardAsync(checkout, saved, { deps }) // flows with a
 ```
 
 **Snapshot migration (`migrate`, v0.2).** A snapshot whose `flow.version` differs from the
-flow's is `SNAPSHOT_INCOMPATIBLE` — unless `resumeWizard(flow, saved, { migrate })` converts it
+flow's is `SNAPSHOT_INCOMPATIBLE`, unless `resumeWizard(flow, saved, { migrate })` converts it
 first. `migrate(snapshot, from)` (`SnapshotMigration`) is called only when the versions differ,
 with the raw snapshot and `from: { name, version }`; its result is validated like any snapshot
 and must carry the flow's version in the envelope AND in `state.flow` (an async converter is
@@ -474,14 +484,14 @@ const wizard = resumeWizard(checkoutV2, saved, {
 Resume validates the envelope (`v`, `flow.name` / `version`, `instanceId`, `seq`), the step
 set, status invariants, JSON safety and **every boundary** (context, view outputs, task / flow
 outputs and their copies on the compensation stack, event payloads in the inbox, nested
-children) — otherwise `WizardError('SNAPSHOT_INCOMPATIBLE')` lists every reason. `resumeWizardAsync` awaits every boundary of the whole tree BEFORE anything is
+children), otherwise `WizardError('SNAPSHOT_INCOMPATIBLE')` lists every reason. `resumeWizardAsync` awaits every boundary of the whole tree BEFORE anything is
 instantiated (still atomic); the sync `resumeWizard` reports an asynchronous boundary as a reason
 pointing to it. Then the recovery matrix applies:
 
 | Persisted situation | On resume |
 |---|---|
 | navigation in flight (`nav.phase !== 'idle'`) | `transition.rejected { reason: 'resumed' }`; the cursor stays |
-| task running | `step.failed { kind: 'interrupted' }` — `retry(step)` re-runs it; an `idempotent` task (v0.2) is instead RE-RUN at once with the same `idempotencyKey` (`step.runStarted { resumed: true }`) |
+| task running | `step.failed { kind: 'interrupted' }`, `retry(step)` re-runs it; an `idempotent` task (v0.2) is instead RE-RUN at once with the same `idempotencyKey` (`step.runStarted { resumed: true }`) |
 | task with `retryAt` / wait with `deadline` / inbox TTLs | timers re-armed from their absolute times (fire immediately if overdue); the inbox is drained first |
 | flow step active | child restored from `snapshot.children[step]` (re-created if missing) |
 | `compensating` | continues unwinding from the stack |
@@ -506,7 +516,7 @@ const checkoutClient = defineProjection(checkout, {
   },
 })
 type CheckoutClientState = ProjectionOutput<typeof checkoutClient> // ClientState<F, E>
-const state = wizard.project(checkoutClient) // { status, current, context: { total }, output?, progress, steps: { shipping: { input?, issues? } … } }
+const state = wizard.project(checkoutClient) // { status, current, context: { total }, output?, progress, steps: { shipping: { input?, issues? } ... } }
 ```
 
 Per step `ExposeSpec` flags are `input` / `output` / `issues` / `error` (`ClientStepError`:
@@ -514,7 +524,7 @@ Per step `ExposeSpec` flags are `input` / `output` / `issues` / `error` (`Client
 and, on flow steps, `child` (`true` = the compact `{ status, current, progress, seq }` summary;
 a nested spec = the projected child state, deny-by-default inside, up to 8 child levels);
 `output: true` exposes the flow output, `progress: true` the `Progress` selector. `ClientState`
-carries per step only `{ id, kind, status, phase?, attempt }` plus exactly what is exposed — the
+carries per step only `{ id, kind, status, phase?, attempt }` plus exactly what is exposed, the
 type mirrors the object (unexposed = absent, not optional). `SerializedError` never carries a
 stack. `Projection<F, S>` (with the extractors `ProjectionFlow`, `ProjectionOutput` = `S`, and
 `AnyProjection`; per-step flags are `StepExpose`, the whole spec `ExposeSpec`) is data a client
@@ -524,7 +534,7 @@ flow, even a same-name, same-shape one).
 
 **`select` projections (v0.2).** When the deny-by-default spec is not enough, map the typed
 wizard state yourself: `defineProjection(flow, { select: (state) => T })` is a
-`Projection<F, T>` — `wizard.project()` returns `T`, Mirror frames carry `T`, and the same
+`Projection<F, T>`, `wizard.project()` returns `T`, Mirror frames carry `T`, and the same
 `Mirror` / React binding read it. `expose` and `select` are mutually exclusive (a compile-time
 error, `DEFINITION_INVALID` from JS). You own the exposure: put nothing in `T` that must not
 cross the wire.
@@ -536,8 +546,8 @@ const summary = defineProjection(checkout, {
 ```
 
 The one door for commands from a transport is `dispatch(command)`, typed by the flow
-(`Command<F>`: `go` / `setInput` / `resetInput` take a `ViewId` — and `setInput.patch` is that
-view's `DraftOf` —, `run` / `retry` a `TaskId`, `send` a declared event, `child.path` flow
+(`Command<F>`: `go` / `setInput` / `resetInput` take a `ViewId`, and `setInput.patch` is that
+view's `DraftOf`, while `run` / `retry` take a `TaskId`, `send` a declared event, `child.path` flow
 steps with the nested command typed by the child flow). Untrusted request bodies become a
 `Command<F>` through `parseCommand(flow, unknown)`: exact per-type field allow-lists, JSON-only
 payloads, child path depth ≤ 8, and every id checked against the flow (unknown → issues):
@@ -546,18 +556,18 @@ payloads, child path depth ≤ 8, and every id checked against the flow (unknown
 import { type Command, parseCommand } from '@openwizard/core'
 
 const decoded = parseCommand(checkout, request.body) // { ok: true, value: Command<typeof checkout> } | { ok: false, issues }
-if (decoded.ok) await wizard.dispatch(decoded.value) // after YOUR authorization — no cast
+if (decoded.ok) await wizard.dispatch(decoded.value) // after YOUR authorization, no cast
 // Command<F> = start | next | back | go | setInput | resetInput | send | run | runReady | retry
-//            | cancel | compensate | reset | skip | invalidate | child { path: [flowStep, …], command }
+//            | cancel | compensate | reset | skip | invalidate | child { path: [flowStep, ...], command }
 ```
 
 The client half is in core too. `createMirrorSource(wizard, projection)` on the server publishes
 one `Frame` per commit and answers `WireCommand`s with `WireAck`s (decoded with
 `parseWireCommand`, gated by `instanceId` / `expectedSeq`; dispatches are serialized so the seq
-check and the enqueue are one step; hostile input — 20 000-deep payloads, `__proto__` keys,
-64 KiB+ strings — is an `INVALID_COMMAND` value, never a rejection). `createMirror({ transport })`
+check and the enqueue are one step; hostile input, 20 000-deep payloads, `__proto__` keys,
+64 KiB+ strings, is an `INVALID_COMMAND` value, never a rejection). `createMirror({ transport })`
 on the client is a read-only replica with the same typed command sugar as `Wizard`
-(`MirrorCommands`: `start` … `reset`, `skip`, `invalidate`, `send(event, payload, {
+(`MirrorCommands`: `start` ... `reset`, `skip`, `invalidate`, `send(event, payload, {
 correlationId })`), applying frames through `parseFrame` (malformed frames are ignored, a retired
 instance id never comes back), and rejecting an ack that is not for the command it sent. A
 `Transport<S>` is the one interface a host implements (SSE + POST, WebSocket, postMessage);
@@ -566,24 +576,25 @@ hooks live in [`@openwizard/react`](../react/README.md).
 
 **Nested flows on the client (v0.2).** Expose the child with a nested spec
 (`steps: { fulfil: { child: { steps: { pick: { input: true } } } } }`) and its projected state
-rides in `steps.fulfil.child`; `mirror.child('fulfil')` returns a `MirrorChild` — the same
+rides in `steps.fulfil.child`; `mirror.child('fulfil')` returns a `MirrorChild`, the same
 sugar typed by the CHILD flow, every call wrapped as `{ type: 'child', path: ['fulfil'],
 command }` (nestable: `.child('fulfil').child('pack')` sends `path: ['fulfil', 'pack']`; the
 server decodes the nested command against the child flow).
 
 ```ts
 const fulfil = mirror.child('fulfil') // MirrorChild<typeof fulfilment>
-await fulfil.setInput('pick', { warehouse: 'east' }) // { type: 'child', path: ['fulfil'], command: { type: 'setInput', … } }
+await fulfil.setInput('pick', { warehouse: 'east' }) // { type: 'child', path: ['fulfil'], command: { type: 'setInput', ... } }
 mirror.getSnapshot()?.steps.fulfil.child?.steps.pick.input // the child's projected slice
 ```
 
 ## 10. Testing with `@openwizard/core/testing`
 
-The `@openwizard/core/testing` entry holds the helpers that must not ship in an application
-bundle: `createTestScheduler` and `createLocalTransport` (with `TestScheduler` /
-`LocalTransportOptions`). The runtime never calls `Date.now()` or `setTimeout` directly: it uses
-the injectable `clock` / `scheduler`. `createTestScheduler({ now? })` returns a `TestScheduler`
-(both at once) so a test drives retries, wait timeouts and inbox TTLs deterministically:
+The `@openwizard/core/testing` entry holds `createTestScheduler` and `createLocalTransport`,
+kept out of the main entry so they never ship in an application bundle.
+
+The runtime never calls `Date.now()` or `setTimeout` itself, it goes through the injectable
+`clock` and `scheduler`. So `createTestScheduler({ now? })` hands you both at once, and a test
+drives retries, wait timeouts and inbox TTLs on virtual time:
 
 ```ts
 import { createWizard } from '@openwizard/core'
@@ -599,7 +610,7 @@ sched.flush() // fires everything that is left
 
 Timers fire synchronously inside `advance()`, so the resulting state is committed when it
 returns; async hooks (real promises) still need a microtask tick (`await new Promise((r) =>
-setTimeout(r, 0))`). Pass in-memory fakes as `deps` and assert on `log()` / `observe()` — see
+setTimeout(r, 0))`). Pass in-memory fakes as `deps` and assert on `log()` / `observe()`, see
 every [example](../../examples). To test a Mirror end to end without a network:
 
 ```ts
@@ -616,8 +627,8 @@ const mirror = createMirror<typeof checkoutClient>({
 
 - **Sync-commit.** For a public call made from outside a drain, if every hook it triggers returns a non-thenable, the resulting state is committed and listeners are notified **before the call returns**, and the returned promise is already settled. `strict: 'sync'` turns the first thenable into a `SYNC_VIOLATION` failure.
 - **Batch atomicity.** Every message (command, hook result, timer, child result) goes through one FIFO queue and is processed as `decide → apply → plan → commit`. Listeners and persistence never observe intermediate states; state listeners run once per committed batch; effects run only after the commit. Stale results (a retry that raced a cancel) are `result.ignored`.
-- **Boundaries are the only doors.** Data enters through `context`, `setInput` (parsed on `next` / `go`), `send`, or `resume` — each through a declared boundary, exactly once (a child's context / deps mappers included). Nothing else can put a value in the state; `boundary.trusted<T>()` is the grep-able exception.
-- **Results as values.** Data problems (validation, guards, busy navigation, terminal flows, dropped events, incompatible payloads) are `{ ok: false, code, … }` results and events; `WizardError` is reserved for programmer errors.
+- **Boundaries are the only doors.** Data enters through `context`, `setInput` (parsed on `next` / `go`), `send`, or `resume`, each through a declared boundary, exactly once (a child's context / deps mappers included). Nothing else can put a value in the state; `boundary.trusted<T>()` is the grep-able exception.
+- **Results as values.** Data problems (validation, guards, busy navigation, terminal flows, dropped events, incompatible payloads) are `{ ok: false, code, ... }` results and events; `WizardError` is reserved for programmer errors.
 - **Snapshots are JSON-checked before every store write; resume re-validates.** A write that `JSON.stringify` would distort does not happen (`SNAPSHOT_NOT_SERIALIZABLE` + `persist.failed`, with the path); `Date`s survive only under a reviving boundary; `SerializedError` is `{ name, message, code? }`. Everything is re-validated on resume.
 - **Public surface hygiene.** No `any` and no type assertions in the emitted declarations (`api/core.d.ts` is diffed in CI); every export is documented and listed below.
 

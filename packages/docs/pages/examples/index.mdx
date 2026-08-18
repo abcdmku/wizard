@@ -1,21 +1,24 @@
 # Examples
 
-Every example is a workspace package under `examples/` with a runnable `main.ts` and a test that
-drives the flow end to end and asserts on the event log. The pages below embed the real sources
-at build time — nothing is copied by hand — and each runnable example can be loaded verbatim in
-the [playground](/playground).
+Ten workspace packages under `examples/`, each with a runnable entry point and tests that drive
+it end to end. Most assert on the event log, 09 asserts on the rendered graph, and 08 and 10 drive
+their React UI through the DOM. These pages embed the real sources at build time.
 
 | Example | Shows |
 |---|---|
-| [01 · Happy path](/examples/01-happy-path) | view → task → final, typed input, `deps`, validation as values, the sync-commit guarantee, `getSnapshot()` |
-| [02 · Recoverable failure](/examples/02-recoverable-failure) | `retry: { attempts, backoff: 'exponential' }` driven by `createTestScheduler()`, exhausted retries → `retry(step)`, `idempotent` keys, `mapError` → typed `error.data` |
-| [03 · Compensation](/examples/03-non-recoverable-compensation) | `onFailure: 'compensate'`: reverse-order unwind, `saga.failures`, `compensate({ from })` |
-| [04 · Resume from snapshot](/examples/04-resume-from-snapshot) | auto-save to a store, crash, `resumeWizard()`, re-armed timers, interrupted task → `retry()`, snapshot `migrate` |
-| [05 · External events](/examples/05-external-events) | webhooks through an event boundary, early events buffered in the inbox, TTL, wait timeout, correlation ids, flow-level `on` |
-| [06 · Nested flow](/examples/06-nested-flow) | `s.flow(child, { context })`, `wizard.child()`, child events with `path`, nested snapshots, `mirror.child()` |
-| [07 · DAG pipeline](/examples/07-dag-pipeline) | fan-out, parallel tasks under `concurrency`, AND-join with `dependsOn`, `explain()`, `autoRun: 'manual'`, `when`, `skip()`, `progress()` |
-| [08 · React + Mirror](/examples/08-react-mirror) | Vite + React: the UI touches only a `Mirror` (deny-by-default projection over a loopback transport) via `bindReact()` hooks; tokenised payment, headless jsdom test |
-| [09 · Mermaid](/examples/09-mermaid) | `toMermaid(inspect(flow))`: the static graph as a Mermaid flowchart (kinds, `next` / `dependsOn` / `timeout` edges, dynamic `next`, child subgraph) |
+| [01 · Happy path](/examples/01-happy-path) | the smallest useful wizard: a form view, a CRM task, a final step, and validation that comes back as a value |
+| [02 · Recoverable failure](/examples/02-recoverable-failure) | `retry: { attempts, backoff }`, `idempotent` keys, `mapError`, and `retry(step)` after the attempts run out |
+| [03 · Compensation](/examples/03-non-recoverable-compensation) | `onFailure: 'compensate'` unwinding a trip booking in reverse, and `compensate({ from })` to re-try a failed undo |
+| [04 · Resume from snapshot](/examples/04-resume-from-snapshot) | auto-save, crash, `resumeWizard()` on a fresh process, re-armed timers, `migrate` for old snapshots |
+| [05 · External events](/examples/05-external-events) | a payment webhook: schema-checked bodies, early events buffered with a TTL, wait timeouts, `correlate` |
+| [06 · Nested flow](/examples/06-nested-flow) | a fulfilment flow as one step of an order flow: `wizard.child()`, child events with a `path`, nested snapshots |
+| [07 · DAG pipeline](/examples/07-dag-pipeline) | no views at all: fan-out, parallel tasks under `concurrency`, an AND-join, `explain()`, `when` and `skip()` |
+| [08 · React + Mirror](/examples/08-react-mirror) | a checkout the UI drives through a `Mirror` only, over a deny-by-default projection, with a jsdom test |
+| [09 · Mermaid](/examples/09-mermaid) | `toMermaid(inspect(flow))`: the static graph as a Mermaid flowchart, timeout edges and child subgraphs included |
+| [10 · Devtools](/examples/10-devtools) | example 07's pipeline under the `@openwizard/devtools` panel: live graph, event log, inspector, timeline |
+
+01 to 07 and 09 also run in the [playground](/playground); 08 and 10 are React apps you run
+locally.
 
 ```sh
 pnpm install && pnpm build

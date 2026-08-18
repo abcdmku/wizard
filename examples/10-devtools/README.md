@@ -1,28 +1,29 @@
-# 10 — Devtools (Vite + React)
+# 10: devtools (Vite + React)
 
-Example 07's DAG pipeline — `ingest → (normalize ∥ enrich) → gate → approve → persist → done`,
-with a retry, a `when`-guarded branch, an AND-join and (new here) an approval `wait` step —
-running in a Vite page under the [`@openwizard/devtools`](../../packages/devtools/README.md)
-panel:
+Example 07's DAG pipeline running in a browser page with the
+[`@openwizard/devtools`](../../packages/devtools/README.md) panel docked underneath, plus an
+`approve` wait step so the page has an external event to send. The fake services take real time,
+so you can watch the run move through the graph.
 
-- **Graph** — `inspect(pipeline)` laid out by ELK, every card coloured by its live status (the
-  `retrying` pulse on `enrich`, the `waiting` dot on `approve`), the `dependsOn` edges into the
-  gate, the dashed `?` port of the dynamic decision, the dotted `timeout` edge;
-- **Events** — every domain event as it happens (`step.runStarted`, `step.retryScheduled`,
-  `event.delivered`, …), filterable;
-- **Inspector** — click a card: its record (attempt, `retryAt`, output), `explain()` reasons
-  (`deps-unmet:enrich`, `retrying`, …) and its definition;
-- **Timeline** — scrub the `seq` slider to see the state at any point of the run (the page hands
-  the panel the `context` input, so the range starts at seq 0).
+## What is in the panel
 
-| File | Role |
+| Tab | What it gives you |
 |---|---|
-| `src/pipeline.ts` | the flow (example 07 + the `approve` wait) and fake services with real delays |
-| `src/wizard.ts` | `createWizard(pipeline, { context, deps })` — the object both the page and the panel read |
-| `src/App.tsx` | Start / Send review.approved / Retry / Reset buttons, a status line, `<Devtools source={wizard} context={context} defaultOpen />` |
-| `src/app.test.tsx` | headless run under jsdom: the buttons drive the pipeline, the panel's cards and event counter follow |
+| Graph | `inspect(pipeline)` laid out by ELK, every card coloured by live status: the `retrying` pulse on `enrich`, the `waiting` dot on `approve`, the dashed and dotted edges |
+| Events | every domain event as it happens, filterable |
+| Inspector | click a card for its state record, its `explain()` reasons and its definition |
+| Timeline | a `seq` slider you can scrub to see the state at any point of the run |
+
+## Run it
 
 ```sh
 pnpm --filter example-10-devtools dev     # open the printed URL; ctrl+shift+d toggles the panel
 pnpm --filter example-10-devtools check   # tsc + test + vite build (what CI runs)
 ```
+
+## What the test proves
+
+A headless jsdom run clicks Start, waits for the retry and the approval, sends `review.approved`,
+and checks the flow lands on `done` with the graph cards showing their final statuses. It also
+checks the events tab counter equals `wizard.log().length`, so the panel saw every event the
+wizard emitted.

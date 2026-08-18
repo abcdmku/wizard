@@ -172,7 +172,7 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
 
   it('flow-level on: an order.cancelled webhook cancels the flow from any step', async () => {
     const { wizard, of } = make()
-    await wizard.start() // the cursor is on the review view — no wait step listens
+    await wizard.start() // the cursor is on the review view, no wait step listens
     expect(
       await wizard.send('order.cancelled', { orderId: 'o-1', reason: 'customer' }),
     ).toMatchObject({

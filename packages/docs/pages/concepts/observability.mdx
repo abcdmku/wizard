@@ -1,14 +1,27 @@
 # Events and observability
 
-Every change to a wizard is a typed **domain event**. `observe(listener)` streams them as they
-are committed, `log()` keeps a bounded ring (default 200), `inspect(flow)` gives the static graph,
-and `explain(step)` answers "why can't I go there?" with stable reason codes. Together they are
-what a devtools panel, a visualizer or a test consumes — the [playground](/playground) is built
-on nothing else.
+Every change a wizard makes is committed as a typed event. Four calls read that record, and the [playground](/playground) is built on nothing else.
 
-## `observe()` and `log()`
+| You call | You get |
+|---|---|
+| `observe(listener)` | every committed event, this wizard's and its children's |
+| `log()` | the last 200 of this wizard's own events |
+| `explain(step)` | why a step is where it is, as stable reason codes |
+| `inspect(flow)` | the static graph, no hooks run |
 
-`WizardEvent<F>` is an envelope `{ seq, at, path, causedBy? }` plus the body:
+## observe() and log()
+
+Every event is an envelope `{ seq, at, path, causedBy? }` plus a body typed by the event type. Here is one `next()` call with a valid draft, as `log()` records it.
+
+```txt
+transition.started
+transition.phase { parsingInput }, step.validated
+transition.phase { validating }, { canExit }, { resolvingTarget }, { canEnter }, { exiting }
+context.changed                                <- the exit hook called update()
+step.exited, step.arrived save, transition.committed, step.entered save
+step.runStarted, step.runSucceeded, step.done  <- the save task runs
+flow.done                                      <- save's next auto-advanced to the final step
+```
 
 | Family | Events |
 |---|---|
@@ -24,77 +37,70 @@ on nothing else.
 | nesting | `child.started` / `summary` / `command` |
 | commands | `command.rejected`, `result.ignored` |
 
-Child events arrive on the parent with their own `path`. `WizardEvent<F>` is a union of
-`RootWizardEvent<F>` (the wizard's own events, `path: []`, ids typed by the flow) and
-`ChildWizardEvent` (forwarded from a child, `path: [step, …]`, ids as `string`); TypeScript does
-not narrow on `path.length`, so split them with `isChildEvent()`:
+An `observe` listener runs once per committed event, a `subscribe` listener once per committed batch, which can cover several; neither ever sees a half-applied state (see [guarantees](/concepts/guarantees)).
+
+### isChildEvent(event)
+
+Events from [nested flows](/concepts/nesting) reach `observe()` too, so `WizardEvent<F>` is a union of two shapes.
 
 ```ts
 import { isChildEvent, type WizardEvent } from '@openwizard/core'
 
 wizard.observe((event: WizardEvent<typeof checkout>) => {
-  if (isChildEvent(event)) return // a child flow's event: event.path = ['fulfil', …], ids are strings
-  if (event.type === 'step.done') event.step // 'shipping' | 'reserve' | … (typed)
+  if (isChildEvent(event)) return // path like ['fulfil'], step ids are plain strings
+  if (event.type === 'step.done') event.step // path [], ids typed by the flow
 })
 ```
 
-Listeners run once per committed event; **state listeners** (`subscribe`) run once per committed
-batch. Neither ever observes an intermediate state (see [Guarantees](/concepts/guarantees)).
+## explain(step)
 
-## `explain(step)`
-
-`wizard.explain(step)` → `Explanation<F> = { status, phase, reasons, candidates }`, and it never
-throws:
-
-- `status` — the stored step status (`'unknown'` for an unknown id).
-- `phase` — the live UI phase: `blocked | ready | entering | validating | running | retrying |
-  waiting | exiting | compensating`, or `undefined`.
-- `reasons` — stable codes: `flow-not-started`, `flow-terminal`, `flow-compensating`, `nav-busy`,
-  `not-activated`, `deps-unmet:<id>`, `guard-false:canEnter|canExit`, `concurrency-limit`,
-  `auto-run-manual`, `failed:<kind>`, `not-current`, `entering`, `retrying`.
-- `candidates` — the ready views the cursor could move to.
+A pure query that never throws, so it is safe in a render or an assertion.
 
 ```ts
-wizard.explain('gate') // { status: 'idle', phase: 'blocked', reasons: ['deps-unmet:enrich'], candidates: [] }
+wizard.explain('gate')
+// { status: 'idle', phase: 'blocked', reasons: ['deps-unmet:enrich'], candidates: [] }
 ```
 
-Two conveniences sit next to it: `wizard.progress()` → `{ done, total, ratio }` over the non-final
-steps (`skipped` counts as done; `ratio` is `1` once the flow is done) and `wizard.readyViews()`
-→ the current view plus every ready view, in declaration order.
+| Field | Values |
+|---|---|
+| `status` | the stored step status, or `'unknown'` for an id the flow doesn't have |
+| `phase` | `blocked`, `ready`, `entering`, `validating`, `running`, `retrying`, `waiting`, `exiting`, `compensating`, or `undefined` |
+| `reasons` | `flow-not-started`, `flow-terminal`, `flow-compensating`, `nav-busy`, `not-activated`, `deps-unmet:<id>`, `guard-false:canEnter`, `guard-false:canExit`, `concurrency-limit`, `auto-run-manual`, `failed:<kind>`, `not-current`, `entering`, `retrying` |
+| `candidates` | the ready views the cursor could move to right now |
 
-## `inspect(flow)`
+### progress() and readyViews()
 
-`inspect(flow)` → `FlowGraph { name, version, nodes, edges, warnings }`: nodes `{ id, kind, path,
-hooks, dependsOn?, timeout?, dynamicNext?, start? }` (`hooks` by their authoring names — `when`,
-`mapError`, `on:<event>`, a flow step's `context` / `deps` / `output`, a final's `output`, a
-task's `idempotent` key function), edges `{ from, to, kind: 'next' | 'dependsOn' | 'timeout' |
-'start', path }`, warnings `UNREACHABLE` / `NEVER_ACTIVATES` / `NAV_CYCLE` (a cycle through
-`next` / `timeout.next` — allowed, reported) — recursively for child flows. It runs no hook.
+```ts
+wizard.progress() // { done, total, ratio } over the non-final steps; skipped counts as done
+wizard.readyViews() // the current view plus every ready view, in declaration order
+```
 
-`toMermaid(inspect(flow))` renders that graph as a Mermaid `flowchart TD`: nodes labelled
-`id (kind)` and shaped by kind, a start circle per flow, solid `next` edges, labelled `dependsOn`
-edges, dashed labelled `timeout` edges, a dashed edge to a `?` node for a dynamic `next`, and each
-child flow as a `subgraph`. Ids are made Mermaid-safe and the output is deterministic.
+## inspect(flow)
+
+Reads the flow definition only, so it runs no hooks and is safe to call anywhere, children included.
+
+```ts
+import { inspect } from '@openwizard/core'
+
+const graph = inspect(checkout) // { name, version, nodes, edges, warnings }
+// node: { id, kind, path, hooks, dependsOn?, timeout?, dynamicNext?, start? }
+// edge: { from, to, kind: 'next' | 'dependsOn' | 'timeout' | 'start', path }
+```
+
+| Warning | Means |
+|---|---|
+| `UNREACHABLE` | no path leads to the step |
+| `NEVER_ACTIVATES` | the step has `dependsOn` but nothing ever arrives at it, see [the readiness rule](/concepts/dag) |
+| `NAV_CYCLE` | a cycle through `next` or `timeout.next`, which is allowed but worth seeing |
+
+### toMermaid(graph)
+
+Each child flow becomes its own subgraph, and the output is deterministic, so you can commit it and diff it.
 
 ```ts
 import { inspect, toMermaid } from '@openwizard/core'
 
-console.log(toMermaid(inspect(checkout))) // paste into mermaid.live or a Markdown file
+console.log(toMermaid(inspect(checkout))) // a Mermaid flowchart TD
 ```
 
-[Example 09](/examples/09-mermaid) shows every static feature in one graph; the playground's
-Graph tab draws the same `inspect()` data with the live statuses on top.
-
-## A trace, end to end
-
-The quickstart's `next()` with a valid draft produces, in one committed batch:
-`transition.started` → `transition.phase { parsingInput }` → `step.validated` → `phase
-{ validating | canExit | resolvingTarget | canEnter | exiting }` → `context.changed` (the `exit`
-hook's `update`) → `step.exited` → `step.arrived save` → `transition.committed` → `step.entered
-save` → `step.runStarted` → `step.runSucceeded` → `step.done` → auto-advance to `done` →
-`flow.done`. Every event has a `seq`, so a test can assert the exact story:
-
-```ts
-const types = wizard.log().map((event) => event.type)
-expect(types).toContain('step.validationFailed')
-```
+[Example 09](/examples/09-mermaid) puts every static feature in one graph.

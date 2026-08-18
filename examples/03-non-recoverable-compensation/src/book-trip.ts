@@ -14,7 +14,7 @@ const s = defineFlow({
   context: z.object({ tripId: z.string(), total: z.number().positive() }),
   deps: boundary.trusted<Deps>(), // built by the host, no runtime check
   // A task failing with no retries left (or `cancel()`) unwinds every completed step that
-  // declared a `compensate` hook, in reverse completion order — best effort, one at a time.
+  // declared a `compensate` hook, in reverse completion order, best effort, one at a time.
   onFailure: 'compensate',
 })
 
@@ -33,7 +33,7 @@ export const bookTrip = s.steps(
       compensate: ({ output, deps }) => deps.cars.cancel(output.rental),
       next: 'charge',
     }),
-    // No `compensate` here: a failed charge has nothing to undo — it is what triggers the unwind.
+    // No `compensate` here: a failed charge has nothing to undo, it is what triggers the unwind.
     charge: s.task(({ context, deps }) => deps.payments.charge(context.tripId, context.total), {
       next: 'confirmed',
     }),

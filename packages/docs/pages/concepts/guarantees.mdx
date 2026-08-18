@@ -1,71 +1,69 @@
 # Guarantees
 
-What the runtime promises, in the words the tests use. Each guarantee is checked in
-`packages/core/tests` (golden scenarios for the machine, property tests for replay, type tests
-for the surface).
+The promises the runtime keeps, stated the way the tests state them: golden scenarios for the
+machine, property tests for replay, type tests for the public surface, all in
+`packages/core/tests`.
 
-## Sync-commit
+| Guarantee | What it means |
+|---|---|
+| Sync-commit | A public call whose hooks are all synchronous has committed before it returns. |
+| Batch atomicity | One FIFO queue, `decide → apply → plan → commit`, and nothing observes a half-applied state. |
+| [Boundaries are the only doors](/concepts/boundaries) | Data gets in through `context`, `setInput`, `send` or resume, each through a declared boundary, exactly once. |
+| [Results as values](/concepts/results) | Data problems are `{ ok: false, code, ... }` results and events. `WizardError` is for programmer errors only. |
+| [Snapshots stay JSON-safe](/concepts/persistence) | A write `JSON.stringify` would distort never happens, and resume re-validates everything. |
 
-For a public call made from outside a drain, if every hook it triggers returns a non-thenable,
-the resulting state is committed and listeners are notified **before the call returns**, and the
-returned promise is already settled. `strict: 'sync'` turns the first thenable into a
-`SYNC_VIOLATION` failure — the step fails (`kind: 'sync-violation'`) and the transaction is
-rejected; nothing is rolled back because nothing after the failing hook was committed.
+## Sync-commit and `strict: 'sync'`
 
-## Batch atomicity
+For a call made from outside a hook or a listener, if every hook it triggers returns a plain
+value rather than a promise, the state is committed and listeners are notified before the call
+returns. `strict: 'sync'` enforces it: the first thenable becomes a `SYNC_VIOLATION` failure,
+with nothing to roll back because nothing after it was committed.
 
-Every message — command, hook result, timer, child result — goes through one FIFO queue and is
-processed as `decide → apply → plan → commit`:
+## One queue, one commit
+
+Every message, whether a command, a hook result, a timer firing or a child's result, goes through
+the same loop.
 
 ```
 loop: msg = queue.shift()
-  events    = decide(def, state, msg)        // pure; [] means "no-op"
+  events    = decide(def, state, msg)        // pure; [] means "nothing happens"
   nextState = events.reduce(apply, state)    // fold the whole batch
-  effects   = plan(def, nextState, events)   // sees POST-batch state + the batch
-  commit(nextState, events)                  // swap state, notify event listeners per event, state listeners ONCE
-  for (fx of effects) execute(fx)            // only after commit; sync results are enqueued and processed in the same drain
+  effects   = plan(def, nextState, events)   // sees the post-batch state plus the batch
+  commit(nextState, events)                  // swap state, notify event listeners per event, state listeners once
+  for (fx of effects) execute(fx)            // only after commit; sync results join the same drain
 ```
 
-Listeners and persistence never observe intermediate states; state listeners run once per
-committed batch; effects run only after the commit. There is no re-entrant reduction: navigation
-commands while a transition is in flight are rejected (`nav-busy` — a double-click never skips a
-step); calls made from inside a listener or hook are enqueued and processed before the outer
-public call returns. Every hook call carries a token `{ step, runId, attempt?, txId? }`; a result
-whose token no longer matches the state (a retry that raced a cancel) is `result.ignored` and
-nothing else.
+State listeners run once per committed batch and effects run only after it, so listeners and
+persistence never see a half-applied state. A navigation command that arrives mid-transition is
+rejected with `nav-busy`, and a hook result whose token (`{ step, runId, attempt?, txId? }`) no
+longer matches the state, say a retry that raced a cancel, becomes `result.ignored`.
 
-## Boundaries are the only doors
+## Snapshots are JSON-checked, resume re-validates
 
-Data enters through `context`, `setInput` (parsed on `next` / `go`), `send`, or `resume` — each
-through a declared boundary, exactly once (a child's context / deps mappers included). Nothing
-else can put a value in the state; `boundary.trusted<T>()` is the grep-able exception.
+A write that `JSON.stringify` would distort never happens. You get `SNAPSHOT_NOT_SERIALIZABLE`
+plus a `persist.failed` event naming the offending path.
 
-## Results as values
+A `Date` survives only where a boundary revives it on resume, and a `SerializedError` is
+`{ name, message, code? }`, never a stack.
 
-Data problems (validation, guards, busy navigation, terminal flows, dropped events, incompatible
-payloads) are `{ ok: false, code, … }` results and events; `WizardError` is reserved for
-programmer errors (misuse of the API), thrown at the door.
-
-## Snapshots are JSON-checked before every store write; resume re-validates
-
-A write that `JSON.stringify` would distort does not happen (`SNAPSHOT_NOT_SERIALIZABLE` +
-`persist.failed`, with the path); `Date`s survive only under a reviving boundary;
-`SerializedError` is `{ name, message, code? }` and never carries a stack. Everything is
-re-validated on resume, and the recovery matrix is fixed (see
-[Persistence and resume](/concepts/persistence)). State is snapshot-authoritative; the event log
-is an advisory, bounded trace — `replay(log) == state` is a property test, not a hot path.
+The snapshot is the authority. The event log is an advisory, bounded trace, and
+`replay(log) == state` is a property test rather than something the hot path relies on.
 
 ## Public surface hygiene
 
-No `any` and no type assertions in the emitted declarations (`api/core.d.ts` is diffed in CI);
-every export is documented, tested, listed in the generated export table, and — when generic —
-covered by a type test that actually runs. Exactly one type extractor per concept, no aliases,
-no argument-shape overloads.
+The emitted declarations contain no `any` and no type assertions, and CI diffs `api/core.d.ts` to
+keep it that way. Every export is documented, tested and listed in the generated export table,
+with exactly one type extractor per concept.
 
 ## Concept budget
 
-Six step kinds, at most ten hooks per kind, at most ten flow options, eight stored step statuses
-(`idle | active | done | failed | skipped | cancelled | compensating | compensated`), seven wizard
-statuses (`idle | running | waiting | done | failed | compensating | cancelled`). Derived axes
-(`phase`, `progress`, `readyViews`, `explain`) live in selectors, memoised per state, and never
-call hooks. The [design docs](/design) record why.
+The vocabulary is deliberately small.
+
+| Vocabulary | Values |
+|---|---|
+| step kinds | six: `view`, `task`, `wait`, `decision`, `flow`, `final` |
+| step statuses | `idle`, `active`, `done`, `failed`, `skipped`, `cancelled`, `compensating`, `compensated` |
+| wizard statuses | `idle`, `running`, `waiting`, `done`, `failed`, `compensating`, `cancelled` |
+
+Anything derived, like `phase`, `progress`, `readyViews` and `explain`, lives in memoized
+selectors that never call hooks. The [design docs](/design) record why.

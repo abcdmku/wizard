@@ -131,7 +131,7 @@ export function SearchDialog() {
             role="dialog"
             aria-modal="true"
             aria-label="Search the docs"
-            className="relative w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-ink-2"
+            className="relative w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-paper shadow-2xl dark:border-neutral-800 dark:bg-ink-2"
           >
             <input
               // biome-ignore lint/a11y/noAutofocus: a search dialog should focus its input when opened

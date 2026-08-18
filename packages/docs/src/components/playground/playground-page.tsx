@@ -39,7 +39,7 @@ export function PlaygroundPage() {
           title="Playground · runs against the real @openwizard/core"
           samples={allSamples}
           currentSampleId={sample.id}
-          previewClassName="lg:w-[42%] xl:w-[44%]"
+          previewClassName="@2xl:w-[42%] @6xl:w-[44%]"
         />
       </main>
     </div>

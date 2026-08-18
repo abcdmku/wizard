@@ -1,42 +1,42 @@
-# 07 — DAG pipeline (fan-out, parallel branches, AND-join, `explain()`, `when` / `skip()` / `progress()`)
+# 07: DAG pipeline (fan-out, parallel branches, AND-join, `explain()`)
 
-A server-side ingest pipeline with no views at all: `ingest → (normalize ∥ enrich) → gate →
-persist → done`. The same rule drives wizards, DAGs and hybrids: `next` is a navigation edge
-(where completion arrives), `dependsOn` is data readiness (what must be done before an arrived
-step may run).
+A server-side ingest pipeline with no views at all: fetch rows, normalize and enrich them in
+parallel, then a gate decides whether the batch is good enough to persist. The same two rules
+that drive wizards drive DAGs: `next` is a navigation edge, `dependsOn` is data readiness.
 
-What it shows
+## What it shows
 
-- Fan-out with `next: ['normalize', 'enrich']`: both branches arrive at once and run in parallel — the test proves it with fakes that take virtual time on the wizard's own `createTestScheduler()` and record `normalize:start@0, enrich:start@0, normalize:end@300, enrich:end@500`.
-- The AND-join: `gate` is a `decision` with `dependsOn: ['normalize', 'enrich']`; the first branch to finish arrives there, but it stays `blocked` until both are done (`{ any: [...] }` would be an OR-join).
-- `wizard.explain('gate')` while waiting: `not-activated, deps-unmet:normalize, deps-unmet:enrich` before anything arrived, then `phase: 'blocked', reasons: ['deps-unmet:enrich']`.
-- `concurrency`: with `concurrency: 1` the branches are serialised and `explain('enrich')` says `concurrency-limit`.
-- `autoRun: 'manual'` + `runReady()`: ready steps report `auto-run-manual` and only start when the host says so — stage by stage.
-- Branches hand data on through the shared context (`update()` patches shallow-merge; each branch writes its own keys); the decision routes on the merged context.
-- `when` (v0.2): `enrich` declares `when: ({ context }) => context.enrichment === 'on'` — evaluated once the step is ready; `false` skips it (`step.skipped { reason: 'when' }`), the AND-join treats skipped as done and the gate proceeds on `normalize` alone.
-- `wizard.skip(step, reason?)` (v0.2): an operator skips the slow branch while it runs — the run is cancelled, the step is `skipped { reason: 'command' }`, its late result is ignored, and the join proceeds (a finished step cannot be skipped: `{ ok: false }`).
-- `wizard.progress()` (v0.2): `{ done, total, ratio }` over the non-final steps — skipped counts as done, and `ratio` is 1 once the flow is done even when a branch (here `persist`) was never taken.
-- `inspect(flow)` returns the static graph (`next` / `dependsOn` / `start` edges, warnings) — what a visualizer or devtools panel consumes.
+| Piece | What it does |
+|---|---|
+| `next: ['normalize', 'enrich']` | fans out, so both branches run at once, each patching its own keys into the shared context |
+| `dependsOn: ['normalize', 'enrich']` on `gate` | an AND-join, and while it is blocked `explain('gate')` says exactly why |
+| `concurrency: 1` | serialises the branches without touching the graph |
+| `autoRun: 'manual'` | the host drives the pipeline stage by stage with `runReady()` |
+| `when` on `enrich`, and `wizard.skip()` | skip by rule or by hand mid-run, and the join counts a skipped step as done |
+| `inspect(flow)` | the static graph as data, which example 09 renders as Mermaid |
 
-Run
+## Run it
 
 ```sh
-pnpm --filter example-07-dag-pipeline check
-pnpm --filter example-07-dag-pipeline start
+pnpm --filter example-07-dag-pipeline start   # prints the graph, then a timed run
+pnpm --filter example-07-dag-pipeline check   # typecheck + vitest
 ```
 
-Excerpt (`src/pipeline.test.ts`)
+## What the tests prove
+
+The fakes take virtual time from the same `createTestScheduler()` the wizard uses and record a
+timeline, so the parallelism claim is testable for real. The other tests cover the serialised
+run, the stage-by-stage run, the low-quality route to quarantine, and both kinds of skip.
 
 ```ts
-await wizard.start() // ingest (sync) → fan-out → both branches start at once
+await wizard.start() // ingest is sync, so the fan-out starts both branches together
 expect(timeline).toEqual(['normalize:start@0', 'enrich:start@0'])
-expect(wizard.explain('gate').reasons).toEqual(['not-activated', 'deps-unmet:normalize', 'deps-unmet:enrich'])
 
-sched.advance(300) // normalize finishes and arrives at the gate …
+sched.advance(300) // normalize arrives at the gate, enrich has not
 await settle()
 expect(wizard.explain('gate')).toMatchObject({ phase: 'blocked', reasons: ['deps-unmet:enrich'] })
 
-sched.advance(200) // enrich finishes → join satisfied → gate → persist → done
+sched.advance(200) // join satisfied, so gate routes, persist runs, flow ends
 await settle()
 expect(wizard.getState().output).toBe('stored 100 rows')
 ```

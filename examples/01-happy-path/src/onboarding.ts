@@ -1,7 +1,7 @@
 import { boundary, defineFlow } from '@openwizard/core'
 import { z } from 'zod'
 
-/** The flow context: known facts at creation plus what the wizard collects along the way. */
+/** What the flow knows: facts you have at creation plus what the wizard collects on the way. */
 const Context = z.object({
   email: z.email(), // known when the wizard is created (the sign-up form)
   company: z.string().optional(), // collected by the `profile` view
@@ -9,13 +9,13 @@ const Context = z.object({
 })
 type Contact = z.infer<typeof Context>
 
-/** Out-of-domain services the flow calls, injected with `createWizard(flow, { deps })`. */
+/** Services outside the flow (here a CRM), injected with `createWizard(flow, { deps })`. */
 export interface Deps {
   crm: { upsert(contact: Contact): { id: string } }
 }
 
-// `defineFlow` returns pre-bound step constructors: every hook below is typed by this
-// context / deps without generics or casts.
+// `defineFlow` returns pre-bound step constructors: every hook below already knows the
+// context and deps types, so you never write a generic or a cast.
 const s = defineFlow({
   name: 'onboarding',
   context: Context,
@@ -24,8 +24,8 @@ const s = defineFlow({
 
 export const onboarding = s.steps(
   {
-    // A view waits for the user: `setInput()` fills the draft, `next()` parses it through
-    // `input` (Zod here — any Standard Schema works) and rejects with issues, never throws.
+    // A view waits for the user. `setInput()` fills the draft; `next()` parses it through
+    // `input` (Zod here, any Standard Schema works) and rejects with issues, never throws.
     profile: s.view({
       input: z.object({
         company: z.string().min(1, 'company is required'),

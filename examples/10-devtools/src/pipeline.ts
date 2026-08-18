@@ -1,6 +1,6 @@
 /**
- * Example 07's ingest pipeline — `ingest → (normalize ∥ enrich) → gate → persist → done`, with
- * `when` on the enrichment branch and an AND-join decision — plus one addition so the page has
+ * Example 07's ingest pipeline (`ingest → (normalize ∥ enrich) → gate → persist → done`, with
+ * `when` on the enrichment branch and an AND-join decision) plus one addition so the page has
  * an external event to send: an `approve` wait step (with a timeout) before `persist`.
  */
 import { boundary, defineFlow } from '@openwizard/core'

@@ -15,7 +15,7 @@ export function App({ mirror }: { mirror: Mirror<typeof checkoutClient> }) {
         <p className="eyebrow">OpenWizard · example 08</p>
         <h1>Checkout, mirrored</h1>
         <p className="lede">
-          The wizard runs in an in-page “server”. This UI only sees a <code>Mirror</code> over a
+          The wizard runs in an in-page "server". This UI only sees a <code>Mirror</code> over a
           deny-by-default projection and sends commands over a loopback transport (with latency).
         </p>
       </header>
@@ -51,7 +51,7 @@ function Checkout() {
   )
 }
 
-/** Step rail. `useSnapshot()` re-renders on every frame — fine for a summary of everything. */
+/** Step rail. `useSnapshot()` re-renders on every frame, fine for a summary of everything. */
 function Progress() {
   const state = ow.useSnapshot()
   const order = ['shipping', 'payment', 'reserve', 'charge', 'receipt'] as const
@@ -124,8 +124,8 @@ function ShippingForm() {
 
 /**
  * The card number lives in LOCAL component state only. On submit it goes to the payment
- * provider (`tokenizeCard`, the browser SDK stand-in) and only the returned token reaches the
- * wizard through `setInput` — so no PAN in any draft, snapshot, projection or frame.
+ * provider (`tokenizeCard`, the browser SDK stand-in) and only the token and last4 reach the
+ * wizard through `setInput`. So no card number in any draft, snapshot, projection or frame.
  */
 function PaymentForm() {
   const { input, issues, status, setInput, next, back } = ow.useStep('payment')

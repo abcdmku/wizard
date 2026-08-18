@@ -1,41 +1,22 @@
 # Concepts
 
-OpenWizard has a small vocabulary. Everything else — wizards, DAGs, sagas, hybrids — is a
-combination of these ideas rather than a mode switch.
+There is no wizard mode and no DAG mode to switch between. A step-by-step wizard, a dependency
+graph of tasks, and a saga that undoes itself are the same pieces arranged differently, so read
+these top to bottom the first time.
 
-**A flow is data.** `defineFlow({ name, context, events?, deps?, …policies })` gives you six
-pre-bound step constructors and `steps()`, which assembles an inert `Flow`. Every step id you
-reference in `next`, `dependsOn`, `timeout.next` or `start` is checked when the flow is
-assembled — at compile time for TypeScript callers, at runtime for everyone. See
-[Defining flows](/concepts/defining-flows) and [Steps and kinds](/concepts/steps).
-
-**Boundaries are the only doors.** Data enters through `context` (at `createWizard`), a view's
-`input` (parsed on `next()` / `go()`), `send()` (through `events[name]`) and `resume` (everything
-again) — each through a schema you declared. Rejections are values, not throws. See
-[Boundaries](/concepts/boundaries) and [Results as values](/concepts/results).
-
-**Policies are data, not code paths.** `onFailure`, `retry`, `timeout`, `autoRun`, `concurrency`,
-`unmatchedEvents` describe how the runtime behaves; `inspect()` can show them. See
-[Policies](/concepts/policies).
-
-**Every change is a typed event.** `observe()` / `log()` stream domain events with a causal `seq`
-and a `path` for nested flows; `inspect(flow)` is the static graph; `explain(step)` the live
-reasons. See [Events and observability](/concepts/observability).
-
-**State is a JSON snapshot.** Auto-saved to a `Store` after every change, JSON-checked before
-every write, re-validated on `resumeWizard()`, with a recovery matrix for interrupted work. See
-[Persistence and resume](/concepts/persistence).
-
-**Clients see projections.** `defineProjection(flow, { expose })` is deny-by-default; the Mirror is
-a read-only client replica with the same typed command sugar; `@openwizard/react` binds either
-to hooks. See [Projections and the Mirror](/concepts/projections) and [React](/concepts/react).
-
-## Reading order
-
-1. [Steps and kinds](/concepts/steps) — the six constructors and their options.
-2. [Defining flows](/concepts/defining-flows) — the builder, flow options, what the types guarantee.
-3. [Boundaries](/concepts/boundaries), [Results as values](/concepts/results), [Policies](/concepts/policies).
-4. [Events and observability](/concepts/observability), [Persistence and resume](/concepts/persistence).
-5. [External events](/concepts/external-events), [Nesting](/concepts/nesting), [DAGs](/concepts/dag).
-6. [Projections and the Mirror](/concepts/projections), [React](/concepts/react), [Testing](/concepts/testing).
-7. [Guarantees](/concepts/guarantees) — the promises the runtime keeps.
+| Page | What it covers |
+|---|---|
+| [Steps and kinds](/concepts/steps) | the six constructors, and why `next` (navigation) and `dependsOn` (data readiness) are different edges |
+| [Defining flows](/concepts/defining-flows) | `defineFlow` returns constructors already bound to your types, `steps()` assembles them and checks every id |
+| [Boundaries](/concepts/boundaries) | the four doors untrusted data comes through, and `boundary.parse` / `guard` / `assert` / `trusted` |
+| [Results as values](/concepts/results) | `{ ok: false, code, issues }` for data problems, `WizardError` only for programmer errors |
+| [Policies](/concepts/policies) | `retry`, `timeout`, `onFailure`, `autoRun`, `concurrency`, `unmatchedEvents` as plain data on the definition |
+| [Events and observability](/concepts/observability) | `observe()` and `log()` for what happened, `inspect(flow)` and `explain(step)` for why |
+| [Persistence and resume](/concepts/persistence) | JSON-safe snapshots, the `Store` interface, `resumeWizard()`, re-armed timers, `migrate` |
+| [External events](/concepts/external-events) | `send()` through an event boundary, the inbox and its TTL, wait timeouts, `correlate` |
+| [Nesting](/concepts/nesting) | `s.flow(child)` as a step, `wizard.child()`, child events carrying a `path`, nested snapshots |
+| [DAGs](/concepts/dag) | an array in `next` to fan out, `dependsOn` to join, plus `concurrency`, `when` and `skip()` |
+| [Projections and the Mirror](/concepts/projections) | `defineProjection` deny-by-default, `dispatch` and `parseCommand` as the one wire door, `createMirror` |
+| [React](/concepts/react) | `bindReact()` and the hooks it returns: `useStep`, `useSelector`, `useActions`, `useChild` |
+| [Testing](/concepts/testing) | `createTestScheduler` for virtual time, `createLocalTransport` for a Mirror with no network |
+| [Guarantees](/concepts/guarantees) | what the runtime promises, stated the way the tests state it |

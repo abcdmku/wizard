@@ -75,7 +75,7 @@ export function DocsNav({
         if (!section) return null
         return (
           <section key={`section-${section.id}`} className="space-y-0.5">
-            <h2 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+            <h2 className="mb-1.5 px-2 font-mono text-[10.5px] font-medium tracking-[0.18em] text-neutral-500 uppercase">
               {section.title}
             </h2>
             {section.slugs.map((slug) => {
@@ -94,7 +94,7 @@ export function DocsNav({
         )
       })}
       <section className="space-y-0.5">
-        <h2 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+        <h2 className="mb-1.5 px-2 font-mono text-[10.5px] font-medium tracking-[0.18em] text-neutral-500 uppercase">
           Try it
         </h2>
         <Link

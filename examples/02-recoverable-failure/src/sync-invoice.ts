@@ -1,7 +1,7 @@
 import { boundary, defineFlow, type ErrorOf } from '@openwizard/core'
 import { z } from 'zod'
 
-/** The accounting system we post to — flaky, so the task retries. */
+/** The accounting system we post to. It's flaky, so the task retries. */
 export interface Deps {
   ledger: {
     /** `idempotencyKey` lets the ledger de-duplicate a re-run of the same posting. */

@@ -1,6 +1,6 @@
 /**
  * The page: a few buttons that drive the wizard (start, send the approval, retry a failed task,
- * reset) and a status line — the interesting part is the `<Devtools>` panel docked underneath,
+ * reset) and a status line. The interesting part is the `<Devtools>` panel docked underneath,
  * fed with the same wizard object (and the context input, so the timeline covers the whole run).
  */
 import type { Wizard } from '@openwizard/core'
@@ -63,12 +63,12 @@ export function App({ wizard }: { wizard: Wizard<typeof pipeline> }) {
       <section className="status" data-status={state.status}>
         <span className="dot" /> status <code>{state.status}</code> · seq <code>{state.seq}</code>
         {state.status === 'waiting' && state.steps.approve.status === 'active' && (
-          <span className="hint"> — waiting for the approval event</span>
+          <span className="hint"> · waiting for the approval event</span>
         )}
         {state.output !== undefined && (
           <span className="hint">
             {' '}
-            — output <code>{String(state.output)}</code>
+            · output <code>{String(state.output)}</code>
           </span>
         )}
       </section>

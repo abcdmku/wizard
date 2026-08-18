@@ -38,8 +38,10 @@ function StatusLabel({ snapshot }: { readonly snapshot: RunnerSnapshot }) {
           snapshot.status === 'running' || snapshot.status === 'compiling'
             ? 'animate-pulse bg-neutral-900 dark:bg-neutral-100'
             : snapshot.status === 'error'
-              ? 'bg-neutral-900 dark:bg-neutral-100'
-              : 'bg-neutral-400'
+              ? 'bg-red-500'
+              : snapshot.status === 'done'
+                ? 'bg-emerald-500'
+                : 'bg-neutral-400'
         }`}
       />
       {text}
@@ -82,7 +84,7 @@ export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
   const errorDiagnostics = snapshot.diagnostics.filter((d) => d.category === 'error')
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white dark:bg-ink">
+    <div className="flex h-full min-h-0 flex-col bg-paper dark:bg-ink">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
         <div className="flex items-center gap-1" role="tablist" aria-label="Preview">
           {TABS.map((item) => (
@@ -146,7 +148,7 @@ export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
         <ul className="max-h-24 shrink-0 overflow-auto border-b border-neutral-200 px-3 py-1.5 font-mono text-[11px] text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
           {errorDiagnostics.slice(0, 6).map((d) => (
             <li key={`${d.file}:${d.line}:${d.column}:${d.message}`} className="truncate">
-              {d.file}:{d.line}:{d.column} — {d.message}
+              {d.file}:{d.line}:{d.column} · {d.message}
             </li>
           ))}
         </ul>

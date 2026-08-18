@@ -8,5 +8,6 @@
   "06-nested-flow": "06 · Nested flow",
   "07-dag-pipeline": "07 · DAG pipeline",
   "08-react-mirror": "08 · React + Mirror",
-  "09-mermaid": "09 · Mermaid"
+  "09-mermaid": "09 · Mermaid",
+  "10-devtools": "10 · Devtools"
 }

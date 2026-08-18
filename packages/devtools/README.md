@@ -1,8 +1,8 @@
 # @openwizard/devtools
 
-React devtools for [OpenWizard](../../README.md): the flow graph (React Flow + ELK) with a
-live status overlay, an event log, a step inspector and a replay timeline — each a component,
-and all four in one dockable `<Devtools>` panel over a `Wizard` or a `Mirror`.
+React devtools for [OpenWizard](../../README.md). You get four components, the flow graph with a
+live status overlay, an event log, a step inspector and a replay timeline, and a dockable
+`<Devtools>` panel that puts all four over a `Wizard` or a `Mirror`.
 
 ```sh
 pnpm add -D @openwizard/devtools   # brings @xyflow/react + elkjs; peers: react / react-dom ^18 || ^19, @openwizard/core
@@ -22,46 +22,84 @@ function App({ wizard }: { wizard: Wizard<typeof pipeline> }) {
 }
 ```
 
-`ctrl+shift+d` toggles the panel; drag its edge to resize; dock it at the bottom or on the right.
-See [`examples/10-devtools`](../../examples/10-devtools) for a Vite app running example 07's DAG
-under the panel.
+`ctrl+shift+d` toggles the panel, you drag its edge to resize, and it docks at the bottom or on
+the right. [`examples/10-devtools`](../../examples/10-devtools) is a Vite app running example
+07's DAG under the panel.
 
 ## Components
 
-| Component | Source | What it shows |
+| Component | Needs | Shows |
 |---|---|---|
-| `<FlowGraph graph={inspect(flow)} \| flow statuses? activeStep? selected? onSelect? theme? layoutEngine? minimap? />` | none (static) | The static graph laid out by ELK (layered, left → right, 150 px between layers, splines, network simplex): a card per step (id, kind, `start`, hooks / `dependsOn` / `timeout` flags, a warnings badge), an entry marker per flow, `next` solid / `dependsOn` dashed + labelled / `timeout` dotted + labelled / dynamic `next` dashed to a `?` port, child flows as group nodes containing their own graph. Cycles are broken for the layout (DFS back edges) and drawn as U-turns / self-loops; steps no edge touches are parked in a right-hand column. With `statuses` (a `StepStatusMap`) each card gets a status ring (+ a pulsing phase dot); `activeStep` highlights the current view. Click a card → `onSelect({ id, path, key })`. |
-| `<EventLog source={wizard} \| events filter? onSelect? selectedSeq? maxRows? />` | wizard | The domain events (`seq`, `at`, `type`, `step`, `path`, detail) — live through `observe()` (seeded with `log()`, child events included) or a static array; a filter box (substring over type / step / event / path, or your predicate); windowed rows (only the visible ones are in the DOM); follows the newest row until you scroll up. |
-| `<StepInspector source step path? graph? />` | wizard or Mirror | One step: the stored record (status, attempt, run / retry / deadline facts, `error`, `issues`, `input`, `output` as JSON), `wizard.explain(step)` (reasons + cursor candidates; a Mirror source says it needs a wizard) and the definition facts from the graph (kind, hooks, `dependsOn`, `timeout`, `next`, incoming edges). |
-| `<Timeline source={wizard} context? onScrub? maxEvents? />` | wizard | Time travel: a `seq` slider (◀ ▶ ⏮ live) over the replay window — the state at any kept seq through `replay(flow, events, { from, upTo })` (read-only, no hook runs): status, current view, active steps, every step's status, the event that produced it. The range starts where the timeline attached (`getState()` then) — mount it before `start()`, or pass `context` (the input `createWizard` received) while `log()` still starts at seq 1, for the whole history; past `maxEvents` (5000) the oldest half is folded into the base. |
-| `<Devtools source theme? defaultOpen? position? defaultSize? hotkey? context? flow? graph? />` | wizard or Mirror | The four above as tabs in a fixed panel (bottom or right, resizable, `ctrl+shift+d`); the graph overlay follows the source live and switches to the time-travelled state while the timeline scrubs; clicking an event or a card selects the step for the inspector. Buffers live in the panel, so closing it loses nothing. |
+| `<FlowGraph graph statuses? activeStep? selected? onSelect? theme? layoutEngine? minimap? />` | nothing, it's static | the graph from `inspect(flow)`, laid out by ELK |
+| `<EventLog source events? filter? onSelect? selectedSeq? maxRows? />` | a wizard | the domain events, live or from an array |
+| `<StepInspector source step path? graph? />` | a wizard or a Mirror | everything known about one step |
+| `<Timeline source context? onScrub? maxEvents? />` | a wizard | the state at any past `seq` |
+| `<Devtools source theme? defaultOpen? position? defaultSize? hotkey? context? flow? graph? />` | a wizard or a Mirror | the four above as tabs in a fixed panel |
 
-Every component takes `theme?: 'light' | 'dark' | 'system'` (default `system`) — `data-theme` on its
-root, every colour a `--owd-*` CSS variable you can override.
+Every component takes `theme?: 'light' | 'dark' | 'system'`, defaulting to `system`. It sets
+`data-theme` on its root, and every colour is a `--owd-*` CSS variable you can override.
+
+### FlowGraph
+
+ELK lays the steps out left to right in layers, one card per step showing its id, kind, `start`,
+hook / `dependsOn` / `timeout` flags and a warnings badge. Edges are solid for `next`, dashed and
+labelled for `dependsOn`, dotted and labelled for `timeout`, and a dashed line to a `?` port for a
+dynamic `next`; child flows become group nodes holding their own graph. Cycles are broken for the
+layout and drawn as U-turns or self-loops, and steps no edge touches park in a right-hand column.
+Pass a `StepStatusMap` as `statuses` and each card gets a status ring with a pulsing phase dot,
+`activeStep` highlights the current view, and clicking a card calls `onSelect({ id, path, key })`.
+
+### EventLog
+
+Rows carry `seq`, `at`, `type`, `step`, `path` and the detail, either live through `observe()`
+seeded from `log()` and including child events, or from a static array you pass. The filter box
+matches a substring against type, step, event and path, or you can hand it your own predicate.
+Only the visible rows are in the DOM, and it follows the newest row until you scroll up.
+
+### StepInspector
+
+You get the stored record (status, attempt, run / retry / deadline facts, `error`, `issues`,
+`input` and `output` as JSON), the answer from `wizard.explain(step)` with its reasons and cursor
+candidates, and the definition facts from the graph. A Mirror source says it needs a wizard for
+the `explain` part.
+
+### Timeline
+
+A `seq` slider walks the replay window and shows the state at any kept seq through
+`replay(flow, events, { from, upTo })`, which is read-only and runs no hooks. The range starts
+where the timeline attached, so mount it before `start()`, or pass the `context` that
+`createWizard` received while `log()` still starts at seq 1, and you get the whole history. Past
+`maxEvents`, which defaults to 5000, the oldest half folds into the base.
+
+### Devtools
+
+The panel's graph overlay follows the source live and switches to the time-travelled state while
+the timeline scrubs, and clicking an event or a card selects that step for the inspector. The
+buffers live in the panel, so closing it loses nothing.
 
 ## Sources
 
-The components are typed structurally: any `Wizard<F>` is a `WizardSource` (`flow`, `getState`,
-`getSnapshot`, `subscribe`, `observe`, `log`, `explain`, `child`), any `Mirror<P>` a
-`MirrorSource` (`getSnapshot`, `subscribe`, `instanceId` / `epoch` / `seq` / `connected`). Over a
-Mirror the panel draws the graph (give it `flow` or `graph` — `inspect(flow)` is plain JSON your
-server can send) with the overlay read from the projected `ClientState` (`status` / `phase` per
-step, nested `child` slices when exposed) and inspects the projected step facts; the event log,
-`explain()` and the timeline need a wizard and say so.
+The components are typed structurally, so any `Wizard<F>` is a `WizardSource` (`flow`,
+`getState`, `getSnapshot`, `subscribe`, `observe`, `log`, `explain`, `child`) and any `Mirror<P>`
+is a `MirrorSource` (`getSnapshot`, `subscribe`, `instanceId`, `epoch`, `seq`, `connected`).
+Over a Mirror the panel still draws the graph if you give it `flow` or `graph`, since
+`inspect(flow)` is plain JSON your server can send, and it reads the overlay out of the projected
+`ClientState`. The event log, `explain()` and the timeline all need a wizard, and they say so
+when they don't have one.
 
 ## Overlay helpers
 
-`stepKey(path, id)` names a step across nesting levels (`'fulfil/pick'`); `collectStatuses(snapshotOrClientState, phaseOf?)`
-flattens a wizard snapshot (`getSnapshot()`, children included) or a projected state into a
-`StepStatusMap` + the current view key; `overlayOf(source, source.getSnapshot())` does that for
-either source kind (with `explain().phase` for a wizard). `buildGraphModel(graph)` and
-`layoutGraph(model, engine?)` are the pure halves of the graph (a custom `LayoutEngine` — any
-`{ layout(elkGraph) }` — replaces the bundled elkjs, in a worker or in tests).
+`stepKey(path, id)` names a step across nesting levels, like `'fulfil/pick'`.
+`collectStatuses(snapshotOrClientState, phaseOf?)` flattens a wizard snapshot or a projected
+state into a `StepStatusMap` plus the current view key, and `overlayOf(source, source.getSnapshot())`
+does that for either kind of source. `buildGraphModel(graph)` and `layoutGraph(model, engine?)`
+are the pure halves of the graph, and a custom `LayoutEngine`, meaning anything shaped like
+`{ layout(elkGraph) }`, replaces the bundled elkjs in a worker or in tests.
 
 ## Bundle
 
-`@xyflow/react`, `elkjs` and React are externals (the host bundles them; elkjs is loaded lazily,
-the first time a graph is drawn). `dist/style.css` = React Flow's stylesheet + the `--owd-*`
+`@xyflow/react`, `elkjs` and React are externals, so the host bundles them, and elkjs only loads
+the first time a graph is drawn. `dist/style.css` is React Flow's stylesheet plus the `--owd-*`
 theme.
 
 ## Exports

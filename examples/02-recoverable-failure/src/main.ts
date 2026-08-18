@@ -1,7 +1,7 @@
 /**
  * Runnable walk-through: `pnpm --filter example-02-recoverable-failure start`.
- * A flaky ledger fails twice; the retry policy waits 200 ms, then 400 ms (virtual time — the
- * test scheduler doubles as the clock, so the demo finishes instantly).
+ * A flaky ledger fails twice; the retry policy waits 200 ms, then 400 ms. The time is virtual
+ * (the test scheduler doubles as the clock), so the demo finishes instantly.
  */
 import { createWizard } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'

@@ -16,16 +16,16 @@ export function Landing() {
 
   return (
     <div className="landing-canvas flex min-h-screen flex-col lg:h-dvh lg:overflow-hidden">
-      <div className="flex min-h-0 flex-1 flex-col gap-8 px-6 py-8 lg:flex-row lg:items-center lg:justify-center lg:gap-12 lg:px-10 lg:py-0 xl:gap-16 xl:px-14">
+      <div className="relative flex min-h-0 flex-1 flex-col gap-8 px-6 py-8 lg:flex-row lg:items-center lg:justify-center lg:gap-12 lg:px-10 lg:py-0 xl:gap-16 xl:px-14">
         <Hero />
 
-        <div className="flex min-w-0 flex-1 flex-col lg:items-center">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:items-start">
           <h2 className="mb-3 text-2xl font-bold tracking-tight text-ink lg:hidden dark:text-white">
             Try it live
           </h2>
-          {/* One IDE instance: a fixed height on small screens; on desktop a 16:10 box whose width is
-              driven by the column and capped by the viewport height, so it never overflows the hero. */}
-          <div className="h-[560px] w-full overflow-hidden lg:aspect-[16/10] lg:h-auto lg:w-[min(100%,1080px,calc((100dvh-72px)*1.6))]">
+          {/* One IDE instance. Fixed height on small screens; on desktop it fills the column and the
+              available height, so a short window shrinks it instead of pushing the footer away. */}
+          <div className="h-[560px] w-full overflow-hidden lg:h-[min(74dvh,720px)] lg:w-full">
             <Ide state={playground} title="OpenWizard IDE" />
           </div>
         </div>

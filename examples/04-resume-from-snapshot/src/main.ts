@@ -32,7 +32,7 @@ console.log(
   first.getState().steps.awaitDecision.deadline,
 )
 first.dispose()
-console.log('process 1: 💥 crashed')
+console.log('process 1: crashed')
 
 // ── process 2, three hours later ──────────────────────────────────────────────────────────
 const sched2 = createTestScheduler({ now: 3 * HOUR })

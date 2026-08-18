@@ -1,5 +1,5 @@
 /**
- * The client — the only OpenWizard objects the UI touches: a `Mirror` typed by the projection
+ * The client. The only OpenWizard objects the UI touches: a `Mirror` typed by the projection
  * (TYPE-ONLY import of `checkoutClient`, so no flow code, Zod schema or service reaches the
  * bundle) and the React binding derived from that type. Swap `transport` for an SSE/WS
  * transport in production; nothing else changes.

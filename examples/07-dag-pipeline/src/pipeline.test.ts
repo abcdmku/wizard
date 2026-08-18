@@ -5,7 +5,7 @@ import { type Deps, definePipeline, pipeline } from './pipeline'
 
 /**
  * Fakes whose slow calls take virtual time on the SAME test scheduler the wizard uses, and
- * record a timeline — that is how the tests prove which branches overlapped.
+ * record a timeline. That timeline is how the tests prove which branches overlapped.
  */
 function fakeDeps(sched: TestScheduler, opts: { quality?: number } = {}) {
   const timeline: string[] = []
@@ -113,7 +113,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     expect(wizard.getState().status).toBe('done')
     expect(wizard.getState().output).toBe('stored 100 rows')
 
-    // Both runs started before either finished — parallel for real, not just "eventually both".
+    // Both runs started before either finished, which proves the branches actually overlapped.
     const started = of('step.runStarted').map((e) => e.step)
     const finished = of('step.runSucceeded').map((e) => e.step)
     expect(started.slice(0, 3)).toEqual(['ingest', 'normalize', 'enrich'])
@@ -141,7 +141,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     wizard.dispose()
   })
 
-  it("autoRun: 'manual' — nothing runs until runReady(); explain() says auto-run-manual", async () => {
+  it("autoRun: 'manual': nothing runs until runReady(); explain() says auto-run-manual", async () => {
     const manual = definePipeline({ concurrency: 2, autoRun: 'manual' })
     const { wizard, sched, timeline } = make(manual)
     await wizard.start()
@@ -208,7 +208,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     wizard.dispose()
   })
 
-  it('skip(): an operator skips the slow branch while it runs — cancelled, then skipped; the join proceeds', async () => {
+  it('skip(): an operator skips the slow branch while it runs (cancelled, then skipped); the join proceeds', async () => {
     const { wizard, sched, timeline, of } = make(pipeline)
     await wizard.start()
     expect(timeline).toEqual(['normalize:start@0', 'enrich:start@0'])

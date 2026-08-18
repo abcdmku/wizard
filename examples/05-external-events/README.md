@@ -1,33 +1,38 @@
-# 05 — external events (webhooks through a boundary, inbox, TTL, timeout, correlation, flow-level `on`)
+# 05: external events (webhooks, inbox, TTL, timeout, correlation)
 
-A checkout that waits for a payment provider's webhook. The flow declares its `events` as
-schemas; `wizard.send(event, unknownBody)` is the only door for them.
+A checkout that waits for a payment provider's webhook. Bodies are untrusted, can arrive early,
+can belong to a different order, or can never arrive at all, and `wizard.send(event, body)` is
+the only door any of them come through.
 
-What it shows
+## What it shows
 
-- `events: { 'payment.captured': z.object(…) }` — `send()` parses the untrusted body first: a bad one is `event.rejected` + `{ ok: false, reason: 'rejected', issues }`; a good one is `event.received` → `event.delivered { to }` to every active `wait` step listening for it. Handlers see the parsed payload and `update()` the typed context; a handler may return `{ next }` to override the step's static `next`.
-- The early-webhook race: with `unmatchedEvents: { buffer: true, ttl: '10m' }` an event with no listener is buffered (`event.buffered { expiresAt }`, `state.inbox`) and delivered the moment a matching wait step enters — before its timeout is armed.
-- TTL expiry (`event.expired`) and the wait `timeout: { after: '30m', next: 'expired' }` (an absolute `deadline`; `timer.fired` routes to `timeout.next`), both driven by `createTestScheduler()`.
-- Correlation (v0.2): `defineFlow({ correlate: { 'payment.captured': (p) => p.orderId } })` + `createWizard(checkout, { correlationId: 'o-1' })` — a webhook whose extracted id differs is `event.dropped { reason: 'correlation' }` (never buffered, never delivered); payloads without an id are not filtered.
-- Flow-level `on` (v0.2): `defineFlow({ on: { 'order.cancelled': ({ payload }) => ({ cancel: payload.reason }) } })` runs for the event whatever step is active (after step-level handlers) — here it cancels the flow from the review view, where no wait step listens.
-- `dispatch({ type: 'send', … })` (the wire door, typed by the flow: an undeclared event name does not compile) runs the same boundary and answers a `CommandResult` (`BOUNDARY_REJECTED`); `send('typo', …)` from JS is a programmer error (`WizardError('UNKNOWN_EVENT')`).
+| Piece | What it does |
+|---|---|
+| `events` on the flow | `send()` parses the body first, so a bad one is `event.rejected` plus `{ ok: false, reason: 'rejected', issues }` |
+| `unmatchedEvents: { buffer: true, ttl: '10m' }` | an early event waits in `state.inbox` until a matching wait step enters, or the TTL expires it first |
+| `timeout: { after: '30m', next: 'expired' }` | covers the webhook that never comes |
+| `correlate` | a payload whose extracted id differs from the wizard's `correlationId` is dropped, never buffered |
+| flow-level `on` | `order.cancelled` can land on any step, and its handler cancels the whole flow |
+| `dispatch` with a `send` command | the wire version of `send()`, typed by the flow, answering a `CommandResult` |
 
-Run
+## Run it
 
 ```sh
-pnpm --filter example-05-external-events check
-pnpm --filter example-05-external-events start
+pnpm --filter example-05-external-events start   # bad body, foreign webhook, early webhook
+pnpm --filter example-05-external-events check   # typecheck + vitest
 ```
 
-Excerpt (`src/checkout.test.ts`)
+## What the tests prove
+
+Six tests, one per behaviour: the boundary rejection, the early buffer, the TTL expiry plus the
+wait timeout, the handler override, the correlation drop, and the flow-level cancel. Buffering
+is the heart of it:
 
 ```ts
-// nobody listens yet (the cursor is on the `review` view) → buffered
+// nobody is listening yet, the cursor is still on the `review` view, so it goes to the inbox
 expect(await wizard.send('payment.captured', goodBody)).toMatchObject({ ok: true, delivered: [], buffered: true })
-expect(wizard.getState().inbox).toHaveLength(1)
 
 sched.advance(2 * MINUTE)
 await wizard.next() // the wait step enters and drains the inbox first
-expect(of('event.delivered')[0]).toMatchObject({ event: 'payment.captured', to: 'awaitPayment' })
 expect(wizard.getState().output).toBe('paid (pay_1)')
 ```

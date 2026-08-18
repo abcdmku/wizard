@@ -26,7 +26,7 @@ function PagerLink({
         direction === 'next' ? 'items-end text-right' : 'items-start'
       }`}
     >
-      <span className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-neutral-500">
+      <span className="flex items-center gap-1 font-mono text-[10px] tracking-[0.18em] text-neutral-500 uppercase">
         {direction === 'prev' && <ArrowLeft className="h-3 w-3" />}
         {direction === 'prev' ? 'Previous' : 'Next'}
         {direction === 'next' && <ArrowRight className="h-3 w-3" />}

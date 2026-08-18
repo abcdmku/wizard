@@ -18,20 +18,20 @@ const s = defineFlow({
     'payment.failed': z.object({ reason: z.string() }),
     'order.cancelled': z.object({ orderId: z.string(), reason: z.string() }),
   },
-  // Flow-level handlers run for an event whatever step is active (after the step-level ones):
-  // a cancellation is a flow-wide concern, so it lives here — `{ cancel }` cancels the flow.
+  // Flow-level handlers run for an event whatever step is active (after the step-level ones).
+  // A cancellation is a flow-wide concern, so it lives here; `{ cancel }` cancels the flow.
   on: {
     'order.cancelled': ({ payload }) => ({ cancel: payload.reason }),
   },
   // Correlation: with `createWizard(checkout, { correlationId })`, an event whose extracted id
-  // differs is dropped (`event.dropped { reason: 'correlation' }`) — a webhook for another order
-  // never lands here. Payloads without an id (undefined) are not filtered.
+  // differs is dropped (`event.dropped { reason: 'correlation' }`), so a webhook for another
+  // order never lands here. Payloads without an id (undefined) are not filtered.
   correlate: {
     'payment.captured': (payload) => payload.orderId,
     'order.cancelled': (payload) => payload.orderId,
   },
   // An event with no active listener is buffered (FIFO) for 10 minutes and delivered when a
-  // wait step that handles it enters — the "webhook arrives before we listen" race.
+  // wait step that handles it enters. That covers the "webhook arrives before we listen" race.
   unmatchedEvents: { buffer: true, ttl: '10m' },
 })
 

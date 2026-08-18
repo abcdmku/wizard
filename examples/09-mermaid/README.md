@@ -1,24 +1,31 @@
-# 09 — Mermaid (`toMermaid(inspect(flow))`)
+# 09: Mermaid (`toMermaid(inspect(flow))`)
 
-The static graph of a flow, rendered as a Mermaid `flowchart TD`. `inspect(flow)` is the data a
-visualizer consumes (nodes, edges, warnings — child flows included); `toMermaid(graph)` turns it
-into text you can paste into any Mermaid renderer or commit next to the flow.
+`inspect(flow)` returns the static graph as data, and `toMermaid(graph)` turns that into a
+Mermaid `flowchart TD` you can paste into any renderer or commit next to the flow. The checkout
+in `src/checkout.ts` packs every static feature into one graph on purpose.
 
-What it shows
+## How to read the output
 
-- Nodes are labelled `id (kind)` and shaped by kind: view `[…]`, task `[[…]]`, wait `([…])`, decision `{…}`, flow `[/…/]`, final `((…))`; a small circle marks each flow's `start`.
-- Edges: solid `-->` for `next` (fan-out = several edges), `-->|dependsOn|` (`dependsOn (any)` for an OR-join) into a join, dashed `-.->|timeout 15m|` for a wait timeout, and a dashed edge to a `?` node for a decision whose `next` is a function (targets unknown statically).
-- A nested flow is a `subgraph` (its own nodes, edges and start) linked from its flow step; ids are made Mermaid-safe (`fulfil__label`, reserved words such as `end` get a suffix) and stay unique across levels.
-- Deterministic: the same graph always renders to the same text.
+| In the graph | What it means |
+|---|---|
+| a node labelled `id (kind)` | the step, shaped by its kind |
+| a solid arrow | a `next` edge |
+| an arrow labelled `dependsOn` | a data-readiness edge into a join |
+| a dashed arrow labelled `timeout 15m` | a wait step's deadline |
+| a dashed arrow to a `?` node | a decision whose `next` is a function, so the targets are not knowable statically |
+| a `subgraph` | a nested flow, linked from its flow step, with ids made unique across levels |
 
-Run
+## Run it
 
 ```sh
-pnpm --filter example-09-mermaid check
-pnpm --filter example-09-mermaid start   # prints the ```mermaid block
+pnpm --filter example-09-mermaid start   # prints the Mermaid block
+pnpm --filter example-09-mermaid check   # typecheck + vitest
 ```
 
-Output (`src/checkout.ts`)
+## What the test proves
+
+The test asserts the rendered text line by line and that rendering twice gives the same string,
+so the output is safe to commit and diff. This is what `src/checkout.ts` renders:
 
 ```mermaid
 flowchart TD

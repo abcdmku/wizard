@@ -55,7 +55,7 @@ describe('01 happy path: view → task → final', () => {
     expect(wizard.getState().status).toBe('waiting')
     expect(wizard.explain('save').reasons).toEqual(['not-activated'])
 
-    // next() with an empty draft: the input boundary rejects it — a result, not a throw.
+    // next() with an empty draft: the input boundary rejects it, a result, not a throw.
     const rejected = await wizard.next()
     expect(rejected).toMatchObject({
       ok: false,

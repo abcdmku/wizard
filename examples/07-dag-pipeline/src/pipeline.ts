@@ -60,7 +60,7 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
         },
         {
           // `when` (v0.2) is evaluated once the step is ready: `false` skips it
-          // (`step.skipped { reason: 'when' }`) — a skipped step counts as done for `dependsOn`
+          // (`step.skipped { reason: 'when' }`). A skipped step counts as done for `dependsOn`
           // and its `next` targets are still arrived, so the gate below is not stuck.
           when: ({ context }) => context.enrichment === 'on',
           next: 'gate',

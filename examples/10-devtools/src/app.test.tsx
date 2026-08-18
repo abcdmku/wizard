@@ -1,6 +1,6 @@
 /**
  * Headless run of the page: start the pipeline through the button, approve it, and see the
- * devtools panel follow — the graph cards take the live statuses, the events tab fills up, the
+ * devtools panel follow. The graph cards take the live statuses, the events tab fills up, the
  * status line reaches `done`.
  */
 import './test-setup'

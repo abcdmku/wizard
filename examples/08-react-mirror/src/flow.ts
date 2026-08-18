@@ -1,6 +1,7 @@
 /**
- * The checkout flow — SERVER code. In production this module (and everything it imports) runs
- * on the server; the client only ever imports the TYPE of `checkoutClient` (see client.ts).
+ * The checkout flow. This is SERVER code: in production this module (and everything it
+ * imports) runs on the server; the client only ever imports the TYPE of `checkoutClient`
+ * (see client.ts).
  *
  * view `shipping` → view `payment` → task `reserve` → task `charge` → final `receipt`
  */
@@ -8,10 +9,10 @@ import { boundary, defineFlow, defineProjection } from '@openwizard/core'
 import { z } from 'zod'
 
 /**
- * Out-of-domain services the tasks call. Injected through `deps` (no globals in hooks). Note
- * there is no `tokenize` here: the card number is tokenised in the BROWSER by the payment
- * provider's SDK (`payments.ts` fakes it) and the wizard — hence the server, the snapshots and
- * every frame — only ever sees the opaque token.
+ * Services outside the flow that the tasks call. Injected through `deps` (no globals in
+ * hooks). Note there is no `tokenize` here: the card number is tokenised in the BROWSER by the
+ * payment provider's SDK (`payments.ts` fakes it), so the wizard, the server, the snapshots
+ * and every frame only ever see the opaque token.
  */
 export interface CheckoutDeps {
   inventory: { reserve(cartId: string): Promise<{ reservationId: string }> }
@@ -26,7 +27,7 @@ const s = defineFlow({
     total: z.number().positive(),
     express: z.boolean().default(false),
     customer: z.string().optional(),
-    /** Opaque token from the payment view — the card number never enters the wizard at all. */
+    /** Opaque token from the payment view; the card number never enters the wizard at all. */
     paymentToken: z.string().optional(),
     reservationId: z.string().optional(),
     chargeId: z.string().optional(),

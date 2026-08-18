@@ -1,41 +1,31 @@
-# 01 — happy path (view → task → final)
+# 01: happy path (view, task, final)
 
-The smallest useful wizard: a form (`view`) whose parsed draft feeds a task that calls an
-out-of-domain service (`deps.crm`), then a `final` step. This is the Quickstart flow of the
-root README (`src/onboarding.ts` is copied there verbatim).
+The smallest wizard that does something useful: a `profile` view collects a form, a `save` task
+pushes it to a CRM, a `done` final step returns the wizard's output. `src/onboarding.ts` is the
+quickstart from the root README, embedded there byte for byte.
 
-What it shows
+## What it shows
 
-- `defineFlow` → pre-bound step constructors, so hooks are typed by the context / deps with no generics.
-- A view's `input` boundary (Zod 4 here — any Standard Schema works): `setInput()` merges a draft, `next()` parses it and answers `{ ok: false, code: 'INVALID_INPUT', issues }` instead of throwing.
-- `validate(step)` as a pure query over the current draft.
-- The typed hand-off between steps: `exit: ({ output, update }) => update(output)` writes the parsed draft into the context; the task reads `context`.
-- `deps` for out-of-domain services (`boundary.trusted<Deps>()`), replaced by an in-memory fake in the test.
-- The sync-commit guarantee: with synchronous hooks the whole `next()` chain (parse → exit → task → final) is committed before the returned promise is awaited.
-- `getSnapshot()`: versioned, JSON-safe, cached per state.
+| Piece | What it does |
+|---|---|
+| `defineFlow` | returns step constructors already bound to the context and deps types, so no hook needs a generic |
+| the view's `input` | `next()` parses the draft, and a bad one comes back as `{ ok: false, code: 'INVALID_INPUT', issues }` |
+| the view's `exit` | writes the parsed output into the context, where the `save` task reads it |
+| `boundary.trusted<Deps>()` | the CRM is injected, so the test passes an in-memory fake |
 
-Run
+## Run it
 
 ```sh
-pnpm --filter example-01-happy-path check   # typecheck against the built package + vitest
 pnpm --filter example-01-happy-path start   # prints the event trace of one session
+pnpm --filter example-01-happy-path check   # typecheck against the built package + vitest
 ```
 
-Excerpt (`src/onboarding.test.ts`)
+## What the tests prove
+
+`src/onboarding.test.ts` walks one session, asserts the event trace step by step, and checks
+that `getSnapshot()` survives a JSON round trip. It also pins the sync-commit guarantee:
 
 ```ts
-// next() with an empty draft: the input boundary rejects it — a result, not a throw.
-const rejected = await wizard.next()
-expect(rejected).toMatchObject({ ok: false, reason: 'validation', code: 'INVALID_INPUT' })
-
-await wizard.setInput('profile', { company: 'Acme', role: 'engineer' })
-
-// Sync-commit guarantee: every hook is synchronous here, so the state is committed
-// BEFORE the promise is awaited.
-const pending = wizard.next()
-expect(wizard.getState().status).toBe('done')
-expect(await pending).toMatchObject({ ok: true, from: 'profile', to: 'save' })
+const pending = wizard.next() // every hook in this flow is synchronous
+expect(wizard.getState().status).toBe('done') // committed before the promise is awaited
 ```
-
-The test also asserts the filtered event trace, e.g. `step.validationFailed:profile`,
-`transition.rejected:profile`, … `step.runSucceeded:save`, `flow.done`.

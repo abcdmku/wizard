@@ -27,7 +27,7 @@ export function CopyButton({
       onClick={copy}
       aria-label={label}
       title={label}
-      className={`inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white/80 px-1.5 py-1 text-[11px] text-neutral-500 backdrop-blur transition-colors hover:text-neutral-900 dark:border-neutral-700 dark:bg-ink-2/80 dark:text-neutral-400 dark:hover:text-neutral-100 ${className}`}
+      className={`inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-paper/80 px-1.5 py-1 text-[11px] text-neutral-500 backdrop-blur transition-colors hover:text-neutral-900 dark:border-neutral-700 dark:bg-ink-2/80 dark:text-neutral-400 dark:hover:text-neutral-100 ${className}`}
     >
       {copied ? (
         <Check className="h-3 w-3" aria-hidden="true" />

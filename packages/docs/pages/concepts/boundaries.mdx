@@ -1,78 +1,71 @@
 # Boundaries
 
-A boundary is a data door: `Boundary<O, I = O> = StandardSchemaV1<I, O> | Checker<O, I>`. Any
-[Standard Schema](https://standardschema.dev) — Zod 4, Valibot, ArkType — is a boundary, and so
-is a branded `Checker` you build from a plain function. Plain functions themselves are rejected
-(guard or parse? ambiguous), and the brand is a private symbol: only `boundary.*` mints checkers,
-a hand-written `{ '~checker': 'assert' }` is `DEFINITION_INVALID`.
+A boundary is a schema guarding a door. There are four doors into a wizard, and nothing reaches your context, your handlers or a step's typed output without passing the schema on its door.
+
+| Door | You call | Parsed by |
+|---|---|---|
+| context | `createWizard(flow, { context })` | the flow's `context` |
+| view input | `setInput(view, patch)`, then `next()` or `go()` | that view's `input`, on the move, not on the patch |
+| event payload | `send(event, payload)` | `events[event]` |
+| resume | `resumeWizard(flow, snapshot)` | every boundary again, children included |
+
+`deps` is the deliberate exception: you build it yourself, so `boundary.trusted<T>()` skips the check.
+
+## Any Standard Schema library
+
+Zod 4, Valibot and ArkType all work, because the core only calls `schema['~standard'].validate(value)`.
+
+```ts
+const s = defineFlow({
+  name: 'signup',
+  context: z.object({ email: z.email(), plan: z.enum(['free', 'pro']).default('free') }),
+  events: { 'payment.captured': z.object({ paymentId: z.string() }) },
+})
+```
+
+Boundaries that return promises need `createWizardAsync` and `resumeWizardAsync`.
+
+## Plain functions
+
+A bare function is rejected on purpose, because the runtime can't tell a parser from a type guard. Say which one you mean:
 
 ```ts
 import { boundary } from '@openwizard/core'
 
-const Address = boundary.parse((v) => {
-  if (typeof v !== 'object' || v === null || !('city' in v)) throw new Error('city required')
-  return v as { city: string } // parse: return the value (transformed) or throw
+const City = boundary.parse((v) => {
+  if (typeof v !== 'string' || v === '') throw new Error('city required')
+  return v.trim() // parse can transform, the return value is what gets stored
 })
-const IsCount = boundary.guard((v): v is number => typeof v === 'number' && v >= 0)
+const IsCount = boundary.guard((v): v is number => typeof v === 'number' && v >= 0) // true = passes
 const AssertId = boundary.assert((v): asserts v is string => {
   if (typeof v !== 'string') throw new Error('id must be a string')
 })
-const Deps = boundary.trusted<{ mailer: { send(to: string): Promise<void> } }>() // no runtime check
+const Deps = boundary.trusted<{ mailer: Mailer }>() // no runtime check
 ```
-
-## Exactly four doors
-
-Everything that enters the state passes through a declared boundary, exactly once:
-
-1. **`context`** — at `createWizard({ context })` / `createWizardAsync`; the INPUT side is what you
-   pass (`ContextInput<F>`), the OUTPUT side is what hooks see (`Ctx<F>`). Defaults and coercions
-   in the schema apply here.
-2. **A view's `input`** — `setInput(view, patch)` merges a draft (`DraftOf<F, K>`, partial, INPUT
-   side); `next()` / `go()` parse the whole draft and hand the OUTPUT side to `validate`, `exit`
-   and `steps[k].output`.
-3. **`send(event, payload)`** — the payload is `unknown` and goes through `events[event]` first; a
-   handler only ever sees the parsed payload.
-4. **`resumeWizard(flow, unknown)`** — every boundary runs again over the snapshot (context, view
-   outputs, task / flow outputs and their copies on the compensation stack, event payloads in the
-   inbox, nested children).
-
-A task's `output` boundary is an optional fifth check on values returning from other systems; a
-flow step's `context` / `deps` mappers feed the child's boundaries once, at creation.
-`boundary.trusted<T>()` is the grep-able exception — for `deps` built by the host and for
-defaults you already trust.
 
 ## Rejections are values
 
-A boundary that rejects never throws into your code. It becomes an event
-(`step.validationFailed`, `event.rejected`) and a result with Standard-Schema-shaped issues:
+A rejected boundary never throws into your code. You get a result plus an event:
 
 ```ts
-const result = await wizard.next()
+await wizard.next()
 // { ok: false, reason: 'validation', code: 'INVALID_INPUT', step: 'profile', issues: [{ message, path }] }
+// event: step.validationFailed
 
-const sent = await wizard.send('payment.captured', { paymentId: 42 })
+await wizard.send('payment.captured', { paymentId: 42 })
 // { ok: false, reason: 'rejected', code: 'BOUNDARY_REJECTED', issues: [...] }
+// event: event.rejected
+
+await wizard.validate('profile') // pure query: issues for live form feedback, no events, no state change
 ```
 
-`validate(view)` is a pure query — `input` boundary + `validate` hook over the current draft, no
-events, no state change — for live form feedback.
+At creation, two things throw instead, because both are your bug rather than bad user data: `BOUNDARY_REJECTED` when `createWizard` gets a context or deps that fails its boundary, and `DEFINITION_INVALID` when the flow itself is broken.
 
-The two exceptions are programmer errors at the door: `createWizard` throws
-`WizardError('BOUNDARY_REJECTED')` when the context (or deps) fails its boundary, and
-`WizardError('DEFINITION_INVALID')` for a broken flow.
+## Dates and secrets
 
-<Callout type="warning" title="Dates, secrets and other things that do not survive JSON">
-  Snapshots are JSON-checked before every store write. A `Date` (any object with `toJSON()`) is
-  accepted exactly where a schema boundary re-parses its JSON form on resume — a task `output`, a
-  view `input`, the flow `context`, an event boundary (`z.coerce.date()` turns the stored ISO
-  string back into a `Date`). Anywhere else, store the JSON form. Secrets follow the same advice:
-  never in `context` / outputs — pass them through `deps`, store references and tokens. See
-  [Persistence and resume](/concepts/persistence).
+<Callout type="warning" title="Things that don't survive JSON">
+  Snapshots are checked for JSON safety before every store write. A `Date` is fine exactly where
+  a boundary re-parses its JSON form on resume, and `z.coerce.date()` turns the stored ISO string
+  back into a `Date`. Keep secrets out of `context` and step outputs; pass them through `deps` and
+  store a reference instead. See [Persistence and resume](/concepts/persistence).
 </Callout>
-
-## Standard Schema, not Zod
-
-The core has no runtime dependency; it calls `schema['~standard'].validate(value)` and reads the
-Standard Schema issue shape. Any library that implements the spec works, synchronously or
-asynchronously (`createWizardAsync` / `resumeWizardAsync` for async boundaries). The examples use
-Zod 4 because it is the most common — nothing else in the docs depends on it.

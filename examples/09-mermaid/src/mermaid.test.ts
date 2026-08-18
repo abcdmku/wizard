@@ -40,7 +40,7 @@ describe('09 mermaid: toMermaid(inspect(flow))', () => {
         '  fulfil -.->|child| fulfil___flow',
       ].join('\n'),
     )
-    // Same graph in, same text out — safe to commit next to the flow (docs, PR diffs).
+    // Same graph in, same text out, so it is safe to commit next to the flow (docs, PR diffs).
     expect(toMermaid(inspect(checkout))).toBe(toMermaid(graph))
   })
 })

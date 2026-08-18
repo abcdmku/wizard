@@ -1,36 +1,41 @@
-# 04 — resume from a snapshot (persistence, crash, recovery matrix, `migrate`)
+# 04: resume from a snapshot (persistence, crash, recovery, `migrate`)
 
-An expense-approval flow: an async `notify` task, then a `wait` step with a 48-hour timeout.
-Process 1 auto-saves every change to a `Store` and dies; process 2 resumes the same instance
-from the store on a fresh runtime. A second scenario crashes while the task is in flight.
+An expense approval notifies a manager, then waits up to 48 hours for a decision. Process 1
+saves every change to a store and dies, process 2 resumes the same instance on a fresh runtime,
+and the deadline still fires at the right moment.
 
-What it shows
+## What it shows
 
-- `createWizard(flow, { store, key, autoSave: 'change' })` writes a versioned, JSON-safe `Snapshot` after every committed change (`save()` forces one). `createMemoryStore()` does a JSON round trip on every write, like a real database would.
-- `resumeWizard(flow, snapshot, options)`: the envelope, flow identity (`name` + `version`), step set and every boundary are re-validated; `epoch` increments; the first logged event is `flow.resumed { fromSeq, interrupted }`.
-- Timers are state: the wait deadline is absolute (`steps.awaitDecision.deadline`), so the resumed instance re-arms it for the remaining time — advancing the (virtual) clock fires `timer.fired` and routes to `timeout.next`.
-- A snapshot is plain data — JSON-checked before every write (`onPersistError` / `persist.failed` name the offending path if a hook ever stores a `Date` or a class instance where no boundary revives it) — so a fresh process resumes it after the first one is gone and receives the decision via `send()` in time. Persistence is **single-owner**: one live wizard per key, no compare-and-swap or lease in `Store`; never resume a snapshot on a second replica while the first wizard is still alive (both would run the side effects). Snapshot migration is `resumeWizard(flow, saved, { migrate })` (below).
-- `migrate` (v0.2): a snapshot whose `flow.version` differs from the flow's is `SNAPSHOT_INCOMPATIBLE` — unless `resumeWizard(approvalV2, saved, { migrate: (snapshot, from) => … })` converts it first (called only when the versions differ; the result must carry the flow's version in the envelope and in `state.flow`, and is validated like any snapshot). `flow.name` must always match.
-- Recovery matrix for a task that was running when the snapshot was taken: on resume it becomes `step.failed { kind: 'interrupted' }` (the flow is `failed`, `explain()` says `failed:interrupted`); the host decides whether the side effect may run again and calls `retry()`.
+| Piece | What it does |
+|---|---|
+| `store` and `key` on `createWizard` | auto-saves a versioned, JSON-safe `Snapshot` after every committed change |
+| `resumeWizard(flow, snapshot, options)` | re-validates the whole snapshot before accepting it |
+| timers as state | the deadline is an absolute timestamp, so the resumed instance re-arms it for the time left |
+| a task the crash interrupted | resumes as `step.failed` with `kind: 'interrupted'`, and the host decides whether to `retry()` |
+| `migrate` | a snapshot of an older flow `version` is `SNAPSHOT_INCOMPATIBLE` until you convert it |
 
-Run
+Persistence is single-owner, so never resume a snapshot on a second replica while the first
+wizard is still alive, or both will run the side effects.
+
+## Run it
 
 ```sh
-pnpm --filter example-04-resume-from-snapshot check
-pnpm --filter example-04-resume-from-snapshot start
+pnpm --filter example-04-resume-from-snapshot start   # process 1 crashes, process 2 resumes
+pnpm --filter example-04-resume-from-snapshot check   # typecheck + vitest
 ```
 
-Excerpt (`src/approval.test.ts`)
+## What the tests prove
+
+The crash-mid-wait test is the core of it. Two more cover the interrupted task (resume marks it
+failed, `retry()` re-runs it) and the v1 to v2 migration, rejected without `migrate` and
+completable with it.
 
 ```ts
-first.dispose() // 💥 the process dies while the wait step is active
+first.dispose() // the process dies while the wait step is active
 
 const resumed = resumeWizard(approval, await store.get(KEY), { deps, store, key: KEY, scheduler: sched2 })
-expect(resumed.epoch).toBe(1)
-expect(resumed.log()[0]).toMatchObject({ type: 'flow.resumed', fromSeq: saved.seq, interrupted: [] })
 expect(sched2.pending()).toBe(1) // the timer was re-armed for the remaining 45h
 
 sched2.advance(45 * HOUR)
-expect(resumed.getState().steps.awaitDecision).toMatchObject({ status: 'done', output: { event: 'timeout' } })
 expect(resumed.getState().output).toBe('expired: nobody decided within 48h')
 ```

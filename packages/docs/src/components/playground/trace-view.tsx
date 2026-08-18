@@ -44,7 +44,7 @@ export function TraceView({
   return (
     <div ref={ref} className="h-full overflow-auto">
       <table className="w-full border-collapse font-mono text-[11px] leading-5">
-        <thead className="sticky top-0 bg-white text-left text-neutral-500 dark:bg-ink">
+        <thead className="sticky top-0 bg-paper text-left text-neutral-500 dark:bg-ink">
           <tr>
             <th className="px-3 py-1 font-normal">seq</th>
             <th className="px-2 py-1 font-normal">type</th>

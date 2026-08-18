@@ -1,6 +1,6 @@
 /**
- * The "server" — everything a real backend would own: the wizard instance, the deps, and the
- * Mirror source. It runs IN THE PAGE here so the example is self-contained; in production this
+ * The "server": everything a real backend would own, meaning the wizard instance, the deps and
+ * the Mirror source. It runs IN THE PAGE here so the example is self-contained; in production this
  * file lives on the server, `createLocalTransport` is replaced by an SSE/WS/HTTP transport
  * (frames out via `source.subscribe`, commands in via `source.dispatch` after auth), and the
  * UI never imports it.

@@ -1,6 +1,6 @@
 # @openwizard/react
 
-React binding for [OpenWizard](../core/README.md): `bindReact<typeof flowOrProjection>()` returns a typed `Provider` and hooks over a live `Wizard` (same process) or a `Mirror` (client replica of a server-side wizard through a deny-by-default projection).
+React binding for [OpenWizard](../core/README.md). `bindReact<typeof flowOrProjection>()` gives you a typed `Provider` plus hooks, and they work over either a live `Wizard` in the same process or a `Mirror`, which is the client's replica of a server-side wizard fed through a projection.
 
 ```tsx
 import { bindReact } from '@openwizard/react'
@@ -12,7 +12,7 @@ const mirror = createMirror<typeof checkoutClient>({ transport })
 
 function App() {
   return (
-    <ow.Provider source={mirror} fallback={<p>Connecting…</p>}>
+    <ow.Provider source={mirror} fallback={<p>Connecting...</p>}>
       <Shipping />
     </ow.Provider>
   )
@@ -30,23 +30,31 @@ function Shipping() {
 }
 ```
 
-- `bindReact<T>()` — `T` is a flow (`Provider` takes a `Wizard<F>`; hooks read `Snapshot<F>['state']`) or a projection (`Provider` takes a `Mirror<P>`; hooks read the projected `ClientState`). The instance is supplied through `Provider`, tRPC-style; the type comes from a type-only import.
-- Hooks are built on `useSyncExternalStore`; snapshot identities are stable per commit/frame, so `useStep(id)` and `useSelector(select, isEqual?)` re-render only when their slice changes. `useActions()` returns one memoised object of command methods per source.
-- `useStep(id)` returns the typed step record with bound helpers spread in: `next`/`back` for every step, `go`/`setInput`/`resetInput` for view steps.
-- `Provider`'s `fallback` renders until the source has state (a Mirror before its first frame).
-- `useActions()` has the whole `Wizard` / `Mirror` sugar: `start`, `next`, `back`, `go`, `setInput`, `resetInput`, `send(event, payload, { correlationId? })`, `run`, `retry`, `cancel`, `runReady`, `compensate`, `reset`, `skip`, `invalidate`, `dispatch`.
-- `useChild(step)` (v0.2) returns hooks bound to a nested flow — see below.
+`T` is either a flow or a projection. With a flow, `Provider` takes a `Wizard<F>` and the hooks read `Snapshot<F>['state']`; with a projection it takes a `Mirror<P>` and they read the projected `ClientState`. You pass the instance through `Provider` the way tRPC does, so the type comes from a type-only import and no server code lands in the bundle.
+
+The hooks sit on `useSyncExternalStore`, and snapshot identities are stable per commit or frame, so `useStep(id)` and `useSelector(select, isEqual?)` only re-render when their own slice changes. `useActions()` hands back one memoised object per source with the whole command sugar on it.
+
+| Hook | What you get |
+|---|---|
+| `useStep(id)` | the typed step record, with `next` / `back` on every step and `go` / `setInput` / `resetInput` on views |
+| `useSelector(select, isEqual?)` | any slice you map out of the state |
+| `useActions()` | `start`, `next`, `back`, `go`, `setInput`, `resetInput`, `send(event, payload, { correlationId? })`, `run`, `retry`, `cancel`, `runReady`, `compensate`, `reset`, `skip`, `invalidate`, `dispatch` |
+| `useChild(step)` | hooks bound to a nested flow, see below |
+
+`Provider`'s `fallback` renders until the source actually has state, which matters for a Mirror before its first frame.
 
 ### Nested flows: `useChild(step)`
 
-Over a Mirror the projection must expose the flow step with a nested spec (`steps: { fulfil: { child: { steps: { pick: { input: true } } } } }`) so its projected state rides in `steps.fulfil.child`; over a Wizard the child snapshot (`getSnapshot().children.fulfil`) is read. `ow.useChild('fulfil')` (`ChildBindingId<T>` — a step exposed with a summary only, or a non-flow step, does not compile) returns a `ChildBinding` typed by the child flow: `useSnapshot()` (the child slice, `null` until the flow step is entered), `useStep(id)` (the child step's record + `next` / `back` / `go` / `setInput` / `resetInput` scoped to the child; it throws while the child has no state, so render it under a `useSnapshot() !== null` guard), `useActions()` (the `MirrorChild` sugar of the child — every command travels as `{ type: 'child', path, command }` through the source's `dispatch`), and `useChild(step)` again for a grandchild. Child bindings are memoised per path, so `ow.useChild('fulfil').useStep('pick')` inline is fine.
+Over a Mirror the projection has to expose the flow step with a nested spec, like `steps: { fulfil: { child: { steps: { pick: { input: true } } } } }`, so the child's projected state rides along in `steps.fulfil.child`. Over a Wizard it reads the child snapshot at `getSnapshot().children.fulfil` instead. `ow.useChild('fulfil')` then returns a `ChildBinding` typed by the child flow, with `useSnapshot()` for the child slice, `useStep(id)` scoped to the child, `useActions()` for the child's commands, and `useChild(step)` again for a grandchild. Only a step exposed with a full nested spec compiles here, and bindings are memoised per path, so writing `ow.useChild('fulfil').useStep('pick')` inline is fine.
+
+`useSnapshot()` is `null` until the flow step is entered, and the child's `useStep` throws while there is no child state, so guard on `useSnapshot() !== null` before rendering it. Every child command travels as `{ type: 'child', path, command }` through the source's `dispatch`.
 
 ```tsx
 function Fulfilment() {
   const child = ow.useChild('fulfil')
   const snap = child.useSnapshot()
   if (snap === null) return <p>Not started</p>
-  return <p>Child at {snap.current ?? '—'} <Pick /></p>
+  return <p>Child at {snap.current ?? 'none'} <Pick /></p>
 }
 function Pick() {
   const { status, input, setInput, next } = ow.useChild('fulfil').useStep('pick') // typed by the CHILD flow
@@ -56,7 +64,7 @@ function Pick() {
 
 ### Server rendering
 
-Pass the state the server rendered with as `Provider`'s `serverSnapshot` (`ProjectionOutput<typeof projection>` over a Mirror — e.g. `wizard.project(projection)` serialized into the page —, `Snapshot<F>['state']` over a Wizard). It is captured once and used as `useSyncExternalStore`'s server snapshot on the server and during hydration, so the hydrated tree always matches the server HTML even if the live source already moved on; React then re-renders with the live state. Without it, hooks read the live source on the server too (a Mirror without a frame renders `fallback`).
+Pass whatever state the server rendered with as `Provider`'s `serverSnapshot`. Over a Mirror that's a `ProjectionOutput<typeof projection>`, usually `wizard.project(projection)` serialized into the page; over a Wizard it's `Snapshot<F>['state']`. It gets captured once and used as `useSyncExternalStore`'s server snapshot both on the server and during hydration, so the hydrated tree matches the server HTML even if the live source already moved on, and React re-renders with the live state right after. Leave it out and the hooks read the live source on the server too, where a Mirror with no frame yet just renders `fallback`.
 
 ```tsx
 // server

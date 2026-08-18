@@ -72,7 +72,7 @@ describe('04 resume from snapshot', () => {
       state: { status: 'waiting', active: ['awaitDecision'] },
     })
     expect(Object.keys(saved.state.timers)).toEqual(['wait:awaitDecision'])
-    first.dispose() // 💥 the process dies
+    first.dispose() // the process dies here
 
     // Process 2, three hours later ──────────────────────────────────────────────────────
     const sched2 = createTestScheduler({ now: T0 + 3 * HOUR })
@@ -136,7 +136,7 @@ describe('04 resume from snapshot', () => {
     expect(first.getState().steps.notify).toMatchObject({ status: 'active', attempt: 1 })
     // What a store would hold at this moment (JSON round trip = what any database does).
     const snapshot = JSON.parse(JSON.stringify(first.getSnapshot())) as unknown
-    first.dispose() // 💥 crash while the notifier call is in flight
+    first.dispose() // crash while the notifier call is in flight
 
     state.mode = 'instant'
     const resumed = resumeWizard(approval, snapshot, {

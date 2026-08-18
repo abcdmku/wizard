@@ -20,7 +20,7 @@ interface SiteHeaderProps {
 /** Sticky top bar shared by the docs pages and the playground. */
 export function SiteHeader({ menuOpen = false, onToggleMenu }: SiteHeaderProps) {
   return (
-    <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/90 backdrop-blur dark:border-neutral-800 dark:bg-ink/90">
+    <header className="sticky top-0 z-40 border-b border-neutral-200 bg-paper/90 backdrop-blur dark:border-neutral-800 dark:bg-ink/90">
       <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center justify-between gap-4 px-4 lg:px-6">
         <div className="flex items-center gap-5">
           {onToggleMenu && (
@@ -43,7 +43,9 @@ export function SiteHeader({ menuOpen = false, onToggleMenu }: SiteHeaderProps) 
                 to="/$"
                 params={{ _splat: link.slug }}
                 className="transition-colors hover:text-neutral-900 dark:hover:text-neutral-100"
-                activeProps={{ className: 'text-neutral-900 dark:text-neutral-100' }}
+                activeProps={{
+                  className: 'font-medium text-neutral-900 dark:text-neutral-100',
+                }}
                 activeOptions={{ exact: false }}
               >
                 {link.label}
@@ -52,7 +54,7 @@ export function SiteHeader({ menuOpen = false, onToggleMenu }: SiteHeaderProps) 
             <Link
               to="/playground"
               className="transition-colors hover:text-neutral-900 dark:hover:text-neutral-100"
-              activeProps={{ className: 'text-neutral-900 dark:text-neutral-100' }}
+              activeProps={{ className: 'font-medium text-neutral-900 dark:text-neutral-100' }}
             >
               Playground
             </Link>

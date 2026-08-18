@@ -1,12 +1,16 @@
 @import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    "Geist Variable", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
   --font-mono:
-    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    "Geist Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
   --color-ink: #0a0a0a;
   --color-ink-2: #0d0d0d;
   --color-paper: #ffffff;
@@ -27,6 +31,13 @@ body {
 body {
   @apply bg-paper text-neutral-800 antialiased dark:bg-ink dark:text-neutral-200;
   font-family: var(--font-sans);
+}
+
+::selection {
+  background: rgba(10, 10, 10, 0.12);
+}
+.dark ::selection {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* ---------- Shiki (rehype-pretty-code) dual theme ---------- */
@@ -57,10 +68,11 @@ code[data-theme*=" "] span {
   letter-spacing: -0.03em;
 }
 .docs-article h2 {
-  @apply mt-12 mb-4 border-b border-neutral-200 pb-2 text-2xl dark:border-neutral-800;
+  @apply mt-13 mb-4 border-b border-neutral-200 pb-2.5 text-2xl dark:border-neutral-800;
+  letter-spacing: -0.02em;
 }
 .docs-article h3 {
-  @apply mt-8 mb-3 text-xl;
+  @apply mt-9 mb-3 text-xl;
 }
 .docs-article h4 {
   @apply mt-6 mb-2 text-base;
@@ -69,10 +81,10 @@ code[data-theme*=" "] span {
   @apply my-4;
 }
 .docs-article ul {
-  @apply my-4 list-disc pl-6;
+  @apply my-4 list-disc pl-6 marker:text-neutral-400 dark:marker:text-neutral-600;
 }
 .docs-article ol {
-  @apply my-4 list-decimal pl-6;
+  @apply my-4 list-decimal pl-6 marker:font-mono marker:text-[0.85em] marker:text-neutral-500;
 }
 .docs-article li {
   @apply my-1.5;
@@ -84,7 +96,7 @@ code[data-theme*=" "] span {
   @apply font-semibold text-neutral-900 dark:text-neutral-100;
 }
 .docs-article a:not(.no-style) {
-  @apply text-neutral-900 underline decoration-neutral-400 underline-offset-[3px] transition-colors hover:decoration-neutral-900 dark:text-neutral-100 dark:decoration-neutral-600 dark:hover:decoration-neutral-200;
+  @apply font-medium text-neutral-900 underline decoration-neutral-400 underline-offset-[3px] transition-colors hover:decoration-neutral-900 dark:text-neutral-100 dark:decoration-neutral-600 dark:hover:decoration-neutral-200;
 }
 .docs-article blockquote {
   @apply my-4 border-l-2 border-neutral-300 pl-4 text-neutral-600 dark:border-neutral-700 dark:text-neutral-400;
@@ -97,10 +109,10 @@ code[data-theme*=" "] span {
   border-collapse: collapse;
 }
 .docs-article thead th {
-  @apply border-b border-neutral-300 px-3 py-2 text-left font-semibold text-neutral-900 dark:border-neutral-700 dark:text-neutral-100;
+  @apply border-b border-neutral-300 px-3 py-2 text-left font-mono text-[11px] font-medium tracking-wider text-neutral-500 uppercase dark:border-neutral-700 dark:text-neutral-400;
 }
 .docs-article tbody td {
-  @apply border-b border-neutral-200 px-3 py-2 align-top dark:border-neutral-800;
+  @apply border-b border-neutral-200 px-3 py-2.5 align-top dark:border-neutral-800;
 }
 .docs-article tbody tr:last-child td {
   border-bottom: none;
@@ -108,7 +120,7 @@ code[data-theme*=" "] span {
 
 /* Inline code */
 .docs-article :not(pre) > code {
-  @apply rounded border border-neutral-200 bg-neutral-100 px-1.5 py-0.5 font-mono text-[0.85em] text-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200;
+  @apply rounded-[5px] border border-neutral-200 bg-neutral-100 px-1.5 py-0.5 font-mono text-[0.82em] text-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200;
 }
 .docs-article a > code {
   color: inherit;
@@ -119,10 +131,16 @@ code[data-theme*=" "] span {
   @apply my-6 overflow-hidden rounded-lg border border-neutral-200 bg-paper-2 dark:border-neutral-800 dark:bg-ink-2;
 }
 .docs-article figure[data-rehype-pretty-code-figure] figcaption[data-rehype-pretty-code-title] {
-  @apply border-b border-neutral-200 px-4 py-2 font-mono text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400;
+  @apply flex items-center gap-2 border-b border-neutral-200 px-4 py-2 font-mono text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400;
+}
+.docs-article
+  figure[data-rehype-pretty-code-figure]
+  figcaption[data-rehype-pretty-code-title]::before {
+  content: "";
+  @apply inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-300 dark:bg-neutral-600;
 }
 .docs-article .code-block pre {
-  @apply m-0 overflow-x-auto px-4 py-3 font-mono text-[13px] leading-6;
+  @apply m-0 overflow-x-auto px-4 py-3.5 font-mono text-[13px] leading-[1.7];
   tab-size: 2;
 }
 .docs-article .code-block:not(figure > .code-block) {
@@ -156,46 +174,12 @@ pre::-webkit-scrollbar-thumb {
   @apply rounded bg-neutral-300 dark:bg-neutral-700;
 }
 
-/* ---------- Landing canvas: textured gradient + grid, in CSS so the first paint has the right theme ---------- */
+/* ---------- Landing canvas: flat, no gradient ---------- */
 .landing-canvas {
   background-color: #ffffff;
-  background-image:
-    radial-gradient(circle at 12% 10%, rgba(15, 23, 42, 0.055), transparent 40%),
-    radial-gradient(circle at 92% 2%, rgba(15, 23, 42, 0.04), transparent 34%),
-    repeating-linear-gradient(
-      0deg,
-      rgba(15, 23, 42, 0.04) 0,
-      rgba(15, 23, 42, 0.04) 1px,
-      transparent 1px,
-      transparent 28px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      rgba(15, 23, 42, 0.025) 0,
-      rgba(15, 23, 42, 0.025) 1px,
-      transparent 1px,
-      transparent 28px
-    );
 }
 .dark .landing-canvas {
-  background-color: #0a0a0a;
-  background-image:
-    radial-gradient(circle at 15% 12%, rgba(255, 255, 255, 0.045), transparent 42%),
-    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.035), transparent 36%),
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.02) 0,
-      rgba(255, 255, 255, 0.02) 1px,
-      transparent 1px,
-      transparent 28px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.015) 0,
-      rgba(255, 255, 255, 0.015) 1px,
-      transparent 1px,
-      transparent 28px
-    );
+  background-color: #000000;
 }
 
 /* ---------- Pagefind excerpt marks ---------- */
