@@ -10,6 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Build + full verification. The build toolchain (tsdown/unrun) needs Node >= 22;
+  # the published packages support Node >= 20, which the `node20` job proves below.
   verify:
     name: ${{ matrix.os }} / node ${{ matrix.node }}
     runs-on: ${{ matrix.os }}
@@ -17,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        node: [20, 22, 24]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -46,3 +48,31 @@ jobs:
       - name: Docs site (typecheck, links, prerender, search index, TypeDoc)
         run: pnpm --filter @openwizard/docs check
         if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+      - name: Upload built packages for the Node 20 consumer job
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: packages/*/dist
+          if-no-files-found: error
+
+  # Consume the built packages on Node 20 (the minimum supported runtime): run the
+  # test suites and every example against the artifacts built above.
+  node20:
+    name: ubuntu-latest / node 20 (consumer)
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: packages
+      - run: pnpm test
+      - run: pnpm examples

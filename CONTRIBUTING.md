@@ -12,7 +12,7 @@ pnpm test         # vitest, including *.test-d.ts type tests
 pnpm lint         # biome
 ```
 
-Node ≥ 20, pnpm 10 (`corepack enable` picks the pinned version). Windows is a first-class dev platform; CI runs ubuntu + windows.
+Node ≥ 22 to develop and build (the tsdown/unrun toolchain needs `Promise.withResolvers`); the published packages run on Node ≥ 20, which CI proves with a Node 20 consumer job that runs the tests and examples against the built artifacts. pnpm 10 (`corepack enable` picks the pinned version). Windows is a first-class dev platform; CI runs ubuntu + windows.
 
 ## The rules
 
