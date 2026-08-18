@@ -119,7 +119,7 @@ Backoff: `backoff` number → fixed ms; `'exponential'` → `min(200 * 2^(attemp
 
 ### 4.2 Waits and external events
 
-`decide` on `send{event, payload}`:
+`decide` on `send{event, payload}` (v0.1 rules; **§10.1 supersedes step 2** — since v0.2 every kind may listen, plus flow-level handlers and correlation):
 1. `inboxId = env.id('evt')`; `event.received{event, payload, correlationId, inboxId}`.
 2. Targets = active `wait` steps whose `def.hooks.on[event]` exists (in `S.active` order).
 3. If targets non-empty: for each `event.delivered{event, to, inboxId}` → `plan` emits `call{hook:'on', step: to, extra:{event, payload, inboxId}}` per target.
@@ -187,4 +187,86 @@ On `step.failed{step}` (task exhausted, hook error, child failed):
 
 ## 9. Testing requirements (machine)
 
-Pure tests, no timers/promises: build `CompiledFlow` literals with tiny hooks; call `decide/apply/plan` directly; assert event sequences and effects. Required suites: nav pipeline (each veto point), static+dynamic next, back, go reachability, fan-out atomicity, scheduler ordering + concurrency budget, retry/backoff schedule, timeout → failed, halt vs compensate, compensation order + partial failure, wait routing (broadcast, buffer, TTL, drain on enter, timeout), decision, final cancels actives, deriveStatus table, token staleness, terminal/compensating rejections, `replay(log)==state` property on 3 fixture flows, resume matrix (§8).
+Pure tests, no timers/promises: build `CompiledFlow` literals with tiny hooks; call `decide/apply/plan` directly; assert event sequences and effects. Required suites: nav pipeline (each veto point), static+dynamic next, back, go reachability, fan-out atomicity, scheduler ordering + concurrency budget, retry/backoff schedule, timeout → failed, halt vs compensate, compensation order + partial failure, wait routing (broadcast, buffer, TTL, drain on enter, timeout), decision, final cancels actives, deriveStatus table, token staleness, terminal/compensating rejections, `replay(log)==state` property on 3 fixture flows, resume matrix (§8). v0.2 (§10): `tests/machine/{on-handlers,when-skip,invalidate,idempotent-maperror}.test.ts` (+ a fourth `replay` fixture) and `tests/wizard/e2e/v2.e2e.test.ts` with the real runtime.
+
+## 10. v0.2 additions (plan §9) — normative
+
+Everything below is additive to §0–§9. New events, effects, state fields and commands are listed where they appear; `apply` stays a total fold and `replay(log) == state` holds for every fixture (`tests/machine/idempotent-maperror.test.ts`).
+
+### 10.1 `on[event]` on every kind, flow-level `on`, correlation (plan §9.1)
+
+**Routing** (`decide` on `send{event, payload, correlationId?}`, `wait.ts:routeEvent`):
+
+1. `event.received{event, payload, inboxId, correlationId?}` — `correlationId` = the caller's, else `def.correlate[event](payload)` when it returns a string.
+2. **Correlation**: if `def.correlate[event]` exists AND `S.correlationId` is defined AND (`correlate(payload) !== S.correlationId` or the extractor threw) → `event.dropped{reason:'correlation'}`, stop (no delivery, no buffering). No `correlate` entry, no `S.correlationId`, or an extractor returning `undefined` = no filtering. `S.correlationId` comes from `InitialStateOptions.correlationId` (`createWizardRuntime({ correlationId })`), survives `reset`, is persisted, and children created by the instance inherit it.
+3. **Step targets** = every ACTIVE step (any kind, `entering !== true`) whose `def.hooks.on[event]` exists — a **view listens only while `S.nav.phase === 'idle'`**. For each: `event.delivered{event, to, inboxId, payload}` → `plan`: `call{hook:'on', step: to, extra:{event, payload, inboxId}}` (unchanged shape).
+4. **Flow-level**: if `def.on[event]` exists → `event.flowDelivered{event, inboxId, payload}` (after the step deliveries, same batch) → `plan`: `call{hook:'flowOn', step:'', token:{step:'', runId:0}, extra:{event, payload, inboxId}}`. The executor and `decide` route on `hook === 'flowOn'` before looking at `step` (`''` is never treated as a step id). The flow-level handler sees every accepted event exactly once, at send time (drains never re-run it).
+5. **Buffering**: if no step target and (no flow handler OR a nav-busy view would have handled it): `event.buffered` + `inboxTtl` timer per `unmatchedEvents` — **always** buffered (regardless of `unmatchedEvents.buffer`) when a nav-busy view is a would-be listener; else `event.dropped{reason:'no-listener'}`. Step targets or a flow-level handler alone → nothing buffered.
+
+**Drains** (`drainInbox`, one oldest matching entry per drain, unchanged rule): a non-view step drains when its kind starts (`startKind`, after `step.runStarted` / decision-next call / …) and after every handler result; **the current view drains in `onNavIdle`** (after a commit/rejection/failure of any transaction, and on resume) and after every handler result that did not start a transition. Waits keep §4.2.
+
+**Handler results** (`res.ok(on)`, `wait.ts:onHandlerResult`), by kind:
+
+| Kind | Honoured | Else |
+|---|---|---|
+| wait | `void \| {keep} \| {next} \| {done} \| {fail}` — §4.2 unchanged | — |
+| view | `void`; `{next}` → **event transition** (below); unknown target → `step.failed{kind:'hook', code:UNKNOWN_STEP}` | `{next}` while `nav` busy → `event.handlerResultIgnored{step, event, reason:'nav-busy'}`; `keep/done/fail` → `…{reason:'kind'}` |
+| task / decision / flow / final | `void` (`update()` only) | any of `next/keep/done/fail` → `event.handlerResultIgnored{reason:'kind'}` |
+
+`res.err(on)`: wait → `step.failed{kind:'hook'}` (v0.1); every other kind → `event.handlerFailed{step, event, error}`, the step continues. Flow-level: `res.ok` `{cancel: reason}` → same as `cancel{reason}` (compensation policy applies); `void` → nothing; `res.err` → `event.handlerFailed{event, error}` (no `step`); a flow-level result once the flow is idle/terminal/compensating → `result.ignored{stale}`.
+
+**Event transition** (`nav.ts:startEventTransition`): `transition.started{txId, from: view, to: next, cause:'event'}` → phases `resolvingTarget` (targets fixed) → `canEnter` (targets) → `exiting` (`exit` of the view) → `entering` (`enter` of targets) → commit (§1.3: `step.exited{direction:'forward'}`, arrivals, cursor, `transition.committed{cause:'event'}`). No `parseInput` / `validate` / `canExit`; the view's `output` is not updated. `hops` resets (an external cause). `NavCause` gains `'event'`.
+
+`SendResult`: `{ok:true, delivered:[step ids], buffered}` — a flow-level delivery alone is `ok:true, delivered:[]`; a correlation drop is `{ok:false, reason:'dropped', code:'NOT_ACTIVE', message:'correlation'}`.
+
+`runtime.attach(source)`: calls `source(runtime.send)`, keeps the returned disposer, runs it on `dispose()` (or when the returned function is called; idempotent); throws `DISPOSED` afterwards.
+
+### 10.2 `when` + `skip` (plan §9.2)
+
+State: `StepRecord.when?: 'pending' | 'passed'`, `StepRecord.skipReason?`, `NavState.cursorHint?`. Selectors: `eligible(id) = pendingActivation && status !== 'active' && depsSatisfied(id)` (§3.1 readiness ignoring `when`), `awaitingWhen(id) = def.hooks.when !== undefined && rec.when !== 'passed'`, **`ready(id) = eligible(id) && !awaitingWhen(id)`** (every v0.1 use of `ready` — scheduler, cursor rule, `go` reachability, `run{step}`, `available`, `explain` — now excludes steps whose `when` has not passed).
+
+`schedule` (§3.2) gains step 0: for every eligible step (any kind, any `autoRun`) with a `when` hook and `rec.when === undefined` → `step.whenStarted{step}` (`apply`: `when:'pending'`; `plan`: `call{hook:'when', step, token:{step, runId}}`; the token is the record's current `runId`, so a later entry/skip makes the result stale). Then steps 1–3 over `readySteps` as before.
+
+`res.ok(when)` (valid only while `status !== 'active' && when === 'pending' && pendingActivation`): value `false` → `step.whenEvaluated{ok:false}` + **skip** (below, `reason:'when'`); anything else → `step.whenEvaluated{ok:true}` (`apply`: `when:'passed'`) + `schedule`. `res.err(when)` → `step.failed{kind:'hook'}` + failure policy. `when` is cleared by `step.entered`, `step.skipped`, `step.invalidated`, `step.cancelled`, `step.failed`.
+
+**Cursor rule** (§3.2.3, `cursorRule`): waits while any eligible view awaits `when`; then exactly one ready view → move; several → the one equal to `nav.cursorHint`, else none. `cursorHint` is set by `apply(transition.committed)` when the transaction entered no view but its cursor target (§8.3 first-view rule) awaits `when`; it is dropped when a cursor is set or the hinted view enters/skips/invalidates/fails. Consequences: `next()` toward a view with an unevaluated `when` commits `{to: view}` without entering it; the entry follows as a second `transition.committed{cause:'auto', from:null}` once the predicate passes (or the view is skipped and the cursor moves on). Explicit `go`/`back` to a **visited** view enters it when eligible — explicit intent overrides `when` (a ready, never-visited view whose `when` is pending is `not-reachable`).
+
+**Skip** (`scheduler.ts:skipStep`): `step.skipped{step, reason:'when'|'command'}` (`apply`: status `skipped`, `skipReason`, clears `output/error/issues/retryAt/deadline/idempotencyKey/arrivedSeq/when`, keeps `input` and `previousOutput`, `pendingActivation:false`; when `nav` is busy the continuation is queued in `nav.deferred` like `step.done`), then **continuation** = the auto-advance transaction of §1.4 from the skipped step (`transition.started{from: step, cause:'auto'}`): static `next` → targets arrived; dynamic `next` (including a skipped **decision**) → `call{hook:'next'}` first (`plan` on `resolvingTarget` now also emits it for a skipped decision); `next: none` → nothing. A skipped `from` never runs `exit` (it never entered); no `step.exited`. Then `schedule`. Skipped counts as complete for `dependsOn` and for `progress`; the cursor never enters a skipped view. A skipped step re-arrived later (loops) asks `when` again.
+
+Command `skip{step, reason?}` (`decide:cmdSkip`; gate as any nav/run command): unknown → `command.rejected{UNKNOWN_STEP}`; final → `{INVALID_COMMAND, 'final-step'}`; active step: if it is `nav.from` of an in-flight transaction → `{NAV_BUSY}`, else non-view kinds are cancelled first (`step.cancelled{reason: cmd.reason ?? 'skip'}` — run aborted by the interpreter, wait timers cleared, child flow sent `cancel`), a current view just leaves (no `exit`, no validation); eligible-but-idle (ready, budget-limited, `when` pending — its result becomes stale) → skipped; anything else → `{NOT_ACTIVE, 'not-ready' | 'not-skippable:<status>'}`. Then `step.skipped{reason:'command'}` + continuation.
+
+`explain` reasons: `when-pending`, `skipped:<reason>`; `phase()` = `'blocked'` while `when` is unresolved; `run{step}` on such a task → `command.rejected{NOT_ACTIVE, 'when-pending'}`.
+
+### 10.3 `invalidate` (plan §9.3)
+
+Command `invalidate{step, cascade?}` (default `cascade: true`). Gate: like other commands, **plus** allowed in a halted flow (`isRecoverableFailure`, like `retry`). `decide:cmdInvalidate`: unknown → `UNKNOWN_STEP`; `status === 'active'` → `command.rejected{INVALID_COMMAND, 'current-view' | 'active'}`; status not in `done|failed|skipped` → `{INVALID_COMMAND, 'not-invalidatable:<status>'}`. Else `step.invalidated{step, cascade, cause:'command'}`; with `cascade`, for every transitive `dependsOn` dependent (declaration order): active → `step.cancelled{reason:'invalidated'}` first (run aborted / child cancelled / timers cleared — the current view included), then, when done/failed/skipped/just-cancelled → `step.invalidated{step, cascade:true, cause:'cascade'}`; pending/idle dependents are untouched (they simply become blocked). Then `schedule`.
+
+`apply(step.invalidated)`: status `idle`, `pendingActivation:false`, `previousOutput` = the old `output` (absent when there was none), clears `output/error/issues/skipReason/retryAt/deadline/idempotencyKey/arrivedSeq/entering/enterDone/when/child`; keeps `input` (a view's draft), `runId`, `visitedCount`, `history` membership (so `back`/`go` can revisit it), guards. **Saga stack entries stay** (the completion happened; a later re-run pushes another). `deriveStatus`: on `step.invalidated` the "failed stays failed" rule is bypassed — invalidating the failed step of a halted flow recomputes the status (→ `waiting`/`running`), which un-halts it. Never automatic (§8.4 stands): routing through the invalidated step again (`next`/`go`/`back`) is the author's/user's job. On resume `previousOutput` is re-parsed by the step's boundary like `output` (and is a revivable location for the persist-time JSON check).
+
+### 10.4 Idempotent tasks (plan §9.4)
+
+`CompiledStep.idempotent`, `hooks.idempotencyKey`. `startKind(task)`: with a key hook → `step.idempotencyKeyRequested{step, runId}` (`plan`: `call{hook:'idempotencyKey', step, token:{step, runId}, extra:{attempt:1}}` — args = the run's args) → `res.ok` (string) → `step.runStarted{attempt:1, runId, idempotencyKey: value}` (non-string → default key; `res.err` → `step.failed{kind:'hook'}`); without → `step.runStarted` with the default `${instanceId}:${step}:${runId}` as before. Retries (`timer.fired` retry, `retry` command) and every `HookArgs.idempotencyKey` reuse the stored `rec.idempotencyKey`. On resume, a task still awaiting its key (`attempt === 0`, not entering) gets the key call re-issued (`planResume`).
+
+Resume (§8.8 row "task active (running)"): `interrupted` = tasks with a run in flight (listed on `flow.resumed.interrupted` as before); for each, `def.idempotent === true` → `step.runStarted{attempt: rec.attempt, runId, idempotencyKey: rec.idempotencyKey, resumed:true}` (the run is re-issued, same key, `attempt` unchanged) — else `step.failed{kind:'interrupted'}` (v0.1). A task whose `mapError` call was in flight is indistinguishable from a running one at resume time and follows the same row.
+
+### 10.5 Snapshot migration (façade, plan §9.5)
+
+`resumeWizardRuntime(def, snapshot, { migrate })` / `…Async`: when `snapshot.flow.name === def.name && snapshot.flow.version !== def.version` (and only then), `migrate(snapshot, { name, version })` runs first; its result is validated like any snapshot (its `flow.version` must equal `def.version` — no auto-bump). A name mismatch never migrates. Sync door: a thenable result → `SNAPSHOT_INCOMPATIBLE` reason `migrate: returned a promise … (use resumeWizardAsync)`; a throw → `migrate: threw (…)`. Async door awaits it (rejection → the same reason).
+
+### 10.6 Selectors + runtime conveniences (plan §9.6)
+
+`progress(state, def): { done, total, ratio }` — `total` = non-final steps, `done` = status `done|skipped`, `ratio = done/total` (0 when `total === 0`), **1 once the flow is `done`**; memoized per state; `ChildSummary.progress` = its `ratio`. `readyOrCurrentViews(def, state)` = views that are current or ready, declaration order. Runtime: `progress()`, `readyViews()`, `skip(step, reason?)`, `invalidate(step, { cascade? })`, `attach(source)`, create option `correlationId`, resume option `migrate`. `parseCommand`/`decodeCommand`: shapes `skip{step!, reason?}`, `invalidate{step!, cascade?: boolean}` (ids checked against the flow when given).
+
+### 10.7 `mapError` (plan §9.7)
+
+`res.err(run)` (token ok, run in flight) with `def.hooks.mapError`: `step.mapErrorStarted{step, attempt, error, timedOut?, syncViolation?}` (no state change; `plan`: `call{hook:'mapError', step, token:{step, runId, attempt}, extra:{error, attempt, timedOut?, syncViolation?}}` — the interpreter substitutes the RAW thrown value for `args.error` when it still has it, else the serialized form). `res.*(mapError)` (valid while the run is in flight): `res.ok` → `data = value`, `res.err` (mapper threw) → no `data`; then the v0.1 §4.1 outcome with `data` on `step.runFailed{…, data?}` (each attempt) and, when out of retries, on `step.failed{…, data?}`; `apply` stores it as `StepError.data` (`toStepError`). Without `mapError` the events are unchanged. `data` must be JSON-safe: the persist-time walk (`firstNonJson`) rejects a snapshot whose `state.steps.<id>.error.data` is not (`SNAPSHOT_NOT_SERIALIZABLE`, `persist.failed{location}`), and `validateSnapshot` rejects it on resume.
+
+### 10.8 Contract summary (additive)
+
+- `commands.ts`: `HookName` += `'when' | 'mapError' | 'idempotencyKey' | 'flowOn'`.
+- `events.ts`: `step.whenStarted{step}`, `step.whenEvaluated{step, ok}`, `step.idempotencyKeyRequested{step, runId}`, `step.mapErrorStarted{step, attempt, error, timedOut?, syncViolation?}`, `event.flowDelivered{event, inboxId, payload?}`, `event.handlerResultIgnored{step, event, reason:'kind'|'nav-busy'}`, `event.handlerFailed{step?, event, error}`; fields `step.runFailed.data?`, `step.failed.data?`; `event.dropped.reason` gains `'correlation'`.
+- `state.ts`: `StepRecord.when?: 'pending'|'passed'`, `NavState.cursorHint?: string` (plus the pre-existing v0.2 fields `previousOutput`, `skipReason`, `correlationId`, `StepError.data`).
+- `types.ts`: `InitialStateOptions.correlationId?`.
+- `selectors.ts` / `machine/index.ts`: `eligible`, `eligibleSteps`, `awaitingWhen`, `viewsAwaitingWhen`, `readyOrCurrentViews`, `progress(state, def): Progress` (replaces the v0.1 `progress(state): number`), type `Progress`.
+- Executor: `flowOn` invocation, raw-error hand-off for `mapError`, `HookArgs.idempotencyKey = rec.idempotencyKey ?? default`.
+- Runtime: `WizardRuntimeOptions.correlationId?`, `ResumeWizardRuntimeOptions.migrate?` (`SnapshotMigration`), methods `skip/invalidate/attach/progress/readyViews`.

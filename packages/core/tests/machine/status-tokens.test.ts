@@ -337,7 +337,8 @@ describe('selectors and explain', () => {
     expect(phase(d, h.state, 'b')).toBe('ready')
     expect(available(d, h.state, 'b')).toBe(true)
     expect(explain(d, h.state, 'b').candidates).toEqual(['b'])
-    expect(progress(h.state)).toBeCloseTo(2 / 5)
+    // v0.2: finals excluded from `total` (a, t, b, c), a + t done
+    expect(progress(h.state, d)).toEqual({ done: 2, total: 4, ratio: 0.5 })
     // go to b: canEnter false → guard reason
     h.cmd({ type: 'go', step: 'b' })
     expect(phase(d, h.state, 'c')).toBe('exiting')

@@ -46,3 +46,43 @@ export const approval = s.steps(
   },
   { start: 'notify' },
 )
+
+// ── the next version of the flow ────────────────────────────────────────────────────────
+// v2 adds `currency` to the context. Snapshots persisted by v1 carry `flow.version: 1`, so
+// `resumeWizard(approvalV2, saved, { migrate })` (v0.2) rewrites them first — see the tests.
+
+const s2 = defineFlow({
+  name: 'expense-approval', // the same identity …
+  version: 2, // … one version up: a v1 snapshot is incompatible without `migrate`
+  context: z.object({
+    requestId: z.string(),
+    amount: z.number().positive(),
+    currency: z.enum(['EUR', 'USD']), // new, required → the migration has to supply it
+    decision: Decision.optional(),
+  }),
+  events: { 'approval.decided': Decision },
+  deps: boundary.trusted<Deps>(),
+})
+
+export const approvalV2 = s2.steps(
+  {
+    notify: s2.task(
+      ({ context, deps }) => deps.notifier.requestApproval(context.requestId, context.amount),
+      { next: 'awaitDecision' },
+    ),
+    awaitDecision: s2.wait({
+      on: { 'approval.decided': ({ payload, update }) => update({ decision: payload }) },
+      timeout: { after: '48h', next: 'expired' },
+      next: 'route',
+    }),
+    route: s2.decision({
+      next: ({ context }) => (context.decision?.approved ? 'approved' : 'rejected'),
+    }),
+    approved: s2.final({
+      output: ({ context }) => `approved by ${context.decision?.by} (${context.currency})`,
+    }),
+    rejected: s2.final({ output: ({ context }) => `rejected by ${context.decision?.by}` }),
+    expired: s2.final({ output: () => 'expired: nobody decided within 48h' }),
+  },
+  { start: 'notify' },
+)

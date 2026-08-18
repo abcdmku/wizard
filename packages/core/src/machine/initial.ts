@@ -41,6 +41,7 @@ export const initialState: InitialState = (env, opts) => {
     timers: {},
     seq: 0,
     instanceId: opts.instanceId,
+    ...(opts.correlationId !== undefined ? { correlationId: opts.correlationId } : {}),
     epoch: opts.epoch ?? 0,
     flow: { name: env.def.name, version: env.def.version },
     startedAt: null,

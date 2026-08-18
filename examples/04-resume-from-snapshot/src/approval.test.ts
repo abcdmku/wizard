@@ -1,7 +1,13 @@
-import { createMemoryStore, createWizard, resumeWizard, type Snapshot } from '@openwizard/core'
+import {
+  createMemoryStore,
+  createWizard,
+  isWizardError,
+  resumeWizard,
+  type Snapshot,
+} from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
-import { approval, type Deps } from './approval'
+import { approval, approvalV2, type Deps } from './approval'
 
 const HOUR = 3_600_000
 const T0 = 1_700_000_000_000 // "now" of the first process (any epoch ms)
@@ -159,6 +165,45 @@ describe('04 resume from snapshot', () => {
       ok: true,
     })
     expect(resumed.getState().output).toBe('rejected by lee')
+    resumed.dispose()
+  })
+  it('migrate (v0.2): a v1 snapshot resumes into the v2 flow through a converter; without one it is incompatible', async () => {
+    const { deps } = fakeNotifier('instant')
+    const first = createWizard(approval, { context, deps, instanceId: 'exp-44' })
+    await first.start()
+    await settle() // waiting for the decision
+    const saved = JSON.parse(JSON.stringify(first.getSnapshot())) as unknown
+    first.dispose()
+
+    // The deploy that ships v2 finds v1 snapshots in the store.
+    try {
+      resumeWizard(approvalV2, saved, { deps })
+      expect.unreachable()
+    } catch (error) {
+      expect(isWizardError(error) && error.code).toBe('SNAPSHOT_INCOMPATIBLE')
+    }
+    // `migrate` runs only when the versions differ; it must return a snapshot of the flow's version.
+    const seen: unknown[] = []
+    const resumed = resumeWizard(approvalV2, saved, {
+      deps,
+      migrate: (snapshot, from) => {
+        seen.push(from)
+        const snap = snapshot as Snapshot<typeof approval>
+        const flow = { name: snap.flow.name, version: 2 }
+        return {
+          ...snap,
+          flow, // the envelope …
+          state: { ...snap.state, flow, context: { ...snap.state.context, currency: 'EUR' } }, // … and the state
+        }
+      },
+    })
+    expect(seen).toEqual([{ name: 'expense-approval', version: 1 }])
+    expect(resumed.getState().context).toEqual({ requestId: '42', amount: 1_250, currency: 'EUR' })
+    expect(resumed.getState().status).toBe('waiting')
+    expect(await resumed.send('approval.decided', { approved: true, by: 'kim' })).toMatchObject({
+      ok: true,
+    })
+    expect(resumed.getState().output).toBe('approved by kim (EUR)')
     resumed.dispose()
   })
 })

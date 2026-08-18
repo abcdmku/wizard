@@ -10,10 +10,16 @@
  * returns as `useSyncExternalStore`'s server snapshot — on the server and during hydration —
  * so the hydrated tree matches the server HTML even when the live source already moved on.
  *
+ * Child flows (v0.2): `useChild(step)` returns hooks bound to the child slice — over a Mirror the
+ * `steps[step].child` slice of the projected state (exposed with `child: ExposeSpec`), over a
+ * Wizard `getSnapshot().children[step].state` — and a scoped `MirrorChild`-shaped action set
+ * (every command wrapped as `{ type: 'child', path, command }` through the source's `dispatch`).
+ * Child bindings are memoised per (binding, path) so their hooks have stable identities.
+ *
  * @packageDocumentation
  */
 
-import type { StepId } from '@openwizard/core'
+import type { AnyProjection, ChildFlowOf, StepId } from '@openwizard/core'
 import {
   createContext,
   Fragment,
@@ -27,13 +33,14 @@ import {
 import type {
   Actions,
   BindTarget,
+  ChildBinding,
+  ChildBindingId,
+  ChildStateOf,
   CurrentOf,
   FlowOf,
   ProviderProps,
   ReactBinding,
   StateOf,
-  StepHelpers,
-  StepRecordOf,
   UseStepResult,
 } from './types'
 
@@ -51,6 +58,12 @@ interface RawSource extends RawActions {
 interface RawState {
   readonly current: string | null
   readonly steps: Readonly<Record<string, unknown>>
+}
+
+/** A Wizard snapshot as the child reader walks it (`children[step].state`). */
+interface RawSnapshot {
+  readonly state: RawState
+  readonly children?: Readonly<Record<string, RawSnapshot | undefined>>
 }
 
 interface RawActions {
@@ -71,6 +84,8 @@ interface RawActions {
   runReady(): Promise<unknown>
   compensate(options?: { readonly from?: string; readonly reason?: string }): Promise<unknown>
   reset(): Promise<unknown>
+  skip(step: string, reason?: string): Promise<unknown>
+  invalidate(step: string, options?: { readonly cascade?: boolean }): Promise<unknown>
   dispatch(command: unknown): Promise<unknown>
 }
 
@@ -78,6 +93,14 @@ interface Adapter {
   subscribe(listener: () => void): () => void
   /** The state the hooks read; `null` while a Mirror has no frame. */
   getState(): RawState | null
+  /** The state slice of a nested flow (`path` of flow-step ids); `null` while it has none. */
+  getChildState(path: readonly string[]): RawState | null
+  /**
+   * The child slice inside a FIXED server snapshot (`Provider.serverSnapshot`): walked from the
+   * projected state over a Mirror; `null` over a Wizard (its `serverSnapshot` is the wizard
+   * state, which carries child summaries only).
+   */
+  childOfServerState(state: RawState, path: readonly string[]): RawState | null
   readonly actions: RawActions
 }
 
@@ -86,22 +109,59 @@ interface Bound {
   readonly adapter: Adapter
   /** The state to render on the server and during hydration (`serverSnapshot`, else the live state). */
   getServerState(): RawState | null
+  /** The child slice to render on the server and during hydration (walked from the fixed snapshot). */
+  getServerChildState(path: readonly string[]): RawState | null
 }
 
 const adapters = new WeakMap<object, Adapter>()
+
+/** The child slice of a projected state: `steps[p0].child.steps[p1].child…` (`null` when absent). */
+function childOfProjected(state: RawState | null, path: readonly string[]): RawState | null {
+  let slice: RawState | null = state
+  for (const step of path) {
+    if (slice === null) return null
+    const record = slice.steps[step] as { readonly child?: unknown } | undefined
+    const child = record?.child
+    slice = isRawState(child) ? child : null
+  }
+  return slice
+}
+
+/** The child slice of a Wizard snapshot: `children[p0].children[p1]….state` (`null` when absent). */
+function childOfSnapshot(snapshot: RawSnapshot, path: readonly string[]): RawState | null {
+  let node: RawSnapshot | undefined = snapshot
+  for (const step of path) {
+    node = node?.children?.[step]
+    if (node === undefined) return null
+  }
+  return node === undefined ? null : node.state
+}
+
+function isRawState(value: unknown): value is RawState {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'steps' in value &&
+    typeof (value as { steps?: unknown }).steps === 'object'
+  )
+}
 
 function adapt(source: object): Adapter {
   const existing = adapters.get(source)
   if (existing !== undefined) return existing
   const raw = source as RawSource
   const wizardState = raw.getState
-  const getState =
-    typeof wizardState === 'function'
-      ? () => wizardState.call(raw) as RawState // Wizard: the state (never null)
-      : () => raw.getSnapshot() as RawState | null // Mirror: projected state, null before the first frame
+  const isWizard = typeof wizardState === 'function'
+  const getState = isWizard
+    ? () => wizardState.call(raw) as RawState // Wizard: the state (never null)
+    : () => raw.getSnapshot() as RawState | null // Mirror: projected state, null before the first frame
   const adapter: Adapter = {
     subscribe: (listener) => raw.subscribe(() => listener()),
     getState,
+    getChildState: isWizard
+      ? (path) => childOfSnapshot(raw.getSnapshot() as RawSnapshot, path)
+      : (path) => childOfProjected(getState(), path),
+    childOfServerState: isWizard ? () => null : childOfProjected,
     actions: {
       start: () => raw.start(),
       next: () => raw.next(),
@@ -117,11 +177,77 @@ function adapt(source: object): Adapter {
       runReady: () => raw.runReady(),
       compensate: (options) => (options === undefined ? raw.compensate() : raw.compensate(options)),
       reset: () => raw.reset(),
+      skip: (step, reason) => (reason === undefined ? raw.skip(step) : raw.skip(step, reason)),
+      invalidate: (step, options) =>
+        options === undefined ? raw.invalidate(step) : raw.invalidate(step, options),
       dispatch: (command) => raw.dispatch(command),
     },
   }
   adapters.set(source, adapter)
   return adapter
+}
+
+/**
+ * The scoped command sugar of a child (`MirrorChild` shape): every command travels through the
+ * source's `dispatch` as `{ type: 'child', path, command }`. Memoised per (source, path).
+ */
+interface RawChildActions extends RawActions {
+  readonly path: readonly string[]
+  child(step: string): RawChildActions
+}
+
+const childActionCaches = new WeakMap<RawActions, Map<string, RawChildActions>>()
+
+function childActions(root: RawActions, path: readonly string[]): RawChildActions {
+  let cache = childActionCaches.get(root)
+  if (cache === undefined) {
+    cache = new Map()
+    childActionCaches.set(root, cache)
+  }
+  const key = JSON.stringify(path)
+  const existing = cache.get(key)
+  if (existing !== undefined) return existing
+  const send = (command: unknown): Promise<unknown> =>
+    root.dispatch({ type: 'child', path, command })
+  const actions: RawChildActions = {
+    path,
+    start: () => send({ type: 'start' }),
+    next: () => send({ type: 'next' }),
+    back: () => send({ type: 'back' }),
+    go: (step) => send({ type: 'go', step }),
+    setInput: (step, patch) => send({ type: 'setInput', step, patch }),
+    resetInput: (step) => send({ type: 'resetInput', step }),
+    send: (event, payload, options) =>
+      send(
+        options?.correlationId === undefined
+          ? { type: 'send', event, payload }
+          : { type: 'send', event, payload, correlationId: options.correlationId },
+      ),
+    run: (step) => send({ type: 'run', step }),
+    retry: (step) => send({ type: 'retry', step }),
+    cancel: (reason) =>
+      send(reason === undefined ? { type: 'cancel' } : { type: 'cancel', reason }),
+    runReady: () => send({ type: 'runReady' }),
+    compensate: (options) =>
+      send({
+        type: 'compensate',
+        ...(options?.from === undefined ? {} : { from: options.from }),
+        ...(options?.reason === undefined ? {} : { reason: options.reason }),
+      }),
+    reset: () => send({ type: 'reset' }),
+    skip: (step, reason) =>
+      send(reason === undefined ? { type: 'skip', step } : { type: 'skip', step, reason }),
+    invalidate: (step, options) =>
+      send(
+        options?.cascade === undefined
+          ? { type: 'invalidate', step }
+          : { type: 'invalidate', step, cascade: options.cascade },
+      ),
+    dispatch: send,
+    child: (step) => childActions(root, [...path, step]),
+  }
+  cache.set(key, actions)
+  return actions
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +308,10 @@ export function bindReact<T extends BindTarget>(): ReactBinding<T> {
       () => ({
         adapter,
         getServerState: fixed === undefined ? adapter.getState : () => fixed,
+        getServerChildState:
+          fixed === undefined
+            ? adapter.getChildState
+            : (path) => (fixed === null ? null : adapter.childOfServerState(fixed, path)),
       }),
       [adapter, fixed],
     )
@@ -239,19 +369,88 @@ export function bindReact<T extends BindTarget>(): ReactBinding<T> {
       if (record === undefined) throw new Error(`useStep('${step}'): unknown step`)
       return record
     }
-    const record = useRead(bound, read) as StepRecordOf<T, K>
-    const helpers = useMemo(
-      () => bindStep(bound.adapter.actions, step) as unknown as StepHelpers<T, K>,
-      [bound, step],
+    const record = useRead(bound, read) as object
+    const helpers = useMemo(() => bindStep(bound.adapter.actions, step), [bound, step])
+    return useMemo(
+      () => ({ ...record, ...helpers }) as unknown as UseStepResult<T, K>,
+      [record, helpers],
     )
-    return useMemo(() => ({ ...record, ...helpers }), [record, helpers])
   }
 
   function useActions(): Actions<T> {
     return useBound('useActions').adapter.actions as unknown as Actions<T>
   }
 
-  return { Provider, useSnapshot, useCurrent, useStep, useSelector, useActions }
+  // ---- child bindings (memoised per path so the returned hooks keep their identity) ---------
+
+  /** Untyped child binding: hooks over the child slice at `path`, actions scoped to it. */
+  interface RawChildBinding {
+    useSnapshot(): RawState | null
+    useStep(step: string): unknown
+    useActions(): RawChildActions
+    useChild(step: string): RawChildBinding
+  }
+  const childBindings = new Map<string, RawChildBinding>()
+
+  const childBinding = (path: readonly string[]): RawChildBinding => {
+    const key = JSON.stringify(path)
+    const existing = childBindings.get(key)
+    if (existing !== undefined) return existing
+    const label = `useChild(${path.map((p) => `'${p}'`).join(').useChild(')})`
+    const useSlice = (bound: Bound): RawState | null =>
+      useSyncExternalStore(
+        bound.adapter.subscribe,
+        () => bound.adapter.getChildState(path),
+        () => bound.getServerChildState(path),
+      )
+    const binding: RawChildBinding = {
+      useSnapshot() {
+        return useSlice(useBound(`${label}.useSnapshot`))
+      },
+      useStep(step) {
+        const bound = useBound(`${label}.useStep`)
+        const read = (slice: RawState | null): unknown => {
+          if (slice === null) {
+            throw new Error(
+              `${label}.useStep('${step}'): the child flow has no state yet (render it under a useSnapshot() !== null guard)`,
+            )
+          }
+          const record = slice.steps[step]
+          if (record === undefined) throw new Error(`${label}.useStep('${step}'): unknown step`)
+          return record
+        }
+        const record = useSyncExternalStore(
+          bound.adapter.subscribe,
+          () => read(bound.adapter.getChildState(path)),
+          () => read(bound.getServerChildState(path)),
+        )
+        // `path` is a constant of this (memoised) binding, so it is a valid dependency as-is.
+        const helpers = useMemo(
+          () => bindStep(childActions(bound.adapter.actions, path), step),
+          [bound, step, path],
+        )
+        return useMemo(() => ({ ...(record as object), ...helpers }), [record, helpers])
+      },
+      useActions() {
+        return childActions(useBound(`${label}.useActions`).adapter.actions, path)
+      },
+      useChild: (step) => childBinding([...path, step]),
+    }
+    childBindings.set(key, binding)
+    return binding
+  }
+
+  type ChildBindingOf<K extends ChildBindingId<T>> = ChildBinding<
+    ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>,
+    ChildStateOf<T, K>,
+    T extends AnyProjection ? 'mirror' : 'wizard'
+  >
+  function useChild<K extends ChildBindingId<T>>(step: K): ChildBindingOf<K> {
+    useBound('useChild')
+    return childBinding([step]) as unknown as ChildBindingOf<K>
+  }
+
+  return { Provider, useSnapshot, useCurrent, useStep, useSelector, useActions, useChild }
 }
 
 /** Per-step helpers (present for every step at runtime; the types hide view-only ones). */

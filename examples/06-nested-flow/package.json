@@ -2,7 +2,7 @@
   "name": "example-06-nested-flow",
   "private": true,
   "type": "module",
-  "description": "OpenWizard example: a parent flow embeds a child flow with s.flow(child, { context }); the child is driven through wizard.child('fulfil'), its events carry a path, its output completes the parent step.",
+  "description": "OpenWizard example: a parent flow embeds a child flow with s.flow(child, { context }); the child is driven through wizard.child('fulfil'), its events carry a path, its output completes the parent step; a Mirror drives the child with mirror.child(step).",
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json && vitest run --root .",
     "start": "tsx src/main.ts"

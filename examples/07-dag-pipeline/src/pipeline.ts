@@ -23,6 +23,8 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
       normalized: z.number().int().nonnegative().optional(),
       enriched: z.number().int().nonnegative().optional(),
       quality: z.number().min(0).max(1).default(0),
+      // 'off' skips the enrichment branch (see `when` on `enrich` below).
+      enrichment: z.enum(['on', 'off']).default('on'),
     }),
     deps: boundary.trusted<Deps>(), // built by the host, no runtime check
     // At most `concurrency` tasks run at the same time; the rest stay ready until a slot frees.
@@ -56,13 +58,20 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
           update({ enriched, quality })
           return { enriched, quality }
         },
-        { next: 'gate' },
+        {
+          // `when` (v0.2) is evaluated once the step is ready: `false` skips it
+          // (`step.skipped { reason: 'when' }`) — a skipped step counts as done for `dependsOn`
+          // and its `next` targets are still arrived, so the gate below is not stuck.
+          when: ({ context }) => context.enrichment === 'on',
+          next: 'gate',
+        },
       ),
       // `dependsOn` is DATA READINESS: the gate is arrived by whichever branch finishes first,
       // but only becomes ready once BOTH are done (an AND-join; `{ any: [...] }` would be OR).
       gate: s.decision({
         dependsOn: ['normalize', 'enrich'],
-        next: ({ context }) => (context.quality >= 0.8 ? 'persist' : 'quarantine'),
+        next: ({ context }) =>
+          context.enrichment === 'off' || context.quality >= 0.8 ? 'persist' : 'quarantine',
       }),
       persist: s.task(
         ({ context, deps }) =>

@@ -6,7 +6,8 @@
  * `unknown-step`, `flow-not-started`, `flow-terminal`, `flow-compensating`,
  * `nav-busy`, `not-activated`, `deps-unmet:<id>`, `guard-false:canEnter`,
  * `guard-false:canExit`, `concurrency-limit`, `auto-run-manual`,
- * `failed:<kind>`, `not-current`, `entering`, `retrying`.
+ * `failed:<kind>`, `not-current`, `entering`, `retrying`, `when-pending` (v0.2:
+ * the step's `when` predicate has not passed yet), `skipped:<reason>`.
  * `candidates` = ready views the cursor could move to.
  *
  * @internal
@@ -15,6 +16,8 @@
 import type { CompiledFlow } from '../authoring/compiled'
 import {
   activeTaskCount,
+  awaitingWhen,
+  eligible,
   isNavBusy,
   isTerminal,
   phase,
@@ -56,7 +59,10 @@ export function explain(def: CompiledFlow, state: WizardState, stepId: string): 
     rec.status === 'cancelled'
   ) {
     if (!rec.pendingActivation) reasons.push('not-activated')
+    if (rec.status === 'skipped') reasons.push(`skipped:${rec.skipReason ?? 'unknown'}`)
     for (const dep of unmetDeps(def, state, stepId)) reasons.push(`deps-unmet:${dep}`)
+    if (eligible(def, state, stepId) && awaitingWhen(def, state, stepId))
+      reasons.push('when-pending')
     if (ready(def, state, stepId)) {
       const stepDef = def.steps[stepId]
       if (stepDef?.kind === 'task' && activeTaskCount(def, state) >= def.policies.concurrency)

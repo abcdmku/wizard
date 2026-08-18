@@ -32,9 +32,18 @@ export type StepPhase =
 
 interface Memo {
   readySteps?: readonly string[]
-  progress?: number
+  eligibleSteps?: readonly string[]
+  progress?: Progress
   readonly deps: Map<string, boolean>
   readonly phase: Map<string, StepPhase | undefined>
+}
+
+/** v0.2 (§9.6): completion counters over the non-final steps; `skipped` counts as done. */
+export interface Progress {
+  readonly done: number
+  readonly total: number
+  /** `done / total` (0 when there is nothing to count); 1 once the flow is `done`. */
+  readonly ratio: number
 }
 
 const memos = new WeakMap<WizardState, Memo>()
@@ -81,20 +90,50 @@ export function unmetDeps(def: CompiledFlow, state: WizardState, id: string): re
   return unmet
 }
 
-/** `ready(id) = pendingActivation && status !== 'active' && depsSatisfied(id)`. */
-export function ready(def: CompiledFlow, state: WizardState, id: string): boolean {
+/**
+ * v0.2: the step declares a `when` predicate that has not passed for the current activation
+ * (unevaluated, or in flight). Such a step is eligible but not ready: the scheduler evaluates
+ * `when` first and either lets it enter (`'passed'`) or skips it.
+ */
+export function awaitingWhen(def: CompiledFlow, state: WizardState, id: string): boolean {
+  return def.steps[id]?.hooks.when !== undefined && state.steps[id]?.when !== 'passed'
+}
+
+/** Activated + gated, ignoring `when`: `pendingActivation && status !== 'active' && depsSatisfied(id)` (§3.1). */
+export function eligible(def: CompiledFlow, state: WizardState, id: string): boolean {
   const rec = state.steps[id]
   if (rec === undefined) return false
   return rec.pendingActivation && rec.status !== 'active' && depsSatisfied(def, state, id)
+}
+
+/** `ready(id) = eligible(id) && !awaitingWhen(id)` — may enter now (v0.2 adds the `when` clause). */
+export function ready(def: CompiledFlow, state: WizardState, id: string): boolean {
+  return eligible(def, state, id) && !awaitingWhen(def, state, id)
+}
+
+function byArrival(state: WizardState, ids: readonly string[]): readonly string[] {
+  return [...ids].sort(
+    (a, b) => (state.steps[a]?.arrivedSeq ?? 0) - (state.steps[b]?.arrivedSeq ?? 0),
+  )
+}
+
+/** Eligible steps (ready ignoring `when`) in ascending `arrivedSeq` order. */
+export function eligibleSteps(def: CompiledFlow, state: WizardState): readonly string[] {
+  const m = memo(state)
+  if (m.eligibleSteps !== undefined) return m.eligibleSteps
+  const list = byArrival(
+    state,
+    def.order.filter((id) => eligible(def, state, id)),
+  )
+  m.eligibleSteps = list
+  return list
 }
 
 /** Ready steps in ascending `arrivedSeq` order (the scheduler's candidate list). */
 export function readySteps(def: CompiledFlow, state: WizardState): readonly string[] {
   const m = memo(state)
   if (m.readySteps !== undefined) return m.readySteps
-  const list = def.order
-    .filter((id) => ready(def, state, id))
-    .sort((a, b) => (state.steps[a]?.arrivedSeq ?? 0) - (state.steps[b]?.arrivedSeq ?? 0))
+  const list = eligibleSteps(def, state).filter((id) => !awaitingWhen(def, state, id))
   m.readySteps = list
   return list
 }
@@ -102,6 +141,13 @@ export function readySteps(def: CompiledFlow, state: WizardState): readonly stri
 /** Ready views (cursor-rule candidates), in arrival order. */
 export function readyViews(def: CompiledFlow, state: WizardState): readonly string[] {
   return readySteps(def, state).filter((id) => def.steps[id]?.kind === 'view')
+}
+
+/** Eligible views whose `when` is still unresolved: the cursor rule waits for them (v0.2). */
+export function viewsAwaitingWhen(def: CompiledFlow, state: WizardState): readonly string[] {
+  return eligibleSteps(def, state).filter(
+    (id) => def.steps[id]?.kind === 'view' && awaitingWhen(def, state, id),
+  )
 }
 
 /** Number of tasks currently active (concurrency budget consumer). */
@@ -207,7 +253,8 @@ function computePhase(def: CompiledFlow, state: WizardState, id: string): StepPh
   if (rec.status === 'compensating') return 'compensating'
   if (rec.status !== 'active') {
     if (!rec.pendingActivation) return undefined
-    return depsSatisfied(def, state, id) ? 'ready' : 'blocked'
+    // v0.2: an eligible step whose `when` predicate is unresolved cannot enter yet → blocked.
+    return depsSatisfied(def, state, id) && !awaitingWhen(def, state, id) ? 'ready' : 'blocked'
   }
   if (rec.entering === true) return 'entering'
   switch (rec.kind) {
@@ -245,18 +292,33 @@ export function complete(state: WizardState, id: string): boolean {
   return isComplete(state.steps[id])
 }
 
-/** Fraction of steps that are done|skipped|compensated (0..1). */
-export function progress(state: WizardState): number {
+/**
+ * v0.2 (§9.6): `{ done, total, ratio }` over the non-final steps (`done` = status `done` or
+ * `skipped`); `ratio` is 1 once the flow is `done` (branches never taken do not count against a
+ * finished flow). Memoized per state. `ChildSummary.progress` and `ClientState.progress` use it.
+ */
+export function progress(state: WizardState, def: CompiledFlow): Progress {
   const m = memo(state)
   if (m.progress !== undefined) return m.progress
-  const ids = Object.keys(state.steps)
-  const finished = ids.filter((id) => {
-    const s = state.steps[id]?.status
-    return s === 'done' || s === 'skipped' || s === 'compensated'
-  }).length
-  const p = ids.length === 0 ? 0 : finished / ids.length
+  let done = 0
+  let total = 0
+  for (const id of def.order) {
+    const rec = state.steps[id]
+    if (rec === undefined || (def.steps[id]?.kind ?? rec.kind) === 'final') continue
+    total += 1
+    if (rec.status === 'done' || rec.status === 'skipped') done += 1
+  }
+  const ratio = state.status === 'done' ? 1 : total === 0 ? 0 : done / total
+  const p: Progress = { done, total, ratio }
   m.progress = p
   return p
+}
+
+/** v0.2 (§9.6): views the user can be on right now — the current view plus every ready view, in declaration order. */
+export function readyOrCurrentViews(def: CompiledFlow, state: WizardState): readonly string[] {
+  return def.order.filter(
+    (id) => def.steps[id]?.kind === 'view' && (id === state.current || ready(def, state, id)),
+  )
 }
 
 /** Buffered inbox entries whose TTL has passed. */

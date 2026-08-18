@@ -8,7 +8,11 @@ import { createTestScheduler } from '@openwizard/core/testing'
 import { checkout } from './checkout'
 
 const sched = createTestScheduler({ now: 0 })
-const wizard = createWizard(checkout, { context: { orderId: 'o-1' }, scheduler: sched })
+const wizard = createWizard(checkout, {
+  context: { orderId: 'o-1' },
+  correlationId: 'o-1', // correlated webhooks for other orders are dropped
+  scheduler: sched,
+})
 wizard.observe((event) => {
   if (event.type.startsWith('event.') || event.type === 'step.done' || event.type === 'flow.done')
     console.log(
@@ -22,7 +26,18 @@ console.log('current view:', wizard.getState().current)
 const bad = await wizard.send('payment.captured', { paymentId: 42 })
 console.log('send(bad body) →', JSON.stringify(bad))
 
-const early = await wizard.send('payment.captured', { paymentId: 'pay_1', amount: 42 })
+const foreign = await wizard.send('payment.captured', {
+  paymentId: 'pay_7',
+  amount: 1,
+  orderId: 'o-2',
+})
+console.log('send(webhook for another order) →', JSON.stringify(foreign))
+
+const early = await wizard.send('payment.captured', {
+  paymentId: 'pay_1',
+  amount: 42,
+  orderId: 'o-1',
+})
 console.log('send(good body, nobody listening yet) →', JSON.stringify(early))
 console.log('inbox size:', wizard.getState().inbox.length)
 

@@ -14,7 +14,7 @@ JSON-checked before every store write, resume re-validates everything, and deny-
 **projections** are what a client sees.
 
 - **Sync + async, one code path.** A step's hooks may return values or promises; when they are synchronous the state is committed before your call returns.
-- **Backend + frontend.** Framework-agnostic core with no runtime dependencies (< 32 kB min+brotli, enforced by `size-limit`). Persist on the server, project to the client, bind in React (`@openwizard/react`).
+- **Backend + frontend.** Framework-agnostic core with no runtime dependencies (< 36 kB min+brotli, enforced by `size-limit`). Persist on the server, project to the client, bind in React (`@openwizard/react`).
 - **Boundaries as the only doors.** `context`, `setInput`, `send`, `resume` — each parsed by a schema you declared. Rejections are values (`{ ok: false, issues }`), never throws.
 - **Deep observability.** `observe()` / `log()` stream domain events (with causal `seq`, `path` for nested flows); `inspect()` gives the static graph; `explain()` the live reasons.
 
@@ -119,11 +119,17 @@ rule covers wizards, DAGs and hybrids.
 | Kind | Enters when | Completes when | Notable options |
 |---|---|---|---|
 | `s.view(cfg)` | the cursor arrives (`start` / `next` / `go` / `back`) | `next()` parses the draft through `input`, then `validate`, `canExit` | `input`, `initial`, `validate`, `canEnter`, `canExit`, `enter`, `exit`, `next` |
-| `s.task(run, opts)` | it is ready (auto-run) | `run` settles (optionally re-checked by `output`) | `retry`, `timeout`, `compensate`, `output`, `next`, `dependsOn` |
+| `s.task(run, opts)` | it is ready (auto-run) | `run` settles (optionally re-checked by `output`) | `retry`, `timeout`, `compensate`, `output`, `idempotent`, `mapError`, `next`, `dependsOn` |
 | `s.wait(cfg)` | it is ready | an `on[event]` handler resolves or `timeout.after` fires | `on`, `timeout: { after, next }`, `next` |
 | `s.decision(cfg)` | it is ready | `next(args)` returns a target | `next` (function), `dependsOn` |
 | `s.flow(child, cfg)` | it is ready → child wizard created | the child reaches a `final` | `context` (parent → child), `deps`, `output`, `exit`, `next` |
 | `s.final(cfg)` | it is ready | immediately; the flow is `done` | `output` |
+
+Every kind may declare `on: { [event]: handler }` (external events while the step is active —
+a wait may answer `{ keep }` / `{ next }`, a view `{ next }`, the rest nothing) and every
+non-final kind a `when` predicate (`false` skips the step once it is ready); `wizard.skip(step)`
+and `wizard.invalidate(step)` do the same by hand. Flow-level `on` handlers (`{ cancel }`)
+and `correlate` extractors (+ `createWizard({ correlationId })`) sit on the definition header.
 
 **Boundaries.** `Boundary<O, I> = StandardSchema | Checker` — `boundary.parse(fn)`,
 `boundary.guard(fn)`, `boundary.assert(fn)`, `boundary.trusted<T>()` (no runtime check; grep-able).
@@ -147,36 +153,43 @@ every change — JSON-checked before every write (a `Date` outside a reviving bo
 function, … is reported with its path instead of being distorted); `resumeWizard(flow, unknown,
 options)` re-validates everything, bumps `epoch`, re-arms timers and applies the recovery matrix
 (interrupted tasks fail with `kind: 'interrupted'`, waits keep their deadlines, in-flight
-navigation is rejected). Persistence is single-owner in v0.1: one live wizard per key, no
-compare-and-swap — resume on another replica only after the first is gone.
+navigation is rejected; an `idempotent` task is re-run with the same key). A snapshot of an
+older flow `version` resumes through `{ migrate }`. Persistence is single-owner: one live wizard
+per key, no compare-and-swap — resume on another replica only after the first is gone.
 
 **Projections & clients.** `defineProjection(flow, { expose })` is deny-by-default: only the
 listed step inputs / outputs / issues / errors / children, context keys and (if asked) the flow
-output cross the wire; `wizard.project(p)` returns the typed `ClientState`. `dispatch(command)`
+output / `progress` cross the wire (`select: (state) => T` for a hand-written projection);
+`wizard.project(p)` returns the typed `ClientState`. `dispatch(command)`
 is the one wire door, typed by the flow (`Command<F>`); untrusted JSON becomes one through
 `parseCommand(flow, body)`.
 The client half is in core too: `createMirrorSource(wizard, projection)` on the server,
 `createMirror({ transport })` on the client (a read-only replica with the same typed command
-sugar), `createLocalTransport()` (from `@openwizard/core/testing`) for tests, and `Frame` /
-`WireCommand` / `WireAck` (with `parseWireCommand` / `parseFrame`) as the wire shapes. The React hooks (`bindReact<typeof projection>()` → `Provider`, `useStep`, `useSelector`,
-`useActions`, …) live in [`@openwizard/react`](packages/react/README.md).
+sugar, plus `mirror.child(step)` for nested flows), `createLocalTransport()` (from
+`@openwizard/core/testing`) for tests, and `Frame` / `WireCommand` / `WireAck` (with
+`parseWireCommand` / `parseFrame`) as the wire shapes. The React hooks (`bindReact<typeof
+projection>()` → `Provider`, `useStep`, `useSelector`, `useActions`, `useChild`, …) live in
+[`@openwizard/react`](packages/react/README.md).
 
 **Observability.** `observe(listener)` / `log()` — every domain event with `seq`, `at`, `path`
 (nested flows) and `causedBy`; `inspect(flow)` — nodes, edges (`next` / `dependsOn` / `timeout`),
-warnings; `wizard.explain(step)` — `{ status, phase, reasons: ['deps-unmet:enrich', …], candidates }`.
+warnings, and `toMermaid(inspect(flow))` for a Mermaid flowchart; `wizard.explain(step)` —
+`{ status, phase, reasons: ['deps-unmet:enrich', …], candidates }`; `wizard.progress()` /
+`readyViews()`.
 
 ## Examples (each is a workspace package and a test)
 
 | Example | Shows |
 |---|---|
 | [01-happy-path](examples/01-happy-path) | view → task → final, typed input, `deps`, validation as values, the sync-commit guarantee, `getSnapshot()` |
-| [02-recoverable-failure](examples/02-recoverable-failure) | `retry: { attempts, backoff: 'exponential' }` driven by `createTestScheduler()`, exhausted retries → `retry(step)` |
+| [02-recoverable-failure](examples/02-recoverable-failure) | `retry: { attempts, backoff: 'exponential' }` driven by `createTestScheduler()`, exhausted retries → `retry(step)`, `idempotent` keys, `mapError` → typed `error.data` |
 | [03-non-recoverable-compensation](examples/03-non-recoverable-compensation) | `onFailure: 'compensate'`: reverse-order unwind, `saga.failures`, `compensate({ from })` |
-| [04-resume-from-snapshot](examples/04-resume-from-snapshot) | auto-save to a store, crash, `resumeWizard()`, re-armed timers, interrupted task → `retry()` |
-| [05-external-events](examples/05-external-events) | webhooks through an event boundary, early events buffered in the inbox, TTL, wait timeout |
-| [06-nested-flow](examples/06-nested-flow) | `s.flow(child, { context })`, `wizard.child()`, child events with `path`, nested snapshots |
-| [07-dag-pipeline](examples/07-dag-pipeline) | fan-out, parallel tasks under `concurrency`, AND-join with `dependsOn`, `explain()`, `autoRun: 'manual'` |
+| [04-resume-from-snapshot](examples/04-resume-from-snapshot) | auto-save to a store, crash, `resumeWizard()`, re-armed timers, interrupted task → `retry()`, snapshot `migrate` |
+| [05-external-events](examples/05-external-events) | webhooks through an event boundary, early events buffered in the inbox, TTL, wait timeout, correlation ids, flow-level `on` |
+| [06-nested-flow](examples/06-nested-flow) | `s.flow(child, { context })`, `wizard.child()`, child events with `path`, nested snapshots, `mirror.child()` |
+| [07-dag-pipeline](examples/07-dag-pipeline) | fan-out, parallel tasks under `concurrency`, AND-join with `dependsOn`, `explain()`, `autoRun: 'manual'`, `when`, `skip()`, `progress()` |
 | [08-react-mirror](examples/08-react-mirror) | Vite + React: the UI touches only a `Mirror` (deny-by-default projection over a loopback transport) via `bindReact()` hooks; tokenised payment, headless jsdom test |
+| [09-mermaid](examples/09-mermaid) | `toMermaid(inspect(flow))`: the static graph as a Mermaid flowchart (kinds, `next` / `dependsOn` / `timeout` edges, dynamic `next`, child subgraph) |
 
 ```sh
 pnpm install && pnpm build

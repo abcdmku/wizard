@@ -1,5 +1,5 @@
 import { ReactElement, ReactNode } from "react";
-import { AnyFlow, AnyProjection, Command, CommandResult, DraftOf, EventType, Mirror, NavResult, ProjectionFlow, ProjectionOutput, SendResult, Snapshot, StepId, TaskId, ViewId, Wizard } from "@openwizard/core";
+import { AnyFlow, AnyProjection, ChildFlowOf, ChildStepId, Command, CommandResult, DraftOf, EventType, Mirror, MirrorChild, NavResult, ProjectionFlow, ProjectionOutput, SendResult, Snapshot, StepId, TaskId, ViewId, Wizard } from "@openwizard/core";
 //#region src/types.d.ts
 /**
  * What `bindReact<T>()` accepts: a flow (the source is a `Wizard`) or a projection (the source
@@ -57,14 +57,27 @@ interface Actions<T extends BindTarget> {
     readonly reason?: string;
   }): Promise<CommandResult>;
   reset(): Promise<CommandResult>;
+  skip(step: StepId<FlowOf<T>>, reason?: string): Promise<CommandResult>;
+  invalidate(step: StepId<FlowOf<T>>, options?: {
+    readonly cascade?: boolean;
+  }): Promise<CommandResult>;
   dispatch(command: Command<FlowOf<T>>): Promise<CommandResult>;
 }
+/**
+ * The record of step `K` of a state slice `S` (a projected `ClientState` or a wizard state):
+ * `S['steps'][K]`, `never` when `S` has no such step (a `select` projection whose state is not
+ * step-shaped).
+ * @public
+ */
+type StepRecordIn<S, K extends PropertyKey> = S extends {
+  readonly steps: infer St;
+} ? K extends keyof St ? St[K] : never : never;
 /**
  * The record of step `K` as the hooks see it (`StepState` over a Wizard, the projected
  * `ClientStepState` over a Mirror).
  * @public
  */
-type StepRecordOf<T extends BindTarget, K extends StepId<FlowOf<T>>> = StateOf<T>['steps'][K];
+type StepRecordOf<T extends BindTarget, K extends StepId<FlowOf<T>>> = StepRecordIn<StateOf<T>, K>;
 /**
  * Helpers `useStep(id)` binds to the step: `next`/`back` (flow-level navigation) for every step;
  * `go` (to this view), `setInput` (draft patch, `DraftOf`) and `resetInput` for view steps only.
@@ -108,6 +121,57 @@ interface ProviderProps<T extends BindTarget> {
   readonly serverSnapshot?: StateOf<T>;
   readonly children?: ReactNode;
 }
+/** The nested child slice of a step record (`record.child`), `never` when it is not a state. */
+type ChildSliceOf<R> = R extends {
+  readonly child?: infer CS;
+} ? [NonNullable<CS>] extends [{
+  readonly steps: unknown;
+}] ? NonNullable<CS> : never : never;
+/**
+ * Ids of the flow steps whose child state the binding can read with `useChild(step)`: over a
+ * projection, the flow steps exposed with a nested `child: ExposeSpec` (their projected slice
+ * carries `steps`); over a Wizard, every flow step (`Snapshot.children[step]`).
+ * @public
+ */
+type ChildBindingId<T extends BindTarget> = T extends AnyProjection ? { [K in StepId<FlowOf<T>>]: [ChildSliceOf<StepRecordIn<StateOf<T>, K>>] extends [never] ? never : K; }[StepId<FlowOf<T>>] : ChildStepId<FlowOf<T>>;
+/**
+ * The child slice `useChild(step)` reads: the projected child `ClientState` over a projection,
+ * `Snapshot<Child>['state']` over a Wizard.
+ * @public
+ */
+type ChildStateOf<T extends BindTarget, K extends ChildBindingId<T>> = T extends AnyProjection ? ChildSliceOf<StepRecordIn<StateOf<T>, K>> : Snapshot<ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>>['state'];
+/**
+ * Helpers `useChild(step).useStep(id)` binds to a child step: the scoped `MirrorChild` sugar of
+ * the child flow (`next` / `back` for every step; `go` / `setInput` / `resetInput` for views).
+ * @public
+ */
+type ChildStepHelpers<CF extends AnyFlow, K extends StepId<CF>> = {
+  readonly next: () => Promise<CommandResult>;
+  readonly back: () => Promise<CommandResult>;
+} & (K extends ViewId<CF> ? {
+  readonly go: () => Promise<CommandResult>;
+  readonly setInput: (patch: DraftOf<CF, K>) => Promise<CommandResult>;
+  readonly resetInput: () => Promise<CommandResult>;
+} : {});
+/**
+ * What `useChild(step)` returns: hooks bound to the child slice of the state (`S`), typed by the
+ * child flow `CF`. `useSnapshot()` is `null` while the child has no state (its flow step has not
+ * been entered); `useStep` throws in that case, so render it under a `useSnapshot()` guard.
+ * `useActions()` is the scoped `MirrorChild` sugar (every command wrapped as a `child` command);
+ * `useChild` nests further (`Source` says how the grandchild slice is read: `'mirror'` from
+ * `steps[step].child` of this slice, `'wizard'` from the child snapshot's `children[step]`).
+ * @public
+ */
+interface ChildBinding<CF extends AnyFlow, S, Source extends 'wizard' | 'mirror' = 'mirror'> {
+  /** The child slice, or `null` before the child exists. */
+  useSnapshot(): S | null;
+  /** One child step's record + bound helpers; throws while the child has no state. */
+  useStep<K extends StepId<CF>>(step: K): StepRecordIn<S, K> & ChildStepHelpers<CF, K>;
+  /** The child's command sugar (stable identity per source and path). */
+  useActions(): MirrorChild<CF>;
+  /** A grandchild binding. */
+  useChild<K extends ChildStepId<CF>>(step: K): ChildBinding<ChildFlowOf<CF, K>, Source extends 'wizard' ? Snapshot<ChildFlowOf<CF, K>>['state'] : ChildSliceOf<StepRecordIn<S, K>>, Source>;
+}
 /**
  * What `bindReact<T>()` returns: a `Provider` plus hooks typed by `T`. Every hook must be used
  * inside this binding's `Provider`; all reads go through `useSyncExternalStore` with stable
@@ -126,6 +190,12 @@ interface ReactBinding<T extends BindTarget> {
   useSelector<R>(select: (state: StateOf<T>) => R, isEqual?: (a: R, b: R) => boolean): R;
   /** The source's command methods (stable identity per source). */
   useActions(): Actions<T>;
+  /**
+   * Hooks bound to a nested flow (`steps[step].child` of the projected state — the flow step
+   * must be exposed with `child: ExposeSpec` — or `Snapshot.children[step]` over a Wizard).
+   * Stable identity per step, so `ow.useChild('fulfil').useStep('pick')` is fine inline.
+   */
+  useChild<K extends ChildBindingId<T>>(step: K): ChildBinding<ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>, ChildStateOf<T, K>, T extends AnyProjection ? 'mirror' : 'wizard'>;
 }
 //#endregion
 //#region src/bind-react.d.ts
@@ -137,5 +207,5 @@ interface ReactBinding<T extends BindTarget> {
  */
 declare function bindReact<T extends BindTarget>(): ReactBinding<T>;
 //#endregion
-export { type Actions, type BindTarget, type CurrentOf, type FlowOf, type NavResultOf, type ProviderProps, type ReactBinding, type SendResultOf, type SourceOf, type StateOf, type StepHelpers, type StepRecordOf, type UseStepResult, bindReact };
+export { type Actions, type BindTarget, type ChildBinding, type ChildBindingId, type ChildStateOf, type ChildStepHelpers, type CurrentOf, type FlowOf, type NavResultOf, type ProviderProps, type ReactBinding, type SendResultOf, type SourceOf, type StateOf, type StepHelpers, type StepRecordIn, type StepRecordOf, type UseStepResult, bindReact };
 //# sourceMappingURL=index.d.ts.map

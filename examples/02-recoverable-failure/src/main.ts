@@ -10,8 +10,9 @@ import { type Deps, syncInvoice } from './sync-invoice'
 let calls = 0
 const deps: Deps = {
   ledger: {
-    post: async (invoiceId) => {
+    post: async (invoiceId, _amount, { idempotencyKey }) => {
       calls += 1
+      console.log(`         ledger.post(${invoiceId}) with idempotency key ${idempotencyKey}`)
       if (calls <= 2) throw new Error(`ledger unavailable (call ${calls})`)
       return { ref: `L-${invoiceId}` }
     },

@@ -226,6 +226,10 @@ function checkState(def: CompiledFlow, state: Record<string, unknown>, reasons: 
     if (typeof rec.pendingActivation !== 'boolean')
       reasons.push(`${at}.pendingActivation: expected a boolean`)
     if (!isRecord(rec.guards)) reasons.push(`${at}.guards: expected an object`)
+    if (rec.when !== undefined && rec.when !== 'pending' && rec.when !== 'passed')
+      reasons.push(`${at}.when: expected 'pending' | 'passed', got ${describe(rec.when)}`)
+    if (rec.skipReason !== undefined && !isString(rec.skipReason))
+      reasons.push(`${at}.skipReason: expected a string`)
   }
 
   if (state.current !== null) {
@@ -281,8 +285,21 @@ function checkState(def: CompiledFlow, state: Record<string, unknown>, reasons: 
   }
 
   if (!isRecord(state.nav)) reasons.push('state.nav: expected an object')
-  else if (!isString(state.nav.phase) || !NAV_PHASES.has(state.nav.phase)) {
-    reasons.push(`state.nav.phase: unknown phase ${describe(state.nav.phase)}`)
+  else {
+    if (!isString(state.nav.phase) || !NAV_PHASES.has(state.nav.phase)) {
+      reasons.push(`state.nav.phase: unknown phase ${describe(state.nav.phase)}`)
+    }
+    if (
+      state.nav.cursorHint !== undefined &&
+      (!isString(state.nav.cursorHint) || def.steps[state.nav.cursorHint]?.kind !== 'view')
+    ) {
+      reasons.push(
+        `state.nav.cursorHint: expected a view id, got ${describe(state.nav.cursorHint)}`,
+      )
+    }
+  }
+  if (state.correlationId !== undefined && !isString(state.correlationId)) {
+    reasons.push('state.correlationId: expected a string')
   }
 
   if (!isRecord(state.saga)) reasons.push('state.saga: expected an object')

@@ -1,4 +1,4 @@
-# 02 — recoverable failure (retry policy, driven by the test scheduler)
+# 02 — recoverable failure (retry policy, `idempotent`, `mapError`)
 
 A task that posts to a flaky ledger with `retry: { attempts: 3, backoff: 'exponential' }`.
 The retry policy is plain data (it persists with the snapshot and appears in `inspect()`); the
@@ -10,6 +10,8 @@ What it shows
 - `retry: { attempts, backoff }` — a number is a fixed delay in ms; `'exponential'` waits `min(baseMs × factor^(attempt-1), maxBackoffMs)` (defaults 200 ms / 2 / 30 s).
 - The retry deadline is state (`steps.post.retryAt`) and an event (`step.retryScheduled { dueAt, timerId }`); `explain('post')` reports `retrying` meanwhile.
 - `createTestScheduler()` passed as `scheduler` (it doubles as the clock): `advance(ms)` fires due timers synchronously; only the async `run` promises still need a microtask tick.
+- `idempotent: ({ context }) => 'invoice:…'` (v0.2): the run receives `args.idempotencyKey` (here the mapper's value; default `instanceId:step:runId`) to hand to the ledger, and an idempotent task found `running` on resume is re-run with the same key instead of failing `interrupted`.
+- `mapError: (error, { attempt }) => LedgerFailure` (v0.2): the raw failure becomes typed, JSON-safe data on `steps.post.error.data` — `ErrorOf<typeof syncInvoice, 'post'>` — which a projection exposes with `error: true`.
 - Exhausted retries → `step.failed { kind: 'run' }` → `flow.failed { code: 'STEP_FAILED' }`; the flow halts but stays recoverable: `next()` is rejected as a value (`FLOW_TERMINAL`), `retry('post')` re-runs the task and the flow completes.
 
 Run

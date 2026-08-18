@@ -21,14 +21,15 @@
 import type { BoundaryResult } from '../authoring/compiled'
 import type { AnyFlow } from '../authoring/types'
 import { WizardError } from '../errors'
-import type { ClientState, Projection } from '../projection/define-projection'
+import type { Projection } from '../projection/define-projection'
 import type { Snapshot, Wizard } from '../wizard/create-wizard'
 import type { CommandResult } from '../wizard/results'
 import { type Frame, parseWireCommand, type WireAck, type WireCommand } from './wire'
 
 /**
- * Server half of a Mirror: frames out, wire commands in. `S` is the projected state type
- * (`ClientState<F, E>` of the projection it was created with).
+ * Server half of a Mirror: frames out, wire commands in. `S` is the projected state type of
+ * the projection it was created with (`ClientState<F, E>` for an `expose` projection, the
+ * mapper's return type for a `select` one).
  * @public
  */
 export interface MirrorSource<S> {
@@ -53,11 +54,10 @@ export interface MirrorSource<S> {
  * subscribers share one object.
  * @public
  */
-export function createMirrorSource<F extends AnyFlow, E>(
+export function createMirrorSource<F extends AnyFlow, S>(
   wizard: Wizard<F>,
-  projection: Projection<F, E>,
-): MirrorSource<ClientState<F, E>> {
-  type S = ClientState<F, E>
+  projection: Projection<F, S>,
+): MirrorSource<S> {
   const listeners = new Set<(frame: Frame<S>) => void>()
   let cache: { readonly snapshot: Snapshot<F>; readonly frame: Frame<S> } | undefined
   let disposed = false

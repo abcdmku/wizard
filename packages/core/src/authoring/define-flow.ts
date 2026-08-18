@@ -22,6 +22,8 @@ const EMPTY_FIELDS: StepFields = {
   label: undefined,
   dependsOn: undefined,
   next: undefined,
+  on: undefined,
+  when: undefined,
   input: undefined,
   initial: undefined,
   validate: undefined,
@@ -34,7 +36,8 @@ const EMPTY_FIELDS: StepFields = {
   retry: undefined,
   timeout: undefined,
   compensate: undefined,
-  on: undefined,
+  idempotent: undefined,
+  mapError: undefined,
   child: undefined,
   context: undefined,
   deps: undefined,
@@ -55,7 +58,10 @@ interface RawBuilder {
   decision(cfg?: Partial<StepFields>): AnyStep
   flow(child: AnyFlow, cfg?: Partial<StepFields>): AnyStep
   final(cfg?: Partial<StepFields>): AnyStep
-  steps(steps: Readonly<Record<string, AnyStep>>, opts?: { readonly start?: string }): AnyFlow
+  steps(
+    steps: Readonly<Record<string, AnyStep>>,
+    opts?: { readonly start?: string | readonly string[] },
+  ): AnyFlow
 }
 
 /**
@@ -88,6 +94,8 @@ export function defineFlow<C, CIn, Ev = {}, D = unknown>(
         context: options.context,
         ...(options.events !== undefined ? { events: options.events } : {}),
         ...(options.deps !== undefined ? { deps: options.deps } : {}),
+        ...(options.on !== undefined ? { on: options.on } : {}),
+        ...(options.correlate !== undefined ? { correlate: options.correlate } : {}),
         ...(options.onFailure !== undefined ? { onFailure: options.onFailure } : {}),
         ...(options.retry !== undefined ? { retry: options.retry } : {}),
         ...(options.autoRun !== undefined ? { autoRun: options.autoRun } : {}),
@@ -129,6 +137,14 @@ function validateDefinition(options: FlowDefinition<unknown, unknown, unknown, u
       for (const [event, b] of Object.entries(options.events)) {
         if (!isBoundary(b)) problems.push(`events['${event}'] must be a boundary`)
       }
+    }
+  }
+  // `on` / `correlate` are validated in depth by `compile()` (event names against `events`);
+  // the header check only rejects the wrong shape early.
+  for (const field of ['on', 'correlate'] as const) {
+    const value: unknown = options[field]
+    if (value !== undefined && (typeof value !== 'object' || value === null)) {
+      problems.push(`'${field}' must be an object of functions keyed by event name`)
     }
   }
   return problems

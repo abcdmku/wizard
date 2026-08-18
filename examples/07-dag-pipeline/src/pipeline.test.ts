@@ -30,10 +30,18 @@ function fakeDeps(sched: TestScheduler, opts: { quality?: number } = {}) {
 
 const settle = () => new Promise<void>((r) => setTimeout(r, 0))
 
-function make(flow: typeof pipeline, quality?: number) {
+function make(
+  flow: typeof pipeline,
+  quality?: number,
+  context: { enrichment?: 'on' | 'off' } = {},
+) {
   const sched = createTestScheduler({ now: 0 })
   const { deps, timeline } = fakeDeps(sched, quality === undefined ? {} : { quality })
-  const wizard = createWizard(flow, { context: { source: 'crm-export' }, deps, scheduler: sched })
+  const wizard = createWizard(flow, {
+    context: { source: 'crm-export', ...context },
+    deps,
+    scheduler: sched,
+  })
   const events: WizardEvent<typeof pipeline>[] = []
   wizard.observe((e) => events.push(e))
   const of = <T extends WizardEvent['type']>(type: T) =>
@@ -100,6 +108,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
       normalized: 100,
       enriched: 100,
       quality: 0.9,
+      enrichment: 'on',
     })
     expect(wizard.getState().status).toBe('done')
     expect(wizard.getState().output).toBe('stored 100 rows')
@@ -175,6 +184,51 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     expect(wizard.getState().steps.quarantine.status).toBe('done')
     expect(wizard.getState().steps.persist.status).toBe('idle')
     expect(wizard.getState().output).toBe('quarantined (quality 0.4)')
+    wizard.dispose()
+  })
+  it('when: enrichment off skips the branch when it becomes ready; the AND-join treats skipped as done; progress() counts it', async () => {
+    const { wizard, sched, timeline, of } = make(pipeline, undefined, { enrichment: 'off' })
+    expect(wizard.progress()).toEqual({ done: 0, total: 5, ratio: 0 }) // finals excluded
+    await wizard.start() // ingest → fan-out; enrich is ready → `when` false → skipped at once
+    expect(of('step.skipped')).toHaveLength(1)
+    expect(of('step.skipped')[0]).toMatchObject({ step: 'enrich', reason: 'when' })
+    expect(wizard.getState().steps.enrich.status).toBe('skipped')
+    expect(timeline).toEqual(['normalize:start@0']) // the enricher never ran
+    expect(wizard.progress()).toEqual({ done: 2, total: 5, ratio: 0.4 }) // ingest done + enrich skipped
+    // The gate is arrived (enrich's next still fires) and blocked on normalize only.
+    expect(wizard.explain('gate')).toMatchObject({
+      phase: 'blocked',
+      reasons: ['deps-unmet:normalize'],
+    })
+    sched.advance(300)
+    await settle()
+    expect(wizard.getState().status).toBe('done')
+    expect(wizard.getState().output).toBe('stored 100 rows')
+    expect(wizard.progress()).toEqual({ done: 5, total: 5, ratio: 1 })
+    wizard.dispose()
+  })
+
+  it('skip(): an operator skips the slow branch while it runs — cancelled, then skipped; the join proceeds', async () => {
+    const { wizard, sched, timeline, of } = make(pipeline)
+    await wizard.start()
+    expect(timeline).toEqual(['normalize:start@0', 'enrich:start@0'])
+    expect(await wizard.skip('enrich', 'operator: enrichment down')).toMatchObject({ ok: true })
+    expect(of('step.skipped').at(-1)).toMatchObject({ step: 'enrich', reason: 'command' })
+    expect(wizard.getState().steps.enrich.status).toBe('skipped')
+    expect(wizard.getState().active).toEqual(['normalize'])
+    // A finished step cannot be skipped; a value, not a throw.
+    expect(await wizard.skip('ingest')).toMatchObject({ ok: false })
+    sched.advance(300)
+    await settle()
+    // No quality score arrived (enrich never wrote one) → the gate quarantines the batch.
+    expect(wizard.getState().steps.gate.status).toBe('done')
+    expect(wizard.getState().output).toBe('quarantined (quality 0)')
+    // The enricher's late result is ignored (its run was cancelled).
+    sched.advance(500)
+    await settle()
+    expect(wizard.getState().steps.enrich.status).toBe('skipped')
+    expect(wizard.getState().context.enriched).toBeUndefined()
+    expect(wizard.progress()).toEqual({ done: 4, total: 5, ratio: 1 }) // ratio is 1 once done
     wizard.dispose()
   })
 })

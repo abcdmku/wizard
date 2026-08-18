@@ -7,17 +7,18 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { defineFlow } from '../../src/authoring/define-flow'
-import { createMirror, type Mirror } from '../../src/mirror/create-mirror'
+import {
+  createMirror,
+  type Mirror,
+  type MirrorChild,
+  type MirrorCommands,
+} from '../../src/mirror/create-mirror'
 import { createLocalTransport } from '../../src/mirror/local-transport'
 import { createMirrorSource, type MirrorSource } from '../../src/mirror/source'
 import type { Transport } from '../../src/mirror/transport'
 import type { Frame, WireAck, WireCommand } from '../../src/mirror/wire'
 import { parseWireCommand } from '../../src/mirror/wire'
-import {
-  type ClientState,
-  defineProjection,
-  type ProjectionOutput,
-} from '../../src/projection/define-projection'
+import { defineProjection, type ProjectionOutput } from '../../src/projection/define-projection'
 import type { Command, Wizard } from '../../src/wizard/create-wizard'
 import type { CommandResult } from '../../src/wizard/results'
 
@@ -119,14 +120,83 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     // @ts-expect-error `total` is not exposed by `other`
     otherMirror.getSnapshot()?.context.total
   })
+  it('v0.2: skip / invalidate sugar, and child(step) scopes the sugar to a nested flow (nestable)', () => {
+    expectTypeOf(mirror.skip('reserve', 'ops')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(mirror.invalidate('reserve', { cascade: false })).toEqualTypeOf<
+      Promise<CommandResult>
+    >()
+    // @ts-expect-error `skip('typo')`
+    mirror.skip('typo')
+    // @ts-expect-error `invalidate('typo')`
+    mirror.invalidate('typo')
+    // The checkout flow has no flow step: `child` accepts nothing.
+    // @ts-expect-error `shipping` is not a flow step
+    mirror.child('shipping')
+    // @ts-expect-error unknown step
+    mirror.child('typo')
+
+    const g = defineFlow({ name: 'grandchild', context: z.object({ sku: z.string() }) })
+    const grandchild = g.steps({
+      pick: g.view({ input: z.object({ bin: z.string() }), next: 'done' }),
+      done: g.final(),
+    })
+    const f = defineFlow({ name: 'fulfilment', context: z.object({ orderId: z.string() }) })
+    const fulfilment = f.steps({
+      label: f.task(async () => ({ trackingId: 'x' }), { next: 'confirm' }),
+      confirm: f.view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
+      pack: f.flow(grandchild, { context: () => ({ sku: 's' }), next: 'done' }),
+      done: f.final(),
+    })
+    const o = defineFlow({ name: 'order', context: z.object({ cartId: z.string() }) })
+    const order = o.steps({
+      fulfil: o.flow(fulfilment, {
+        context: ({ context }) => ({ orderId: context.cartId }),
+        next: 'end',
+      }),
+      end: o.final(),
+    })
+    const orderClient = defineProjection(order, {
+      expose: { steps: { fulfil: { child: { steps: { confirm: { input: true } } } } } },
+    })
+    const om = createMirror<typeof orderClient>({ transport: transport as never })
+    const child = om.child('fulfil')
+    expectTypeOf(child).toEqualTypeOf<MirrorChild<typeof fulfilment>>()
+    expectTypeOf(child.path).toEqualTypeOf<readonly [string, ...string[]]>()
+    expectTypeOf(child.go('confirm')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(child.setInput('confirm', { ok: true })).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(child.retry('label')).toEqualTypeOf<Promise<CommandResult>>()
+    // @ts-expect-error `go` takes a view of the CHILD flow
+    child.go('shipping')
+    // @ts-expect-error not a task of the child
+    child.retry('confirm')
+    // @ts-expect-error the child's draft type
+    child.setInput('confirm', { ok: 'yes' })
+    // @ts-expect-error `dispatch` is typed by the child flow
+    child.dispatch({ type: 'go', step: 'shipping' })
+    child.dispatch({ type: 'go', step: 'confirm' })
+    // Nested: the grandchild's sugar.
+    const grand = child.child('pack')
+    expectTypeOf(grand).toEqualTypeOf<MirrorChild<typeof grandchild>>()
+    expectTypeOf(grand.setInput('pick', { bin: 'b1' })).toEqualTypeOf<Promise<CommandResult>>()
+    // @ts-expect-error `confirm` is not a flow step of `fulfilment`
+    child.child('confirm')
+    // A child sender has no state of its own: read it from the mirror's snapshot.
+    // @ts-expect-error no getSnapshot on a MirrorChild
+    child.getSnapshot()
+    expectTypeOf(om.getSnapshot()?.steps.fulfil.child?.steps.confirm.input).toEqualTypeOf<
+      { ok?: boolean } | undefined
+    >()
+    // MirrorCommands<F> is the shared sugar surface of Mirror and MirrorChild.
+    expectTypeOf(om).toMatchTypeOf<MirrorCommands<typeof order>>()
+    expectTypeOf(child).toMatchTypeOf<MirrorCommands<typeof fulfilment>>()
+  })
 })
 
 describe('wire types line up across source → transport → mirror', () => {
   it('createMirrorSource is typed by the projection; the loopback carries the same state type', () => {
     const source = createMirrorSource(wizard, checkoutClient)
-    expectTypeOf(source).toEqualTypeOf<
-      MirrorSource<ClientState<typeof checkout, (typeof checkoutClient)['expose']>>
-    >()
+    expectTypeOf(source).toEqualTypeOf<MirrorSource<ProjectionOutput<typeof checkoutClient>>>()
+    expectTypeOf(source).toEqualTypeOf<MirrorSource<Client>>()
     const loop = createLocalTransport(source)
     expectTypeOf(loop).toEqualTypeOf<Transport<Client>>()
     // Explicit P and inferred transport agree.

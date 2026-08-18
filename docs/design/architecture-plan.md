@@ -486,3 +486,44 @@ export const checkout = s.steps({
 - `Boundary<O, I = O>`; `DraftOf` = schema INPUT side (partial), `OutputOf`/hooks = OUTPUT; `ContextInput<F>` vs `Ctx<F>`; `I = never` when a step has no draft, `O = undefined` when no output.
 - Sibling `steps` inside step-level hooks are an open, untyped map — the typed idiom is `update()` into context. Step-level `expose` is dropped (projection is deny-by-default and decides exposure). `AbortSignalLike` is structural (no DOM lib requirement for consumers).
 - Perf: 120-step flow ≈ +0.2 s / +80k instantiations on TS 5.9.3; emitted d.ts 193 KB; declaration consumer typechecks in 0.08 s.
+
+---
+
+## 9. v0.2 semantics (2026-08-18) — binding for the v0.2 milestone
+
+v0.1.0 shipped everything in §5 M0–M4 (commits `0a488d0..3eb071f`). v0.2 adds the deferred items below; the anti-bloat rules and §8 stay binding.
+
+### 9.1 `on` handlers on every kind + flow-level `on`
+- Any ACTIVE step may declare `on: { [event]: handler }` (previously `wait` only). Routing (§8.6) delivers to every active step with a matching handler, then to the flow-level `on[event]` (if any). Buffering rules unchanged (buffer only when nothing handled it).
+- Handler return contract by kind: `wait` — unchanged (`void | { keep } | { next }`); `view` — `void | { next: ViewId | StepId }` (an external event may advance the cursor: a transition with `cause: 'event'` that runs `canEnter`/`exit`/`enter` but skips parseInput/validate/canExit; a `nav-busy` view keeps the event buffered until idle); `task`/`decision`/`flow`/`final` — `void` only (they may `update()` context; typed to reject `{ next }`).
+- Flow-level `on[event]` returns `void | { cancel: string }` (cancels the flow with that reason, subject to the compensation policy). Flow-level handlers run after step-level ones in the same batch.
+- Correlation: `defineFlow({ correlate: { [event]: (payload) => string } })` + `createWizard(flow, { correlationId })`: a delivered event whose `correlate[event](payload)` exists and differs from the wizard's `correlationId` is `event.dropped { reason: 'correlation' }` (not buffered). Absent `correlate` = no filtering.
+- `wizard.attach(source: (send: Wizard['send']) => () => void): () => void` — sugar for external sources (queues, EventTarget); detached automatically on `dispose()`.
+
+### 9.2 `when` + `skip()`
+- Any non-final step may declare `when: (args) => MaybePromise<boolean>`; evaluated when the step becomes ready (after gating, before `enter`). `false` → `step.skipped { reason: 'when' }`: the step counts as done for `dependsOn`, its `next` targets are arrived (`cause: 'auto'`), the cursor never lands on a skipped view.
+- `wizard.skip(step)` (command `skip`) skips a ready-or-active non-final step explicitly (`reason: 'command'`); an active task is cancelled first. Views: `skip` requires the view to be `ready` or `current` (skipping the current view exits it without validation).
+
+### 9.3 Explicit `invalidate(step)`
+- `wizard.invalidate(step, { cascade?: boolean = true })` (command `invalidate`): a `done|failed|skipped` step returns to `idle` (`step.invalidated { step, cascade }`), keeps a view's draft, moves output to `previousOutput`, and — when `cascade` — invalidates every transitive `dependsOn` dependent that is done/failed/skipped (running dependents are cancelled). Never automatic. Not allowed on `active` steps (`NOT_ACTIVE`-style rejection: `INVALID_COMMAND` with reason `active`) or on the current view (use `back`).
+
+### 9.4 Idempotent tasks + crash-resume re-run
+- `s.task(run, { idempotent: true | (args) => string })`: the run receives `args.idempotencyKey` (default `${instanceId}:${step}:${runId}`, or the mapper's value). On `resume`, a `running` idempotent task is RE-RUN with the same key (`step.runStarted { resumed: true }`) instead of failing `interrupted`; non-idempotent tasks keep the v0.1 behaviour.
+
+### 9.5 Snapshot migration
+- `resumeWizard(flow, snapshot, { migrate?: (snapshot: unknown, from: { name: string; version: number }) => unknown })`: when `snapshot.flow.version !== flow.version`, `migrate` is called first (result must validate like any snapshot; its `flow.version` must equal the flow's), else `SNAPSHOT_INCOMPATIBLE`. `flow.name` must always match.
+
+### 9.6 Progress and readiness conveniences
+- `wizard.progress(): { done: number; total: number; ratio: number }` (finals excluded from `total`; skipped counts as done); `wizard.readyViews(): ViewId[]` (views that are ready or current). Both are selectors over state (memoized per seq); `ClientState.progress` is exposed when `expose.progress: true`.
+
+### 9.7 Typed per-step errors
+- `s.task(run, { mapError: (error: unknown, args) => E })` → `ErrorOf<F, K>` (extractor); `StepState.error` becomes `{ …SerializedError, data?: E }` where `data` is the mapped value (must be JSON-safe; checked at persist time like outputs). Projections expose `error` (with `data`) only when `error: true`.
+
+### 9.8 Custom projections and Mermaid
+- `defineProjection(flow, { select: (state: Snapshot<F>['state']) => T })` — arbitrary typed projection; `expose`-based projections stay the default. Both are `Projection<F, T>`; Mirror frames carry `T`.
+- `toMermaid(inspect(flow))` in `@openwizard/core` (`flowchart TD`, edge labels for `dependsOn`/`timeout`, dynamic `next` as dashed).
+
+### 9.9 Mirror/React child flows
+- `ClientState` includes `steps[id].child` (full child ClientState) when the flow step's exposure has `child: ExposeSpec`; `mirror.child(step)` returns a scoped sender whose `next/back/go/setInput/send/…` build `{ type: 'child', path, command }`; React `useChild(step)` returns hooks bound to the child slice (`useStep`, `useSnapshot`, `useActions`).
+
+Deferred to v0.3: patch/event-stream Mirror frames, docs site (Monaco landing + DAG visualizer), `@openwizard/devtools`, event store + replay, CAS/lease persistence.

@@ -2,7 +2,7 @@
   "name": "example-02-recoverable-failure",
   "private": true,
   "type": "module",
-  "description": "OpenWizard example: a task with an exponential retry policy, driven by the test scheduler; exhausted retries → failed → retry(step).",
+  "description": "OpenWizard example: a task with an exponential retry policy, driven by the test scheduler; exhausted retries → failed → retry(step); idempotent tasks and mapError (typed error data).",
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json && vitest run --root .",
     "start": "tsx src/main.ts"

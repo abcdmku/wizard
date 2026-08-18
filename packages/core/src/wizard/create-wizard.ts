@@ -22,11 +22,13 @@ import type {
   Ctx,
   DepsOf,
   DraftOf,
+  ErrorOf,
   EventType,
   FlowOutput,
   Issue,
   KindOf,
   OutputOf,
+  Progress,
   StepId,
   TaskId,
   ViewId,
@@ -35,13 +37,19 @@ import { WizardError } from '../errors'
 import type { Clock, IdGenerator, Scheduler } from '../interpreter/env'
 import { initialState, type Explanation as MachineExplanation, machine } from '../machine'
 import type { DomainEvent } from '../machine/events'
-import type { StepRecord, WizardState } from '../machine/state'
+import type { StepError, StepRecord, WizardState } from '../machine/state'
 import type { Store } from '../persistence/store'
 import { applyProjection } from '../projection/apply-projection'
-import type { ClientState, Projection } from '../projection/define-projection'
+import type { Projection } from '../projection/define-projection'
 import type { CommandResult, NavResult, SendResult } from './results'
 import { resumeWizardRuntime, resumeWizardRuntimeAsync } from './resume'
-import { createWizardRuntime, type WizardRuntime, type WizardRuntimeOptions } from './runtime'
+import {
+  createWizardRuntime,
+  type ResumeWizardRuntimeOptions,
+  type SnapshotMigration as RuntimeSnapshotMigration,
+  type WizardRuntime,
+  type WizardRuntimeOptions,
+} from './runtime'
 import type { Snapshot as RuntimeSnapshot } from './snapshot'
 
 // ---------------------------------------------------------------------------
@@ -49,18 +57,29 @@ import type { Snapshot as RuntimeSnapshot } from './snapshot'
 // ---------------------------------------------------------------------------
 
 /**
+ * A step's stored error typed by the step: `SerializedError` (`name`, `message`, `code?`) plus
+ * `kind`, `at`, `attempt?`, `issues?` and — for a task with `mapError` — `data` (`ErrorOf<F, K>`).
+ * @public
+ */
+export type StepErrorOf<F extends AnyFlow, K extends StepId<F>> = Omit<StepError, 'data'> & {
+  readonly data?: ErrorOf<F, K>
+}
+
+/**
  * Typed view of one step's stored record: `input` is the draft (`DraftOf`), `output` the
- * step's `OutputOf`; everything else (status, attempt, error, guards, timers…) is shared.
+ * step's `OutputOf`, `error` its `StepErrorOf` (with `data` for a `mapError` task); everything
+ * else (status, attempt, guards, timers…) is shared.
  * @public
  */
 export type StepState<F extends AnyFlow, K extends StepId<F>> = Omit<
   StepRecord,
-  'id' | 'kind' | 'input' | 'output'
+  'id' | 'kind' | 'input' | 'output' | 'error'
 > & {
   readonly id: K
   readonly kind: KindOf<F, K>
   readonly input?: DraftOf<F, K>
   readonly output?: OutputOf<F, K>
+  readonly error?: StepErrorOf<F, K>
 }
 
 /** Typed view of `WizardState`. */
@@ -211,9 +230,10 @@ export type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] 
  * A wire command (JSON), typed by the flow: `go` / `setInput` / `resetInput` take a `ViewId<F>`
  * (`setInput.patch` is that view's `DraftOf`), `run` / `retry` a `TaskId<F>`, `send` an
  * `EventType<F>` (its `payload` stays `unknown` — it is re-parsed by the event boundary),
- * `compensate.from` a `StepId<F>`, and `child` a typed `ChildCommand<F>`. `Depth` bounds the
- * child recursion (8 child levels; beyond it ids widen to `string`). Untrusted input becomes a
- * `Command<F>` through `parseCommand(flow, input)`; `Command<AnyFlow>` is the untyped shape.
+ * `compensate.from` / `skip.step` / `invalidate.step` a `StepId<F>`, and `child` a typed
+ * `ChildCommand<F>`. `Depth` bounds the child recursion (8 child levels; beyond it ids widen to
+ * `string`). Untrusted input becomes a `Command<F>` through `parseCommand(flow, input)`;
+ * `Command<AnyFlow>` is the untyped shape.
  * @public
  */
 export type Command<F extends AnyFlow = AnyFlow, Depth extends number = 8> =
@@ -235,6 +255,8 @@ export type Command<F extends AnyFlow = AnyFlow, Depth extends number = 8> =
   | { readonly type: 'cancel'; readonly reason?: string }
   | { readonly type: 'compensate'; readonly from?: StepId<F>; readonly reason?: string }
   | { readonly type: 'reset' }
+  | { readonly type: 'skip'; readonly step: StepId<F>; readonly reason?: string }
+  | { readonly type: 'invalidate'; readonly step: StepId<F>; readonly cascade?: boolean }
   | ChildCommand<F, Depth>
 
 // ---------------------------------------------------------------------------
@@ -283,10 +305,29 @@ export interface Wizard<F extends AnyFlow> {
   /** Back to the initial state (`flow.reset`): steps idle, timers cleared, children disposed; the instance id stays. */
   reset(): Promise<CommandResult>
   /**
+   * Skip a ready-or-active non-final step explicitly (`step.skipped { reason: 'command' }`): it
+   * counts as done for `dependsOn` and its `next` targets are arrived; an active task is
+   * cancelled first; a view must be ready or current (the current view exits without validation).
+   */
+  skip(step: StepId<F>, reason?: string): Promise<CommandResult>
+  /**
+   * Return a `done` / `failed` / `skipped` step to `idle` (`step.invalidated`): a view keeps its
+   * draft, the output moves to `previousOutput`, and with `cascade` (default `true`) every
+   * transitive `dependsOn` dependent that is done / failed / skipped follows (running ones are
+   * cancelled). Never automatic; rejected for an active step or the current view (`INVALID_COMMAND`).
+   */
+  invalidate(step: StepId<F>, options?: { readonly cascade?: boolean }): Promise<CommandResult>
+  /**
    * The one wire door, typed by the flow (`Command<F>`); never throws for data problems.
    * Untrusted input (a request body) goes through `parseCommand(flow, input)` first.
    */
   dispatch(command: Command<F>): Promise<CommandResult>
+  /**
+   * Hook an external event source (a queue consumer, an `EventTarget`, a socket) to `send`:
+   * `source` receives the wizard's typed `send` and returns its own teardown, which runs when
+   * the returned function is called or when the wizard is disposed.
+   */
+  attach(source: (send: Wizard<F>['send']) => () => void): () => void
   getState(): Snapshot<F>['state']
   /** Versioned, JSON-safe snapshot including live children; cached per state. */
   getSnapshot(): Snapshot<F>
@@ -296,6 +337,10 @@ export interface Wizard<F extends AnyFlow> {
    * `status: 'unknown'`); safe to call after `dispose()`.
    */
   explain(step: StepId<F>): Explanation<F>
+  /** Pure query: `{ done, total, ratio }` over the non-final steps (`skipped` counts as done). */
+  progress(): Progress
+  /** Pure query: the views that are ready or current (where the cursor is or could go). */
+  readyViews(): readonly ViewId<F>[]
   /** State listeners: once per committed batch. */
   subscribe(listener: (state: Snapshot<F>['state']) => void): () => void
   /** Event listeners: every event of this wizard and its children (`event.path`). */
@@ -305,10 +350,11 @@ export interface Wizard<F extends AnyFlow> {
   /** Live nested wizard of a `flow` step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE`). */
   child<K extends ChildStepId<F>>(step: K): Wizard<ChildFlowOf<F, K>>
   /**
-   * Client-safe state through a deny-by-default projection defined for THIS flow object
+   * Client-safe state through a projection defined for THIS flow object — a deny-by-default
+   * `expose` projection (`ClientState<F, E>`) or a `select` projection (its return type)
    * (`WizardError('DEFINITION_INVALID')` for a projection of any other flow, same name or not).
    */
-  project<E>(projection: Projection<F, E>): ClientState<F, E>
+  project<S>(projection: Projection<F, S>): S
   /** Write a snapshot now (no-op without a store). */
   save(): Promise<void>
   dispose(): void
@@ -329,6 +375,12 @@ type DepsOption<F extends AnyFlow> =
 export type WizardOptions<F extends AnyFlow> = {
   readonly context: ContextInput<F>
   readonly instanceId?: string
+  /**
+   * Correlation id of this instance (`defineFlow({ correlate })`): a delivered event whose
+   * extracted id differs is dropped (`event.dropped { reason: 'correlation' }`). Persisted in the
+   * snapshot (`state.correlationId`), so resume needs no option.
+   */
+  readonly correlationId?: string
   readonly store?: Store
   /** Store key; defaults to the instance id. */
   readonly key?: string
@@ -355,10 +407,29 @@ export type WizardOptions<F extends AnyFlow> = {
 } & DepsOption<F>
 
 /**
- * `resumeWizard` options (`WizardOptions` without `context` / `instanceId`, which come from the snapshot).
+ * Snapshot migration (`resumeWizard(flow, snapshot, { migrate })`): called with the raw
+ * snapshot when its `flow.version` differs from the flow's, and the flow identity (`from`);
+ * returns the converted snapshot, which is validated like any other (its `flow.version` must
+ * equal the flow's, else `SNAPSHOT_INCOMPATIBLE`). `flow.name` must always match. May return
+ * a promise — then only `resumeWizardAsync` accepts it.
  * @public
  */
-export type ResumeOptions<F extends AnyFlow> = Omit<WizardOptions<F>, 'context' | 'instanceId'>
+export type SnapshotMigration = RuntimeSnapshotMigration
+
+/** The options shared by creation and resume (persistence, injectables, deps). */
+type SharedOptions<F extends AnyFlow> = Omit<
+  WizardOptions<F>,
+  'context' | 'instanceId' | 'correlationId'
+>
+
+/**
+ * `resumeWizard` options: `WizardOptions` without `context` / `instanceId` / `correlationId`
+ * (they come from the snapshot), plus `migrate` for snapshots of an older flow `version`.
+ * @public
+ */
+export type ResumeOptions<F extends AnyFlow> = SharedOptions<F> & {
+  readonly migrate?: SnapshotMigration
+}
 
 // ---------------------------------------------------------------------------
 // Factories
@@ -376,9 +447,9 @@ export function createWizard<F extends AnyFlow>(flow: F, options: WizardOptions<
   const deps = def.deps === undefined ? options.deps : parseSync(def.deps, options.deps, 'deps')
   const runtime = createWizardRuntime(def, {
     ...runtimeOptions(options),
+    ...createOptions(options),
     context,
     ...(deps !== undefined ? { deps } : {}),
-    ...(options.instanceId !== undefined ? { instanceId: options.instanceId } : {}),
   })
   return wrap(runtime, flow, def)
 }
@@ -397,9 +468,9 @@ export async function createWizardAsync<F extends AnyFlow>(
     def.deps === undefined ? options.deps : await parseAsync(def.deps, options.deps, 'deps')
   const runtime = createWizardRuntime(def, {
     ...runtimeOptions(options),
+    ...createOptions(options),
     context,
     ...(deps !== undefined ? { deps } : {}),
-    ...(options.instanceId !== undefined ? { instanceId: options.instanceId } : {}),
   })
   return wrap(runtime, flow, def)
 }
@@ -407,7 +478,8 @@ export async function createWizardAsync<F extends AnyFlow>(
 /**
  * Resume a wizard from a persisted snapshot: the envelope, flow identity, step set and every
  * boundary are re-validated (`WizardError('SNAPSHOT_INCOMPATIBLE')` lists every reason);
- * `epoch` increments; interrupted work follows the recovery matrix.
+ * `epoch` increments; interrupted work follows the recovery matrix. A snapshot of another flow
+ * `version` goes through `options.migrate` first (else `SNAPSHOT_INCOMPATIBLE`).
  * @public
  */
 export function resumeWizard<F extends AnyFlow>(
@@ -419,6 +491,7 @@ export function resumeWizard<F extends AnyFlow>(
   const deps = def.deps === undefined ? options.deps : parseSync(def.deps, options.deps, 'deps')
   const runtime = resumeWizardRuntime(def, snapshot, {
     ...runtimeOptions(options),
+    ...resumeOnlyOptions(options),
     ...(deps !== undefined ? { deps } : {}),
   })
   return wrap(runtime, flow, def)
@@ -440,14 +513,32 @@ export async function resumeWizardAsync<F extends AnyFlow>(
     def.deps === undefined ? options.deps : await parseAsync(def.deps, options.deps, 'deps')
   const runtime = await resumeWizardRuntimeAsync(def, snapshot, {
     ...runtimeOptions(options),
+    ...resumeOnlyOptions(options),
     ...(deps !== undefined ? { deps } : {}),
   })
   return wrap(runtime, flow, def)
 }
 
-function runtimeOptions<F extends AnyFlow>(
+/** Options that only exist at creation (`instanceId`, `correlationId` → `state.correlationId`). */
+function createOptions<F extends AnyFlow>(
+  options: WizardOptions<F>,
+): Pick<WizardRuntimeOptions, 'instanceId' | 'correlationId'> {
+  return {
+    ...(options.instanceId !== undefined ? { instanceId: options.instanceId } : {}),
+    ...(options.correlationId !== undefined ? { correlationId: options.correlationId } : {}),
+  }
+}
+
+/** Options that only exist on resume (`migrate`). */
+function resumeOnlyOptions<F extends AnyFlow>(
   options: ResumeOptions<F>,
-): Omit<WizardRuntimeOptions, 'context' | 'deps' | 'instanceId'> {
+): Pick<ResumeWizardRuntimeOptions, 'migrate'> {
+  return options.migrate !== undefined ? { migrate: options.migrate } : {}
+}
+
+function runtimeOptions<F extends AnyFlow>(
+  options: SharedOptions<F>,
+): Omit<WizardRuntimeOptions, 'context' | 'deps' | 'instanceId' | 'correlationId'> {
   return {
     machine,
     initialState,
@@ -537,10 +628,15 @@ function wrap<F extends AnyFlow>(runtime: WizardRuntime, flow: F, def: CompiledF
     runReady: () => runtime.runReady(),
     compensate: (options) => runtime.compensate(options),
     reset: () => runtime.reset(),
+    skip: (step, reason) => runtime.skip(step, reason),
+    invalidate: (step, options) => runtime.invalidate(step, options),
     dispatch: (command) => runtime.dispatch(command),
+    attach: (source) => runtime.attach(source),
     getState: () => runtime.getState() as Snapshot<F>['state'],
     getSnapshot: () => runtime.getSnapshot() as unknown as Snapshot<F>,
     explain: (step) => runtime.explain(step) as Explanation<F>,
+    progress: () => runtime.progress(),
+    readyViews: () => runtime.readyViews() as readonly ViewId<F>[],
     subscribe: (listener) => runtime.subscribe(listener as (state: WizardState) => void),
     observe: (listener) => runtime.observe(listener as (event: DomainEvent) => void),
     log: () => runtime.log() as readonly WizardEvent<F>[],

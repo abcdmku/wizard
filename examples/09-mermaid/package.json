@@ -1,0 +1,17 @@
+{
+  "name": "example-09-mermaid",
+  "private": true,
+  "type": "module",
+  "description": "OpenWizard example: render the static graph of a flow as a Mermaid flowchart with toMermaid(inspect(flow)) — the checkout flow with a wait timeout, a dynamic decision, an AND-join and a nested child flow.",
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json && vitest run --root .",
+    "start": "tsx src/main.ts"
+  },
+  "devDependencies": {
+    "@openwizard/core": "workspace:*",
+    "tsx": "^4.23.12",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10",
+    "zod": "^4.4.3"
+  }
+}

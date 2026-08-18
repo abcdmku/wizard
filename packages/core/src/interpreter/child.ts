@@ -27,6 +27,7 @@
 import type { CompiledFlow, HookArgs } from '../authoring/compiled'
 import type { Command, Message, ResultToken } from '../machine/commands'
 import type { DomainEvent } from '../machine/events'
+import { progress } from '../machine/selectors'
 import type { ChildSummary, SerializedError, WizardState, WizardStatus } from '../machine/state'
 import type { Snapshot } from '../wizard/snapshot'
 
@@ -144,8 +145,12 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     )
   }
 
+  const childDefOf = (step: string): CompiledFlow | undefined => opts.def.steps[step]?.child
+
   const notify = (step: string, entry: Attached<H>, state: WizardState): void => {
-    const summary = summarize(state)
+    const childDef = childDefOf(step)
+    if (childDef === undefined) return
+    const summary = summarize(state, childDef)
     const entered = entry.lastStatus !== state.status
     entry.lastStatus = state.status
     const phase = entry.pendingPhase
@@ -198,8 +203,6 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     entry.unsubscribe = handle.subscribe((state) => notify(step, entry, state))
     return entry
   }
-
-  const childDefOf = (step: string): CompiledFlow | undefined => opts.def.steps[step]?.child
 
   /**
    * The child's deps: run the flow step's RAW `deps` mapper (if any) and parse its value
@@ -389,26 +392,18 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
 // Summaries
 // ---------------------------------------------------------------------------
 
-/** Compact child status for the parent's step record and Mirrors. */
-export function summarize(state: WizardState): ChildSummary {
+/**
+ * Compact child status for the parent's step record and Mirrors. `progress` is the `progress`
+ * selector's ratio over the child's definition (v0.2 §9.6: finals excluded, skipped counts as
+ * done, 1 once the child is done).
+ */
+export function summarize(state: WizardState, def: CompiledFlow): ChildSummary {
   return {
     status: state.status,
     current: state.current,
-    progress: progressOf(state),
+    progress: progress(state, def).ratio,
     seq: state.seq,
   }
-}
-
-function progressOf(state: WizardState): number {
-  if (state.status === 'done') return 1
-  const ids = Object.keys(state.steps)
-  if (ids.length === 0) return 0
-  let finished = 0
-  for (const id of ids) {
-    const status = state.steps[id]?.status
-    if (status === 'done' || status === 'skipped' || status === 'compensated') finished += 1
-  }
-  return finished / ids.length
 }
 
 /** The error of the (most recently failed) failed step, or a generic child failure. */

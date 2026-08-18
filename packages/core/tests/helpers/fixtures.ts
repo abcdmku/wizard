@@ -14,6 +14,7 @@ import type {
   CompiledStep,
   DepsSpec,
   ExposeSpec,
+  FlowOnHandlerResult,
   Hook,
   NextRef,
   OnHandlerResult,
@@ -59,6 +60,10 @@ interface CommonCfg {
   readonly exit?: Hook<void>
   readonly label?: string
   readonly expose?: ExposeSpec
+  /** v0.2: skip predicate (any non-final kind). */
+  readonly when?: Hook<boolean>
+  /** v0.2: `on[event]` handlers on any kind (waits keep their own `on` field too). */
+  readonly on?: Readonly<Record<string, Hook<OnHandlerResult>>>
 }
 
 export interface ViewCfg extends CommonCfg {
@@ -72,6 +77,10 @@ export interface TaskCfg extends CommonCfg {
   readonly retry?: RetryPolicy
   readonly timeoutMs?: number
   readonly compensate?: Hook<void>
+  /** v0.2 */
+  readonly mapError?: Hook<unknown>
+  readonly idempotent?: boolean
+  readonly idempotencyKey?: Hook<string>
 }
 export interface WaitCfg extends CommonCfg {
   readonly on?: Readonly<Record<string, Hook<OnHandlerResult>>>
@@ -118,6 +127,8 @@ function base(kind: StepKind, cfg: CommonCfg, hooks: CompiledStep['hooks']): Ste
       ...(cfg.enter !== undefined ? { enter: cfg.enter } : {}),
       ...(cfg.exit !== undefined ? { exit: cfg.exit } : {}),
       ...(cfg.dynamicNext !== undefined ? { next: cfg.dynamicNext } : {}),
+      ...(cfg.when !== undefined ? { when: cfg.when } : {}),
+      ...(cfg.on !== undefined ? { on: cfg.on } : {}),
       ...hooks,
     },
     expose: cfg.expose ?? NO_EXPOSE,
@@ -134,10 +145,13 @@ export const task = (cfg: TaskCfg = {}): StepSpec => ({
   ...base('task', cfg, {
     run: cfg.run ?? noop,
     ...(cfg.compensate !== undefined ? { compensate: cfg.compensate } : {}),
+    ...(cfg.mapError !== undefined ? { mapError: cfg.mapError } : {}),
+    ...(cfg.idempotencyKey !== undefined ? { idempotencyKey: cfg.idempotencyKey } : {}),
   }),
   ...(cfg.output !== undefined ? { output: cfg.output } : {}),
   ...(cfg.retry !== undefined ? { retry: cfg.retry } : {}),
   ...(cfg.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
+  ...(cfg.idempotent !== undefined ? { idempotent: cfg.idempotent } : {}),
 })
 
 export const wait = (cfg: WaitCfg = {}): StepSpec => ({
@@ -173,6 +187,10 @@ export interface FlowCfg {
   readonly steps: Readonly<Record<string, StepSpec>>
   readonly policies?: Partial<CompiledFlow['policies']>
   readonly events?: Readonly<Record<string, RuntimeBoundary>>
+  /** v0.2: flow-level `on[event]` handlers. */
+  readonly on?: Readonly<Record<string, Hook<FlowOnHandlerResult>>>
+  /** v0.2: correlation extractors. */
+  readonly correlate?: Readonly<Record<string, (payload: unknown) => string | undefined>>
 }
 
 export function flow(cfg: FlowCfg): CompiledFlow {
@@ -184,6 +202,8 @@ export function flow(cfg: FlowCfg): CompiledFlow {
     version: cfg.version ?? 1,
     context: trusted(),
     events: cfg.events ?? {},
+    ...(cfg.on !== undefined ? { on: cfg.on } : {}),
+    ...(cfg.correlate !== undefined ? { correlate: cfg.correlate } : {}),
     steps,
     order,
     start: typeof cfg.start === 'string' ? [cfg.start] : [...cfg.start],
@@ -281,7 +301,13 @@ export interface Harness {
 
 export function createHarness(
   def: CompiledFlow,
-  opts: { now?: number; context?: unknown; instanceId?: string; path?: readonly string[] } = {},
+  opts: {
+    now?: number
+    context?: unknown
+    instanceId?: string
+    path?: readonly string[]
+    correlationId?: string
+  } = {},
 ): Harness {
   const { env, clock } = createEnv(def, {
     ...(opts.now !== undefined ? { now: opts.now } : {}),
@@ -296,6 +322,7 @@ export function createHarness(
       instanceId: opts.instanceId ?? 'inst-1',
       context: opts.context ?? {},
       now: clock.now,
+      ...(opts.correlationId !== undefined ? { correlationId: opts.correlationId } : {}),
     }),
     log: [],
     effects: [],
@@ -407,6 +434,7 @@ export function replay(
     instanceId: opts.instanceId ?? h.state.instanceId,
     context: opts.context ?? {},
     now: first?.at ?? h.clock.now,
+    ...(h.state.correlationId !== undefined ? { correlationId: h.state.correlationId } : {}),
   })
   for (const ev of h.log) s = machine.apply(h.env, s, ev)
   return s

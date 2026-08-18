@@ -72,7 +72,9 @@ export function plan(
       if (
         ev.type === 'step.entered' ||
         ev.type === 'step.enterCompleted' ||
-        ev.type === 'step.compensationStarted'
+        ev.type === 'step.compensationStarted' ||
+        ev.type === 'step.whenStarted' ||
+        ev.type === 'step.idempotencyKeyRequested'
       ) {
         fresh.add(ev.step)
       }
@@ -126,6 +128,39 @@ function planEvent(env: MachineEnv, state: WizardState, ev: DomainEvent, out: Ef
       planKindStart(env, state, rec, out)
       return
     }
+    case 'step.whenStarted': {
+      // v0.2 (§10.2): the predicate runs while the step is still pending (token = current runId).
+      const rec = state.steps[ev.step]
+      if (rec === undefined || rec.status === 'active' || rec.when !== 'pending') return
+      out.push(call(env, rec, 'when'))
+      return
+    }
+    case 'step.idempotencyKeyRequested': {
+      // v0.2 (§10.4): computed before the first attempt of the run (args = the run's args).
+      const rec = state.steps[ev.step]
+      if (rec === undefined || rec.status !== 'active' || rec.runId !== ev.runId) return
+      if (rec.attempt !== 0 || rec.entering === true) return
+      out.push(call(env, rec, 'idempotencyKey', { extra: { attempt: 1 } }))
+      return
+    }
+    case 'step.mapErrorStarted': {
+      // v0.2 (§10.7): the raw failure travels in `extra` and comes back on the result.
+      const rec = state.steps[ev.step]
+      if (rec === undefined || rec.status !== 'active' || rec.attempt !== ev.attempt) return
+      if (rec.retryAt !== undefined || rec.entering === true) return
+      out.push(
+        call(env, rec, 'mapError', {
+          attempt: ev.attempt,
+          extra: {
+            error: ev.error,
+            attempt: ev.attempt,
+            ...(ev.timedOut === true ? { timedOut: true } : {}),
+            ...(ev.syncViolation === true ? { syncViolation: true } : {}),
+          },
+        }),
+      )
+      return
+    }
     case 'step.runStarted': {
       const rec = state.steps[ev.step]
       if (
@@ -166,6 +201,18 @@ function planEvent(env: MachineEnv, state: WizardState, ev: DomainEvent, out: Ef
       )
       return
     }
+    case 'event.flowDelivered':
+      // v0.2 (§10.1): the flow-level handler has no step — `step: ''`, token `{ step: '', runId: 0 }`;
+      // the executor and `decide` route on `hook: 'flowOn'` before looking at the step.
+      out.push({
+        kind: 'call',
+        effectId: env.id('fx'),
+        step: '',
+        hook: 'flowOn',
+        token: { step: '', runId: 0 },
+        extra: { event: ev.event, payload: ev.payload, inboxId: ev.inboxId },
+      })
+      return
     case 'step.compensationStarted': {
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status !== 'compensating') return
@@ -229,9 +276,10 @@ function planPhase(
       if (from !== undefined) out.push(call(env, from, 'canExit', { txId, extra: { to } }))
       return
     case 'resolvingTarget':
+      // A decision's targets are its output — unless it was skipped (v0.2): then its `next` hook is asked.
       if (
         from !== undefined &&
-        from.kind !== 'decision' &&
+        (from.kind !== 'decision' || from.status === 'skipped') &&
         env.def.steps[from.id]?.next.kind === 'dynamic'
       ) {
         out.push(call(env, from, 'next', { txId, extra: { output: from.output } }))
@@ -262,8 +310,18 @@ function planPhase(
   }
 }
 
-/** Kind-specific effects once a step is entered and its `enter` hook (if any) has resolved. */
-function planKindStart(env: MachineEnv, _state: WizardState, rec: StepRecord, out: Effect[]): void {
+/**
+ * Kind-specific effects once a step is entered and its `enter` hook (if any) has resolved.
+ * `resume` = re-issuing after a restart: a task still waiting for its `idempotencyKey` hook
+ * (attempt 0) gets that call again (on a live entry the `step.idempotencyKeyRequested` event plans it).
+ */
+function planKindStart(
+  env: MachineEnv,
+  _state: WizardState,
+  rec: StepRecord,
+  out: Effect[],
+  resume = false,
+): void {
   const def = env.def.steps[rec.id]
   if (def === undefined) return
   switch (def.kind) {
@@ -275,6 +333,10 @@ function planKindStart(env: MachineEnv, _state: WizardState, rec: StepRecord, ou
       return
     case 'final':
       if (def.hooks.finalOutput !== undefined) out.push(call(env, rec, 'finalOutput'))
+      return
+    case 'task':
+      if (resume && rec.attempt === 0 && def.hooks.idempotencyKey !== undefined)
+        out.push(call(env, rec, 'idempotencyKey', { extra: { attempt: 1 } }))
       return
     default:
       // view: nothing; task: `step.runStarted` plans the run; wait: deliveries/timers are events.
@@ -321,11 +383,14 @@ function planResume(
       out.push(call(env, rec, 'enter', { extra: { from: null } }))
       continue
     }
-    planKindStart(env, state, rec, out)
+    planKindStart(env, state, rec, out, true)
   }
   for (const id of Object.keys(state.steps)) {
     const rec = state.steps[id]
-    if (rec?.status === 'compensating' && !fresh.has(id)) planCompensate(env, state, rec, out)
+    if (rec === undefined || fresh.has(id)) continue
+    if (rec.status === 'compensating') planCompensate(env, state, rec, out)
+    // v0.2 (§10.2): a `when` predicate that was in flight is asked again.
+    else if (rec.status !== 'active' && rec.when === 'pending') out.push(call(env, rec, 'when'))
   }
   const now = env.now()
   const timers = Object.entries(state.timers).sort((a, b) => a[1].at - b[1].at)

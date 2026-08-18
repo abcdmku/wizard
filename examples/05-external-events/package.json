@@ -2,7 +2,7 @@
   "name": "example-05-external-events",
   "private": true,
   "type": "module",
-  "description": "OpenWizard example: webhooks through an event boundary — rejected payloads, delivery to a wait step, early events buffered in the inbox and delivered on entry, TTL expiry, timeout.",
+  "description": "OpenWizard example: webhooks through an event boundary — rejected payloads, delivery to a wait step, early events buffered in the inbox and delivered on entry, TTL expiry, timeout, correlation ids, flow-level on handlers.",
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json && vitest run --root .",
     "start": "tsx src/main.ts"

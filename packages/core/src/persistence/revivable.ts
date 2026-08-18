@@ -9,6 +9,7 @@
  * |-----------------------------------|----------------------------------------------------|
  * | `state.context`                   | the flow's `context` boundary                      |
  * | `state.steps.<id>.output`         | the step's `output` (views: `input`) boundary      |
+ * | `state.steps.<id>.previousOutput` | same boundary (v0.2: the output `invalidate` moved) |
  * | `state.saga.stack[i].output`      | that entry's step, same rule                       |
  * | `state.inbox[i].payload`          | `events[<entry.event>]`                            |
  * | `children.<id>.…`                 | the same table against the child flow              |
@@ -44,7 +45,11 @@ function revivableInState(
 ): boolean {
   const [head, second, third, fourth] = path
   if (head === 'context') return revives(def.context)
-  if (head === 'steps' && typeof second === 'string' && third === 'output') {
+  if (
+    head === 'steps' &&
+    typeof second === 'string' &&
+    (third === 'output' || third === 'previousOutput')
+  ) {
     return revives(stepBoundary(def, second))
   }
   if (head === 'saga' && second === 'stack' && typeof third === 'number' && fourth === 'output') {

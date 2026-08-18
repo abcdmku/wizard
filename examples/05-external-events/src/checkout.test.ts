@@ -8,7 +8,12 @@ const T0 = 1_000_000
 
 function make() {
   const sched = createTestScheduler({ now: T0 })
-  const wizard = createWizard(checkout, { context: { orderId: 'o-1' }, scheduler: sched })
+  // `correlationId` = the order id: correlated events for another order are dropped.
+  const wizard = createWizard(checkout, {
+    context: { orderId: 'o-1' },
+    correlationId: 'o-1',
+    scheduler: sched,
+  })
   const events: WizardEvent<typeof checkout>[] = []
   wizard.observe((e) => events.push(e))
   const of = <T extends WizardEvent['type']>(type: T) =>
@@ -17,7 +22,7 @@ function make() {
 }
 
 // What a webhook endpoint receives: `unknown` bodies.
-const goodBody: unknown = { paymentId: 'pay_1', amount: 42 }
+const goodBody: unknown = { paymentId: 'pay_1', amount: 42, orderId: 'o-1' }
 const badBody: unknown = { paymentId: 42, amount: -1 }
 
 describe('05 external events: send() through the event boundary, inbox, TTL, timeout', () => {
@@ -42,7 +47,7 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     expect(of('event.received')[0]).toMatchObject({
       event: 'payment.captured',
       correlationId: 'wh-77',
-      payload: { paymentId: 'pay_1', amount: 42 },
+      payload: { paymentId: 'pay_1', amount: 42, orderId: 'o-1' },
     })
     expect(of('event.delivered')[0]).toMatchObject({
       event: 'payment.captured',
@@ -51,7 +56,10 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     expect(wizard.getState().context.paymentId).toBe('pay_1')
     expect(wizard.getState().steps.awaitPayment).toMatchObject({
       status: 'done',
-      output: { event: 'payment.captured', payload: { paymentId: 'pay_1', amount: 42 } },
+      output: {
+        event: 'payment.captured',
+        payload: { paymentId: 'pay_1', amount: 42, orderId: 'o-1' },
+      },
     })
     expect(wizard.getState().status).toBe('done')
     expect(wizard.getState().output).toBe('paid (pay_1)')
@@ -136,6 +144,44 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     expect(wizard.getState().steps.awaitPayment.status).toBe('done')
     expect(wizard.getState().steps.declined.status).toBe('done')
     expect(wizard.getState().output).toBe('declined: insufficient funds')
+    wizard.dispose()
+  })
+
+  it('correlation: a webhook for ANOTHER order is dropped, never buffered or delivered', async () => {
+    const { wizard, of } = make()
+    await wizard.start()
+    await wizard.next() // the wait step listens
+    // Same event name, valid body, but correlate('payment.captured') → 'o-2' ≠ this wizard's 'o-1'.
+    const foreign = await wizard.send('payment.captured', {
+      paymentId: 'pay_9',
+      amount: 1,
+      orderId: 'o-2',
+    })
+    expect(foreign).toMatchObject({ ok: false, reason: 'dropped' })
+    expect(of('event.dropped').at(-1)).toMatchObject({
+      event: 'payment.captured',
+      reason: 'correlation',
+    })
+    expect(wizard.getState().steps.awaitPayment.status).toBe('active')
+    expect(wizard.getState().inbox).toEqual([])
+    // Ours goes through.
+    expect(await wizard.send('payment.captured', goodBody)).toMatchObject({ ok: true })
+    expect(wizard.getState().status).toBe('done')
+    wizard.dispose()
+  })
+
+  it('flow-level on: an order.cancelled webhook cancels the flow from any step', async () => {
+    const { wizard, of } = make()
+    await wizard.start() // the cursor is on the review view — no wait step listens
+    expect(
+      await wizard.send('order.cancelled', { orderId: 'o-1', reason: 'customer' }),
+    ).toMatchObject({
+      ok: true,
+    })
+    expect(of('flow.cancelled').length).toBe(1)
+    expect(wizard.getState().status).toBe('cancelled')
+    // Later webhooks bounce off a terminal flow (a value, not a throw).
+    expect(await wizard.send('payment.captured', goodBody)).toMatchObject({ ok: false })
     wizard.dispose()
   })
 })

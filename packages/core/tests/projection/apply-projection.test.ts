@@ -300,14 +300,117 @@ describe('applyProjection', () => {
     expect((node.steps as Record<string, Record<string, unknown>>).v?.status).toBe('active')
     wizard.dispose()
   })
+
+  describe('applyProjection v0.2: progress, error data, select', () => {
+    it('`progress: true` exposes { done, total, ratio } over the non-final steps (skipped counts as done)', () => {
+      const projection = defineProjection(flow, { expose: { progress: true } })
+      // form active, reserve failed, sub active, done idle → 0 of 3 non-final steps.
+      expect(applyProjection(projection, state, def).progress).toEqual({
+        done: 0,
+        total: 3,
+        ratio: 0,
+      })
+      const later = stateOf(def, {}, (base) => ({
+        steps: {
+          ...base.steps,
+          form: rec(base, 'form', { status: 'done' }),
+          reserve: rec(base, 'reserve', { status: 'skipped' }),
+          done: rec(base, 'done', { status: 'done' }),
+        },
+      }))
+      expect(applyProjection(projection, later, def).progress).toEqual({
+        done: 2,
+        total: 3,
+        ratio: 2 / 3,
+      })
+      // Not exposed → absent.
+      expect(
+        'progress' in applyProjection(defineProjection(flow, { expose: {} }), state, def),
+      ).toBe(false)
+    })
+    it('`error: true` carries the mapError value as `data` (still no kind / at / attempt / issues)', () => {
+      const projection = defineProjection(flow, { expose: { steps: { reserve: { error: true } } } })
+      const mapped = stateOf(def, {}, (base) => ({
+        steps: {
+          ...base.steps,
+          reserve: rec(base, 'reserve', {
+            status: 'failed',
+            error: {
+              name: 'Error',
+              message: 'boom',
+              kind: 'run',
+              at: 5,
+              attempt: 2,
+              data: { code: 'LEDGER_DOWN', retryable: true },
+            },
+          }),
+        },
+      }))
+      expect(applyProjection(projection, mapped, def).steps.reserve.error).toEqual({
+        name: 'Error',
+        message: 'boom',
+        data: { code: 'LEDGER_DOWN', retryable: true },
+      })
+      // Without data (v0.1 errors) the shape is unchanged.
+      expect(applyProjection(projection, state, def).steps.reserve.error).toEqual({
+        name: 'Error',
+        message: 'boom',
+        code: 'E_BOOM',
+      })
+    })
+    it('a `select` projection runs its mapper over the state; the Wizard and the source carry its value', async () => {
+      const summary = defineProjection(flow, {
+        select: (s) => ({ at: s.current, total: s.context.total, failed: s.steps.reserve.status }),
+      })
+      expect(applyProjection(summary, state, def)).toEqual({
+        at: 'form',
+        total: 42,
+        failed: 'failed',
+      })
+      const wizard = createWizard(flow, { context: { cartId: 'c', total: 7, secret: 's' } })
+      await wizard.start()
+      expect(wizard.project(summary)).toEqual({ at: 'form', total: 7, failed: 'idle' })
+      wizard.dispose()
+    })
+  })
 })
 
 describe('defineProjection', () => {
-  it('records the flow OBJECT and the spec; ~types is undefined', () => {
+  it('records the flow OBJECT and the spec; ~types is undefined; select projections carry the mapper', () => {
     const projection = defineProjection(flow, { expose: { context: ['total'] } })
-    expect(projection).toEqual({ '~types': undefined, flow, expose: { context: ['total'] } })
+    expect(projection).toEqual({
+      '~types': undefined,
+      flow,
+      expose: { context: ['total'] },
+      select: undefined,
+    })
     expect(projection.flow).toBe(flow)
     expect(defineProjection(child, { expose: {} }).flow).toBe(child)
+    const select = (s: { seq: number }) => s.seq
+    expect(defineProjection(flow, { select })).toEqual({
+      '~types': undefined,
+      flow,
+      expose: undefined,
+      select,
+    })
+  })
+  it('exactly one of expose / select (JS callers): DEFINITION_INVALID otherwise', () => {
+    const codeOf = (fn: () => unknown): string | undefined => {
+      try {
+        fn()
+      } catch (error) {
+        return error instanceof WizardError ? error.code : undefined
+      }
+      return undefined
+    }
+    expect(codeOf(() => defineProjection(flow, {} as never))).toBe('DEFINITION_INVALID')
+    expect(codeOf(() => defineProjection(flow, { expose: {}, select: () => 1 } as never))).toBe(
+      'DEFINITION_INVALID',
+    )
+    expect(codeOf(() => defineProjection(flow, { select: 5 } as never))).toBe('DEFINITION_INVALID')
+    expect(codeOf(() => defineProjection(flow, { expose: 'all' } as never))).toBe(
+      'DEFINITION_INVALID',
+    )
   })
 
   it('wizard.project() rejects a projection of a same-name, same-shape flow (identity, not name)', async () => {

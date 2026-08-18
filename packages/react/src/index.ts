@@ -9,6 +9,10 @@ export { bindReact } from './bind-react'
 export type {
   Actions,
   BindTarget,
+  ChildBinding,
+  ChildBindingId,
+  ChildStateOf,
+  ChildStepHelpers,
   CurrentOf,
   FlowOf,
   NavResultOf,
@@ -18,6 +22,7 @@ export type {
   SourceOf,
   StateOf,
   StepHelpers,
+  StepRecordIn,
   StepRecordOf,
   UseStepResult,
 } from './types'

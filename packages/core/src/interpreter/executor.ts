@@ -8,7 +8,11 @@
  * - `parseInput` runs the view's `input` boundary over the draft; `run` pipes
  *   the hook value through the optional `output` boundary; `childContext`
  *   pipes the mapped context through the child flow's `context` boundary;
- *   `on` resolves `hooks.on[extra.event]`. Every result echoes the effect's
+ *   `on` resolves `hooks.on[extra.event]`; `flowOn` (v0.2) resolves the
+ *   flow-level `def.on[extra.event]` (no step: the effect's `step` is `''`);
+ *   `mapError` (v0.2) receives the RAW value the failed `run` threw as
+ *   `args.error` when it is still known (same step/runId/attempt), else the
+ *   serialized form the machine put in `extra`. Every result echoes the effect's
  *   `extra` (`res.ok/res.err.extra`) so the machine gets its routing data back.
  * - `timeoutMs` arms a scheduler timer → abort + `res.err { timedOut: true }`.
  *   A `settled` flag guarantees one report per effect (late results after a
@@ -80,10 +84,19 @@ export class BoundaryRejection extends Error {
   }
 }
 
+/** The raw value a failed `run` threw, kept for the task's `mapError` call (v0.2). */
+interface RawFailure {
+  readonly step: string
+  readonly runId: number
+  readonly attempt: number | undefined
+  readonly error: unknown
+}
+
 export function createExecutor(opts: ExecutorOptions): Executor {
   const byId = new Map<string, InFlight>()
   const byStep = new Map<string, Set<InFlight>>()
   const graceMs = opts.abortGraceMs ?? DEFAULT_ABORT_GRACE_MS
+  const rawFailures = new Map<string, RawFailure>()
 
   const track = (inf: InFlight): void => {
     byId.set(inf.effect.effectId, inf)
@@ -143,6 +156,14 @@ export function createExecutor(opts: ExecutorOptions): Executor {
   ): void => {
     const { effectId, hook, token } = inf.effect
     const issues = error instanceof BoundaryRejection ? error.issues : undefined
+    if (hook === 'run' && opts.def.steps[token.step]?.hooks.mapError !== undefined) {
+      rawFailures.set(token.step, {
+        step: token.step,
+        runId: token.runId,
+        attempt: token.attempt,
+        error,
+      })
+    }
     settle(inf, {
       type: 'res.err',
       effectId,
@@ -200,13 +221,25 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     }
     track(inf)
 
-    if (stepDef === undefined) {
+    // v0.2: the flow-level handler is routed on the hook name alone (`step` is `''`, not a step id).
+    const flowLevel = effect.hook === 'flowOn'
+    if (stepDef === undefined && !flowLevel) {
       errResult(
         inf,
         new WizardError('UNKNOWN_STEP', `unknown step '${effect.step}'`, { step: effect.step }),
       )
       return
     }
+
+    // `mapError` (v0.2) sees the raw thrown value of the failed attempt when it is still known.
+    const raw = effect.hook === 'mapError' ? rawFailures.get(effect.step) : undefined
+    const rawError =
+      raw !== undefined &&
+      raw.runId === effect.token.runId &&
+      (raw.attempt === undefined || raw.attempt === effect.token.attempt)
+        ? { error: raw.error }
+        : {}
+    if (raw !== undefined) rawFailures.delete(effect.step)
 
     const args = buildHookArgs({
       def: opts.def,
@@ -216,8 +249,12 @@ export function createExecutor(opts: ExecutorOptions): Executor {
       state,
       step: effect.step,
       signal: controller.signal,
-      update: (patch) => opts.send({ type: 'context.patch', patch, by: effect.step }, causedBy),
-      extra: effect.extra,
+      update: (patch) =>
+        opts.send(
+          { type: 'context.patch', patch, ...(flowLevel ? {} : { by: effect.step }) },
+          causedBy,
+        ),
+      extra: { ...effect.extra, ...rawError },
     })
 
     // The hook call AND the thenable inspection (`then` getter) run under one try:
@@ -225,7 +262,9 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     let outcome: unknown
     let then: Then | undefined
     try {
-      outcome = invoke(effect.hook, stepDef, rec, args)
+      outcome = flowLevel
+        ? invokeFlowOn(opts.def, args)
+        : invoke(effect.hook, stepDef as CompiledStep, rec, args)
       then = getThen(outcome)
     } catch (error) {
       errResult(inf, error)
@@ -281,6 +320,7 @@ export function createExecutor(opts: ExecutorOptions): Executor {
   }
 
   const abortAll = (reason?: string): void => {
+    rawFailures.clear()
     for (const inf of Array.from(byId.values())) {
       inf.settled = true
       inf.aborted = true
@@ -324,6 +364,8 @@ function invoke(
       if (hook === undefined) throw missingHook(stepDef.id, `on[${String(event)}]`)
       return hook(args)
     }
+    case 'flowOn':
+      throw missingHook(stepDef.id, 'flowOn')
     case 'childContext': {
       // The child's context is a data door (plan §1.3): the mapped value goes through the
       // child flow's context boundary before `child.create` can see it.
@@ -342,6 +384,20 @@ function invoke(
       return hook(args)
     }
   }
+}
+
+/** v0.2: the flow-level `on[extra.event]` handler (`CompiledFlow.on`). */
+function invokeFlowOn(def: CompiledFlow, args: HookArgs): unknown {
+  const event = typeof args.event === 'string' ? args.event : undefined
+  const hook = event === undefined ? undefined : def.on?.[event]
+  if (hook === undefined) {
+    throw codedError(
+      'HookMissingError',
+      'HOOK_MISSING',
+      `flow '${def.name}' has no 'on[${String(event)}]' handler`,
+    )
+  }
+  return hook(args)
 }
 
 function unwrapBoundary(result: unknown, what: string): unknown {
@@ -408,7 +464,8 @@ export function buildHookArgs(input: BuildHookArgsInput): HookArgs {
     signal: input.signal,
     attempt: rec?.attempt ?? 0,
     runId,
-    idempotencyKey: `${input.instanceId}:${input.step}:${runId}`,
+    // The run's stored key (custom `idempotencyKey` hook or default, set by `step.runStarted`), else the default.
+    idempotencyKey: rec?.idempotencyKey ?? `${input.instanceId}:${input.step}:${runId}`,
     update: input.update,
   }
   return input.extra === undefined ? base : { ...base, ...input.extra }

@@ -13,7 +13,14 @@
 import type { CompiledFlow } from '../authoring/compiled'
 import type { DomainEvent } from './events'
 import { initialState } from './initial'
-import { cursorInitiated, depsSatisfied, isTerminal, runInFlight, sameEntry } from './selectors'
+import {
+  awaitingWhen,
+  cursorInitiated,
+  depsSatisfied,
+  isTerminal,
+  runInFlight,
+  sameEntry,
+} from './selectors'
 import type {
   InboxEntry,
   NavState,
@@ -80,23 +87,78 @@ function toStepError(
   kind: StepError['kind'],
   at: number,
   attempt?: number,
+  data?: unknown,
 ): StepError {
   const e: StepError = { name: error.name, message: error.message, kind, at }
   return {
     ...e,
     ...(error.code !== undefined ? { code: error.code } : {}),
     ...(attempt !== undefined ? { attempt } : {}),
+    ...(data !== undefined ? { data } : {}),
   }
 }
 
-/** Idle nav that keeps the cross-transaction bookkeeping (`hops`, `deferred`). */
+/** Idle nav that keeps the cross-transaction bookkeeping (`hops`, `deferred`, `cursorHint`). */
 function idleNav(nav: NavState): NavState {
   const out: NavState = { phase: 'idle' }
   return {
     ...out,
     ...(nav.hops !== undefined ? { hops: nav.hops } : {}),
     ...(nav.deferred !== undefined && nav.deferred.length > 0 ? { deferred: nav.deferred } : {}),
+    ...(nav.cursorHint !== undefined ? { cursorHint: nav.cursorHint } : {}),
   }
+}
+
+/** Forget the cursor hint when it points at `step` (the view entered, was skipped, invalidated, …). */
+function dropHint(state: WizardState, step: string): WizardState {
+  if (state.nav.cursorHint !== step) return state
+  return withNav(state, omit(state.nav, ['cursorHint']))
+}
+
+/**
+ * v0.2: a completed transition could not enter its cursor target because the target's `when`
+ * predicate is unresolved → remember it so the cursor rule prefers it once the predicate passes.
+ * Same admission rule as `cursorTarget` (a background auto-advance never steals the cursor).
+ */
+function pendingCursor(
+  def: CompiledFlow,
+  state: WizardState,
+  targets: readonly string[],
+  from: string | null,
+): string | undefined {
+  if (state.current !== null && from !== state.current) return undefined
+  return targets.find((t) => {
+    const rec = state.steps[t]
+    return (
+      rec !== undefined &&
+      rec.kind === 'view' &&
+      rec.status !== 'active' &&
+      rec.pendingActivation &&
+      depsSatisfied(def, state, t) &&
+      awaitingWhen(def, state, t)
+    )
+  })
+}
+
+/**
+ * v0.2: a non-view step that completed (`step.done`) or was skipped while a transition was in
+ * flight continues (auto-advance) once `nav` is idle again: queue it in `nav.deferred`.
+ */
+function deferContinuation(
+  def: CompiledFlow,
+  state: WizardState,
+  step: string,
+  override: string | undefined,
+): WizardState {
+  const stepDef = def.steps[step]
+  const busy = state.nav.phase !== 'idle' && state.status !== 'compensating' && !isTerminal(state)
+  const advances =
+    stepDef !== undefined &&
+    stepDef.kind !== 'final' &&
+    (override !== undefined || stepDef.next.kind !== 'none')
+  if (!busy || !advances) return state
+  const entry = override !== undefined ? { step, to: override } : { step }
+  return withNav(state, { ...state.nav, deferred: [...(state.nav.deferred ?? []), entry] })
 }
 
 /** Clear transient entry markers on the targets of a transaction that did not commit. */
@@ -142,9 +204,10 @@ export function deriveStatus(
   const prev = state.status
   if (prev === 'done' || prev === 'cancelled' || prev === 'compensating') return prev
   const anyFailed = Object.values(state.steps).some((r) => r.status === 'failed')
-  if (prev === 'failed') {
+  if (prev === 'failed' && event.type !== 'step.invalidated') {
     // Halt: failed while ANY step record is failed; a retried step becomes active again and the
     // flow recovers. Nothing failed and nothing active = a terminal failure (compensated, loop).
+    // v0.2: invalidating the failed step (§9.3) recovers too — it falls through to the general rule.
     if (anyFailed || state.active.length === 0) return 'failed'
   } else if (anyFailed && def.policies.onFailure === 'halt') {
     return 'failed'
@@ -206,6 +269,7 @@ function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent): Wizard
         context: state.context,
         now: ev.at,
         epoch: state.epoch,
+        ...(state.correlationId !== undefined ? { correlationId: state.correlationId } : {}),
       })
     default:
       return state
@@ -278,7 +342,17 @@ function applyTransition(env: MachineEnv, state: WizardState, ev: DomainEvent): 
           history = [...history, view]
         }
       }
-      return { ...withNav(state, idleNav(state.nav)), history, current: view ?? state.current }
+      // v0.2: a cursor set forgets any hint; no cursor → remember the `when`-pending target (if any).
+      const hint =
+        view === undefined
+          ? (pendingCursor(env.def, state, targets, ev.from) ?? state.nav.cursorHint)
+          : undefined
+      const nav = omit(idleNav(state.nav), ['cursorHint'])
+      return {
+        ...withNav(state, hint !== undefined ? { ...nav, cursorHint: hint } : nav),
+        history,
+        current: view ?? state.current,
+      }
     }
     case 'transition.rejected':
     case 'transition.failed':
@@ -298,7 +372,7 @@ function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent): Wizard
         return { ...rec, pendingActivation: true, arrivedSeq: ev.seq }
       })
     case 'step.entered':
-      return withStep(state, ev.step, (rec) => {
+      return withStep(dropHint(state, ev.step), ev.step, (rec) => {
         const def = env.def.steps[ev.step]
         const seedInput =
           rec.kind === 'view' && rec.input === undefined && def?.initial !== undefined
@@ -316,6 +390,8 @@ function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent): Wizard
           'child',
           'entering',
           'enterDone',
+          'when',
+          'skipReason',
         ])
         return {
           ...base,
@@ -368,35 +444,76 @@ function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent): Wizard
         }
         next = withSaga(next, { ...next.saga, stack: [...state.saga.stack, entry] })
       }
-      const busy =
-        state.nav.phase !== 'idle' && state.status !== 'compensating' && !isTerminal(state)
-      const advances =
-        def !== undefined &&
-        def.kind !== 'view' &&
-        def.kind !== 'final' &&
-        (ev.next !== undefined || def.next.kind !== 'none')
-      if (busy && advances) {
-        const entry = ev.next !== undefined ? { step: ev.step, to: ev.next } : { step: ev.step }
-        next = withNav(next, { ...next.nav, deferred: [...(next.nav.deferred ?? []), entry] })
-      }
-      return next
+      return def?.kind === 'view' ? next : deferContinuation(env.def, next, ev.step, ev.next)
     }
     case 'step.failed':
-      return withStep(state, ev.step, (rec) => ({
-        ...omit(rec, ['retryAt', 'deadline', 'entering']),
+      return withStep(dropHint(state, ev.step), ev.step, (rec) => ({
+        ...omit(rec, ['retryAt', 'deadline', 'entering', 'when']),
         status: 'failed',
         pendingActivation: false,
-        error: toStepError(ev.error, ev.kind, ev.at, rec.attempt > 0 ? rec.attempt : undefined),
+        error: toStepError(
+          ev.error,
+          ev.kind,
+          ev.at,
+          rec.attempt > 0 ? rec.attempt : undefined,
+          ev.data,
+        ),
       }))
-    case 'step.skipped':
-      return patchStep(state, ev.step, { status: 'skipped', pendingActivation: false }, [
-        'entering',
-      ])
+    case 'step.skipped': {
+      // v0.2 (§9.2): done-without-running — no output, no error; the draft `input` and
+      // `previousOutput` survive. Continues (auto-advance) once `nav` is idle when busy.
+      const next = withStep(dropHint(state, ev.step), ev.step, (rec) => ({
+        ...omit(rec, [
+          'entering',
+          'when',
+          'error',
+          'issues',
+          'output',
+          'retryAt',
+          'deadline',
+          'idempotencyKey',
+          'arrivedSeq',
+        ]),
+        status: 'skipped',
+        pendingActivation: false,
+        ...(ev.reason !== undefined ? { skipReason: ev.reason } : {}),
+      }))
+      return deferContinuation(env.def, next, ev.step, undefined)
+    }
+    case 'step.whenStarted':
+      return patchStep(state, ev.step, { when: 'pending' })
+    case 'step.whenEvaluated':
+      return ev.ok
+        ? patchStep(state, ev.step, { when: 'passed' })
+        : patchStep(state, ev.step, {}, ['when'])
+    case 'step.invalidated':
+      // v0.2 (§9.3): back to idle; the output moves to `previousOutput`, a view keeps its draft.
+      return withStep(dropHint(state, ev.step), ev.step, (rec) => ({
+        ...omit(rec, [
+          'output',
+          'previousOutput',
+          'error',
+          'issues',
+          'skipReason',
+          'retryAt',
+          'deadline',
+          'idempotencyKey',
+          'arrivedSeq',
+          'entering',
+          'enterDone',
+          'when',
+          'child',
+        ]),
+        status: 'idle',
+        pendingActivation: false,
+        ...(rec.output !== undefined ? { previousOutput: rec.output } : {}),
+      }))
     case 'step.cancelled':
       return patchStep(state, ev.step, { status: 'cancelled', pendingActivation: false }, [
         'entering',
         'retryAt',
         'deadline',
+        'when',
       ])
     case 'step.validated':
       return withStep(state, ev.step, (rec) => ({
@@ -449,10 +566,20 @@ function applyRun(_env: MachineEnv, state: WizardState, ev: DomainEvent): Wizard
       return settleRun(
         withStep(state, ev.step, (rec) => ({
           ...rec,
-          error: toStepError(ev.error, ev.timedOut === true ? 'timeout' : 'run', ev.at, ev.attempt),
+          error: toStepError(
+            ev.error,
+            ev.timedOut === true ? 'timeout' : 'run',
+            ev.at,
+            ev.attempt,
+            ev.data,
+          ),
         })),
         ev.step,
       )
+    case 'step.idempotencyKeyRequested':
+    case 'step.mapErrorStarted':
+      // Bookkeeping only: the in-flight call is identified by its token; nothing to store.
+      return state
     case 'step.retryScheduled':
       return withTimer(patchStep(state, ev.step, { retryAt: ev.dueAt }), ev.timerId, {
         at: ev.dueAt,
@@ -553,6 +680,9 @@ function applyEvents(_env: MachineEnv, state: WizardState, ev: DomainEvent): Wiz
     case 'event.received':
     case 'event.rejected':
     case 'event.dropped':
+    case 'event.flowDelivered':
+    case 'event.handlerResultIgnored':
+    case 'event.handlerFailed':
       return state
     default:
       return state
@@ -633,13 +763,18 @@ function reduce(env: MachineEnv, state: WizardState, ev: DomainEvent): WizardSta
     case 'step.done':
     case 'step.failed':
     case 'step.skipped':
+    case 'step.whenStarted':
+    case 'step.whenEvaluated':
+    case 'step.invalidated':
     case 'step.cancelled':
     case 'step.validated':
     case 'step.validationFailed':
     case 'step.guardEvaluated':
       return applyStep(env, state, ev)
+    case 'step.idempotencyKeyRequested':
     case 'step.runStarted':
     case 'step.runSucceeded':
+    case 'step.mapErrorStarted':
     case 'step.runFailed':
     case 'step.retryScheduled':
       return applyRun(env, state, ev)
@@ -656,6 +791,9 @@ function reduce(env: MachineEnv, state: WizardState, ev: DomainEvent): WizardSta
     case 'event.buffered':
     case 'event.expired':
     case 'event.dropped':
+    case 'event.flowDelivered':
+    case 'event.handlerResultIgnored':
+    case 'event.handlerFailed':
       return applyEvents(env, state, ev)
     case 'timer.scheduled':
     case 'timer.fired':

@@ -1,4 +1,4 @@
-# 06 — nested flow (`s.flow(child, { context })`)
+# 06 — nested flow (`s.flow(child, { context })`, `mirror.child()`)
 
 An `order` flow pays, then embeds a `fulfilment` flow (view → task → final) as one of its steps.
 The child is a wizard of its own — own queue, own instance id, own snapshot — and the parent
@@ -11,6 +11,7 @@ What it shows
 - Observability across levels: child events are forwarded to the parent's `observe()` / `log()` with `path: ['fulfil']`; the parent emits `child.started { childPath, context }` and keeps a `child` summary (`status`, `current`, `progress`) on the flow step.
 - The child's `final` output is the parent step's typed `output` (used here in the flow step's `exit` hook to `update()` the parent context); `Snapshot.children.fulfil` nests the child snapshot, so parent and child persist and resume together.
 - The wire door: `dispatch({ type: 'child', path: ['fulfil'], command })` routes commands to the child through the parent's queue (`child.command` events). `dispatch` is typed by the flow (`Command<typeof order>`: the path must name a flow step, the nested command is typed by the child); untrusted JSON is decoded with `parseCommand(order, body)`, which answers issues for a non-flow step.
+- Client side (v0.2): a projection may expose the child's projected state (`steps: { fulfil: { child: { steps: { pick: { input: true } } } } }`, deny-by-default inside too), and `mirror.child('fulfil')` returns the child's command sugar typed by the CHILD flow — every call travels as `{ type: 'child', path: ['fulfil'], command }` over the loopback transport and is decoded against the child. (React: `ow.useChild('fulfil')` in `@openwizard/react`.)
 
 Run
 

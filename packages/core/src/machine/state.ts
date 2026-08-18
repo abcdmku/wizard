@@ -52,7 +52,7 @@ export type NavPhase =
   | 'exiting'
   | 'entering'
 
-export type NavCause = 'start' | 'next' | 'go' | 'back' | 'auto' | 'resume'
+export type NavCause = 'start' | 'next' | 'go' | 'back' | 'auto' | 'resume' | 'event'
 
 export type StepErrorKind =
   | 'validation'
@@ -78,6 +78,8 @@ export interface StepError extends SerializedError {
   readonly attempt?: number
   /** Standard-Schema issues when kind === 'validation'. */
   readonly issues?: readonly Issue[]
+  /** v0.2: JSON-safe value produced by the task's `mapError` (typed for users via `ErrorOf<F, K>`). */
+  readonly data?: unknown
 }
 
 /** Standard Schema v1 issue (kept structural so core has zero runtime deps). */
@@ -119,6 +121,10 @@ export interface StepRecord {
   /** Last validation issues (view). Cleared on the next input change. */
   readonly issues?: readonly Issue[]
   readonly error?: StepError
+  /** v0.2: output before the last explicit invalidation. */
+  readonly previousOutput?: unknown
+  /** v0.2: why the step was skipped (`'when'` | `'command'`). */
+  readonly skipReason?: string
   /** Attempt counter for the current run (1-based while running; 0 when idle). */
   readonly attempt: number
   /** Increments each time the step (re)starts after completion or invalidation. Used for stale-result tokens. */
@@ -133,6 +139,12 @@ export interface StepRecord {
     readonly canEnter?: GuardResult
     readonly canExit?: GuardResult
   }
+  /**
+   * v0.2: state of the step's `when` predicate for the current activation — `'pending'` while the
+   * call is in flight, `'passed'` once it returned true (the step may enter). Absent when the step
+   * has no `when` hook or has not been evaluated yet; cleared on entry, skip and invalidation.
+   */
+  readonly when?: 'pending' | 'passed'
   /** True while the step's `enter` hook is in flight (kind-specific work starts after it resolves). */
   readonly entering?: boolean
   /** The `enter` hook already ran for the pending activation (transition `entering` phase); cleared when the step enters. */
@@ -174,6 +186,12 @@ export interface NavState {
    * `to` = target override carried by `step.done.next`.
    */
   readonly deferred?: ReadonlyArray<{ readonly step: string; readonly to?: string }>
+  /**
+   * v0.2: the view a committed transition wanted as cursor but could not enter because its `when`
+   * predicate was still unevaluated. Once the predicate passes, the cursor rule prefers this view
+   * when several views are ready. Cleared when a cursor is set or the view enters/skips/invalidates.
+   */
+  readonly cursorHint?: string
 }
 
 /** Identity of one completion of a compensable step (repeated activations produce several). */
@@ -237,6 +255,8 @@ export interface WizardState {
   readonly output?: unknown
   readonly seq: number
   readonly instanceId: string
+  /** v0.2: correlation id used to filter external events (`defineFlow({ correlate })`). */
+  readonly correlationId?: string
   /** Increments on every resume so a restarted instance is distinguishable (Mirror frames carry `epoch` + `seq`). */
   readonly epoch: number
   readonly flow: { readonly name: string; readonly version: number }

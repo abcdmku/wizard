@@ -11,10 +11,11 @@ import type { Batch } from './batch'
 import { emit, rec, stepDef } from './batch'
 import type { EffectResult } from './commands'
 import type { TransitionRejectReason } from './events'
-import { enterStep, schedule } from './scheduler'
-import { cursorTarget, isTerminal, ready } from './selectors'
+import { enterStep, hasOnHandlers, schedule } from './scheduler'
+import { cursorTarget, eligible, isTerminal, ready } from './selectors'
 import type { Issue, NavCause, NavPhase, SerializedError } from './state'
 import { normalizeTargets } from './util'
+import { drainInbox } from './wait'
 
 const PHASES_FULL: readonly NavPhase[] = [
   'parsingInput',
@@ -54,7 +55,7 @@ function phaseList(b: Batch): readonly NavPhase[] {
 export function rejectNav(
   b: Batch,
   reason: TransitionRejectReason,
-  opts: { step?: string; issues?: readonly Issue[]; txId?: string } = {},
+  opts: { step?: string; issues?: readonly Issue[]; txId?: string; deferIdle?: boolean } = {},
 ): void {
   emit(b, {
     type: 'transition.rejected',
@@ -63,7 +64,8 @@ export function rejectNav(
     ...(opts.step !== undefined ? { step: opts.step } : {}),
     ...(opts.issues !== undefined ? { issues: opts.issues } : {}),
   })
-  onNavIdle(b)
+  // `deferIdle`: the caller runs `onNavIdle` itself once (resume) — one drain per batch.
+  if (opts.deferIdle !== true) onNavIdle(b)
 }
 
 function rejectCurrent(
@@ -163,7 +165,10 @@ export function completeStep(b: Batch, step: string, output: unknown, next?: str
   schedule(b)
 }
 
-/** Start the lightweight auto transaction from a completed non-view step. */
+/**
+ * Start the lightweight auto transaction from a completed non-view step — or (v0.2)
+ * from a skipped step of any kind, whose `next` targets are arrived the same way.
+ */
 export function startAuto(b: Batch, from: string, override?: string): void {
   const s = b.state
   if (s.nav.phase !== 'idle') return
@@ -171,7 +176,7 @@ export function startAuto(b: Batch, from: string, override?: string): void {
   const def = stepDef(b, from)
   if (def === undefined) return
   if (override === undefined) {
-    if (def.kind === 'decision') {
+    if (def.kind === 'decision' && rec(b, from)?.status !== 'skipped') {
       if (normalizeTargets(rec(b, from)?.output).length === 0) return
     } else if (def.next.kind === 'none') {
       return
@@ -201,14 +206,33 @@ export function startAuto(b: Batch, from: string, override?: string): void {
   runPhases(b, 'resolvingTarget')
 }
 
-/** `nav` just returned to idle: start the next deferred auto-advance, if any. */
+/**
+ * `nav` just returned to idle: start the next deferred auto-advance, if any; otherwise
+ * (v0.2) let the current view drain its inbox — a view listens for external events only
+ * while `nav` is idle (§10.1), so events buffered while it was busy are delivered now.
+ */
 export function onNavIdle(b: Batch): void {
   const s = b.state
   if (s.nav.phase !== 'idle') return
-  const d = s.nav.deferred?.[0]
-  if (d === undefined) return
   if (isTerminal(s) || s.status === 'compensating') return
-  startAuto(b, d.step, d.to)
+  const d = s.nav.deferred?.[0]
+  if (d !== undefined) {
+    startAuto(b, d.step, d.to)
+    return
+  }
+  const view = s.current
+  if (view !== null && hasOnHandlers(b, view)) drainInbox(b, view)
+}
+
+/**
+ * v0.2 (§10.1): a view's `on[event]` handler returned `{ next }` — an external event advances
+ * the cursor through a transaction with `cause: 'event'`: `canEnter` (targets) → `exit` (view)
+ * → `enter` (targets) → commit; no `parseInput` / `validate` / `canExit`. Requires an idle `nav`.
+ */
+export function startEventTransition(b: Batch, view: string, to: string): void {
+  const txId = b.env.id('tx')
+  emit(b, { type: 'transition.started', txId, from: view, cause: 'event', to })
+  runPhases(b, 'resolvingTarget')
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +293,10 @@ function enterPhase(b: Batch, phase: NavPhase, targets?: readonly string[]): Pha
       return (b.state.nav.pendingSteps?.length ?? 0) > 0 ? 'wait' : 'continue'
     case 'exiting':
       phaseEvent(b, phase)
-      return fromDef?.hooks.exit !== undefined ? 'wait' : 'continue'
+      // A skipped `from` (v0.2) never entered: its `exit` hook does not run.
+      return fromDef?.hooks.exit !== undefined && rec(b, from ?? '')?.status !== 'skipped'
+        ? 'wait'
+        : 'continue'
     case 'entering':
       phaseEvent(b, phase)
       return (b.state.nav.pendingSteps?.length ?? 0) > 0 ? 'wait' : 'continue'
@@ -291,7 +318,9 @@ function resolveTargets(b: Batch, from: string | null, known?: readonly string[]
     rejectCurrent(b, 'no-target')
     return 'stop'
   }
-  if (def.kind === 'decision')
+  // A decision's output IS its target list — unless it was skipped (v0.2): then its `next`
+  // hook is asked like any dynamic `next`.
+  if (def.kind === 'decision' && rec(b, from ?? '')?.status !== 'skipped')
     return applyTargets(b, from, normalizeTargets(rec(b, from ?? '')?.output))
   if (def.next.kind === 'dynamic') {
     phaseEvent(b, 'resolvingTarget')
@@ -350,7 +379,14 @@ function commit(b: Batch): void {
     emit(b, { type: 'step.arrived', step: t, from })
   }
   const cursor = cursorTarget(b.env.def, b.state, targets, from)
-  if (cursor !== undefined && ready(b.env.def, b.state, cursor)) enterStep(b, cursor, from)
+  // v0.2: a `when` predicate gates automatic entry (`next` / auto / cursor rule); a view the user
+  // navigated to explicitly (`go` / `back`) enters when eligible — explicit intent overrides `when`.
+  const explicit = cause === 'go' || cause === 'back'
+  if (
+    cursor !== undefined &&
+    (explicit ? eligible(b.env.def, b.state, cursor) : ready(b.env.def, b.state, cursor))
+  )
+    enterStep(b, cursor, from)
   emit(b, { type: 'transition.committed', txId, from, to: first, cause, direction })
   schedule(b)
   onNavIdle(b)

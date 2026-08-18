@@ -11,16 +11,23 @@ import type {
   FlowOutput,
   FlowStep,
   Issue,
+  Progress,
   SerializedError,
 } from '../../src/authoring/types'
+import { createMirror } from '../../src/mirror/create-mirror'
+import { createMirrorSource, type MirrorSource } from '../../src/mirror/source'
+import type { Transport } from '../../src/mirror/transport'
 import {
+  type AnyProjection,
   type ChildSummary,
   type ClientState,
   type ClientStateFallback,
+  type ClientStepError,
   defineProjection,
+  type Projection,
   type ProjectionOutput,
 } from '../../src/projection/define-projection'
-import type { Wizard } from '../../src/wizard/create-wizard'
+import type { Snapshot, Wizard } from '../../src/wizard/create-wizard'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Case 12 — the projected TYPE reflects exactly what is exposed
@@ -101,9 +108,11 @@ describe('case 12: ClientState<F, expose>', () => {
     expectTypeOf<keyof ClientCheckout['steps']['reserve']>().toEqualTypeOf<
       'id' | 'kind' | 'status' | 'phase' | 'attempt' | 'error'
     >()
+    // `reserve` has no `mapError`: its projected error is a bare `SerializedError` (`data?: never`).
     expectTypeOf<ClientCheckout['steps']['reserve']['error']>().toEqualTypeOf<
-      SerializedError | undefined
+      ClientStepError<never> | undefined
     >()
+    expectTypeOf<ClientStepError<never>>().toMatchTypeOf<SerializedError>()
     expectTypeOf<ClientCheckout['steps']['reserve']['id']>().toEqualTypeOf<'reserve'>()
     expectTypeOf<ClientCheckout['steps']['reserve']['kind']>().toEqualTypeOf<'task'>()
     expectTypeOf<keyof ClientCheckout['steps']['receipt']>().toEqualTypeOf<
@@ -172,6 +181,89 @@ describe('case 12: ClientState<F, expose>', () => {
     expectTypeOf(twinProjection.flow).toEqualTypeOf<typeof twin>()
   })
 })
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.2 (§9.6 / §9.7 / §9.8) — `progress: true`, `error: true` carries `data: ErrorOf`,
+// `select` projections are typed by their mapper and exclusive with `expose`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const m = defineFlow({ name: 'mapped', context: z.object({ id: z.string() }) })
+const mapped = m.steps({
+  post: m.task(async () => ({ ref: 'r' }), {
+    mapError: (error) => ({ code: error instanceof Error ? 'DOWN' : 'OTHER' }) as const,
+    next: 'done',
+  }),
+  done: m.final(),
+})
+describe('v0.2 projections', () => {
+  it('`progress: true` adds a required `progress: Progress`; absent otherwise', () => {
+    const withProgress = defineProjection(checkout, { expose: { progress: true } })
+    expectTypeOf<ProjectionOutput<typeof withProgress>['progress']>().toEqualTypeOf<Progress>()
+    expectTypeOf<keyof ProjectionOutput<typeof withProgress>>().toEqualTypeOf<
+      'instanceId' | 'epoch' | 'seq' | 'status' | 'current' | 'context' | 'steps' | 'progress'
+    >()
+    // @ts-expect-error `progress` is a boolean
+    defineProjection(checkout, { expose: { progress: 'yes' } })
+  })
+  it('`error: true` exposes `{ name, message, code?, data?: ErrorOf }`', () => {
+    const p = defineProjection(mapped, { expose: { steps: { post: { error: true } } } })
+    expectTypeOf<ProjectionOutput<typeof p>['steps']['post']['error']>().toEqualTypeOf<
+      ClientStepError<{ readonly code: 'DOWN' | 'OTHER' }> | undefined
+    >()
+    expectTypeOf<
+      NonNullable<ProjectionOutput<typeof p>['steps']['post']['error']>['data']
+    >().toEqualTypeOf<{ readonly code: 'DOWN' | 'OTHER' } | undefined>()
+  })
+  it('`select` projections are Projection<F, T> with T = the mapper return; state is the typed wizard state', () => {
+    const summary = defineProjection(checkout, {
+      select: (state) => {
+        expectTypeOf(state).toEqualTypeOf<Snapshot<typeof checkout>['state']>()
+        expectTypeOf(state.steps.reserve.output).toEqualTypeOf<
+          { reservationId: string } | undefined
+        >()
+        return { at: state.current, total: state.context.total, done: state.status === 'done' }
+      },
+    })
+    expectTypeOf(summary).toEqualTypeOf<
+      Projection<typeof checkout, { at: 'shipping' | null; total: number; done: boolean }>
+    >()
+    expectTypeOf<ProjectionOutput<typeof summary>>().toEqualTypeOf<{
+      at: 'shipping' | null
+      total: number
+      done: boolean
+    }>()
+    expectTypeOf(summary.flow).toEqualTypeOf<typeof checkout>()
+    expectTypeOf(summary).toMatchTypeOf<AnyProjection>()
+    // The Wizard / MirrorSource / Mirror carry T.
+    const wizard = {} as Wizard<typeof checkout>
+    expectTypeOf(wizard.project(summary)).toEqualTypeOf<{
+      at: 'shipping' | null
+      total: number
+      done: boolean
+    }>()
+    expectTypeOf(wizard.project(checkoutClient)).toEqualTypeOf<ClientCheckout>()
+    expectTypeOf(createMirrorSource(wizard, summary)).toEqualTypeOf<
+      MirrorSource<{ at: 'shipping' | null; total: number; done: boolean }>
+    >()
+    const transport = {} as Transport<{ at: 'shipping' | null; total: number; done: boolean }>
+    const mirror = createMirror<typeof summary>({ transport })
+    expectTypeOf(mirror.getSnapshot()).toEqualTypeOf<{
+      at: 'shipping' | null
+      total: number
+      done: boolean
+    } | null>()
+    // The mirror sugar is still typed by the projection's flow.
+    mirror.go('shipping')
+    // @ts-expect-error not a view of the flow
+    mirror.go('reserve')
+  })
+  it('`expose` and `select` are mutually exclusive', () => {
+    // @ts-expect-error give one of `expose` / `select`, not both
+    defineProjection(checkout, { expose: {}, select: () => 1 })
+    // @ts-expect-error give one of `expose` / `select`
+    defineProjection(checkout, {})
+  })
+})
+
 export const badExpose = defineProjection(checkout, {
   // @ts-expect-error unknown step id in `expose.steps`
   expose: { steps: { typo: { input: true } } },

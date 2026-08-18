@@ -4,20 +4,28 @@
  * `Provider` accepts the matching source only; `useSelector` reads the exposed state;
  * `useActions` results follow the source (NavResult vs CommandResult).
  */
-import type {
-  ClientState,
-  CommandResult,
-  Mirror,
-  NavResult,
-  SendResult,
-  Snapshot,
-  StepState,
-  Wizard,
+import {
+  type CommandResult,
+  defineFlow,
+  defineProjection,
+  type Mirror,
+  type MirrorChild,
+  type NavResult,
+  type ProjectionOutput,
+  type SendResult,
+  type Snapshot,
+  type StepState,
+  type StepStatus,
+  type Wizard,
 } from '@openwizard/core'
 import { describe, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import { bindReact } from '../src/index'
 import type {
   Actions,
+  ChildBinding,
+  ChildBindingId,
+  ChildStateOf,
   ProviderProps,
   ReactBinding,
   SourceOf,
@@ -28,7 +36,7 @@ import type { checkout, checkoutClient } from './fixture'
 
 declare const wizard: Wizard<typeof checkout>
 declare const mirror: Mirror<typeof checkoutClient>
-type Client = ClientState<typeof checkout, (typeof checkoutClient)['expose']>
+type Client = ProjectionOutput<typeof checkoutClient>
 
 describe('bindReact<typeof projection>() — Mirror source', () => {
   const ow = bindReact<typeof checkoutClient>()
@@ -158,5 +166,125 @@ describe('bindReact<typeof flow>() — Wizard source', () => {
     ;<ow.Provider source={wizard}>{null}</ow.Provider>
     // @ts-expect-error a Mirror is not a Wizard
     ;<ow.Provider source={mirror} />
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.2 — `useChild(step)`: hooks bound to a nested flow's slice; `skip` / `invalidate` actions
+// ─────────────────────────────────────────────────────────────────────────────
+
+const g = defineFlow({ name: 'grandchild', context: z.object({ sku: z.string() }) })
+const grandchild = g.steps({
+  pick: g.view({ input: z.object({ bin: z.string() }), next: 'done' }),
+  done: g.final(),
+})
+const f = defineFlow({ name: 'fulfilment', context: z.object({ orderId: z.string() }) })
+const fulfilment = f.steps({
+  confirm: f.view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
+  pack: f.flow(grandchild, { context: () => ({ sku: 's' }), next: 'done' }),
+  done: f.final({ output: () => ({ tracking: 't' }) }),
+})
+const o = defineFlow({ name: 'order', context: z.object({ cartId: z.string() }) })
+const order = o.steps({
+  pay: o.task(async () => ({ chargeId: 'c' }), { next: 'fulfil' }),
+  fulfil: o.flow(fulfilment, {
+    context: ({ context }) => ({ orderId: context.cartId }),
+    next: 'ship',
+  }),
+  ship: o.flow(fulfilment, {
+    context: ({ context }) => ({ orderId: context.cartId }),
+    next: 'end',
+  }),
+  end: o.final(),
+})
+const orderClient = defineProjection(order, {
+  expose: {
+    steps: {
+      // `fulfil` exposes a nested projected child state; `ship` only the summary.
+      fulfil: {
+        child: {
+          steps: {
+            confirm: { input: true },
+            pack: { child: { steps: { pick: { input: true } } } },
+          },
+          context: ['orderId'],
+        },
+      },
+      ship: { child: true },
+    },
+  },
+})
+
+describe('useChild over a projection (Mirror source)', () => {
+  const ow = bindReact<typeof orderClient>()
+  it('accepts only flow steps exposed with a nested child spec; hooks are typed by the child slice', () => {
+    expectTypeOf<ChildBindingId<typeof orderClient>>().toEqualTypeOf<'fulfil'>()
+    const child = ow.useChild('fulfil')
+    expectTypeOf(child).toEqualTypeOf<
+      ChildBinding<typeof fulfilment, ChildStateOf<typeof orderClient, 'fulfil'>, 'mirror'>
+    >()
+    // @ts-expect-error `ship` exposes the summary only (`child: true`), not a slice with steps
+    ow.useChild('ship')
+    // @ts-expect-error `pay` is not a flow step
+    ow.useChild('pay')
+    // @ts-expect-error unknown step
+    ow.useChild('typo')
+    const snap = child.useSnapshot()
+    expectTypeOf(snap).toEqualTypeOf<ChildStateOf<typeof orderClient, 'fulfil'> | null>()
+    if (snap !== null) {
+      expectTypeOf(snap.context).toEqualTypeOf<{ orderId: string }>()
+      expectTypeOf(snap.current).toEqualTypeOf<'confirm' | null>()
+      expectTypeOf(snap.steps.confirm.input).toEqualTypeOf<{ ok?: boolean } | undefined>()
+    }
+    const confirm = child.useStep('confirm')
+    expectTypeOf(confirm.input).toEqualTypeOf<{ ok?: boolean } | undefined>()
+    expectTypeOf(confirm.status).toEqualTypeOf<StepStatus>()
+    expectTypeOf(confirm.setInput({ ok: true })).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(confirm.next()).toEqualTypeOf<Promise<CommandResult>>()
+    // @ts-expect-error the child's draft type
+    confirm.setInput({ ok: 'yes' })
+    // @ts-expect-error `useStep` takes a step of the CHILD flow
+    child.useStep('pay')
+    // @ts-expect-error `pack` (a flow step) has no `setInput`
+    child.useStep('pack').setInput({})
+    // Actions are the scoped MirrorChild sugar of the child flow.
+    const actions = child.useActions()
+    expectTypeOf(actions).toEqualTypeOf<MirrorChild<typeof fulfilment>>()
+    expectTypeOf(actions.go('confirm')).toEqualTypeOf<Promise<CommandResult>>()
+    // @ts-expect-error not a view of the child
+    actions.go('pay')
+    // Nested: the grandchild through `pack`.
+    const grand = child.useChild('pack')
+    expectTypeOf(grand.useStep('pick').input).toEqualTypeOf<{ bin?: string } | undefined>()
+    expectTypeOf(grand.useActions()).toEqualTypeOf<MirrorChild<typeof grandchild>>()
+    // @ts-expect-error `confirm` is not a flow step of `fulfilment`
+    child.useChild('confirm')
+  })
+  it('root actions gained skip / invalidate', () => {
+    const actions = ow.useActions()
+    expectTypeOf(actions.skip('pay', 'ops')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(actions.invalidate('pay', { cascade: false })).toEqualTypeOf<
+      Promise<CommandResult>
+    >()
+    // @ts-expect-error `skip('typo')`
+    actions.skip('typo')
+  })
+})
+
+describe('useChild over a flow (Wizard source)', () => {
+  const ow = bindReact<typeof order>()
+  it('every flow step is a child binding; the slice is the child snapshot state; nesting reads children', () => {
+    expectTypeOf<ChildBindingId<typeof order>>().toEqualTypeOf<'fulfil' | 'ship'>()
+    const child = ow.useChild('ship')
+    expectTypeOf(child.useSnapshot()).toEqualTypeOf<Snapshot<typeof fulfilment>['state'] | null>()
+    const confirm = child.useStep('confirm')
+    expectTypeOf(confirm.status).toEqualTypeOf<StepState<typeof fulfilment, 'confirm'>['status']>()
+    expectTypeOf(confirm.output).toEqualTypeOf<{ ok: boolean } | undefined>()
+    expectTypeOf(confirm.setInput({ ok: false })).toEqualTypeOf<Promise<CommandResult>>()
+    const grand = child.useChild('pack')
+    expectTypeOf(grand.useSnapshot()).toEqualTypeOf<Snapshot<typeof grandchild>['state'] | null>()
+    expectTypeOf(grand.useStep('pick').input).toEqualTypeOf<{ bin?: string } | undefined>()
+    // @ts-expect-error `pay` is not a flow step
+    ow.useChild('pay')
   })
 })

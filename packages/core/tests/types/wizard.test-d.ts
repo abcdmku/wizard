@@ -8,7 +8,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
 import { defineFlow } from '../../src/authoring/define-flow'
-import type { AbortSignalLike, Ctx, Issue } from '../../src/authoring/types'
+import type { AbortSignalLike, Ctx, Issue, Progress } from '../../src/authoring/types'
 import type { WizardErrorCode } from '../../src/errors'
 import type { Command as MachineCommand } from '../../src/machine/commands'
 import type { DomainEvent } from '../../src/machine/events'
@@ -20,10 +20,12 @@ import {
   createWizardAsync,
   type Explanation,
   isChildEvent,
+  type ResumeOptions,
   type RootWizardEvent,
   resumeWizard,
   resumeWizardAsync,
   type Snapshot,
+  type SnapshotMigration,
   type StepState,
   type Wizard,
   type WizardEvent,
@@ -184,6 +186,37 @@ describe('case 13: Wizard<F> method typing', () => {
     // @ts-expect-error `explain('typo')`
     wizard.explain('typo')
   })
+  it('v0.2: skip / invalidate take step ids; progress / readyViews are typed selectors; attach hands out the typed send', () => {
+    expectTypeOf(wizard.skip('reserve')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(wizard.skip('shipping', 'not needed')).toEqualTypeOf<Promise<CommandResult>>()
+    // @ts-expect-error `skip('typo')`
+    wizard.skip('typo')
+    expectTypeOf(wizard.invalidate('reserve')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(wizard.invalidate('reserve', { cascade: false })).toEqualTypeOf<
+      Promise<CommandResult>
+    >()
+    // @ts-expect-error `invalidate('typo')`
+    wizard.invalidate('typo')
+    // @ts-expect-error unknown invalidate option
+    wizard.invalidate('reserve', { deep: true })
+    expectTypeOf(wizard.progress()).toEqualTypeOf<Progress>()
+    expectTypeOf(wizard.progress()).toEqualTypeOf<{
+      readonly done: number
+      readonly total: number
+      readonly ratio: number
+    }>()
+    expectTypeOf(wizard.readyViews()).toEqualTypeOf<readonly 'shipping'[]>()
+    const detach = wizard.attach((send) => {
+      expectTypeOf(send).toEqualTypeOf<Wizard<CheckoutF>['send']>()
+      void send('payment.captured', {})
+      // @ts-expect-error the attached send is typed by the flow
+      void send('payment.typo', {})
+      return () => {}
+    })
+    expectTypeOf(detach).toEqualTypeOf<() => void>()
+    // @ts-expect-error a source must return its teardown
+    wizard.attach(() => {})
+  })
 })
 
 describe('typed Snapshot / StepState', () => {
@@ -261,6 +294,15 @@ describe('typed WizardEvent / Command', () => {
     cmd({ type: 'send', event: 'payment.captured', payload: 42 })
     // @ts-expect-error `sendRejected` is internal: not a wire command
     cmd({ type: 'sendRejected', event: 'payment.captured', issues: [] })
+    // v0.2: `skip` / `invalidate` take any step id of the flow.
+    cmd({ type: 'skip', step: 'reserve', reason: 'ops' })
+    cmd({ type: 'invalidate', step: 'shipping', cascade: false })
+    // @ts-expect-error `skip.step` must be a step id
+    cmd({ type: 'skip', step: 'typo' })
+    // @ts-expect-error `invalidate.step` must be a step id
+    cmd({ type: 'invalidate', step: 'typo' })
+    // @ts-expect-error `cascade` is a boolean
+    cmd({ type: 'invalidate', step: 'reserve', cascade: 'yes' })
   })
   it('setInput is correlated: the patch is the DraftOf of THAT view', () => {
     cmd({ type: 'setInput', step: 'shipping', patch: { address: 'x', express: true } })
@@ -344,6 +386,7 @@ describe('createWizard / resumeWizard options', () => {
       | 'context'
       | 'deps'
       | 'instanceId'
+      | 'correlationId'
       | 'store'
       | 'key'
       | 'autoSave'
@@ -359,5 +402,22 @@ describe('createWizard / resumeWizard options', () => {
     expectTypeOf<Parameters<NonNullable<WizardOptions<CheckoutF>['redact']>>[0]>().toEqualTypeOf<
       Snapshot<CheckoutF>
     >()
+  })
+  it('v0.2: createWizard takes correlationId; resume takes migrate (and no correlationId)', () => {
+    createWizard(fulfilment, { context: { orderId: 'o' }, correlationId: 'order-1' })
+    resumeWizard(fulfilment, {} as unknown, {
+      migrate: (snapshot, from) => {
+        expectTypeOf(snapshot).toEqualTypeOf<unknown>()
+        expectTypeOf(from).toEqualTypeOf<{ readonly name: string; readonly version: number }>()
+        return snapshot
+      },
+    })
+    expectTypeOf<ResumeOptions<CheckoutF>['migrate']>().toEqualTypeOf<
+      SnapshotMigration | undefined
+    >()
+    // @ts-expect-error the correlation id comes from the snapshot on resume
+    resumeWizard(fulfilment, {} as unknown, { correlationId: 'x' })
+    // @ts-expect-error `migrate` is a resume-only option
+    createWizard(fulfilment, { context: { orderId: 'o' }, migrate: (s: unknown) => s })
   })
 })

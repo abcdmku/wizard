@@ -74,7 +74,13 @@ export interface HookArgs {
 
 export type Hook<R = unknown> = (args: HookArgs) => MaybePromise<R>
 
-/** Return contract for `wait.on[event]` handlers. */
+/** Return contract for flow-level `on[event]` handlers (v0.2): may cancel the flow. */
+export type FlowOnHandlerResult = void | undefined | { readonly cancel?: string }
+
+/**
+ * Return contract for step-level `on[event]` handlers. Since v0.2 any kind may declare `on`:
+ * `keep`/`done`/`fail` are wait-only, `next` is wait + view, other kinds return void.
+ */
 export type OnHandlerResult =
   | void
   | undefined
@@ -114,7 +120,15 @@ export interface CompiledStep {
     readonly childDeps?: Hook<unknown>
     readonly childOutput?: Hook<unknown>
     readonly finalOutput?: Hook<unknown>
+    /** v0.2: skip predicate evaluated when the step becomes ready (false → `step.skipped { reason: 'when' }`). */
+    readonly when?: Hook<boolean>
+    /** v0.2: maps a task failure to a JSON-safe value stored as `StepError.data` (`args.error` = raw error). */
+    readonly mapError?: Hook<unknown>
+    /** v0.2: custom idempotency key for an idempotent task (`args` = run args). */
+    readonly idempotencyKey?: Hook<string>
   }
+  /** v0.2: an idempotent task is re-run (same key) after a crash instead of failing `interrupted`. */
+  readonly idempotent?: boolean
   readonly retry?: RetryPolicy
   /** Task timeout (ms). */
   readonly timeoutMs?: number
@@ -134,6 +148,10 @@ export interface CompiledFlow {
   /** Optional dependency-injection boundary (usually `boundary.trusted<D>()`). */
   readonly deps?: RuntimeBoundary
   readonly events: Readonly<Record<string, RuntimeBoundary>>
+  /** v0.2: flow-level event handlers, run after step-level ones in the same batch. */
+  readonly on?: Readonly<Record<string, Hook<FlowOnHandlerResult>>>
+  /** v0.2: per-event correlation extractors; a mismatch with the wizard's `correlationId` drops the event. */
+  readonly correlate?: Readonly<Record<string, (payload: unknown) => string | undefined>>
   readonly steps: Readonly<Record<string, CompiledStep>>
   /** Declaration order of step ids. */
   readonly order: readonly string[]

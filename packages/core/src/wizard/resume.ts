@@ -23,6 +23,10 @@
  * every boundary of the whole tree first and only then instantiates (still
  * atomic; the boundary jobs are enumerated by a dry run of the same preparation).
  *
+ * v0.2 (§9.5): `opts.migrate(snapshot, from)` runs first when the snapshot names this
+ * flow at a different version; its result goes through the same validation (a
+ * thenable result is a reason on the sync door, awaited on the async one).
+ *
  * @internal Public users see the typed `resumeWizard` / `resumeWizardAsync`.
  */
 
@@ -34,6 +38,7 @@ import {
   type ResumePlan,
   type ResumeWizardRuntimeOptions,
   type RuntimeConfig,
+  type SnapshotMigration,
   toConfig,
   type WizardRuntime,
 } from './runtime'
@@ -53,12 +58,13 @@ export type BoundaryParser = (
 
 export function resumeWizardRuntime(
   def: CompiledFlow,
-  input: unknown,
+  rawInput: unknown,
   opts: ResumeWizardRuntimeOptions,
 ): WizardRuntime {
   const cfg = toConfig(opts, restoreChild)
   const reasons: string[] = []
-  const plan = prepareResume(def, input, '', reasons, parseBoundarySync)
+  const input = migrateSync(def, rawInput, opts.migrate, reasons)
+  const plan = reasons.length > 0 ? undefined : prepareResume(def, input, '', reasons)
   return instantiate(def, incompatibleUnless(def, plan, reasons), cfg, [], [], true)
 }
 
@@ -68,10 +74,13 @@ export function resumeWizardRuntime(
  */
 export async function resumeWizardRuntimeAsync(
   def: CompiledFlow,
-  input: unknown,
+  rawInput: unknown,
   opts: ResumeWizardRuntimeOptions,
 ): Promise<WizardRuntime> {
   const cfg = toConfig(opts, restoreChild)
+  const migrated: string[] = []
+  const input = await migrateAsync(def, rawInput, opts.migrate, migrated)
+  if (migrated.length > 0) incompatibleUnless(def, undefined, migrated)
   const jobs: Array<{
     readonly at: string
     readonly boundary: RuntimeBoundary
@@ -108,6 +117,64 @@ export async function resumeWizardRuntimeAsync(
 }
 
 type Settled = { readonly result: unknown } | { readonly threw: unknown }
+
+/**
+ * v0.2 (§9.5): the snapshot's flow identity, when it has one. `migrate` runs only for a
+ * same-name, different-version snapshot; anything else is left for `validateSnapshot` to judge.
+ */
+function migrationNeeded(
+  def: CompiledFlow,
+  input: unknown,
+): { readonly name: string; readonly version: number } | undefined {
+  if (typeof input !== 'object' || input === null) return undefined
+  const flow = (input as { readonly flow?: unknown }).flow
+  if (typeof flow !== 'object' || flow === null) return undefined
+  const { name, version } = flow as { readonly name?: unknown; readonly version?: unknown }
+  if (typeof name !== 'string' || typeof version !== 'number') return undefined
+  return name === def.name && version !== def.version ? { name, version } : undefined
+}
+
+/** Run `migrate` synchronously; a thenable result or a throw is a reason (async → use the async door). */
+function migrateSync(
+  def: CompiledFlow,
+  input: unknown,
+  migrate: SnapshotMigration | undefined,
+  reasons: string[],
+): unknown {
+  const from = migrationNeeded(def, input)
+  if (from === undefined || migrate === undefined) return input
+  let out: unknown
+  try {
+    out = migrate(input, from)
+  } catch (error) {
+    reasons.push(`migrate: threw (${describeError(error)})`)
+    return input
+  }
+  if (isThenableLike(out)) {
+    reasons.push(
+      `migrate: returned a promise for ${from.name}@${from.version} (use resumeWizardAsync)`,
+    )
+    return input
+  }
+  return out
+}
+
+/** Await `migrate` (sync or async); a throw / rejection is a reason. */
+async function migrateAsync(
+  def: CompiledFlow,
+  input: unknown,
+  migrate: SnapshotMigration | undefined,
+  reasons: string[],
+): Promise<unknown> {
+  const from = migrationNeeded(def, input)
+  if (from === undefined || migrate === undefined) return input
+  try {
+    return await migrate(input, from)
+  } catch (error) {
+    reasons.push(`migrate: threw (${describeError(error)})`)
+    return input
+  }
+}
 
 function incompatibleUnless(
   def: CompiledFlow,
@@ -221,12 +288,15 @@ export function prepareResume(
     const stepDef = def.steps[id]
     if (rec === undefined || stepDef === undefined) continue
     let next = rec
-    if (rec.output !== undefined) {
-      const boundary = stepDef.kind === 'view' ? stepDef.input : stepDef.output
-      if (boundary !== undefined) {
-        const parsed = run(`steps.${id}.output`, boundary, rec.output)
-        if (parsed !== undefined) next = { ...rec, output: parsed.value }
-      }
+    const boundary = stepDef.kind === 'view' ? stepDef.input : stepDef.output
+    if (rec.output !== undefined && boundary !== undefined) {
+      const parsed = run(`steps.${id}.output`, boundary, rec.output)
+      if (parsed !== undefined) next = { ...next, output: parsed.value }
+    }
+    // v0.2: the output moved aside by `invalidate` is revived by the same boundary.
+    if (rec.previousOutput !== undefined && boundary !== undefined) {
+      const parsed = run(`steps.${id}.previousOutput`, boundary, rec.previousOutput)
+      if (parsed !== undefined) next = { ...next, previousOutput: parsed.value }
     }
     // Missing child snapshot for a live flow step: forget the summary so `plan(flow.resumed)`
     // re-creates the child through `childContext` (plan §8.8: "missing → child re-created").

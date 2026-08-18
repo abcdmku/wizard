@@ -32,22 +32,34 @@ import {
 } from './saga'
 import {
   cancelAllActive,
+  cancelStep,
   completeFinal,
+  currentIdempotencyKey,
   enterStep,
   failStep,
-  idempotencyKey,
+  hasOnHandlers,
   retryTimerId,
   schedule,
+  skipStep,
   startKind,
+  whenPending,
 } from './scheduler'
-import { isRecoverableFailure, isTerminal, ready, runInFlight, sameEntry } from './selectors'
-import type { WizardState, WizardStatus } from './state'
+import {
+  eligible,
+  isRecoverableFailure,
+  isTerminal,
+  ready,
+  runInFlight,
+  sameEntry,
+} from './selectors'
+import type { SerializedError, WizardState, WizardStatus } from './state'
 import type { MachineEnv } from './types'
 import { normalizeTargets } from './util'
 import {
   drainInbox,
   expireEntry,
   expireInbox,
+  onHandlerError,
   onHandlerResult,
   onWaitTimeout,
   routeEvent,
@@ -106,7 +118,12 @@ function gate(b: Batch, cmd: Command): RejectCode | undefined {
     return 'FLOW_COMPENSATING'
   }
   if (isRecoverableFailure(s)) {
-    return t === 'retry' || t === 'cancel' || t === 'compensate' || t === 'child'
+    // v0.2: `invalidate` (§10.3) is a second recovery path — invalidating the failed step un-halts the flow.
+    return t === 'retry' ||
+      t === 'cancel' ||
+      t === 'compensate' ||
+      t === 'child' ||
+      t === 'invalidate'
       ? undefined
       : 'FLOW_TERMINAL'
   }
@@ -178,6 +195,12 @@ function decideCommand(b: Batch, cmd: Command): void {
     case 'reset':
       cmdReset(b)
       break
+    case 'skip':
+      cmdSkip(b, cmd)
+      break
+    case 'invalidate':
+      cmdInvalidate(b, cmd)
+      break
     case 'child':
       cmdChild(b, cmd)
       break
@@ -225,7 +248,8 @@ function cmdRun(b: Batch, cmd: Extract<Command, { type: 'run' }>): void {
     return
   }
   if (!ready(b.env.def, b.state, cmd.step)) {
-    reject(b, cmd, 'NOT_ACTIVE', 'not-ready')
+    const pending = eligible(b.env.def, b.state, cmd.step) && whenPending(b, cmd.step)
+    reject(b, cmd, 'NOT_ACTIVE', pending ? 'when-pending' : 'not-ready')
     return
   }
   enterStep(b, cmd.step, null)
@@ -251,8 +275,98 @@ function cmdRetry(b: Batch, cmd: Extract<Command, { type: 'retry' }>): void {
     step: cmd.step,
     attempt: 1,
     runId: r.runId,
-    idempotencyKey: idempotencyKey(b, cmd.step, r.runId),
+    idempotencyKey: currentIdempotencyKey(b, cmd.step, r.runId),
   })
+}
+
+/**
+ * v0.2 (§10.2): `skip{step, reason?}` — a ready-or-active non-final step is skipped explicitly
+ * (`step.skipped { reason: 'command' }`); an active step is cancelled first (a running task is
+ * aborted, a wait's timers cleared, a child flow cancelled). The current view may be skipped
+ * (it leaves without validation or `exit`) unless a transition is in flight from it.
+ */
+function cmdSkip(b: Batch, cmd: Extract<Command, { type: 'skip' }>): void {
+  const def = stepDef(b, cmd.step)
+  const r = rec(b, cmd.step)
+  if (def === undefined || r === undefined) {
+    reject(b, cmd, 'UNKNOWN_STEP', 'unknown-step')
+    return
+  }
+  if (def.kind === 'final') {
+    reject(b, cmd, 'INVALID_COMMAND', 'final-step')
+    return
+  }
+  if (r.status === 'active') {
+    if (b.state.nav.phase !== 'idle' && b.state.nav.from === cmd.step) {
+      reject(b, cmd, 'NAV_BUSY', 'nav-busy')
+      return
+    }
+    // A view just leaves (no `exit`, no validation); every other kind is cancelled first
+    // (the interpreter aborts a running task on `step.cancelled`).
+    if (def.kind !== 'view') cancelStep(b, cmd.step, cmd.reason ?? 'skip')
+  } else if (!eligible(b.env.def, b.state, cmd.step)) {
+    reject(b, cmd, 'NOT_ACTIVE', r.pendingActivation ? 'not-ready' : `not-skippable:${r.status}`)
+    return
+  }
+  skipStep(b, cmd.step, 'command')
+}
+
+const INVALIDATABLE: ReadonlySet<string> = new Set(['done', 'failed', 'skipped'])
+
+/**
+ * v0.2 (§10.3): `invalidate{step, cascade = true}` — a done/failed/skipped step returns to idle
+ * (`step.invalidated { cause: 'command' }`); with `cascade`, every transitive `dependsOn`
+ * dependent that is done/failed/skipped follows (`cause: 'cascade'`), running dependents are
+ * cancelled first. Never automatic; active steps (the current view included) are rejected.
+ */
+function cmdInvalidate(b: Batch, cmd: Extract<Command, { type: 'invalidate' }>): void {
+  const def = stepDef(b, cmd.step)
+  const r = rec(b, cmd.step)
+  if (def === undefined || r === undefined) {
+    reject(b, cmd, 'UNKNOWN_STEP', 'unknown-step')
+    return
+  }
+  if (r.status === 'active') {
+    reject(b, cmd, 'INVALID_COMMAND', cmd.step === b.state.current ? 'current-view' : 'active')
+    return
+  }
+  if (!INVALIDATABLE.has(r.status)) {
+    reject(b, cmd, 'INVALID_COMMAND', `not-invalidatable:${r.status}`)
+    return
+  }
+  const cascade = cmd.cascade !== false
+  emit(b, { type: 'step.invalidated', step: cmd.step, cascade, cause: 'command' })
+  if (cascade) {
+    for (const id of dependents(b, cmd.step)) {
+      const dep = rec(b, id)
+      if (dep === undefined) continue
+      if (dep.status === 'active') cancelStep(b, id, 'invalidated')
+      else if (!INVALIDATABLE.has(dep.status)) continue
+      emit(b, { type: 'step.invalidated', step: id, cascade: true, cause: 'cascade' })
+    }
+  }
+  schedule(b)
+}
+
+/** Transitive `dependsOn` dependents of `step`, in declaration order (excluding `step`). */
+function dependents(b: Batch, step: string): readonly string[] {
+  const def = b.env.def
+  const found = new Set<string>([step])
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const id of def.order) {
+      if (found.has(id)) continue
+      const deps = def.steps[id]?.dependsOn
+      const list = deps === undefined ? [] : 'all' in deps ? deps.all : deps.any
+      if (list.some((d) => found.has(d))) {
+        found.add(id)
+        grew = true
+      }
+    }
+  }
+  found.delete(step)
+  return def.order.filter((id) => found.has(id))
 }
 
 function cmdCancel(b: Batch, reason: string | undefined): void {
@@ -365,6 +479,10 @@ function ignore(b: Batch, effectId: string, reason: 'stale' | 'cancelled' | 'unk
 /** Token checks first (§0), then route to the transaction or the step-level handler. */
 function onResult(b: Batch, msg: ResultMsg): void {
   const { token } = msg
+  if (msg.hook === 'flowOn') {
+    onFlowHandlerResult(b, msg)
+    return
+  }
   const r = rec(b, token.step)
   if (r === undefined) {
     ignore(b, msg.effectId, 'unknown-step')
@@ -397,6 +515,28 @@ function onResult(b: Batch, msg: ResultMsg): void {
     ignore(b, msg.effectId, r.status === 'cancelled' ? 'cancelled' : 'stale')
 }
 
+/**
+ * v0.2 (§10.1): flow-level `on[event]` result. `{ cancel: reason }` cancels the flow like the
+ * `cancel` command (compensation policy applies); a throw is recorded as `event.handlerFailed`.
+ * Stale once the flow is idle again (reset), terminal or compensating.
+ */
+function onFlowHandlerResult(b: Batch, msg: ResultMsg): void {
+  const s = b.state
+  if (s.status === 'idle' || isTerminal(s) || s.status === 'compensating') {
+    ignore(b, msg.effectId, 'stale')
+    return
+  }
+  const event = typeof msg.extra?.event === 'string' ? msg.extra.event : ''
+  if (msg.type === 'res.err') {
+    emit(b, { type: 'event.handlerFailed', event, error: msg.error })
+    return
+  }
+  const value = msg.value
+  const cancel =
+    typeof value === 'object' && value !== null && 'cancel' in value ? value.cancel : undefined
+  if (typeof cancel === 'string') cmdCancel(b, cancel)
+}
+
 function onStepResult(b: Batch, msg: ResultMsg): boolean {
   const step = msg.token.step
   const r = rec(b, step)
@@ -404,14 +544,10 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
   if (r === undefined || def === undefined) return false
   const ok = msg.type === 'res.ok'
   const value = ok ? msg.value : undefined
+  const errorKind = !ok && msg.syncViolation === true ? 'sync-violation' : 'hook'
   // A `strict: 'sync'` violation is a programmer error: the step fails as 'sync-violation' (plan §8.1).
   const fail = (kind: 'hook' | 'child') =>
-    failStep(
-      b,
-      step,
-      ok ? { name: 'Error', message: '' } : msg.error,
-      !ok && msg.syncViolation === true ? 'sync-violation' : kind,
-    )
+    failStep(b, step, ok ? { name: 'Error', message: '' } : msg.error, ok ? kind : errorKind)
   switch (msg.hook) {
     case 'enter':
       if (r.status !== 'active' || r.entering !== true) return false
@@ -422,6 +558,38 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
       return true
     case 'run':
       return onRunResult(b, msg)
+    case 'when':
+      // v0.2 (§10.2): only meaningful while the predicate is in flight for a pending activation.
+      if (r.status === 'active' || r.when !== 'pending' || !r.pendingActivation) return false
+      if (!ok) fail('hook')
+      else if (value === false) {
+        emit(b, { type: 'step.whenEvaluated', step, ok: false })
+        skipStep(b, step, 'when')
+      } else {
+        emit(b, { type: 'step.whenEvaluated', step, ok: true })
+        schedule(b)
+      }
+      return true
+    case 'idempotencyKey': {
+      // v0.2 (§10.4): the run starts with the custom key (a non-string value → default key).
+      if (def.kind !== 'task' || r.status !== 'active' || r.attempt !== 0 || r.entering === true)
+        return false
+      if (!ok) {
+        fail('hook')
+        return true
+      }
+      const key = typeof value === 'string' && value.length > 0 ? value : undefined
+      emit(b, {
+        type: 'step.runStarted',
+        step,
+        attempt: 1,
+        runId: r.runId,
+        idempotencyKey: key ?? currentIdempotencyKey(b, step, r.runId),
+      })
+      return true
+    }
+    case 'mapError':
+      return onMapErrorResult(b, msg)
     case 'next':
       if (def.kind !== 'decision' || r.status !== 'active' || r.entering === true) return false
       if (!ok) fail('hook')
@@ -445,10 +613,11 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
       }
       return true
     case 'on':
-      if (def.kind !== 'wait' || r.status !== 'active' || r.entering === true) return false
+      // v0.2 (§10.1): any kind may handle events; the result contract depends on the kind.
+      if (r.status !== 'active' || r.entering === true) return false
       if (ok)
         onHandlerResult(b, step, value as Parameters<typeof onHandlerResult>[2], msg.extra ?? {})
-      else fail('hook')
+      else onHandlerError(b, step, msg.error, errorKind, msg.extra ?? {})
       return true
     case 'childContext':
       if (def.kind !== 'flow' || r.status !== 'active' || r.entering === true) return false
@@ -515,29 +684,94 @@ function onRunResult(b: Batch, msg: ResultMsg): boolean {
     completeStep(b, step, msg.value)
     return true
   }
-  if (msg.syncViolation === true) {
+  const failure: RunFailure = {
+    error: msg.error,
+    timedOut: msg.timedOut === true,
+    syncViolation: msg.syncViolation === true,
+  }
+  if (def.hooks.mapError !== undefined) {
+    // v0.2 (§10.7): map the failure first; `onMapErrorResult` records it with `data`.
+    emit(b, {
+      type: 'step.mapErrorStarted',
+      step,
+      attempt: r.attempt,
+      error: msg.error,
+      ...(failure.timedOut ? { timedOut: true } : {}),
+      ...(failure.syncViolation ? { syncViolation: true } : {}),
+    })
+    return true
+  }
+  recordRunFailure(b, step, failure, undefined)
+  return true
+}
+
+interface RunFailure {
+  readonly error: SerializedError
+  readonly timedOut: boolean
+  readonly syncViolation: boolean
+}
+
+/** `res.*(mapError)`: the failure it was mapping is echoed in `extra`; a throwing mapper yields no `data`. */
+function onMapErrorResult(b: Batch, msg: ResultMsg): boolean {
+  const step = msg.token.step
+  const r = rec(b, step)
+  const def = stepDef(b, step)
+  if (r === undefined || def === undefined || def.kind !== 'task' || !runInFlight(r)) return false
+  const extra = msg.extra ?? {}
+  const error = isSerializedError(extra.error)
+    ? extra.error
+    : { name: 'Error', message: 'unknown failure' }
+  const failure: RunFailure = {
+    error,
+    timedOut: extra.timedOut === true,
+    syncViolation: extra.syncViolation === true,
+  }
+  recordRunFailure(b, step, failure, msg.type === 'res.ok' ? msg.value : undefined)
+  return true
+}
+
+function isSerializedError(value: unknown): value is SerializedError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    'message' in value &&
+    typeof value.message === 'string'
+  )
+}
+
+/** `step.runFailed { data? }` then retry (`step.retryScheduled`) or fail for good (§4.1). */
+function recordRunFailure(b: Batch, step: string, failure: RunFailure, data: unknown): void {
+  const r = rec(b, step)
+  const def = stepDef(b, step)
+  if (r === undefined || def === undefined) return
+  const dataField = data !== undefined ? { data } : {}
+  const timedOutField = failure.timedOut ? { timedOut: true } : {}
+  if (failure.syncViolation) {
     // `strict: 'sync'` violation: never retried, fails as 'sync-violation' (plan §8.1).
     emit(b, {
       type: 'step.runFailed',
       step,
       attempt: r.attempt,
-      error: msg.error,
+      error: failure.error,
       willRetry: false,
+      ...dataField,
     })
-    failStep(b, step, msg.error, 'sync-violation')
-    return true
+    failStep(b, step, failure.error, 'sync-violation', data)
+    return
   }
   const policy = def.retry ?? b.env.def.policies.retry
   const allowed = policy?.attempts ?? 0
-  const timedOut = msg.timedOut === true
   if (r.attempt <= allowed) {
     emit(b, {
       type: 'step.runFailed',
       step,
       attempt: r.attempt,
-      error: msg.error,
+      error: failure.error,
       willRetry: true,
-      ...(timedOut ? { timedOut: true } : {}),
+      ...timedOutField,
+      ...dataField,
     })
     const timerId = retryTimerId(step)
     emit(b, {
@@ -547,18 +781,18 @@ function onRunResult(b: Batch, msg: ResultMsg): boolean {
       dueAt: b.env.now() + backoffMs(policy, r.attempt),
       timerId,
     })
-    return true
+    return
   }
   emit(b, {
     type: 'step.runFailed',
     step,
     attempt: r.attempt,
-    error: msg.error,
+    error: failure.error,
     willRetry: false,
-    ...(timedOut ? { timedOut: true } : {}),
+    ...timedOutField,
+    ...dataField,
   })
-  failStep(b, step, msg.error, timedOut ? 'timeout' : 'run')
-  return true
+  failStep(b, step, failure.error, failure.timedOut ? 'timeout' : 'run', data)
 }
 
 const CHILD_TERMINAL: ReadonlySet<WizardStatus> = new Set(['done', 'failed', 'cancelled'])
@@ -622,7 +856,7 @@ function onTimerFired(b: Batch, timerId: string): void {
         step: entry.step,
         attempt: owner.attempt + 1,
         runId: owner.runId,
-        idempotencyKey: idempotencyKey(b, entry.step, owner.runId),
+        idempotencyKey: currentIdempotencyKey(b, entry.step, owner.runId),
       })
       return
     }
@@ -645,13 +879,30 @@ function onTimerFired(b: Batch, timerId: string): void {
   }
 }
 
-/** Resume matrix (plan §8.8). `plan(flow.resumed)` re-arms timers and re-issues in-flight hook calls. */
+/**
+ * Resume matrix (plan §8.8 / §10.4). `plan(flow.resumed)` re-arms timers and re-issues
+ * in-flight hook calls. An interrupted run is re-issued when the task is idempotent
+ * (`step.runStarted { resumed: true }`, same attempt/key), else it fails `interrupted`.
+ */
 function onResume(b: Batch, fromSeq: number): void {
   const s = b.state
   const interrupted = s.active.filter((id) => runInFlight(s.steps[id]))
   emit(b, { type: 'flow.resumed', fromSeq, interrupted })
-  if (s.nav.phase !== 'idle') rejectNav(b, 'resumed', { txId: s.nav.txId ?? b.env.id('tx') })
+  if (s.nav.phase !== 'idle')
+    rejectNav(b, 'resumed', { txId: s.nav.txId ?? b.env.id('tx'), deferIdle: true })
   for (const step of interrupted) {
+    const r = rec(b, step)
+    if (r !== undefined && stepDef(b, step)?.idempotent === true) {
+      emit(b, {
+        type: 'step.runStarted',
+        step,
+        attempt: r.attempt,
+        runId: r.runId,
+        idempotencyKey: currentIdempotencyKey(b, step, r.runId),
+        resumed: true,
+      })
+      continue
+    }
     failStep(
       b,
       step,
@@ -662,7 +913,8 @@ function onResume(b: Batch, fromSeq: number): void {
   expireInbox(b)
   for (const id of [...b.state.active]) {
     const r = rec(b, id)
-    if (r?.kind === 'wait' && r.status === 'active' && r.entering !== true) drainInbox(b, id)
+    if (r?.kind !== 'view' && r?.status === 'active' && r.entering !== true && hasOnHandlers(b, id))
+      drainInbox(b, id)
   }
   if (b.state.status === 'compensating') {
     // Aborted runs can never report after a restart: settle them as interrupted, then continue.

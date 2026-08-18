@@ -40,7 +40,7 @@ import {
 import { buildHookArgs } from '../interpreter/executor'
 import { createInterpreter, type Interpreter } from '../interpreter/interpreter'
 import { getThen } from '../interpreter/thenable'
-import { type Explanation, explain } from '../machine'
+import { type Explanation, explain, type Progress, progress, readyOrCurrentViews } from '../machine'
 import type { Command, Message } from '../machine/commands'
 import type { Effect } from '../machine/effects'
 import type { DomainEvent, TransitionRejectReason } from '../machine/events'
@@ -91,9 +91,31 @@ export interface WizardRuntimeOptions {
   readonly abortGraceMs?: number
   /** Listener exceptions are isolated; default rethrows asynchronously. */
   readonly onListenerError?: (error: unknown) => void
+  /**
+   * v0.2 (§9.1): correlation id of this instance. An event whose `correlate[event](payload)`
+   * differs from it is dropped (`event.dropped { reason: 'correlation' }`). Stored in the state
+   * (persisted with the snapshot); children created by this instance inherit it.
+   */
+  readonly correlationId?: string
 }
 
-export type ResumeWizardRuntimeOptions = Omit<WizardRuntimeOptions, 'context' | 'instanceId'>
+/**
+ * v0.2 (§9.5): rewrite a snapshot persisted by an older flow version. Called only when the
+ * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
+ * incompatible); the result is validated like any snapshot and must carry the flow's version.
+ * May return a promise — then only `resumeWizardAsync` accepts it.
+ */
+export type SnapshotMigration = (
+  snapshot: unknown,
+  from: { readonly name: string; readonly version: number },
+) => unknown
+
+export type ResumeWizardRuntimeOptions = Omit<
+  WizardRuntimeOptions,
+  'context' | 'instanceId' | 'correlationId'
+> & {
+  readonly migrate?: SnapshotMigration
+}
 
 export interface WizardRuntime {
   readonly id: string
@@ -120,6 +142,19 @@ export interface WizardRuntime {
   runReady(): Promise<CommandResult>
   compensate(options?: { readonly from?: string; readonly reason?: string }): Promise<CommandResult>
   reset(): Promise<CommandResult>
+  /** v0.2 (§9.2): skip a ready-or-active non-final step (`step.skipped { reason: 'command' }`). */
+  skip(step: string, reason?: string): Promise<CommandResult>
+  /** v0.2 (§9.3): a done/failed/skipped step returns to idle; `cascade` (default true) follows `dependsOn` dependents. */
+  invalidate(step: string, options?: { readonly cascade?: boolean }): Promise<CommandResult>
+  /**
+   * v0.2 (§9.1): connect an external event source: `source(send)` subscribes and returns a
+   * disposer, which runs on `dispose()` (or when the returned function is called). Throws `DISPOSED`.
+   */
+  attach(source: (send: WizardRuntime['send']) => () => void): () => void
+  /** v0.2 (§9.6): `{ done, total, ratio }` over the non-final steps (skipped counts as done). */
+  progress(): Progress
+  /** v0.2 (§9.6): the current view plus every ready view, in declaration order. */
+  readyViews(): readonly string[]
   /** The one wire door: validates the shape (`decodeCommand`) and never throws for data problems. */
   dispatch(command: Command): Promise<CommandResult>
   getState(): WizardState
@@ -254,6 +289,7 @@ export function createWizardRuntime(def: CompiledFlow, opts: WizardRuntimeOption
     context: opts.context,
     now: cfg.env.clock.now(),
     epoch: 0,
+    ...(opts.correlationId !== undefined ? { correlationId: opts.correlationId } : {}),
   })
   return buildRuntime(def, cfg, { state, path: [], ancestors: [], persist: true })
 }
@@ -337,6 +373,8 @@ export function buildRuntime(
   const txSlots = new Map<string, TxSlot>()
   /** Façade-side async work (boundaries, validate hooks) still pending: settled on dispose. */
   const pendingOps = new Set<() => void>()
+  /** Disposers of `attach()`ed event sources (v0.2): run on `dispose()`. */
+  const attached = new Set<() => void>()
   let disposed = false
   let snapshotCache:
     | { state: WizardState; children: Record<string, Snapshot>; snapshot: Snapshot }
@@ -410,11 +448,14 @@ export function buildRuntime(
   // parent's deps passed through); everything else in the config is shared.
   const childFactory: ChildFactory<WizardRuntime, ResumePlan> = {
     create: (args) => {
+      // A child inherits the parent's correlation id (v0.2 §9.1) — same business entity.
+      const correlationId = interp.getState().correlationId
       const state = cfg.initialState(machineEnv(args.def, args.path, env), {
         instanceId: env.ids.id('wiz'),
         context: args.context,
         now: env.clock.now(),
         epoch: 0,
+        ...(correlationId !== undefined ? { correlationId } : {}),
       })
       return buildRuntime(
         args.def,
@@ -808,6 +849,36 @@ export function buildRuntime(
         }),
       ),
     reset: () => guarded(() => runCommand({ type: 'reset' })),
+    skip: (step, reason) =>
+      guarded(() =>
+        runCommand(reason === undefined ? { type: 'skip', step } : { type: 'skip', step, reason }),
+      ),
+    invalidate: (step, options) =>
+      guarded(() =>
+        runCommand({
+          type: 'invalidate',
+          step,
+          ...(options?.cascade !== undefined ? { cascade: options.cascade } : {}),
+        }),
+      ),
+    attach(source) {
+      if (disposed) throw disposedError()
+      const returned: unknown = source(runtime.send)
+      const detach = typeof returned === 'function' ? (returned as () => void) : () => {}
+      let detached = false
+      const dispose = (): void => {
+        if (detached) return
+        detached = true
+        attached.delete(dispose)
+        detach()
+      }
+      // The source may have disposed the wizard re-entrantly: then it is let go at once.
+      if (disposed) dispose()
+      else attached.add(dispose)
+      return dispose
+    },
+    progress: () => progress(interp.getState(), def),
+    readyViews: () => readyOrCurrentViews(def, interp.getState()),
     dispatch: (command) => guarded(() => dispatchInternal(command)),
     getState: () => interp.getState(),
     getSnapshot,
@@ -853,6 +924,15 @@ export function buildRuntime(
     dispose() {
       if (disposed) return
       disposed = true
+      // Detach external event sources first so nothing new is sent while tearing down.
+      for (const detach of Array.from(attached)) {
+        try {
+          detach()
+        } catch (error) {
+          onListenerError(error)
+        }
+      }
+      attached.clear()
       driver?.dispose()
       interp.dispose()
       for (const resolve of pendingMessages.values()) {
@@ -1097,13 +1177,17 @@ function sendResult(event: string, processed: Processed): SendResult {
   }
   const delivered: string[] = []
   let buffered = false
+  let flowHandled = false
   let dropped: string | undefined
   for (const ev of processed.batch) {
     if (ev.type === 'event.delivered' && ev.event === event) delivered.push(ev.to)
     else if (ev.type === 'event.buffered' && ev.event === event) buffered = true
+    else if (ev.type === 'event.flowDelivered' && ev.event === event) flowHandled = true
     else if (ev.type === 'event.dropped' && ev.event === event) dropped = ev.reason
   }
-  if (delivered.length > 0 || buffered) return { ok: true, delivered, buffered, seq: processed.seq }
+  // v0.2: a flow-level handler counts as handled (`delivered` lists step ids only).
+  if (delivered.length > 0 || buffered || flowHandled)
+    return { ok: true, delivered, buffered, seq: processed.seq }
   return {
     ok: false,
     reason: 'dropped',

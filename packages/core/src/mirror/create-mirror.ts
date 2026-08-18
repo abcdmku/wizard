@@ -14,10 +14,24 @@
  * arrives through frames — never through acks (no optimistic UI in v0.1); an ack whose
  * `commandId` is not the one sent rejects the call (`WizardError('INVALID_COMMAND')`).
  *
+ * Child flows (v0.2, plan §9.9): `mirror.child(step)` returns a `MirrorChild` — the same
+ * command sugar typed by the child flow, every call wrapped as `{ type: 'child', path, command }`
+ * (nestable: `.child(a).child(b)` sends `path: [a, b]`); the child's projected state is the
+ * `steps[step].child` slice of the frame when the projection exposes it.
+ *
  * @packageDocumentation
  */
 
-import type { DraftOf, EventType, StepId, TaskId, ViewId } from '../authoring/types'
+import type {
+  AnyFlow,
+  ChildFlowOf,
+  ChildStepId,
+  DraftOf,
+  EventType,
+  StepId,
+  TaskId,
+  ViewId,
+} from '../authoring/types'
 import { WizardError } from '../errors'
 import { createIdGenerator, type IdGenerator } from '../interpreter/env'
 import type {
@@ -43,14 +57,66 @@ export interface MirrorOptions<P extends AnyProjection> {
 }
 
 /**
- * Client-side replica of a wizard through projection `P`: read the projected state
- * (`getSnapshot`/`subscribe`), and send typed commands — the same sugar as `Wizard`, each
- * resolving with the ack's `CommandResult`; transport failures and misrouted acks reject.
- * `instanceId/epoch/seq` mirror the last applied frame (`null` before the first one);
- * `connected` is true from the first frame until `dispose`.
+ * The typed command sugar of a Mirror (and of a `MirrorChild`), typed by flow `F`: the same
+ * methods as `Wizard`, each resolving with the ack's `CommandResult`; `dispatch` is the wire
+ * door; `child(step)` scopes the same sugar to a nested flow.
  * @public
  */
-export interface Mirror<P extends AnyProjection> {
+export interface MirrorCommands<F extends AnyFlow> {
+  start(): Promise<CommandResult>
+  next(): Promise<CommandResult>
+  back(): Promise<CommandResult>
+  go(step: ViewId<F>): Promise<CommandResult>
+  setInput<K extends ViewId<F>>(step: K, patch: DraftOf<F, K>): Promise<CommandResult>
+  resetInput(step: ViewId<F>): Promise<CommandResult>
+  send<E extends EventType<F>>(
+    event: E,
+    payload: unknown,
+    options?: { readonly correlationId?: string },
+  ): Promise<CommandResult>
+  run(step: TaskId<F>): Promise<CommandResult>
+  retry(step: TaskId<F>): Promise<CommandResult>
+  cancel(reason?: string): Promise<CommandResult>
+  runReady(): Promise<CommandResult>
+  compensate(options?: {
+    readonly from?: StepId<F>
+    readonly reason?: string
+  }): Promise<CommandResult>
+  reset(): Promise<CommandResult>
+  /** Skip a ready-or-active non-final step (`step.skipped { reason: 'command' }`). */
+  skip(step: StepId<F>, reason?: string): Promise<CommandResult>
+  /** Return a done / failed / skipped step to `idle` (+ transitive dependents with `cascade`, default `true`). */
+  invalidate(step: StepId<F>, options?: { readonly cascade?: boolean }): Promise<CommandResult>
+  /** The wire door: any `Command` of flow `F`, sent as-is (the server re-decodes it with `parseCommand`). */
+  dispatch(command: Command<F>): Promise<CommandResult>
+  /**
+   * The same sugar scoped to the child flow of flow step `step`: every command travels as
+   * `{ type: 'child', path: [...path, step], command }`. Nestable.
+   */
+  child<K extends ChildStepId<F>>(step: K): MirrorChild<ChildFlowOf<F, K>>
+}
+
+/**
+ * A scoped sender for a nested flow (`mirror.child(step)`, `.child(step).child(step2)`): the
+ * `MirrorCommands` of the child flow, wrapped as `child` commands on `path`. It carries no
+ * state of its own — read the child's projected state from `steps[step].child` of the mirror's
+ * snapshot (exposed with `child: ExposeSpec`).
+ * @public
+ */
+export interface MirrorChild<F extends AnyFlow> extends MirrorCommands<F> {
+  /** Path from the root wizard to this child (`['fulfil']`, `['fulfil', 'pack']`). */
+  readonly path: readonly [string, ...string[]]
+}
+
+/**
+ * Client-side replica of a wizard through projection `P`: read the projected state
+ * (`getSnapshot`/`subscribe`), and send typed commands — the same sugar as `Wizard`
+ * (`MirrorCommands`), each resolving with the ack's `CommandResult`; transport failures and
+ * misrouted acks reject. `instanceId/epoch/seq` mirror the last applied frame (`null` before
+ * the first one); `connected` is true from the first frame until `dispose`.
+ * @public
+ */
+export interface Mirror<P extends AnyProjection> extends MirrorCommands<ProjectionFlow<P>> {
   /** Latest projected state (stable identity per applied frame), `null` before the first frame. */
   getSnapshot(): ProjectionOutput<P> | null
   /** Notified after every applied frame and on `dispose`; a no-op after `dispose`. */
@@ -59,31 +125,6 @@ export interface Mirror<P extends AnyProjection> {
   readonly epoch: number | null
   readonly seq: number | null
   readonly connected: boolean
-  start(): Promise<CommandResult>
-  next(): Promise<CommandResult>
-  back(): Promise<CommandResult>
-  go(step: ViewId<ProjectionFlow<P>>): Promise<CommandResult>
-  setInput<K extends ViewId<ProjectionFlow<P>>>(
-    step: K,
-    patch: DraftOf<ProjectionFlow<P>, K>,
-  ): Promise<CommandResult>
-  resetInput(step: ViewId<ProjectionFlow<P>>): Promise<CommandResult>
-  send<E extends EventType<ProjectionFlow<P>>>(
-    event: E,
-    payload: unknown,
-    options?: { readonly correlationId?: string },
-  ): Promise<CommandResult>
-  run(step: TaskId<ProjectionFlow<P>>): Promise<CommandResult>
-  retry(step: TaskId<ProjectionFlow<P>>): Promise<CommandResult>
-  cancel(reason?: string): Promise<CommandResult>
-  runReady(): Promise<CommandResult>
-  compensate(options?: {
-    readonly from?: StepId<ProjectionFlow<P>>
-    readonly reason?: string
-  }): Promise<CommandResult>
-  reset(): Promise<CommandResult>
-  /** The wire door: any `Command` of the projection's flow, sent as-is (the server re-decodes it with `parseCommand`). */
-  dispatch(command: Command<ProjectionFlow<P>>): Promise<CommandResult>
   /** Unsubscribe from the transport; later commands resolve `{ ok: false, code: 'DISPOSED' }`. */
   dispose(): void
 }
@@ -172,31 +213,7 @@ export function createMirror<P extends AnyProjection>(options: MirrorOptions<P>)
     get connected() {
       return !disposed && last !== null
     },
-    start: () => dispatch({ type: 'start' }),
-    next: () => dispatch({ type: 'next' }),
-    back: () => dispatch({ type: 'back' }),
-    go: (step) => dispatch({ type: 'go', step }),
-    setInput: (step, patch) => dispatch({ type: 'setInput', step, patch }),
-    resetInput: (step) => dispatch({ type: 'resetInput', step }),
-    send: (event, payload, options) =>
-      dispatch(
-        options?.correlationId === undefined
-          ? { type: 'send', event, payload }
-          : { type: 'send', event, payload, correlationId: options.correlationId },
-      ),
-    run: (step) => dispatch({ type: 'run', step }),
-    retry: (step) => dispatch({ type: 'retry', step }),
-    cancel: (reason) =>
-      dispatch(reason === undefined ? { type: 'cancel' } : { type: 'cancel', reason }),
-    runReady: () => dispatch({ type: 'runReady' }),
-    compensate: (options) =>
-      dispatch({
-        type: 'compensate',
-        ...(options?.from === undefined ? {} : { from: options.from }),
-        ...(options?.reason === undefined ? {} : { reason: options.reason }),
-      }),
-    reset: () => dispatch({ type: 'reset' }),
-    dispatch,
+    ...commandSugar(dispatch, []),
     dispose() {
       if (disposed) return
       disposed = true
@@ -205,6 +222,68 @@ export function createMirror<P extends AnyProjection>(options: MirrorOptions<P>)
       listeners.clear()
     },
   }
+}
+
+/**
+ * The untyped command sugar over a `dispatch`, for the root (`path: []`) and for children: a
+ * child's commands are wrapped as `{ type: 'child', path, command }` (flattened path — the
+ * server walks it segment by segment). The public interfaces narrow the ids to the flow.
+ */
+function commandSugar(
+  dispatch: (command: Command) => Promise<CommandResult>,
+  path: readonly string[],
+): MirrorCommands<AnyFlow> {
+  const [head, ...rest] = path
+  const send = (command: Command): Promise<CommandResult> =>
+    head === undefined
+      ? dispatch(command)
+      : dispatch({ type: 'child', path: [head, ...rest], command })
+  return {
+    start: () => send({ type: 'start' }),
+    next: () => send({ type: 'next' }),
+    back: () => send({ type: 'back' }),
+    go: (step) => send({ type: 'go', step }),
+    setInput: (step, patch) => send({ type: 'setInput', step, patch }),
+    resetInput: (step) => send({ type: 'resetInput', step }),
+    send: (event, payload, options) =>
+      send(
+        options?.correlationId === undefined
+          ? { type: 'send', event, payload }
+          : { type: 'send', event, payload, correlationId: options.correlationId },
+      ),
+    run: (step) => send({ type: 'run', step }),
+    retry: (step) => send({ type: 'retry', step }),
+    cancel: (reason) =>
+      send(reason === undefined ? { type: 'cancel' } : { type: 'cancel', reason }),
+    runReady: () => send({ type: 'runReady' }),
+    compensate: (options) =>
+      send({
+        type: 'compensate',
+        ...(options?.from === undefined ? {} : { from: options.from }),
+        ...(options?.reason === undefined ? {} : { reason: options.reason }),
+      }),
+    reset: () => send({ type: 'reset' }),
+    skip: (step, reason) =>
+      send(reason === undefined ? { type: 'skip', step } : { type: 'skip', step, reason }),
+    invalidate: (step, options) =>
+      send(
+        options?.cascade === undefined
+          ? { type: 'invalidate', step }
+          : { type: 'invalidate', step, cascade: options.cascade },
+      ),
+    dispatch: send,
+    child: (step) => childSender(dispatch, [...path, step]),
+  }
+}
+
+function childSender(
+  dispatch: (command: Command) => Promise<CommandResult>,
+  segments: readonly string[],
+): MirrorChild<AnyFlow> {
+  const [head, ...rest] = segments
+  if (head === undefined) throw new WizardError('INVALID_COMMAND', 'child path must not be empty')
+  const path: readonly [string, ...string[]] = [head, ...rest]
+  return { path, ...commandSugar(dispatch, path) }
 }
 
 function isNewer(frame: Frame<unknown>, last: Frame<unknown>): boolean {

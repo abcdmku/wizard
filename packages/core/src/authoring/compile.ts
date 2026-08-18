@@ -5,10 +5,18 @@
  * Hard problems (thrown together as ONE `WizardError` listing ALL of them, nested flows
  * included): unknown ids in `next` / `dependsOn` / `timeout.next` / `start`, a `final` with
  * `next`, dependency cycles, a `wait` that can never complete (no handlers, no timeout), a
- * handler for an undeclared event, fields a kind does not accept (per-kind allow-lists, e.g.
- * `input` on a task), malformed hooks/policies. The error code is `NESTING_CYCLE` (a flow
- * embeds an ancestor) or `NESTING_TOO_DEEP` (deeper than 8) when such a problem is among them,
- * `DEFINITION_INVALID` otherwise — nothing aborts on the first nested problem.
+ * step-level or flow-level handler (`on`, `correlate`) for an undeclared event, fields a kind
+ * does not accept (per-kind allow-lists, e.g. `input` on a task, `when` on a final), malformed
+ * hooks/policies. The error code is `NESTING_CYCLE` (a flow embeds an ancestor) or
+ * `NESTING_TOO_DEEP` (deeper than 8) when such a problem is among them, `DEFINITION_INVALID`
+ * otherwise — nothing aborts on the first nested problem.
+ *
+ * v0.2: `on` compiles for every kind (`hooks.on`, results normalised per kind: `{ keep }` /
+ * `{ next }` for waits, `{ next }` for views, `void` elsewhere — anything else is a `TypeError`
+ * at delivery time, i.e. the step fails `kind: 'hook'`); `when` → `hooks.when`; a task's
+ * `idempotent` → `idempotent: true` (+ `hooks.idempotencyKey` for the function form) and
+ * `mapError` → `hooks.mapError` (called with `(args.error, args)`); the definition header's
+ * `on` / `correlate` → `def.on` / `def.correlate`.
  *
  * Warnings (never thrown; `compile(flow, { onWarning })`, reused by `inspect()`):
  * `UNREACHABLE` (no path from `start`), `NEVER_ACTIVATES` (`dependsOn` but no incoming edge),
@@ -31,6 +39,7 @@ import type {
   CompiledFlow,
   CompiledStep,
   DepsSpec,
+  FlowOnHandlerResult,
   Hook,
   MaybePromise,
   NextRef,
@@ -87,9 +96,10 @@ const DEFAULT_TTL_MS = 300_000
 const NO_EXPOSE: CompiledStep['expose'] = { input: false, output: false }
 
 /**
- * Per-field kind allow-list (mirrors the `*Cfg` types; `label` / `dependsOn` are accepted by
- * every kind, `next` by every kind but `final`, which has its own message). A field set on a
- * step of another kind is a definition problem: `only view steps accept 'input' (kind 'task')`.
+ * Per-field kind allow-list (mirrors the `*Cfg` types; `label` / `dependsOn` / `on` are
+ * accepted by every kind, `next` by every kind but `final`, which has its own message). A field
+ * set on a step of another kind is a definition problem: `only view steps accept 'input' (kind
+ * 'task')`.
  */
 const FIELD_KINDS: Readonly<Record<string, readonly StepKind[]>> = {
   input: ['view'],
@@ -99,12 +109,14 @@ const FIELD_KINDS: Readonly<Record<string, readonly StepKind[]>> = {
   canExit: ['view'],
   enter: ['view', 'task', 'wait'],
   exit: ['view', 'task', 'wait', 'flow'],
+  when: ['view', 'task', 'wait', 'decision', 'flow'],
   run: ['task'],
   output: ['task', 'flow', 'final'],
   retry: ['task'],
   timeout: ['task', 'wait'],
   compensate: ['task'],
-  on: ['wait'],
+  idempotent: ['task'],
+  mapError: ['task'],
   child: ['flow'],
   context: ['flow'],
   deps: ['flow'],
@@ -207,6 +219,10 @@ function compileFlow(flow: AnyFlow, ctx: Ctx): CompiledFlow {
         : undefined
   if (flow.deps !== undefined && deps === undefined) problem("'deps' must be a boundary")
 
+  const eventNames = new Set(Object.keys(events))
+  const on = compileFlowOn(flow.on, eventNames, problem)
+  const correlate = compileCorrelate(flow.correlate, eventNames, problem)
+
   const rawSteps = isRecord(flow.steps) ? flow.steps : undefined
   if (rawSteps === undefined) problem("'steps' must be an object")
   const order = rawSteps === undefined ? [] : Object.keys(rawSteps)
@@ -223,13 +239,7 @@ function compileFlow(flow: AnyFlow, ctx: Ctx): CompiledFlow {
       )
       continue
     }
-    steps[id] = compileStep(id, raw, {
-      ctx,
-      problem,
-      ids,
-      events: new Set(Object.keys(events)),
-      graph,
-    })
+    steps[id] = compileStep(id, raw, { ctx, problem, ids, events: eventNames, graph })
   }
 
   let start: readonly string[]
@@ -258,12 +268,76 @@ function compileFlow(flow: AnyFlow, ctx: Ctx): CompiledFlow {
     context: context ?? trustedBoundary(),
     ...(deps !== undefined ? { deps } : {}),
     events,
+    ...(on !== undefined ? { on } : {}),
+    ...(correlate !== undefined ? { correlate } : {}),
     steps,
     order,
     start,
     policies: compilePolicies(flow, problem),
     identity: flow,
   }
+}
+
+/** `defineFlow({ on })` → `def.on`: handlers keyed by DECLARED events, results normalised to `{ cancel? }`. */
+function compileFlowOn(
+  raw: unknown,
+  events: ReadonlySet<string>,
+  problem: (m: string) => void,
+): CompiledFlow['on'] {
+  if (raw === undefined) return undefined
+  if (!isRecord(raw)) {
+    problem("'on' must be an object of functions keyed by event name")
+    return undefined
+  }
+  const handlers: Record<string, Hook<FlowOnHandlerResult>> = Object.create(null)
+  for (const [event, handler] of Object.entries(raw)) {
+    if (handler === undefined) continue
+    if (typeof handler !== 'function') {
+      problem(`on['${event}'] must be a function`)
+      continue
+    }
+    if (!events.has(event)) problem(`on['${event}']: the flow declares no event '${event}'`)
+    handlers[event] = (args) =>
+      chain((handler as Hook)(args), (result): FlowOnHandlerResult => {
+        if (result === undefined || result === null) return undefined
+        if (!isRecord(result) || typeof result.cancel !== 'string') {
+          throw new TypeError('a flow-level on handler must return void or { cancel: reason }')
+        }
+        return { cancel: result.cancel }
+      })
+  }
+  return handlers
+}
+
+/**
+ * `defineFlow({ correlate })` → `def.correlate`: extractors keyed by DECLARED events. A
+ * non-string result is `undefined` (no correlation for that payload) — nothing here throws.
+ */
+function compileCorrelate(
+  raw: unknown,
+  events: ReadonlySet<string>,
+  problem: (m: string) => void,
+): CompiledFlow['correlate'] {
+  if (raw === undefined) return undefined
+  if (!isRecord(raw)) {
+    problem("'correlate' must be an object of functions keyed by event name")
+    return undefined
+  }
+  const extractors: Record<string, (payload: unknown) => string | undefined> = Object.create(null)
+  for (const [event, fn] of Object.entries(raw)) {
+    if (fn === undefined) continue
+    if (typeof fn !== 'function') {
+      problem(`correlate['${event}'] must be a function`)
+      continue
+    }
+    if (!events.has(event)) problem(`correlate['${event}']: the flow declares no event '${event}'`)
+    const extract = fn as (payload: unknown) => unknown
+    extractors[event] = (payload) => {
+      const id = extract(payload)
+      return typeof id === 'string' ? id : undefined
+    }
+  }
+  return extractors
 }
 
 function compilePolicies(flow: Rec, problem: (m: string) => void): CompiledFlow['policies'] {
@@ -380,6 +454,31 @@ function compileStep(id: string, s: AnyStep, sc: StepCtx): CompiledStep {
     hookField(s.canExit, 'canExit', problem, (h) => (hooks.canExit = asHook<boolean>(h)))
   if (accepts('enter')) hookField(s.enter, 'enter', problem, (h) => (hooks.enter = asHook<void>(h)))
   if (accepts('exit')) hookField(s.exit, 'exit', problem, (h) => (hooks.exit = asHook<void>(h)))
+  if (accepts('when')) hookField(s.when, 'when', problem, (h) => (hooks.when = asHook<boolean>(h)))
+
+  // `on` — any kind (v0.2); a wait additionally REQUIRES it (checked below) -------------------
+  const on = s.on
+  if (on !== undefined || kind === 'wait') {
+    const handlers: Record<string, Hook<OnHandlerResult>> = {}
+    if (!isRecord(on)) {
+      problem(
+        kind === 'wait'
+          ? "a wait needs an 'on' object of event handlers"
+          : "'on' must be an object of event handlers",
+      )
+    } else {
+      for (const [event, handler] of Object.entries(on)) {
+        if (handler === undefined) continue
+        if (typeof handler !== 'function') {
+          problem(`on['${event}'] must be a function`)
+          continue
+        }
+        if (!sc.events.has(event)) problem(`on['${event}']: the flow declares no event '${event}'`)
+        handlers[event] = wrapOnHandler(handler as (a: never) => unknown, sc.ids, kind)
+      }
+    }
+    hooks.on = handlers
+  }
 
   switch (kind) {
     case 'view': {
@@ -414,25 +513,30 @@ function compileStep(id: string, s: AnyStep, sc: StepCtx): CompiledStep {
         hooks.compensate = (args) =>
           (h as Hook<void>)({ ...args, reason: args.reason ?? undefined })
       })
+      const idempotent = s.idempotent
+      if (idempotent !== undefined) {
+        if (idempotent === true) step.idempotent = true
+        else if (typeof idempotent === 'function') {
+          step.idempotent = true
+          hooks.idempotencyKey = (args) =>
+            chain((idempotent as Hook)(args), (key): string => {
+              if (typeof key !== 'string' || key.length === 0) {
+                throw new TypeError('an idempotency key function must return a non-empty string')
+              }
+              return key
+            })
+        } else if (idempotent !== false) {
+          problem("'idempotent' must be true, false or a function returning the key")
+        }
+      }
+      hookField(s.mapError, 'mapError', problem, (h) => {
+        // The DSL signature is `(error, args)`; the runtime hands the raw error in as `args.error`.
+        const mapError = h as unknown as (error: unknown, args: unknown) => unknown
+        hooks.mapError = (args) => mapError(args.error, args)
+      })
       break
     }
     case 'wait': {
-      const on = s.on
-      const handlers: Record<string, Hook<OnHandlerResult>> = {}
-      if (!isRecord(on)) problem("a wait needs an 'on' object of event handlers")
-      else {
-        for (const [event, handler] of Object.entries(on)) {
-          if (handler === undefined) continue
-          if (typeof handler !== 'function') {
-            problem(`on['${event}'] must be a function`)
-            continue
-          }
-          if (!sc.events.has(event))
-            problem(`on['${event}']: the flow declares no event '${event}'`)
-          handlers[event] = wrapOnHandler(handler as (a: never) => unknown, sc.ids)
-        }
-      }
-      hooks.on = handlers
       const timeout = s.timeout
       if (timeout !== undefined) {
         if (!isRecord(timeout) || typeof timeout.next !== 'string') {
@@ -446,7 +550,7 @@ function compileStep(id: string, s: AnyStep, sc: StepCtx): CompiledStep {
           }
         }
       }
-      if (Object.keys(handlers).length === 0 && step.waitTimeout === undefined) {
+      if (Object.keys(hooks.on ?? {}).length === 0 && step.waitTimeout === undefined) {
         problem('a wait with no handlers and no timeout can never complete')
       }
       break
@@ -530,20 +634,33 @@ function hookField(
   set(value as (a: never) => unknown)
 }
 
-/** `on` handlers may return `{ next }` (a single id) — normalise to the machine's contract. */
+/**
+ * Normalise a step-level `on` handler's result to the machine's contract, per kind: a wait may
+ * return `{ keep: true }` or `{ next }` (a single id), a view `{ next }`, every other kind
+ * nothing. Anything else is a `TypeError` (the step fails `kind: 'hook'`).
+ */
 function wrapOnHandler(
   handler: (a: never) => unknown,
   ids: ReadonlySet<string>,
+  kind: StepKind,
 ): Hook<OnHandlerResult> {
+  const contract =
+    kind === 'wait'
+      ? 'void, { keep: true } or { next?: stepId }'
+      : kind === 'view'
+        ? 'void or { next?: stepId }'
+        : 'void'
   return (args) =>
     chain((handler as Hook)(args), (result): OnHandlerResult => {
       if (result === undefined || result === null) return undefined
-      if (!isRecord(result))
-        throw new TypeError('a wait handler must return void or { next?: stepId }')
+      if (!isRecord(result) || (kind !== 'wait' && kind !== 'view')) {
+        throw new TypeError(`a ${kind} step's on handler must return ${contract}`)
+      }
+      if (kind === 'wait' && result.keep === true) return { keep: true }
       const next = result.next
       if (next === undefined || next === null) return undefined
       if (typeof next !== 'string' || !ids.has(next)) {
-        throw new TypeError(`wait handler returned an unknown next target '${String(next)}'`)
+        throw new TypeError(`${kind} handler returned an unknown next target '${String(next)}'`)
       }
       return { next }
     })

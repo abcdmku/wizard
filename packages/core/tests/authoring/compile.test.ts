@@ -449,6 +449,7 @@ describe('compile: validation errors (all problems listed at once)', () => {
       compile(
         rawFlow(
           {
+            // `on: {}` is accepted on a view since v0.2 (any kind may listen)
             v: { kind: 'view', run: () => 1, retry: { attempts: 1 }, on: {}, next: 't' },
             t: {
               kind: 'task',
@@ -458,9 +459,16 @@ describe('compile: validation errors (all problems listed at once)', () => {
               next: 'w',
             },
             w: { kind: 'wait', on: { e: () => {} }, compensate: () => {}, child: {}, next: 'd' },
-            d: { kind: 'decision', next: () => 'f', enter: () => {}, timeout: 5 },
+            d: {
+              kind: 'decision',
+              next: () => 'f',
+              enter: () => {},
+              timeout: 5,
+              idempotent: true,
+              mapError: () => 1,
+            },
             f: { kind: 'flow', child: undefined, context: () => ({}), initial: {}, next: 'end' },
-            end: { kind: 'final', validate: () => {}, exit: () => {} },
+            end: { kind: 'final', validate: () => {}, exit: () => {}, when: () => true },
           },
           { events: { e: boundary.trusted() } },
         ),
@@ -469,17 +477,19 @@ describe('compile: validation errors (all problems listed at once)', () => {
     expect(problems).toEqual([
       "step 'v': only task steps accept 'run' (kind 'view')",
       "step 'v': only task steps accept 'retry' (kind 'view')",
-      "step 'v': only wait steps accept 'on' (kind 'view')",
       "step 't': only view steps accept 'input' (kind 'task')",
       "step 't': only view steps accept 'canExit' (kind 'task')",
       "step 'w': only task steps accept 'compensate' (kind 'wait')",
       "step 'w': only flow steps accept 'child' (kind 'wait')",
       "step 'd': only view/task/wait steps accept 'enter' (kind 'decision')",
       "step 'd': only task/wait steps accept 'timeout' (kind 'decision')",
+      "step 'd': only task steps accept 'idempotent' (kind 'decision')",
+      "step 'd': only task steps accept 'mapError' (kind 'decision')",
       "step 'f': only view steps accept 'initial' (kind 'flow')",
       "step 'f': a flow step needs a child flow (s.flow(child, cfg))",
       "step 'end': only view steps accept 'validate' (kind 'final')",
       "step 'end': only view/task/wait/flow steps accept 'exit' (kind 'final')",
+      "step 'end': only view/task/wait/decision/flow steps accept 'when' (kind 'final')",
     ])
   })
 

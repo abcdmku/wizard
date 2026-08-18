@@ -1,4 +1,4 @@
-# 07 — DAG pipeline (fan-out, parallel branches, AND-join, `explain()`)
+# 07 — DAG pipeline (fan-out, parallel branches, AND-join, `explain()`, `when` / `skip()` / `progress()`)
 
 A server-side ingest pipeline with no views at all: `ingest → (normalize ∥ enrich) → gate →
 persist → done`. The same rule drives wizards, DAGs and hybrids: `next` is a navigation edge
@@ -13,6 +13,9 @@ What it shows
 - `concurrency`: with `concurrency: 1` the branches are serialised and `explain('enrich')` says `concurrency-limit`.
 - `autoRun: 'manual'` + `runReady()`: ready steps report `auto-run-manual` and only start when the host says so — stage by stage.
 - Branches hand data on through the shared context (`update()` patches shallow-merge; each branch writes its own keys); the decision routes on the merged context.
+- `when` (v0.2): `enrich` declares `when: ({ context }) => context.enrichment === 'on'` — evaluated once the step is ready; `false` skips it (`step.skipped { reason: 'when' }`), the AND-join treats skipped as done and the gate proceeds on `normalize` alone.
+- `wizard.skip(step, reason?)` (v0.2): an operator skips the slow branch while it runs — the run is cancelled, the step is `skipped { reason: 'command' }`, its late result is ignored, and the join proceeds (a finished step cannot be skipped: `{ ok: false }`).
+- `wizard.progress()` (v0.2): `{ done, total, ratio }` over the non-final steps — skipped counts as done, and `ratio` is 1 once the flow is done even when a branch (here `persist`) was never taken.
 - `inspect(flow)` returns the static graph (`next` / `dependsOn` / `start` edges, warnings) — what a visualizer or devtools panel consumes.
 
 Run

@@ -55,7 +55,7 @@
     {
       "name": "@openwizard/core (esm, brotli)",
       "path": "packages/core/dist/index.js",
-      "limit": "32 kB",
+      "limit": "36 kB",
       "brotli": true
     },
     {

@@ -22,8 +22,9 @@ export interface FlowGraphNode {
   readonly label?: string
   readonly path: readonly string[]
   /**
-   * Hooks the step defines, by their AUTHORING names (`enter`, `run`, `on:payment.captured`,
-   * a flow step's `context` / `deps` / `output` mappers, a final's `output`, …).
+   * Hooks the step defines, by their AUTHORING names (`enter`, `run`, `when`, `mapError`,
+   * `on:payment.captured`, a flow step's `context` / `deps` / `output` mappers, a final's
+   * `output`, a task's `idempotent` key function, …).
    */
   readonly hooks: readonly string[]
   readonly dependsOn?: DepsSpec
@@ -99,12 +100,16 @@ function collect(
   for (const [id, child] of children) collect(child, [...path, id], nodes, edges)
 }
 
-/** Compiled adapter names → the names the author wrote (`s.flow(child, { context, deps, output })`, `s.final({ output })`). */
+/**
+ * Compiled adapter names → the names the author wrote (`s.flow(child, { context, deps, output })`,
+ * `s.final({ output })`, `s.task(run, { idempotent: fn })`).
+ */
 const AUTHORING_NAMES: Readonly<Record<string, string>> = {
   childContext: 'context',
   childDeps: 'deps',
   childOutput: 'output',
   finalOutput: 'output',
+  idempotencyKey: 'idempotent',
 }
 
 function toNode(step: CompiledStep, path: readonly string[], start: boolean): FlowGraphNode {

@@ -5,8 +5,9 @@
  * JSON-value payloads (`patch` / `payload` must survive `JSON.stringify`
  * unchanged), no internal commands (`sendRejected` is façade-only) — AND that
  * every id exists in the compiled flow (`go` / `setInput` / `resetInput` name a
- * view, `run` / `retry` a task, `send` a declared event, `compensate.from` a
- * step, every `child` path segment a flow step, the nested command checked
+ * view, `run` / `retry` a task, `send` a declared event, `compensate.from` /
+ * `skip.step` / `invalidate.step` a step (v0.2; `invalidate.cascade` a boolean),
+ * every `child` path segment a flow step, the nested command checked
  * against the child flow it reaches). It returns a fresh `Command<F>` or
  * Standard-Schema style issues, so `wizard.dispatch(parsed.value)` typechecks.
  * The *effective* child path depth (all segments across the nesting) is capped
@@ -53,6 +54,8 @@ const SHAPES: Readonly<Record<string, readonly string[]>> = {
   send: ['event!', 'payload!', 'correlationId'],
   cancel: ['reason'],
   compensate: ['from', 'reason'],
+  skip: ['step!', 'reason'],
+  invalidate: ['step!', 'cascade'],
   child: ['path!', 'command!'],
 }
 
@@ -230,6 +233,24 @@ function parse(
         ...(from === undefined ? {} : { from }),
         ...(reason === undefined ? {} : { reason }),
       }
+    }
+    case 'skip': {
+      // v0.2: any known step (the machine rejects finals / not-ready steps at dispatch time).
+      const step = str('step')
+      const reason = str('reason')
+      if (!stepOfKind('step', step, 'any')) return undefined
+      if (issues.length > start || step === undefined) return undefined
+      return reason === undefined ? { type, step } : { type, step, reason }
+    }
+    case 'invalidate': {
+      const step = str('step')
+      const cascade = input.cascade
+      if (cascade !== undefined && typeof cascade !== 'boolean') {
+        issues.push({ message: "'cascade' must be a boolean", path: [...path, 'cascade'] })
+      }
+      if (!stepOfKind('step', step, 'any')) return undefined
+      if (issues.length > start || step === undefined) return undefined
+      return typeof cascade === 'boolean' ? { type, step, cascade } : { type, step }
     }
     case 'child': {
       const rawPath = input.path

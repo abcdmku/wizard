@@ -1,19 +1,20 @@
 /**
- * `applyProjection(projection, state, def, children?)` — build the plain, JSON-safe
- * `ClientState` object for a projection: deny-by-default (only exposed inputs / outputs /
- * issues / errors / children / context keys / flow output), errors sanitised to
- * `{ name, message, code? }`, `phase` from the machine selectors. `Wizard.project()` and the
- * Mirror frame producer call this.
+ * `applyProjection(projection, state, def, children?)` — build the plain, JSON-safe projected
+ * state for a projection. An `expose` projection is deny-by-default (only exposed inputs /
+ * outputs / issues / errors / children / context keys / flow output / progress), errors
+ * sanitised to `{ name, message, code?, data? }`, `phase` and `progress` from the machine
+ * selectors; a `select` projection is its mapper over the (typed) state. `Wizard.project()`
+ * and the Mirror frame producer call this.
  *
  * @internal Public users go through `wizard.project(projection)`.
  */
 
 import type { CompiledFlow } from '../authoring/compiled'
 import type { AnyFlow } from '../authoring/types'
-import { phase } from '../machine'
-import type { SerializedError, StepRecord, WizardState } from '../machine/state'
+import { phase, progress } from '../machine'
+import type { StepError, StepRecord, WizardState } from '../machine/state'
 import type { Snapshot } from '../wizard/snapshot'
-import type { ClientState, Projection } from './define-projection'
+import type { ClientStepError, Projection } from './define-projection'
 
 /** Untyped exposure spec as read at runtime. */
 interface RawStepExpose {
@@ -27,6 +28,7 @@ interface RawExpose {
   readonly steps?: Readonly<Record<string, RawStepExpose | undefined>>
   readonly context?: readonly string[]
   readonly output?: boolean
+  readonly progress?: boolean
 }
 
 /** Child levels below the root that are projected precisely (mirrors the `ClientState` type). */
@@ -36,19 +38,15 @@ const MAX_DEPTH = 8
  * Project a wizard state through a projection. `children` are the live child snapshots
  * (`runtime.getSnapshot().children`) used for exposed `child` specs.
  */
-export function applyProjection<F extends AnyFlow, E>(
-  projection: Projection<F, E>,
+export function applyProjection<F extends AnyFlow, S>(
+  projection: Projection<F, S>,
   state: WizardState,
   def: CompiledFlow,
   children: Readonly<Record<string, Snapshot>> = {},
-): ClientState<F, E> {
-  return project(
-    projection.expose as RawExpose | undefined,
-    state,
-    def,
-    children,
-    MAX_DEPTH,
-  ) as ClientState<F, E>
+): S {
+  const select = projection.select as ((state: WizardState) => S) | undefined
+  if (select !== undefined) return select(state)
+  return project(projection.expose as RawExpose | undefined, state, def, children, MAX_DEPTH) as S
 }
 
 function project(
@@ -76,6 +74,7 @@ function project(
     current: state.current,
     context: pickContext(state.context, expose?.context),
     ...(expose?.output === true && state.output !== undefined ? { output: state.output } : {}),
+    ...(expose?.progress === true ? { progress: progress(state, def) } : {}),
     steps,
   }
 }
@@ -142,9 +141,15 @@ function setOwn(target: Record<string, unknown>, key: string, value: unknown): v
   }
 }
 
-/** Never leak stacks, hook internals or validation payloads: `{ name, message, code? }` only. */
-function sanitizeError(error: SerializedError): SerializedError {
-  return error.code === undefined
-    ? { name: error.name, message: error.message }
-    : { name: error.name, message: error.message, code: error.code }
+/**
+ * Never leak stacks, hook internals or validation payloads: `{ name, message, code? }` plus the
+ * task's `mapError` value (`data`, JSON-safe by contract) when present.
+ */
+function sanitizeError(error: StepError): ClientStepError<unknown> {
+  return {
+    name: error.name,
+    message: error.message,
+    ...(error.code === undefined ? {} : { code: error.code }),
+    ...(error.data === undefined ? {} : { data: error.data }),
+  }
 }

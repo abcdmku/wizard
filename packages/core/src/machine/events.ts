@@ -122,13 +122,26 @@ export type DomainEventBody =
       readonly output?: unknown
       readonly next?: string
     }
+  /** `data` (v0.2) = the task's `mapError` value for this failure. */
   | {
       readonly type: 'step.failed'
       readonly step: string
       readonly error: SerializedError
       readonly kind: 'run' | 'timeout' | 'hook' | 'child' | 'sync-violation' | 'interrupted'
+      readonly data?: unknown
     }
   | { readonly type: 'step.skipped'; readonly step: string; readonly reason?: string }
+  /** v0.2: the step's `when` predicate is being evaluated (it is ready; `apply` marks `when: 'pending'`). */
+  | { readonly type: 'step.whenStarted'; readonly step: string }
+  /** v0.2: `when` resolved — `ok: false` is followed by `step.skipped { reason: 'when' }`. */
+  | { readonly type: 'step.whenEvaluated'; readonly step: string; readonly ok: boolean }
+  /** v0.2: explicit invalidation (never automatic). */
+  | {
+      readonly type: 'step.invalidated'
+      readonly step: string
+      readonly cascade: boolean
+      readonly cause: 'command' | 'cascade'
+    }
   | { readonly type: 'step.cancelled'; readonly step: string; readonly reason?: string }
   | { readonly type: 'step.validated'; readonly step: string; readonly output: unknown }
   | {
@@ -144,12 +157,16 @@ export type DomainEventBody =
       readonly reason?: string
     }
   // ---- task execution ------------------------------------------------------
+  /** v0.2: the task's `idempotencyKey` hook is being called; `step.runStarted` follows with its value. */
+  | { readonly type: 'step.idempotencyKeyRequested'; readonly step: string; readonly runId: number }
   | {
       readonly type: 'step.runStarted'
       readonly step: string
       readonly attempt: number
       readonly runId: number
       readonly idempotencyKey: string
+      /** v0.2: true when an idempotent task is re-run after a crash/resume. */
+      readonly resumed?: boolean
     }
   | {
       readonly type: 'step.runSucceeded'
@@ -157,6 +174,19 @@ export type DomainEventBody =
       readonly attempt: number
       readonly output: unknown
     }
+  /**
+   * v0.2: an attempt failed and the task's `mapError` hook is being called before the failure is
+   * recorded (`step.runFailed { data }` follows). Carries the raw failure so `plan` can build the call.
+   */
+  | {
+      readonly type: 'step.mapErrorStarted'
+      readonly step: string
+      readonly attempt: number
+      readonly error: SerializedError
+      readonly timedOut?: boolean
+      readonly syncViolation?: boolean
+    }
+  /** `data` (v0.2) = the task's `mapError` value for this attempt's failure. */
   | {
       readonly type: 'step.runFailed'
       readonly step: string
@@ -164,6 +194,7 @@ export type DomainEventBody =
       readonly error: SerializedError
       readonly willRetry: boolean
       readonly timedOut?: boolean
+      readonly data?: unknown
     }
   /** `dueAt` (not `at`, which is the envelope timestamp) = absolute time of the retry. */
   | {
@@ -216,7 +247,36 @@ export type DomainEventBody =
       readonly payload?: unknown
     }
   | { readonly type: 'event.expired'; readonly event: string; readonly inboxId: string }
+  /** `reason`: `'no-listener'`, or `'correlation'` (v0.2: `correlate[event](payload)` ≠ the wizard's `correlationId`). */
   | { readonly type: 'event.dropped'; readonly event: string; readonly reason: string }
+  /** v0.2: delivered to the flow-level `on[event]` handler (`plan` → `call { hook: 'flowOn' }`), after step deliveries. */
+  | {
+      readonly type: 'event.flowDelivered'
+      readonly event: string
+      readonly inboxId: string
+      readonly payload?: unknown
+    }
+  /**
+   * v0.2: a step handler returned something its kind cannot honour and it was ignored — `reason`:
+   * `'kind'` (task/decision/flow/final returned `next`/`keep`/`done`/`fail`; a view returned
+   * `keep`/`done`/`fail`) or `'nav-busy'` (a view returned `{ next }` while a transition was in flight).
+   */
+  | {
+      readonly type: 'event.handlerResultIgnored'
+      readonly step: string
+      readonly event: string
+      readonly reason: 'kind' | 'nav-busy'
+    }
+  /**
+   * v0.2: an `on[event]` handler threw. Wait handlers fail their step instead (v0.1 rule); this is
+   * recorded for every other kind (`step`) and for the flow-level handler (no `step`); nothing else changes.
+   */
+  | {
+      readonly type: 'event.handlerFailed'
+      readonly step?: string
+      readonly event: string
+      readonly error: SerializedError
+    }
   // ---- timers --------------------------------------------------------------
   /** `dueAt` = absolute fire time (`at` is the envelope timestamp). `step` is set for `retry` / `waitTimeout` timers (owner step). */
   | {

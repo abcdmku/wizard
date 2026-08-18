@@ -1,4 +1,13 @@
-import { createWizard, isWizardError, parseCommand, type WizardEvent } from '@openwizard/core'
+import {
+  createMirror,
+  createMirrorSource,
+  createWizard,
+  defineProjection,
+  isWizardError,
+  parseCommand,
+  type WizardEvent,
+} from '@openwizard/core'
+import { createLocalTransport } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { type Deps, fulfilment, order } from './order'
 
@@ -123,6 +132,46 @@ describe('06 nested flow: s.flow(child, { context })', () => {
     await settle()
     expect(wizard.child('fulfil').getState().status).toBe('done')
     expect(wizard.getState().output).toEqual({ orderId: 'o-2', tracking: 'TRK-EAST-o-2' })
+    wizard.dispose()
+  })
+  it('a client drives the child through a Mirror: mirror.child(step) + a projection exposing the child slice (v0.2)', async () => {
+    const { deps, shipments } = fakeDeps()
+    const wizard = createWizard(order, { context: { orderId: 'o-3', amount: 12 }, deps })
+    await wizard.start()
+    // The projection exposes the child's projected state under `steps.fulfil.child` (deny-by-default
+    // inside too: only the pick draft and the child's current view cross the wire).
+    const orderClient = defineProjection(order, {
+      expose: {
+        steps: { fulfil: { output: true, child: { steps: { pick: { input: true } } } } },
+        output: true,
+      },
+    })
+    const source = createMirrorSource(wizard, orderClient)
+    const mirror = createMirror<typeof orderClient>({
+      transport: createLocalTransport(source, { serialize: true }), // JSON round trip, like a wire
+    })
+    expect(mirror.getSnapshot()?.steps.fulfil.child).toMatchObject({
+      current: 'pick',
+      steps: { pick: { status: 'active' } },
+    })
+
+    // `mirror.child('fulfil')` is the child's command sugar, typed by the CHILD flow; every call
+    // travels as { type: 'child', path: ['fulfil'], command } and is decoded against the child.
+    const fulfil = mirror.child('fulfil')
+    expect(fulfil.path).toEqual(['fulfil'])
+    expect(await fulfil.setInput('pick', { warehouse: 'east' })).toMatchObject({ ok: true })
+    expect(mirror.getSnapshot()?.steps.fulfil.child?.steps.pick.input).toEqual({
+      warehouse: 'east',
+    })
+    expect(await fulfil.next()).toMatchObject({ ok: true })
+    await settle()
+    expect(shipments).toEqual([['o-3', 'east']])
+    expect(mirror.getSnapshot()).toMatchObject({
+      status: 'done',
+      output: { orderId: 'o-3', tracking: 'TRK-EAST-o-3' },
+      steps: { fulfil: { status: 'done', output: { tracking: 'TRK-EAST-o-3' } } },
+    })
+    mirror.dispose()
     wizard.dispose()
   })
 })

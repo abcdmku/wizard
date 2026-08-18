@@ -1,15 +1,16 @@
 import { createWizard, type WizardEvent } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
-import { type Deps, syncInvoice } from './sync-invoice'
+import { type Deps, type PostFailure, syncInvoice } from './sync-invoice'
 
 /** A ledger that fails its first `failures` calls (mutable, so a test can "repair" it), then succeeds. */
 function fakeLedger(opts: { failures: number }) {
-  const state = { calls: 0, failures: opts.failures }
+  const state = { calls: 0, failures: opts.failures, keys: [] as string[] }
   const deps: Deps = {
     ledger: {
-      post: async (invoiceId) => {
+      post: async (invoiceId, _amount, { idempotencyKey }) => {
         state.calls += 1
+        state.keys.push(idempotencyKey)
         if (state.calls <= state.failures)
           throw new Error(`ledger unavailable (call ${state.calls})`)
         return { ref: `L-${invoiceId}-${state.calls}` }
@@ -118,6 +119,11 @@ describe('02 recoverable failure: exponential retry through the test scheduler',
       status: 'failed',
       error: { kind: 'run', message: 'ledger unavailable (call 4)' },
     })
+    // v0.2 mapError: the failure is also recorded as typed, JSON-safe data.
+    const data: PostFailure | undefined = wizard.getState().steps.post.error?.data
+    expect(data).toEqual({ code: 'LEDGER_UNAVAILABLE', attempt: 4 })
+    // v0.2 idempotent: every attempt carried the same key (the mapper's value).
+    expect(new Set(state.keys)).toEqual(new Set(['invoice:INV-7']))
     expect(wizard.getState().status).toBe('failed')
     expect(wizard.explain('post')).toMatchObject({ status: 'failed', reasons: ['failed:run'] })
 

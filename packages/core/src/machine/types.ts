@@ -41,6 +41,8 @@ export interface InitialStateOptions {
   readonly context: unknown
   readonly now: number
   readonly epoch?: number
+  /** v0.2: correlation id stored in `WizardState.correlationId` (`createWizard(flow, { correlationId })`). */
+  readonly correlationId?: string
 }
 
 export type InitialState = (env: MachineEnv, opts: InitialStateOptions) => WizardState

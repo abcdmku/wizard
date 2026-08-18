@@ -35,6 +35,10 @@ export type Command =
   | { readonly type: 'cancel'; readonly reason?: string }
   | { readonly type: 'compensate'; readonly from?: string; readonly reason?: string }
   | { readonly type: 'reset' }
+  /** v0.2: skip a ready/active non-final step (`step.skipped { reason: 'command' }`). */
+  | { readonly type: 'skip'; readonly step: string; readonly reason?: string }
+  /** v0.2: explicit invalidation of a done/failed/skipped step (+ transitive `dependsOn` dependents when `cascade`). */
+  | { readonly type: 'invalidate'; readonly step: string; readonly cascade?: boolean }
   /** Address a command to a nested flow. `path` is relative to this wizard (`['fulfil']`, `['fulfil','payment']`). */
   | { readonly type: 'child'; readonly path: readonly string[]; readonly command: Command }
 
@@ -66,6 +70,14 @@ export type HookName =
   | 'childContext'
   | 'childOutput'
   | 'finalOutput'
+  /** v0.2: skip predicate (`step.whenStarted` → `res` → `step.whenEvaluated`). */
+  | 'when'
+  /** v0.2: task failure mapper (`step.mapErrorStarted` → `res` → `step.runFailed { data }`). */
+  | 'mapError'
+  /** v0.2: custom idempotency key of an idempotent task (`step.idempotencyKeyRequested` → `res` → `step.runStarted`). */
+  | 'idempotencyKey'
+  /** v0.2: flow-level `on[event]` handler (`event.flowDelivered`); the call's `step` is `''` (no step). */
+  | 'flowOn'
 
 export type EffectResult =
   | {
