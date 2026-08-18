@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@openwizard/core": ["./packages/core/src/index.ts"],
+      "@openwizard/core/testing": ["./packages/core/src/testing.ts"],
+      "@openwizard/react": ["./packages/react/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/src/**/*.tsx",
+    "packages/*/tests/**/*.ts",
+    "packages/*/tests/**/*.tsx",
+    "scripts/**/*.mjs",
+    "vitest.config.ts"
+  ],
+  "exclude": ["**/node_modules", "**/dist"]
+}

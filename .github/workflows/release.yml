@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      # The SAME gate as ci.yml: nothing is published that the full verify job would reject.
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Type-test canary (the typecheck harness must fail on a real type error)
+        run: pnpm test:canary
+      - run: pnpm publint
+      - run: pnpm attw
+      - run: pnpm size
+      - run: pnpm check:api
+      - run: pnpm check:docs
+      - run: pnpm check:public-tags
+      - run: pnpm examples
+      - name: Create release PR or publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm release
+          title: 'chore: release'
+          commit: 'chore: release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true

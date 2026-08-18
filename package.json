@@ -1,0 +1,72 @@
+{
+  "name": "openwizard-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "OpenWizard — a TypeScript-first, type-safe orchestrator for sync and async workflows (backend + frontend).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abcdmku/wizard.git"
+  },
+  "bugs": "https://github.com/abcdmku/wizard/issues",
+  "homepage": "https://github.com/abcdmku/wizard#readme",
+  "packageManager": "pnpm@10.19.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" run build",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:canary": "node ./scripts/check-type-canary.mjs",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "check:api": "node ./scripts/check-api.mjs",
+    "check:api:update": "node ./scripts/check-api.mjs --update",
+    "check:docs": "node ./scripts/gen-export-tables.mjs --check && node ./scripts/check-doc-imports.mjs && node ./scripts/check-readme-quickstart.mjs",
+    "check:public-tags": "node ./scripts/check-public-tags.mjs",
+    "docs:gen": "node ./scripts/gen-export-tables.mjs",
+    "examples": "pnpm -r --filter \"./examples/*\" run check",
+    "size": "size-limit",
+    "publint": "pnpm -r --filter \"./packages/*\" exec publint",
+    "attw": "pnpm -r --filter \"./packages/*\" exec attw --pack",
+    "changeset": "changeset",
+    "release": "pnpm build && changeset publish"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^2.5.9",
+    "@changesets/cli": "^3.0.0",
+    "@size-limit/preset-small-lib": "^13.0.3",
+    "@standard-schema/spec": "^1.1.0",
+    "arktype": "^2.2.3",
+    "publint": "^0.3.23",
+    "size-limit": "^13.0.3",
+    "tsdown": "^0.22.14",
+    "tsx": "^4.23.12",
+    "typescript": "~5.9.3",
+    "valibot": "^1.4.2",
+    "vitest": "^4.1.10",
+    "zod": "^4.4.3"
+  },
+  "size-limit": [
+    {
+      "name": "@openwizard/core (esm, brotli)",
+      "path": "packages/core/dist/index.js",
+      "limit": "32 kB",
+      "brotli": true
+    },
+    {
+      "name": "@openwizard/react",
+      "path": "packages/react/dist/index.js",
+      "limit": "4 kB",
+      "ignore": [
+        "react",
+        "react/jsx-runtime",
+        "@openwizard/core"
+      ]
+    }
+  ]
+}
