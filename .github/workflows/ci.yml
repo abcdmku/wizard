@@ -57,7 +57,9 @@ jobs:
           if-no-files-found: error
 
   # Consume the built packages on Node 20 (the minimum supported runtime): run the
-  # test suites and every example against the artifacts built above.
+  # node-environment test suites and the node examples against the artifacts built
+  # above. (jsdom, used by the React/devtools suites and examples 08/10, needs Node 22 —
+  # that is test infrastructure, not the library.)
   node20:
     name: ubuntu-latest / node 20 (consumer)
     needs: verify
@@ -74,5 +76,5 @@ jobs:
         with:
           name: dist
           path: packages
-      - run: pnpm test
-      - run: pnpm examples
+      - run: pnpm vitest run --project core --project examples
+      - run: pnpm -r --filter "./examples/*" --filter "!example-08-react-mirror" --filter "!example-10-devtools" run check
