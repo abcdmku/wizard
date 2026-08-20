@@ -15,20 +15,20 @@ The brief for v3 asks for sync **and** async workflows, "define and subscribe vi
 ## Decision
 
 1. **The core is a pure machine plus a single-threaded interpreter.**
-   `decide(def, state, msg) → DomainEvent[]`, `apply(def, state, event) → State`, `plan(def, state, event) → Effect[]` are pure (no I/O, timers or promises). One interpreter per wizard instance owns a FIFO queue, executes effects (hook calls, timers, child flows, persistence), and feeds results back as messages. Sync hook results are processed in the same call stack, so a transition made of sync hooks is committed before the public method returns; async only ever lives in effect execution.
+   `decide(def, state, msg) → DomainEvent[]`, `apply(def, state, event) → State`, `plan(def, state, event) → Effect[]` are pure (no I/O, timers or promises). One interpreter per run instance owns a FIFO queue, executes effects (hook calls, timers, child flows, persistence), and feeds results back as messages. Sync hook results are processed in the same call stack, so a transition made of sync hooks is committed before the public method returns; async only ever lives in effect execution.
 2. **State is snapshot-authoritative; the event log is advisory.** Resume loads state directly; the bounded log (`observe()`, `log()`) exists for tracing, devtools and tests (`replay(log) == state` is a property test, not a hot path).
-3. **No `mode`.** Behavior derives from step kinds (`view`, `task`, `wait`, `decision`, `flow`, `final`) plus a small policy set (`onFailure`, `retry`, `autoRun`, `concurrency`, `unmatchedEvents`). A pure wizard is "only views", a pure DAG is "only tasks with `dependsOn`", a saga is "tasks with `compensate` and `onFailure: 'compensate'`". Presets are documentation, not code paths.
+3. **No `mode`.** Behavior derives from step kinds (`view`, `task`, `wait`, `decision`, `flow`, `final`) plus a small policy set (`onFailure`, `retry`, `autoRun`, `concurrency`, `unmatchedEvents`). A pure run is "only views", a pure DAG is "only tasks with `dependsOn`", a saga is "tasks with `compensate` and `onFailure: 'compensate'`". Presets are documentation, not code paths.
 
 ## Consequences
 
 - Every state change is a typed event with `causedBy`; the Mirror, devtools, replay and `explain()` are folds/queries over the same data.
 - Sync and async are one code path; determinism is enforced by the queue (no re-entrant reduction; navigation commands during an in-flight transition are rejected with `nav-busy`).
-- Contributors must learn the decide/apply/plan split; users never see it (the authoring DSL and `Wizard` façade sit on top).
-- Removing `mode` removes a whole axis from the type system, docs and tests. It also means readiness must be one rule for wizards, DAGs and hybrids (see plan §1.2b).
+- Contributors must learn the decide/apply/plan split; users never see it (the authoring DSL and `FlowRun` façade sit on top).
+- Removing `mode` removes a whole axis from the type system, docs and tests. It also means readiness must be one rule for flows, DAGs and hybrids (see plan §1.2b).
 - ~2–3 kB of extra bundle for the event/effect unions is accepted.
 
 ## Alternatives considered
 
 - Mutable store + pipelines (v1/v3 draft): simplest to start, but replay/undo/mirror/devtools each need bespoke plumbing, and async guards keep drifting into two sources of truth.
-- XState (or another general statechart engine) as the core: excellent semantics, but the wizard/DAG/saga vocabulary, boundaries and projections would still have to be built on top, and the type-inference story for step ids/inputs would be second-hand.
+- XState (or another general statechart engine) as the core: excellent semantics, but the flow/DAG/saga vocabulary, boundaries and projections would still have to be built on top, and the type-inference story for step ids/inputs would be second-hand.
 - Keeping `mode` as a preset object rather than a string: rejected as still implying uniform affordances; presets in docs achieve the same discoverability without a runtime axis.

@@ -1,0 +1,14 @@
+# Effect 4 beta
+
+`@openwizard/effect-v4` adapts the supported Effect 4 beta line. It is separate from the stable
+[Effect 3 adapter](/integrations/effect) because the runtime and failure APIs differ.
+
+```sh
+pnpm add @openwizard/core @openwizard/effect-v4 effect@beta
+```
+
+```ts file="packages/effect-v4/snippets/basic.ts"
+```
+
+Wizard still owns retries, cancellation, and resume. Expect breaking prereleases while Effect 4
+changes. See the [Effect 4 API](/api/effect-v4) for the supported version and helpers.

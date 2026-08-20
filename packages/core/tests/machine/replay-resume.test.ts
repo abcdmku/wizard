@@ -14,10 +14,10 @@ import {
 const on = () => undefined
 
 describe('replay(log) == state', () => {
-  it('fixture 1: linear wizard with a retried task and a back()', () => {
+  it('fixture 1: linear run with a retried task and a back()', () => {
     const h = createHarness(
       flow({
-        name: 'wizard',
+        name: 'run',
         start: 'a',
         steps: {
           a: view({ initial: { n: 0 }, next: 'b' }),

@@ -1,14 +1,14 @@
 import { defineFlow } from '@openwizard/core'
 import { z } from 'zod'
 
-const s = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({
     orderId: z.string(),
     paymentId: z.string().optional(),
     declineReason: z.string().optional(),
   }),
-  // Webhook bodies are untrusted: every `send()` goes through the event's boundary first.
+  // Every input-event payload passes through its boundary before a handler sees it.
   events: {
     'payment.captured': z.object({
       paymentId: z.string(),
@@ -18,30 +18,26 @@ const s = defineFlow({
     'payment.failed': z.object({ reason: z.string() }),
     'order.cancelled': z.object({ orderId: z.string(), reason: z.string() }),
   },
-  // Flow-level handlers run for an event whatever step is active (after the step-level ones).
-  // A cancellation is a flow-wide concern, so it lives here; `{ cancel }` cancels the flow.
+  // Flow-level handlers run after step handlers, regardless of which step is active.
   on: {
     'order.cancelled': ({ payload }) => ({ cancel: payload.reason }),
   },
-  // Correlation: with `createWizard(checkout, { correlationId })`, an event whose extracted id
-  // differs is dropped (`event.dropped { reason: 'correlation' }`), so a webhook for another
-  // order never lands here. Payloads without an id (undefined) are not filtered.
+  // An event for another correlation id is dropped instead of buffered.
   correlate: {
     'payment.captured': (payload) => payload.orderId,
     'order.cancelled': (payload) => payload.orderId,
   },
-  // An event with no active listener is buffered (FIFO) for 10 minutes and delivered when a
-  // wait step that handles it enters. That covers the "webhook arrives before we listen" race.
+  // Unmatched events wait in a FIFO inbox for up to ten minutes.
   unmatchedEvents: { buffer: true, ttl: '10m' },
 })
 
-export const checkout = s.steps(
+export const checkoutFlow = checkout.steps(
   {
-    // A view first, so the demo can send events BEFORE the wait step is active.
-    review: s.view({ next: 'awaitPayment' }),
-    awaitPayment: s.wait({
+    // This view lets the demo send payment before the wait step starts.
+    review: checkout.view({ next: 'awaitPayment' }),
+    awaitPayment: checkout.wait({
       on: {
-        // Handlers see the PARSED payload; `update` writes into the typed context.
+        // `update` copies the parsed payload into context.
         'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
         // A handler may override the step's static `next`.
         'payment.failed': ({ payload, update }) => {
@@ -52,9 +48,9 @@ export const checkout = s.steps(
       timeout: { after: '30m', next: 'expired' },
       next: 'paid',
     }),
-    paid: s.final({ output: ({ context }) => `paid (${context.paymentId})` }),
-    declined: s.final({ output: ({ context }) => `declined: ${context.declineReason}` }),
-    expired: s.final({ output: () => 'expired: no payment within 30 minutes' }),
+    paid: checkout.final({ output: ({ context }) => `paid (${context.paymentId})` }),
+    declined: checkout.final({ output: ({ context }) => `declined: ${context.declineReason}` }),
+    expired: checkout.final({ output: () => 'expired: no payment within 30 minutes' }),
   },
   { start: 'review' },
 )

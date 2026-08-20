@@ -2,7 +2,7 @@
  * Child bridge: turns `child.create` / `child.send` / `child.dispose` effects
  * into nested runtimes for `flow` steps.
  *
- * - The nested runtime is created by an injected factory (the wizard façade
+ * - The nested runtime is created by an injected factory (the run façade
  *   supplies `createWizardRuntime` / `resumeWizardRuntime`) so this module has
  *   no runtime dependency on the façade.
  * - Child events are forwarded to the parent's `observe()` stream unchanged
@@ -27,7 +27,7 @@
 import type { CompiledFlow, HookArgs } from '../authoring/compiled'
 import type { Command, Message, ResultToken } from '../machine/commands'
 import type { DomainEvent } from '../machine/events'
-import type { SerializedError, WizardState, WizardStatus } from '../machine/state'
+import type { RunStatus, SerializedError, WizardState } from '../machine/state'
 import { samePath } from '../machine/util'
 import type { Snapshot } from '../wizard/snapshot'
 import { resolveDeps } from './child-deps'
@@ -113,7 +113,7 @@ interface Attached<H extends ChildHandle> {
   readonly token: ResultToken
   unobserve: () => void
   unsubscribe: () => void
-  lastStatus: WizardStatus | undefined
+  lastStatus: RunStatus | undefined
   pendingPhase: 'compensated' | undefined
 }
 
@@ -171,7 +171,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     entry.handle.dispose()
   }
 
-  const attach = (step: string, handle: H, lastStatus: WizardStatus | undefined): Attached<H> => {
+  const attach = (step: string, handle: H, lastStatus: RunStatus | undefined): Attached<H> => {
     const existing = children.get(step)
     if (existing !== undefined) {
       children.delete(step)

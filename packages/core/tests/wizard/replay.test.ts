@@ -1,7 +1,7 @@
 /**
- * `replay(flow, events, options)` — the public fold. Property: for a fresh wizard whose log was
- * not truncated, `replay(flow, wizard.log(), { context, instanceId })` deep-equals
- * `wizard.getState()` at every point (`upTo`), through views, a fan-out DAG with a retried task,
+ * `replay(flow, events, options)` — the public fold. Property: for a fresh run whose log was
+ * not truncated, `replay(flow, run.log(), { context, instanceId })` deep-equals
+ * `run.getState()` at every point (`upTo`), through views, a fan-out DAG with a retried task,
  * a wait step with events, a nested flow (child events skipped, summaries folded), context
  * patches, `reset()`, and a `from` base state.
  */
@@ -12,18 +12,18 @@ import { defineFlow } from '../../src/authoring/define-flow'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { replay } from '../../src/replay'
-import { createWizard, type Wizard, type WizardEvent } from '../../src/wizard/create-wizard'
+import { createRun, type FlowRun, type RunEvent } from '../../src/wizard/create-wizard'
 
 const settle = () => new Promise<void>((r) => setTimeout(r, 0))
 
 // ---- fixtures ------------------------------------------------------------------------------
 
 const packFlow = (() => {
-  const c = defineFlow({ name: 'pack', context: z.object({ items: z.number() }) })
-  return c.steps(
+  const pack = defineFlow({ name: 'pack', context: z.object({ items: z.number() }) })
+  return pack.steps(
     {
-      count: c.task(({ context }) => context.items * 2, { next: 'packed' }),
-      packed: c.final({ output: ({ steps }) => steps.count?.output }),
+      count: pack.task(({ context }) => context.items * 2, { next: 'packed' }),
+      packed: pack.final({ output: ({ steps }) => steps.count?.output }),
     },
     { start: 'count' },
   )
@@ -33,7 +33,7 @@ interface Deps {
   api: { fetch(): Promise<number> }
 }
 
-const s = defineFlow({
+const replayFixture = defineFlow({
   name: 'replay-fixture',
   context: z.object({
     order: z.string(),
@@ -46,15 +46,15 @@ const s = defineFlow({
   concurrency: 2,
 })
 
-const flow = s.steps(
+const flow = replayFixture.steps(
   {
-    form: s.view({
+    form: replayFixture.view({
       input: z.object({ name: z.string().min(1) }),
       initial: { name: '' },
       exit: ({ update }) => update({ total: 10 }),
       next: 'ingest',
     }),
-    ingest: s.task(
+    ingest: replayFixture.task(
       async ({ deps, update }) => {
         const rows = await deps.api.fetch()
         update({ rows })
@@ -62,26 +62,28 @@ const flow = s.steps(
       },
       { retry: { attempts: 2, backoff: 100 }, next: ['normalize', 'enrich'] },
     ),
-    normalize: s.task(({ context }) => ({ normalized: context.rows ?? 0 }), { next: 'gate' }),
-    enrich: s.task(({ update }) => update({ quality: 0.9 }), {
+    normalize: replayFixture.task(({ context }) => ({ normalized: context.rows ?? 0 }), {
+      next: 'gate',
+    }),
+    enrich: replayFixture.task(({ update }) => update({ quality: 0.9 }), {
       when: ({ context }) => (context.rows ?? 0) > 0,
       next: 'gate',
     }),
-    gate: s.decision({
+    gate: replayFixture.decision({
       dependsOn: ['normalize', 'enrich'],
       next: ({ context }) => (context.quality >= 0.8 ? 'awaitPayment' : 'rejected'),
     }),
-    awaitPayment: s.wait({
+    awaitPayment: replayFixture.wait({
       on: { 'payment.captured': ({ update, payload }) => update({ order: payload.paymentId }) },
       timeout: { after: '15m', next: 'rejected' },
       next: 'pack',
     }),
-    pack: s.flow(packFlow, {
+    pack: replayFixture.flow(packFlow, {
       context: ({ context }) => ({ items: context.rows ?? 0 }),
       next: 'done',
     }),
-    rejected: s.final({ output: () => 'rejected' }),
-    done: s.final({ output: ({ context }) => `stored ${context.rows ?? 0} rows` }),
+    rejected: replayFixture.final({ output: () => 'rejected' }),
+    done: replayFixture.final({ output: ({ context }) => `stored ${context.rows ?? 0} rows` }),
   },
   { start: 'form' },
 )
@@ -90,29 +92,29 @@ const context = { order: 'o-1' }
 
 function make(fetch: () => Promise<number>) {
   const sched = createTestScheduler({ now: 1_000 })
-  const wizard = createWizard(flow, {
+  const run = createRun(flow, {
     context,
     deps: { api: { fetch } },
     scheduler: sched,
     ids: createSequentialIds(),
     logSize: 1_000,
   })
-  return { wizard, sched }
+  return { run, sched }
 }
 
 /** `replay` of the whole log equals the live state, and every prefix (`upTo`) is consistent too. */
-function expectReplayEquals(wizard: Wizard<typeof flow>, log: readonly WizardEvent<typeof flow>[]) {
-  const replayed = replay(flow, log, { context, instanceId: wizard.id })
-  expect(replayed).toEqual(wizard.getState())
+function expectReplayEquals(run: FlowRun<typeof flow>, log: readonly RunEvent<typeof flow>[]) {
+  const replayed = replay(flow, log, { context, instanceId: run.id })
+  expect(replayed).toEqual(run.getState())
   // Prefix property: the fold up to seq N equals the fold of the events with seq <= N.
   const last = log[log.length - 1]
   if (last !== undefined) {
     const mid = Math.floor(last.seq / 2)
-    const partial = replay(flow, log, { context, instanceId: wizard.id, upTo: mid })
+    const partial = replay(flow, log, { context, instanceId: run.id, upTo: mid })
     const prefix = replay(
       flow,
       log.filter((e) => e.seq <= mid),
-      { context, instanceId: wizard.id },
+      { context, instanceId: run.id },
     )
     expect(partial).toEqual(prefix)
     expect(partial.seq).toBeLessThanOrEqual(mid)
@@ -124,87 +126,87 @@ function expectReplayEquals(wizard: Wizard<typeof flow>, log: readonly WizardEve
 describe('replay(flow, log, { context }) == getState()', () => {
   it('through a view, a retried task, a fan-out DAG with a skipped branch, a wait and a nested flow', async () => {
     let calls = 0
-    const { wizard, sched } = make(async () => {
+    const { run, sched } = make(async () => {
       calls += 1
       if (calls === 1) throw new Error('flaky')
       return 100
     })
-    await wizard.start()
-    expectReplayEquals(wizard, wizard.log())
+    await run.start()
+    expectReplayEquals(run, run.log())
 
-    await wizard.setInput('form', { name: 'ada' })
-    expect(await wizard.next()).toMatchObject({ ok: true, to: 'ingest' })
+    await run.setInput('form', { name: 'ada' })
+    expect(await run.next()).toMatchObject({ ok: true, to: 'ingest' })
     await settle()
-    expectReplayEquals(wizard, wizard.log())
+    expectReplayEquals(run, run.log())
     // First attempt failed → retry timer; advance and let the second attempt succeed.
-    expect(wizard.getState().steps.ingest.retryAt).toBeDefined()
+    expect(run.getState().steps.ingest.retryAt).toBeDefined()
     sched.advance(100)
     await settle()
     await settle()
-    expectReplayEquals(wizard, wizard.log())
-    expect(wizard.getState().steps.gate.status).toBe('done')
-    expect(wizard.getState().steps.awaitPayment.status).toBe('active')
+    expectReplayEquals(run, run.log())
+    expect(run.getState().steps.gate.status).toBe('done')
+    expect(run.getState().steps.awaitPayment.status).toBe('active')
 
     // A wait step: the event patches the context and moves on to the nested flow.
-    expect(await wizard.send('payment.captured', { paymentId: 'pay-9' })).toMatchObject({
+    expect(await run.send('payment.captured', { paymentId: 'pay-9' })).toMatchObject({
       ok: true,
     })
     await settle()
     await settle()
-    expectReplayEquals(wizard, wizard.log())
-    expect(wizard.getState().status).toBe('done')
-    expect(wizard.getState().output).toBe('stored 100 rows')
+    expectReplayEquals(run, run.log())
+    expect(run.getState().status).toBe('done')
+    expect(run.getState().output).toBe('stored 100 rows')
     // The child ran (its events are forwarded to observe(), not part of the root log).
-    expect(wizard.getState().steps.pack.child?.status).toBe('done')
-    wizard.dispose()
+    expect(run.getState().steps.pack.child?.status).toBe('done')
+    run.dispose()
   })
 
   it('folds a captured observe() stream (child events skipped) and survives reset()', async () => {
-    const { wizard } = make(async () => 3)
-    const captured: WizardEvent<typeof flow>[] = []
-    wizard.observe((e) => captured.push(e))
-    await wizard.start()
-    await wizard.setInput('form', { name: 'ada' })
-    await wizard.next()
+    const { run } = make(async () => 3)
+    const captured: RunEvent<typeof flow>[] = []
+    run.observe((e) => captured.push(e))
+    await run.start()
+    await run.setInput('form', { name: 'ada' })
+    await run.next()
     await settle()
     await settle()
     // Resolve the wait and finish through the child flow.
-    await wizard.send('payment.captured', { paymentId: 'p' })
+    await run.send('payment.captured', { paymentId: 'p' })
     await settle()
     await settle()
-    expect(wizard.getState().status).toBe('done')
+    expect(run.getState().status).toBe('done')
     expect(captured.some((e) => e.path.length > 0)).toBe(true) // child events are in the stream
-    expect(replay(flow, captured, { context, instanceId: wizard.id })).toEqual(wizard.getState())
+    expect(replay(flow, captured, { context, instanceId: run.id })).toEqual(run.getState())
 
-    await wizard.reset()
-    expect(replay(flow, captured, { context, instanceId: wizard.id })).toEqual(wizard.getState())
-    await wizard.start()
-    expect(replay(flow, captured, { context, instanceId: wizard.id })).toEqual(wizard.getState())
-    wizard.dispose()
+    await run.reset()
+    expect(replay(flow, captured, { context, instanceId: run.id })).toEqual(run.getState())
+    await run.start()
+    expect(replay(flow, captured, { context, instanceId: run.id })).toEqual(run.getState())
+    run.dispose()
   })
 
   it('`from` folds onto a base state (only later events), `upTo` stops the fold', async () => {
-    const { wizard } = make(async () => 5)
-    await wizard.start()
-    const base = wizard.getState()
+    const { run } = make(async () => 5)
+    await run.start()
+    const base = run.getState()
     const baseSeq = base.seq
-    await wizard.setInput('form', { name: 'ada' })
-    await wizard.next()
+    await run.setInput('form', { name: 'ada' })
+    await run.next()
     await settle()
     await settle()
-    const log = wizard.log()
+    const log = run.log()
     // From the base: events with seq <= base.seq are ignored, the rest fold onto it.
-    expect(replay(flow, log, { from: base })).toEqual(wizard.getState())
+    expect(replay(flow, log, { from: base })).toEqual(run.getState())
     // The same, from a log that lost its head (a bounded ring / a late attach).
     const tail = log.filter((e) => e.seq > baseSeq)
-    expect(replay(flow, tail, { from: base })).toEqual(wizard.getState())
+    expect(replay(flow, tail, { from: base })).toEqual(run.getState())
     // upTo = base.seq → nothing applied.
     expect(replay(flow, log, { from: base, upTo: baseSeq })).toBe(base)
     // upTo in the middle: seq never exceeds it and the result is a real intermediate state.
-    const mid = replay(flow, log, { context, instanceId: wizard.id, upTo: baseSeq + 3 })
+    const mid = replay(flow, log, { context, instanceId: run.id, upTo: baseSeq + 3 })
     expect(mid.seq).toBeLessThanOrEqual(baseSeq + 3)
     expect(mid.seq).toBeGreaterThan(baseSeq)
-    wizard.dispose()
+    run.dispose()
   })
 
   it('parses the context through the boundary and rejects a bad one at the door', () => {

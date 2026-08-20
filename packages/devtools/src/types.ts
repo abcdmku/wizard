@@ -1,7 +1,7 @@
 /**
- * Public types of `@openwizard/devtools`. The components accept a live `Wizard` or a `Mirror`
- * through STRUCTURAL source types (`WizardSource` / `MirrorSource`) so any typed
- * `Wizard<F>` / `Mirror<P>` fits without a cast, and read the flow's static graph as the
+ * Public types of `@openwizard/devtools`. The components accept a live `FlowRun` or a `Mirror`
+ * through STRUCTURAL source types (`FlowRunSource` / `MirrorSource`) so any typed
+ * `FlowRun<F>` / `Mirror<P>` fits without a cast, and read the flow's static graph as the
  * `FlowGraph` `inspect(flow)` returns.
  *
  * @packageDocumentation
@@ -11,10 +11,10 @@ import type {
   AnyFlow,
   Explanation,
   FlowGraph,
+  RunEvent,
   Snapshot,
   StepKind,
   StepStatus,
-  WizardEvent,
 } from '@openwizard/core'
 
 /**
@@ -25,7 +25,7 @@ import type {
 export type DevtoolsTheme = 'light' | 'dark' | 'system'
 
 /**
- * Live phase of a step as `wizard.explain(step).phase` / `ClientStepState.phase` report it
+ * Live phase of a step as `run.explain(step).phase` / `ClientStepState.phase` report it
  * (`ready`, `running`, `retrying`, `waiting`, …).
  * @public
  */
@@ -43,13 +43,13 @@ export interface StepStatusInfo {
 /**
  * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root flow,
  * `'fulfil/pick'` for step `pick` of the child flow of `fulfil`). Built with
- * `collectStatuses()` from a wizard snapshot or a projected (`ClientState`) state, or by hand.
+ * `collectStatuses()` from a run snapshot or a projected (`ClientState`) state, or by hand.
  * @public
  */
 export type StepStatusMap = Readonly<Record<string, StepStatusInfo>>
 
 /**
- * What a graph click reports: the step `id`, the wizard `path` of its flow and the combined
+ * What a graph click reports: the step `id`, the run `path` of its flow and the combined
  * `key` (`stepKey(path, id)`).
  * @public
  */
@@ -69,8 +69,8 @@ export function stepKey(path: readonly string[], id: string): string {
 }
 
 /**
- * A wizard snapshot as the devtools walk it: the (typed-erased) state plus the live children by
- * flow-step id. `Wizard.getSnapshot()` of any flow returns one.
+ * A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by
+ * flow-step id. `FlowRun.getSnapshot()` of any flow returns one.
  * @public
  */
 export interface SnapshotLike {
@@ -79,28 +79,28 @@ export interface SnapshotLike {
 }
 
 /**
- * The structural view of a `Wizard` the devtools read (`Wizard<F>` of any flow satisfies it):
+ * The structural view of a `FlowRun` the devtools read (`FlowRun<F>` of any flow satisfies it):
  * identity, the flow, state / snapshot, the two subscriptions, the bounded log, `explain` and
  * the live child handles.
  * @public
  */
-export interface WizardSource {
+export interface FlowRunSource {
   readonly id: string
   readonly flow: AnyFlow
   getState(): Snapshot<AnyFlow>['state']
   getSnapshot(): SnapshotLike
   subscribe(listener: () => void): () => void
-  observe(listener: (event: WizardEvent) => void): () => void
-  log(): readonly WizardEvent[]
+  observe(listener: (event: RunEvent) => void): () => void
+  log(): readonly RunEvent[]
   explain(step: string): Explanation
   /** Live child of an active flow step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE` otherwise). */
-  child(step: string): WizardSource
+  child(step: string): FlowRunSource
 }
 
 /**
  * The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies
  * it): the projected state (`null` before the first frame), its subscription and the frame
- * identity. Events, `explain` and the timeline need a wizard; a Mirror source shows the graph
+ * identity. Events, `explain` and the timeline need a run; a Mirror source shows the graph
  * (with `flow` / `graph`) and the projected step facts.
  * @public
  */
@@ -114,16 +114,16 @@ export interface MirrorSource {
 }
 
 /**
- * What the components accept as `source`: a live `Wizard` or a `Mirror`.
+ * What the components accept as `source`: a live `FlowRun` or a `Mirror`.
  * @public
  */
-export type DevtoolsSource = WizardSource | MirrorSource
+export type DevtoolsSource = FlowRunSource | MirrorSource
 
 /**
- * True for a `WizardSource` (it has `observe` / `log` / `explain`); false for a Mirror.
+ * True for a `FlowRunSource` (it has `observe` / `log` / `explain`); false for a Mirror.
  * @public
  */
-export function isWizardSource(source: DevtoolsSource): source is WizardSource {
+export function isFlowRunSource(source: DevtoolsSource): source is FlowRunSource {
   return 'observe' in source && typeof source.observe === 'function'
 }
 

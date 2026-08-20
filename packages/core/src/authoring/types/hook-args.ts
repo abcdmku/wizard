@@ -64,7 +64,7 @@ export interface BaseArgs<C, D> {
   readonly deps: D
   readonly steps: SiblingStates
   readonly step: string
-  /** Wizard path (`[]` for the root, `['fulfil']` inside a child flow). */
+  /** Run path (`[]` for the root, `['fulfil']` inside a child flow). */
   readonly path: readonly string[]
   readonly signal: AbortSignalLike
 }

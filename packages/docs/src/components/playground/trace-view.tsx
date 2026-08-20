@@ -29,17 +29,17 @@ function useAutoScroll(dependency: number) {
   return ref
 }
 
-/** The Trace tab: every domain event from `observe()` — seq, type, step, path and the payload. */
+/** Every domain event from `observe()`, including its sequence, type, step, path, and payload. */
 export function TraceView({
   trace,
-  multiWizard,
+  multiRun,
 }: {
   readonly trace: readonly TraceEntry[]
-  readonly multiWizard: boolean
+  readonly multiRun: boolean
 }) {
   const ref = useAutoScroll(trace.length)
   if (trace.length === 0) {
-    return <p className="p-4 font-mono text-xs text-neutral-500">No events yet — press Run.</p>
+    return <p className="p-4 font-mono text-xs text-neutral-500">No events yet. Press Run.</p>
   }
   return (
     <div ref={ref} className="h-full overflow-auto">
@@ -59,7 +59,7 @@ export function TraceView({
               className="border-t border-neutral-100 align-top dark:border-neutral-800/70"
             >
               <td className="whitespace-nowrap px-3 py-0.5 text-neutral-400">
-                {multiWizard && <span className="mr-1 text-neutral-500">{entry.wizard}</span>}
+                {multiRun && <span className="mr-1 text-neutral-500">{entry.run}</span>}
                 {entry.path.length > 0 && (
                   <span className="mr-1 text-neutral-500">{entry.path.join('/')}</span>
                 )}

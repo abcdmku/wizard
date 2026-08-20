@@ -1,0 +1,7 @@
+name: openwizard-database-binding
+description: Provider-neutral database outputs for an OpenWizard host
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+main: src/index.ts

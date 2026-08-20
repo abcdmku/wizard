@@ -21,7 +21,7 @@ const IDLE: RunnerSnapshot = {
   status: 'idle',
   error: null,
   diagnostics: [],
-  wizards: [],
+  runs: [],
   flows: [],
   trace: [],
   console: [],

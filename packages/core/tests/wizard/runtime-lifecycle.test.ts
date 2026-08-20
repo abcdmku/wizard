@@ -1,5 +1,5 @@
 /**
- * Wizard runtime — subscriptions and snapshots, nested flows, dispose, and the sync-commit guarantee for `send()`.
+ * FlowRun runtime — subscriptions and snapshots, nested flows, dispose, and the sync-commit guarantee for `send()`.
  */
 import { describe, expect, it } from 'vitest'
 import type { CompiledFlow } from '../../src/authoring/compiled'
@@ -24,7 +24,7 @@ function make(
   overrides: ToyOverrides = {},
 ) {
   const sched = createTestScheduler({ now: 1_000 })
-  const wizard = createWizardRuntime(def, {
+  const run = createWizardRuntime(def, {
     context: { tenant: 't1' },
     machine: createToyMachine(overrides),
     initialState,
@@ -35,9 +35,9 @@ function make(
   })
   const events: DomainEvent[] = []
   const states: WizardState[] = []
-  wizard.observe((e) => events.push(e))
-  wizard.subscribe((s) => states.push(s))
-  return { wizard, sched, events, states }
+  run.observe((e) => events.push(e))
+  run.subscribe((s) => states.push(s))
+  return { run, sched, events, states }
 }
 
 const twoViews = (extra: Record<string, any> = {}) =>
@@ -49,26 +49,26 @@ const twoViews = (extra: Record<string, any> = {}) =>
     },
   })
 
-describe('wizard runtime: subscriptions and snapshots', () => {
+describe('run runtime: subscriptions and snapshots', () => {
   it('subscribe fires once per commit, observe streams events, unsubscribe stops both', async () => {
-    const { wizard } = make(twoViews())
+    const { run } = make(twoViews())
     const seen: number[] = []
     const evs: string[] = []
-    const off1 = wizard.subscribe((s) => seen.push(s.seq))
-    const off2 = wizard.observe((e) => evs.push(e.type))
-    await wizard.start()
+    const off1 = run.subscribe((s) => seen.push(s.seq))
+    const off2 = run.observe((e) => evs.push(e.type))
+    await run.start()
     expect(seen).toEqual([3])
     expect(evs).toEqual(['flow.started', 'step.arrived', 'step.entered'])
     off1()
     off2()
-    await wizard.next()
+    await run.next()
     expect(seen).toEqual([3])
     expect(evs).toHaveLength(3)
   })
 
   it('getSnapshot() is cached per state and carries the envelope', async () => {
-    const { wizard, sched } = make(twoViews())
-    const s0 = wizard.getSnapshot()
+    const { run, sched } = make(twoViews())
+    const s0 = run.getSnapshot()
     expect(s0).toMatchObject({
       v: 1,
       flow: { name: 'test-flow', version: 1 },
@@ -77,20 +77,20 @@ describe('wizard runtime: subscriptions and snapshots', () => {
       seq: 0,
       savedAt: 1_000,
     })
-    expect(wizard.getSnapshot()).toBe(s0)
+    expect(run.getSnapshot()).toBe(s0)
     sched.advance(10)
-    expect(wizard.getSnapshot()).toBe(s0)
-    await wizard.start()
-    const s1 = wizard.getSnapshot()
+    expect(run.getSnapshot()).toBe(s0)
+    await run.start()
+    const s1 = run.getSnapshot()
     expect(s1).not.toBe(s0)
     expect(s1.seq).toBe(3)
-    expect(s1.state).toBe(wizard.getState())
+    expect(s1.state).toBe(run.getState())
     expect(s1.children).toEqual({})
-    expect(wizard.log().map((e) => e.seq)).toEqual([1, 2, 3])
+    expect(run.log().map((e) => e.seq)).toEqual([1, 2, 3])
   })
 })
 
-describe('wizard runtime: nested flows', () => {
+describe('run runtime: nested flows', () => {
   const child = flow({
     name: 'child',
     steps: {
@@ -111,17 +111,17 @@ describe('wizard runtime: nested flows', () => {
   })
 
   it('child(step) throws for non-flow steps and before creation; afterwards returns the runtime', async () => {
-    const { wizard, events } = make(parent)
-    expect(() => wizard.child('end')).toThrow(WizardError)
-    expect(() => wizard.child('f')).toThrowError(/not been created/)
-    await wizard.start()
-    const c = wizard.child('f')
+    const { run, events } = make(parent)
+    expect(() => run.child('end')).toThrow(WizardError)
+    expect(() => run.child('f')).toThrowError(/not been created/)
+    await run.start()
+    const c = run.child('f')
     expect(c.path).toEqual(['f'])
     expect(c.getState().status).toBe('done')
     expect(c.getState().steps.t!.output).toEqual({ echo: { tenant: 't1' } })
-    expect(wizard.getState().status).toBe('done')
+    expect(run.getState().status).toBe('done')
     expect(events.filter((e) => e.path[0] === 'f').length).toBeGreaterThan(0)
-    expect(wizard.getSnapshot().children.f?.instanceId).toBe(c.id)
+    expect(run.getSnapshot().children.f?.instanceId).toBe(c.id)
   })
 
   it('dispatch({ type: "child" }) goes through the parent FIFO: the parent machine gates it and plans child.send', async () => {
@@ -144,19 +144,19 @@ describe('wizard runtime: nested flows', () => {
         end: { kind: 'final' },
       },
     })
-    const { wizard, events } = make(p)
+    const { run, events } = make(p)
     // Not started yet: the toy machine rejects (terminal/idle gates live in the parent machine).
     expect(
-      await wizard.dispatch({ type: 'child', path: ['end'], command: { type: 'runReady' } }),
+      await run.dispatch({ type: 'child', path: ['end'], command: { type: 'runReady' } }),
     ).toMatchObject({ ok: false, code: 'NOT_A_FLOW_STEP' })
     expect(
-      await wizard.dispatch({ type: 'child', path: ['f'], command: { type: 'runReady' } }),
+      await run.dispatch({ type: 'child', path: ['f'], command: { type: 'runReady' } }),
     ).toMatchObject({ ok: false, code: 'NOT_ACTIVE' })
-    await wizard.start()
-    const seqBefore = wizard.getState().seq
+    await run.start()
+    const seqBefore = run.getState().seq
     // Accepted: one parent event (child.command) → the promise resolves with the PARENT seq;
     // the child receives the command through the bridge (child.send) inside the same drain.
-    const r = await wizard.dispatch({
+    const r = await run.dispatch({
       type: 'child',
       path: ['f'],
       command: { type: 'setInput', step: 'w', patch: {} },
@@ -173,38 +173,38 @@ describe('wizard runtime: nested flows', () => {
     })
     // Nested path: the parent forwards `{ type: 'child', path: rest, command }` down the chain (toy: 1 level).
     // A `send` addressed to the child runs the CHILD's boundary/routing (child.send → child.dispatch).
-    const before = wizard.child('f').getState().seq
-    await wizard.dispatch({
+    const before = run.child('f').getState().seq
+    await run.dispatch({
       type: 'child',
       path: ['f'],
       command: { type: 'send', event: 'ping', payload: { id: 'x' } },
     })
     // The child flow declares no events → its dispatch answers UNKNOWN_EVENT (no state change).
-    expect(wizard.child('f').getState().seq).toBe(before)
-    expect(wizard.child('f').getState().status).toBe('waiting')
+    expect(run.child('f').getState().seq).toBe(before)
+    expect(run.child('f').getState().status).toBe('waiting')
   })
 })
 
-describe('wizard runtime: dispose', () => {
+describe('run runtime: dispose', () => {
   it('rejects further calls with DISPOSED and settles pending navigation promises', async () => {
     const def = twoViews({ a: { hooks: { canExit: () => new Promise(() => {}) } } })
-    const { wizard } = make(def)
-    await wizard.start()
-    const pending = wizard.next()
-    wizard.dispose()
-    expect(wizard.isDisposed()).toBe(true)
+    const { run } = make(def)
+    await run.start()
+    const pending = run.next()
+    run.dispose()
+    expect(run.isDisposed()).toBe(true)
     expect(await pending).toEqual({
       ok: false,
       reason: 'failed',
       code: 'DISPOSED',
-      message: 'wizard disposed',
+      message: 'run disposed',
     })
-    await expect(wizard.next()).rejects.toMatchObject({ code: 'DISPOSED' })
-    await expect(wizard.dispatch({ type: 'start' })).rejects.toMatchObject({ code: 'DISPOSED' })
-    expect(() => wizard.subscribe(() => {})).toThrow(WizardError)
+    await expect(run.next()).rejects.toMatchObject({ code: 'DISPOSED' })
+    await expect(run.dispatch({ type: 'start' })).rejects.toMatchObject({ code: 'DISPOSED' })
+    expect(() => run.subscribe(() => {})).toThrow(WizardError)
     // Reads still work for post-mortem.
-    expect(wizard.getState().current).toBe('a')
-    wizard.dispose() // idempotent
+    expect(run.getState().current).toBe('a')
+    run.dispose() // idempotent
   })
 
   it("strict: 'sync' is honoured", async () => {
@@ -218,9 +218,9 @@ describe('wizard runtime: dispose', () => {
         end: { kind: 'final' },
       },
     })
-    const { wizard } = make(def, { strict: 'sync' })
-    await wizard.start()
-    expect(wizard.getState().steps.t!.error?.kind).toBe('sync-violation')
+    const { run } = make(def, { strict: 'sync' })
+    await run.start()
+    expect(run.getState().steps.t!.error?.kind).toBe('sync-violation')
   })
 
   it('settles a send() waiting on an async event boundary and a validate() waiting on an async hook', async () => {
@@ -240,16 +240,16 @@ describe('wizard runtime: dispose', () => {
         },
       },
     })
-    const { wizard } = make(def)
-    await wizard.start()
-    const sending = wizard.send('slow', { id: 1 })
-    const validating = wizard.validate('a')
-    wizard.dispose()
+    const { run } = make(def)
+    await run.start()
+    const sending = run.send('slow', { id: 1 })
+    const validating = run.validate('a')
+    run.dispose()
     expect(await sending).toEqual({
       ok: false,
       reason: 'dropped',
       code: 'DISPOSED',
-      message: 'wizard disposed',
+      message: 'run disposed',
     })
     await expect(validating).rejects.toMatchObject({ code: 'DISPOSED' })
     expect(signal?.aborted).toBe(true)
@@ -257,11 +257,11 @@ describe('wizard runtime: dispose', () => {
     releaseBoundary({ ok: true, value: {} })
     await Promise.resolve()
     await Promise.resolve()
-    expect(wizard.log().some((e) => e.type === 'event.received')).toBe(false)
+    expect(run.log().some((e) => e.type === 'event.received')).toBe(false)
   })
 })
 
-describe('wizard runtime: sync-commit guarantee for send()', () => {
+describe('run runtime: sync-commit guarantee for send()', () => {
   it('a sync boundary enqueues before send() returns and the promise is already fulfilled', async () => {
     const def = flow({
       events: { ping: stringsBoundary('id') },
@@ -274,10 +274,10 @@ describe('wizard runtime: sync-commit guarantee for send()', () => {
         end: { kind: 'final' },
       },
     })
-    const { wizard, events } = make(def)
-    await wizard.start()
+    const { run, events } = make(def)
+    await run.start()
     // A rejected boundary: sendRejected is enqueued synchronously and the promise is fulfilled.
-    const p2 = wizard.send('ping', { id: 2 })
+    const p2 = run.send('ping', { id: 2 })
     expect(types(events)).toContain('event.rejected')
     let fulfilled2 = false
     void p2.then(() => {
@@ -286,9 +286,9 @@ describe('wizard runtime: sync-commit guarantee for send()', () => {
     await Promise.resolve()
     expect(fulfilled2).toBe(true)
     // A passing boundary: committed before the call returned — routing AND the sync handler ran.
-    const p = wizard.send('ping', { id: 'p1' })
+    const p = run.send('ping', { id: 'p1' })
     expect(types(events)).toContain('event.delivered')
-    expect(wizard.getState().status).toBe('done')
+    expect(run.getState().status).toBe('done')
     let fulfilled = false
     void p.then(() => {
       fulfilled = true
@@ -298,13 +298,9 @@ describe('wizard runtime: sync-commit guarantee for send()', () => {
   })
 
   it('every sync command promise is already fulfilled when returned (start/next/setInput/dispatch)', async () => {
-    const { wizard } = make(twoViews())
-    const checks: Array<Promise<unknown>> = [wizard.start()]
-    checks.push(
-      wizard.setInput('a', { x: 1 }),
-      wizard.next(),
-      wizard.dispatch({ type: 'go', step: 'a' }),
-    )
+    const { run } = make(twoViews())
+    const checks: Array<Promise<unknown>> = [run.start()]
+    checks.push(run.setInput('a', { x: 1 }), run.next(), run.dispatch({ type: 'go', step: 'a' }))
     const settled = checks.map(() => false)
     checks.forEach((p, i) => {
       void p.then(() => {
@@ -313,16 +309,16 @@ describe('wizard runtime: sync-commit guarantee for send()', () => {
     })
     await Promise.resolve()
     expect(settled).toEqual([true, true, true, true])
-    expect(wizard.getState().current).toBe('a')
+    expect(run.getState().current).toBe('a')
   })
 
   it("preserves a hook error's WizardError code (SYNC_VIOLATION) through NavResult and CommandResult", async () => {
     const def = twoViews({ a: { hooks: { canExit: async () => true } } })
-    const { wizard } = make(def, { strict: 'sync' })
-    await wizard.start()
-    const nav = await wizard.next()
+    const { run } = make(def, { strict: 'sync' })
+    await run.start()
+    const nav = await run.next()
     expect(nav).toMatchObject({ ok: false, reason: 'failed', code: 'SYNC_VIOLATION', step: 'a' })
-    expect(await wizard.dispatch({ type: 'next' })).toMatchObject({
+    expect(await run.dispatch({ type: 'next' })).toMatchObject({
       ok: false,
       code: 'SYNC_VIOLATION',
       step: 'a',

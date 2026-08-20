@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { parseFrame, parseWireCommand } from '../../src/mirror/wire'
-import { checkout } from './fixture'
+import { checkoutFlow } from './fixture'
 
 describe('parseWireCommand', () => {
   it('decodes a valid wire command (expectedSeq optional) and re-encodes the nested command through parseCommand', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: 'cmd-1',
       instanceId: 'wiz-1',
       expectedSeq: 3,
@@ -20,7 +20,7 @@ describe('parseWireCommand', () => {
       },
     })
     // `expectedSeq` is optional and absent (not `undefined`) when not sent.
-    const bare = parseWireCommand(checkout, {
+    const bare = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'next' },
@@ -34,14 +34,14 @@ describe('parseWireCommand', () => {
 
   it('rejects non-objects', () => {
     for (const bad of [null, undefined, 1, 'x', [], true]) {
-      const result = parseWireCommand(checkout, bad)
+      const result = parseWireCommand(checkoutFlow, bad)
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.issues[0]?.message).toMatch(/must be an object/)
     }
   })
 
   it('rejects unknown properties, empty ids and a bad expectedSeq (all issues reported)', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: '',
       instanceId: 1,
       expectedSeq: -1,
@@ -66,16 +66,16 @@ describe('parseWireCommand', () => {
       expectedSeq: 1.5,
       command: { type: 'next' },
     }
-    expect(parseWireCommand(checkout, fractional).ok).toBe(false)
+    expect(parseWireCommand(checkoutFlow, fractional).ok).toBe(false)
   })
 
   it('requires command and decodes it strictly (issues are prefixed with the command path)', () => {
-    const missing = parseWireCommand(checkout, { commandId: 'c', instanceId: 'w' })
+    const missing = parseWireCommand(checkoutFlow, { commandId: 'c', instanceId: 'w' })
     expect(missing).toMatchObject({ ok: false })
     if (!missing.ok)
       expect(missing.issues[0]).toEqual({ message: "'command' is required", path: ['command'] })
 
-    const bad = parseWireCommand(checkout, {
+    const bad = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'go', step: 'shipping', nope: 1 },
@@ -86,7 +86,7 @@ describe('parseWireCommand', () => {
       expect(bad.issues[0]?.message).toMatch(/unknown property 'nope'/)
     }
 
-    const internal = parseWireCommand(checkout, {
+    const internal = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'sendRejected', event: 'e', issues: [] },
@@ -96,7 +96,7 @@ describe('parseWireCommand', () => {
   })
 
   it('checks the nested command against the flow (unknown ids are issues, prefixed with the command path)', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'go', step: 'reserve' },
@@ -110,7 +110,7 @@ describe('parseWireCommand', () => {
   })
 
   it('rejects non-JSON payloads inside the nested command', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'setInput', step: 'shipping', patch: { fn: () => 1 } },
@@ -125,20 +125,20 @@ describe('parseWireCommand', () => {
       instanceId = 'w'
       command = { type: 'next' }
     }
-    expect(parseWireCommand(checkout, new Envelope()).ok).toBe(false)
+    expect(parseWireCommand(checkoutFlow, new Envelope()).ok).toBe(false)
     const inherited = Object.create({ commandId: 'c', instanceId: 'w', command: { type: 'next' } })
-    expect(parseWireCommand(checkout, inherited).ok).toBe(false)
+    expect(parseWireCommand(checkoutFlow, inherited).ok).toBe(false)
     // A null-prototype object (JSON-like) is fine.
     const bare = Object.assign(Object.create(null), {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'next' },
     })
-    expect(parseWireCommand(checkout, bare).ok).toBe(true)
+    expect(parseWireCommand(checkoutFlow, bare).ok).toBe(true)
   })
 
   it('caps ids at 64 KiB', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: 'x'.repeat(65_537),
       instanceId: 'w',
       command: { type: 'next' },

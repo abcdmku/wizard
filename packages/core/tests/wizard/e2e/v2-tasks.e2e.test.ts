@@ -42,17 +42,17 @@ describe('e2e v0.2 — mapError', () => {
       },
     })
     const t = e2e(def, { store, key: 'k' })
-    await t.wizard.start()
+    await t.run.start()
     expect(t.rec('t').error).toMatchObject({ kind: 'run', data: { status: 503, retryable: true } })
     expect(t.of('step.runFailed')[0]).toMatchObject({ data: { status: 503, retryable: true } })
     t.sched.advance(50)
     expect(t.rec('t')).toMatchObject({ status: 'failed', error: { data: { status: 503 } } })
     expect(t.of('step.failed')[0]).toMatchObject({ data: { status: 503, retryable: true } })
-    await t.wizard.save()
+    await t.run.save()
     const saved = (await store.get('k')) as { state: { steps: { t: { error: unknown } } } }
     expect(saved.state.steps.t.error).toMatchObject({ data: { status: 503, retryable: true } })
     // resume keeps it
-    const r = e2eResume(def, roundTrip(t.wizard.getSnapshot()))
+    const r = e2eResume(def, roundTrip(t.run.getSnapshot()))
     expect(r.rec('t').error).toMatchObject({ data: { status: 503, retryable: true } })
   })
 
@@ -74,7 +74,7 @@ describe('e2e v0.2 — mapError', () => {
       },
     })
     const t = e2e(def, { store, key: 'k', onPersistError: (e) => errors.push(e) })
-    await t.wizard.start()
+    await t.run.start()
     await tick()
     expect(errors).toHaveLength(1)
     expect((errors[0] as WizardError).code).toBe('SNAPSHOT_NOT_SERIALIZABLE')
@@ -107,10 +107,10 @@ describe('e2e v0.2 — idempotent crash-resume and migrate', () => {
       },
     })
     const a = e2e(def, { context: { orderId: 'o1' } })
-    await a.wizard.start()
+    await a.run.start()
     expect(a.rec('t')).toMatchObject({ status: 'active', attempt: 1, idempotencyKey: 'reserve:o1' })
-    const snap = roundTrip(a.wizard.getSnapshot())
-    a.wizard.dispose()
+    const snap = roundTrip(a.run.getSnapshot())
+    a.run.dispose()
     const b = e2eResume(def, snap)
     expect(b.of('step.runStarted')[0]).toMatchObject({
       attempt: 1,
@@ -119,7 +119,7 @@ describe('e2e v0.2 — idempotent crash-resume and migrate', () => {
     })
     expect(b.rec('t')).toMatchObject({ status: 'done', output: 'done' })
     expect(keys).toEqual(['reserve:o1', 'reserve:o1'])
-    expect(b.wizard.getState().status).toBe('done')
+    expect(b.run.getState().status).toBe('done')
   })
 
   const v1 = flow({
@@ -214,7 +214,7 @@ describe('e2e v0.2 — idempotent crash-resume and migrate', () => {
       throw new Error('expected throw')
     } catch (error) {
       expect((error as WizardError).code).toBe('SNAPSHOT_INCOMPATIBLE')
-      expect((error as WizardError).issues?.[0]?.message).toContain('resumeWizardAsync')
+      expect((error as WizardError).issues?.[0]?.message).toContain('resumeRunAsync')
     }
     // a throwing migrate is a reason too
     try {

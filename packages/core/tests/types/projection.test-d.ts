@@ -27,25 +27,25 @@ import {
   type Projection,
   type ProjectionOutput,
 } from '../../src/projection/define-projection'
-import type { Snapshot, Wizard } from '../../src/wizard/create-wizard'
+import type { FlowRun, Snapshot } from '../../src/wizard/create-wizard'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Case 12 — the projected TYPE reflects exactly what is exposed
 // ─────────────────────────────────────────────────────────────────────────────
 
-const f = defineFlow({
+const fulfilment = defineFlow({
   name: 'fulfilment',
   context: z.object({ orderId: z.string(), trackingId: z.string().optional() }),
 })
-const fulfilment = f.steps({
-  label: f.task(async () => ({ trackingId: 'x' }), {
+const fulfilmentFlow = fulfilment.steps({
+  label: fulfilment.task(async () => ({ trackingId: 'x' }), {
     exit: ({ output, update }) => update({ trackingId: output.trackingId }),
     next: 'done',
   }),
-  done: f.final({ output: ({ context }) => ({ trackingId: context.trackingId }) }),
+  done: fulfilment.final({ output: ({ context }) => ({ trackingId: context.trackingId }) }),
 })
 
-const c = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({
     cartId: z.string(),
@@ -55,22 +55,22 @@ const c = defineFlow({
   }),
   events: { 'payment.captured': z.object({ paymentId: z.string() }) },
 })
-const checkout = c.steps(
+const checkoutFlow = checkout.steps(
   {
-    shipping: c.view({
+    shipping: checkout.view({
       input: z.object({ address: z.string(), express: z.boolean().default(false) }),
       next: 'reserve',
     }),
-    reserve: c.task(async () => ({ reservationId: 'r' }), { next: 'fulfil' }),
-    fulfil: c.flow(fulfilment, {
+    reserve: checkout.task(async () => ({ reservationId: 'r' }), { next: 'fulfil' }),
+    fulfil: checkout.flow(fulfilmentFlow, {
       context: ({ context }) => ({ orderId: context.cartId }),
       next: 'receipt',
     }),
-    receipt: c.final(),
+    receipt: checkout.final(),
   },
   { start: 'shipping' },
 )
-export const checkoutClient = defineProjection(checkout, {
+export const checkoutClient = defineProjection(checkoutFlow, {
   expose: {
     steps: {
       shipping: { input: true, issues: true },
@@ -120,13 +120,13 @@ describe('case 12: ClientState<F, expose>', () => {
     >()
     expectTypeOf<ClientCheckout['current']>().toEqualTypeOf<'shipping' | null>()
     expectTypeOf<ClientCheckout['output']>().toEqualTypeOf<
-      FlowOutput<typeof checkout> | undefined
+      FlowOutput<typeof checkoutFlow> | undefined
     >()
     expectTypeOf<ClientCheckout['seq']>().toEqualTypeOf<number>()
     expectTypeOf<ClientCheckout['instanceId']>().toEqualTypeOf<string>()
   })
   it('a projection with no exposure exposes nothing but the base facts: no flow output, issues, errors or children', () => {
-    const bare = defineProjection(checkout, { expose: {} })
+    const bare = defineProjection(checkoutFlow, { expose: {} })
     type Bare = ProjectionOutput<typeof bare>
     expectTypeOf<Bare['context']>().toEqualTypeOf<{}>()
     expectTypeOf<keyof Bare>().toEqualTypeOf<
@@ -149,7 +149,7 @@ describe('case 12: ClientState<F, expose>', () => {
     bareState.steps.fulfil.child
   })
   it('a projection of a same-name, same-shape flow is type-compatible (identity is a runtime check)', () => {
-    const t = defineFlow({
+    const checkout = defineFlow({
       name: 'checkout',
       context: z.object({
         cartId: z.string(),
@@ -159,25 +159,25 @@ describe('case 12: ClientState<F, expose>', () => {
       }),
       events: { 'payment.captured': z.object({ paymentId: z.string() }) },
     })
-    const twin = t.steps(
+    const twin = checkout.steps(
       {
-        shipping: t.view({
+        shipping: checkout.view({
           input: z.object({ address: z.string(), express: z.boolean().default(false) }),
           next: 'reserve',
         }),
-        reserve: t.task(async () => ({ reservationId: 'r' }), { next: 'fulfil' }),
-        fulfil: t.flow(fulfilment, {
+        reserve: checkout.task(async () => ({ reservationId: 'r' }), { next: 'fulfil' }),
+        fulfil: checkout.flow(fulfilmentFlow, {
           context: ({ context }) => ({ orderId: context.cartId }),
           next: 'receipt',
         }),
-        receipt: t.final(),
+        receipt: checkout.final(),
       },
       { start: 'shipping' },
     )
     const twinProjection = defineProjection(twin, { expose: {} })
-    const wizard = {} as Wizard<typeof checkout>
-    // Compiles (structural types) — `wizard.project` throws DEFINITION_INVALID at runtime.
-    wizard.project(twinProjection)
+    const run = {} as FlowRun<typeof checkoutFlow>
+    // Compiles (structural types) — `run.project` throws DEFINITION_INVALID at runtime.
+    run.project(twinProjection)
     expectTypeOf(twinProjection.flow).toEqualTypeOf<typeof twin>()
   })
 })
@@ -186,26 +186,26 @@ describe('case 12: ClientState<F, expose>', () => {
 // `select` projections are typed by their mapper and exclusive with `expose`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const m = defineFlow({ name: 'mapped', context: z.object({ id: z.string() }) })
-const mapped = m.steps({
-  post: m.task(async () => ({ ref: 'r' }), {
+const mapped = defineFlow({ name: 'mapped', context: z.object({ id: z.string() }) })
+const mappedFlow = mapped.steps({
+  post: mapped.task(async () => ({ ref: 'r' }), {
     mapError: (error) => ({ code: error instanceof Error ? 'DOWN' : 'OTHER' }) as const,
     next: 'done',
   }),
-  done: m.final(),
+  done: mapped.final(),
 })
 describe('v0.2 projections', () => {
   it('`progress: true` adds a required `progress: Progress`; absent otherwise', () => {
-    const withProgress = defineProjection(checkout, { expose: { progress: true } })
+    const withProgress = defineProjection(checkoutFlow, { expose: { progress: true } })
     expectTypeOf<ProjectionOutput<typeof withProgress>['progress']>().toEqualTypeOf<Progress>()
     expectTypeOf<keyof ProjectionOutput<typeof withProgress>>().toEqualTypeOf<
       'instanceId' | 'epoch' | 'seq' | 'status' | 'current' | 'context' | 'steps' | 'progress'
     >()
     // @ts-expect-error `progress` is a boolean
-    defineProjection(checkout, { expose: { progress: 'yes' } })
+    defineProjection(checkoutFlow, { expose: { progress: 'yes' } })
   })
   it('`error: true` exposes `{ name, message, code?, data?: ErrorOf }`', () => {
-    const p = defineProjection(mapped, { expose: { steps: { post: { error: true } } } })
+    const p = defineProjection(mappedFlow, { expose: { steps: { post: { error: true } } } })
     expectTypeOf<ProjectionOutput<typeof p>['steps']['post']['error']>().toEqualTypeOf<
       ClientStepError<{ readonly code: 'DOWN' | 'OTHER' }> | undefined
     >()
@@ -213,10 +213,10 @@ describe('v0.2 projections', () => {
       NonNullable<ProjectionOutput<typeof p>['steps']['post']['error']>['data']
     >().toEqualTypeOf<{ readonly code: 'DOWN' | 'OTHER' } | undefined>()
   })
-  it('`select` projections are Projection<F, T> with T = the mapper return; state is the typed wizard state', () => {
-    const summary = defineProjection(checkout, {
+  it('`select` projections are Projection<F, T> with T = the mapper return; state is the typed run state', () => {
+    const summary = defineProjection(checkoutFlow, {
       select: (state) => {
-        expectTypeOf(state).toEqualTypeOf<Snapshot<typeof checkout>['state']>()
+        expectTypeOf(state).toEqualTypeOf<Snapshot<typeof checkoutFlow>['state']>()
         expectTypeOf(state.steps.reserve.output).toEqualTypeOf<
           { reservationId: string } | undefined
         >()
@@ -224,24 +224,24 @@ describe('v0.2 projections', () => {
       },
     })
     expectTypeOf(summary).toEqualTypeOf<
-      Projection<typeof checkout, { at: 'shipping' | null; total: number; done: boolean }>
+      Projection<typeof checkoutFlow, { at: 'shipping' | null; total: number; done: boolean }>
     >()
     expectTypeOf<ProjectionOutput<typeof summary>>().toEqualTypeOf<{
       at: 'shipping' | null
       total: number
       done: boolean
     }>()
-    expectTypeOf(summary.flow).toEqualTypeOf<typeof checkout>()
+    expectTypeOf(summary.flow).toEqualTypeOf<typeof checkoutFlow>()
     expectTypeOf(summary).toMatchTypeOf<AnyProjection>()
-    // The Wizard / MirrorSource / Mirror carry T.
-    const wizard = {} as Wizard<typeof checkout>
-    expectTypeOf(wizard.project(summary)).toEqualTypeOf<{
+    // The FlowRun / MirrorSource / Mirror carry T.
+    const run = {} as FlowRun<typeof checkoutFlow>
+    expectTypeOf(run.project(summary)).toEqualTypeOf<{
       at: 'shipping' | null
       total: number
       done: boolean
     }>()
-    expectTypeOf(wizard.project(checkoutClient)).toEqualTypeOf<ClientCheckout>()
-    expectTypeOf(createMirrorSource(wizard, summary)).toEqualTypeOf<
+    expectTypeOf(run.project(checkoutClient)).toEqualTypeOf<ClientCheckout>()
+    expectTypeOf(createMirrorSource(run, summary)).toEqualTypeOf<
       MirrorSource<{ at: 'shipping' | null; total: number; done: boolean }>
     >()
     const transport = {} as Transport<{ at: 'shipping' | null; total: number; done: boolean }>
@@ -258,29 +258,29 @@ describe('v0.2 projections', () => {
   })
   it('`expose` and `select` are mutually exclusive', () => {
     // @ts-expect-error give one of `expose` / `select`, not both
-    defineProjection(checkout, { expose: {}, select: () => 1 })
+    defineProjection(checkoutFlow, { expose: {}, select: () => 1 })
     // @ts-expect-error give one of `expose` / `select`
-    defineProjection(checkout, {})
+    defineProjection(checkoutFlow, {})
   })
 })
 
-export const badExpose = defineProjection(checkout, {
+export const badExpose = defineProjection(checkoutFlow, {
   // @ts-expect-error unknown step id in `expose.steps`
   expose: { steps: { typo: { input: true } } },
 })
-export const badExposeCtx = defineProjection(checkout, {
+export const badExposeCtx = defineProjection(checkoutFlow, {
   // @ts-expect-error unknown context key
   expose: { context: ['nope'] },
 })
-export const badExposeChild = defineProjection(checkout, {
+export const badExposeChild = defineProjection(checkoutFlow, {
   // @ts-expect-error `child` exposure is only valid on flow steps
   expose: { steps: { reserve: { child: {} } } },
 })
-export const badExposeOutput = defineProjection(checkout, {
+export const badExposeOutput = defineProjection(checkoutFlow, {
   // @ts-expect-error `output` is a boolean
   expose: { output: 'yes' },
 })
-export const okExposeChild = defineProjection(checkout, {
+export const okExposeChild = defineProjection(checkoutFlow, {
   expose: {
     steps: {
       fulfil: { output: true, child: { steps: { label: { output: true } }, context: ['orderId'] } },

@@ -1,5 +1,5 @@
 /**
- * The "server": everything a real backend would own, meaning the wizard instance, the deps and
+ * The "server": everything a real backend would own, meaning the run instance, the deps and
  * the Mirror source. It runs IN THE PAGE here so the example is self-contained; in production this
  * file lives on the server, `createLocalTransport` is replaced by an SSE/WS/HTTP transport
  * (frames out via `source.subscribe`, commands in via `source.dispatch` after auth), and the
@@ -7,14 +7,14 @@
  */
 import {
   createMirrorSource,
-  createWizard,
+  createRun,
+  type FlowRun,
   type Scheduler,
   type Transport,
-  type Wizard,
 } from '@openwizard/core'
 import { createLocalTransport } from '@openwizard/core/testing'
 import type { ClientView } from './client'
-import { type CheckoutDeps, checkout, checkoutClient } from './flow'
+import { type CheckoutDeps, checkoutClient, checkoutFlow } from './flow'
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -49,24 +49,24 @@ export interface ServerOptions {
 }
 
 /**
- * Start the wizard and return the client-facing transport (plus the wizard, for the host).
+ * Start the run and return the client-facing transport (plus the run, for the host).
  * `serialize: true` JSON-round-trips every frame/command/ack and `delayMs` adds latency, so the
  * loopback behaves like a network.
  */
 export function startServer(options: ServerOptions = {}): {
   readonly transport: Transport<ClientView>
-  readonly wizard: Wizard<typeof checkout>
+  readonly run: FlowRun<typeof checkoutFlow>
 } {
-  const wizard = createWizard(checkout, {
+  const run = createRun(checkoutFlow, {
     context: { cartId: 'cart-42', total: 129.5 },
     deps: options.deps ?? demoDeps,
     ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
   })
-  void wizard.start()
-  const source = createMirrorSource(wizard, checkoutClient)
+  void run.start()
+  const source = createMirrorSource(run, checkoutClient)
   const transport = createLocalTransport(source, {
     delayMs: options.delayMs ?? 120,
     serialize: true,
   })
-  return { transport, wizard }
+  return { transport, run }
 }

@@ -1,6 +1,6 @@
 /**
- * Untyped wizard runtime — the live object behind the typed `Wizard<F>` façade
- * (`createWizard`/`resumeWizard` in the authoring layer wrap it).
+ * Untyped run runtime — the live object behind the typed `FlowRun<F>` façade
+ * (`createRun`/`resumeRun` in the authoring layer wrap it).
  *
  * Every method is sugar over `dispatch(command)`; results are values (plan
  * §8.2): `CommandResult`, `NavResult`, `SendResult`. `WizardError` is the
@@ -27,7 +27,7 @@
  * `results.ts` (result mapping), `persistence.ts` (driver + `save`) and
  * `config.ts` (options → config).
  *
- * @internal Public users see the typed `Wizard<F>`.
+ * @internal Public users see the typed `FlowRun<F>`.
  */
 
 import type { CompiledFlow } from '../../authoring/compiled'
@@ -60,7 +60,7 @@ export type {
   WizardRuntimeOptions,
 } from './types'
 
-/** Create a fresh wizard instance from an already-parsed context. */
+/** Create a fresh run instance from an already-parsed context. */
 export function createWizardRuntime(def: CompiledFlow, opts: WizardRuntimeOptions): WizardRuntime {
   const cfg = toConfig(opts, () => {
     throw new Error('children are only restored on the resume path')
@@ -77,7 +77,7 @@ export function createWizardRuntime(def: CompiledFlow, opts: WizardRuntimeOption
 }
 
 /**
- * The child factory of one runtime: each child runs with ITS deps (`s.flow(child, { deps })`
+ * The child factory of one runtime: each child runs with ITS deps (`flow.flow(child, { deps })`
  * mapped + parsed by the bridge, or the parent's deps passed through) and inherits the parent's
  * correlation id (v0.2 §9.1 — same business entity); everything else in the config is shared.
  */
@@ -113,7 +113,7 @@ export function buildRuntime(
   init: BuildInit,
 ): InternalRuntime {
   const ctx = createContext(def, cfg, init, (get) => childFactory(cfg, get))
-  const { interp, stateListeners, eventListeners, attached } = ctx
+  const { interp, stateListeners, eventListeners, attached, terminal } = ctx
   const c = createCommands(ctx)
   attachPersistence(ctx)
 
@@ -171,7 +171,7 @@ export function buildRuntime(
         attached.delete(dispose)
         detach()
       }
-      // The source may have disposed the wizard re-entrantly: then it is let go at once.
+      // The source may have disposed the run re-entrantly: then it is let go at once.
       if (ctx.disposed) dispose()
       else attached.add(dispose)
       return dispose
@@ -180,6 +180,12 @@ export function buildRuntime(
     readyViews: () => readyOrCurrentViews(def, interp.getState()),
     dispatch: (command) => c.guarded(() => c.dispatch(command)),
     getState: () => interp.getState(),
+    result: () => terminal.current(),
+    awaitResult: () => terminal.awaitResult(),
+    subscribeResult(listener) {
+      if (ctx.disposed) throw ctx.disposedError()
+      return terminal.subscribe(listener)
+    },
     getSnapshot: ctx.getSnapshot,
     explain: (step) => explain(def, interp.getState(), step),
     subscribe(listener) {
@@ -225,6 +231,7 @@ export function buildRuntime(
       }
       attached.clear()
       ctx.driver?.dispose()
+      terminal.dispose()
       interp.dispose()
       for (const resolve of ctx.pendingMessages.values()) {
         resolve({ batch: [], seq: interp.getState().seq, disposed: true })

@@ -6,6 +6,7 @@
 
 import { isBoundary, toRuntimeBoundary } from '../boundary'
 import type { CompiledStep, Hook, NextRef, OnHandlerResult } from '../compiled'
+import { isTaskAdapter, TASK_ADAPTER } from '../task-adapter'
 import type { AnyFlow, AnyStep, Duration, Issue, StepKind } from '../types'
 import { type Ctx, compileFlow } from './flow'
 import type { StepGraph } from './graph'
@@ -205,9 +206,16 @@ function compileView(s: AnyStep, step: Build, hooks: Hooks, problem: Problem): v
 }
 
 function compileTask(s: AnyStep, step: Build, hooks: Hooks, problem: Problem): void {
+  const adapter = isTaskAdapter(s.run) ? s.run : undefined
   if (typeof s.run !== 'function') problem("a task needs a 'run' function")
   else hooks.run = asHook<unknown>(s.run)
-  if (s.output !== undefined) {
+  if (adapter !== undefined) {
+    step.output = toRuntimeBoundary(adapter[TASK_ADAPTER].output)
+    if (s.output !== undefined)
+      problem("task adapters provide their output boundary; omit the task's 'output' option")
+    if (s.mapError !== undefined)
+      problem("task adapters provide typed failures; omit the task's 'mapError' option")
+  } else if (s.output !== undefined) {
     if (isBoundary(s.output)) step.output = toRuntimeBoundary(s.output)
     else problem("'output' must be a boundary")
   }
@@ -282,7 +290,7 @@ function compileFlowStep(
 ): void {
   const child = s.child
   if (!isRecord(child) || !isRecord(child.steps)) {
-    problem('a flow step needs a child flow (s.flow(child, cfg))')
+    problem('a flow step needs a child flow (flow.flow(child, cfg))')
     return
   }
   const childFlow = child as unknown as AnyFlow

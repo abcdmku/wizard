@@ -62,6 +62,8 @@ export function onRunResult(b: Batch, msg: ResultMsg): boolean {
     error: msg.error,
     timedOut: msg.timedOut === true,
     syncViolation: msg.syncViolation === true,
+    failureKind: msg.failure?.kind,
+    data: msg.failure?.data,
   }
   if (def.hooks.mapError !== undefined) {
     // v0.2 (§10.7): map the failure first; `onMapErrorResult` records it with `data`.
@@ -83,6 +85,8 @@ interface RunFailure {
   readonly error: SerializedError
   readonly timedOut: boolean
   readonly syncViolation: boolean
+  readonly failureKind: 'typed' | 'defect' | 'interrupted' | undefined
+  readonly data: unknown
 }
 
 /** `res.*(mapError)`: the failure it was mapping is echoed in `extra`; a throwing mapper yields no `data`. */
@@ -99,6 +103,8 @@ export function onMapErrorResult(b: Batch, msg: ResultMsg): boolean {
     error,
     timedOut: extra.timedOut === true,
     syncViolation: extra.syncViolation === true,
+    failureKind: undefined,
+    data: undefined,
   }
   recordRunFailure(b, step, failure, msg.type === 'res.ok' ? msg.value : undefined)
   return true
@@ -120,7 +126,8 @@ function recordRunFailure(b: Batch, step: string, failure: RunFailure, data: unk
   const r = rec(b, step)
   const def = stepDef(b, step)
   if (r === undefined || def === undefined) return
-  const dataField = data !== undefined ? { data } : {}
+  const effectiveData = data !== undefined ? data : failure.data
+  const dataField = effectiveData !== undefined ? { data: effectiveData } : {}
   const timedOutField = failure.timedOut ? { timedOut: true } : {}
   if (failure.syncViolation) {
     // `strict: 'sync'` violation: never retried, fails as 'sync-violation' (plan §8.1).
@@ -131,8 +138,9 @@ function recordRunFailure(b: Batch, step: string, failure: RunFailure, data: unk
       error: failure.error,
       willRetry: false,
       ...dataField,
+      ...(failure.failureKind !== undefined ? { failureKind: failure.failureKind } : {}),
     })
-    failStep(b, step, failure.error, 'sync-violation', data)
+    failStep(b, step, failure.error, 'sync-violation', effectiveData)
     return
   }
   const policy = def.retry ?? b.env.def.policies.retry
@@ -146,6 +154,7 @@ function recordRunFailure(b: Batch, step: string, failure: RunFailure, data: unk
       willRetry: true,
       ...timedOutField,
       ...dataField,
+      ...(failure.failureKind !== undefined ? { failureKind: failure.failureKind } : {}),
     })
     const timerId = retryTimerId(step)
     emit(b, {
@@ -165,6 +174,13 @@ function recordRunFailure(b: Batch, step: string, failure: RunFailure, data: unk
     willRetry: false,
     ...timedOutField,
     ...dataField,
+    ...(failure.failureKind !== undefined ? { failureKind: failure.failureKind } : {}),
   })
-  failStep(b, step, failure.error, failure.timedOut ? 'timeout' : 'run', data)
+  failStep(
+    b,
+    step,
+    failure.error,
+    failure.timedOut ? 'timeout' : (failure.failureKind ?? 'run'),
+    effectiveData,
+  )
 }

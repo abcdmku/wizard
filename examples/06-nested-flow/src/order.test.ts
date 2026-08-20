@@ -1,15 +1,15 @@
 import {
   createMirror,
   createMirrorSource,
-  createWizard,
+  createRun,
   defineProjection,
   isWizardError,
   parseCommand,
-  type WizardEvent,
+  type RunEvent,
 } from '@openwizard/core'
 import { createLocalTransport } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
-import { type Deps, fulfilment, order } from './order'
+import { type Deps, fulfilmentFlow, orderFlow } from './order'
 
 function fakeDeps() {
   const shipments: Array<[orderId: string, warehouse: string]> = []
@@ -25,52 +25,57 @@ function fakeDeps() {
   return { deps, shipments }
 }
 
-const settle = () => new Promise<void>((r) => setTimeout(r, 0))
+const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
-describe('06 nested flow: s.flow(child, { context })', () => {
+describe('06 nested flow: order.flow(child, { context })', () => {
   it('creates the child with the mapped context, forwards its events with a path, and completes the parent with its output', async () => {
     const { deps, shipments } = fakeDeps()
-    const wizard = createWizard(order, { context: { orderId: 'o-1', amount: 30 }, deps })
-    const events: WizardEvent<typeof order>[] = []
-    wizard.observe((e) => events.push(e))
+    const run = createRun(orderFlow, { context: { orderId: 'o-1', amount: 30 }, deps })
+    const events: RunEvent<typeof orderFlow>[] = []
+    run.observe((event) => events.push(event))
 
     // Before the flow step is active there is no child yet (a programmer error, so it throws).
     try {
-      wizard.child('fulfil')
+      run.child('fulfil')
       expect.unreachable()
     } catch (error) {
       expect(isWizardError(error) && error.code).toBe('NOT_ACTIVE')
     }
 
-    await wizard.start() // pay (sync) → fulfil enters → child created and started
-    expect(wizard.getState().steps.pay).toMatchObject({
+    await run.start() // pay (sync) → fulfil enters → child created and started
+    expect(run.getState().steps.pay).toMatchObject({
       status: 'done',
       output: { chargeId: 'ch_o-1' },
     })
-    expect(wizard.getState().steps.fulfil).toMatchObject({
+    expect(run.getState().steps.fulfil).toMatchObject({
       status: 'active',
       child: { status: 'waiting', current: 'pick' }, // the parent keeps a summary of the child
     })
-    expect(wizard.getState().status).toBe('waiting')
+    expect(run.getState().status).toBe('waiting')
 
-    // The typed child wizard: its own instance, context parsed by ITS boundary (default applied).
-    const child = wizard.child('fulfil')
-    expect(child.flow).toBe(fulfilment)
-    expect(child.id).not.toBe(wizard.id)
+    // The typed child run: its own instance, context parsed by ITS boundary (default applied).
+    const child = run.child('fulfil')
+    expect(child.flow).toBe(fulfilmentFlow)
+    expect(child.id).not.toBe(run.id)
     expect(child.getState().context).toEqual({ orderId: 'o-1', warehouse: 'east' })
     expect(child.getState().current).toBe('pick')
-    expect(wizard.child('fulfil')).toBe(child) // memoised
+    expect(run.child('fulfil')).toBe(child) // memoised
 
     // Child events are visible on the parent's observe()/log() with their own path.
-    const parentEvents = events.filter((e) => e.path.length === 0)
-    const childEvents = events.filter((e) => e.path.length === 1 && e.path[0] === 'fulfil')
-    expect(parentEvents.find((e) => e.type === 'child.started')).toMatchObject({
+    const parentEvents = events.filter((event) => event.path.length === 0)
+    const childEvents = events.filter(
+      (event) => event.path.length === 1 && event.path[0] === 'fulfil',
+    )
+    expect(parentEvents.find((event) => event.type === 'child.started')).toMatchObject({
       step: 'fulfil',
       childPath: ['fulfil'],
       context: { orderId: 'o-1' },
     })
-    expect(childEvents.map((e) => e.type).slice(0, 2)).toEqual(['flow.started', 'step.arrived'])
-    expect(childEvents.every((e) => e.path[0] === 'fulfil')).toBe(true)
+    expect(childEvents.map((event) => event.type).slice(0, 2)).toEqual([
+      'flow.started',
+      'step.arrived',
+    ])
+    expect(childEvents.every((event) => event.path[0] === 'fulfil')).toBe(true)
 
     // Drive the child directly.
     expect(await child.setInput('pick', { warehouse: 'west' })).toMatchObject({ ok: true })
@@ -81,18 +86,20 @@ describe('06 nested flow: s.flow(child, { context })', () => {
     expect(child.getState().output).toEqual({ tracking: 'TRK-WEST-o-1' })
 
     // … which completes the parent's flow step with the child's output and finishes the parent.
-    expect(wizard.getState().steps.fulfil).toMatchObject({
+    expect(run.getState().steps.fulfil).toMatchObject({
       status: 'done',
       output: { tracking: 'TRK-WEST-o-1' },
       child: { status: 'done', progress: 1 },
     })
-    expect(wizard.getState().context.tracking).toBe('TRK-WEST-o-1')
-    expect(wizard.getState().status).toBe('done')
-    expect(wizard.getState().output).toEqual({ orderId: 'o-1', tracking: 'TRK-WEST-o-1' })
-    expect(events.filter((e) => e.path.length === 0).map((e) => e.type)).toContain('flow.done')
+    expect(run.getState().context.tracking).toBe('TRK-WEST-o-1')
+    expect(run.getState().status).toBe('done')
+    expect(run.getState().output).toEqual({ orderId: 'o-1', tracking: 'TRK-WEST-o-1' })
+    expect(events.filter((event) => event.path.length === 0).map((event) => event.type)).toContain(
+      'flow.done',
+    )
 
     // The parent snapshot nests the child's snapshot (persisted and resumed together).
-    const snapshot = wizard.getSnapshot()
+    const snapshot = run.getSnapshot()
     expect(Object.keys(snapshot.children)).toEqual(['fulfil'])
     expect(snapshot.children.fulfil).toMatchObject({
       v: 1,
@@ -101,52 +108,52 @@ describe('06 nested flow: s.flow(child, { context })', () => {
       state: { status: 'done', context: { orderId: 'o-1', warehouse: 'west' } },
     })
     expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot)
-    wizard.dispose()
+    run.dispose()
   })
 
-  it('routes wire commands to the child through the parent (dispatch { type: "child" })', async () => {
+  it('routes child wire commands through the parent run', async () => {
     const { deps } = fakeDeps()
-    const wizard = createWizard(order, { context: { orderId: 'o-2', amount: 5 }, deps })
-    const events: WizardEvent<typeof order>[] = []
-    wizard.observe((e) => events.push(e))
-    await wizard.start()
+    const run = createRun(orderFlow, { context: { orderId: 'o-2', amount: 5 }, deps })
+    const events: RunEvent<typeof orderFlow>[] = []
+    run.observe((event) => events.push(event))
+    await run.start()
 
     // `dispatch` is typed by the flow (`Command<typeof order>`): a child command whose path is not
     // a flow step does not compile. Untrusted JSON goes through `parseCommand(flow, body)` first,
     // which rejects it with issues; the typed value it returns is what `dispatch` accepts.
     expect(
-      parseCommand(order, { type: 'child', path: ['pay'], command: { type: 'next' } }),
+      parseCommand(orderFlow, { type: 'child', path: ['pay'], command: { type: 'next' } }),
     ).toMatchObject({ ok: false, issues: [{ message: "'pay' is not a flow step" }] })
-    const decoded = parseCommand(order, {
+    const decoded = parseCommand(orderFlow, {
       type: 'child',
       path: ['fulfil'],
       command: { type: 'setInput', step: 'pick', patch: { warehouse: 'east' } },
     })
     expect(decoded.ok).toBe(true)
-    if (decoded.ok) expect(await wizard.dispatch(decoded.value)).toMatchObject({ ok: true })
+    if (decoded.ok) expect(await run.dispatch(decoded.value)).toMatchObject({ ok: true })
 
     expect(
-      await wizard.dispatch({ type: 'child', path: ['fulfil'], command: { type: 'next' } }),
+      await run.dispatch({ type: 'child', path: ['fulfil'], command: { type: 'next' } }),
     ).toMatchObject({ ok: true })
-    expect(events.filter((e) => e.type === 'child.command')).toHaveLength(2)
+    expect(events.filter((event) => event.type === 'child.command')).toHaveLength(2)
     await settle()
-    expect(wizard.child('fulfil').getState().status).toBe('done')
-    expect(wizard.getState().output).toEqual({ orderId: 'o-2', tracking: 'TRK-EAST-o-2' })
-    wizard.dispose()
+    expect(run.child('fulfil').getState().status).toBe('done')
+    expect(run.getState().output).toEqual({ orderId: 'o-2', tracking: 'TRK-EAST-o-2' })
+    run.dispose()
   })
-  it('a client drives the child through a Mirror: mirror.child(step) + a projection exposing the child slice (v0.2)', async () => {
+  it('lets a Mirror drive a child exposed by the projection', async () => {
     const { deps, shipments } = fakeDeps()
-    const wizard = createWizard(order, { context: { orderId: 'o-3', amount: 12 }, deps })
-    await wizard.start()
+    const run = createRun(orderFlow, { context: { orderId: 'o-3', amount: 12 }, deps })
+    await run.start()
     // The projection exposes the child's projected state under `steps.fulfil.child` (deny-by-default
     // inside too: only the pick draft and the child's current view cross the wire).
-    const orderClient = defineProjection(order, {
+    const orderClient = defineProjection(orderFlow, {
       expose: {
         steps: { fulfil: { output: true, child: { steps: { pick: { input: true } } } } },
         output: true,
       },
     })
-    const source = createMirrorSource(wizard, orderClient)
+    const source = createMirrorSource(run, orderClient)
     const mirror = createMirror<typeof orderClient>({
       transport: createLocalTransport(source, { serialize: true }), // JSON round trip, like a wire
     })
@@ -172,6 +179,6 @@ describe('06 nested flow: s.flow(child, { context })', () => {
       steps: { fulfil: { status: 'done', output: { tracking: 'TRK-EAST-o-3' } } },
     })
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 })

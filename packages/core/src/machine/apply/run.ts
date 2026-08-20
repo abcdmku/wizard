@@ -29,7 +29,7 @@ export function applyRun(_env: MachineEnv, state: WizardState, ev: DomainEvent):
           ...rec,
           error: toStepError(
             ev.error,
-            ev.timedOut === true ? 'timeout' : 'run',
+            ev.timedOut === true ? 'timeout' : (ev.failureKind ?? 'run'),
             ev.at,
             ev.attempt,
             ev.data,

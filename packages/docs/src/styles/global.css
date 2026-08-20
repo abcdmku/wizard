@@ -53,6 +53,9 @@ code[data-theme*=" "] span {
 /* ---------- Article typography ---------- */
 .docs-article {
   @apply text-[15px] leading-7 text-neutral-700 dark:text-neutral-300;
+  width: 100%;
+  min-width: 0;
+  max-width: min(48rem, calc(100vw - 2rem));
 }
 .docs-article > :first-child {
   margin-top: 0;
@@ -116,6 +119,31 @@ code[data-theme*=" "] span {
 }
 .docs-article tbody tr:last-child td {
   border-bottom: none;
+}
+
+/* Inline system diagrams share the docs palette and stay transparent. */
+.docs-diagram {
+  @apply my-8 w-full min-w-0 max-w-full;
+  contain: inline-size;
+}
+.docs-diagram svg {
+  --d-paper: #ffffff;
+  --d-surface: #fafafa;
+  --d-ink: #171717;
+  --d-muted: #737373;
+  --d-line: #d4d4d4;
+  --d-soft: #f5f5f5;
+  --d-inverse: #ffffff;
+  @apply block h-auto w-full max-w-full;
+}
+.dark .docs-diagram svg {
+  --d-paper: #0a0a0a;
+  --d-surface: #151515;
+  --d-ink: #fafafa;
+  --d-muted: #a3a3a3;
+  --d-line: #404040;
+  --d-soft: #1f1f1f;
+  --d-inverse: #0a0a0a;
 }
 
 /* Inline code */

@@ -19,31 +19,31 @@ import type { Transport } from '../../src/mirror/transport'
 import type { Frame, WireAck, WireCommand } from '../../src/mirror/wire'
 import { parseWireCommand } from '../../src/mirror/wire'
 import { defineProjection, type ProjectionOutput } from '../../src/projection/define-projection'
-import type { Command, Wizard } from '../../src/wizard/create-wizard'
+import type { Command, FlowRun } from '../../src/wizard/create-wizard'
 import type { CommandResult } from '../../src/wizard/results'
 
-const c = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
   events: { 'payment.captured': z.object({ paymentId: z.string() }) },
 })
-const checkout = c.steps(
+const checkoutFlow = checkout.steps(
   {
-    shipping: c.view({
+    shipping: checkout.view({
       input: z.object({ address: z.string(), express: z.boolean().default(false) }),
       next: 'reserve',
     }),
-    reserve: c.task(async () => ({ reservationId: 'r' }), { next: 'receipt' }),
-    receipt: c.final(),
+    reserve: checkout.task(async () => ({ reservationId: 'r' }), { next: 'receipt' }),
+    receipt: checkout.final(),
   },
   { start: 'shipping' },
 )
-const checkoutClient = defineProjection(checkout, {
+const checkoutClient = defineProjection(checkoutFlow, {
   expose: { steps: { shipping: { input: true } }, context: ['total'] },
 })
 type Client = ProjectionOutput<typeof checkoutClient>
 declare const transport: Transport<Client>
-declare const wizard: Wizard<typeof checkout>
+declare const run: FlowRun<typeof checkoutFlow>
 
 describe('Mirror<P>: typed sugar over the projection flow', () => {
   const mirror = createMirror<typeof checkoutClient>({ transport })
@@ -80,7 +80,7 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     // @ts-expect-error `resetInput` accepts view ids only
     mirror.resetInput('reserve')
   })
-  it('run/retry accept task ids; send accepts declared events (+ correlationId); the whole Wizard sugar is there, as CommandResults', () => {
+  it('run/retry accept task ids; send accepts declared events (+ correlationId); the whole FlowRun sugar is there, as CommandResults', () => {
     expectTypeOf(mirror.retry('reserve')).toEqualTypeOf<Promise<CommandResult>>()
     // @ts-expect-error `retry` accepts task ids only
     mirror.retry('shipping')
@@ -114,7 +114,7 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     mirror.dispatch({ type: 'go', step: 'typo' })
   })
   it('a Mirror of another projection is a different type', () => {
-    const other = defineProjection(checkout, { expose: {} })
+    const other = defineProjection(checkoutFlow, { expose: {} })
     const otherMirror = createMirror<typeof other>({ transport: transport as never })
     expectTypeOf(otherMirror).not.toEqualTypeOf<Mirror<typeof checkoutClient>>()
     // @ts-expect-error `total` is not exposed by `other`
@@ -135,32 +135,35 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     // @ts-expect-error unknown step
     mirror.child('typo')
 
-    const g = defineFlow({ name: 'grandchild', context: z.object({ sku: z.string() }) })
-    const grandchild = g.steps({
-      pick: g.view({ input: z.object({ bin: z.string() }), next: 'done' }),
-      done: g.final(),
+    const grandchild = defineFlow({ name: 'grandchild', context: z.object({ sku: z.string() }) })
+    const grandchildFlow = grandchild.steps({
+      pick: grandchild.view({ input: z.object({ bin: z.string() }), next: 'done' }),
+      done: grandchild.final(),
     })
-    const f = defineFlow({ name: 'fulfilment', context: z.object({ orderId: z.string() }) })
-    const fulfilment = f.steps({
-      label: f.task(async () => ({ trackingId: 'x' }), { next: 'confirm' }),
-      confirm: f.view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
-      pack: f.flow(grandchild, { context: () => ({ sku: 's' }), next: 'done' }),
-      done: f.final(),
+    const fulfilment = defineFlow({
+      name: 'fulfilment',
+      context: z.object({ orderId: z.string() }),
     })
-    const o = defineFlow({ name: 'order', context: z.object({ cartId: z.string() }) })
-    const order = o.steps({
-      fulfil: o.flow(fulfilment, {
+    const fulfilmentFlow = fulfilment.steps({
+      label: fulfilment.task(async () => ({ trackingId: 'x' }), { next: 'confirm' }),
+      confirm: fulfilment.view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
+      pack: fulfilment.flow(grandchildFlow, { context: () => ({ sku: 's' }), next: 'done' }),
+      done: fulfilment.final(),
+    })
+    const order = defineFlow({ name: 'order', context: z.object({ cartId: z.string() }) })
+    const orderFlow = order.steps({
+      fulfil: order.flow(fulfilmentFlow, {
         context: ({ context }) => ({ orderId: context.cartId }),
         next: 'end',
       }),
-      end: o.final(),
+      end: order.final(),
     })
-    const orderClient = defineProjection(order, {
+    const orderClient = defineProjection(orderFlow, {
       expose: { steps: { fulfil: { child: { steps: { confirm: { input: true } } } } } },
     })
     const om = createMirror<typeof orderClient>({ transport: transport as never })
     const child = om.child('fulfil')
-    expectTypeOf(child).toEqualTypeOf<MirrorChild<typeof fulfilment>>()
+    expectTypeOf(child).toEqualTypeOf<MirrorChild<typeof fulfilmentFlow>>()
     expectTypeOf(child.path).toEqualTypeOf<readonly [string, ...string[]]>()
     expectTypeOf(child.go('confirm')).toEqualTypeOf<Promise<CommandResult>>()
     expectTypeOf(child.setInput('confirm', { ok: true })).toEqualTypeOf<Promise<CommandResult>>()
@@ -176,7 +179,7 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     child.dispatch({ type: 'go', step: 'confirm' })
     // Nested: the grandchild's sugar.
     const grand = child.child('pack')
-    expectTypeOf(grand).toEqualTypeOf<MirrorChild<typeof grandchild>>()
+    expectTypeOf(grand).toEqualTypeOf<MirrorChild<typeof grandchildFlow>>()
     expectTypeOf(grand.setInput('pick', { bin: 'b1' })).toEqualTypeOf<Promise<CommandResult>>()
     // @ts-expect-error `confirm` is not a flow step of `fulfilment`
     child.child('confirm')
@@ -187,14 +190,14 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
       { ok?: boolean } | undefined
     >()
     // MirrorCommands<F> is the shared sugar surface of Mirror and MirrorChild.
-    expectTypeOf(om).toMatchTypeOf<MirrorCommands<typeof order>>()
-    expectTypeOf(child).toMatchTypeOf<MirrorCommands<typeof fulfilment>>()
+    expectTypeOf(om).toMatchTypeOf<MirrorCommands<typeof orderFlow>>()
+    expectTypeOf(child).toMatchTypeOf<MirrorCommands<typeof fulfilmentFlow>>()
   })
 })
 
 describe('wire types line up across source → transport → mirror', () => {
   it('createMirrorSource is typed by the projection; the loopback carries the same state type', () => {
-    const source = createMirrorSource(wizard, checkoutClient)
+    const source = createMirrorSource(run, checkoutClient)
     expectTypeOf(source).toEqualTypeOf<MirrorSource<ProjectionOutput<typeof checkoutClient>>>()
     expectTypeOf(source).toEqualTypeOf<MirrorSource<Client>>()
     const loop = createLocalTransport(source)
@@ -202,26 +205,26 @@ describe('wire types line up across source → transport → mirror', () => {
     // Explicit P and inferred transport agree.
     const m = createMirror<typeof checkoutClient>({ transport: loop })
     expectTypeOf(m).toEqualTypeOf<Mirror<typeof checkoutClient>>()
-    // A projection of another flow does not fit the wizard.
-    const f = defineFlow({ name: 'other', context: z.object({}) })
-    const otherFlow = f.steps({ end: f.final() })
+    // A projection of another flow does not fit the run.
+    const other = defineFlow({ name: 'other', context: z.object({}) })
+    const otherFlow = other.steps({ end: other.final() })
     const otherProjection = defineProjection(otherFlow, { expose: {} })
     // @ts-expect-error projection of a different flow
-    createMirrorSource(wizard, otherProjection)
+    createMirrorSource(run, otherProjection)
   })
   it('Frame / WireCommand / WireAck / parseWireCommand shapes', () => {
     expectTypeOf<Frame<Client>['kind']>().toEqualTypeOf<'snapshot'>()
     expectTypeOf<Frame<Client>['state']>().toEqualTypeOf<Client>()
     expectTypeOf<WireCommand['command']>().toEqualTypeOf<Command>() // string ids on the wire
-    expectTypeOf<WireCommand<typeof checkout>['command']>().toEqualTypeOf<
-      Command<typeof checkout>
+    expectTypeOf<WireCommand<typeof checkoutFlow>['command']>().toEqualTypeOf<
+      Command<typeof checkoutFlow>
     >()
     expectTypeOf<WireCommand['expectedSeq']>().toEqualTypeOf<number | undefined>()
     expectTypeOf<WireAck['result']>().toEqualTypeOf<CommandResult>()
-    const parsed = parseWireCommand(checkout, {})
+    const parsed = parseWireCommand(checkoutFlow, {})
     if (parsed.ok) {
-      expectTypeOf(parsed.value).toEqualTypeOf<WireCommand<typeof checkout>>()
-      expectTypeOf(parsed.value.command).toEqualTypeOf<Command<typeof checkout>>()
+      expectTypeOf(parsed.value).toEqualTypeOf<WireCommand<typeof checkoutFlow>>()
+      expectTypeOf(parsed.value.command).toEqualTypeOf<Command<typeof checkoutFlow>>()
     } else expectTypeOf(parsed.issues[0]?.message).toEqualTypeOf<string | undefined>()
   })
 })

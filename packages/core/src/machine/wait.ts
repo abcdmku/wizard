@@ -78,7 +78,7 @@ export function routeEvent(
     inboxId,
     ...(effective !== undefined ? { correlationId: effective } : {}),
   })
-  // Correlation (§10.1): a mismatch with the wizard's id drops the event outright (no buffering).
+  // Correlation (§10.1): a mismatch with the run's id drops the event outright (no buffering).
   const own = b.state.correlationId
   if (
     extracted !== undefined &&

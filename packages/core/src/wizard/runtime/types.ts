@@ -1,9 +1,9 @@
 /**
- * Types of the untyped wizard runtime: creation / resume options, the `WizardRuntime` surface
- * (what the typed `Wizard<F>` façade wraps) and the internal config / plan shapes shared by a
+ * Types of the untyped run runtime: creation / resume options, the `WizardRuntime` surface
+ * (what the typed `FlowRun<F>` façade wraps) and the internal config / plan shapes shared by a
  * root, its resume path and its children.
  *
- * @internal Public users see the typed `Wizard<F>`.
+ * @internal Public users see the typed `FlowRun<F>`.
  */
 
 import type { CompiledFlow } from '../../authoring/compiled'
@@ -16,6 +16,7 @@ import type { InitialState, Machine } from '../../machine/types'
 import type { Store } from '../../persistence/store'
 import type { CommandResult, NavResult, SendResult } from '../results'
 import type { Snapshot } from '../snapshot'
+import type { RuntimeResult } from './terminal-results'
 
 export interface WizardRuntimeOptions {
   /** Context value that already passed the flow's context boundary. */
@@ -49,6 +50,17 @@ export interface WizardRuntimeOptions {
   readonly logSize?: number
   /** Grace period before an aborted, unsettled hook is reported (ms). Default 30 s. */
   readonly abortGraceMs?: number
+  /** Gate planned effects after the next snapshot has been committed by a host. */
+  readonly beforeEffects?: (input: {
+    readonly snapshot: Snapshot
+    readonly events: readonly DomainEvent[]
+  }) => void | Promise<void>
+  /** Gate a timer callback before it enqueues its fire message. */
+  readonly beforeTimer?: (timer: {
+    readonly timerId: string
+    readonly dueAt: number
+    readonly expected: { readonly epoch: number; readonly seq: number }
+  }) => boolean | Promise<boolean>
   /** Listener exceptions are isolated; default rethrows asynchronously. */
   readonly onListenerError?: (error: unknown) => void
   /**
@@ -63,7 +75,7 @@ export interface WizardRuntimeOptions {
  * v0.2 (§9.5): rewrite a snapshot persisted by an older flow version. Called only when the
  * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
  * incompatible); the result is validated like any snapshot and must carry the flow's version.
- * May return a promise — then only `resumeWizardAsync` accepts it.
+ * May return a promise — then only `resumeRunAsync` accepts it.
  */
 export type SnapshotMigration = (
   snapshot: unknown,
@@ -118,13 +130,19 @@ export interface WizardRuntime {
   /** The one wire door: validates the shape (`decodeCommand`) and never throws for data problems. */
   dispatch(command: Command): Promise<CommandResult>
   getState(): WizardState
+  /** Terminal result, or `undefined` while idle/running/waiting/recoverably failed. */
+  result(): RuntimeResult | undefined
+  /** Wait for a terminal result; reset/dispose rejects with a lifecycle error. */
+  awaitResult(): Promise<RuntimeResult>
+  /** Notify once per terminal transition; a reset starts a new transition cycle. */
+  subscribeResult(listener: (result: RuntimeResult) => void): () => void
   /** Versioned, JSON-safe snapshot including live children; cached per state. */
   getSnapshot(): Snapshot
   /** Pure query: why a step is (not) where the caller expects (`machine/explain`); never throws. */
   explain(step: string): Explanation
   /** State listeners: once per committed batch. */
   subscribe(listener: (state: WizardState) => void): () => void
-  /** Event listeners: every event of this wizard and its children (`event.path`). */
+  /** Event listeners: every event of this run and its children (`event.path`). */
   observe(listener: (event: DomainEvent) => void): () => void
   log(): readonly DomainEvent[]
   /** Live nested runtime of a `flow` step. Throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE`. */
@@ -148,6 +166,8 @@ export interface RuntimeConfig {
   readonly strict: 'sync' | undefined
   readonly logSize: number | undefined
   readonly abortGraceMs: number | undefined
+  readonly beforeEffects: WizardRuntimeOptions['beforeEffects'] | undefined
+  readonly beforeTimer: WizardRuntimeOptions['beforeTimer'] | undefined
   readonly onListenerError: ((error: unknown) => void) | undefined
   readonly persistence:
     | {

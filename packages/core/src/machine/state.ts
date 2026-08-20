@@ -1,5 +1,5 @@
 /**
- * Runtime state of a wizard instance.
+ * Runtime state of a run instance.
  *
  * This is the *stored* state: the fold of the event log (see `apply.ts`).
  * Everything derivable (readiness, availability, phase, progress, explain
@@ -33,7 +33,7 @@ export type StepStatus =
   | 'compensating'
   | 'compensated'
 
-export type WizardStatus =
+export type RunStatus =
   | 'idle' // created, not started
   | 'running' // at least one task/decision/flow step is executing
   | 'waiting' // nothing executing; waiting for a user (view) or an external event / timer (wait)
@@ -58,6 +58,8 @@ export type StepErrorKind =
   | 'validation'
   | 'guard'
   | 'run'
+  | 'typed'
+  | 'defect'
   | 'timeout'
   | 'compensate'
   | 'interrupted'
@@ -96,7 +98,7 @@ export interface GuardResult {
 }
 
 export interface ChildSummary {
-  readonly status: WizardStatus
+  readonly status: RunStatus
   readonly current: string | null
   readonly progress: number
   readonly seq: number
@@ -165,7 +167,7 @@ export interface StepRecord {
 }
 
 // ---------------------------------------------------------------------------
-// Whole-wizard state
+// Whole-run state
 // ---------------------------------------------------------------------------
 
 export interface NavState {
@@ -220,6 +222,44 @@ export interface SagaState {
   readonly reason?: string
 }
 
+/**
+ * The primary failure retained while a run is halted or compensating.  This is
+ * deliberately serializable: the original thrown value is not retained here;
+ * only a task's explicit `mapError` value can appear in `data`.
+ */
+export interface FlowFailureState {
+  readonly step?: string
+  readonly error: SerializedError
+  readonly kind?: StepErrorKind | 'runtime'
+  readonly at?: number
+  readonly attempt?: number
+  readonly issues?: readonly Issue[]
+  readonly data?: unknown
+}
+
+/** One persisted compensation-hook failure. */
+export interface CompensationFailureState {
+  readonly step: string
+  readonly runId: number
+  readonly error: SerializedError
+}
+
+/**
+ * Exact terminal facts retained with a snapshot.  Status alone is not enough
+ * to reconstruct a result after resume: cancellation reasons and the primary
+ * failure can otherwise be lost when compensation finishes.
+ */
+export interface TerminalState {
+  readonly status: 'done' | 'failed' | 'cancelled'
+  readonly output?: unknown
+  readonly failure?: FlowFailureState
+  readonly reason?: string
+  readonly compensation?: {
+    readonly outcome: 'failed' | 'cancelled'
+    readonly failures: readonly CompensationFailureState[]
+  }
+}
+
 export interface InboxEntry {
   readonly id: string
   readonly event: string
@@ -238,7 +278,7 @@ export interface TimerEntry {
 }
 
 export interface WizardState {
-  readonly status: WizardStatus
+  readonly status: RunStatus
   /** UI cursor: the active view step, or null. */
   readonly current: string | null
   /** Every step whose status is `active`, in activation order. */
@@ -253,6 +293,10 @@ export interface WizardState {
   readonly timers: Readonly<Record<string, TimerEntry>>
   /** Flow output once a `final` step ran (from its `output` hook). */
   readonly output?: unknown
+  /** Primary failure retained for a recoverable halt and for compensation results. */
+  readonly failure?: FlowFailureState
+  /** Persisted exact terminal facts; absent in pre-result snapshots. */
+  readonly terminal?: TerminalState
   readonly seq: number
   readonly instanceId: string
   /** v0.2: correlation id used to filter external events (`defineFlow({ correlate })`). */

@@ -4,6 +4,7 @@
  * @packageDocumentation
  */
 
+import type { TaskAdapter } from '../task-adapter'
 import type { Boundary } from './boundary'
 import type { ContextInput, DepsOf, FlowOutput } from './extractors'
 import type { AnyFlow } from './flow'
@@ -27,7 +28,7 @@ import type { Duration, Issue, MaybePromise, RetryPolicy } from './primitives'
 import type { Step } from './step'
 
 /**
- * `s.view` configuration. `I` / `O` are inferred from `input` ONLY (`NoInfer` everywhere else):
+ * `flow.view` configuration. `I` / `O` are inferred from `input` ONLY (`NoInfer` everywhere else):
  * without `input` the view has no draft (`I = never`, `O = undefined`) and `initial` is rejected.
  * @public
  */
@@ -51,7 +52,7 @@ export interface ViewCfg<C, Ev, D, I, O, N extends string> {
   readonly dependsOn?: DependsOn<N>
 }
 /**
- * `s.task(run, options)` options. `E` (the `mapError` value type) is inferred from `mapError`.
+ * `flow.task(run, options)` options. `E` (the `mapError` value type) is inferred from `mapError`.
  * @public
  */
 export interface TaskOptions<C, Ev, D, O, N extends string, E = never> {
@@ -78,7 +79,7 @@ export interface TaskOptions<C, Ev, D, O, N extends string, E = never> {
   readonly dependsOn?: DependsOn<N>
 }
 /**
- * `s.wait` configuration. `T` is the phantom captured from `timeout` (`undefined` when absent)
+ * `flow.wait` configuration. `T` is the phantom captured from `timeout` (`undefined` when absent)
  * that decides whether `WaitOutput` carries the `{ event: 'timeout' }` marker.
  * @public
  */
@@ -94,7 +95,7 @@ export interface WaitCfg<C, Ev, D, N extends string, T = unknown> {
   readonly dependsOn?: DependsOn<N>
 }
 /**
- * `s.decision` configuration. The step's output is the normalized list of chosen targets
+ * `flow.decision` configuration. The step's output is the normalized list of chosen targets
  * (`readonly N[]`: `'a'` → `['a']`, `null` → `[]`).
  * @public
  */
@@ -106,7 +107,7 @@ export interface DecisionCfg<C, Ev, D, N extends string> {
   readonly dependsOn?: DependsOn<N>
 }
 /**
- * `s.flow(child, cfg)` configuration.
+ * `flow.flow(child, cfg)` configuration.
  * @public
  */
 export interface FlowCfg<C, Ev, D, CF extends AnyFlow, O, N extends string> {
@@ -127,7 +128,7 @@ export interface FlowCfg<C, Ev, D, CF extends AnyFlow, O, N extends string> {
   readonly dependsOn?: DependsOn<N>
 }
 /**
- * `s.final` configuration.
+ * `flow.final` configuration.
  * @public
  */
 export interface FinalCfg<C, Ev, D, O> {
@@ -135,6 +136,26 @@ export interface FinalCfg<C, Ev, D, O> {
   readonly output?: (a: BaseArgs<C, D>) => O
   readonly on?: OnHandlers<C, Ev, D, void>
 }
+
+type TaskRunOutput<F> =
+  F extends TaskAdapter<infer _C, infer _D, infer A, infer _E>
+    ? A
+    : F extends (...args: never[]) => infer R
+      ? Awaited<R>
+      : never
+
+type TaskRunError<F> = F extends TaskAdapter<infer _C, infer _D, infer _A, infer E> ? E : never
+
+type TaskRunOptions<C, Ev, D, F, O, N extends string, E> =
+  F extends TaskAdapter<infer _C, infer _D, infer _A, infer _E>
+    ? Omit<TaskOptions<C, Ev, D, TaskRunOutput<F>, N, TaskRunError<F>>, 'output' | 'mapError'>
+    : TaskOptions<C, Ev, D, O, N, E>
+
+type TaskRunOutputFor<F, O> =
+  F extends TaskAdapter<infer _C, infer _D, infer _A, infer _E> ? TaskRunOutput<F> : O
+
+type TaskRunErrorFor<F, E> =
+  F extends TaskAdapter<infer _C, infer _D, infer _A, infer _E> ? TaskRunError<F> : E
 
 /**
  * Constructors pre-bound to `C`/`Ev`/`D`. Only `N` captures literals; no `const` params.
@@ -148,10 +169,15 @@ export interface StepApi<C, Ev, D> {
   view<I = never, O = [I] extends [never] ? undefined : I, N extends string = never>(
     cfg: ViewCfg<C, Ev, D, I, O, N>,
   ): Step<C, Ev, D, I, O, N, 'view', never>
-  task<R, O = Awaited<R>, N extends string = never, E = never>(
-    run: (a: RunArgs<C, D>) => R,
-    options?: TaskOptions<C, Ev, D, O, N, E>,
-  ): Step<C, Ev, D, never, O, N, 'task', never, E>
+  task<
+    F extends (a: RunArgs<C, D>) => unknown,
+    O = TaskRunOutput<F>,
+    N extends string = never,
+    E = never,
+  >(
+    run: F,
+    options?: TaskRunOptions<C, Ev, D, F, O, N, E>,
+  ): Step<C, Ev, D, never, TaskRunOutputFor<F, O>, N, 'task', never, TaskRunErrorFor<F, E>>
   wait<N extends string = never, T = undefined>(
     cfg: WaitCfg<C, Ev, D, N, T>,
   ): Step<

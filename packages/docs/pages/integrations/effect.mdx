@@ -1,0 +1,16 @@
+# Effect 3
+
+`@openwizard/effect` adapts Effect `3.22.x` programs to ordinary Wizard tasks.
+
+```sh
+pnpm add @openwizard/core @openwizard/effect effect
+```
+
+```ts file="packages/effect/snippets/basic.ts"
+```
+
+Wizard owns task retries, cancellation, and resume. `Effect.fail` values pass through the declared
+error schema. Defects and interruptions remain separate failures. Use
+[`execute`](/api/effect) to start a run and receive its result in the Effect channel.
+
+Use the [Effect 4 adapter](/integrations/effect-v4) only for an Effect 4 beta application.

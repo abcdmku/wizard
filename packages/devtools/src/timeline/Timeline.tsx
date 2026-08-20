@@ -1,10 +1,10 @@
 /**
- * `<Timeline>` — a seq scrubber over the replay window of a wizard: pick a seq, see the state
+ * `<Timeline>` — a seq scrubber over the replay window of a run: pick a seq, see the state
  * the machine had right after that event (`replay(flow, events, { from, upTo })` — read-only,
  * nothing runs), step back and forth, or follow the live end.
  */
 
-import type { WizardEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
 import {
   type ChangeEvent,
   type CSSProperties,
@@ -14,7 +14,7 @@ import {
   useState,
 } from 'react'
 import { eventDetail, eventStep } from '../events/format'
-import type { DevtoolsTheme, WizardSource } from '../types'
+import type { DevtoolsTheme, FlowRunSource } from '../types'
 import {
   type ReplayState,
   type ReplayWindowStore,
@@ -24,14 +24,14 @@ import {
 } from './replay-window'
 
 /**
- * `<Timeline>` props: the wizard `source`; `context` (the input `createWizard` received) lets the
+ * `<Timeline>` props: the run `source`; `context` (the input `createRun` received) lets the
  * window start from the initial state when the whole log is still available, else scrubbing
  * starts where the timeline attached; `onScrub` receives the replayed state (or `null` when
  * following the live end); `maxEvents` bounds the window (default 5000).
  * @public
  */
 export interface TimelineProps {
-  readonly source: WizardSource
+  readonly source: FlowRunSource
   readonly context?: unknown
   readonly onScrub?: (state: ReplayState | null, seq: number) => void
   readonly maxEvents?: number
@@ -43,7 +43,7 @@ export interface TimelineProps {
 }
 
 /**
- * Time travel over a wizard's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any
+ * Time travel over a run's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any
  * kept seq — status, current view, active steps, every step's status — and the event that
  * produced it; "live" snaps back to the newest state. Read-only; the range is bounded by what
  * the timeline saw (`log()` at attach time + `observe()` since) and by `maxEvents`.
@@ -151,7 +151,7 @@ function StateSummary({
   live,
 }: {
   readonly state: ReplayState
-  readonly event: WizardEvent | undefined
+  readonly event: RunEvent | undefined
   readonly live: boolean
 }): ReactElement {
   const steps = Object.values(state.steps)

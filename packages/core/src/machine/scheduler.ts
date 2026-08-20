@@ -218,7 +218,15 @@ export function failStep(
   b: Batch,
   step: string,
   error: SerializedError,
-  kind: 'run' | 'timeout' | 'hook' | 'child' | 'sync-violation' | 'interrupted',
+  kind:
+    | 'run'
+    | 'typed'
+    | 'defect'
+    | 'timeout'
+    | 'hook'
+    | 'child'
+    | 'sync-violation'
+    | 'interrupted',
   data?: unknown,
 ): void {
   clearStepTimers(b, step)
@@ -227,5 +235,11 @@ export function failStep(
     startCompensation(b, `step-failed:${step}`, 'failed')
     return
   }
-  emit(b, { type: 'flow.failed', step, error, code: 'STEP_FAILED' })
+  emit(b, {
+    type: 'flow.failed',
+    step,
+    error,
+    code: 'STEP_FAILED',
+    ...(data !== undefined ? { data } : {}),
+  })
 }

@@ -10,7 +10,7 @@
 
 ## Anti-bloat rules (binding for every phase)
 
-1. One authoring path (`defineFlow` + pre-bound `s.view/task/wait/decision/flow/final`), one live object (`Wizard`), one wire door (`dispatch(Command)`).
+1. One authoring path (`defineFlow` + pre-bound `flow.view/task/wait/decision/flow/final`), one live object (`FlowRun`), one wire door (`dispatch(Command)`).
 2. Every exported symbol has: a test, a `.test-d.ts` assertion if generic, TSDoc `@public`, and a row in the generated export table.
 3. No field in a type without a runtime consumer + test (v1 typed `weight`/`prerequisites`/`emit` and never implemented them).
 4. Exactly one type extractor per concept (`InputOf`, `OutputOf`, `PayloadOf`, `Ctx`…). No positional generics on public functions.
@@ -32,10 +32,10 @@
 
 ### 1.1 Layered core: pure machine + interpreter (event-sourced)
 
-Three pure functions (no I/O, no timers, no promises) plus one single-threaded interpreter per wizard instance:
+Three pure functions (no I/O, no timers, no promises) plus one single-threaded interpreter per run instance:
 
 ```ts
-decide(def, state, msg: Command | EffectResult): DomainEvent[]   // intent → facts (or command.rejected)
+decide(def, state, message: Command | EffectResult): DomainEvent[]   // intent → facts (or command.rejected)
 apply (def, state, ev: DomainEvent): State                       // fold; also used by Mirror/replay/tests
 plan  (def, state, ev: DomainEvent): Effect[]                    // side-effect *descriptions* (call hook, timer, child, persist, settle)
 ```
@@ -53,36 +53,36 @@ Behavior derives from step kinds and a small policy set. Presets are documentati
 
 | Kind | Enters when | Completes when | Key hooks |
 |---|---|---|---|
-| `s.view` | cursor arrives (`next/go/back`) | user calls `next()` and the draft input parses through `input` + `validate` + `canExit` pass | `input` (boundary), `initial`, `validate`, `canEnter`, `canExit`, `enter`, `exit`, `next`, `expose` |
-| `s.task` | cursor arrives (auto-run) | `run` resolves (optionally through `output` boundary) | `run`, `output?`, `retry`, `timeout`, `compensate`, `enter?`, `exit?`, `next`, `expose` |
-| `s.wait` | cursor arrives | an `on[event]` handler resolves, or `timeout.after` fires | `on`, `timeout {after, next}`, `enter`, `exit`, `next` |
-| `s.decision` | cursor arrives | `next(args)` returns a target | `next` (fn) |
-| `s.flow(child, …)` | cursor arrives → child created | child reaches `final` | `context` (parent→child), `output?`, `exit`, `expose`, `next` |
-| `s.final` | cursor arrives | immediately; wizard `done` | `output?` |
+| `flow.view` | cursor arrives (`next/go/back`) | user calls `next()` and the draft input parses through `input` + `validate` + `canExit` pass | `input` (boundary), `initial`, `validate`, `canEnter`, `canExit`, `enter`, `exit`, `next`, `expose` |
+| `flow.task` | cursor arrives (auto-run) | `run` resolves (optionally through `output` boundary) | `run`, `output?`, `retry`, `timeout`, `compensate`, `enter?`, `exit?`, `next`, `expose` |
+| `flow.wait` | cursor arrives | an `on[event]` handler resolves, or `timeout.after` fires | `on`, `timeout {after, next}`, `enter`, `exit`, `next` |
+| `flow.decision` | cursor arrives | `next(args)` returns a target | `next` (fn) |
+| `flow.flow(child, …)` | cursor arrives → child created | child reaches `final` | `context` (parent→child), `output?`, `exit`, `expose`, `next` |
+| `flow.final` | cursor arrives | immediately; run `done` | `output?` |
 
-(`s` = the pre-bound `StepApi` handed to `steps: (s) => ({…})`; see §3.)
+(`s` = the pre-bound `StepApi` handed to `steps: (flow) => ({…})`; see §3.)
 
 Flow options (all): `name`, `context` (value or boundary), `events` (boundaries), `start`, `onFailure: 'halt' | 'compensate'`, `retry` (default for tasks), `autoRun: 'ready' | 'manual'` (default `'ready'`), `concurrency` (default `Infinity`), `unmatchedEvents: { buffer: boolean; ttl: Duration }`. Runtime options: `context` (when the flow declares a boundary), `store/key/autoSave/redact`, `clock/scheduler/ids`, `strict: 'sync'`, `logSize`.
 
 ### 1.2b DAG semantics (edges vs. dependencies)
 
 - `next` = **navigation edges** (where the cursor/arrival goes after a step completes). `dependsOn` = **data readiness** (AND-join; `{ any: [...] }` for OR-join). Both are ids checked at compile time.
-- **Readiness rule:** if a step declares `dependsOn`, it becomes `ready` when the deps are `done|skipped` (no arrival needed). If it declares none, it becomes `ready` on arrival via a predecessor's `next` (or `start`). This makes pure wizards (`next` only), pure DAGs (`dependsOn` only) and hybrids one rule.
+- **Readiness rule:** if a step declares `dependsOn`, it becomes `ready` when the deps are `done|skipped` (no arrival needed). If it declares none, it becomes `ready` on arrival via a predecessor's `next` (or `start`). This makes pure flows (`next` only), pure DAGs (`dependsOn` only) and hybrids one rule.
 - **Auto-run:** ready `task/decision/wait/flow` steps start automatically (`autoRun:'ready'`) subject to `concurrency` (tasks only); `runReady()` schedules manually when `autoRun:'manual'`. Ready `view` steps never auto-complete: they wait for the cursor.
 - **Cursor with fan-out:** `next: ['a','b']` from a view arrives at both; tasks among them run in parallel; the first view in `next` order becomes `current`, others stay `ready` (reachable via `go`). After every commit, if `current` is null and exactly one view is ready, the cursor auto-moves there (`transition.committed {cause:'auto'}`); if several are ready the cursor stays null and `explain()` lists candidates.
-- **State:** `current: ViewId | null` (UI cursor) and `active: StepId[]` (every non-idle, non-terminal step) are both stored; wizard `status` (`idle|running|waiting|done|failed|compensating|cancelled`) is derived from active steps.
+- **State:** `current: ViewId | null` (UI cursor) and `active: StepId[]` (every non-idle, non-terminal step) are both stored; run `status` (`idle|running|waiting|done|failed|compensating|cancelled`) is derived from active steps.
 - **Invalidation:** when a done step's input/context-dependency changes, transitive `dependsOn` dependents are `step.invalidated` → `idle` (output moved to `lastOutput`, running ones cancelled) per `onUpstreamChange: 'invalidate' | 'keep'` (default invalidate for task/decision/wait/flow, keep for view). No auto-compensation on invalidate (documented).
 - **Compensation across a DAG:** cancel running tasks first, then compensate in reverse completion (`seq`) order, best-effort.
 - `inspect()` warns statically about unreachable steps, `next` targets whose deps cannot be satisfied along that path, and cycles.
 
-Wizard methods (all sugar over `dispatch(Command)`): `next() back() go(viewId)` · `setInput(viewId, patch)` (shallow-merge draft; parsed on `next/go`) `resetInput(viewId)` `validate(viewId)` (live issues) · `send(event, unknown) → SendResult {ok, delivered:'handled'|'buffered'} | {ok:false, issues}` · `retry(taskId)` `cancel(reason?)` · `getSnapshot() subscribe() observe() log()` · `project(projection)` · `child(flowStepId)` · `save() dispose()`.
+FlowRun methods (all sugar over `dispatch(Command)`): `next() back() go(viewId)` · `setInput(viewId, patch)` (shallow-merge draft; parsed on `next/go`) `resetInput(viewId)` `validate(viewId)` (live issues) · `send(event, unknown) → SendResult {ok, delivered:'handled'|'buffered'} | {ok:false, issues}` · `retry(taskId)` `cancel(reason?)` · `getSnapshot() subscribe() observe() log()` · `project(projection)` · `child(flowStepId)` · `save() dispose()`.
 
 ### 1.3 Data doors = boundaries (the "assert type bindings" pattern)
 
 `Boundary<T> = StandardSchemaV1<unknown, T> | Checker<T>` where `Checker` is **branded** (plain functions are rejected — guard vs parse is ambiguous):
 `boundary.parse(fn)`, `boundary.guard(fn)`, `boundary.assert(fn)`, `boundary.trusted<T>()` (no runtime check; grep-able escape hatch).
 
-Exactly four doors, each with a declared boundary: (1) `context` at `createWizard`; (2) `setInput` → parsed by the view's `input` boundary on `next()/go()`; (3) `send(type, payload)` → `events[type]` boundary; (4) `resumeWizard(flow, unknown)` → every boundary re-run over the snapshot. Task `output` is an optional fifth check on values returning from out-of-domain services. Rejections are events (`event.rejected`, `step.validationFailed`) with Standard Schema `Issue[]`, never thrown from the reducer.
+Exactly four doors, each with a declared boundary: (1) `context` at `createRun`; (2) `setInput` → parsed by the view's `input` boundary on `next()/go()`; (3) `send(type, payload)` → `events[type]` boundary; (4) `resumeRun(flow, unknown)` → every boundary re-run over the snapshot. Task `output` is an optional fifth check on values returning from out-of-domain services. Rejections are events (`event.rejected`, `step.validationFailed`) with Standard Schema `Issue[]`, never thrown from the reducer.
 
 ### 1.4 Step lifecycle (one statechart; kind decides which arrows exist)
 
@@ -94,22 +94,22 @@ Transition pipeline for `next()` on a view: parse input → `validate` → `canE
 
 ### 1.5 External events
 
-`events: { 'payment.captured': z.object({...}) }` → `wizard.send('payment.captured', unknownBody)`: boundary → `event.received` or `event.rejected {issues}`; routed to the active `wait` step's `on['payment.captured']` (v0.2: `on` on any kind + flow-level `on`); handler may `update` context and/or return a target. **No listener → inbox buffer** (`event.buffered`, FIFO, TTL default 5 min, `event.expired`), drained when a matching wait step enters — solves the webhook-arrives-early race. `timeout: {after, next}` stores an absolute `deadline`; timers are state and re-armed on resume (fire immediately if past). Multi-instance correlation and `sources` adapters are v0.2 (host routes to the right wizard instance in v0.1).
+`events: { 'payment.captured': z.object({...}) }` → `run.send('payment.captured', unknownBody)`: boundary → `event.received` or `event.rejected {issues}`; routed to the active `wait` step's `on['payment.captured']` (v0.2: `on` on any kind + flow-level `on`); handler may `update` context and/or return a target. **No listener → inbox buffer** (`event.buffered`, FIFO, TTL default 5 min, `event.expired`), drained when a matching wait step enters — solves the webhook-arrives-early race. `timeout: {after, next}` stores an absolute `deadline`; timers are state and re-armed on resume (fire immediately if past). Multi-instance correlation and `sources` adapters are v0.2 (host routes to the right run instance in v0.1).
 
 ### 1.6 Nesting
 
-`s.flow(childFlow, { context: (args) => childCtxInput, output?, exit, expose, next })`. Child = its own interpreter/queue; `path = parentPath + '/' + stepId`; child events forwarded to the parent's `observe()` stream with `path`; parent stores `steps[id].child` (status/current/progress + full child snapshot for persistence). Commands cross the boundary as `{ type:'child', path, command }`; `wizard.child('fulfil')` returns a typed `Wizard<ChildFlow>` (server side; Mirror/React child support in v0.2). Compensating a `flow` step = compensating the child. Guards: `maxDepth` 8; a flow may not embed an ancestor (checked at child creation).
+`flow.flow(childFlow, { context: (args) => childCtxInput, output?, exit, expose, next })`. Child = its own interpreter/queue; `path = parentPath + '/' + stepId`; child events forwarded to the parent's `observe()` stream with `path`; parent stores `steps[id].child` (status/current/progress + full child snapshot for persistence). Commands cross the boundary as `{ type:'child', path, command }`; `run.child('fulfil')` returns a typed `FlowRun<ChildFlow>` (server side; Mirror/React child support in v0.2). Compensating a `flow` step = compensating the child. Guards: `maxDepth` 8; a flow may not embed an ancestor (checked at child creation).
 
 ### 1.7 Client protocol (backend ↔ frontend)
 
 - `Snapshot<F>` is JSON-serializable and versioned (`v`, `flow`, `flowVersion`, `seq`).
 - `clientState(flow, { expose })` → `Projection<F, ClientState<F,E>>`: per step `{ kind, status, phase, attempt, issues, input?, output?, error?: {message, code} }` + `current`, `status`, picked `context` fields, `output?`. Defaults: view input + issues exposed; task/wait/flow outputs hidden unless `expose`. `SerializedError` never carries stacks. `defineProjection(flow, select)` is v0.2.
-- `Command<F>` (JSON): `next | back | go | setInput | resetInput | send | retry | cancel | child`. Every `Wizard` method is sugar over `dispatch(cmd)`; servers allow-list commands after auth.
-- `createMirror({ transport })` (client): read-only replica typed by the projection, same command sugar, `getSnapshot/subscribe`; **v0.1 update strategy = full projected snapshot on `seq` change** (event-stream/patch mirror later). `createLocalTransport(wizard, projection)` loopback for tests. No optimistic UI in v0.1.
+- `Command<F>` (JSON): `next | back | go | setInput | resetInput | send | retry | cancel | child`. Every `FlowRun` method is sugar over `dispatch(cmd)`; servers allow-list commands after auth.
+- `createMirror({ transport })` (client): read-only replica typed by the projection, same command sugar, `getSnapshot/subscribe`; **v0.1 update strategy = full projected snapshot on `seq` change** (event-stream/patch mirror later). `createLocalTransport(run, projection)` loopback for tests. No optimistic UI in v0.1.
 
 ### 1.8 Introspection
 
-`observe(listener)` — event envelope `{ seq, at, causedBy, path, step?, type, data? }`; `log()` bounded ring; `inspect(flow)` static graph `{ nodes:{id,kind,path,label,hooks[]}, edges:{from,to,kind:'next'|'dependsOn'|'timeout'}, warnings }` (port of v1 `stepsToGraph`, minus probing); `explain(wizard, step)` → `{ status, phase, reasons: ['deps-unmet:pay', 'guard-false:canEnter', …], candidates }` (v0.1, M2); `toMermaid` v0.2; devtools panel v0.3. These three (`inspect`, `observe`, `explain`) are exactly what the future DAG visualizer/devtools consume.
+`observe(listener)` — event envelope `{ seq, at, causedBy, path, step?, type, data? }`; `log()` bounded ring; `inspect(flow)` static graph `{ nodes:{id,kind,path,label,hooks[]}, edges:{from,to,kind:'next'|'dependsOn'|'timeout'}, warnings }` (port of v1 `stepsToGraph`, minus probing); `explain(run, step)` → `{ status, phase, reasons: ['deps-unmet:pay', 'guard-false:canEnter', …], candidates }` (v0.1, M2); `toMermaid` v0.2; devtools panel v0.3. These three (`inspect`, `observe`, `explain`) are exactly what the future DAG visualizer/devtools consume.
 
 ---
 
@@ -119,16 +119,16 @@ Transition pipeline for `next()` on a view: parse input → `validate` → `canE
 
 ```ts
 // @openwizard/core
-export { defineFlow, createModule, boundary, createWizard, resumeWizard, createMemoryStore,
+export { defineFlow, createModule, boundary, createRun, resumeRun, createMemoryStore,
          clientState, createMirror, createLocalTransport, inspect, WizardError }
-export type { Flow, Wizard, Snapshot, StepState, WizardEvent, Command, Boundary, Store, Transport,
+export type { Flow, FlowRun, Snapshot, StepState, RunEvent, Command, Boundary, Store, Transport,
               Projection, ClientState, Mirror, FlowGraph, RetryPolicy, Duration, Issue, SerializedError, SendResult,
               StepId, ViewId, TaskId, ChildStepId, Ctx, ContextInput, InputOf, OutputOf, EventType, PayloadOf, FlowOutput, ProjectionOutput }
 // @openwizard/react
 export { bindReact }   // bindReact<typeof flowOrProjection>() → { Provider, useSnapshot, useCurrent, useStep, useSelector, useActions }
 ```
 
-Naming rules: `define*` = inert data, `create*` = live thing; instance noun is `Wizard` (brand); `send` = external events in, `dispatch` = wire commands in, `observe` = events out; `getSnapshot/subscribe` (feeds `useSyncExternalStore` and the Store).
+Naming rules: `define*` = inert data, `create*` = live thing; instance noun is `FlowRun` (brand); `send` = external events in, `dispatch` = wire commands in, `observe` = events out; `getSnapshot/subscribe` (feeds `useSyncExternalStore` and the Store).
 
 ### End-to-end target example (must compile without casts at the end of Phase 1)
 
@@ -139,9 +139,9 @@ import { z } from 'zod'
 
 export const fulfilment = defineFlow({
   context: z.object({ orderId: z.string(), express: z.boolean() }),
-  steps: (s) => ({
-    label: s.task({ run: ({ context }) => shipping.createLabel(context), next: 'done' }),
-    done:  s.final({ output: ({ steps }) => ({ trackingId: steps.label.output?.trackingId }) }),
+  steps: (flow) => ({
+    label: flow.task({ run: ({ context }) => shipping.createLabel(context), next: 'done' }),
+    done:  flow.final({ output: ({ steps }) => ({ trackingId: steps.label.output?.trackingId }) }),
   }),
 })
 
@@ -154,19 +154,19 @@ export const checkout = defineFlow({
     'payment.failed':   z.object({ reason: z.string() }),
   },
   onFailure: 'compensate',
-  steps: (s) => ({
-    shipping: s.view({
+  steps: (flow) => ({
+    shipping: flow.view({
       input: z.object({ address: z.string().min(1), express: z.boolean().default(false) }),
       exit: ({ output, update }) => update({ express: output.express }),
       next: 'reserve',
     }),
-    reserve: s.task({
+    reserve: flow.task({
       run: ({ context, signal }) => inventory.reserve(context.cartId, { signal }),
       retry: { attempts: 3, backoff: 'exponential' },
       compensate: ({ output }) => inventory.release(output.reservationId),
       next: 'awaitPayment',
     }),
-    awaitPayment: s.wait({
+    awaitPayment: flow.wait({
       enter: ({ context }) => payments.createIntent(context.cartId, context.total),
       on: {
         'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
@@ -175,30 +175,30 @@ export const checkout = defineFlow({
       timeout: { after: '15m', next: 'expired' },
       next: 'route',
     }),
-    route:  s.decision({ next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined') }),
-    fulfil: s.flow(fulfilment, {
+    route:  flow.decision({ next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined') }),
+    fulfil: flow.flow(fulfilment, {
       context: ({ context }) => ({ orderId: context.cartId, express: context.express }),
       expose: { output: true },
       next: 'receipt',
     }),
-    receipt: s.final(), declined: s.final(), expired: s.final(),
+    receipt: flow.final(), declined: flow.final(), expired: flow.final(),
   }),
   start: 'shipping',
 })
 export const checkoutClient = clientState(checkout, { expose: { context: ['total', 'express'] } })
 
 // server
-const wizard = saved ? resumeWizard(checkout, saved, { store, key })
-                     : createWizard(checkout, { context: { cartId, total }, store, key })
-wizard.subscribe(() => push(wizard.project(checkoutClient)))          // SSE/WS frame per change
+const run = saved ? resumeRun(checkout, saved, { store, key })
+                     : createRun(checkout, { context: { cartId, total }, store, key })
+run.subscribe(() => push(run.project(checkoutClient)))          // SSE/WS frame per change
 app.post('/webhooks/stripe', (req) => sessions.get(req.body.cartId)?.send('payment.captured', req.body))
 app.post('/checkout/:id/cmd', (req) => sessions.get(req.params.id)?.dispatch(req.body))   // after auth
 
 // client
-const ow = bindReact<typeof checkoutClient>()                          // type-only import → no server code in bundle
+const checkout = bindReact<typeof checkoutClient>()                          // type-only import → no server code in bundle
 const mirror = createMirror<typeof checkoutClient>({ transport: sse(`/checkout/${cartId}`) })
-<ow.Provider source={mirror} fallback={<Spinner/>}>…</ow.Provider>
-const { status, input, issues, setInput, next } = ow.useStep('shipping')   // 'typo' is a compile error
+<checkout.Provider source={mirror} fallback={<Spinner/>}>…</checkout.Provider>
+const { status, input, issues, setInput, next } = checkout.useStep('shipping')   // 'typo' is a compile error
 ```
 
 ---
@@ -227,12 +227,12 @@ interface Step<C, Ev, I, O, N extends string, K extends StepKind, X, CF = never>
   // enter/exit/canEnter/canExit/validate/compensate/on/timeout/retry/label/expose …
 }
 interface StepApi<C, Ev> {   // returned pre-bound; each ctor has a CONCRETE param type (excess-property checks work)
-  view<I = undefined, O = I, N extends string = never, X = false>(cfg: ViewCfg<C, Ev, I, O, N, X>): Step<C, Ev, I, O, N, 'view', X>
-  task<I = undefined, O = I, N extends string = never, X = false>(cfg: TaskCfg<…>): Step<…, 'task', X>
-  wait<N extends string = never>(cfg: WaitCfg<C, Ev, N>): Step<…, 'wait'>
-  decision<N extends string>(cfg: { next: (a: NextArgs<C, Ev, undefined, undefined>) => MaybePromise<NextRef<N>> }): Step<…, 'decision'>
-  flow<CF extends AnyFlow, O = FlowOutput<CF>, N extends string = never>(child: CF, cfg: FlowCfg<C, Ev, CF, O, N>): Step<…, 'flow', false, CF>
-  final<O = undefined>(cfg?: { output?: (a: BaseArgs<C, Ev>) => O }): Step<…, 'final'>
+  view<I = undefined, O = I, N extends string = never, X = false>(config: ViewCfg<C, Ev, I, O, N, X>): Step<C, Ev, I, O, N, 'view', X>
+  task<I = undefined, O = I, N extends string = never, X = false>(config: TaskCfg<…>): Step<…, 'task', X>
+  wait<N extends string = never>(config: WaitCfg<C, Ev, N>): Step<…, 'wait'>
+  decision<N extends string>(config: { next: (a: NextArgs<C, Ev, undefined, undefined>) => MaybePromise<NextRef<N>> }): Step<…, 'decision'>
+  flow<CF extends AnyFlow, O = FlowOutput<CF>, N extends string = never>(child: CF, config: FlowCfg<C, Ev, CF, O, N>): Step<…, 'flow', false, CF>
+  final<O = undefined>(config?: { output?: (a: BaseArgs<C, Ev>) => O }): Step<…, 'final'>
 }
 // Assembly — TWO candidate shapes with IDENTICAL types; Phase 0 picks ONE (error location + inference decide):
 //  (A) single call, preferred DX:
@@ -241,7 +241,7 @@ declare function defineFlow<CIn, ES extends Record<string, Boundary<any>>, T ext
   steps: (s: StepApi<ContextOf<CIn>, EventsOf<ES>>) => T & ValidateIds<T>
   start?: Ids<T>
 }): Flow<ContextOf<CIn>, EventsOf<ES>, T>
-//  (B) two-phase, proven mechanics: const w = createFlow({ context, events }); w.steps({ a: w.view({…}) }, { start: 'a' })
+//  (B) two-phase, proven mechanics: const flow = createFlow({ context, events }); flow.steps({ a: flow.view({…}) }, { start: 'a' })
 // One extractor per concept (indexed access on '~types', no conditional distribution):
 type StepId<F>  = Extract<keyof F['steps'], string>
 type InputOf<F, K extends StepId<F>>  = NonNullable<F['steps'][K]['~types']>['input']
@@ -252,7 +252,7 @@ type ChildStepId<F> = { [K in StepId<F>]: [ChildOf<F['steps'][K]>] extends [neve
 type ViewId<F> / TaskId<F> = kind filters (single mapped type each) → go()/setInput() accept views only, retry() tasks only
 ```
 
-Boundaries: `Boundary<T> = StandardSchemaV1<unknown, T> | Checker<T>` (`Checker` branded; built by `boundary.parse/guard/assert/trusted`); `InferBoundary<B>`; `BoundaryResult<T> = { ok: true; value: T } | { ok: false; issues: Issue[] }`. `context` on a flow accepts a plain value (trusted defaults, type inferred) or a boundary (validated at `createWizard`/resume); one extractor `ContextOf`.
+Boundaries: `Boundary<T> = StandardSchemaV1<unknown, T> | Checker<T>` (`Checker` branded; built by `boundary.parse/guard/assert/trusted`); `InferBoundary<B>`; `BoundaryResult<T> = { ok: true; value: T } | { ok: false; issues: Issue[] }`. `context` on a flow accepts a plain value (trusted defaults, type inferred) or a boundary (validated at `createRun`/resume); one extractor `ContextOf`.
 
 Circularity rules (documented + pinned by tests): `input`/`output`/`initial` are inferred in pass 1; `run/next/on/…` receive `I`/`O` by contextual typing in pass 2; TS processes context-sensitive functions left-to-right, so `run` must precede `next`/`compensate` unless an `output` boundary is given. No `const` type params on constructors (would freeze `initial`); only `N` captures literals. Interfaces (`Snapshot`, `StepState`) recurse lazily for nesting; eagerly-evaluated aliases (`ClientState`) carry a depth counter (default 4).
 
@@ -334,13 +334,13 @@ Module → responsibility → tests (core; ~4.5k LOC total):
 
 | Milestone | Deliverables | Exit criteria |
 |---|---|---|
-| **M0 — Type spike (types only; gate)** | `packages/core/spikes/id-safety.spike.ts` + first `.test-d.ts` proving the 14 cases in §3 (id safety in `next`/`dependsOn`/`timeout.next`/`start`/`go()`/`useStep()`; flow-bound `context`/`input`/`output`/`payload` inference with no generics on `s.*`; boundary inference for Zod/Valibot/ArkType/guard/trusted; `ClientState<F, expose>`; nested `flow` typing; module variance). Choose assembly shape (A) `defineFlow({ steps: (s) => … })` vs (B) `createFlow(...).steps(...)`. | Every directive consumed; no cascade errors; 120-step flow < 2 s / < 500k instantiations; `__canary__` proves the harness fails on a real type error; ADR-001 in `DECISIONS.md` with numbers. |
+| **M0 — Type spike (types only; gate)** | `packages/core/spikes/id-safety.spike.ts` + first `.test-d.ts` proving the 14 cases in §3 (id safety in `next`/`dependsOn`/`timeout.next`/`start`/`go()`/`useStep()`; flow-bound `context`/`input`/`output`/`payload` inference with no generics on `flow.*`; boundary inference for Zod/Valibot/ArkType/guard/trusted; `ClientState<F, expose>`; nested `flow` typing; module variance). Choose assembly shape (A) `defineFlow({ steps: (flow) => … })` vs (B) `createFlow(...).steps(...)`. | Every directive consumed; no cascade errors; 120-step flow < 2 s / < 500k instantiations; `__canary__` proves the harness fails on a real type error; ADR-001 in `DECISIONS.md` with numbers. |
 | **M1 — Scaffold + engine core (sequential)** | Repo/tooling from §4; `boundary.*`; `decide/apply/plan` + interpreter (FIFO queue, sync-commit guarantee, thenable detection, tokens, `strict:'sync'`); all 6 kinds with the nav pipeline; retry/backoff/timeout/`AbortSignal`; compensation (reverse order, best-effort, `saga.failures`); `wait` + `on` handlers + inbox buffer/TTL + persisted `deadline` timers; nested flows + `child()`; snapshot/resume + `createMemoryStore` + `redact` + `autoSave` debounce; event envelope + `observe()` + `log()`; `inspect()` graph; `WizardError`; selectors (`phase`, `available`, `progress`). | Unit tests per module (§ module table); examples 01–06 pass as tests on ubuntu+windows; golden scenarios green: (a) resume-during-wait with timer re-arm, (b) early external event buffered → delivered, TTL variant expires, (c) compensation with partial failure order `[3,2,1]`; sync-commit test. |
 | **M2 — DAG / concurrency** | `dependsOn` (all/`any`) + `next: [...]` fan-out + readiness rule + `active[]`/`current` split + `autoRun`/`concurrency`/`runReady()` + invalidation + `inspect()` warnings (unreachable, unsatisfiable, cycles) + `explain()` candidates. | Split/join determinism tests (fake scheduler); concurrency budget test; invalidation cancels running dependents; example 07 (server pipeline: ingest → normalize ∥ enrich → gate → persist, `concurrency: 2`, asserts event order). |
-| **M3 — Client + React** | `clientState(flow, {expose})`, `SerializedError`, `Command` JSON + `dispatch` allow-list hook, `createMirror({transport})` (full projected snapshot per `seq`), `createLocalTransport`; `@openwizard/react` `bindReact<typeof x>()` → `Provider/useSnapshot/useCurrent/useStep/useSelector/useActions` over `Wizard \| Mirror` via `useSyncExternalStore`, stable action identities. | React unit tests (render counts via selectors, hook `.test-d.ts` inference incl. `useStep('typo')`); example 08 (Vite app: form step through a Mirror over the loopback transport, `useStep('shipping')` typed from a type-only import) typechecks + builds in CI. |
+| **M3 — Client + React** | `clientState(flow, {expose})`, `SerializedError`, `Command` JSON + `dispatch` allow-list hook, `createMirror({transport})` (full projected snapshot per `seq`), `createLocalTransport`; `@openwizard/react` `bindReact<typeof x>()` → `Provider/useSnapshot/useCurrent/useStep/useSelector/useActions` over `FlowRun \| Mirror` via `useSyncExternalStore`, stable action identities. | React unit tests (render counts via selectors, hook `.test-d.ts` inference incl. `useStep('typo')`); example 08 (Vite app: form step through a Mirror over the loopback transport, `useStep('shipping')` typed from a type-only import) typechecks + builds in CI. |
 | **M4 — Release hygiene → publish v0.1.0** | Governance scripts (§6), READMEs with generated export tables (root quickstart = example 01 verbatim), CONTRIBUTING/SECURITY/DECISIONS, `api/*.d.ts` snapshots, changesets, `release.yml` with provenance, size budgets. | publint/attw/size/check:api/check:docs green; zero `any` in `api/*.d.ts`; `pnpm changeset publish` dry-run passes; tag `v0.1.0`. |
 | **v0.2.0** | Generic `on` handlers (any kind + flow-level `on`); `when` skip predicate + `skip()`; `defineProjection` + full `Expose`; `toMermaid`; idempotency keys + crash-resume re-run of `running` tasks; snapshot `migrate`; `sources` adapters + correlation ids; Mirror/React support for child flows; `mapError` typed step errors; deps injection; patch/event-stream Mirror; presets as docs. | Example 09 (server-authoritative over `node:http` SSE); regenerated export tables; API snapshot diff reviewed. |
-| **v0.3.0** | Docs site (reuse the v1 Monaco landing shell + DAG visualizer, driven by `inspect()` + `observe()`); `@openwizard/devtools` (event log + graph + time travel via `apply`); append-only event Store + replay; store recipes (Redis/Postgres as docs). | Docs `check` pipeline (snippet typecheck, doc-imports, links) green; devtools renders examples 01–09; 1.0 API-freeze proposal. |
+| **v0.3.0** | Docs site (reuse the v1 Monaco landing shell + DAG visualizer, driven by `inspect()` + `observe()`); `@openwizard/devtools` (event log + graph + time travel via `apply`); append-only event Store + replay; application-owned store contract. | Docs `check` pipeline (snippet typecheck, doc-imports, links) green; devtools renders examples 01–09; 1.0 API-freeze proposal. |
 
 Cut from v0.1 (explicit): `mode`; per-step `runtime`/`durability`; generic `on` (only `wait` listens); `when`; `defineProjection`; `toMermaid`; idempotency keys (interrupted `running` task on resume → `failed{kind:'interrupted'}`, user `retry()`s); event-based undo on `back()`; patch/event-stream Mirror + optimistic UI; multi-instance router; presets; typed per-step errors; Vue/Solid bindings.
 
@@ -359,9 +359,9 @@ Non-goals: distributed queue/locks; built-in HTTP server/transports beyond loopb
 ## 7. Verification (end-to-end)
 
 1. `pnpm i && pnpm build && pnpm typecheck && pnpm lint && pnpm test` green locally (Windows) and in CI (ubuntu+windows × Node 20/22).
-2. `pnpm --filter "./examples/*" test` — each example runs its flow to completion and asserts on `log()`: 01 happy path (linear wizard with a task); 02 recoverable failure (retry succeeds on attempt 2, backoff observed via fake scheduler); 03 non-recoverable → compensation order `[3,2,1]` with a failing #2 recorded in `saga.failures`; 04 kills mid-wait, resumes from the memory store, advances the fake clock, asserts the timeout branch; 05 sends a bad payload → `event.rejected` with issues, then a good one, plus an *early* event buffered then delivered; 06 nested flow output + `path` in child events + `child()` access; 07 DAG pipeline (ingest → normalize ∥ enrich → gate → persist) with `concurrency: 2`, asserts parallelism and join order.
+2. `pnpm --filter "./examples/*" test` — each example runs its flow to completion and asserts on `log()`: 01 happy path (linear run with a task); 02 recoverable failure (retry succeeds on attempt 2, backoff observed via fake scheduler); 03 non-recoverable → compensation order `[3,2,1]` with a failing #2 recorded in `saga.failures`; 04 kills mid-wait, resumes from the memory store, advances the fake clock, asserts the timeout branch; 05 sends a bad payload → `event.rejected` with issues, then a good one, plus an *early* event buffered then delivered; 06 nested flow output + `path` in child events + `child()` access; 07 DAG pipeline (ingest → normalize ∥ enrich → gate → persist) with `concurrency: 2`, asserts parallelism and join order.
 3. Type gate: `vitest run --typecheck` executes `*.test-d.ts` (`@ts-expect-error` on `next: 'typo'`, `dependsOn: ['nope']`, `go('typo')`, `useStep('typo')`, `send('unknown', …)`, `useSelector` on an unexposed context field); the `__canary__` job must FAIL (proves the harness works).
-4. Sync-commit test: `wizard.next()` on an all-sync flow → `getSnapshot().current` already advanced before `await`; `strict:'sync'` turns a thenable into `SyncViolationError`.
+4. Sync-commit test: `run.next()` on an all-sync flow → `getSnapshot().current` already advanced before `await`; `strict:'sync'` turns a thenable into `SyncViolationError`.
 5. Package hygiene: `publint`, `attw --pack`, `size-limit`, `check:api`, `check:docs`, `check:public-tags`.
 6. React: `examples/08-react-mirror` typechecks + builds in CI; manual smoke in the browser (Vite dev server): a form step driven through a Mirror over the loopback transport, `useStep('shipping')` typed from a type-only import, no server code in the client bundle (bundle-analyze assertion).
 
@@ -374,8 +374,8 @@ An independent architecture review (Codex `gpt-5.6-sol`, xhigh) found the execut
 ### 8.1 Message processing is batch-atomic
 
 ```
-loop: msg = queue.shift()
-  events    = decide(def, state, msg)                    // pure; [] means "no-op"
+loop: message = queue.shift()
+  events    = decide(def, state, message)                    // pure; [] means "no-op"
   nextState = events.reduce(apply, state)                // fold the whole batch
   effects   = plan(def, nextState, events)               // sees POST-batch state + the batch
   commit(nextState, events)                              // append to log, swap state, notify event listeners per event, state listeners ONCE
@@ -459,29 +459,29 @@ type WireAck    = { commandId: string; result: CommandResult; seq: number }
 
 ### 8.10 API deltas from §2 (superseding)
 
-- `s.task(run, options)` — two arguments so `options.next/compensate` see `output` regardless of property order.
-- `context` is always a Boundary; `createWizard(flow, { context, deps })`. `deps?: Boundary<D>` on the flow (`boundary.trusted<D>()`), `deps` in every hook — no closing over globals for out-of-domain services.
+- `flow.task(run, options)` — two arguments so `options.next/compensate` see `output` regardless of property order.
+- `context` is always a Boundary; `createRun(flow, { context, deps })`. `deps?: Boundary<D>` on the flow (`boundary.trusted<D>()`), `deps` in every hook — no closing over globals for out-of-domain services.
 - `DraftOf<F,K>` (partial schema INPUT; `setInput` patch, `steps[k].input`) vs `OutputOf<F,K>` (schema OUTPUT / run result / `{event,payload}` / child output).
-- `defineProjection(flow, { expose })` replaces `clientState()`; `parseCommand(unknown)` exported; `runReady()` on `Wizard` and in `Command`; `epoch` in state; `flow.name` required.
+- `defineProjection(flow, { expose })` replaces `clientState()`; `parseCommand(unknown)` exported; `runReady()` on `FlowRun` and in `Command`; `epoch` in state; `flow.name` required.
 - Removed from v0.1: automatic invalidation, `createModule`, static unsatisfiable-path analysis. Kept: unreachable/cycle warnings in `inspect()`.
 
 ### 8.11 M0 spike verdict (ADR-001) — authoring shape (B), superseding §2/§3 where they differ
 
 ```ts
-const s = defineFlow({ name: 'checkout', version: 1, context: CheckoutCtx, events: { 'payment.captured': PaymentCaptured }, deps: boundary.trusted<Deps>(), onFailure: 'compensate' })
-export const checkout = s.steps({
-  shipping: s.view({ input: Address, next: 'reserve' }),
-  reserve:  s.task(({ context, deps, signal }) => deps.inventory.reserve(context.cartId, { signal }), {
+const checkout = defineFlow({ name: 'checkout', version: 1, context: CheckoutCtx, events: { 'payment.captured': PaymentCaptured }, deps: boundary.trusted<Deps>(), onFailure: 'compensate' })
+export const checkoutFlow = checkout.steps({
+  shipping: checkout.view({ input: Address, next: 'reserve' }),
+  reserve:  checkout.task(({ context, deps, signal }) => deps.inventory.reserve(context.cartId, { signal }), {
               retry: { attempts: 3, backoff: 'exponential' },
               compensate: ({ output, deps }) => deps.inventory.release(output.reservationId),
               next: 'awaitPayment' }),
-  awaitPayment: s.wait({ on: { 'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }) }, timeout: { after: '15m', next: 'expired' }, next: 'route' }),
-  route:    s.decision({ next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined') }),
-  fulfil:   s.flow(fulfilment, { context: ({ context }) => ({ orderId: context.cartId }), next: 'receipt' }),
-  receipt:  s.final(), declined: s.final(), expired: s.final(),
+  awaitPayment: checkout.wait({ on: { 'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }) }, timeout: { after: '15m', next: 'expired' }, next: 'route' }),
+  route:    checkout.decision({ next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined') }),
+  fulfil:   checkout.flow(fulfilment, { context: ({ context }) => ({ orderId: context.cartId }), next: 'receipt' }),
+  receipt:  checkout.final(), declined: checkout.final(), expired: checkout.final(),
 }, { start: 'shipping' })
 ```
-- `defineFlow(options)` returns a `FlowBuilder` (pre-bound `view/task/wait/decision/flow/final` + `steps`); `.steps(defs, { start })` returns the inert `Flow`. Shape (A) (`steps: (s) => …` callback) was rejected: an error inside the callback degrades `typeof flow` (TS overload-failure re-inference); (B)'s literal is not context-sensitive so `StepId<typeof flow>` stays precise even when the id check fails.
+- `defineFlow(options)` returns a `FlowBuilder` (pre-bound `view/task/wait/decision/flow/final` + `steps`); `.steps(defs, { start })` returns the inert `Flow`. Shape (A) (`steps: (flow) => …` callback) was rejected: an error inside the callback degrades `typeof flow` (TS overload-failure re-inference); (B)'s literal is not context-sensitive so `StepId<typeof flow>` stays precise even when the id check fails.
 - `steps<T>(steps: T & CheckSteps<T, C, Ev, D>, …)` with `T` deliberately unconstrained; errors are custom template-literal messages on the offending step property (`step 'a' references unknown step id(s): 'typo'`; `step 'x' is bound to a different context/events/deps than this flow`; dynamic keys rejected).
 - `Boundary<O, I = O>`; `DraftOf` = schema INPUT side (partial), `OutputOf`/hooks = OUTPUT; `ContextInput<F>` vs `Ctx<F>`; `I = never` when a step has no draft, `O = undefined` when no output.
 - Sibling `steps` inside step-level hooks are an open, untyped map — the typed idiom is `update()` into context. Step-level `expose` is dropped (projection is deny-by-default and decides exposure). `AbortSignalLike` is structural (no DOM lib requirement for consumers).
@@ -497,27 +497,27 @@ v0.1.0 shipped everything in §5 M0–M4 (commits `0a488d0..3eb071f`). v0.2 adds
 - Any ACTIVE step may declare `on: { [event]: handler }` (previously `wait` only). Routing (§8.6) delivers to every active step with a matching handler, then to the flow-level `on[event]` (if any). Buffering rules unchanged (buffer only when nothing handled it).
 - Handler return contract by kind: `wait` — unchanged (`void | { keep } | { next }`); `view` — `void | { next: ViewId | StepId }` (an external event may advance the cursor: a transition with `cause: 'event'` that runs `canEnter`/`exit`/`enter` but skips parseInput/validate/canExit; a `nav-busy` view keeps the event buffered until idle); `task`/`decision`/`flow`/`final` — `void` only (they may `update()` context; typed to reject `{ next }`).
 - Flow-level `on[event]` returns `void | { cancel: string }` (cancels the flow with that reason, subject to the compensation policy). Flow-level handlers run after step-level ones in the same batch.
-- Correlation: `defineFlow({ correlate: { [event]: (payload) => string } })` + `createWizard(flow, { correlationId })`: a delivered event whose `correlate[event](payload)` exists and differs from the wizard's `correlationId` is `event.dropped { reason: 'correlation' }` (not buffered). Absent `correlate` = no filtering.
-- `wizard.attach(source: (send: Wizard['send']) => () => void): () => void` — sugar for external sources (queues, EventTarget); detached automatically on `dispose()`.
+- Correlation: `defineFlow({ correlate: { [event]: (payload) => string } })` + `createRun(flow, { correlationId })`: a delivered event whose `correlate[event](payload)` exists and differs from the run's `correlationId` is `event.dropped { reason: 'correlation' }` (not buffered). Absent `correlate` = no filtering.
+- `run.attach(source: (send: FlowRun['send']) => () => void): () => void` — sugar for external sources (queues, EventTarget); detached automatically on `dispose()`.
 
 ### 9.2 `when` + `skip()`
 - Any non-final step may declare `when: (args) => MaybePromise<boolean>`; evaluated when the step becomes ready (after gating, before `enter`). `false` → `step.skipped { reason: 'when' }`: the step counts as done for `dependsOn`, its `next` targets are arrived (`cause: 'auto'`), the cursor never lands on a skipped view.
-- `wizard.skip(step)` (command `skip`) skips a ready-or-active non-final step explicitly (`reason: 'command'`); an active task is cancelled first. Views: `skip` requires the view to be `ready` or `current` (skipping the current view exits it without validation).
+- `run.skip(step)` (command `skip`) skips a ready-or-active non-final step explicitly (`reason: 'command'`); an active task is cancelled first. Views: `skip` requires the view to be `ready` or `current` (skipping the current view exits it without validation).
 
 ### 9.3 Explicit `invalidate(step)`
-- `wizard.invalidate(step, { cascade?: boolean = true })` (command `invalidate`): a `done|failed|skipped` step returns to `idle` (`step.invalidated { step, cascade }`), keeps a view's draft, moves output to `previousOutput`, and — when `cascade` — invalidates every transitive `dependsOn` dependent that is done/failed/skipped (running dependents are cancelled). Never automatic. Not allowed on `active` steps (`NOT_ACTIVE`-style rejection: `INVALID_COMMAND` with reason `active`) or on the current view (use `back`).
+- `run.invalidate(step, { cascade?: boolean = true })` (command `invalidate`): a `done|failed|skipped` step returns to `idle` (`step.invalidated { step, cascade }`), keeps a view's draft, moves output to `previousOutput`, and — when `cascade` — invalidates every transitive `dependsOn` dependent that is done/failed/skipped (running dependents are cancelled). Never automatic. Not allowed on `active` steps (`NOT_ACTIVE`-style rejection: `INVALID_COMMAND` with reason `active`) or on the current view (use `back`).
 
 ### 9.4 Idempotent tasks + crash-resume re-run
-- `s.task(run, { idempotent: true | (args) => string })`: the run receives `args.idempotencyKey` (default `${instanceId}:${step}:${runId}`, or the mapper's value). On `resume`, a `running` idempotent task is RE-RUN with the same key (`step.runStarted { resumed: true }`) instead of failing `interrupted`; non-idempotent tasks keep the v0.1 behaviour.
+- `flow.task(run, { idempotent: true | (args) => string })`: the run receives `args.idempotencyKey` (default `${instanceId}:${step}:${runId}`, or the mapper's value). On `resume`, a `running` idempotent task is RE-RUN with the same key (`step.runStarted { resumed: true }`) instead of failing `interrupted`; non-idempotent tasks keep the v0.1 behaviour.
 
 ### 9.5 Snapshot migration
-- `resumeWizard(flow, snapshot, { migrate?: (snapshot: unknown, from: { name: string; version: number }) => unknown })`: when `snapshot.flow.version !== flow.version`, `migrate` is called first (result must validate like any snapshot; its `flow.version` must equal the flow's), else `SNAPSHOT_INCOMPATIBLE`. `flow.name` must always match.
+- `resumeRun(flow, snapshot, { migrate?: (snapshot: unknown, from: { name: string; version: number }) => unknown })`: when `snapshot.flow.version !== flow.version`, `migrate` is called first (result must validate like any snapshot; its `flow.version` must equal the flow's), else `SNAPSHOT_INCOMPATIBLE`. `flow.name` must always match.
 
 ### 9.6 Progress and readiness conveniences
-- `wizard.progress(): { done: number; total: number; ratio: number }` (finals excluded from `total`; skipped counts as done); `wizard.readyViews(): ViewId[]` (views that are ready or current). Both are selectors over state (memoized per seq); `ClientState.progress` is exposed when `expose.progress: true`.
+- `run.progress(): { done: number; total: number; ratio: number }` (finals excluded from `total`; skipped counts as done); `run.readyViews(): ViewId[]` (views that are ready or current). Both are selectors over state (memoized per seq); `ClientState.progress` is exposed when `expose.progress: true`.
 
 ### 9.7 Typed per-step errors
-- `s.task(run, { mapError: (error: unknown, args) => E })` → `ErrorOf<F, K>` (extractor); `StepState.error` becomes `{ …SerializedError, data?: E }` where `data` is the mapped value (must be JSON-safe; checked at persist time like outputs). Projections expose `error` (with `data`) only when `error: true`.
+- `flow.task(run, { mapError: (error: unknown, args) => E })` → `ErrorOf<F, K>` (extractor); `StepState.error` becomes `{ …SerializedError, data?: E }` where `data` is the mapped value (must be JSON-safe; checked at persist time like outputs). Projections expose `error` (with `data`) only when `error: true`.
 
 ### 9.8 Custom projections and Mermaid
 - `defineProjection(flow, { select: (state: Snapshot<F>['state']) => T })` — arbitrary typed projection; `expose`-based projections stay the default. Both are `Projection<F, T>`; Mirror frames carry `T`.

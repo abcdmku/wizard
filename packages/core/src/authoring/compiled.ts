@@ -57,7 +57,7 @@ export interface HookArgs {
   readonly step: string
   readonly path: readonly string[]
   readonly context: unknown
-  /** Injected dependencies (`createWizard(flow, { deps })`), typed for users via `DepsOf<F>`. */
+  /** Injected dependencies (`createRun(flow, { deps })`), typed for users via `DepsOf<F>`. */
   readonly deps: unknown
   readonly input: unknown
   readonly output: unknown
@@ -143,7 +143,7 @@ export interface CompiledFlow {
   readonly events: Readonly<Record<string, RuntimeBoundary>>
   /** v0.2: flow-level event handlers, run after step-level ones in the same batch. */
   readonly on?: Readonly<Record<string, Hook<FlowOnHandlerResult>>>
-  /** v0.2: per-event correlation extractors; a mismatch with the wizard's `correlationId` drops the event. */
+  /** v0.2: per-event correlation extractors; a mismatch with the run's `correlationId` drops the event. */
   readonly correlate?: Readonly<Record<string, (payload: unknown) => string | undefined>>
   readonly steps: Readonly<Record<string, CompiledStep>>
   /** Declaration order of step ids. */

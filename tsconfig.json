@@ -6,6 +6,11 @@
     "paths": {
       "@openwizard/core": ["./packages/core/src/index.ts"],
       "@openwizard/core/testing": ["./packages/core/src/testing.ts"],
+      "@openwizard/durable": ["./packages/durable/src/index.ts"],
+      "@openwizard/drizzle": ["./packages/drizzle/src/index.ts"],
+      "@openwizard/drizzle/pg": ["./packages/drizzle/src/pg.ts"],
+      "@openwizard/drizzle/sqlite": ["./packages/drizzle/src/sqlite.ts"],
+      "@openwizard/opentelemetry": ["./packages/opentelemetry/src/index.ts"],
       "@openwizard/react": ["./packages/react/src/index.ts"]
     }
   },

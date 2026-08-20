@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 460" role="img" aria-labelledby="system-title system-desc">
+  <title id="system-title">OpenWizard package map</title>
+  <desc id="system-desc">OpenWizard core sits in the center. Flow definitions enter from above. OpenTelemetry, Effect, React, and durable execution connect through separate adapters, and durable execution writes to a store.</desc>
+  <style>
+    svg { --d-paper: #fff; --d-surface: #fafafa; --d-ink: #171717; --d-muted: #737373; --d-line: #d4d4d4; --d-soft: #f5f5f5; --d-inverse: #fff; }
+    @media (prefers-color-scheme: dark) { svg { --d-paper: #0a0a0a; --d-surface: #151515; --d-ink: #fafafa; --d-muted: #a3a3a3; --d-line: #404040; --d-soft: #1f1f1f; --d-inverse: #0a0a0a; } }
+    text { font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: var(--d-ink); }
+    .name { font-size: 18px; }
+    .hero { font-size: 21px; }
+    .cap { font-size: 13.5px; letter-spacing: .1em; fill: var(--d-muted); }
+    .on { fill: var(--d-inverse); }
+    .on-dim { fill: var(--d-inverse); opacity: .6; }
+    .plate { fill: none; stroke: var(--d-line); stroke-width: 1.5; }
+    .node { fill: var(--d-surface); stroke: var(--d-line); stroke-width: 1.75; }
+    .solid { fill: var(--d-ink); stroke: var(--d-ink); stroke-width: 1.75; }
+    .wire { fill: none; stroke: var(--d-muted); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#sys-tip); }
+    .dot { fill: var(--d-muted); }
+    .port { fill: var(--d-inverse); }
+  </style>
+  <defs>
+    <marker id="sys-tip" viewBox="0 0 9 8" markerWidth="9" markerHeight="8" markerUnits="userSpaceOnUse" refX="8.6" refY="4" orient="auto">
+      <path d="M0 .4 8.6 4 0 7.6 2.1 4Z" fill="var(--d-muted)"/>
+    </marker>
+    <pattern id="sys-grid" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1.1" cy="1.1" r="1.1" fill="var(--d-line)"/>
+    </pattern>
+  </defs>
+
+  <rect x="16" y="16" width="888" height="428" rx="22" fill="url(#sys-grid)" opacity=".5"/>
+  <rect class="plate" x="16" y="16" width="888" height="428" rx="22"/>
+  <text class="cap" x="48" y="52">APPLICATION</text>
+  <text class="cap" x="676" y="128">ADAPTERS</text>
+
+  <rect class="node" x="350" y="72" width="220" height="76" rx="14"/>
+  <text class="name" x="372" y="106">flow</text>
+  <text class="cap" x="372" y="130">DEFINITION</text>
+
+  <rect class="solid" x="340" y="196" width="240" height="100" rx="18"/>
+  <text class="hero on" x="362" y="242">core</text>
+  <text class="cap on-dim" x="362" y="266">FLOWRUN</text>
+  <path d="M534 228h26M534 242h18M534 256h22" stroke="var(--d-inverse)" stroke-width="2" stroke-linecap="round" opacity=".38"/>
+
+  <rect class="node" x="64" y="208" width="180" height="76" rx="14"/>
+  <text class="name" x="86" y="242">OTel</text>
+  <text class="cap" x="86" y="266">EVENTS</text>
+
+  <rect class="node" x="676" y="148" width="180" height="76" rx="14"/>
+  <text class="name" x="698" y="182">Effect</text>
+  <text class="cap" x="698" y="206">3 / 4</text>
+
+  <rect class="node" x="676" y="232" width="180" height="76" rx="14"/>
+  <text class="name" x="698" y="266">React</text>
+  <text class="cap" x="698" y="290">MIRROR</text>
+
+  <rect class="node" x="340" y="344" width="240" height="76" rx="14"/>
+  <text class="name" x="362" y="378">durable</text>
+  <text class="cap" x="362" y="402">LEASE + RESUME</text>
+
+  <rect class="node" x="676" y="344" width="180" height="76" rx="14"/>
+  <text class="name" x="698" y="378">store</text>
+  <text class="cap" x="698" y="402">ADAPTER</text>
+
+  <path class="wire" d="M460 148V190"/>
+  <path class="wire" d="M340 246H250"/>
+  <path class="wire" d="M580 222h36a14 14 0 0 0 14-14v-8a14 14 0 0 1 14-14h26"/>
+  <path class="wire" d="M580 270h90"/>
+  <path class="wire" d="M460 296V338"/>
+  <path class="wire" d="M580 382h90"/>
+
+  <circle class="dot" cx="460" cy="148" r="3.25"/>
+  <circle class="port" cx="340" cy="246" r="3.25"/>
+  <circle class="port" cx="580" cy="222" r="3.25"/>
+  <circle class="port" cx="580" cy="270" r="3.25"/>
+  <circle class="port" cx="460" cy="296" r="3.25"/>
+  <circle class="dot" cx="580" cy="382" r="3.25"/>
+</svg>

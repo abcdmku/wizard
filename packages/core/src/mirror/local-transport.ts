@@ -2,7 +2,7 @@
  * `createLocalTransport(source, options?)` — in-process loopback `Transport` over a
  * `MirrorSource`, for tests, examples and single-process apps. Optional deterministic latency
  * (`delayMs` + injectable `scheduler`) and JSON serialisation (`serialize: true`) so the loop
- * behaves like a real wire (frames and acks are decoupled from the wizard's objects).
+ * behaves like a real wire (frames and acks are decoupled from the run's objects).
  *
  * Exported from `@openwizard/core/testing` (a separate entry): its TYPES are imported from the
  * main entry by package name, so the testing declarations reference `@openwizard/core` instead
@@ -16,7 +16,7 @@ import { createRealScheduler } from '../interpreter/env'
 
 /**
  * `createLocalTransport` options: `delayMs` delays every frame and every command/ack hop
- * (default 0 = synchronous frames, acks resolve on the wizard's own microtasks); `scheduler`
+ * (default 0 = synchronous frames, acks resolve on the run's own microtasks); `scheduler`
  * drives those delays (a test scheduler makes them deterministic); `serialize` JSON-round-trips
  * frames, commands and acks (default `false`).
  * @public

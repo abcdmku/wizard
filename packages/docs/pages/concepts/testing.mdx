@@ -1,94 +1,20 @@
 # Testing
 
-The runtime never calls `Date.now()` or `setTimeout` itself, only an injectable `clock` and `scheduler`, so a test owns time. `@openwizard/core/testing` is a separate entry, which keeps its two helpers out of your application bundle.
+Test the real flow with in-memory dependencies. Assert the result, state, and committed run
+events.
 
-| Helper | Gives you |
-|---|---|
-| `createTestScheduler({ now? })` | virtual time: a `Scheduler` and a `Clock` in one object, driving retries, wait timeouts and inbox TTLs |
-| `createLocalTransport(source, options?)` | a Mirror wired to a `MirrorSource` in the same process, no network |
-
-## createTestScheduler()
-
-Timers fire synchronously inside `advance()`, so by the time it returns the resulting state is committed.
-
-```ts
-import { createWizard } from '@openwizard/core'
-import { createTestScheduler } from '@openwizard/core/testing'
-
-const sched = createTestScheduler({ now: 1_000 })
-const wizard = createWizard(checkout, { context, deps, scheduler: sched }) // sched is the clock too
-await wizard.start()
-sched.pending() // the timers currently armed
-sched.advance(200) // fires every timer due within 200 ms, in order
-sched.flush() // fires everything that is left
+```ts file="packages/docs/snippets/concepts/order.test.ts"
 ```
 
-Async hooks are still real promises, though, so they need a microtask tick before the state settles.
+The imported flow and `Deps` type come from [Defining flows](/concepts/defining-flows). The test
+supplies the only external service that flow declares.
 
-```ts
-const settle = () => new Promise<void>((r) => setTimeout(r, 0))
+`createTestScheduler()` supplies virtual time for retries, wait deadlines, and inbox expiry.
+`createLocalTransport()` connects a `MirrorSource` to a Mirror without a server and can force a
+JSON round trip.
 
-await wizard.start()
-await settle() // attempt 1 fails, so a retry is scheduled at now + 200 ms
-expect(wizard.explain('post')).toMatchObject({ phase: 'retrying', reasons: ['retrying'] })
-sched.advance(200) // attempt 2 starts, and fails, exactly at the deadline
-await settle()
-```
+Add `*.test-d.ts` files for guarantees that exist only at compile time, such as rejected step ids
+or inferred task outputs. Use the normal TypeScript checker so each `@ts-expect-error` must match a
+real error.
 
-Your own fakes can take virtual time on `sched.setTimeout`, which is how [example 07](/examples/07-dag-pipeline) proves two branches really run in parallel.
-
-## Fake deps, real assertions
-
-Services outside the flow come in through `deps`, so a test passes in-memory fakes and asserts on what they recorded. The other half is `log()`, the full story of what the wizard did.
-
-```ts
-const log = wizard.log().map((event) => `${event.type}${'step' in event ? `:${event.step}` : ''}`)
-expect(log).toContain('step.validationFailed:profile')
-expect(log.at(-1)).toBe('flow.done')
-```
-
-## Type tests
-
-A lot of this library's value is in what refuses to compile, so type assertions live next to the runtime tests as `*.test-d.ts` files and run through the TypeScript checker in CI.
-
-```ts
-import { expectTypeOf } from 'vitest'
-import type { OutputOf } from '@openwizard/core'
-
-expectTypeOf<OutputOf<typeof onboarding, 'save'>>().toEqualTypeOf<{ id: string }>()
-// @ts-expect-error not a view, so go() must not accept it
-wizard.go('save')
-```
-
-A canary file that must fail the check guards against the suite silently never being type-checked, which was a v1 mistake.
-
-## createLocalTransport(source, options)
-
-Connects a `MirrorSource` and a `Mirror` in the same process, so you can test the whole client path without a server.
-
-```ts
-import { createMirror, createMirrorSource } from '@openwizard/core'
-import { createLocalTransport } from '@openwizard/core/testing'
-
-const mirror = createMirror<typeof checkoutClient>({
-  transport: createLocalTransport(createMirrorSource(wizard, checkoutClient), {
-    delayMs: 5, // delay every frame and hop
-    serialize: true, // JSON round trip, so anything JSON drops disappears here like it would on the wire
-    scheduler: sched, // put those delays on virtual time
-  }),
-})
-```
-
-[Example 08](/examples/08-react-mirror) drives its whole React UI through the DOM this way, with jsdom and Testing Library, and asserts that no card number ever reaches the wizard.
-
-## Sync-commit in tests
-
-When every hook a call triggers is synchronous, the state is committed before the returned promise is awaited, so a test can assert without `await`.
-
-```ts
-const pending = wizard.next()
-expect(wizard.getState().status).toBe('done')
-expect(await pending).toMatchObject({ ok: true, from: 'profile', to: 'save' })
-```
-
-If a flow is meant to stay synchronous, `createWizard(flow, { strict: 'sync' })` enforces it by turning the first thenable a hook returns into a `SYNC_VIOLATION` failure.
+Finish with the [Runtime guarantees](/concepts/guarantees) contract.

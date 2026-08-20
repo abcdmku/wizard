@@ -9,28 +9,28 @@ import { initialState } from '../../src/machine'
 import type { StepRecord, WizardState } from '../../src/machine/state'
 import { applyProjection } from '../../src/projection/apply-projection'
 import { defineProjection } from '../../src/projection/define-projection'
-import { createWizard } from '../../src/wizard/create-wizard'
+import { createRun } from '../../src/wizard/create-wizard'
 import type { Snapshot } from '../../src/wizard/snapshot'
 
-const c = defineFlow({
+const child = defineFlow({
   name: 'child',
   context: z.object({ n: z.number(), childSecret: z.string() }),
 })
-const child = c.steps({
-  work: c.task(async () => ({ r: 1 }), { next: 'end' }),
-  end: c.final({ output: () => 'child-out' }),
+const childFlow = child.steps({
+  work: child.task(async () => ({ r: 1 }), { next: 'end' }),
+  end: child.final({ output: () => 'child-out' }),
 })
 
-const s = defineFlow({
+const root = defineFlow({
   name: 'root',
   context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
 })
-const flow = s.steps(
+const flow = root.steps(
   {
-    form: s.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
-    reserve: s.task(async () => ({ reservationId: 'r' }), { next: 'sub' }),
-    sub: s.flow(child, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
-    done: s.final({ output: () => ({ receipt: 1 }) }),
+    form: root.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
+    reserve: root.task(async () => ({ reservationId: 'r' }), { next: 'sub' }),
+    sub: root.flow(childFlow, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
+    done: root.final({ output: () => ({ receipt: 1 }) }),
   },
   { start: 'form' },
 )
@@ -250,14 +250,17 @@ describe('applyProjection', () => {
     expect(Object.hasOwn(context, '__proto__')).toBe(true)
     expect(Object.getPrototypeOf(context)).toBe(Object.prototype)
 
-    const r = defineFlow({ name: 'reserved', context: boundary.trusted<Record<string, never>>() })
-    const reserved = r.steps(
-      { ['__proto__']: r.view({ next: 'constructor' }), constructor: r.final() },
+    const reserved = defineFlow({
+      name: 'reserved',
+      context: boundary.trusted<Record<string, never>>(),
+    })
+    const reservedFlow = reserved.steps(
+      { ['__proto__']: reserved.view({ next: 'constructor' }), constructor: reserved.final() },
       { start: '__proto__' },
     )
-    const rdef = compile(reserved)
+    const rdef = compile(reservedFlow)
     const rstate = stateOf(rdef, {}, () => ({}))
-    const projected = applyProjection(defineProjection(reserved, { expose: {} }), rstate, rdef)
+    const projected = applyProjection(defineProjection(reservedFlow, { expose: {} }), rstate, rdef)
     expect(Object.hasOwn(projected.steps, '__proto__')).toBe(true)
     expect(Object.hasOwn(projected.steps, 'constructor')).toBe(true)
     expect(Object.getPrototypeOf(projected.steps)).toBe(Object.prototype)
@@ -274,18 +277,24 @@ describe('applyProjection', () => {
     let current: AnyFlow = leaf.steps({ v: leaf.view({ next: 'end' }), end: leaf.final() })
     let expose: Record<string, unknown> = { steps: { v: { input: true } }, context: ['n'] }
     for (let level = 1; level <= 8; level += 1) {
-      const l = defineFlow({ name: `level${level}`, context: boundary.trusted<{ n: number }>() })
-      current = l.steps({
-        c: l.flow(current, { context: ({ context }) => ({ n: context.n + 1 }), next: 'end' }),
-        end: l.final(),
+      const levelFlow = defineFlow({
+        name: `level${level}`,
+        context: boundary.trusted<{ n: number }>(),
+      })
+      current = levelFlow.steps({
+        c: levelFlow.flow(current, {
+          context: ({ context }) => ({ n: context.n + 1 }),
+          next: 'end',
+        }),
+        end: levelFlow.final(),
       })
       expose = { steps: { c: { child: expose } }, context: ['n'] }
     }
-    const root = current
-    const wizard = createWizard(root, { context: { n: 0 } })
-    await wizard.start()
-    const projection = defineProjection(root, { expose: expose as never })
-    let node = wizard.project(projection) as Record<string, unknown>
+    const rootFlow = current
+    const run = createRun(rootFlow, { context: { n: 0 } })
+    await run.start()
+    const projection = defineProjection(rootFlow, { expose: expose as never })
+    let node = run.project(projection) as Record<string, unknown>
     for (let level = 8; level >= 1; level -= 1) {
       expect(node.context).toEqual({ n: 8 - level })
       const steps = node.steps as Record<string, Record<string, unknown>>
@@ -297,7 +306,7 @@ describe('applyProjection', () => {
     // The leaf (8 child edges below the root) is projected precisely, not the fallback.
     expect(node.context).toEqual({ n: 8 })
     expect((node.steps as Record<string, Record<string, unknown>>).v?.status).toBe('active')
-    wizard.dispose()
+    run.dispose()
   })
 
   describe('applyProjection v0.2: progress, error data, select', () => {
@@ -357,19 +366,23 @@ describe('applyProjection', () => {
         code: 'E_BOOM',
       })
     })
-    it('a `select` projection runs its mapper over the state; the Wizard and the source carry its value', async () => {
+    it('a `select` projection runs its mapper over the state; the FlowRun and the source carry its value', async () => {
       const summary = defineProjection(flow, {
-        select: (s) => ({ at: s.current, total: s.context.total, failed: s.steps.reserve.status }),
+        select: (state) => ({
+          at: state.current,
+          total: state.context.total,
+          failed: state.steps.reserve.status,
+        }),
       })
       expect(applyProjection(summary, state, def)).toEqual({
         at: 'form',
         total: 42,
         failed: 'failed',
       })
-      const wizard = createWizard(flow, { context: { cartId: 'c', total: 7, secret: 's' } })
-      await wizard.start()
-      expect(wizard.project(summary)).toEqual({ at: 'form', total: 7, failed: 'idle' })
-      wizard.dispose()
+      const run = createRun(flow, { context: { cartId: 'c', total: 7, secret: 's' } })
+      await run.start()
+      expect(run.project(summary)).toEqual({ at: 'form', total: 7, failed: 'idle' })
+      run.dispose()
     })
   })
 })

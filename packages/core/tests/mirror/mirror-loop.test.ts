@@ -1,5 +1,5 @@
 /**
- * `createMirror` — the end-to-end loop `createWizard` → `createMirrorSource` → `createLocalTransport` → `createMirror` (latency, serialisation, hostile ids, select projections).
+ * `createMirror` — the end-to-end loop `createRun` → `createMirrorSource` → `createLocalTransport` → `createMirror` (latency, serialisation, hostile ids, select projections).
  */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -12,22 +12,22 @@ import { createMirrorSource } from '../../src/mirror/source'
 import type { Transport } from '../../src/mirror/transport'
 import type { Frame } from '../../src/mirror/wire'
 import { defineProjection, type ProjectionOutput } from '../../src/projection/define-projection'
-import { createWizard } from '../../src/wizard/create-wizard'
-import { checkout, checkoutClient, makeWizard, tick } from './fixture'
+import { createRun } from '../../src/wizard/create-wizard'
+import { checkoutClient, checkoutFlow, makeRun, tick } from './fixture'
 
 type State = ProjectionOutput<typeof checkoutClient>
 
 describe('createMirror: end to end through the loopback', () => {
   function loop(options: Parameters<typeof createLocalTransport>[1] = {}) {
-    const wizard = makeWizard()
-    const source = createMirrorSource(wizard, checkoutClient)
+    const run = makeRun()
+    const source = createMirrorSource(run, checkoutClient)
     const transport = createLocalTransport(source, options)
     const mirror: Mirror<typeof checkoutClient> = createMirror({ transport })
-    return { wizard, source, transport, mirror }
+    return { run, source, transport, mirror }
   }
 
-  it('drives a real wizard view → task → final through the mirror; the mirror never sees unexposed fields', async () => {
-    const { wizard, mirror, source } = loop()
+  it('drives a real run view → task → final through the mirror; the mirror never sees unexposed fields', async () => {
+    const { run, mirror, source } = loop()
     expect(mirror.connected).toBe(true) // the loopback delivers the initial frame synchronously
     expect(mirror.getSnapshot()?.status).toBe('idle')
     const frames: number[] = []
@@ -59,16 +59,16 @@ describe('createMirror: end to end through the loopback', () => {
     )
     // Every frame applied in seq order, no gaps backwards.
     expect(frames).toEqual([...frames].sort((a, b) => a - b))
-    expect(mirror.seq).toBe(wizard.getState().seq)
+    expect(mirror.seq).toBe(run.getState().seq)
     mirror.dispose()
     source.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 
   it('optimisticConcurrency: a command sent against a stale seq is answered STALE and the next frame resyncs', async () => {
-    const wizard = makeWizard()
-    await wizard.start()
-    const source = createMirrorSource(wizard, checkoutClient)
+    const run = makeRun()
+    await run.start()
+    const source = createMirrorSource(run, checkoutClient)
     const transport = createLocalTransport(source)
     // A "slow" client: it receives the first frame, then its frames stall.
     const stalled: Transport<State> = {
@@ -93,19 +93,19 @@ describe('createMirror: end to end through the loopback', () => {
       ok: false,
       code: 'STALE',
     })
-    expect(wizard.getState().steps.shipping.input).toEqual({ address: 'x' })
+    expect(run.getState().steps.shipping.input).toEqual({ address: 'x' })
     // The live mirror moved with the frame, so its optimistic command goes through.
     expect(await live.setInput('shipping', { express: true })).toMatchObject({ ok: true })
     // Without optimistic concurrency the slow client's command is accepted (last write wins).
     const plain = createMirror<typeof checkoutClient>({ transport: stalled })
     expect(await plain.setInput('shipping', { address: 'z' })).toMatchObject({ ok: true })
-    wizard.dispose()
+    run.dispose()
   })
 
   it('deterministic latency: frames and acks travel through the injected scheduler; serialize decouples objects', async () => {
     const sched = createTestScheduler()
-    const wizard = makeWizard()
-    const source = createMirrorSource(wizard, checkoutClient)
+    const run = makeRun()
+    const source = createMirrorSource(run, checkoutClient)
     const transport = createLocalTransport(source, {
       delayMs: 50,
       scheduler: sched,
@@ -115,57 +115,60 @@ describe('createMirror: end to end through the loopback', () => {
     expect(mirror.getSnapshot()).toBeNull() // initial frame is in flight
     sched.advance(50)
     expect(mirror.getSnapshot()?.status).toBe('idle')
-    expect(mirror.getSnapshot()).not.toBe(wizard.project(checkoutClient)) // a copy, not the wizard's object
+    expect(mirror.getSnapshot()).not.toBe(run.project(checkoutClient)) // a copy, not the run's object
 
     let result: unknown
     const pending = mirror.dispatch({ type: 'start' }).then((r) => {
       result = r
     })
     await tick()
-    expect(wizard.getState().current).toBeNull() // command still in flight
+    expect(run.getState().current).toBeNull() // command still in flight
     sched.advance(50) // command reaches the source
     await tick()
-    expect(wizard.getState().current).toBe('shipping')
+    expect(run.getState().current).toBe('shipping')
     expect(result).toBeUndefined() // ack still in flight
     expect(mirror.getSnapshot()?.current).toBeNull() // frame still in flight
     sched.advance(50)
     await pending
     expect(result).toMatchObject({ ok: true })
     expect(mirror.getSnapshot()?.current).toBe('shipping')
-    wizard.dispose()
+    run.dispose()
   })
 
   it('unsubscribing the loopback drops frames that were still in flight', () => {
     const sched = createTestScheduler()
-    const wizard = makeWizard()
-    const source = createMirrorSource(wizard, checkoutClient)
+    const run = makeRun()
+    const source = createMirrorSource(run, checkoutClient)
     const transport = createLocalTransport(source, { delayMs: 10, scheduler: sched })
     const frames: Frame<unknown>[] = []
     const unsubscribe = transport.subscribe((f) => frames.push(f))
     unsubscribe()
     sched.advance(10)
     expect(frames).toHaveLength(0)
-    wizard.dispose()
+    run.dispose()
   })
 
   it("step ids named '__proto__' and 'constructor' survive the whole loop (serialized transport included)", async () => {
-    const r = defineFlow({
+    const reservedIds = defineFlow({
       name: 'reserved-ids',
       context: boundary.trusted<Record<string, never>>(),
     })
-    const reserved = r.steps(
+    const reserved = reservedIds.steps(
       {
-        ['__proto__']: r.view({ input: z.object({ v: z.string() }), next: 'constructor' }),
-        constructor: r.task(() => 'built', { next: 'end' }),
-        end: r.final({ output: () => 'ok' }),
+        ['__proto__']: reservedIds.view({
+          input: z.object({ v: z.string() }),
+          next: 'constructor',
+        }),
+        constructor: reservedIds.task(() => 'built', { next: 'end' }),
+        end: reservedIds.final({ output: () => 'ok' }),
       },
       { start: '__proto__' },
     )
     const projection = defineProjection(reserved, {
       expose: { steps: { ['__proto__']: { input: true }, constructor: { output: true } } },
     })
-    const wizard = createWizard(reserved, { context: {}, instanceId: 'wiz-r' })
-    const source = createMirrorSource(wizard, projection)
+    const run = createRun(reserved, { context: {}, instanceId: 'wiz-r' })
+    const source = createMirrorSource(run, projection)
     const mirror = createMirror<typeof projection>({
       transport: createLocalTransport(source, { serialize: true }),
     })
@@ -188,42 +191,42 @@ describe('createMirror: end to end through the loopback', () => {
     expect(await mirror.go('__proto__')).toHaveProperty('ok')
     expect(await mirror.retry('constructor')).toHaveProperty('ok')
     // The persisted shape is plain JSON with own keys.
-    const json = JSON.parse(JSON.stringify(wizard.getSnapshot())) as {
+    const json = JSON.parse(JSON.stringify(run.getSnapshot())) as {
       state: { steps: Record<string, unknown> }
     }
     expect(Object.hasOwn(json.state.steps, '__proto__')).toBe(true)
-    wizard.dispose()
+    run.dispose()
   })
 
   it('select projections whose state is a primitive, an array or null travel through the (serialized) loop frame by frame', async () => {
-    const wizard = makeWizard()
-    const currentView = defineProjection(checkout, { select: (s) => s.current })
-    const activeSteps = defineProjection(checkout, { select: (s) => s.active })
-    const nil = defineProjection(checkout, { select: () => null })
+    const run = makeRun()
+    const currentView = defineProjection(checkoutFlow, { select: (s) => s.current })
+    const activeSteps = defineProjection(checkoutFlow, { select: (s) => s.active })
+    const nil = defineProjection(checkoutFlow, { select: () => null })
     const serialized = { serialize: true }
     const current = createMirror<typeof currentView>({
-      transport: createLocalTransport(createMirrorSource(wizard, currentView), serialized),
+      transport: createLocalTransport(createMirrorSource(run, currentView), serialized),
     })
     const active = createMirror<typeof activeSteps>({
-      transport: createLocalTransport(createMirrorSource(wizard, activeSteps), serialized),
+      transport: createLocalTransport(createMirrorSource(run, activeSteps), serialized),
     })
     const nothing = createMirror<typeof nil>({
-      transport: createLocalTransport(createMirrorSource(wizard, nil), serialized),
+      transport: createLocalTransport(createMirrorSource(run, nil), serialized),
     })
     expect(current.getSnapshot()).toBeNull() // the projected value IS null before start
     expect(active.getSnapshot()).toEqual([])
-    await wizard.start()
+    await run.start()
     expect(current.getSnapshot()).toBe('shipping')
     expect(active.getSnapshot()).toEqual(['shipping'])
     expect(nothing.getSnapshot()).toBeNull()
-    // Every frame was applied (not ignored): the mirrors follow the wizard's seq.
-    for (const m of [current, active, nothing]) expect(m.seq).toBe(wizard.getState().seq)
+    // Every frame was applied (not ignored): the mirrors follow the run's seq.
+    for (const m of [current, active, nothing]) expect(m.seq).toBe(run.getState().seq)
     expect(await current.setInput('shipping', { address: 'Main St' })).toMatchObject({ ok: true })
     expect(await current.next()).toMatchObject({ ok: true })
     await tick()
     expect(current.getSnapshot()).toBeNull()
     expect(active.getSnapshot()).toEqual([])
-    expect(nothing.seq).toBe(wizard.getState().seq)
-    wizard.dispose()
+    expect(nothing.seq).toBe(run.getState().seq)
+    run.dispose()
   })
 })

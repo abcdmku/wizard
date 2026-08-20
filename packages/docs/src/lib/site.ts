@@ -2,8 +2,7 @@ const repository = import.meta.env.VITE_GITHUB_REPOSITORY ?? 'abcdmku/wizard'
 
 export const site = {
   name: 'OpenWizard',
-  tagline:
-    'A type-safe workflow orchestrator for TypeScript. You define a flow once and every call, id and payload is typed by that definition.',
+  tagline: 'A typed runtime for long-running, event-driven flows.',
   repositoryUrl: `https://github.com/${repository}`,
   editBase: `https://github.com/${repository}/blob/main/packages/docs`,
   npmUrl: 'https://www.npmjs.com/package/@openwizard/core',

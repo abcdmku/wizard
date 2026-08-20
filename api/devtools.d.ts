@@ -1,4 +1,4 @@
-import { AnyFlow, Explanation, FlowGraph as FlowGraph$1, Snapshot, StepKind, StepStatus, WizardEvent } from "@openwizard/core";
+import { AnyFlow, Explanation, FlowGraph as FlowGraph$1, RunEvent, Snapshot, StepKind, StepStatus } from "@openwizard/core";
 import { CSSProperties, ReactElement } from "react";
 import { ElkNode } from "elkjs/lib/elk-api";
 //#region src/types.d.ts
@@ -9,7 +9,7 @@ import { ElkNode } from "elkjs/lib/elk-api";
  */
 type DevtoolsTheme = 'light' | 'dark' | 'system';
 /**
- * Live phase of a step as `wizard.explain(step).phase` / `ClientStepState.phase` report it
+ * Live phase of a step as `run.explain(step).phase` / `ClientStepState.phase` report it
  * (`ready`, `running`, `retrying`, `waiting`, …).
  * @public
  */
@@ -25,12 +25,12 @@ interface StepStatusInfo {
 /**
  * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root flow,
  * `'fulfil/pick'` for step `pick` of the child flow of `fulfil`). Built with
- * `collectStatuses()` from a wizard snapshot or a projected (`ClientState`) state, or by hand.
+ * `collectStatuses()` from a run snapshot or a projected (`ClientState`) state, or by hand.
  * @public
  */
 type StepStatusMap = Readonly<Record<string, StepStatusInfo>>;
 /**
- * What a graph click reports: the step `id`, the wizard `path` of its flow and the combined
+ * What a graph click reports: the step `id`, the run `path` of its flow and the combined
  * `key` (`stepKey(path, id)`).
  * @public
  */
@@ -46,8 +46,8 @@ interface GraphSelection {
  */
 declare function stepKey(path: readonly string[], id: string): string;
 /**
- * A wizard snapshot as the devtools walk it: the (typed-erased) state plus the live children by
- * flow-step id. `Wizard.getSnapshot()` of any flow returns one.
+ * A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by
+ * flow-step id. `FlowRun.getSnapshot()` of any flow returns one.
  * @public
  */
 interface SnapshotLike {
@@ -55,27 +55,27 @@ interface SnapshotLike {
   readonly children: Readonly<Record<string, SnapshotLike | undefined>>;
 }
 /**
- * The structural view of a `Wizard` the devtools read (`Wizard<F>` of any flow satisfies it):
+ * The structural view of a `FlowRun` the devtools read (`FlowRun<F>` of any flow satisfies it):
  * identity, the flow, state / snapshot, the two subscriptions, the bounded log, `explain` and
  * the live child handles.
  * @public
  */
-interface WizardSource {
+interface FlowRunSource {
   readonly id: string;
   readonly flow: AnyFlow;
   getState(): Snapshot<AnyFlow>['state'];
   getSnapshot(): SnapshotLike;
   subscribe(listener: () => void): () => void;
-  observe(listener: (event: WizardEvent) => void): () => void;
-  log(): readonly WizardEvent[];
+  observe(listener: (event: RunEvent) => void): () => void;
+  log(): readonly RunEvent[];
   explain(step: string): Explanation;
   /** Live child of an active flow step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE` otherwise). */
-  child(step: string): WizardSource;
+  child(step: string): FlowRunSource;
 }
 /**
  * The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies
  * it): the projected state (`null` before the first frame), its subscription and the frame
- * identity. Events, `explain` and the timeline need a wizard; a Mirror source shows the graph
+ * identity. Events, `explain` and the timeline need a run; a Mirror source shows the graph
  * (with `flow` / `graph`) and the projected step facts.
  * @public
  */
@@ -88,15 +88,15 @@ interface MirrorSource {
   readonly connected: boolean;
 }
 /**
- * What the components accept as `source`: a live `Wizard` or a `Mirror`.
+ * What the components accept as `source`: a live `FlowRun` or a `Mirror`.
  * @public
  */
-type DevtoolsSource = WizardSource | MirrorSource;
+type DevtoolsSource = FlowRunSource | MirrorSource;
 /**
- * True for a `WizardSource` (it has `observe` / `log` / `explain`); false for a Mirror.
+ * True for a `FlowRunSource` (it has `observe` / `log` / `explain`); false for a Mirror.
  * @public
  */
-declare function isWizardSource(source: DevtoolsSource): source is WizardSource;
+declare function isFlowRunSource(source: DevtoolsSource): source is FlowRunSource;
 /**
  * The projected step facts a `ClientState` carries for every step (`ClientStepState` base) plus
  * the optional exposures, as the devtools read them without knowing the projection.
@@ -167,10 +167,10 @@ type DockPosition = 'bottom' | 'right';
 //#endregion
 //#region src/devtools/Devtools.d.ts
 /**
- * `<Devtools>` props: the `source` (a `Wizard` or a `Mirror`), the graph (`flow` / `graph`; a
- * wizard source brings its own flow), `theme`, `defaultOpen`, dock `position` and `defaultSize`
+ * `<Devtools>` props: the `source` (a `FlowRun` or a `Mirror`), the graph (`flow` / `graph`; a
+ * run source brings its own flow), `theme`, `defaultOpen`, dock `position` and `defaultSize`
  * (px), the toggle `hotkey` (default `ctrl+shift+d`, `false` to disable), `context` (the input
- * `createWizard` received) for a full-range timeline, `maxEvents` for the event buffer.
+ * `createRun` received) for a full-range timeline, `maxEvents` for the event buffer.
  * @public
  */
 interface DevtoolsProps extends GraphInput {
@@ -188,7 +188,7 @@ interface DevtoolsProps extends GraphInput {
  * The composite devtools panel: the flow graph with the live overlay (and the time-travelled
  * state while the timeline scrubs), the event log, the step inspector and the timeline, in a
  * dockable, resizable panel. Works over a `Mirror` too (graph + inspector from the projected
- * state; the events and the timeline need a wizard and say so).
+ * state; the events and the timeline need a run and say so).
  * @public
  */
 declare function Devtools(props: DevtoolsProps): ReactElement;
@@ -338,16 +338,16 @@ declare function FlowGraph(props: FlowGraphProps): ReactElement;
 //#endregion
 //#region src/events/EventLog.d.ts
 /**
- * `<EventLog>` props: a live `source` (wizard) or a static `events` array; an optional `filter`
+ * `<EventLog>` props: a live `source` (run) or a static `events` array; an optional `filter`
  * (substring over type / step / event / path, or a predicate); `onSelect` + `selectedSeq` for
  * the row selection; `maxRows` bounds the live buffer (default 2000).
  * @public
  */
 interface EventLogProps {
-  readonly source?: WizardSource;
-  readonly events?: readonly WizardEvent[];
-  readonly filter?: string | ((event: WizardEvent) => boolean);
-  readonly onSelect?: (event: WizardEvent) => void;
+  readonly source?: FlowRunSource;
+  readonly events?: readonly RunEvent[];
+  readonly filter?: string | ((event: RunEvent) => boolean);
+  readonly onSelect?: (event: RunEvent) => void;
   readonly selectedSeq?: number | null;
   readonly maxRows?: number;
   /** Show the filter box (default `true`). */
@@ -357,7 +357,7 @@ interface EventLogProps {
   readonly style?: CSSProperties;
 }
 /**
- * The event log of a wizard: `seq`, `at`, `type`, `step`, `path` and a one-line detail per event.
+ * The event log of a run: `seq`, `at`, `type`, `step`, `path` and a one-line detail per event.
  * Live over `source.observe()` (starting from `source.log()`), or the given `events`. Click a
  * row to select it (`onSelect(event)`).
  * @public
@@ -366,7 +366,7 @@ declare function EventLog(props: EventLogProps): ReactElement;
 //#endregion
 //#region src/inspector/StepInspector.d.ts
 /**
- * `<StepInspector>` props: the `source` (wizard or Mirror), the `step` id and the wizard `path`
+ * `<StepInspector>` props: the `source` (run or Mirror), the `step` id and the run `path`
  * of its flow (`[]` = root), the optional static `graph` for the definition facts.
  * @public
  */
@@ -381,14 +381,14 @@ interface StepInspectorProps {
 }
 /**
  * The record of a step (status, attempt, error, input / output), why it is where it is
- * (`explain`: reasons + candidates — wizard sources only) and its definition facts.
+ * (`explain`: reasons + candidates — run sources only) and its definition facts.
  * @public
  */
 declare function StepInspector(props: StepInspectorProps): ReactElement;
 //#endregion
 //#region src/timeline/replay-window.d.ts
 /**
- * A (typed-erased) wizard state as `replay` returns it.
+ * A (typed-erased) run state as `replay` returns it.
  * @public
  */
 type ReplayState = Snapshot<AnyFlow>['state'];
@@ -400,44 +400,44 @@ interface ReplayWindow {
   /** The state every replay starts from (its `seq` is the earliest scrubbable point). */
   readonly base: ReplayState;
   /** Root events with `seq > base.seq`, ascending. */
-  readonly events: readonly WizardEvent[];
+  readonly events: readonly RunEvent[];
   /** The latest seq (`events` last, else `base.seq`). */
   readonly latest: number;
 }
 /**
- * A live replay window over a wizard (`createReplayWindow`): subscribe to it, `attach()` it to
- * start following the wizard, read `window`.
+ * A live replay window over a run (`createReplayWindow`): subscribe to it, `attach()` it to
+ * start following the run, read `window`.
  * @public
  */
 interface ReplayWindowStore {
   readonly window: ReplayWindow;
   subscribe(listener: () => void): () => void;
-  /** Seed from the wizard now and start following it; returns the teardown. */
+  /** Seed from the run now and start following it; returns the teardown. */
   attach(): () => void;
 }
 /**
- * Create the replay window of a wizard: the base is the wizard's state when `attach()` runs (or
+ * Create the replay window of a run: the base is the run's state when `attach()` runs (or
  * the initial state built from `options.context` when the log still starts at seq 1); root
  * events are appended from `observe()`; past `maxEvents` (default 5000) the oldest half is
  * folded into the base. `<Timeline>` creates one itself; `<Devtools>` owns one so the range
  * survives closing the panel.
  * @public
  */
-declare function createReplayWindow(wizard: WizardSource, options?: {
+declare function createReplayWindow(run: FlowRunSource, options?: {
   readonly maxEvents?: number;
   readonly context?: unknown;
 }): ReplayWindowStore;
 //#endregion
 //#region src/timeline/Timeline.d.ts
 /**
- * `<Timeline>` props: the wizard `source`; `context` (the input `createWizard` received) lets the
+ * `<Timeline>` props: the run `source`; `context` (the input `createRun` received) lets the
  * window start from the initial state when the whole log is still available, else scrubbing
  * starts where the timeline attached; `onScrub` receives the replayed state (or `null` when
  * following the live end); `maxEvents` bounds the window (default 5000).
  * @public
  */
 interface TimelineProps {
-  readonly source: WizardSource;
+  readonly source: FlowRunSource;
   readonly context?: unknown;
   readonly onScrub?: (state: ReplayState | null, seq: number) => void;
   readonly maxEvents?: number;
@@ -448,7 +448,7 @@ interface TimelineProps {
   readonly style?: CSSProperties;
 }
 /**
- * Time travel over a wizard's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any
+ * Time travel over a run's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any
  * kept seq — status, current view, active steps, every step's status — and the event that
  * produced it; "live" snaps back to the newest state. Read-only; the range is bounded by what
  * the timeline saw (`log()` at attach time + `observe()` since) and by `maxEvents`.
@@ -458,11 +458,11 @@ declare function Timeline(props: TimelineProps): ReactElement;
 //#endregion
 //#region src/status.d.ts
 /**
- * Flatten a wizard snapshot (`getSnapshot()`: state + children, recursively) or a projected
+ * Flatten a run snapshot (`getSnapshot()`: state + children, recursively) or a projected
  * `ClientState` (its `steps`, recursing into `child` slices that are projected states) into a
  * `StepStatusMap`, and report the key of the current view (the deepest cursor). Phases come
- * from the projected state when it has them; for a wizard snapshot pass `phaseOf` (typically
- * `(path, id) => wizard.explain(id).phase` scoped to the child) to add them.
+ * from the projected state when it has them; for a run snapshot pass `phaseOf` (typically
+ * `(path, id) => run.explain(id).phase` scoped to the child) to add them.
  * @public
  */
 declare function collectStatuses(state: SnapshotLike | ProjectedState, phaseOf?: (path: readonly string[], id: string) => StepPhase | undefined): {
@@ -470,14 +470,14 @@ declare function collectStatuses(state: SnapshotLike | ProjectedState, phaseOf?:
   readonly current: string | null;
 };
 /**
- * The phase reader for a live wizard: `explain(id).phase` on the wizard for root steps and on
+ * The phase reader for a live run: `explain(id).phase` on the run for root steps and on
  * the live child handle for nested ones (a child that is not live has no phase).
  * @public
  */
-declare function wizardPhaseReader(wizard: WizardSource): (path: readonly string[], id: string) => StepPhase | undefined;
+declare function runPhaseReader(run: FlowRunSource): (path: readonly string[], id: string) => StepPhase | undefined;
 /**
  * The live overlay of a source for one of its snapshots (`source.getSnapshot()`): statuses (with
- * phases) and the current view key — the wizard snapshot + `explain` for a wizard, the projected
+ * phases) and the current view key — the run snapshot + `explain` for a run, the projected
  * state for a Mirror (a `select` projection that is not `ClientState`-shaped yields an empty map).
  * @public
  */
@@ -486,5 +486,5 @@ declare function overlayOf(source: DevtoolsSource, snapshot: unknown): {
   readonly current: string | null;
 };
 //#endregion
-export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, EventLog, type EventLogProps, FlowGraph, type FlowGraphEdge, type FlowGraphNode, type FlowGraphProps, type GraphInput, type GraphModel, type GraphSelection, type LayoutEngine, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, type WizardSource, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isProjectedState, isWizardSource, layoutGraph, overlayOf, stepKey, wizardPhaseReader };
+export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, EventLog, type EventLogProps, FlowGraph, type FlowGraphEdge, type FlowGraphNode, type FlowGraphProps, type FlowRunSource, type GraphInput, type GraphModel, type GraphSelection, type LayoutEngine, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isFlowRunSource, isProjectedState, layoutGraph, overlayOf, runPhaseReader, stepKey };
 //# sourceMappingURL=index.d.ts.map

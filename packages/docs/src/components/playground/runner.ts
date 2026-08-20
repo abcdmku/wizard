@@ -1,12 +1,12 @@
 /**
  * The playground session: compiles the editor files (`sandbox-transpile`), links and imports
  * them as real ES modules (`sandbox-link`) against the host's own `@openwizard/core`,
- * `@openwizard/core/testing` and `zod`, and records what happens — every wizard the code creates
- * (`createWizard` / `resumeWizard` are wrapped to register the instance and `observe()` it), the
+ * `@openwizard/core/testing` and `zod`, and records what happens — every run the code creates
+ * (`createRun` / `resumeRun` are wrapped to register the instance and `observe()` it), the
  * domain events, and console output — as an external store the preview panes subscribe to.
  */
 
-import type { AnyFlow, Wizard, WizardEvent } from '@openwizard/core'
+import type { AnyFlow, FlowRun, RunEvent } from '@openwizard/core'
 import * as core from '@openwizard/core'
 import * as testing from '@openwizard/core/testing'
 import * as zod from 'zod'
@@ -17,7 +17,7 @@ import { type PlaygroundDiagnostic, transpileFiles } from './sandbox-transpile'
 
 export interface TraceEntry {
   readonly id: number
-  readonly wizard: string
+  readonly run: string
   readonly seq: number
   readonly at: number
   readonly path: readonly string[]
@@ -34,9 +34,9 @@ export interface ConsoleEntry {
   readonly text: string
 }
 
-export interface WizardHandle {
+export interface RunHandle {
   readonly label: string
-  readonly wizard: Wizard<AnyFlow>
+  readonly run: FlowRun<AnyFlow>
 }
 
 export type RunStatus = 'idle' | 'compiling' | 'running' | 'done' | 'error'
@@ -45,7 +45,7 @@ export interface RunnerSnapshot {
   readonly status: RunStatus
   readonly error: string | null
   readonly diagnostics: readonly PlaygroundDiagnostic[]
-  readonly wizards: readonly WizardHandle[]
+  readonly runs: readonly RunHandle[]
   /** Flows exported by the files but never run (graph-only preview). */
   readonly flows: readonly AnyFlow[]
   readonly trace: readonly TraceEntry[]
@@ -77,7 +77,7 @@ const EMPTY: RunnerSnapshot = {
   status: 'idle',
   error: null,
   diagnostics: [],
-  wizards: [],
+  runs: [],
   flows: [],
   trace: [],
   console: [],
@@ -101,11 +101,11 @@ export function createRunner(): PlaygroundRunner {
     status: RunStatus
     error: string | null
     diagnostics: readonly PlaygroundDiagnostic[]
-    wizards: WizardHandle[]
+    runs: RunHandle[]
     flows: AnyFlow[]
     trace: TraceEntry[]
     console: ConsoleEntry[]
-  } = { ...EMPTY, wizards: [], flows: [], trace: [], console: [] }
+  } = { ...EMPTY, runs: [], flows: [], trace: [], console: [] }
   let version = 0
   let nextId = 0
   let flushScheduled = false
@@ -117,7 +117,7 @@ export function createRunner(): PlaygroundRunner {
     version += 1
     snapshot = {
       ...draft,
-      wizards: [...draft.wizards],
+      runs: [...draft.runs],
       flows: [...draft.flows],
       trace: draft.trace.slice(-TRACE_LIMIT),
       console: draft.console.slice(-CONSOLE_LIMIT),
@@ -131,7 +131,7 @@ export function createRunner(): PlaygroundRunner {
     queueMicrotask(flush)
   }
 
-  const record = (label: string, event: WizardEvent<AnyFlow>) => {
+  const record = (label: string, event: RunEvent<AnyFlow>) => {
     const step = 'step' in event && typeof event.step === 'string' ? event.step : undefined
     const rest = Object.fromEntries(
       // Envelope fields have their own columns; a zero `durationMs` is noise on every sync hook.
@@ -141,7 +141,7 @@ export function createRunner(): PlaygroundRunner {
     )
     draft.trace.push({
       id: nextId++,
-      wizard: label,
+      run: label,
       seq: event.seq,
       at: event.at,
       path: event.path,
@@ -153,17 +153,15 @@ export function createRunner(): PlaygroundRunner {
     notify()
   }
 
-  const register = (wizard: Wizard<AnyFlow>): void => {
-    const same = draft.wizards.filter(
-      (handle) => handle.wizard.flow.name === wizard.flow.name,
-    ).length
-    const label = same === 0 ? wizard.flow.name : `${wizard.flow.name} #${same + 1}`
-    draft.wizards.push({ label, wizard })
-    wizard.observe((event) => record(label, event))
+  const register = (run: FlowRun<AnyFlow>): void => {
+    const same = draft.runs.filter((handle) => handle.run.flow.name === run.flow.name).length
+    const label = same === 0 ? run.flow.name : `${run.flow.name} #${same + 1}`
+    draft.runs.push({ label, run })
+    run.observe((event) => record(label, event))
     notify()
   }
 
-  /** `createWizard`-shaped functions return the wizard registered with this session. */
+  /** `createRun`-shaped functions return the run registered with this session. */
   const registering =
     <A extends unknown[], R>(factory: (...args: A) => R, after: (created: Awaited<R>) => void) =>
     (...args: A): R => {
@@ -181,10 +179,10 @@ export function createRunner(): PlaygroundRunner {
   const hostModules = (): HostModules => ({
     '@openwizard/core': {
       ...core,
-      createWizard: registering(core.createWizard, register),
-      createWizardAsync: registering(core.createWizardAsync, register),
-      resumeWizard: registering(core.resumeWizard, register),
-      resumeWizardAsync: registering(core.resumeWizardAsync, register),
+      createRun: registering(core.createRun, register),
+      createRunAsync: registering(core.createRunAsync, register),
+      resumeRun: registering(core.resumeRun, register),
+      resumeRunAsync: registering(core.resumeRunAsync, register),
     },
     '@openwizard/core/testing': { ...testing },
     zod: { ...zod },
@@ -213,8 +211,8 @@ export function createRunner(): PlaygroundRunner {
     }
   }
 
-  const disposeWizards = () => {
-    for (const { wizard } of draft.wizards) wizard.dispose()
+  const disposeRuns = () => {
+    for (const { run } of draft.runs) run.dispose()
   }
 
   const execute = async (
@@ -222,12 +220,12 @@ export function createRunner(): PlaygroundRunner {
     entry: string,
     api: MonacoApi,
   ): Promise<void> => {
-    disposeWizards()
+    disposeRuns()
     draft = {
       status: 'compiling',
       error: null,
       diagnostics: [],
-      wizards: [],
+      runs: [],
       flows: [],
       trace: [],
       console: [],
@@ -245,16 +243,16 @@ export function createRunner(): PlaygroundRunner {
       const exported = [...namespaces.values()].flatMap((ns) => Object.values(ns))
       draft.flows = exported
         .filter(isFlow)
-        .filter((flow) => !draft.wizards.some((h) => h.wizard.flow === flow))
+        .filter((flow) => !draft.runs.some((h) => h.run.flow === flow))
       const main = namespaces.get(entry) ?? {}
       const drive = main.drive
       if (typeof drive === 'function') {
-        // `export async function drive(wizard)`: driven with the wizard the code created, or
+        // `export async function drive(run)`: driven with the run the code created, or
         // with one built from its exported `flow` (+ optional `context` / `deps`).
-        let target = draft.wizards[0]?.wizard
+        let target = draft.runs[0]?.run
         const flow = draft.flows[0]
         if (target === undefined && flow !== undefined) {
-          target = core.createWizard(flow, {
+          target = core.createRun(flow, {
             context: main.context ?? {},
             ...(main.deps === undefined ? {} : { deps: main.deps }),
           })
@@ -281,7 +279,7 @@ export function createRunner(): PlaygroundRunner {
       return runChain
     },
     dispose() {
-      disposeWizards()
+      disposeRuns()
       restoreConsole?.()
     },
   }

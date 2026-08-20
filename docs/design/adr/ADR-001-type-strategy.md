@@ -115,8 +115,8 @@ export type ChildStepId<F> = { [K in StepId<F>]: [ChildFlowOf<F, K>] extends [ne
 export type FlowOutput<F> = { [K in StepId<F>]: [KindOf<F, K>] extends ['final'] ? OutputOf<F, K> : never }[StepId<F>]
 // Projection (deny-by-default) — defineProjection<F, const E extends ExposeSpec<F>>(flow, { expose: E }): Projection<F, E>
 //   ClientState<F, E, Depth = 8>: context: Pick<Ctx<F>, exposed>; steps[k] = base & (input exposed ? { input?: DraftOf } : {}) & (output ? { output?: OutputOf } : {}) & (child ? { child?: ClientState<Child, E.child, Depth-1> } : {}); depth 0 → ClientStateFallback
-// Wizard<F>: go/setInput/resetInput/validate accept ViewId<F>; retry TaskId<F>; send EventType<F>; child<K extends ChildStepId<F>>(k): Wizard<ChildFlowOf<F, K>>
-// createWizard(flow, { context: ContextInput<F>, deps: DepsOf<F> (required iff declared), … });  bindReact<P>(): ReactBinding<P> (named interface — see F7)
+// FlowRun<F>: go/setInput/resetInput/validate accept ViewId<F>; retry TaskId<F>; send EventType<F>; child<K extends ChildStepId<F>>(k): FlowRun<ChildFlowOf<F, K>>
+// createRun(flow, { context: ContextInput<F>, deps: DepsOf<F> (required iff declared), … });  bindReact<P>(): ReactBinding<P> (named interface — see F7)
 ```
 
 ## Cases and verdicts
@@ -135,7 +135,7 @@ export type FlowOutput<F> = { [K in StepId<F>]: [KindOf<F, K>] extends ['final']
 | 10 | `initial` vs `input`; INPUT vs OUTPUT with `.default()`/`.transform()` | ✅ `initial: Partial<InferInput>`, `DraftOf` = INPUT side, `OutputOf`/hooks = OUTPUT side; conflict reported on `initial`, schema wins (no cascade) | `initial` line |
 | 11 | Zod 4 / Valibot / ArkType / `boundary.guard` / `boundary.trusted` / `boundary.parse` — context, input, events, deps | ✅ all infer input *and* output (Valibot `optional(number(), 0)` gives ctx input ≠ output) | — |
 | 12 | `ClientState<F, expose>` picks (deny-by-default) | ✅ unexposed fields **absent** (not optional); unknown step id / context key in `expose` rejected | `expose` line |
-| 13 | `child('viewStep')` rejected, `child('flowStep')` → `Wizard<typeof fulfilment>`; `go`/`setInput` views only, `retry` tasks only, `send` known events only, `deps` required iff declared | ✅ | call site |
+| 13 | `child('viewStep')` rejected, `child('flowStep')` → `FlowRun<typeof fulfilment>`; `go`/`setInput` views only, `retry` tasks only, `send` known events only, `deps` required iff declared | ✅ | call site |
 | 14 | `bindReact<typeof projection>().useStep('typo')` rejected; `mirror.go('task')` rejected | ✅ | call site |
 | R1 | wait output = union over ALL flow events; `on`/`timeout`/`next` any order; unknown event name in `on` rejected | ✅ | `on` line |
 | R2 | dynamic/computed string keys in `steps` | ✅ rejected by `NoDynamicKeys` (computed *literal* keys allowed) | callback / argument |
@@ -168,7 +168,7 @@ Location degradations (both shapes, documented): a **block-bodied** callback `(s
 | whole spike project (`tsc -p`, all three) | 281 | 37,501 | 223,440 | ~215 MB | 0.60–0.69 s | 0.96 s |
 | consumer of the emitted `.d.ts` | 63 | 2,767 | 7,499 | ~145 MB | 0.08 s | 0.28 s |
 
-Limits (< 2 s, < 500k) are met with an order of magnitude to spare; ~630 instantiations per step. The 120-step file exercises view/task/wait/decision (12-kind cycle), string / array / function `next`, `dependsOn` (all/any), a 5-event map, typed deps, one projection, `Wizard` calls and `bindReact`.
+Limits (< 2 s, < 500k) are met with an order of magnitude to spare; ~630 instantiations per step. The 120-step file exercises view/task/wait/decision (12-kind cycle), string / array / function `next`, `dependsOn` (all/any), a 5-event map, typed deps, one projection, `FlowRun` calls and `bindReact`.
 
 Declaration emit (`--declaration --emitDeclarationOnly`, `--declarationMap false`): `flow-120.spike.d.ts` = **192,537 bytes / 6,160 lines** (before F7 compaction: 1,497,159 bytes / 53,505 lines; before naming `ReactBinding`: 562,599 bytes). The flow declaration itself is ~870 lines; every *derived* export (`defineProjection` result, `bindReact` result, `useStep` result) prints the flow type once more (structural, because `C`/`Ev` inferred from schemas are anonymous types).
 
@@ -210,7 +210,7 @@ Both shapes satisfy every plan criterion (directive placement, no cascade on val
 - Task hooks: `run` is argument 1; `output` boundary (if any) parses `await run()`; the step's output type is the boundary output (else `Awaited<ReturnType<run>>`).
 - Views: draft = INPUT side of the `input` boundary; `initial` is a partial draft; on `next()/go()` parse → `validate` → `canExit`; hooks receive the parsed OUTPUT.
 - Wait: output is `{ event, payload }`; a handler's `{ next }` overrides the step's `next`; `timeout.next` is an id.
-- `createWizard(flow, { context: ContextInput<F>, deps: DepsOf<F> })` — `deps` required iff the flow declares a deps boundary; child flows get `deps` from `s.flow(…, { deps })` (fallback: parent deps).
+- `createRun(flow, { context: ContextInput<F>, deps: DepsOf<F> })` — `deps` required iff the flow declares a deps boundary; child flows get `deps` from `s.flow(…, { deps })` (fallback: parent deps).
 - Ids: the type layer guarantees `next`/`dependsOn`/`timeout.next`/handler `next`/`start` ⊆ ids for literal-keyed, non-spread-overridden maps; `compile.ts` must still throw `UnknownStepId`/`DuplicateStepId` (spread override, dynamic construction, JS callers).
 - Projections: exposure is exactly the `expose` spec (deny-by-default), nested via `expose.steps[k].child`; depth budget 8 (type) — the runtime should enforce the same nesting max (`maxDepth` 8 in plan §1.6).
 

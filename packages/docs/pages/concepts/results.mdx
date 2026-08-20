@@ -1,73 +1,19 @@
 # Results as values
 
-Every command on a `Wizard` answers with a value, and only misuse throws. Validation failures,
-blocked guards, busy navigation, terminal flows, dropped events and rejected payloads all come
-back as `{ ok: false, code, ... }`, and they show up as events too.
+Operations that can be rejected during normal use return discriminated results. When a run
+finishes, `awaitResult()` returns a `RunResult`.
 
-| Call | Returns |
-|---|---|
-| `next()`, `back()`, `go(view)` | `NavResult` |
-| `send(event, payload)` | `SendResult` |
-| `start()`, `setInput()`, `resetInput()`, `run()`, `retry()`, `cancel()`, `runReady()`, `compensate()`, `reset()`, `skip()`, `invalidate()`, `dispatch()` | `CommandResult` |
-| `validate()`, `getState()`, `explain()`, `progress()`, `readyViews()` | Pure queries. No events, no state change. |
-| `save()` | Nothing. It rejects with `SNAPSHOT_NOT_SERIALIZABLE`, or passes your store's own rejection straight through. |
-
-## `CommandResult`, `NavResult` and `SendResult`
-
-Every `{ ok: false }` carries a `code` and a `message`, and `dispatch({ type: 'send' })` reports
-the same `code` a `send()` would.
-
-```ts
-import type { CommandResult, NavResult, SendResult } from '@openwizard/core'
-// CommandResult = { ok: true; seq } | { ok: false; code; message; step?; issues? }
-// NavResult     = { ok: true; from; to; seq }
-//               | { ok: false; reason: 'validation' | 'guard-canExit' | 'guard-canEnter' | 'nav-busy'
-//                            | 'not-a-view' | 'not-active' | 'not-reachable' | 'no-target' | 'no-history'
-//                            | 'flow-terminal' | 'flow-not-started' | ...; code; message; step?; issues? }
-//               | { ok: false; reason: 'failed'; code: WizardErrorCode | 'HOOK_FAILED'; message; step?; error? }
-// SendResult    = { ok: true; delivered: string[]; buffered: boolean; seq }
-//               | { ok: false; reason: 'rejected'; code: 'BOUNDARY_REJECTED'; message; issues }
-//               | { ok: false; reason: 'dropped'; code: 'NOT_ACTIVE' | 'DISPOSED' | 'FLOW_TERMINAL' | ...; message }
+```ts file="packages/docs/snippets/concepts/submit-address.ts"
 ```
 
-## Reading a rejection
+The function accepts the flow assembled on [Steps and kinds](/concepts/steps). Passing the run in
+keeps creation, dependencies, and ownership outside the example.
 
-`reason` says what kind of failure it was, and what goes with it is right there on the result.
+Navigation returns `NavResult`. `send` returns `SendResult`. Other commands return
+`CommandResult`. Pure reads such as `getState`, `validate`, `explain`, and `progress` do not change
+the run.
 
-```ts
-const moved = await wizard.next()
-if (!moved.ok && moved.reason === 'validation') {
-  moved.issues // Standard Schema issues, ready to render in a form
-}
+`WizardError` reports invalid definitions, programmer mistakes, lifecycle misuse, and incompatible
+snapshots. Use `isWizardError` when catching one at an application boundary.
 
-const jumped = await wizard.go('review')
-if (!jumped.ok && jumped.reason === 'not-reachable') {
-  wizard.explain('review').reasons // ['deps-unmet:pay', ...] the same reasons the machine used
-}
-```
-
-## `isWizardError(error)`
-
-`WizardError` is thrown only for misuse of the API, and it carries a stable `WizardErrorCode`.
-
-| Code | Thrown by |
-|---|---|
-| `DEFINITION_INVALID` | `steps()` or `defineProjection()` on a broken definition |
-| `BOUNDARY_REJECTED` | `createWizard` when `context` or `deps` fails at the door |
-| `SNAPSHOT_INCOMPATIBLE` | `resumeWizard` with a snapshot this flow can't take |
-| `SNAPSHOT_NOT_SERIALIZABLE` | a store write of a snapshot that isn't valid JSON |
-| `NESTING_CYCLE`, `NESTING_TOO_DEEP` | a child flow inside its own ancestor, or deeper than 8 |
-| `UNKNOWN_EVENT` | `send()` with a name the flow never declared |
-| `UNKNOWN_STEP` | `validate()` with an id the flow doesn't have |
-| `NOT_A_FLOW_STEP`, `NOT_ACTIVE` | `child()` on a step that isn't a live child flow |
-| `DISPOSED` | any call after `dispose()` |
-
-```ts
-import { isWizardError } from '@openwizard/core'
-
-try {
-  wizard.child('shipping') // 'shipping' is a view, not a flow step
-} catch (error) {
-  if (isWizardError(error)) error.code // 'NOT_A_FLOW_STEP'
-}
-```
+Next, distinguish the three uses of the word event in [Event inputs](/concepts/external-events).

@@ -54,27 +54,23 @@ function StatusLabel({ snapshot }: { readonly snapshot: RunnerSnapshot }) {
   )
 }
 
-/** Run button, the four preview tabs and the wizard selector; the tabs read the runner snapshot. */
+/** Run button, the four preview tabs and the run selector; the tabs read the runner snapshot. */
 export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
   const [tab, setTab] = useState<Tab>('graph')
-  const [selectedWizard, setSelectedWizard] = useState<string | null>(null)
+  const [selectedRun, setSelectedRun] = useState<string | null>(null)
   const [selectedStep, setSelectedStep] = useState<StepRef | null>(null)
 
   const handle =
-    snapshot.wizards.find((candidate) => candidate.label === selectedWizard) ??
-    snapshot.wizards.at(-1)
-  const wizard = handle?.wizard
-  const flow = wizard?.flow ?? snapshot.flows[0]
+    snapshot.runs.find((candidate) => candidate.label === selectedRun) ?? snapshot.runs.at(-1)
+  const run = handle?.run
+  const flow = run?.flow ?? snapshot.flows[0]
 
-  // A new run replaces the wizards: forget a selection that no longer exists.
+  // A new run replaces the runs: forget a selection that no longer exists.
   useEffect(() => {
-    if (
-      selectedWizard &&
-      !snapshot.wizards.some((candidate) => candidate.label === selectedWizard)
-    ) {
-      setSelectedWizard(null)
+    if (selectedRun && !snapshot.runs.some((candidate) => candidate.label === selectedRun)) {
+      setSelectedRun(null)
     }
-  }, [snapshot.wizards, selectedWizard])
+  }, [snapshot.runs, selectedRun])
 
   const selectStep = (ref: StepRef) => {
     setSelectedStep(ref)
@@ -123,14 +119,14 @@ export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
 
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-100 px-3 py-1 dark:border-neutral-800/70">
         <StatusLabel snapshot={snapshot} />
-        {snapshot.wizards.length > 1 && (
+        {snapshot.runs.length > 1 && (
           <select
-            aria-label="Wizard"
+            aria-label="FlowRun"
             value={handle?.label ?? ''}
-            onChange={(event) => setSelectedWizard(event.target.value)}
+            onChange={(event) => setSelectedRun(event.target.value)}
             className="rounded border border-neutral-200 bg-transparent px-1 py-0.5 font-mono text-[11px] text-neutral-700 dark:border-neutral-700 dark:text-neutral-300"
           >
-            {snapshot.wizards.map((candidate) => (
+            {snapshot.runs.map((candidate) => (
               <option key={candidate.label} value={candidate.label}>
                 {candidate.label}
               </option>
@@ -156,13 +152,13 @@ export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
 
       <div className="min-h-0 flex-1 overflow-auto">
         {tab === 'graph' && (
-          <GraphView flow={flow} wizard={wizard} selected={selectedStep} onSelect={selectStep} />
+          <GraphView flow={flow} run={run} selected={selectedStep} onSelect={selectStep} />
         )}
         {tab === 'trace' && (
-          <TraceView trace={snapshot.trace} multiWizard={snapshot.wizards.length > 1} />
+          <TraceView trace={snapshot.trace} multiRun={snapshot.runs.length > 1} />
         )}
         {tab === 'explain' && (
-          <ExplainView wizard={wizard} selected={selectedStep} onSelect={setSelectedStep} />
+          <ExplainView run={run} selected={selectedStep} onSelect={setSelectedStep} />
         )}
         {tab === 'console' && <ConsoleView lines={snapshot.console} />}
       </div>

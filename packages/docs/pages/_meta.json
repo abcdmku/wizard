@@ -1,6 +1,9 @@
 {
   "getting-started": "Getting started",
+  "how-it-works": "How it works",
   "concepts": { "title": "Concepts" },
+  "guides": { "title": "Guides" },
+  "integrations": { "title": "Integrations" },
   "examples": { "title": "Examples" },
   "api": { "title": "API reference" },
   "design": { "title": "Design docs" }

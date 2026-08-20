@@ -132,8 +132,8 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
       }
       return def?.kind === 'view' ? next : deferContinuation(env.def, next, ev.step, ev.next)
     }
-    case 'step.failed':
-      return withStep(dropHint(state, ev.step), ev.step, (rec) => ({
+    case 'step.failed': {
+      const next = withStep(dropHint(state, ev.step), ev.step, (rec) => ({
         ...omit(rec, ['retryAt', 'deadline', 'entering', 'when']),
         status: 'failed',
         pendingActivation: false,
@@ -145,6 +145,22 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           ev.data,
         ),
       }))
+      const error = next.steps[ev.step]?.error
+      return error === undefined
+        ? next
+        : {
+            ...next,
+            failure: {
+              step: ev.step,
+              error,
+              kind: error.kind,
+              at: error.at,
+              ...(error.attempt !== undefined ? { attempt: error.attempt } : {}),
+              ...(error.issues !== undefined ? { issues: error.issues } : {}),
+              ...(error.data !== undefined ? { data: error.data } : {}),
+            },
+          }
+    }
     case 'step.skipped': {
       // v0.2 (§9.2): done-without-running — no output, no error; the draft `input` and
       // `previousOutput` survive. Continues (auto-advance) once `nav` is idle when busy.

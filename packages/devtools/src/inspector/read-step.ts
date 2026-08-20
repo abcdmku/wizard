@@ -1,8 +1,8 @@
 /**
- * What the inspector shows for one step, read from a source snapshot: the stored record (wizard
+ * What the inspector shows for one step, read from a source snapshot: the stored record (run
  * — `steps[id]` of the root state or of a nested child snapshot) or the projected facts
  * (Mirror — `steps[id]` of the `ClientState`, nested through `child` slices), plus the
- * `explain()` result when the source is a wizard.
+ * `explain()` result when the source is a run.
  *
  * @packageDocumentation
  */
@@ -10,18 +10,18 @@
 import type { Explanation } from '@openwizard/core'
 import {
   type DevtoolsSource,
+  type FlowRunSource,
+  isFlowRunSource,
   isProjectedState,
-  isWizardSource,
   type ProjectedStep,
   type SnapshotLike,
-  type WizardSource,
 } from '../types'
 
-/** A step as the inspector reads it. Either the wizard `record` or the Mirror `projected` facts is set. */
+/** A step as the inspector reads it. Either the run `record` or the Mirror `projected` facts is set. */
 export interface StepReading {
   readonly id: string
   readonly path: readonly string[]
-  /** `steps[id]` of the wizard state (untyped): status, attempt, input, output, error, timers, … */
+  /** `steps[id]` of the run state (untyped): status, attempt, input, output, error, timers, … */
   readonly record?: Readonly<Record<string, unknown>>
   /** `steps[id]` of the projected state (Mirror). */
   readonly projected?: ProjectedStep
@@ -37,19 +37,19 @@ export function readStep(
   path: readonly string[],
   id: string,
 ): StepReading {
-  return isWizardSource(source)
-    ? readWizardStep(source, snapshot as SnapshotLike, path, id)
+  return isFlowRunSource(source)
+    ? readRunStep(source, snapshot as SnapshotLike, path, id)
     : readProjectedStep(snapshot, path, id)
 }
 
-function readWizardStep(
-  wizard: WizardSource,
+function readRunStep(
+  run: FlowRunSource,
   snapshot: SnapshotLike,
   path: readonly string[],
   id: string,
 ): StepReading {
   let node: SnapshotLike | undefined = snapshot
-  let scope: WizardSource | undefined = wizard
+  let scope: FlowRunSource | undefined = run
   for (const step of path) {
     node = node?.children[step]
     try {

@@ -1,48 +1,66 @@
 # Contributing to OpenWizard
 
-Thanks for helping. This document is short on ceremony and long on the few rules that keep the library small and trustworthy.
+Keep changes focused, typed, and backed by a user-visible contract.
 
 ## Setup
 
-```bash
+```sh
 pnpm install
-pnpm build        # builds packages/* with tsdown
-pnpm typecheck    # tsc over src + tests (tests are NOT excluded — that was a v1 mistake)
-pnpm test         # vitest, including *.test-d.ts type tests
-pnpm lint         # biome
+pnpm build
+pnpm typecheck
+pnpm test
+pnpm lint
 ```
 
-Node ≥ 22 to develop and build (the tsdown/unrun toolchain needs `Promise.withResolvers`); the published packages run on Node ≥ 20, which CI proves with a Node 20 consumer job that runs the tests and examples against the built artifacts. pnpm 10 (`corepack enable` picks the pinned version). Windows is a first-class dev platform; CI runs ubuntu + windows.
+Development requires Node 22 and pnpm 10. Published packages support Node 20. CI checks Ubuntu,
+Windows, and a Node 20 consumer built from packed artifacts.
 
-## The rules
+## Code rules
 
-1. **One canonical way.** One authoring path (`defineFlow` + `s.view/task/wait/decision/flow/final`), one live object (`Wizard`), one wire door (`dispatch(Command)`). No aliases, no overloads that branch on argument shape.
-2. **No field without a consumer.** A property in a public type must be read by the runtime and covered by a test. If you cannot point at both, delete the field.
-3. **One extractor per concept.** `InputOf`, `OutputOf`, `PayloadOf`, `Ctx`, `StepId`, … exist exactly once. Do not add a second way to get the same type.
-4. **Every export earns its place.** A new export needs: a unit test, a `.test-d.ts` assertion if it is generic, TSDoc with `@public`, and it will appear in the generated export table (`pnpm docs:gen`).
-5. **No `any` and no `as` in the public surface.** `api/*.d.ts` is diffed in CI; if you change it, run `pnpm check:api:update` and add a changeset explaining why.
-6. **Type tests must run.** Put type assertions in `tests/**/*.test-d.ts`. `pnpm test` runs them through the TypeScript checker; `pnpm test:canary` proves the harness fails on a real error.
-7. **Examples are tests.** Every `examples/*` folder has a test that runs the flow end to end and asserts on the event log. New behavior needs an example or an extension of one.
-8. **Boundaries are the only doors.** Data enters a wizard through `context`, `setInput`, `send`, or `resume`, each through a declared boundary. `boundary.trusted<T>()` and `!` in examples need a one-line comment saying why.
-9. **Changesets.** User-facing changes to `@openwizard/core` or `@openwizard/react` need `pnpm changeset`.
-10. **Decisions are written down.** Non-obvious design choices go in `docs/design/adr/` and `DECISIONS.md`.
-11. **Files stay small.** Under ~400 lines in most cases; split by responsibility (one message family, one event family, one component) rather than growing a file.
-12. **Functions do one thing.** No pass-through wrappers (`foo()` that only calls `bar()`), no one-line helpers used once — inline them.
-13. **No useless tests.** A test must prove behaviour a user relies on or a spec rule. No render-smoke tests that assert nothing, no duplicated cases across suites; prefer one end-to-end scenario over many micro-tests of internals.
+1. Keep one public concept for each job. Add an overload only when it preserves the same behavior
+   and avoids a second API.
+2. Every public field needs a runtime consumer and a test.
+3. Define each type extractor once. Reuse `InputOf`, `OutputOf`, `PayloadOf`, `Ctx`, and `StepId`.
+4. A new export needs a unit test, a type assertion when generic, and public TSDoc. Run
+   `pnpm docs:gen` after changing exports.
+5. Do not expose `any` or unchecked assertions in generated declarations. Run
+   `pnpm check:api:update` after an intentional API change.
+6. Put compile-time contracts in `tests/**/*.test-d.ts`. `pnpm test:canary` verifies that the type
+   test harness catches a real error.
+7. Treat examples as tests. Extend the smallest relevant example when a change affects normal use.
+8. Validate untrusted data at the correct boundary. Context is parsed at creation, input events at
+   `send`, view drafts when validated or left, and stored values at resume.
+9. Use `boundary.trusted<T>()` only for host-constructed data. Explain why the value is trusted.
+10. Add a changeset for a user-facing change to any published `@openwizard/*` package.
+11. Record non-obvious architecture choices in `docs/design/adr/` and link them from
+    `DECISIONS.md`.
+12. Keep files and functions focused. Split code when separate responsibilities become hard to
+    test or review.
+13. Tests must prove behavior a caller relies on. Avoid duplicate coverage and assertions that
+    only prove a component rendered.
 
-## Layout
+## Repository layout
 
-```
-packages/core     @openwizard/core   authoring, machine (decide/apply/plan), interpreter, wizard façade, persistence, projections, mirror, inspect
-                  @openwizard/core/testing  (src/testing.ts) createTestScheduler + createLocalTransport — test helpers, never in an app bundle
-packages/react    @openwizard/react  bindReact() hooks over Wizard | Mirror
-examples/*        runnable, tested examples (each is a workspace package)
-docs/design       architecture plan + ADRs
-scripts/          governance scripts (export tables, doc imports, api snapshot, public tags, canary)
+```text
+packages/core           flow authoring, runtime, persistence, projections, and Mirror
+packages/durable        leases, fencing, deduplication, and durable timers
+packages/drizzle        PostgreSQL and asynchronous SQLite durable stores
+packages/react          React bindings for FlowRun and Mirror
+packages/devtools       graph, event log, inspector, and timeline UI
+packages/effect         Effect 3 task adapter
+packages/effect-v4      Effect 4 beta task adapter
+packages/opentelemetry  tracing from committed run events
+packages/webhooks       run HTTP API and incoming or outgoing webhooks
+packages/docs           documentation site and compiled snippets
+examples                runnable workspace examples with tests
+docs/design             historical design notes and accepted ADRs
+scripts                 release and contract checks
 ```
 
 ## Pull requests
 
-- Keep PRs focused; describe the behavior change and the tests that prove it.
-- CI must be green on ubuntu and windows.
-- If a change touches the machine (`packages/core/src/machine/**`), include a golden scenario or extend one (`packages/core/tests/scenarios/`).
+- Describe the behavior change and the tests that prove it.
+- Keep unrelated edits out of the pull request.
+- Run the relevant package checks before the full `pnpm release:check` suite.
+- For machine changes under `packages/core/src/machine`, extend the focused machine tests and an
+  end-to-end flow when behavior crosses the interpreter boundary.

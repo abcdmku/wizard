@@ -1,7 +1,7 @@
 /** The toy machine's `apply` fold and status derivation. */
 
 import type { DomainEvent } from '../../../src/machine/events'
-import type { StepRecord, WizardState, WizardStatus } from '../../../src/machine/state'
+import type { RunStatus, StepRecord, WizardState } from '../../../src/machine/state'
 import type { MachineEnv } from '../../../src/machine/types'
 import { initialState } from './index'
 import { TERMINAL } from './toy-shared'
@@ -12,7 +12,7 @@ export function toyApply(env: MachineEnv, S: WizardState, ev: DomainEvent): Wiza
     [id]: { ...S.steps[id]!, ...patch },
   })
   let next: WizardState = S
-  let terminal: WizardStatus | undefined
+  let terminal: RunStatus | undefined
   switch (ev.type) {
     case 'flow.started':
       next = { ...S, startedAt: ev.at }
@@ -196,7 +196,7 @@ export function toyApply(env: MachineEnv, S: WizardState, ev: DomainEvent): Wiza
   return { ...next, active, status, seq: ev.seq, updatedAt: ev.at }
 }
 
-function deriveStatus(S: WizardState, active: readonly string[]): WizardStatus {
+function deriveStatus(S: WizardState, active: readonly string[]): RunStatus {
   if (active.some((id) => ['task', 'decision', 'flow'].includes(S.steps[id]!.kind)))
     return 'running'
   if (active.length > 0) return 'waiting'

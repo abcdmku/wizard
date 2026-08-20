@@ -65,8 +65,8 @@ interface RawBuilder {
 }
 
 /**
- * Start a flow definition: `const s = defineFlow({ name, context, events?, deps?, …policies })`,
- * then `s.steps({ a: s.view({…}), … }, { start: 'a' })`. Every constructor is pre-bound to
+ * Start a flow definition: `const order = defineFlow({ name, context, events?, deps?, …policies })`,
+ * then `order.steps({ a: order.view({…}), … }, { start: 'a' })`. Every constructor is pre-bound to
  * the flow's context, events and deps, so hooks are typed without generics.
  * @public
  */
@@ -107,7 +107,7 @@ export function defineFlow<C, CIn, Ev = {}, D = unknown>(
         ...(opts?.start !== undefined ? { start: opts.start } : {}),
       }
       const defined = flow as unknown as AnyFlow
-      // Validate once at definition time (unknown ids, cycles, nesting); cached for createWizard.
+      // Validate once at definition time (unknown ids, cycles, nesting); cached for createRun.
       compile(defined)
       return defined
     },

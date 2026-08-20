@@ -1,71 +1,23 @@
 # Boundaries
 
-A boundary is a schema guarding a door. There are four doors into a wizard, and nothing reaches your context, your handlers or a step's typed output without passing the schema on its door.
+A boundary turns untrusted input into data the flow can use. OpenWizard accepts any Standard
+Schema library, including Zod, Valibot, and ArkType.
 
-| Door | You call | Parsed by |
-|---|---|---|
-| context | `createWizard(flow, { context })` | the flow's `context` |
-| view input | `setInput(view, patch)`, then `next()` or `go()` | that view's `input`, on the move, not on the patch |
-| event payload | `send(event, payload)` | `events[event]` |
-| resume | `resumeWizard(flow, snapshot)` | every boundary again, children included |
+| Input | Boundary |
+|---|---|
+| initial context | `defineFlow({ context })` |
+| view draft | `view({ input })` |
+| input event | `defineFlow({ events })` |
+| restored context, drafts, outputs, and inbox payloads | their original boundaries |
 
-`deps` is the deliberate exception: you build it yourself, so `boundary.trusted<T>()` skips the check.
-
-## Any Standard Schema library
-
-Zod 4, Valibot and ArkType all work, because the core only calls `schema['~standard'].validate(value)`.
-
-```ts
-const s = defineFlow({
-  name: 'signup',
-  context: z.object({ email: z.email(), plan: z.enum(['free', 'pro']).default('free') }),
-  events: { 'payment.captured': z.object({ paymentId: z.string() }) },
-})
+```ts file="packages/docs/snippets/concepts/boundaries.ts"
 ```
 
-Boundaries that return promises need `createWizardAsync` and `resumeWizardAsync`.
+Use `boundary.trusted<T>()` only for values the host constructs and already trusts. Use
+`boundary.parse`, `boundary.guard`, or `boundary.assert` when you do not have a Standard Schema.
+Async boundaries require `createRunAsync` and `resumeRunAsync`.
 
-## Plain functions
+Keep secrets in dependencies, not context or step outputs. Persisted state must survive a JSON
+round trip. [Persistence](/concepts/persistence) explains the exact rule.
 
-A bare function is rejected on purpose, because the runtime can't tell a parser from a type guard. Say which one you mean:
-
-```ts
-import { boundary } from '@openwizard/core'
-
-const City = boundary.parse((v) => {
-  if (typeof v !== 'string' || v === '') throw new Error('city required')
-  return v.trim() // parse can transform, the return value is what gets stored
-})
-const IsCount = boundary.guard((v): v is number => typeof v === 'number' && v >= 0) // true = passes
-const AssertId = boundary.assert((v): asserts v is string => {
-  if (typeof v !== 'string') throw new Error('id must be a string')
-})
-const Deps = boundary.trusted<{ mailer: Mailer }>() // no runtime check
-```
-
-## Rejections are values
-
-A rejected boundary never throws into your code. You get a result plus an event:
-
-```ts
-await wizard.next()
-// { ok: false, reason: 'validation', code: 'INVALID_INPUT', step: 'profile', issues: [{ message, path }] }
-// event: step.validationFailed
-
-await wizard.send('payment.captured', { paymentId: 42 })
-// { ok: false, reason: 'rejected', code: 'BOUNDARY_REJECTED', issues: [...] }
-// event: event.rejected
-
-await wizard.validate('profile') // pure query: issues for live form feedback, no events, no state change
-```
-
-At creation, two things throw instead, because both are your bug rather than bad user data: `BOUNDARY_REJECTED` when `createWizard` gets a context or deps that fails its boundary, and `DEFINITION_INVALID` when the flow itself is broken.
-
-## Dates and secrets
-
-<Callout type="warning" title="Things that don't survive JSON">
-  Snapshots are checked for JSON safety before every store write. A `Date` is fine exactly where
-  a boundary re-parses its JSON form on resume, and `z.coerce.date()` turns the stored ISO string
-  back into a `Date`. Keep secrets out of `context` and step outputs; pass them through `deps` and
-  store a reference instead. See [Persistence and resume](/concepts/persistence).
-</Callout>
+Continue with [Steps and kinds](/concepts/steps).

@@ -1,94 +1,20 @@
 # React
 
-`@openwizard/react` is one function. `bindReact<T>()` returns a typed `Provider` and hooks; `T` decides what they read, a flow type meaning the `Provider` takes a `Wizard<F>`, a projection type meaning it takes a `Mirror<P>` over the projected state.
+`@openwizard/react` binds hooks to a local `FlowRun` or a client `Mirror`. Browser applications
+should normally use the projected Mirror from the previous page.
 
-```sh
-pnpm add @openwizard/react   # peers: react ^18 || ^19, @openwizard/core (same minor)
+```tsx file="packages/docs/snippets/concepts/app.tsx"
 ```
 
-```tsx
-import { bindReact } from '@openwizard/react'
-import { createMirror } from '@openwizard/core'
-import type { checkoutClient } from './flows/checkout' // type-only, so no server code in the bundle
+`publicOrder` is the projection from [Projections and the Mirror](/concepts/projections). The app
+receives its connected `Mirror`. Transport setup stays outside the component.
 
-const ow = bindReact<typeof checkoutClient>()
-const mirror = createMirror<typeof checkoutClient>({ transport })
+`useStep(id)` returns one typed step and its bound actions. `useSelector` subscribes to a derived
+slice. `useChild(step)` creates hooks for an exposed child flow. All hooks use
+`useSyncExternalStore`, so they read one committed snapshot at a time.
 
-const App = () => (
-  // fallback renders until the source has state, which for a Mirror is its first frame
-  <ow.Provider source={mirror} fallback={<p>Connecting...</p>}>
-    <Shipping />
-  </ow.Provider>
-)
-```
+Do not put card numbers, access tokens, or other secrets in view drafts. Tokenize them first, then
+send only the safe reference into the run.
 
-Components below the `Provider` read one slice each.
-
-```tsx
-function Shipping() {
-  const { status, input, issues, setInput, next } = ow.useStep('shipping') // 'typo' is a compile error
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); void next() }}>
-      <input value={input?.address ?? ''} onChange={(e) => void setInput({ address: e.target.value })} />
-      {issues?.map((i) => <p key={i.message}>{i.message}</p>)}
-      <button disabled={status !== 'active'}>Continue</button>
-    </form>
-  )
-}
-```
-
-## The hooks
-
-| Hook | Gives you |
-|---|---|
-| `useStep(id)` | the typed step record with bound helpers spread in: `next` and `back`, plus `go`, `setInput` and `resetInput` for views |
-| `useSelector(select, isEqual?)` | your own derived slice, re-rendering only when it changes |
-| `useSnapshot()` | the whole state slice, re-rendering on every frame |
-| `useCurrent()` | the record of the current view, or `null` |
-| `useActions()` | one memoised object per source with the whole `Wizard` or `Mirror` command set, `start` through `dispatch` |
-
-They are built on `useSyncExternalStore`, and snapshot identities are stable per commit or frame, so a component re-renders only when its own slice changes.
-
-## useChild(step)
-
-`ow.useChild('fulfil')` returns a `ChildBinding` typed by the child flow, with `useSnapshot()`, `useStep(id)`, `useActions()` and `useChild()` again for a grandchild. The id is checked at compile time, so a step that isn't a flow, or one exposed with only a summary, doesn't compile.
-
-```tsx
-function Fulfilment() {
-  // bindings are memoised per path, so calling useChild inline is fine
-  const snap = ow.useChild('fulfil').useSnapshot() // null until the flow step is entered
-  return snap === null ? <p>Not started</p> : <Pick />
-}
-
-function Pick() {
-  // safe here: Fulfilment already checked the child has state, and useStep throws while it has none
-  const { status, input, setInput, next } = ow.useChild('fulfil').useStep('pick')
-  return <input value={input?.warehouse ?? ''} onChange={(e) => void setInput({ warehouse: e.target.value })} onBlur={() => void next()} disabled={status !== 'active'} />
-}
-```
-
-Over a Mirror the projection has to expose the flow step with a nested spec; over a Wizard the child snapshot is read directly.
-
-## serverSnapshot
-
-A live source can move on between the server render and the hydration, which breaks hydration. So hand the `Provider` the exact state the server rendered with: over a Mirror a `ProjectionOutput<typeof projection>`, over a Wizard a `Snapshot<F>['state']`.
-
-```tsx
-// server
-const html = renderToString(<ow.Provider source={mirror} serverSnapshot={state}><Checkout /></ow.Provider>)
-// client
-hydrateRoot(root, <ow.Provider source={mirror} serverSnapshot={window.__STATE__}><Checkout /></ow.Provider>)
-```
-
-It is captured once and used as `useSyncExternalStore`'s server snapshot both times, so the hydrated tree matches the HTML before React re-renders with live state. Leave it out and the hooks read the live source on the server too, so a Mirror with no frame yet renders the `fallback`.
-
-## Keeping secrets out of the state
-
-Anything you pass to `setInput` lands in the wizard's state, its snapshots and possibly the projection, so some values must never go in.
-
-```tsx
-const token = await sdk.tokenize(cardNumber) // cardNumber stays in local component state
-await setInput({ token, last4: cardNumber.slice(-4) }) // only these two cross into the wizard
-```
-
-The full hook and type list is in the [`@openwizard/react` reference](/api/react).
+The [React integration](/integrations/react) covers installation and server rendering. Continue
+with [Testing](/concepts/testing).

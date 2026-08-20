@@ -11,7 +11,7 @@ import type { CompiledFlow, CompiledStep, DepsSpec } from '../authoring/compiled
 import type { AnyFlow, StepKind } from '../authoring/types'
 
 /**
- * One step of the graph. `path` is the wizard path of the flow the step belongs to
+ * One step of the graph. `path` is the run path of the flow the step belongs to
  * (`[]` = root, `['fulfil']` = inside the child of step `fulfil`), so ids never collide across
  * nesting levels. `dynamicNext` marks a step whose successors are only known at runtime.
  * @public
@@ -101,8 +101,8 @@ function collect(
 }
 
 /**
- * Compiled adapter names → the names the author wrote (`s.flow(child, { context, deps, output })`,
- * `s.final({ output })`, `s.task(run, { idempotent: fn })`).
+ * Compiled adapter names → the names the author wrote (`flow.flow(child, { context, deps, output })`,
+ * `flow.final({ output })`, `flow.task(run, { idempotent: fn })`).
  */
 const AUTHORING_NAMES: Readonly<Record<string, string>> = {
   childContext: 'context',

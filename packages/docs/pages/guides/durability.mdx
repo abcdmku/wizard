@@ -1,0 +1,17 @@
+# Resume a run on another worker
+
+Read [Persistence and resume](/concepts/persistence) and
+[Runtime guarantees](/concepts/guarantees) first. The example starts a durable run, releases its
+lease, and resumes the same run under a new owner.
+
+```ts file="packages/docs/snippets/guides/durability.ts"
+```
+
+`createDurableRun` creates or resumes the record. `resumeDurableRun` requires an existing record.
+The host checks the lease, fence, snapshot version, and request ID before it applies a command or
+event.
+
+The memory store is for tests and one process. Use the [Drizzle integration](/integrations/drizzle)
+with PostgreSQL or SQLite, or implement `DurableStore` for another database. Durable execution is
+at least once, so every external task still needs a stable idempotency key. See
+[`@openwizard/durable`](/api/durable) for leases, failures, timers, and storage contracts.

@@ -9,7 +9,7 @@
  * `skip.step` / `invalidate.step` a step (v0.2; `invalidate.cascade` a boolean),
  * every `child` path segment a flow step, the nested command checked
  * against the child flow it reaches). It returns a fresh `Command<F>` or
- * Standard-Schema style issues, so `wizard.dispatch(parsed.value)` typechecks.
+ * Standard-Schema style issues, so `run.dispatch(parsed.value)` typechecks.
  * The *effective* child path depth (all segments across the nesting) is capped
  * at 8. `decodeCommand` (internal) is the shape-only half the runtime uses.
  *

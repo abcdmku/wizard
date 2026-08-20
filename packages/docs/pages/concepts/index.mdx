@@ -1,22 +1,15 @@
 # Concepts
 
-There is no wizard mode and no DAG mode to switch between. A step-by-step wizard, a dependency
-graph of tasks, and a saga that undoes itself are the same pieces arranged differently, so read
-these top to bottom the first time.
+Read these pages in order. They build on the run from
+[Getting started](/getting-started).
 
-| Page | What it covers |
-|---|---|
-| [Steps and kinds](/concepts/steps) | the six constructors, and why `next` (navigation) and `dependsOn` (data readiness) are different edges |
-| [Defining flows](/concepts/defining-flows) | `defineFlow` returns constructors already bound to your types, `steps()` assembles them and checks every id |
-| [Boundaries](/concepts/boundaries) | the four doors untrusted data comes through, and `boundary.parse` / `guard` / `assert` / `trusted` |
-| [Results as values](/concepts/results) | `{ ok: false, code, issues }` for data problems, `WizardError` only for programmer errors |
-| [Policies](/concepts/policies) | `retry`, `timeout`, `onFailure`, `autoRun`, `concurrency`, `unmatchedEvents` as plain data on the definition |
-| [Events and observability](/concepts/observability) | `observe()` and `log()` for what happened, `inspect(flow)` and `explain(step)` for why |
-| [Persistence and resume](/concepts/persistence) | JSON-safe snapshots, the `Store` interface, `resumeWizard()`, re-armed timers, `migrate` |
-| [External events](/concepts/external-events) | `send()` through an event boundary, the inbox and its TTL, wait timeouts, `correlate` |
-| [Nesting](/concepts/nesting) | `s.flow(child)` as a step, `wizard.child()`, child events carrying a `path`, nested snapshots |
-| [DAGs](/concepts/dag) | an array in `next` to fan out, `dependsOn` to join, plus `concurrency`, `when` and `skip()` |
-| [Projections and the Mirror](/concepts/projections) | `defineProjection` deny-by-default, `dispatch` and `parseCommand` as the one wire door, `createMirror` |
-| [React](/concepts/react) | `bindReact()` and the hooks it returns: `useStep`, `useSelector`, `useActions`, `useChild` |
-| [Testing](/concepts/testing) | `createTestScheduler` for virtual time, `createLocalTransport` for a Mirror with no network |
-| [Guarantees](/concepts/guarantees) | what the runtime promises, stated the way the tests state it |
+1. [Define the flow](/concepts/defining-flows) and its [boundaries](/concepts/boundaries).
+2. Add [step kinds](/concepts/steps) and handle [result values](/concepts/results).
+3. Distinguish [event inputs](/concepts/external-events) from automatic
+   [run events](/concepts/observability).
+4. Add [failure policies](/concepts/policies), [parallel work](/concepts/dag), and
+   [nested flows](/concepts/nesting).
+5. Add [persistence](/concepts/persistence), choose a [client projection](/concepts/projections),
+   and [test the flow](/concepts/testing).
+
+Use the [API reference](/api/core) when you need an exact signature.

@@ -1,18 +1,15 @@
 import { boundary, defineFlow } from '@openwizard/core'
 import { z } from 'zod'
 
-/** Services used by the parent AND the child (a child flow receives its parent's deps). */
+/** Services shared by the parent and child flows. */
 export interface Deps {
   payments: { charge(orderId: string, amount: number): { chargeId: string } }
   carrier: { ship(orderId: string, warehouse: 'east' | 'west'): Promise<{ tracking: string }> }
 }
 
-// ── child flow: fulfilment (view → task → final) ───────────────────────────────────────────
-
-const f = defineFlow({
+const fulfilment = defineFlow({
   name: 'fulfilment',
-  // The parent's `context` mapper produces the INPUT side of this boundary; `warehouse` has a
-  // default so the parent only has to provide the order id.
+  // The parent supplies `orderId`; the boundary fills the default warehouse.
   context: z.object({
     orderId: z.string(),
     warehouse: z.enum(['east', 'west']).default('east'),
@@ -21,14 +18,14 @@ const f = defineFlow({
   deps: boundary.trusted<Deps>(), // same Deps: the parent's deps are handed down unchanged
 })
 
-export const fulfilment = f.steps(
+export const fulfilmentFlow = fulfilment.steps(
   {
-    pick: f.view({
+    pick: fulfilment.view({
       input: z.object({ warehouse: z.enum(['east', 'west']) }),
       exit: ({ output, update }) => update({ warehouse: output.warehouse }),
       next: 'ship',
     }),
-    ship: f.task(
+    ship: fulfilment.task(
       async ({ context, deps, update }) => {
         const { tracking } = await deps.carrier.ship(context.orderId, context.warehouse)
         update({ tracking }) // the typed hand-off to the final step
@@ -37,14 +34,12 @@ export const fulfilment = f.steps(
       { next: 'shipped' },
     ),
     // The child's output (`FlowOutput<typeof fulfilment>`) becomes the parent flow step's output.
-    shipped: f.final({ output: ({ context }) => ({ tracking: context.tracking }) }),
+    shipped: fulfilment.final({ output: ({ context }) => ({ tracking: context.tracking }) }),
   },
   { start: 'pick' },
 )
 
-// ── parent flow: order ────────────────────────────────────────────────────────────────────
-
-const s = defineFlow({
+const order = defineFlow({
   name: 'order',
   context: z.object({
     orderId: z.string(),
@@ -54,20 +49,19 @@ const s = defineFlow({
   deps: boundary.trusted<Deps>(),
 })
 
-export const order = s.steps(
+export const orderFlow = order.steps(
   {
-    pay: s.task(({ context, deps }) => deps.payments.charge(context.orderId, context.amount), {
+    pay: order.task(({ context, deps }) => deps.payments.charge(context.orderId, context.amount), {
       next: 'fulfil',
     }),
-    // The child runs as its own wizard instance (own queue, own snapshot under
-    // `Snapshot.children.fulfil`); its events are forwarded with `path: ['fulfil']`.
-    fulfil: s.flow(fulfilment, {
+    // The child has its own run and snapshot. Its events use `path: ['fulfil']`.
+    fulfil: order.flow(fulfilmentFlow, {
       context: ({ context }) => ({ orderId: context.orderId }),
       // `output` here is the child's typed output.
       exit: ({ output, update }) => update({ tracking: output.tracking }),
       next: 'receipt',
     }),
-    receipt: s.final({
+    receipt: order.final({
       output: ({ context }) => ({ orderId: context.orderId, tracking: context.tracking }),
     }),
   },

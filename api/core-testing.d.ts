@@ -14,7 +14,7 @@ interface TestScheduler extends Scheduler, Clock {
   pending(): number;
 }
 /**
- * Deterministic scheduler + clock for tests: `createWizard(flow, { scheduler })` (it doubles as
+ * Deterministic scheduler + clock for tests: `createRun(flow, { scheduler })` (it doubles as
  * the clock), then `advance(ms)` / `flush()` to fire retries, wait timeouts and inbox TTLs
  * without real waiting. Timers fire synchronously inside `advance`, so state is committed when
  * it returns (async hooks still need their promises to settle).
@@ -27,7 +27,7 @@ declare function createTestScheduler(options?: {
 //#region src/mirror/local-transport.d.ts
 /**
  * `createLocalTransport` options: `delayMs` delays every frame and every command/ack hop
- * (default 0 = synchronous frames, acks resolve on the wizard's own microtasks); `scheduler`
+ * (default 0 = synchronous frames, acks resolve on the run's own microtasks); `scheduler`
  * drives those delays (a test scheduler makes them deterministic); `serialize` JSON-round-trips
  * frames, commands and acks (default `false`).
  * @public

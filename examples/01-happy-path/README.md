@@ -1,31 +1,17 @@
-# 01: happy path (view, task, final)
+# 01: Happy path
 
-The smallest wizard that does something useful: a `profile` view collects a form, a `save` task
-pushes it to a CRM, a `done` final step returns the wizard's output. `src/onboarding.ts` is the
-quickstart from the root README, embedded there byte for byte.
+This is the smallest complete flow. A view validates a profile, a task saves it, and a final step
+returns the result. Start with [Defining flows](../../packages/docs/pages/concepts/defining-flows.mdx)
+if `defineFlow`, `createRun`, `setInput`, or `next` is new to you.
 
-## What it shows
+Source: [flow](./src/onboarding.ts), [walkthrough](./src/main.ts),
+[test](./src/onboarding.test.ts).
 
-| Piece | What it does |
-|---|---|
-| `defineFlow` | returns step constructors already bound to the context and deps types, so no hook needs a generic |
-| the view's `input` | `next()` parses the draft, and a bad one comes back as `{ ok: false, code: 'INVALID_INPUT', issues }` |
-| the view's `exit` | writes the parsed output into the context, where the `save` task reads it |
-| `boundary.trusted<Deps>()` | the CRM is injected, so the test passes an in-memory fake |
-
-## Run it
+## Run
 
 ```sh
-pnpm --filter example-01-happy-path start   # prints the event trace of one session
-pnpm --filter example-01-happy-path check   # typecheck against the built package + vitest
+pnpm --filter example-01-happy-path start
+pnpm --filter example-01-happy-path check
 ```
 
-## What the tests prove
-
-`src/onboarding.test.ts` walks one session, asserts the event trace step by step, and checks
-that `getSnapshot()` survives a JSON round trip. It also pins the sync-commit guarantee:
-
-```ts
-const pending = wizard.next() // every hook in this flow is synchronous
-expect(wizard.getState().status).toBe('done') // committed before the promise is awaited
-```
+Next: [02: Recoverable failure](../02-recoverable-failure).

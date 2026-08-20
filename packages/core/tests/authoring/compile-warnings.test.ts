@@ -29,7 +29,7 @@ function rawFlow(
 type CompiledStepLike = Record<string, unknown> & { kind: string }
 
 describe('compile: warnings (advisory, reused by inspect)', () => {
-  const s = defineFlow({ name: 'warn', context: boundary.trusted() })
+  const warn = defineFlow({ name: 'warn', context: boundary.trusted() })
   const collect = (flow: AnyFlow): FlowWarning[] => {
     const out: FlowWarning[] = []
     compile(flow, { onWarning: (w) => out.push(w) })
@@ -37,12 +37,12 @@ describe('compile: warnings (advisory, reused by inspect)', () => {
   }
 
   it('unreachable steps and dependsOn without incoming edges', () => {
-    const flow = s.steps(
+    const flow = warn.steps(
       {
-        a: s.view({ next: 'b' }),
-        b: s.final(),
-        orphan: s.view({ next: 'b' }),
-        gated: s.task(async () => 1, { dependsOn: ['a'], next: 'b' }),
+        a: warn.view({ next: 'b' }),
+        b: warn.final(),
+        orphan: warn.view({ next: 'b' }),
+        gated: warn.task(async () => 1, { dependsOn: ['a'], next: 'b' }),
       },
       { start: 'a' },
     )
@@ -64,43 +64,47 @@ describe('compile: warnings (advisory, reused by inspect)', () => {
   })
 
   it('timeout targets and fan-out count as edges; a reachable dynamic next silences the analysis', () => {
-    const se = defineFlow({
+    const edges = defineFlow({
       name: 'edges',
       context: boundary.trusted(),
       events: { e: boundary.trusted() },
     })
-    const flow = se.steps({
-      w: se.wait({ on: { e: () => {} }, timeout: { after: '1m', next: 'late' }, next: ['a', 'b'] }),
-      a: se.final(),
-      b: se.final(),
-      late: se.final(),
+    const flow = edges.steps({
+      w: edges.wait({
+        on: { e: () => {} },
+        timeout: { after: '1m', next: 'late' },
+        next: ['a', 'b'],
+      }),
+      a: edges.final(),
+      b: edges.final(),
+      late: edges.final(),
     })
     expect(collect(flow)).toEqual([])
-    const dyn = s.steps({
-      d: s.decision({ next: () => 'far' }),
-      far: s.final(),
-      farther: s.final(),
+    const dyn = warn.steps({
+      d: warn.decision({ next: () => 'far' }),
+      far: warn.final(),
+      farther: warn.final(),
     })
     expect(collect(dyn)).toEqual([])
-    const dynUnreached = s.steps({
-      a: s.view({ next: 'b' }),
-      b: s.final(),
-      d: s.decision({ next: () => 'a' }),
+    const dynUnreached = warn.steps({
+      a: warn.view({ next: 'b' }),
+      b: warn.final(),
+      d: warn.decision({ next: () => 'a' }),
     })
     expect(collect(dynUnreached).map((w) => w.step)).toEqual(['d'])
   })
 
   it('navigation cycles through next / timeout.next are advisory NAV_CYCLE warnings (each cycle once)', () => {
-    const se = defineFlow({
+    const loops = defineFlow({
       name: 'loops',
       context: boundary.trusted(),
       events: { e: boundary.trusted() },
     })
-    const flow = se.steps({
-      a: se.view({ next: 'b' }),
-      b: se.view({ next: ['a', 'w'] }), // a → b → a
-      w: se.wait({ on: { e: () => {} }, timeout: { after: '1m', next: 'w' }, next: 'end' }), // w → w (timeout)
-      end: se.final(),
+    const flow = loops.steps({
+      a: loops.view({ next: 'b' }),
+      b: loops.view({ next: ['a', 'w'] }), // a → b → a
+      w: loops.wait({ on: { e: () => {} }, timeout: { after: '1m', next: 'w' }, next: 'end' }), // w → w (timeout)
+      end: loops.final(),
     })
     expect(collect(flow)).toEqual([
       {
@@ -119,13 +123,16 @@ describe('compile: warnings (advisory, reused by inspect)', () => {
       },
     ])
     // Cycles are allowed: the flow compiles and a plain chain has no warning.
-    expect(collect(s.steps({ a: s.view({ next: 'b' }), b: s.final() }))).toEqual([])
+    expect(collect(warn.steps({ a: warn.view({ next: 'b' }), b: warn.final() }))).toEqual([])
   })
 
   it('nested flows report warnings with their path; onWarning is replayed from the cache', () => {
-    const c = defineFlow({ name: 'child', context: boundary.trusted() })
-    const child = c.steps({ a: c.final(), lost: c.final() })
-    const flow = s.steps({ f: s.flow(child, { context: () => ({}), next: 'e' }), e: s.final() })
+    const child = defineFlow({ name: 'child', context: boundary.trusted() })
+    const childFlow = child.steps({ a: child.final(), lost: child.final() })
+    const flow = warn.steps({
+      f: warn.flow(childFlow, { context: () => ({}), next: 'e' }),
+      e: warn.final(),
+    })
     const first = collect(flow)
     expect(first).toEqual([
       {
@@ -141,7 +148,7 @@ describe('compile: warnings (advisory, reused by inspect)', () => {
 
 describe('compile: nesting', () => {
   it('rejects a flow embedding one of its ancestors (NESTING_CYCLE)', () => {
-    // A cycle can only be built by mutation after definition (s.flow needs the child object).
+    // A cycle can only be built by mutation after definition (warn.flow needs the child object).
     const cyclic = rawFlow({
       f: { kind: 'flow', child: undefined, context: () => ({}), next: 'e' },
       e: { kind: 'final' },
@@ -188,8 +195,11 @@ describe('compile: nesting', () => {
     const leaf = defineFlow({ name: 'leaf', context: boundary.trusted() })
     let current: AnyFlow = leaf.steps({ e: leaf.final() })
     for (let level = 1; level <= 8; level += 1) {
-      const s = defineFlow({ name: `level${level}`, context: boundary.trusted() })
-      current = s.steps({ c: s.flow(current, { context: () => ({}), next: 'e' }), e: s.final() })
+      const levelFlow = defineFlow({ name: `level${level}`, context: boundary.trusted() })
+      current = levelFlow.steps({
+        c: levelFlow.flow(current, { context: () => ({}), next: 'e' }),
+        e: levelFlow.final(),
+      })
     }
     const nine = defineFlow({ name: 'nine', context: boundary.trusted() })
     try {

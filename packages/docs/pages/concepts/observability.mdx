@@ -1,106 +1,28 @@
-# Events and observability
+# Run events
 
-Every change a wizard makes is committed as a typed event. Four calls read that record, and the [playground](/playground) is built on nothing else.
+Each commit contains one or more `RunEvent<F>` values. The flow determines their step ids, input
+payloads, step outputs, context patches, and final output types.
 
-| You call | You get |
-|---|---|
-| `observe(listener)` | every committed event, this wizard's and its children's |
-| `log()` | the last 200 of this wizard's own events |
-| `explain(step)` | why a step is where it is, as stable reason codes |
-| `inspect(flow)` | the static graph, no hooks run |
-
-## observe() and log()
-
-Every event is an envelope `{ seq, at, path, causedBy? }` plus a body typed by the event type. Here is one `next()` call with a valid draft, as `log()` records it.
-
-```txt
-transition.started
-transition.phase { parsingInput }, step.validated
-transition.phase { validating }, { canExit }, { resolvingTarget }, { canEnter }, { exiting }
-context.changed                                <- the exit hook called update()
-step.exited, step.arrived save, transition.committed, step.entered save
-step.runStarted, step.runSucceeded, step.done  <- the save task runs
-flow.done                                      <- save's next auto-advanced to the final step
+```ts file="packages/docs/snippets/concepts/observe-order.ts"
 ```
 
-| Family | Events |
-|---|---|
-| flow lifecycle | `flow.started` / `done` / `failed` / `compensating` / `compensated` / `cancelled` / `resumed` |
-| navigation | `transition.started` / `phase` / `committed` / `rejected` / `failed` |
-| step lifecycle | `step.arrived` / `entered` / `exited` / `done` / `failed` / `skipped` / `invalidated` / `cancelled` / `validated` / `validationFailed` / `guardEvaluated` |
-| tasks | `step.runStarted { resumed? }` / `runSucceeded` / `runFailed` / `retryScheduled` |
-| compensation | `step.compensationStarted` / `compensated` / `compensationFailed` |
-| data | `input.changed`, `context.changed` |
-| external events | `event.received` / `rejected` / `delivered` / `buffered` / `expired` / `dropped { reason: 'no-listener' \| 'correlation' }` |
-| timers | `timer.scheduled` / `fired` / `cleared` |
-| persistence | `persist.failed` |
-| nesting | `child.started` / `summary` / `command` |
-| commands | `command.rejected`, `result.ignored` |
+`orderFlow` is the flow from [Event inputs](/concepts/external-events). Call `observeOrder(run)`
+before starting the run, and call the returned function to unsubscribe.
 
-An `observe` listener runs once per committed event, a `subscribe` listener once per committed batch, which can cover several; neither ever sees a half-applied state (see [guarantees](/concepts/guarantees)).
+`observe` receives every event after its whole batch has committed. `subscribe` receives one state
+notification per batch. `log()` returns this run's bounded event history, which keeps 200 events
+by default. Descendant events reach the parent's observer but remain in the descendant's own log.
+Descendant types retain the exact path, step ids, event payloads, contexts, and outputs through
+the eight-level nesting limit.
 
-### isChildEvent(event)
+Do not maintain another event-name registry. `RunEventType` and `RUN_EVENT_TYPES` expose the
+runtime's canonical names. The [outgoing webhook integration](/integrations/outgoing-webhooks)
+delivers selected run events without repeating their schemas.
 
-Events from [nested flows](/concepts/nesting) reach `observe()` too, so `WizardEvent<F>` is a union of two shapes.
+Two diagnostics use the same model:
 
-```ts
-import { isChildEvent, type WizardEvent } from '@openwizard/core'
+- `inspect(flow)` returns the static nodes, edges, and graph warnings.
+- `run.explain(step)` returns the current phase and stable reasons that block the step.
 
-wizard.observe((event: WizardEvent<typeof checkout>) => {
-  if (isChildEvent(event)) return // path like ['fulfil'], step ids are plain strings
-  if (event.type === 'step.done') event.step // path [], ids typed by the flow
-})
-```
-
-## explain(step)
-
-A pure query that never throws, so it is safe in a render or an assertion.
-
-```ts
-wizard.explain('gate')
-// { status: 'idle', phase: 'blocked', reasons: ['deps-unmet:enrich'], candidates: [] }
-```
-
-| Field | Values |
-|---|---|
-| `status` | the stored step status, or `'unknown'` for an id the flow doesn't have |
-| `phase` | `blocked`, `ready`, `entering`, `validating`, `running`, `retrying`, `waiting`, `exiting`, `compensating`, or `undefined` |
-| `reasons` | `flow-not-started`, `flow-terminal`, `flow-compensating`, `nav-busy`, `not-activated`, `deps-unmet:<id>`, `guard-false:canEnter`, `guard-false:canExit`, `concurrency-limit`, `auto-run-manual`, `failed:<kind>`, `not-current`, `entering`, `retrying` |
-| `candidates` | the ready views the cursor could move to right now |
-
-### progress() and readyViews()
-
-```ts
-wizard.progress() // { done, total, ratio } over the non-final steps; skipped counts as done
-wizard.readyViews() // the current view plus every ready view, in declaration order
-```
-
-## inspect(flow)
-
-Reads the flow definition only, so it runs no hooks and is safe to call anywhere, children included.
-
-```ts
-import { inspect } from '@openwizard/core'
-
-const graph = inspect(checkout) // { name, version, nodes, edges, warnings }
-// node: { id, kind, path, hooks, dependsOn?, timeout?, dynamicNext?, start? }
-// edge: { from, to, kind: 'next' | 'dependsOn' | 'timeout' | 'start', path }
-```
-
-| Warning | Means |
-|---|---|
-| `UNREACHABLE` | no path leads to the step |
-| `NEVER_ACTIVATES` | the step has `dependsOn` but nothing ever arrives at it, see [the readiness rule](/concepts/dag) |
-| `NAV_CYCLE` | a cycle through `next` or `timeout.next`, which is allowed but worth seeing |
-
-### toMermaid(graph)
-
-Each child flow becomes its own subgraph, and the output is deterministic, so you can commit it and diff it.
-
-```ts
-import { inspect, toMermaid } from '@openwizard/core'
-
-console.log(toMermaid(inspect(checkout))) // a Mermaid flowchart TD
-```
-
-[Example 09](/examples/09-mermaid) puts every static feature in one graph.
+Use [OpenTelemetry](/integrations/opentelemetry) to turn this stream into spans. Read
+[Failures and retries](/concepts/policies) for the events produced by failed tasks.

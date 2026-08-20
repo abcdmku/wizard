@@ -1,5 +1,5 @@
 /**
- * The `Wizard<F>` interface (the typed façade over the runtime) and its creation / resume options.
+ * The `FlowRun<F>` interface (the typed façade over the runtime) and its creation / resume options.
  * @packageDocumentation
  */
 
@@ -20,22 +20,22 @@ import type {
 import type { Clock, IdGenerator, Scheduler } from '../../interpreter/env'
 import type { Store } from '../../persistence/store'
 import type { Projection } from '../../projection/define-projection'
-import type { CommandResult, NavResult, SendResult } from '../results'
+import type { CommandResult, NavResult, RunResult, SendResult } from '../results'
 import type { SnapshotMigration as RuntimeSnapshotMigration } from '../runtime'
 import type { Command } from './command'
-import type { Explanation, Snapshot, WizardEvent } from './state'
+import type { Explanation, RunEvent, Snapshot } from './state'
 
 /**
- * A live wizard instance, typed by its flow. Navigation returns `NavResult`, everything else a
+ * A live run instance, typed by its flow. Navigation returns `NavResult`, everything else a
  * `CommandResult` / `SendResult`; nothing throws for data problems.
  * @public
  */
-export interface Wizard<F extends AnyFlow> {
+export interface FlowRun<F extends AnyFlow> {
   /** Instance id (also the default store key). */
   readonly id: string
   /** Increments on every resume. */
   readonly epoch: number
-  /** The flow this wizard runs. */
+  /** The flow definition this instance runs. */
   readonly flow: F
   /** Activate the `start` step(s). */
   start(): Promise<CommandResult>
@@ -86,11 +86,17 @@ export interface Wizard<F extends AnyFlow> {
   dispatch(command: Command<F>): Promise<CommandResult>
   /**
    * Hook an external event source (a queue consumer, an `EventTarget`, a socket) to `send`:
-   * `source` receives the wizard's typed `send` and returns its own teardown, which runs when
-   * the returned function is called or when the wizard is disposed.
+   * `source` receives the run's typed `send` and returns its own teardown, which runs when
+   * the returned function is called or when the run is disposed.
    */
-  attach(source: (send: Wizard<F>['send']) => () => void): () => void
+  attach(source: (send: FlowRun<F>['send']) => () => void): () => void
   getState(): Snapshot<F>['state']
+  /** The terminal result, or `undefined` while the run is not terminal. */
+  result(): RunResult<F> | undefined
+  /** Wait for the terminal result; reset/dispose rejects with `RunLifecycleError`. */
+  awaitResult(): Promise<RunResult<F>>
+  /** Subscribe to terminal transitions; a reset starts a new subscription cycle. */
+  subscribeResult(listener: (result: RunResult<F>) => void): () => void
   /** Versioned, JSON-safe snapshot including live children; cached per state. */
   getSnapshot(): Snapshot<F>
   /**
@@ -105,12 +111,12 @@ export interface Wizard<F extends AnyFlow> {
   readyViews(): readonly ViewId<F>[]
   /** State listeners: once per committed batch. */
   subscribe(listener: (state: Snapshot<F>['state']) => void): () => void
-  /** Event listeners: every event of this wizard and its children (`event.path`). */
-  observe(listener: (event: WizardEvent<F>) => void): () => void
+  /** Event listeners: every event of this run and its children (`event.path`). */
+  observe(listener: (event: RunEvent<F>) => void): () => void
   /** Bounded event ring (default 200). */
-  log(): readonly WizardEvent<F>[]
-  /** Live nested wizard of a `flow` step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE`). */
-  child<K extends ChildStepId<F>>(step: K): Wizard<ChildFlowOf<F, K>>
+  log(): readonly RunEvent<F>[]
+  /** Live nested run of a `flow` step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE`). */
+  child<K extends ChildStepId<F>>(step: K): FlowRun<ChildFlowOf<F, K>>
   /**
    * Client-safe state through a projection defined for THIS flow object — a deny-by-default
    * `expose` projection (`ClientState<F, E>`) or a `select` projection (its return type)
@@ -126,11 +132,11 @@ type DepsOption<F extends AnyFlow> =
   unknown extends DepsOf<F> ? { readonly deps?: DepsOf<F> } : { readonly deps: DepsOf<F> }
 
 /**
- * `createWizard` options: the context input (parsed by the flow's context boundary), `deps`
+ * `createRun` options: the context input (parsed by the flow's context boundary), `deps`
  * (required iff the flow declares a deps boundary), persistence and injectables.
  * @public
  */
-export type WizardOptions<F extends AnyFlow> = {
+export type RunOptions<F extends AnyFlow> = {
   readonly context: ContextInput<F>
   readonly instanceId?: string
   /**
@@ -158,6 +164,21 @@ export type WizardOptions<F extends AnyFlow> = {
   readonly clock?: Clock
   readonly scheduler?: Scheduler
   readonly ids?: IdGenerator
+  /**
+   * Optional host barrier. It runs after the next state swap and before the transition is
+   * published or any planned task, child, or timer effect runs. Throwing or rejecting aborts the
+   * runtime; normal runs leave it unset.
+   */
+  readonly beforeEffects?: (input: {
+    readonly snapshot: Snapshot<F>
+    readonly events: readonly RunEvent<F>[]
+  }) => void | Promise<void>
+  /** Optional host gate that must claim a timer before its fire message is enqueued. */
+  readonly beforeTimer?: (timer: {
+    readonly timerId: string
+    readonly dueAt: number
+    readonly expected: { readonly epoch: number; readonly seq: number }
+  }) => boolean | Promise<boolean>
   /** Turn the first thenable returned by a hook into a `SYNC_VIOLATION` failure. */
   readonly strict?: 'sync'
   /** Bounded event ring for `log()`. Default 200. */
@@ -165,23 +186,23 @@ export type WizardOptions<F extends AnyFlow> = {
 } & DepsOption<F>
 
 /**
- * Snapshot migration (`resumeWizard(flow, snapshot, { migrate })`): called with the raw
+ * Snapshot migration (`resumeRun(flow, snapshot, { migrate })`): called with the raw
  * snapshot when its `flow.version` differs from the flow's, and the flow identity (`from`);
  * returns the converted snapshot, which is validated like any other (its `flow.version` must
  * equal the flow's, else `SNAPSHOT_INCOMPATIBLE`). `flow.name` must always match. May return
- * a promise — then only `resumeWizardAsync` accepts it.
+ * a promise — then only `resumeRunAsync` accepts it.
  * @public
  */
 export type SnapshotMigration = RuntimeSnapshotMigration
 
 /** The options shared by creation and resume (persistence, injectables, deps). */
 export type SharedOptions<F extends AnyFlow> = Omit<
-  WizardOptions<F>,
+  RunOptions<F>,
   'context' | 'instanceId' | 'correlationId'
 >
 
 /**
- * `resumeWizard` options: `WizardOptions` without `context` / `instanceId` / `correlationId`
+ * `resumeRun` options: `RunOptions` without `context` / `instanceId` / `correlationId`
  * (they come from the snapshot), plus `migrate` for snapshots of an older flow `version`.
  * @public
  */

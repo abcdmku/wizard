@@ -118,7 +118,7 @@ export interface AnyFlowSteps {
 }
 
 /**
- * Any flow — the constraint of every extractor and of `Wizard<F>`; `any`-free (a flow's
+ * Any flow — the constraint of every extractor and of `FlowRun<F>`; `any`-free (a flow's
  * `'~types'`/`steps`/boundaries are covariant, so every concrete `Flow` is assignable).
  * @public
  */
@@ -144,7 +144,7 @@ export type FlowDefinition<C, CIn, Ev, D> = FlowOptions & {
    */
   readonly on?: NoInfer<FlowOnHandlers<C, Ev, D>>
   /**
-   * Correlation extractors: with `createWizard(flow, { correlationId })`, an event whose
+   * Correlation extractors: with `createRun(flow, { correlationId })`, an event whose
    * extracted id differs is dropped (`event.dropped { reason: 'correlation' }`), never buffered.
    */
   readonly correlate?: NoInfer<CorrelateSpec<Ev>>

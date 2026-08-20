@@ -1,121 +1,25 @@
-# External events
+# Event inputs
 
-A webhook, a queue message, a click in another tab: everything from outside the flow arrives through `wizard.send(event, payload)`. The flow declares each event as a boundary, so a handler only ever sees a payload that already parsed.
+OpenWizard uses "event" for three different contracts:
 
-```ts
-import { defineFlow } from '@openwizard/core'
-import { z } from 'zod'
-
-const s = defineFlow({
-  name: 'checkout',
-  context: z.object({ orderId: z.string(), paymentId: z.string().optional() }),
-  events: {
-    'payment.captured': z.object({ paymentId: z.string(), orderId: z.string().optional() }),
-    'order.cancelled': z.object({ reason: z.string() }),
-  },
-  on: { 'order.cancelled': ({ payload }) => ({ cancel: payload.reason }) }, // runs whatever step is active
-  correlate: { 'payment.captured': (payload) => payload.orderId }, // compared with createWizard({ correlationId })
-  unmatchedEvents: { buffer: true, ttl: '10m' }, // the "webhook arrived early" inbox
-})
-```
-
-A `wait` step is where the flow sits until one of those events lands, or its deadline does.
-
-```ts
-export const checkout = s.steps({
-  review: s.view({ next: 'awaitPayment' }),
-  awaitPayment: s.wait({
-    on: { 'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }) },
-    timeout: { after: '30m', next: 'expired' },
-    next: 'paid',
-  }),
-  paid: s.final({ output: ({ context }) => `paid (${context.paymentId})` }),
-  expired: s.final({ output: () => 'no payment within 30 minutes' }),
-})
-```
-
-## send(event, payload)
-
-The payload comes in as `unknown`, because the outside world doesn't get to claim types, and `events[event]` parses it before any handler runs.
-
-```ts
-await wizard.send('payment.captured', { paymentId: 'pi_1', orderId: 'o-1' })
-// { ok: true, delivered: ['awaitPayment'], buffered: false } once the routing decision is committed
-// it tells you where the event went, not whether the handlers finished
-
-await wizard.send('payment.captured', { paymentId: 42 })
-// { ok: false, reason: 'rejected', code: 'BOUNDARY_REJECTED', issues } and an event.rejected event
-
-await wizard.send('nothing.declared', {}) // the only throw on this path: UNKNOWN_EVENT
-```
-
-A good payload is recorded as `event.received`, then routed one of three ways.
-
-| Routed as | When | Recorded as |
+| Meaning | Source | API |
 |---|---|---|
-| delivered to a step | an active step's `on` declares the event | `event.delivered { to }` |
-| delivered to the flow | the flow-level `on` declares it | `event.flowDelivered` |
-| buffered | no listener yet and `unmatchedEvents.buffer` is on | `event.buffered { expiresAt }`, then `event.expired` after `ttl` |
-| dropped | no listener with buffering off, or a correlation mismatch, which is never buffered | `event.dropped { reason: 'no-listener' \| 'correlation' }` |
+| input event | another system sends data into a flow | `run.send()` |
+| run event | the runtime records a committed change | [`run.observe()`](/concepts/observability) |
+| outgoing webhook | the delivery worker sends selected run events to subscribers | [Outgoing webhooks](/integrations/outgoing-webhooks) |
 
-Buffered events sit in `state.inbox` and are delivered oldest first the moment a step that handles them enters, before that step's timeout is armed.
+An input event needs a schema because its payload comes from outside the run.
 
-## on handlers, per step kind
-
-Any step kind can declare `on: { [event]: handler }`, and its handlers only run while that step is active. Kinds that return `void` can still call `update()` to patch context, they just can't steer.
-
-| Kind | Handler returns |
-|---|---|
-| `wait` | `void`, `{ keep: true }`, `{ next: id }`, `{ done: output }`, or `{ fail: reason }` |
-| `view` | `void` or `{ next: id }` |
-| `task`, `decision`, `flow`, `final` | `void` only; `{ next }` does not compile |
-| flow-level `on` | `void` or `{ cancel: reason }` |
-
-A flow-level `{ cancel: reason }` cancels the whole flow with the compensation policy applied, after the step-level handlers in the same batch.
-
-### A view moved by an event
-
-A view's `{ next }` moves the cursor with `cause: 'event'`. That path runs `canEnter`, `exit` and `enter`, but skips input parsing, `validate` and `canExit`, because the user didn't submit anything.
-
-### When a handler throws
-
-A `wait` handler that throws fails the step with `kind: 'hook'`. For every other kind the throw is recorded as `event.handlerFailed` and the step keeps going.
-
-## correlate
-
-The provider's webhook doesn't know which of your instances it belongs to, so each event gets an extractor and each wizard a `correlationId`. An extractor returning `undefined` means no filtering for that payload, and a flow without `correlate` filters nothing.
-
-```ts
-const wizard = createWizard(checkout, { context, correlationId: 'o-1' })
-// a payload whose orderId isn't 'o-1' is dropped: event.dropped { reason: 'correlation' }
-// the id is persisted in the state, so a resumed instance keeps filtering
+```ts file="packages/docs/snippets/concepts/input-order-flow.ts"
 ```
 
-## Timers are state
+`send` parses the payload before a handler sees it. The result names the active steps that received
+the event. It also reports buffering, rejection, or a correlation drop.
+Unmatched events are buffered for five minutes by default. `unmatchedEvents` changes that policy.
+A correlation mismatch is dropped and never buffered.
 
-```ts
-awaitPayment: s.wait({
-  on: { 'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }) },
-  timeout: { after: '30m', next: 'expired' }, // an absolute deadline, not a countdown
-  next: 'paid',
-})
-// timer.fired routes to timeout.next, and the step's output is { event: 'timeout' }
-// retries and inbox TTLs work the same way: re-armed on resume, firing at once if already overdue
-```
+A wait handler completes the step when it returns nothing. It can instead keep waiting, choose a
+different target, provide an output, or fail. OpenWizard stores each timeout as an absolute
+deadline and restores the remaining wait on resume.
 
-The runtime only ever calls the injectable `scheduler` and `clock`, which is how [tests](/concepts/testing) fast-forward time.
-
-## attach(source)
-
-Hook up a queue consumer or a socket. Your function receives the typed `send` and returns a teardown, which runs on detach or when the wizard is disposed.
-
-```ts
-const detach = wizard.attach((send) => {
-  const onMessage = (m: MessageEvent<{ event: 'payment.captured'; body: unknown }>) =>
-    void send(m.data.event, m.data.body)
-  channel.addEventListener('message', onMessage)
-  return () => channel.removeEventListener('message', onMessage)
-})
-```
-
-[Example 05](/examples/05-external-events) sends a bad body, a webhook for a different order, and a good one that arrives early, then shows the early one delivered the moment the wait step enters.
+Now read the automatic side of the model in [Run events](/concepts/observability).

@@ -33,15 +33,15 @@ const STEP_KEYS = [
 ]
 
 describe('defineFlow: step records', () => {
-  const s = defineFlow({ name: 'shape', context: boundary.trusted<{ a: string }>() })
+  const shape = defineFlow({ name: 'shape', context: boundary.trusted<{ a: string }>() })
 
   it('materialises every key on every kind (undefined when unset), with ~types/~bound undefined', () => {
     const run = async () => 1
     const records = {
-      view: s.view({ next: 'final' }),
-      task: s.task(run, { next: 'final' }),
-      decision: s.decision({ next: () => 'final' }),
-      final: s.final(),
+      view: shape.view({ next: 'final' }),
+      task: shape.task(run, { next: 'final' }),
+      decision: shape.decision({ next: () => 'final' }),
+      final: shape.final(),
     }
     for (const [kind, rec] of Object.entries(records)) {
       expect(Object.keys(rec)).toEqual(STEP_KEYS)
@@ -59,15 +59,15 @@ describe('defineFlow: step records', () => {
 describe('defineFlow: flow object', () => {
   it('holds name/version/boundaries/policies/steps/start and ~types undefined; omitted options are absent', () => {
     const context = z.object({ a: z.string() })
-    const s = defineFlow({
+    const flowFlow = defineFlow({
       name: 'flow',
       version: 3,
       context,
       onFailure: 'compensate',
       concurrency: 2,
     })
-    const steps = { a: s.view({ next: 'b' }), b: s.final() }
-    const flow = s.steps(steps, { start: 'a' })
+    const steps = { a: flowFlow.view({ next: 'b' }), b: flowFlow.final() }
+    const flow = flowFlow.steps(steps, { start: 'a' })
     expect(flow['~types']).toBeUndefined()
     expect(flow.name).toBe('flow')
     expect(flow.version).toBe(3)
@@ -81,7 +81,7 @@ describe('defineFlow: flow object', () => {
     expect('retry' in flow).toBe(false)
     expect('autoRun' in flow).toBe(false)
     expect('unmatchedEvents' in flow).toBe(false)
-    const minimal = defineFlow({ name: 'min', context }).steps({ a: s.final() })
+    const minimal = defineFlow({ name: 'min', context }).steps({ a: flowFlow.final() })
     expect('start' in minimal).toBe(false)
     expect('version' in minimal).toBe(false)
   })
@@ -108,11 +108,11 @@ describe('defineFlow: flow object', () => {
   })
 
   it('validates the assembled flow at definition time (unknown ids, JS callers)', () => {
-    const s = defineFlow({ name: 'bad', context: boundary.trusted<{ a: string }>() })
+    const bad = defineFlow({ name: 'bad', context: boundary.trusted<{ a: string }>() })
     expect(() =>
-      s.steps({
-        a: s.view({ next: 'typo' as any }),
-        b: s.final(),
+      bad.steps({
+        a: bad.view({ next: 'typo' as any }),
+        b: bad.final(),
       }),
     ).toThrowError(/next: unknown step 'typo'/)
   })

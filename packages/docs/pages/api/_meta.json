@@ -1,5 +1,11 @@
 {
   "index": "Overview",
   "core": "@openwizard/core",
-  "react": "@openwizard/react"
+  "durable": "@openwizard/durable",
+  "drizzle": "@openwizard/drizzle",
+  "effect": "@openwizard/effect",
+  "effect-v4": "@openwizard/effect-v4 beta",
+  "react": "@openwizard/react",
+  "opentelemetry": "@openwizard/opentelemetry",
+  "webhooks": "@openwizard/webhooks"
 }

@@ -5,36 +5,40 @@ import { defineFlow } from '../../src/authoring/define-flow'
 import { inspect } from '../../src/inspect/graph'
 
 describe('inspect', () => {
-  const c = defineFlow({ name: 'child', version: 2, context: z.object({ n: z.number() }) })
-  const child = c.steps({
-    work: c.task(async () => 1, { next: 'end', label: 'Work' }),
-    end: c.final(),
-    lost: c.final(),
+  const child = defineFlow({ name: 'child', version: 2, context: z.object({ n: z.number() }) })
+  const childFlow = child.steps({
+    work: child.task(async () => 1, { next: 'end', label: 'Work' }),
+    end: child.final(),
+    lost: child.final(),
   })
-  const s = defineFlow({
+  const root = defineFlow({
     name: 'root',
     context: boundary.trusted<{ a: string }>(),
     events: { ping: boundary.trusted<{ n: number }>(), pong: boundary.trusted() },
   })
-  const flow = s.steps(
+  const flow = root.steps(
     {
-      form: s.view({
+      form: root.view({
         label: 'Form',
         input: z.object({ x: z.string() }),
         enter: () => {},
         exit: () => {},
         next: ['reserve', 'wait'],
       }),
-      reserve: s.task(async () => 1, { timeout: '5s', compensate: () => {}, next: 'route' }),
-      wait: s.wait({
+      reserve: root.task(async () => 1, { timeout: '5s', compensate: () => {}, next: 'route' }),
+      wait: root.wait({
         on: { ping: () => {}, pong: () => {} },
         timeout: { after: '1m', next: 'expired' },
         next: 'route',
       }),
-      route: s.decision({ next: () => 'sub' }),
-      sub: s.flow(child, { context: () => ({ n: 1 }), dependsOn: ['reserve'], next: 'done' }),
-      done: s.final({ output: () => 1 }),
-      expired: s.final(),
+      route: root.decision({ next: () => 'sub' }),
+      sub: root.flow(childFlow, {
+        context: () => ({ n: 1 }),
+        dependsOn: ['reserve'],
+        next: 'done',
+      }),
+      done: root.final({ output: () => 1 }),
+      expired: root.final(),
     },
     { start: 'form' },
   )

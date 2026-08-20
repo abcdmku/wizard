@@ -1,17 +1,13 @@
 /**
- * Status derivation (§5.1) — the ONE place wizard status is computed, after every event.
+ * Status derivation (§5.1) — the ONE place run status is computed, after every event.
  * @internal
  */
 
 import type { CompiledFlow } from '../../authoring/compiled'
 import type { DomainEvent } from '../events'
-import type { WizardState, WizardStatus } from '../state'
+import type { RunStatus, WizardState } from '../state'
 
-export function deriveStatus(
-  def: CompiledFlow,
-  state: WizardState,
-  event: DomainEvent,
-): WizardStatus {
+export function deriveStatus(def: CompiledFlow, state: WizardState, event: DomainEvent): RunStatus {
   switch (event.type) {
     case 'flow.done':
       return 'done'

@@ -48,8 +48,8 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
   it('unwinds in reverse completion order [3,2,1] and ends with flow.compensated{failed}', async () => {
     const { def, compensated } = sagaFlow()
     const t = e2e(def)
-    await t.wizard.start()
-    const s: WizardState = t.wizard.getState()
+    await t.run.start()
+    const s: WizardState = t.run.getState()
     expect(compensated).toEqual(['t1', 't2', 't3:r3'].reverse())
     expect(s.status).toBe('failed')
     expect(t.rec('t4')).toMatchObject({
@@ -80,39 +80,39 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
     })
     expect(t.of('flow.compensated')[0]).toMatchObject({ failures: [], outcome: 'failed' })
     // Everything after is rejected as a value.
-    expect(await t.wizard.next()).toMatchObject({ ok: false })
-    expect(await t.wizard.retry('t4')).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
+    expect(await t.run.next()).toMatchObject({ ok: false })
+    expect(await t.run.retry('t4')).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
   })
 
   it('a throwing compensate hook is recorded in saga.failures and the unwind continues; compensate({from}) retries only it', async () => {
     let failT2 = true
     const { def, compensated } = sagaFlow({ failCompensate2: () => failT2 })
     const t = e2e(def)
-    await t.wizard.start()
+    await t.run.start()
     expect(compensated).toEqual(['t3:r3', 't1'])
     expect(t.rec('t2')).toMatchObject({
       status: 'failed',
       error: { kind: 'compensate', message: 'undo t2 failed' },
     })
-    expect(t.wizard.getState().saga.failures).toEqual([{ step: 't2', runId: 1 }])
+    expect(t.run.getState().saga.failures).toEqual([{ step: 't2', runId: 1 }])
     expect(t.of('step.compensationFailed')[0]).toMatchObject({
       step: 't2',
       error: { message: 'undo t2 failed' },
     })
     expect(t.of('flow.compensated')[0]?.failures.length).toBe(1)
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('failed')
 
     // Retry only t2.
     failT2 = false
     t.clear()
-    expect(await t.wizard.compensate({ from: 't2' })).toMatchObject({ ok: true })
+    expect(await t.run.compensate({ from: 't2' })).toMatchObject({ ok: true })
     expect(compensated).toEqual(['t3:r3', 't1', 't2'])
     expect(t.of('step.compensationStarted').map((e) => e.step)).toEqual(['t2'])
     expect(t.rec('t2').status).toBe('compensated')
-    expect(t.wizard.getState().saga.failures).toEqual([])
+    expect(t.run.getState().saga.failures).toEqual([])
     expect(t.of('flow.compensated')[0]).toMatchObject({ failures: [] })
     // Nothing left to compensate → the flow is terminal for further compensate commands.
-    expect(await t.wizard.compensate({ from: 't3' })).toMatchObject({
+    expect(await t.run.compensate({ from: 't3' })).toMatchObject({
       ok: false,
       code: 'FLOW_TERMINAL',
     })
@@ -121,20 +121,20 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
   it('cancel() during an in-flight run aborts it, waits for it to settle, then compensates (outcome cancelled)', async () => {
     const { def, compensated } = sagaFlow({ asyncRun4: true })
     const t = e2e(def, { abortGraceMs: 1_000 })
-    await t.wizard.start()
+    await t.run.start()
     expect(t.rec('t4').status).toBe('active')
-    expect(await t.wizard.cancel('user')).toMatchObject({ ok: true })
+    expect(await t.run.cancel('user')).toMatchObject({ ok: true })
     // Phase 1: the run is cancelled and settling; nothing unwound yet.
     expect(t.rec('t4').status).toBe('cancelled')
-    expect(t.wizard.getState().status).toBe('compensating')
-    expect(t.wizard.getState().saga.settling).toEqual(['t4'])
+    expect(t.run.getState().status).toBe('compensating')
+    expect(t.run.getState().saga.settling).toEqual(['t4'])
     expect(compensated).toEqual([])
     // The hook never settles cooperatively → the interpreter's grace timer settles it.
     t.sched.advance(1_000)
     await tick()
-    expect(t.wizard.getState().saga.settling ?? []).toEqual([])
+    expect(t.run.getState().saga.settling ?? []).toEqual([])
     expect(compensated).toEqual(['t3:r3', 't2', 't1'])
     expect(t.of('flow.compensated')[0]).toMatchObject({ outcome: 'cancelled' })
-    expect(t.wizard.getState().status).toBe('cancelled')
+    expect(t.run.getState().status).toBe('cancelled')
   })
 })

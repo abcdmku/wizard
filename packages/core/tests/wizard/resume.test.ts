@@ -46,10 +46,10 @@ const twoViews = flow({
 
 async function running(def: CompiledFlow = twoViews) {
   const o = baseOpts()
-  const wizard = createWizardRuntime(def, { ...o, context: { tenant: 't' }, instanceId: 'orig' })
-  await wizard.start()
-  await wizard.next()
-  return { wizard, snap: wizard.getSnapshot(), o }
+  const run = createWizardRuntime(def, { ...o, context: { tenant: 't' }, instanceId: 'orig' })
+  await run.start()
+  await run.next()
+  return { run, snap: run.getSnapshot(), o }
 }
 
 const resumeErr = (def: CompiledFlow, input: unknown, opts = baseOpts()) => {
@@ -63,7 +63,7 @@ const resumeErr = (def: CompiledFlow, input: unknown, opts = baseOpts()) => {
 
 describe('resumeWizardRuntime', () => {
   it('restores state from a JSON round trip, bumps epoch, keeps the id and emits flow.resumed', async () => {
-    const { wizard, snap } = await running()
+    const { run, snap } = await running()
     expect(snap.state.current).toBe('b')
     const events: DomainEvent[] = []
     const o = baseOpts()
@@ -84,7 +84,7 @@ describe('resumeWizardRuntime', () => {
     // Still operational.
     expect(await resumed.next()).toMatchObject({ ok: true, from: 'b', to: 'end' })
     expect(resumed.getState().status).toBe('done')
-    wizard.dispose()
+    run.dispose()
   })
 
   it('re-runs boundaries: context and view outputs are parsed and substituted', async () => {
@@ -163,7 +163,7 @@ describe('resumeWizardRuntime', () => {
       context: boundary((v) => Promise.resolve({ ok: true, value: v }) as any),
     }
     expect(resumeErr(asyncDef, snap).issues?.map((i) => i.message)).toEqual([
-      'context: async boundaries are not supported by resumeWizard (use resumeWizardAsync)',
+      'context: async boundaries are not supported by resumeRun (use resumeRunAsync)',
     ])
   })
 
@@ -176,11 +176,11 @@ describe('resumeWizardRuntime', () => {
       },
     })
     const o = baseOpts()
-    const wizard = createWizardRuntime(def, { ...o, context: {}, instanceId: 'w' })
-    await wizard.start()
-    const snap = wizard.getSnapshot()
+    const run = createWizardRuntime(def, { ...o, context: {}, instanceId: 'w' })
+    await run.start()
+    const snap = run.getSnapshot()
     expect(Object.keys(snap.state.timers)).toEqual(['wait:w'])
-    wizard.dispose()
+    run.dispose()
 
     // Machine spec §8: `plan` re-arms every `S.timers` entry on flow.resumed (overdue → now).
     const o2 = baseOpts({
@@ -230,12 +230,12 @@ describe('resumeWizardRuntime', () => {
       },
     })
     const o = baseOpts()
-    const wizard = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
-    await wizard.start()
-    const snap = wizard.getSnapshot()
+    const run = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
+    await run.start()
+    const snap = run.getSnapshot()
     expect(snap.children.f?.state.status).toBe('running')
-    const childId = wizard.child('f').id
-    wizard.dispose()
+    const childId = run.child('f').id
+    run.dispose()
 
     const resumed = resumeWizardRuntime(parent, roundTrip(snap), baseOpts())
     const c = resumed.child('f')
@@ -261,11 +261,11 @@ describe('resumeWizardRuntime', () => {
       },
     })
     const o = baseOpts()
-    const wizard = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
-    await wizard.start()
-    const snap = wizard.getSnapshot()
+    const run = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
+    await run.start()
+    const snap = run.getSnapshot()
     expect(snap.state.steps.f!.child?.status).toBe('waiting')
-    wizard.dispose()
+    run.dispose()
     const reasons: string[] = []
     const plan = prepareResume(parent, roundTrip({ ...snap, children: {} }), '', reasons)
     expect(reasons).toEqual([])
@@ -297,10 +297,10 @@ describe('resumeWizardRuntime', () => {
       },
     })
     const o = baseOpts()
-    const wizard = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
-    await wizard.start()
-    const snap = wizard.getSnapshot()
-    wizard.dispose()
+    const run = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
+    await run.start()
+    const snap = run.getSnapshot()
+    run.dispose()
     contextParses = 0
     const resumed = resumeWizardRuntime(parent, roundTrip(snap), baseOpts())
     expect(contextParses).toBe(1) // not re-run when the child is instantiated

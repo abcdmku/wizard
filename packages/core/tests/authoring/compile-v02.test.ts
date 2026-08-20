@@ -28,7 +28,7 @@ const args = (extra: Record<string, unknown> = {}): HookArgs =>
     ...extra,
   }) as HookArgs
 
-const s = defineFlow({
+const v02 = defineFlow({
   name: 'v02',
   context: z.object({ id: z.string(), note: z.string().optional() }),
   events: {
@@ -53,17 +53,17 @@ const issuesOf = (fn: () => unknown): string[] => {
 }
 
 describe('compile v0.2: `on` on every kind', () => {
-  const flow = s.steps(
+  const flow = v02.steps(
     {
-      review: s.view({
+      review: v02.view({
         on: {
           'note.added': ({ payload }) => (payload.text === 'go' ? { next: 'post' } : undefined),
         },
         next: 'post',
       }),
-      post: s.task(async () => 1, { on: { 'note.added': () => {} }, next: 'route' }),
-      route: s.decision({ on: { 'note.added': () => undefined }, next: () => 'hold' }),
-      hold: s.wait({
+      post: v02.task(async () => 1, { on: { 'note.added': () => {} }, next: 'route' }),
+      route: v02.decision({ on: { 'note.added': () => undefined }, next: () => 'hold' }),
+      hold: v02.wait({
         on: {
           'note.added': ({ payload }) =>
             payload.text === 'wait'
@@ -72,7 +72,7 @@ describe('compile v0.2: `on` on every kind', () => {
         },
         next: 'done',
       }),
-      done: s.final({ on: { 'note.added': () => {} } }),
+      done: v02.final({ on: { 'note.added': () => {} } }),
     },
     { start: 'review' },
   )
@@ -135,7 +135,7 @@ describe('compile v0.2: `on` on every kind', () => {
 })
 
 describe('compile v0.2: flow-level `on` and `correlate`', () => {
-  const flow = s.steps({ a: s.view({ next: 'end' }), end: s.final() })
+  const flow = v02.steps({ a: v02.view({ next: 'end' }), end: v02.final() })
   const def = compile(flow)
 
   it('emits `def.on` with results normalised to `{ cancel }` / undefined', async () => {
@@ -197,12 +197,12 @@ describe('compile v0.2: flow-level `on` and `correlate`', () => {
 
 describe('compile v0.2: `when`, `idempotent`, `mapError`', () => {
   it('`when` compiles to hooks.when on every non-final kind', async () => {
-    const flow = s.steps({
-      v: s.view({ when: () => true, next: 'end' }),
-      t: s.task(async () => 1, { when: async () => false, next: 'end' }),
-      w: s.wait({ on: { 'note.added': () => {} }, when: () => true, next: 'end' }),
-      d: s.decision({ when: () => true, next: () => 'end' }),
-      end: s.final(),
+    const flow = v02.steps({
+      v: v02.view({ when: () => true, next: 'end' }),
+      t: v02.task(async () => 1, { when: async () => false, next: 'end' }),
+      w: v02.wait({ on: { 'note.added': () => {} }, when: () => true, next: 'end' }),
+      d: v02.decision({ when: () => true, next: () => 'end' }),
+      end: v02.final(),
     })
     const def = compile(flow)
     for (const id of ['v', 'w', 'd']) expect(await def.steps[id]?.hooks.when?.(args())).toBe(true)
@@ -210,12 +210,12 @@ describe('compile v0.2: `when`, `idempotent`, `mapError`', () => {
     expect(def.steps.end?.hooks.when).toBeUndefined()
   })
   it('`idempotent: true` → `idempotent: true` (no key hook); a function → key hook + idempotent', async () => {
-    const flow = s.steps({
-      a: s.task(async () => 1, { idempotent: true, next: 'b' }),
-      b: s.task(async () => 1, { idempotent: ({ context }) => `post:${context.id}`, next: 'c' }),
-      c: s.task(async () => 1, { idempotent: false, next: 'end' }),
-      d: s.task(async () => 1, { next: 'end' }),
-      end: s.final(),
+    const flow = v02.steps({
+      a: v02.task(async () => 1, { idempotent: true, next: 'b' }),
+      b: v02.task(async () => 1, { idempotent: ({ context }) => `post:${context.id}`, next: 'c' }),
+      c: v02.task(async () => 1, { idempotent: false, next: 'end' }),
+      d: v02.task(async () => 1, { next: 'end' }),
+      end: v02.final(),
     })
     const def = compile(flow)
     expect(def.steps.a).toMatchObject({ idempotent: true })
@@ -242,15 +242,15 @@ describe('compile v0.2: `when`, `idempotent`, `mapError`', () => {
   })
   it('`mapError` compiles to hooks.mapError called with (args.error, args)', async () => {
     const seen: unknown[] = []
-    const flow = s.steps({
-      t: s.task(async () => 1, {
+    const flow = v02.steps({
+      t: v02.task(async () => 1, {
         mapError: (error, a) => {
           seen.push(error, a.attempt)
           return { code: 'DOWN' }
         },
         next: 'end',
       }),
-      end: s.final(),
+      end: v02.final(),
     })
     const def = compile(flow)
     const boom = new Error('boom')

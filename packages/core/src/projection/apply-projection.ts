@@ -3,10 +3,10 @@
  * state for a projection. An `expose` projection is deny-by-default (only exposed inputs /
  * outputs / issues / errors / children / context keys / flow output / progress), errors
  * sanitised to `{ name, message, code?, data? }`, `phase` and `progress` from the machine
- * selectors; a `select` projection is its mapper over the (typed) state. `Wizard.project()`
+ * selectors; a `select` projection is its mapper over the (typed) state. `FlowRun.project()`
  * and the Mirror frame producer call this.
  *
- * @internal Public users go through `wizard.project(projection)`.
+ * @internal Public users go through `run.project(projection)`.
  */
 
 import type { CompiledFlow } from '../authoring/compiled'
@@ -36,7 +36,7 @@ interface RawExpose {
 const MAX_DEPTH = 8
 
 /**
- * Project a wizard state through a projection. `children` are the live child snapshots
+ * Project a run state through a projection. `children` are the live child snapshots
  * (`runtime.getSnapshot().children`) used for exposed `child` specs.
  */
 export function applyProjection<F extends AnyFlow, S>(

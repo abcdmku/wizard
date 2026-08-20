@@ -1,5 +1,5 @@
 /**
- * The interpreter: one FIFO queue per wizard instance, batch-atomic
+ * The interpreter: one FIFO queue per run instance, batch-atomic
  * processing (plan §8.1).
  *
  * ```
@@ -32,6 +32,7 @@ import type { RuntimeEnv } from './env'
 import { causeOf, envelope } from './envelope'
 import { createExecutor, type Executor, type ExecutorOptions } from './executor'
 import { buildHookArgs } from './hook-args'
+import { getThen } from './thenable'
 import { createTimerRegistry } from './timers'
 
 export interface InterpreterOptions<H extends ChildHandle = ChildHandle, P = Snapshot> {
@@ -57,10 +58,24 @@ export interface InterpreterOptions<H extends ChildHandle = ChildHandle, P = Sna
   }
   /** Every committed event, own and forwarded from children (`event.path` tells them apart). */
   readonly onEvent?: (event: DomainEvent) => void
+  /** Internal state-swap notification used to invalidate snapshot caches before a host barrier. */
+  readonly onStateSwap?: (state: WizardState, batch: readonly DomainEvent[]) => void
   /** Once per non-empty batch, after the state swap. */
   readonly onCommit?: (state: WizardState, batch: readonly DomainEvent[]) => void
   /** Once per processed message, after commit (batch may be empty). */
   readonly onProcessed?: (msg: Message, batch: readonly DomainEvent[], state: WizardState) => void
+  /** Gate planned effects after the state swap and before any effect executes. */
+  readonly beforeEffects?: (
+    state: WizardState,
+    batch: readonly DomainEvent[],
+    effects: readonly Effect[],
+  ) => void | Promise<void>
+  /** Gate a timer callback before it enqueues its fire message. */
+  readonly beforeTimer?: (
+    timerId: string,
+    at: number,
+    expected: { readonly epoch: number; readonly seq: number },
+  ) => boolean | Promise<boolean>
   /** Effects the interpreter does not execute itself: `settle` (immediately) and `persist` (coalesced per drain). */
   readonly onEffect?: (effect: Effect) => void
   /** Listener exceptions are isolated; default rethrows asynchronously. */
@@ -106,6 +121,7 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
   opts: InterpreterOptions<H, P>,
 ): Interpreter<H, P> {
   const { def, machine, path, env } = opts
+  const beforeTimer = opts.beforeTimer
   const logSize = Math.max(0, opts.logSize ?? DEFAULT_LOG_SIZE)
 
   let state = opts.initialState
@@ -197,16 +213,27 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
 
   const drain = (): void => {
     draining = true
-    try {
+    const continueDrain = (): void => {
       for (;;) {
         const item = queue.shift()
-        if (item === undefined) break
-        processOne(item.msg, item.causedBy)
+        if (item === undefined) {
+          draining = false
+          flushPersist()
+          return
+        }
+        const pending = processOne(item.msg, item.causedBy)
+        if (pending === undefined) continue
+        pending.then(continueDrain, (error: unknown) => {
+          draining = false
+          flushPersist()
+          safely(() => {
+            throw error
+          })
+        })
+        return
       }
-    } finally {
-      draining = false
-      flushPersist()
     }
+    continueDrain()
   }
 
   const flushPersist = (): void => {
@@ -217,11 +244,11 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
     if (!disposed) safely(() => opts.onEffect?.({ kind: 'persist', reason }))
   }
 
-  const processOne = (msg: Message, causedBy: number | undefined): void => {
+  const processOne = (msg: Message, causedBy: number | undefined): Promise<void> | undefined => {
     const bodies = machine.decide(menv, state, msg)
     if (bodies.length === 0) {
       safely(() => opts.onProcessed?.(msg, [], state))
-      return
+      return undefined
     }
     const batch = envelope(bodies, { seq: state.seq, at: env.clock.now(), path, msg, causedBy })
     let next = state
@@ -231,22 +258,74 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
     // Commit: swap, log, notify (event listeners per event, state listeners once).
     state = next
     dirty = true
-    appendLog(batch)
-    for (const event of batch) safely(() => opts.onEvent?.(event))
-    safely(() => opts.onCommit?.(state, batch))
-    safely(() => opts.onProcessed?.(msg, batch, state))
+    safely(() => opts.onStateSwap?.(state, batch))
 
-    // Interpreter-level reactions to committed facts.
-    for (const event of batch) {
-      if (event.type === 'step.cancelled') executor.abort(event.step, event.reason)
-      else if (event.type === 'flow.reset') {
-        executor.abortAll('flow reset')
-        timers.clearAll()
-        bridge?.disposeAll()
+    const publish = (): void => {
+      appendLog(batch)
+      for (const event of batch) safely(() => opts.onEvent?.(event))
+      safely(() => opts.onCommit?.(state, batch))
+
+      safely(() => opts.onProcessed?.(msg, batch, state))
+
+      // Interpreter-level reactions to committed facts.
+      for (const event of batch) {
+        if (event.type === 'step.cancelled') executor.abort(event.step, event.reason)
+        else if (event.type === 'flow.reset') {
+          executor.abortAll('flow reset')
+          timers.clearAll()
+          bridge?.disposeAll()
+        }
       }
+
+      for (const effect of effects) execute(effect, batch)
     }
 
-    for (const effect of effects) execute(effect, batch)
+    const complete = (): void => {
+      if (disposed) return
+      publish()
+    }
+
+    if (opts.beforeEffects === undefined) {
+      complete()
+      return undefined
+    }
+
+    let gate: void | Promise<void>
+    try {
+      gate = opts.beforeEffects(state, batch, effects)
+    } catch (error) {
+      disposed = true
+      queue.length = 0
+      executor.abortAll('effect barrier failed')
+      timers.clearAll()
+      bridge?.disposeAll()
+      safely(() => {
+        throw error
+      })
+      return undefined
+    }
+    const then = getThen(gate)
+    if (then === undefined) {
+      complete()
+      return undefined
+    }
+    return new Promise<void>((resolve, reject) => {
+      then.call(
+        gate,
+        () => {
+          complete()
+          resolve()
+        },
+        (error: unknown) => {
+          disposed = true
+          queue.length = 0
+          executor.abortAll('effect barrier failed')
+          timers.clearAll()
+          bridge?.disposeAll()
+          reject(error)
+        },
+      )
+    })
   }
 
   const appendLog = (batch: readonly DomainEvent[]): void => {
@@ -268,7 +347,18 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
         return
       case 'timer.set': {
         const fire = effect.fire
-        timers.set(effect.timerId, effect.at, () => send(fire, cause))
+        timers.set(
+          effect.timerId,
+          effect.at,
+          () => send(fire, cause),
+          beforeTimer === undefined
+            ? undefined
+            : () =>
+                beforeTimer(effect.timerId, effect.at, {
+                  epoch: state.epoch,
+                  seq: state.seq,
+                }),
+        )
         return
       }
       case 'timer.clear':

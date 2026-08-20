@@ -1,5 +1,5 @@
 /**
- * `bindReact<typeof flow>()` over a real Wizard: typed hooks, render counters (a step re-renders
+ * `bindReact<typeof flow>()` over a real FlowRun: typed hooks, render counters (a step re-renders
  * only when its slice changes), `useSelector` equality, stable action identities, errors outside
  * the Provider, StrictMode.
  */
@@ -7,11 +7,11 @@ import { act, cleanup, render, screen } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { bindReact } from '../src/index'
-import { type checkout, type checkoutClient, controlledDeps, makeWizard, tick } from './fixture'
+import { type checkoutClient, type checkoutFlow, controlledDeps, makeRun, tick } from './fixture'
 
 afterEach(cleanup)
 
-const owFlow = bindReact<typeof checkout>()
+const owFlow = bindReact<typeof checkoutFlow>()
 const owMirror = bindReact<typeof checkoutClient>()
 
 // The two bindings have different hook types (a union of generic methods is not callable), so
@@ -95,15 +95,15 @@ const Status = {
   ),
 }
 
-describe('bindReact over a Wizard', () => {
+describe('bindReact over a FlowRun', () => {
   it('renders view → task → final through the hooks and re-renders only the touched slices', async () => {
     const { deps, release } = controlledDeps()
-    const wizard = makeWizard(deps)
-    await wizard.start()
+    const run = makeRun(deps)
+    await run.start()
     let shippingRenders = 0
     let reserveRenders = 0
     render(
-      <owFlow.Provider source={wizard}>
+      <owFlow.Provider source={run}>
         <Shipping.flow
           counter={() => {
             shippingRenders += 1
@@ -125,7 +125,7 @@ describe('bindReact over a Wizard', () => {
 
     // Invalid draft → issues on the shipping slice only.
     await act(async () => {
-      await wizard.next()
+      await run.next()
     })
     expect(screen.getByTestId('shipping-issues').textContent).not.toBe('')
     expect(shippingRenders).toBeGreaterThan(s0)
@@ -154,13 +154,13 @@ describe('bindReact over a Wizard', () => {
     })
     expect(screen.getByTestId('reserve-status').textContent).toBe('done:1')
     expect(screen.getByTestId('status').textContent).toBe('done/none')
-    expect(wizard.getState().output).toEqual({ cartId: 'c1' })
-    wizard.dispose()
+    expect(run.getState().output).toEqual({ cartId: 'c1' })
+    run.dispose()
   })
 
-  it('useSnapshot returns the wizard state; useActions is stable and typed by the flow', async () => {
-    const wizard = makeWizard()
-    await wizard.start()
+  it('useSnapshot returns the run state; useActions is stable and typed by the flow', async () => {
+    const run = makeRun()
+    await run.start()
     const seen: unknown[] = []
     function Probe() {
       const state = owFlow.useSnapshot()
@@ -179,7 +179,7 @@ describe('bindReact over a Wizard', () => {
       )
     }
     render(
-      <owFlow.Provider source={wizard}>
+      <owFlow.Provider source={run}>
         <Probe />
       </owFlow.Provider>,
     )
@@ -188,21 +188,21 @@ describe('bindReact over a Wizard', () => {
       screen.getByText('express').click()
       await tick()
     })
-    expect(wizard.getState().steps.shipping.input).toEqual({ express: true })
+    expect(run.getState().steps.shipping.input).toEqual({ express: true })
     expect(seen.length).toBeGreaterThan(1)
     expect(new Set(seen).size).toBe(1) // one actions object per source
-    // NavResult (not the ack shape) comes back from a Wizard source.
+    // NavResult (not the ack shape) comes back from a FlowRun source.
     let nav: unknown
     await act(async () => {
       nav = await (seen[0] as ReturnType<typeof owFlow.useActions>).next()
     })
     expect(nav).toMatchObject({ ok: false, code: 'INVALID_INPUT', reason: expect.any(String) })
-    wizard.dispose()
+    run.dispose()
   })
 
   it('useSelector re-renders only when isEqual says the selection changed', async () => {
-    const wizard = makeWizard()
-    await wizard.start()
+    const run = makeRun()
+    await run.start()
     let objRenders = 0
     let shallowRenders = 0
     const shallow = (a: Record<string, unknown>, b: Record<string, unknown>) =>
@@ -219,7 +219,7 @@ describe('bindReact over a Wizard', () => {
       return <span data-testid="shallow">{sel.current}</span>
     }
     render(
-      <owFlow.Provider source={wizard}>
+      <owFlow.Provider source={run}>
         <Fresh />
         <Shallow />
       </owFlow.Provider>,
@@ -227,17 +227,17 @@ describe('bindReact over a Wizard', () => {
     const o0 = objRenders
     const s0 = shallowRenders
     await act(async () => {
-      await wizard.setInput('shipping', { address: 'x' }) // commit that leaves `current` alone
+      await run.setInput('shipping', { address: 'x' }) // commit that leaves `current` alone
     })
     expect(objRenders).toBeGreaterThan(o0)
     expect(shallowRenders).toBe(s0)
     await act(async () => {
-      await wizard.next()
+      await run.next()
       await tick()
     })
     expect(screen.getByTestId('shallow').textContent).toBe('')
     expect(shallowRenders).toBeGreaterThan(s0)
-    wizard.dispose()
+    run.dispose()
   })
 
   it('hooks outside the Provider throw a descriptive error', () => {
@@ -248,15 +248,15 @@ describe('bindReact over a Wizard', () => {
     expect(() => render(<Lost />)).toThrow(/useSnapshot\(\) must be used inside the <Provider>/)
   })
 
-  it('useActions carries the whole Wizard sugar (start/run/reset/compensate, send with correlationId)', async () => {
-    const wizard = makeWizard()
+  it('useActions carries the whole FlowRun sugar (start/run/reset/compensate, send with correlationId)', async () => {
+    const run = makeRun()
     let actions: ReturnType<typeof owFlow.useActions> | undefined
     function Probe() {
       actions = owFlow.useActions()
       return null
     }
     render(
-      <owFlow.Provider source={wizard}>
+      <owFlow.Provider source={run}>
         <Probe />
       </owFlow.Provider>,
     )
@@ -267,37 +267,37 @@ describe('bindReact over a Wizard', () => {
     await act(async () => {
       expect(await actions?.start()).toMatchObject({ ok: true })
     })
-    expect(wizard.getState().current).toBe('shipping')
+    expect(run.getState().current).toBe('shipping')
     await act(async () => {
       await actions?.send('payment.captured', { paymentId: 'p' }, { correlationId: 'corr-9' })
     })
-    expect(wizard.log().find((e) => e.type === 'event.received')).toMatchObject({
+    expect(run.log().find((e) => e.type === 'event.received')).toMatchObject({
       correlationId: 'corr-9',
     })
     await act(async () => {
       expect(await actions?.reset()).toMatchObject({ ok: true })
     })
-    expect(wizard.getState().status).toBe('idle')
-    wizard.dispose()
+    expect(run.getState().status).toBe('idle')
+    run.dispose()
   })
 
   it('works under StrictMode (double render, effect replay)', async () => {
-    const wizard = makeWizard()
-    await wizard.start()
+    const run = makeRun()
+    await run.start()
     render(
       <StrictMode>
-        <owFlow.Provider source={wizard}>
+        <owFlow.Provider source={run}>
           <Status.flow />
         </owFlow.Provider>
       </StrictMode>,
     )
     expect(screen.getByTestId('status').textContent).toBe('waiting/shipping')
     await act(async () => {
-      await wizard.setInput('shipping', { address: 'x' })
-      await wizard.next()
+      await run.setInput('shipping', { address: 'x' })
+      await run.next()
       await tick()
     })
     expect(screen.getByTestId('status').textContent).toBe('done/none')
-    wizard.dispose()
+    run.dispose()
   })
 })

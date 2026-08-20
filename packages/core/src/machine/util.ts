@@ -24,7 +24,7 @@ export function normalizeTargets(value: unknown): readonly string[] {
   return []
 }
 
-/** Element-wise equality of two wizard paths. */
+/** Element-wise equality of two run paths. */
 export function samePath(a: readonly string[], b: readonly string[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false

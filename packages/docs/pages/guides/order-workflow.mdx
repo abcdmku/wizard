@@ -1,0 +1,16 @@
+# Receive an order event
+
+Read [Event inputs](/concepts/external-events) first. The example starts an order run, waits for a
+typed shipment event, and returns the tracking URL.
+
+```ts file="packages/docs/snippets/guides/order-workflow.ts"
+```
+
+`run.send` checks the declared event schema. The correlation extractor must match the run's
+`correlationId`, so an event for another order is dropped.
+
+Use the [incoming webhook integration](/integrations/incoming-webhooks) to turn an HTTP request
+into `run.send`. Use [outgoing webhooks](/integrations/outgoing-webhooks) to deliver automatic run
+events to subscribers. See [`@openwizard/core`](/api/core) for `send` and event result types. The
+[complete order example](/examples/11-order-workflow) adds tasks, retries, compensation, and
+snapshots.

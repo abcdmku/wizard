@@ -11,7 +11,7 @@ import { z } from 'zod'
 /**
  * Services outside the flow that the tasks call. Injected through `deps` (no globals in
  * hooks). Note there is no `tokenize` here: the card number is tokenised in the BROWSER by the
- * payment provider's SDK (`payments.ts` fakes it), so the wizard, the server, the snapshots
+ * payment provider's SDK (`payments.ts` fakes it), so the run, the server, the snapshots
  * and every frame only ever see the opaque token.
  */
 export interface CheckoutDeps {
@@ -19,7 +19,7 @@ export interface CheckoutDeps {
   payments: { charge(token: string, amount: number): Promise<{ chargeId: string }> }
 }
 
-const s = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   version: 1,
   context: z.object({
@@ -27,7 +27,7 @@ const s = defineFlow({
     total: z.number().positive(),
     express: z.boolean().default(false),
     customer: z.string().optional(),
-    /** Opaque token from the payment view; the card number never enters the wizard at all. */
+    /** Opaque token from the payment view; the card number never enters the run at all. */
     paymentToken: z.string().optional(),
     reservationId: z.string().optional(),
     chargeId: z.string().optional(),
@@ -36,9 +36,9 @@ const s = defineFlow({
   onFailure: 'compensate',
 })
 
-export const checkout = s.steps(
+export const checkoutFlow = checkout.steps(
   {
-    shipping: s.view({
+    shipping: checkout.view({
       label: 'Shipping',
       input: z.object({
         name: z.string().min(2, 'Name needs at least 2 characters'),
@@ -49,7 +49,7 @@ export const checkout = s.steps(
       exit: ({ output, update }) => update({ customer: output.name, express: output.express }),
       next: 'payment',
     }),
-    payment: s.view({
+    payment: checkout.view({
       label: 'Payment',
       // The draft holds the provider's token (+ last4 for display), never the card number: the
       // UI tokenises with the provider SDK BEFORE `setInput` (see App.tsx / payments.ts).
@@ -60,7 +60,7 @@ export const checkout = s.steps(
       exit: ({ output, update }) => update({ paymentToken: output.paymentToken }),
       next: 'reserve',
     }),
-    reserve: s.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
+    reserve: checkout.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
       label: 'Reserve stock',
       // `attempts` = retries after the first failure: one retry here, 400 ms later.
       retry: { attempts: 1, backoff: 400 },
@@ -70,7 +70,7 @@ export const checkout = s.steps(
       },
       next: 'charge',
     }),
-    charge: s.task(
+    charge: checkout.task(
       ({ context, deps }) => deps.payments.charge(context.paymentToken ?? '', context.total),
       {
         label: 'Charge card',
@@ -78,7 +78,7 @@ export const checkout = s.steps(
         next: 'receipt',
       },
     ),
-    receipt: s.final({
+    receipt: checkout.final({
       label: 'Receipt',
       output: ({ context }) => ({
         customer: context.customer ?? '',
@@ -93,13 +93,13 @@ export const checkout = s.steps(
 )
 
 /**
- * Deny-by-default projection = the client's whole view of the wizard. Only what is listed
+ * Deny-by-default projection = the client's whole view of the run. Only what is listed
  * crosses the wire: the two view drafts (the payment draft is a token + last4) and their
  * validation issues, the two tasks' sanitized errors, two context fields and the flow output
  * (the receipt). `cartId`, `reservationId`, `chargeId` and the task outputs never do. Base
  * facts (`id` / `kind` / `status` / `phase` / `attempt` per step, `current`, `status`) always do.
  */
-export const checkoutClient = defineProjection(checkout, {
+export const checkoutClient = defineProjection(checkoutFlow, {
   expose: {
     steps: {
       shipping: { input: true, issues: true },

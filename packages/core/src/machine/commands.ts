@@ -1,7 +1,7 @@
 /**
  * Commands (public, JSON-serializable intents) and internal messages.
  *
- * Every `Wizard` method is sugar over `dispatch(command)`. Transports (Mirror,
+ * Every `FlowRun` method is sugar over `dispatch(command)`. Transports (Mirror,
  * HTTP, WebSocket) carry `Command` objects; the machine (`decide`) validates
  * them and turns them into events. Internal messages (`EffectResult`,
  * `TimerFired`) never cross the wire.
@@ -39,7 +39,7 @@ export type Command =
   | { readonly type: 'skip'; readonly step: string; readonly reason?: string }
   /** v0.2: explicit invalidation of a done/failed/skipped step (+ transitive `dependsOn` dependents when `cascade`). */
   | { readonly type: 'invalidate'; readonly step: string; readonly cascade?: boolean }
-  /** Address a command to a nested flow. `path` is relative to this wizard (`['fulfil']`, `['fulfil','payment']`). */
+  /** Address a command to a nested flow. `path` is relative to this run (`['fulfil']`, `['fulfil','payment']`). */
   | { readonly type: 'child'; readonly path: readonly string[]; readonly command: Command }
 
 export type CommandType = Command['type']
@@ -79,6 +79,8 @@ export type HookName =
   /** v0.2: flow-level `on[event]` handler (`event.flowDelivered`); the call's `step` is `''` (no step). */
   | 'flowOn'
 
+export type TaskFailureKind = 'typed' | 'defect' | 'interrupted'
+
 export type EffectResult =
   | {
       readonly type: 'res.ok'
@@ -101,6 +103,12 @@ export type EffectResult =
       readonly timedOut?: boolean
       readonly cancelled?: boolean
       readonly syncViolation?: boolean
+      /** Optional failure classification supplied by a runtime-neutral task adapter. */
+      readonly failure?: {
+        readonly kind: TaskFailureKind
+        /** Present only after the adapter validated its durable error value. */
+        readonly data?: unknown
+      }
       /** Echo of the planned `CallEffect.extra` (see `res.ok`). */
       readonly extra?: Readonly<Record<string, unknown>>
     }
@@ -135,7 +143,7 @@ export type InternalMessage =
       readonly patch: Readonly<Record<string, unknown>>
       readonly by?: string
     }
-  /** Emitted once by `resumeWizard()` after loading a snapshot (see plan §8.8 recovery matrix). */
+  /** Emitted once by `resumeRun()` after loading a snapshot (see plan §8.8 recovery matrix). */
   | { readonly type: 'resume'; readonly fromSeq: number }
 
 /** Everything the interpreter queue can carry. */

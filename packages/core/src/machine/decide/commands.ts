@@ -18,7 +18,7 @@ import {
   skipStep,
 } from '../scheduler'
 import { awaitingWhen, eligible, isRecoverableFailure, isTerminal, ready } from '../selectors'
-import type { WizardStatus } from '../state'
+import type { RunStatus } from '../state'
 
 export type RejectCode =
   | 'UNKNOWN_STEP'
@@ -36,7 +36,7 @@ export function reject(b: Batch, command: Command, code: RejectCode, reason: str
   emit(b, { type: 'command.rejected', command, reason, code })
 }
 
-export const TERMINAL_STATUSES: ReadonlySet<WizardStatus> = new Set(['done', 'failed', 'cancelled'])
+export const TERMINAL_STATUSES: ReadonlySet<RunStatus> = new Set(['done', 'failed', 'cancelled'])
 
 /**
  * Status gate (§0). Returns the rejection code, or undefined when the command

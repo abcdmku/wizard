@@ -1,8 +1,8 @@
 import {
   createMemoryStore,
-  createWizard,
+  createRun,
   isWizardError,
-  resumeWizard,
+  resumeRun,
   type Snapshot,
 } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
@@ -28,7 +28,7 @@ function fakeNotifier(mode: 'instant' | 'hang') {
   return { deps, state }
 }
 
-const settle = () => new Promise<void>((r) => setTimeout(r, 0))
+const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 const context = { requestId: '42', amount: 1_250 }
 
 async function load(
@@ -36,17 +36,17 @@ async function load(
 ): Promise<Snapshot<typeof approval>> {
   const saved = await store.get(KEY)
   if (saved === null) throw new Error(`nothing stored under ${KEY}`)
-  return saved as Snapshot<typeof approval> // a store returns `unknown`; resumeWizard re-validates it
+  return saved as Snapshot<typeof approval> // a store returns `unknown`; resumeRun re-validates it
 }
 
 describe('04 resume from snapshot', () => {
-  it('mid-wait: auto-saved snapshot → crash → resume on a fresh instance → the 48h timeout still fires', async () => {
+  it('resumes a saved wait on a new instance and preserves its 48-hour deadline', async () => {
     const store = createMemoryStore()
     const { deps } = fakeNotifier('instant')
 
     // Process 1 ─────────────────────────────────────────────────────────────────────────
     const sched1 = createTestScheduler({ now: T0 })
-    const first = createWizard(approval, {
+    const first = createRun(approval, {
       context,
       deps,
       instanceId: 'exp-42',
@@ -76,7 +76,7 @@ describe('04 resume from snapshot', () => {
 
     // Process 2, three hours later ──────────────────────────────────────────────────────
     const sched2 = createTestScheduler({ now: T0 + 3 * HOUR })
-    const resumed = resumeWizard(approval, await store.get(KEY), {
+    const resumed = resumeRun(approval, await store.get(KEY), {
       deps,
       store,
       key: KEY,
@@ -105,7 +105,9 @@ describe('04 resume from snapshot', () => {
     expect(resumed.getState().status).toBe('done')
     expect(resumed.getState().output).toBe('expired: nobody decided within 48h')
     expect(
-      resumed.log().some((e) => e.type === 'timer.fired' && e.timerId === 'wait:awaitDecision'),
+      resumed
+        .log()
+        .some((event) => event.type === 'timer.fired' && event.timerId === 'wait:awaitDecision'),
     ).toBe(true)
 
     // The resumed instance keeps persisting under the same key, now with epoch 1.
@@ -115,7 +117,7 @@ describe('04 resume from snapshot', () => {
 
     // A snapshot is plain data: the SAME saved snapshot can be resumed again, e.g. by a replica
     // that receives the decision in time.
-    const replica = resumeWizard(approval, saved, {
+    const replica = resumeRun(approval, saved, {
       deps,
       scheduler: createTestScheduler({ now: T0 + 1 * HOUR }),
     })
@@ -128,10 +130,10 @@ describe('04 resume from snapshot', () => {
     replica.dispose()
   })
 
-  it('mid-task: an interrupted run is failed on resume (kind interrupted) and re-run with retry()', async () => {
+  it('marks an interrupted task failed on resume and recovers when it is retried', async () => {
     const { deps, state } = fakeNotifier('hang')
     const sched1 = createTestScheduler({ now: T0 })
-    const first = createWizard(approval, { context, deps, instanceId: 'exp-43', scheduler: sched1 })
+    const first = createRun(approval, { context, deps, instanceId: 'exp-43', scheduler: sched1 })
     await first.start()
     expect(first.getState().steps.notify).toMatchObject({ status: 'active', attempt: 1 })
     // What a store would hold at this moment (JSON round trip = what any database does).
@@ -139,7 +141,7 @@ describe('04 resume from snapshot', () => {
     first.dispose() // crash while the notifier call is in flight
 
     state.mode = 'instant'
-    const resumed = resumeWizard(approval, snapshot, {
+    const resumed = resumeRun(approval, snapshot, {
       deps,
       scheduler: createTestScheduler({ now: T0 + 60_000 }),
     })
@@ -167,9 +169,9 @@ describe('04 resume from snapshot', () => {
     expect(resumed.getState().output).toBe('rejected by lee')
     resumed.dispose()
   })
-  it('migrate (v0.2): a v1 snapshot resumes into the v2 flow through a converter; without one it is incompatible', async () => {
+  it('migrates a v1 snapshot into the v2 flow and rejects it without a converter', async () => {
     const { deps } = fakeNotifier('instant')
-    const first = createWizard(approval, { context, deps, instanceId: 'exp-44' })
+    const first = createRun(approval, { context, deps, instanceId: 'exp-44' })
     await first.start()
     await settle() // waiting for the decision
     const saved = JSON.parse(JSON.stringify(first.getSnapshot())) as unknown
@@ -177,23 +179,27 @@ describe('04 resume from snapshot', () => {
 
     // The deploy that ships v2 finds v1 snapshots in the store.
     try {
-      resumeWizard(approvalV2, saved, { deps })
+      resumeRun(approvalV2, saved, { deps })
       expect.unreachable()
     } catch (error) {
       expect(isWizardError(error) && error.code).toBe('SNAPSHOT_INCOMPATIBLE')
     }
     // `migrate` runs only when the versions differ; it must return a snapshot of the flow's version.
     const seen: unknown[] = []
-    const resumed = resumeWizard(approvalV2, saved, {
+    const resumed = resumeRun(approvalV2, saved, {
       deps,
       migrate: (snapshot, from) => {
         seen.push(from)
-        const snap = snapshot as Snapshot<typeof approval>
-        const flow = { name: snap.flow.name, version: 2 }
+        const previous = snapshot as Snapshot<typeof approval>
+        const flow = { name: previous.flow.name, version: 2 }
         return {
-          ...snap,
+          ...previous,
           flow, // the envelope …
-          state: { ...snap.state, flow, context: { ...snap.state.context, currency: 'EUR' } }, // … and the state
+          state: {
+            ...previous.state,
+            flow,
+            context: { ...previous.state.context, currency: 'EUR' },
+          }, // … and the state
         }
       },
     })

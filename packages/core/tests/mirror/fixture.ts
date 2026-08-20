@@ -9,13 +9,13 @@ import { defineFlow } from '../../src/authoring/define-flow'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { defineProjection } from '../../src/projection/define-projection'
-import { createWizard, type Wizard, type WizardOptions } from '../../src/wizard/create-wizard'
+import { createRun, type FlowRun, type RunOptions } from '../../src/wizard/create-wizard'
 
 export interface Deps {
   inventory: { reserve(cartId: string): Promise<{ reservationId: string }> }
 }
 
-const s = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({
     cartId: z.string(),
@@ -27,22 +27,22 @@ const s = defineFlow({
   deps: boundary.trusted<Deps>(),
 })
 
-export const checkout = s.steps(
+export const checkoutFlow = checkout.steps(
   {
-    shipping: s.view({
+    shipping: checkout.view({
       input: z.object({ address: z.string().min(1), express: z.boolean().default(false) }),
       exit: ({ output, update }) => update({ express: output.express }),
       next: 'reserve',
     }),
-    reserve: s.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
+    reserve: checkout.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
       next: 'receipt',
     }),
-    receipt: s.final({ output: ({ context }) => ({ cartId: context.cartId }) }),
+    receipt: checkout.final({ output: ({ context }) => ({ cartId: context.cartId }) }),
   },
   { start: 'shipping' },
 )
 
-export const checkoutClient = defineProjection(checkout, {
+export const checkoutClient = defineProjection(checkoutFlow, {
   expose: {
     steps: { shipping: { input: true, issues: true }, reserve: { output: true } },
     context: ['total', 'express'],
@@ -54,10 +54,10 @@ export const deps: Deps = {
   inventory: { reserve: async (cartId) => ({ reservationId: `res-${cartId}` }) },
 }
 
-export function makeWizard(
-  extra: Partial<WizardOptions<typeof checkout>> = {},
-): Wizard<typeof checkout> {
-  return createWizard(checkout, {
+export function makeRun(
+  extra: Partial<RunOptions<typeof checkoutFlow>> = {},
+): FlowRun<typeof checkoutFlow> {
+  return createRun(checkoutFlow, {
     context: { cartId: 'c1', total: 10 },
     deps,
     scheduler: createTestScheduler({ now: 1_000 }),

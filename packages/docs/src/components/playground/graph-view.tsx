@@ -1,4 +1,10 @@
-import { type AnyFlow, type FlowGraph, inspect, type Snapshot, type Wizard } from '@openwizard/core'
+import {
+  type AnyFlow,
+  type FlowGraph,
+  type FlowRun,
+  inspect,
+  type Snapshot,
+} from '@openwizard/core'
 import { useMemo } from 'react'
 import { FlowGraphView, type NodeStateLookup } from './flow-graph'
 
@@ -7,12 +13,12 @@ export interface StepRef {
   readonly id: string
 }
 
-/** The snapshot of the (child) wizard at `path`, walking `Snapshot.children`. */
+/** The snapshot of the (child) run at `path`, walking `Snapshot.children`. */
 export function snapshotAt(
-  wizard: Wizard<AnyFlow>,
+  run: FlowRun<AnyFlow>,
   path: readonly string[],
 ): Snapshot<AnyFlow> | undefined {
-  let snapshot: Snapshot<AnyFlow> | undefined = wizard.getSnapshot()
+  let snapshot: Snapshot<AnyFlow> | undefined = run.getSnapshot()
   for (const step of path) {
     const children: Readonly<Record<string, Snapshot<AnyFlow> | undefined>> =
       snapshot?.children ?? {}
@@ -22,17 +28,17 @@ export function snapshotAt(
 }
 
 /** Live status / phase per node: the root from `getState()` + `explain()`, children from their snapshots. */
-export function liveStateLookup(wizard: Wizard<AnyFlow>): NodeStateLookup {
+export function liveStateLookup(run: FlowRun<AnyFlow>): NodeStateLookup {
   return (path, id) => {
     if (path.length === 0) {
-      const record = wizard.getState().steps[id]
+      const record = run.getState().steps[id]
       if (!record) return undefined
-      const explanation = wizard.explain(id)
+      const explanation = run.explain(id)
       return explanation.phase === undefined
         ? { status: record.status }
         : { status: record.status, phase: explanation.phase }
     }
-    const record = snapshotAt(wizard, path)?.state.steps[id]
+    const record = snapshotAt(run, path)?.state.steps[id]
     return record ? { status: record.status } : undefined
   }
 }
@@ -47,21 +53,21 @@ export function safeInspect(flow: AnyFlow): FlowGraph | { readonly error: string
 
 interface GraphViewProps {
   readonly flow: AnyFlow | undefined
-  readonly wizard: Wizard<AnyFlow> | undefined
+  readonly run: FlowRun<AnyFlow> | undefined
   readonly selected: StepRef | null
   readonly onSelect: (ref: StepRef) => void
 }
 
-/** The Graph tab: `inspect(flow)` as a DAG, nodes coloured by the live wizard state. */
-export function GraphView({ flow, wizard, selected, onSelect }: GraphViewProps) {
+/** The Graph tab: `inspect(flow)` as a flow graph, nodes coloured by the live run state. */
+export function GraphView({ flow, run, selected, onSelect }: GraphViewProps) {
   const graph = useMemo(() => (flow ? safeInspect(flow) : null), [flow])
   // The parent re-renders on every batch of events, so the lookup reads fresh statuses each time.
-  const liveState = wizard ? liveStateLookup(wizard) : undefined
+  const liveState = run ? liveStateLookup(run) : undefined
   if (!graph) {
     return (
       <p className="p-4 font-mono text-xs text-neutral-500">
-        Run the code. The graph is <code>inspect(flow)</code> of the wizard it creates (or of an
-        exported flow).
+        Run code that creates a run or exports a flow. Its <code>inspect(flow)</code> graph appears
+        here.
       </p>
     )
   }

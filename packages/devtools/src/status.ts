@@ -1,5 +1,5 @@
 /**
- * Live status overlay: flatten what a source knows about its steps — a wizard snapshot (state +
+ * Live status overlay: flatten what a source knows about its steps — a run snapshot (state +
  * live children) or a projected `ClientState` (with nested `child` states) — into one
  * `StepStatusMap` keyed by `stepKey(path, id)`, plus the key of the current view.
  *
@@ -8,15 +8,15 @@
 
 import {
   type DevtoolsSource,
+  type FlowRunSource,
+  isFlowRunSource,
   isProjectedState,
-  isWizardSource,
   type ProjectedState,
   type SnapshotLike,
   type StepPhase,
   type StepStatusInfo,
   type StepStatusMap,
   stepKey,
-  type WizardSource,
 } from './types'
 
 /** Mutable accumulator shared by the walkers. */
@@ -26,11 +26,11 @@ interface Collected {
 }
 
 /**
- * Flatten a wizard snapshot (`getSnapshot()`: state + children, recursively) or a projected
+ * Flatten a run snapshot (`getSnapshot()`: state + children, recursively) or a projected
  * `ClientState` (its `steps`, recursing into `child` slices that are projected states) into a
  * `StepStatusMap`, and report the key of the current view (the deepest cursor). Phases come
- * from the projected state when it has them; for a wizard snapshot pass `phaseOf` (typically
- * `(path, id) => wizard.explain(id).phase` scoped to the child) to add them.
+ * from the projected state when it has them; for a run snapshot pass `phaseOf` (typically
+ * `(path, id) => run.explain(id).phase` scoped to the child) to add them.
  * @public
  */
 export function collectStatuses(
@@ -78,15 +78,15 @@ function walkProjected(state: ProjectedState, path: readonly string[], acc: Coll
 }
 
 /**
- * The phase reader for a live wizard: `explain(id).phase` on the wizard for root steps and on
+ * The phase reader for a live run: `explain(id).phase` on the run for root steps and on
  * the live child handle for nested ones (a child that is not live has no phase).
  * @public
  */
-export function wizardPhaseReader(
-  wizard: WizardSource,
+export function runPhaseReader(
+  run: FlowRunSource,
 ): (path: readonly string[], id: string) => StepPhase | undefined {
   return (path, id) => {
-    let scope: WizardSource = wizard
+    let scope: FlowRunSource = run
     for (const step of path) {
       try {
         scope = scope.child(step)
@@ -100,7 +100,7 @@ export function wizardPhaseReader(
 
 /**
  * The live overlay of a source for one of its snapshots (`source.getSnapshot()`): statuses (with
- * phases) and the current view key — the wizard snapshot + `explain` for a wizard, the projected
+ * phases) and the current view key — the run snapshot + `explain` for a run, the projected
  * state for a Mirror (a `select` projection that is not `ClientState`-shaped yields an empty map).
  * @public
  */
@@ -108,8 +108,8 @@ export function overlayOf(
   source: DevtoolsSource,
   snapshot: unknown,
 ): { readonly statuses: StepStatusMap; readonly current: string | null } {
-  if (isWizardSource(source)) {
-    return collectStatuses(snapshot as SnapshotLike, wizardPhaseReader(source))
+  if (isFlowRunSource(source)) {
+    return collectStatuses(snapshot as SnapshotLike, runPhaseReader(source))
   }
   return isProjectedState(snapshot) ? collectStatuses(snapshot) : { statuses: {}, current: null }
 }

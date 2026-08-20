@@ -15,8 +15,24 @@ import { defineConfig } from 'vitest/config'
  */
 const coreSource = fileURLToPath(new URL('./packages/core/src/index.ts', import.meta.url))
 const coreTestingSource = fileURLToPath(new URL('./packages/core/src/testing.ts', import.meta.url))
+const durableSource = fileURLToPath(new URL('./packages/durable/src/index.ts', import.meta.url))
+const durableDrizzleSource = fileURLToPath(
+  new URL('./packages/drizzle/src/index.ts', import.meta.url),
+)
+const durableDrizzlePgSource = fileURLToPath(
+  new URL('./packages/drizzle/src/pg.ts', import.meta.url),
+)
+const durableDrizzleSqliteSource = fileURLToPath(
+  new URL('./packages/drizzle/src/sqlite.ts', import.meta.url),
+)
 const reactSource = fileURLToPath(new URL('./packages/react/src/index.ts', import.meta.url))
 const devtoolsSource = fileURLToPath(new URL('./packages/devtools/src/index.ts', import.meta.url))
+const effectSource = fileURLToPath(new URL('./packages/effect/src/index.ts', import.meta.url))
+const effectV4Source = fileURLToPath(new URL('./packages/effect-v4/src/index.ts', import.meta.url))
+const webhooksSource = fileURLToPath(new URL('./packages/webhooks/src/index.ts', import.meta.url))
+const webhooksNitroSource = fileURLToPath(
+  new URL('./packages/webhooks/src/nitro.ts', import.meta.url),
+)
 const devtoolsStyle = fileURLToPath(
   new URL('./packages/devtools/src/styles/theme.css', import.meta.url),
 )
@@ -24,9 +40,17 @@ const devtoolsStyle = fileURLToPath(
 const sourceAliases = [
   { find: '@openwizard/core/testing', replacement: coreTestingSource },
   { find: '@openwizard/core', replacement: coreSource },
+  { find: '@openwizard/durable', replacement: durableSource },
+  { find: '@openwizard/drizzle/pg', replacement: durableDrizzlePgSource },
+  { find: '@openwizard/drizzle/sqlite', replacement: durableDrizzleSqliteSource },
+  { find: '@openwizard/drizzle', replacement: durableDrizzleSource },
   { find: '@openwizard/react', replacement: reactSource },
   { find: '@openwizard/devtools/style.css', replacement: devtoolsStyle },
   { find: '@openwizard/devtools', replacement: devtoolsSource },
+  { find: '@openwizard/effect', replacement: effectSource },
+  { find: '@openwizard/effect-v4', replacement: effectV4Source },
+  { find: '@openwizard/webhooks/nitro', replacement: webhooksNitroSource },
+  { find: '@openwizard/webhooks', replacement: webhooksSource },
 ]
 
 export default defineConfig({
@@ -42,6 +66,35 @@ export default defineConfig({
             enabled: true,
             include: ['tests/**/*.test-d.ts'],
             exclude: ['tests/__canary__/**'],
+            tsconfig: './tsconfig.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        test: {
+          name: 'durable',
+          root: './packages/durable',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'drizzle',
+          root: './packages/drizzle',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
             tsconfig: './tsconfig.json',
             ignoreSourceErrors: false,
           },
@@ -71,6 +124,65 @@ export default defineConfig({
           typecheck: {
             enabled: true,
             include: ['tests/**/*.test-d.{ts,tsx}'],
+            tsconfig: './tsconfig.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        test: {
+          name: 'opentelemetry',
+          root: './packages/opentelemetry',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'effect',
+          root: './packages/effect',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'effect-v4',
+          root: './packages/effect-v4',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'webhooks',
+          root: './packages/webhooks',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
             tsconfig: './tsconfig.json',
             ignoreSourceErrors: false,
           },

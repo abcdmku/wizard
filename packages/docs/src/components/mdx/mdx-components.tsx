@@ -3,6 +3,7 @@ import type { MDXComponents } from 'mdx/types'
 import { type ComponentPropsWithoutRef, useRef } from 'react'
 import { Badge, Callout, Step, Steps, Tab, Tabs } from './blocks'
 import { CopyButton } from './copy-button'
+import { Diagram } from './diagram'
 
 /** Site-absolute links navigate client-side (and get the deployment base); others are plain anchors. */
 function MdxAnchor({ href, children, className, title }: ComponentPropsWithoutRef<'a'>) {
@@ -63,4 +64,5 @@ export const mdxComponents: MDXComponents = {
   Step,
   Tabs,
   Tab,
+  Diagram,
 }

@@ -28,7 +28,7 @@
  * their values through the child's boundaries exactly once, at child creation.
  *
  * Results are cached per `Flow` object (`defineFlow().steps()` compiles eagerly, so
- * `createWizard` never compiles twice).
+ * `createRun` never compiles twice).
  *
  * @packageDocumentation
  */
@@ -48,7 +48,7 @@ export interface FlowWarning {
   readonly message: string
   /** Step the warning is about. */
   readonly step?: string
-  /** Wizard path of the flow the step belongs to (`[]` = root). */
+  /** Run path of the flow the step belongs to (`[]` = root). */
   readonly path: readonly string[]
 }
 

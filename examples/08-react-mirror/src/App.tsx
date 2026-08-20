@@ -1,10 +1,10 @@
 /**
- * The UI. Every component reads and writes ONLY through the hooks of `ow` (a Mirror behind a
- * Provider). Nothing here imports the wizard, the flow module or the server.
+ * The UI. Every component reads and writes ONLY through the hooks of `checkout` (a Mirror behind a
+ * Provider). Nothing here imports the run, the flow module or the server.
  */
 import type { Issue, Mirror } from '@openwizard/core'
 import { type ReactNode, useId, useState } from 'react'
-import { ow } from './client'
+import { checkout } from './client'
 import type { checkoutClient } from './flow'
 import { tokenizeCard } from './payments'
 
@@ -15,13 +15,13 @@ export function App({ mirror }: { mirror: Mirror<typeof checkoutClient> }) {
         <p className="eyebrow">OpenWizard · example 08</p>
         <h1>Checkout, mirrored</h1>
         <p className="lede">
-          The wizard runs in an in-page "server". This UI only sees a <code>Mirror</code> over a
+          The run runs in an in-page "server". This UI only sees a <code>Mirror</code> over a
           deny-by-default projection and sends commands over a loopback transport (with latency).
         </p>
       </header>
-      <ow.Provider source={mirror} fallback={<Connecting />}>
+      <checkout.Provider source={mirror} fallback={<Connecting />}>
         <Checkout />
-      </ow.Provider>
+      </checkout.Provider>
     </main>
   )
 }
@@ -35,8 +35,8 @@ function Connecting() {
 }
 
 function Checkout() {
-  const status = ow.useSelector((s) => s.status)
-  const current = ow.useCurrent()
+  const status = checkout.useSelector((state) => state.status)
+  const current = checkout.useCurrent()
   let body: ReactNode
   if (current?.id === 'shipping') body = <ShippingForm />
   else if (current?.id === 'payment') body = <PaymentForm />
@@ -53,7 +53,7 @@ function Checkout() {
 
 /** Step rail. `useSnapshot()` re-renders on every frame, fine for a summary of everything. */
 function Progress() {
-  const state = ow.useSnapshot()
+  const state = checkout.useSnapshot()
   const order = ['shipping', 'payment', 'reserve', 'charge', 'receipt'] as const
   return (
     <ol className="rail">
@@ -73,13 +73,13 @@ function Progress() {
 
 function ShippingForm() {
   // Typed from the projection: `input` is the draft, `setInput` accepts a partial of it.
-  const { input, issues, status, setInput, next } = ow.useStep('shipping')
+  const { input, issues, status, setInput, next } = checkout.useStep('shipping')
   const busy = status !== 'active'
   return (
     <form
       className="form"
-      onSubmit={(e) => {
-        e.preventDefault()
+      onSubmit={(event) => {
+        event.preventDefault()
         void next()
       }}
     >
@@ -89,7 +89,7 @@ function ShippingForm() {
           <input
             id={id}
             value={input?.name ?? ''}
-            onChange={(e) => void setInput({ name: e.target.value })}
+            onChange={(event) => void setInput({ name: event.target.value })}
             autoComplete="name"
           />
         )}
@@ -99,7 +99,7 @@ function ShippingForm() {
           <input
             id={id}
             value={input?.address ?? ''}
-            onChange={(e) => void setInput({ address: e.target.value })}
+            onChange={(event) => void setInput({ address: event.target.value })}
             autoComplete="street-address"
           />
         )}
@@ -108,7 +108,7 @@ function ShippingForm() {
         <input
           type="checkbox"
           checked={input?.express ?? false}
-          onChange={(e) => void setInput({ express: e.target.checked })}
+          onChange={(event) => void setInput({ express: event.target.checked })}
         />
         Express delivery
       </label>
@@ -125,12 +125,12 @@ function ShippingForm() {
 /**
  * The card number lives in LOCAL component state only. On submit it goes to the payment
  * provider (`tokenizeCard`, the browser SDK stand-in) and only the token and last4 reach the
- * wizard through `setInput`. So no card number in any draft, snapshot, projection or frame.
+ * run through `setInput`. So no card number in any draft, snapshot, projection or frame.
  */
 function PaymentForm() {
-  const { input, issues, status, setInput, next, back } = ow.useStep('payment')
-  const total = ow.useSelector((s) => s.context.total)
-  const express = ow.useSelector((s) => s.context.express)
+  const { input, issues, status, setInput, next, back } = checkout.useStep('payment')
+  const total = checkout.useSelector((state) => state.context.total)
+  const express = checkout.useSelector((state) => state.context.express)
   const [card, setCard] = useState('')
   const [tokenizing, setTokenizing] = useState(false)
   const [cardError, setCardError] = useState<string | null>(null)
@@ -140,7 +140,7 @@ function PaymentForm() {
     setCardError(null)
     try {
       const { token, last4 } = await tokenizeCard(card) // PAN → provider, token ← provider
-      await setInput({ paymentToken: token, last4 }) // the wizard only ever sees the token
+      await setInput({ paymentToken: token, last4 }) // the run only ever sees the token
       await next()
     } catch (error) {
       setCardError(error instanceof Error ? error.message : String(error))
@@ -151,8 +151,8 @@ function PaymentForm() {
   return (
     <form
       className="form"
-      onSubmit={(e) => {
-        e.preventDefault()
+      onSubmit={(event) => {
+        event.preventDefault()
         void pay()
       }}
     >
@@ -169,7 +169,7 @@ function PaymentForm() {
             inputMode="numeric"
             autoComplete="cc-number"
             value={card}
-            onChange={(e) => setCard(e.target.value.replace(/\D/g, ''))}
+            onChange={(event) => setCard(event.target.value.replace(/\D/g, ''))}
             placeholder="16 digits"
           />
         )}
@@ -192,10 +192,10 @@ function PaymentForm() {
 
 /** Running tasks: status, live phase and attempt are base facts of the projection; `error` is exposed for these two steps. */
 function TaskPanel() {
-  const reserve = ow.useStep('reserve')
-  const charge = ow.useStep('charge')
-  const status = ow.useSelector((s) => s.status)
-  const { cancel } = ow.useActions()
+  const reserve = checkout.useStep('reserve')
+  const charge = checkout.useStep('charge')
+  const status = checkout.useSelector((state) => state.status)
+  const { cancel } = checkout.useActions()
   return (
     <div className="form">
       <h2>{status === 'running' ? 'Processing your order…' : `Order ${status}`}</h2>
@@ -236,7 +236,7 @@ function TaskRow({
 }
 
 function Receipt() {
-  const output = ow.useSelector((s) => s.output)
+  const output = checkout.useSelector((state) => state.output)
   return (
     <div className="form">
       <h2>Thank you{output?.customer ? `, ${output.customer}` : ''}!</h2>
@@ -256,8 +256,8 @@ function Receipt() {
 
 /** Frame counter: proves the UI is fed by frames (`seq`) of one instance/epoch. */
 function WireStatus() {
-  const wire = ow.useSelector(
-    (s) => ({ instanceId: s.instanceId, epoch: s.epoch, seq: s.seq }),
+  const wire = checkout.useSelector(
+    (state) => ({ instanceId: state.instanceId, epoch: state.epoch, seq: state.seq }),
     (a, b) => a.instanceId === b.instanceId && a.epoch === b.epoch && a.seq === b.seq,
   )
   return (
@@ -281,9 +281,9 @@ function Field({
     <div className="field">
       <label htmlFor={id}>{label}</label>
       {children(id)}
-      {issues.map((i) => (
-        <span key={i.message} className="issue">
-          {i.message}
+      {issues.map((issue) => (
+        <span key={issue.message} className="issue">
+          {issue.message}
         </span>
       ))}
     </div>
@@ -298,13 +298,13 @@ function RootIssues({
   issues: readonly Issue[] | undefined
   fields: readonly string[]
 }) {
-  const rest = (issues ?? []).filter((i) => !fields.includes(String(fieldOf(i))))
+  const rest = (issues ?? []).filter((issue) => !fields.includes(String(fieldOf(issue))))
   if (rest.length === 0) return null
   return (
     <div>
-      {rest.map((i) => (
-        <span key={i.message} className="issue">
-          {i.message}
+      {rest.map((issue) => (
+        <span key={issue.message} className="issue">
+          {issue.message}
         </span>
       ))}
     </div>
@@ -312,7 +312,7 @@ function RootIssues({
 }
 
 function issuesFor(issues: readonly Issue[] | undefined, field: string): readonly Issue[] {
-  return (issues ?? []).filter((i) => fieldOf(i) === field)
+  return (issues ?? []).filter((issue) => fieldOf(issue) === field)
 }
 
 /** First path segment of a Standard-Schema issue (`['name']` or `[{ key: 'name' }]`). */

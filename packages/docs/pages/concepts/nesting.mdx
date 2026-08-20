@@ -1,85 +1,18 @@
-# Nesting
+# Nested flows
 
-`s.flow(child, config)` embeds another flow as a step. The child runs as a real wizard with its own queue, instance id and snapshot, and the parent step completes with the child's output.
+A `flow` step runs a child flow with its own context, state, input events, and final output.
 
-```ts
-import { boundary, defineFlow } from '@openwizard/core'
-import { z } from 'zod'
-
-const f = defineFlow({
-  name: 'fulfilment',
-  context: z.object({ orderId: z.string(), warehouse: z.enum(['east', 'west']).default('east'), tracking: z.string().optional() }),
-  deps: boundary.trusted<Deps>(), // the same Deps shape, so the parent can hand its deps down unchanged
-})
-
-export const fulfilment = f.steps({
-  pick: f.view({ input: z.object({ warehouse: z.enum(['east', 'west']) }), exit: ({ output, update }) => update(output), next: 'ship' }),
-  ship: f.task(async ({ context, deps, update }) => update(await deps.carrier.ship(context.orderId, context.warehouse)), { next: 'shipped' }),
-  shipped: f.final({ output: ({ context }) => ({ tracking: context.tracking }) }), // what the parent receives
-})
+```ts file="packages/docs/snippets/concepts/nesting.ts"
 ```
 
-The parent embeds it as one step, mapping context in and output back out.
+`run.child('fulfil')` returns the live child after that step starts. Child events reach the
+parent's observer with a path such as `['fulfil']`. The parent step completes when the child
+finishes, or fails when the child fails. The child snapshot sits inside the parent snapshot, so
+both resume together.
 
-```ts
-// s = defineFlow({ name: 'order', context: z.object({ orderId, tracking? }), deps: boundary.trusted<Deps>() })
-export const order = s.steps({
-  pay: s.task(({ context, deps }) => deps.payments.charge(context.orderId), { next: 'fulfil' }),
-  fulfil: s.flow(fulfilment, {
-    context: ({ context }) => ({ orderId: context.orderId }), // parsed by the child's context boundary
-    exit: ({ output, update }) => update({ tracking: output.tracking }), // output is the child's typed output
-    next: 'receipt',
-  }),
-  receipt: s.final({ output: ({ context }) => context.tracking }),
-})
-```
+The parent can map context and dependencies into the child, validate its output, and compensate
+the child as one unit. Nesting is limited to eight levels, and a flow cannot contain one of its
+ancestors.
 
-## The flow step's config
-
-| Key | What it does |
-|---|---|
-| `context` | required, builds the child's context input, parsed once when the child is created, defaults applied |
-| `deps` | optional; leave it out and the child gets the parent's `deps` object unchanged |
-| `output` | a boundary re-checking the child's output, default `FlowOutput<Child>`; the checked value is what `exit` sees and what `steps[k].output` holds |
-
-A mapper that throws, or a boundary that rejects, fails the step with `kind: 'child'`. Nesting goes at most 8 levels deep, and a flow that embeds one of its own ancestors throws `NESTING_CYCLE`.
-
-## wizard.child(step)
-
-Returns a typed `Wizard<typeof fulfilment>` once the step is active. Before that it throws `NOT_ACTIVE`, and a step that isn't a flow step throws `NOT_A_FLOW_STEP`.
-
-```ts
-await wizard.start() // pay runs, fulfil enters, the child is created with { orderId }
-const child = wizard.child('fulfil')
-child.getState().context // { orderId: 'o-1', warehouse: 'east' }, the child boundary's default
-await child.setInput('pick', { warehouse: 'west' })
-await child.next() // pick, then ship, then shipped, and the parent's fulfil step is done
-```
-
-### Over the wire
-
-`Command<F>` types the `path`, which must name flow steps, and the nested command by the child flow. Untrusted JSON goes through `parseCommand(order, body)` first, which answers with issues instead of throwing.
-
-```ts
-await wizard.dispatch({ type: 'child', path: ['fulfil'], command }) // parent's queue, logged as child.command
-await wizard.dispatch({ type: 'child', path: ['fulfil', 'pack'], command }) // paths nest, so this reaches a grandchild
-```
-
-## What the parent sees
-
-Child events reach the parent's `observe()` carrying their `path`, like `['fulfil']`, so one
-stream covers the whole tree. The parent's `log()` stays its own ring of root events.
-
-The parent also emits `child.started { childPath, context }` and keeps a compact `child` summary
-on the flow step with `status`, `current`, `progress` and `seq`. `inspect(order)` includes the
-child's nodes and edges with their `path`, and `toMermaid` draws each child as a subgraph.
-
-## Persistence
-
-The child's snapshot nests at `Snapshot.children.fulfil`, so parent and child persist and resume as one unit; a missing child is re-created on resume. Compensating a flow step delegates to the child, which unwinds completely before the parent continues.
-
-## On the client
-
-A projection exposes a child with a nested spec, and its projected state rides along in `steps.fulfil.child`. From there `mirror.child('fulfil')` and `ow.useChild('fulfil')` give you the same command set typed by the child flow. See [Projections and the Mirror](/concepts/projections) and [React](/concepts/react).
-
-[Example 06](/examples/06-nested-flow) runs this order flow end to end, including the Mirror side.
+Client commands and projections identify descendants with the same path. Next, persist the server
+run in [Persistence and resume](/concepts/persistence).

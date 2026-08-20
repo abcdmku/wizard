@@ -1,106 +1,20 @@
-# DAGs
+# Parallel work and joins
 
-There is no separate DAG mode. `next` is a navigation edge, meaning where completion arrives; `dependsOn` is data readiness, meaning what has to be done before an arrived step may run. An array of `next` targets is a fan-out, a `dependsOn` list is a join.
+An array of `next` targets starts several branches. `dependsOn` holds the join until its required
+branches finish.
 
-```ts
-import { boundary, defineFlow } from '@openwizard/core'
-import { z } from 'zod'
-
-const s = defineFlow({
-  name: 'ingest',
-  context: z.object({ rows: z.number().default(0), quality: z.number().default(0), enrichment: z.boolean().default(true) }),
-  deps: boundary.trusted<{ etl: Etl }>(),
-  concurrency: 2, // at most two tasks running at once
-})
-
-export const pipeline = s.steps({
-  fetch: s.task(async ({ deps, update }) => update({ rows: await deps.etl.fetch() }), {
-    next: ['normalize', 'enrich'], // fan-out: both branches arrive at once and run in parallel
-  }),
-  normalize: s.task(({ context, deps }) => deps.etl.normalize(context.rows), { next: 'gate' }),
-  enrich: s.task(async ({ context, deps, update }) => update(await deps.etl.enrich(context.rows)), {
-    when: ({ context }) => context.enrichment, // false means skipped, not run
-    next: 'gate',
-  }),
-  gate: s.decision({
-    dependsOn: ['normalize', 'enrich'], // the join: arrives with the first branch, ready once both are done
-    next: ({ context }) => (context.quality >= 0.8 ? 'store' : 'quarantine'),
-  }),
-  store: s.task(({ context, deps }) => deps.etl.write(context.rows), { next: 'done' }),
-  quarantine: s.final({ output: ({ context }) => `quarantined (quality ${context.quality})` }),
-  done: s.final({ output: ({ context }) => `stored ${context.rows} rows` }),
-})
+```ts file="packages/docs/snippets/concepts/dag.ts"
 ```
 
-## The readiness rule
+`next` activates a step. `dependsOn` only delays an activated step, so every joined branch must
+point to the join. An array in `dependsOn` requires every listed step. `{ any: ['a', 'b'] }`
+requires either one.
 
-A step activates on arrival, meaning it is a `start` step or a completed step's `next` selected it. `dependsOn` then gates that pending activation, where an array is an AND-join and `{ any: [...] }` is an OR-join.
+`when` skips a ready step when its predicate returns false. A skipped step satisfies dependencies.
+`skip(step)` does the same by command. `invalidate(step)` returns finished work to idle. By
+default, it also invalidates completed or active transitive dependents.
 
-<Callout type="warning" title="Dependencies alone never activate a step">
-  A join has to be in the `next` of every branch it joins, which is why `gate` above is the `next`
-  of both. `inspect()` warns `NEVER_ACTIVATES` for a step with `dependsOn` and no incoming `next`
-  or `start` edge.
-</Callout>
+`run.explain('join')` reports missing dependencies, concurrency limits, and other readiness
+reasons. A `final` step cancels the other active branches, so join any required work before it.
 
-### What runs on its own
-
-| Ready step | What happens |
-|---|---|
-| `task`, `decision`, `wait`, `flow` | enters by itself under the default `autoRun: 'ready'`, tasks bounded by `concurrency` and started in activation order |
-| `view` | waits for the cursor, because a view means a person |
-
-If `current` is null after a commit and exactly one view is ready, the cursor moves there on its own, as `transition.committed { cause: 'auto' }`. If several are ready the cursor stays null and `explain()` lists the candidates, because picking one would be a guess.
-
-### Fan-out is atomic
-
-`next: ['a', 'b']` evaluates every target's `canEnter` first, and if any says no the whole transition is rejected. Otherwise all targets arrive in order, the cursor moves to the first view among them, and the other views stay ready and reachable with `go`.
-
-### Loops and terminals
-
-Revisiting a step is allowed. Each entry increments `runId` and resets that run's attempts, error and output, though a view keeps its draft.
-
-Entering a `final` step runs its `output`, emits `flow.done` and cancels every other active step. So if a branch has to finish first, join it into the final with `dependsOn`.
-
-| Limit | Value |
-|---|---|
-| auto-advance chain | 1000 hops per command |
-| `dependsOn` cycles | rejected at compile time |
-
-## Watching a join with explain()
-
-```ts
-await wizard.start() // fetch runs, fans out, both branches start at once
-wizard.explain('gate').reasons // ['not-activated', 'deps-unmet:normalize', 'deps-unmet:enrich']
-
-sched.advance(300) // normalize finishes and arrives at the gate
-wizard.explain('gate') // { phase: 'blocked', reasons: ['deps-unmet:enrich'] }
-
-sched.advance(200) // enrich finishes, the join is satisfied, gate routes to store, then done
-```
-
-With `concurrency: 1` the branches run one at a time and `explain('enrich')` says `concurrency-limit`. With `autoRun: 'manual'` ready steps say `auto-run-manual` and start only when you call `runReady()`.
-
-## when and skip(step)
-
-`when` is evaluated once the step is ready, after `dependsOn` gating and before `enter`, and `false` skips the step as `step.skipped { reason: 'when' }`. A skipped step counts as done for `dependsOn` and its `next` targets still arrive, which is why the join above still proceeds on `normalize` alone.
-
-```ts
-await wizard.skip('enrich', 'flag off') // step.skipped { reason: 'command' }
-// ready or active non-final steps only: an active task is cancelled and its late result ignored,
-// the current view exits without validation, and a finished step answers { ok: false }
-```
-
-### invalidate(step, options)
-
-Returns a `done`, `failed` or `skipped` step to `idle`, where a view keeps its draft and the old output moves to `previousOutput`. With `cascade`, on by default, every transitive `dependsOn` dependent that has finished follows and running ones are cancelled. It is never automatic, because whether downstream work should re-run is your call.
-
-```ts
-await wizard.invalidate('normalize') // gate goes back to idle too
-await wizard.invalidate('normalize', { cascade: false }) // just this step
-```
-
-## Data between branches
-
-Branches hand data forward through the shared context: `update()` shallow-merges, so each branch writes its own keys and the decision routes on the merged result. The `steps` map hooks receive is open and untyped, so the typed way is always `update()`.
-
-[Example 07](/examples/07-dag-pipeline) proves the parallelism with virtual time, and shows `concurrency`, `autoRun: 'manual'`, `when`, `skip()` and `progress()` on one graph.
+A whole workflow can also be one step. Continue with [Nested flows](/concepts/nesting).

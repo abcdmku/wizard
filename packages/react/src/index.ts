@@ -1,6 +1,6 @@
 /**
  * @openwizard/react — the public surface. `bindReact<typeof flowOrProjection>()` returns a
- * typed `Provider` and hooks over a `Wizard` (flow) or a `Mirror` (projection).
+ * typed `Provider` and hooks over a `FlowRun` (flow) or a `Mirror` (projection).
  *
  * @packageDocumentation
  */

@@ -1,0 +1,29 @@
+# Deploy a host
+
+Read [Defining flows](/concepts/defining-flows) first. The example exposes one flow through Nitro
+and builds a Node server artifact.
+
+Create `nitro.config.ts`:
+
+```ts file="packages/docs/snippets/guides/nitro.config.ts"
+```
+
+Create `server/routes/api/runs.post.ts`:
+
+```ts file="packages/docs/snippets/guides/runs.post.ts"
+```
+
+Build and run it:
+
+```sh
+pnpm nitro build --preset node_server
+node .output/server/index.mjs
+```
+
+Nitro produces the server files. Your deployment tool creates databases, queues, secrets, and
+network policy, then passes their bindings to the host. A long-running workflow should open a
+durable run as shown in the [durability guide](/guides/durability).
+
+See [`@openwizard/core`](/api/core) for the flow and run APIs. The
+[deployment artifact example](/examples/13-deployment-artifacts) builds the same source for Node,
+AWS Lambda, Azure, Firebase, Cloudflare Workers, Vercel, and Netlify.

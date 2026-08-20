@@ -13,7 +13,7 @@ import { defineFlow } from '../../src/authoring/define-flow'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { createMemoryStore } from '../../src/persistence/memory-store'
-import { createWizard, resumeWizard, type StepState } from '../../src/wizard/create-wizard'
+import { createRun, resumeRun, type StepState } from '../../src/wizard/create-wizard'
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -30,7 +30,7 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
   const setup = () => {
     let contextParses = 0
     let depsParses = 0
-    const c = defineFlow({
+    const child = defineFlow({
       name: 'child',
       // Transform-style boundary: a string INPUT becomes a number OUTPUT — parsing the OUTPUT
       // again would fail (`Number` is not a string), so this proves the boundary runs once.
@@ -47,48 +47,48 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
       }),
     })
     const seen: { context: unknown; deps: unknown }[] = []
-    const child = c.steps({
-      work: c.task(
+    const childFlow = child.steps({
+      work: child.task(
         ({ context, deps }) => {
           seen.push({ context, deps })
           return context.n * 2
         },
         { next: 'end' },
       ),
-      end: c.final({ output: ({ context }) => context.n }),
+      end: child.final({ output: ({ context }) => context.n }),
     })
     // A deps-less child: it must receive the parent's deps object unchanged.
-    const p = defineFlow({ name: 'plain', context: boundary.trusted<{ ok: boolean }>() })
+    const plain = defineFlow({ name: 'plain', context: boundary.trusted<{ ok: boolean }>() })
     const plainSeen: unknown[] = []
-    const plain = p.steps({
-      look: p.task(
+    const plainFlow = plain.steps({
+      look: plain.task(
         ({ deps }) => {
           plainSeen.push(deps)
           return 1
         },
         { next: 'end' },
       ),
-      end: p.final(),
+      end: plain.final(),
     })
-    const s = defineFlow({
+    const parent = defineFlow({
       name: 'parent',
       context: z.object({ raw: z.string() }),
       deps: boundary.trusted<ParentDeps>(),
     })
-    const parent = s.steps(
+    const parentFlow = parent.steps(
       {
-        sub: s.flow(child, {
+        sub: parent.flow(childFlow, {
           context: ({ context }) => ({ n: context.raw }),
           deps: ({ deps }) => ({ svc: deps.svc }) as unknown as ChildDeps,
           next: 'fallback',
         }),
-        fallback: s.flow(plain, { context: () => ({ ok: true }), next: 'done' }),
-        done: s.final({ output: ({ steps }) => steps.sub?.output }),
+        fallback: parent.flow(plainFlow, { context: () => ({ ok: true }), next: 'done' }),
+        done: parent.final({ output: ({ steps }) => steps.sub?.output }),
       },
       { start: 'sub' },
     )
     const parentDeps: ParentDeps = { svc: { name: 'inventory' }, extra: 1 }
-    const wizard = createWizard(parent, {
+    const run = createRun(parentFlow, {
       context: { raw: '21' },
       deps: parentDeps,
       scheduler: createTestScheduler({ now: 1_000 }),
@@ -96,8 +96,8 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
       instanceId: 'p-1',
     })
     return {
-      wizard,
-      parent,
+      run,
+      parentFlow,
       parentDeps,
       seen,
       plainSeen,
@@ -107,45 +107,45 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
 
   it('parses the mapped context once (transform), maps + parses deps once, passes parent deps through unchanged', async () => {
     const t = setup()
-    await t.wizard.start()
+    await t.run.start()
     await tick()
     await tick()
     expect(t.parses()).toEqual({ context: 1, deps: 1 })
     expect(t.seen).toEqual([
       { context: { n: 21 }, deps: { svc: { name: 'inventory' }, parsed: true } },
     ])
-    expect(t.wizard.getState().steps.sub.output).toBe(21)
+    expect(t.run.getState().steps.sub.output).toBe(21)
     // The child's deps object is the PARSED value, not the parent's object.
     expect(t.seen[0]?.deps).not.toBe(t.parentDeps)
     // The deps-less child got the parent's deps object itself.
     expect(t.plainSeen).toHaveLength(1)
     expect(t.plainSeen[0]).toBe(t.parentDeps)
-    expect(t.wizard.getState().status).toBe('done')
-    expect(t.wizard.getState().output).toBe(21)
-    t.wizard.dispose()
+    expect(t.run.getState().status).toBe('done')
+    expect(t.run.getState().output).toBe(21)
+    t.run.dispose()
   })
 
   it('a throwing deps mapper / a rejecting deps boundary fails the flow step (kind child), context untouched', async () => {
-    const c = defineFlow({
+    const child = defineFlow({
       name: 'child',
       context: boundary.trusted<{ n: number }>(),
       deps: boundary.guard(
         (v): v is { svc: string } => typeof v === 'object' && v !== null && 'svc' in v,
       ),
     })
-    const child = c.steps({ end: c.final() })
-    const s = defineFlow({ name: 'parent', context: boundary.trusted<{ n: number }>() })
-    const throwing = s.steps({
-      f: s.flow(child, {
+    const childFlow = child.steps({ end: child.final() })
+    const parent = defineFlow({ name: 'parent', context: boundary.trusted<{ n: number }>() })
+    const throwing = parent.steps({
+      f: parent.flow(childFlow, {
         context: ({ context }) => ({ n: context.n }),
         deps: () => {
           throw new Error('no deps for you')
         },
         next: 'e',
       }),
-      e: s.final(),
+      e: parent.final(),
     })
-    const w1 = createWizard(throwing, { context: { n: 1 } })
+    const w1 = createRun(throwing, { context: { n: 1 } })
     await w1.start()
     expect(w1.getState().steps.f).toMatchObject({
       status: 'failed',
@@ -154,15 +154,15 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
     expect(w1.getState().status).toBe('failed')
     w1.dispose()
 
-    const rejecting = s.steps({
-      f: s.flow(child, {
+    const rejecting = parent.steps({
+      f: parent.flow(childFlow, {
         context: ({ context }) => ({ n: context.n }),
         deps: () => ({ nope: 1 }) as never,
         next: 'e',
       }),
-      e: s.final(),
+      e: parent.final(),
     })
-    const w2 = createWizard(rejecting, { context: { n: 1 } })
+    const w2 = createRun(rejecting, { context: { n: 1 } })
     await w2.start()
     expect(w2.getState().steps.f).toMatchObject({
       status: 'failed',
@@ -176,24 +176,24 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
     const t = setup()
     const store = createMemoryStore()
     // Recreate with a store so the running child is persisted, then resume from it.
-    const c = defineFlow({
+    const child = defineFlow({
       name: 'child',
       context: boundary.trusted<{ n: number }>(),
       deps: boundary.parse((v) => ({ ...(v as { svc: string }), parsed: true })),
     })
     const depsSeen: unknown[] = []
-    const child = c.steps({
-      wait: c.view({ enter: ({ deps }) => depsSeen.push(deps), next: 'end' }),
-      end: c.final(),
+    const childFlow = child.steps({
+      wait: child.view({ enter: ({ deps }) => depsSeen.push(deps), next: 'end' }),
+      end: child.final(),
     })
-    const s = defineFlow({
+    const parent = defineFlow({
       name: 'parent',
       context: boundary.trusted<{ n: number }>(),
       deps: boundary.trusted<{ svc: string }>(),
     })
     let mapperCalls = 0
-    const parent = s.steps({
-      f: s.flow(child, {
+    const parentFlow = parent.steps({
+      f: parent.flow(childFlow, {
         context: ({ context }) => ({ n: context.n }),
         deps: ({ deps }) => {
           mapperCalls += 1
@@ -201,9 +201,9 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
         },
         next: 'e',
       }),
-      e: s.final(),
+      e: parent.final(),
     })
-    const first = createWizard(parent, { context: { n: 1 }, deps: { svc: 'a' }, store, key: 'k' })
+    const first = createRun(parentFlow, { context: { n: 1 }, deps: { svc: 'a' }, store, key: 'k' })
     await first.start()
     expect(mapperCalls).toBe(1)
     expect(depsSeen).toEqual([{ svc: 'a', parsed: true }])
@@ -211,7 +211,7 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
     await first.save()
     first.dispose()
 
-    const resumed = resumeWizard(parent, await store.get('k'), { deps: { svc: 'b' } })
+    const resumed = resumeRun(parentFlow, await store.get('k'), { deps: { svc: 'b' } })
     expect(mapperCalls).toBe(2) // mapped again at restore, from the NEW parent deps
     // The restored child continues with the freshly mapped + parsed deps.
     depsSeen.length = 0
@@ -220,41 +220,41 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
     ).toMatchObject({ ok: true })
     expect(resumed.child('f').getState().status).toBe('done')
     resumed.dispose()
-    t.wizard.dispose()
+    t.run.dispose()
   })
 })
 
 describe('decision output parity and the user transaction of next()', () => {
-  const s = defineFlow({ name: 'routes', context: boundary.trusted<{ n: number }>() })
-  const flow = s.steps(
+  const routes = defineFlow({ name: 'routes', context: boundary.trusted<{ n: number }>() })
+  const flow = routes.steps(
     {
-      form: s.view({ next: 'route' }),
-      route: s.decision({ next: ({ context }) => (context.n > 0 ? 'yes' : ['yes', 'no']) }),
-      yes: s.view({ next: 'end' }),
-      no: s.view({ next: 'end' }),
-      end: s.final(),
+      form: routes.view({ next: 'route' }),
+      route: routes.decision({ next: ({ context }) => (context.n > 0 ? 'yes' : ['yes', 'no']) }),
+      yes: routes.view({ next: 'end' }),
+      no: routes.view({ next: 'end' }),
+      end: routes.final(),
     },
     { start: 'form' },
   )
 
   it('StepState<F, decision>.output is the normalized target list at runtime too', async () => {
-    const wizard = createWizard(flow, { context: { n: 1 } })
-    await wizard.start()
-    await wizard.next()
-    const route: StepState<typeof flow, 'route'> = wizard.getState().steps.route
+    const run = createRun(flow, { context: { n: 1 } })
+    await run.start()
+    await run.next()
+    const route: StepState<typeof flow, 'route'> = run.getState().steps.route
     // Type: readonly ('yes' | 'no')[] | undefined — runtime: ['yes'] (a string target is normalized).
     const output: readonly ('yes' | 'no')[] | undefined = route.output
     expect(output).toEqual(['yes'])
-    wizard.dispose()
+    run.dispose()
   })
 
   it('next() reports the user transaction when a cursor-rule auto transition commits in the same batch', async () => {
-    const wizard = createWizard(flow, { context: { n: 1 } })
-    await wizard.start()
+    const run = createRun(flow, { context: { n: 1 } })
+    await run.start()
     // form → route (user tx) → yes (auto: decision + cursor rule) in one batch.
-    const result = await wizard.next()
+    const result = await run.next()
     expect(result).toMatchObject({ ok: true, from: 'form', to: 'route' })
-    expect(wizard.getState().current).toBe('yes')
-    wizard.dispose()
+    expect(run.getState().current).toBe('yes')
+    run.dispose()
   })
 })

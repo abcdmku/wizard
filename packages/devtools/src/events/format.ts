@@ -1,14 +1,14 @@
 /**
- * Row facts of a `WizardEvent` for the log and the timeline: the step / event name it is about,
- * its wizard path, a compact timestamp and a one-line detail.
+ * Row facts of a `RunEvent` for the log and the timeline: the step / event name it is about,
+ * its run path, a compact timestamp and a one-line detail.
  *
  * @packageDocumentation
  */
 
-import type { WizardEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
 
 /** The step an event is about (`step`, else the `to` of a transition), or `''`. */
-export function eventStep(event: WizardEvent): string {
+export function eventStep(event: RunEvent): string {
   const e = event as { readonly step?: string; readonly to?: string | null }
   if (typeof e.step === 'string') return e.step
   if (event.type === 'transition.committed' || event.type === 'transition.started') {
@@ -18,7 +18,7 @@ export function eventStep(event: WizardEvent): string {
 }
 
 /** The external event name (`event.*` events, `flow.started`'s start step is not one). */
-export function eventName(event: WizardEvent): string {
+export function eventName(event: RunEvent): string {
   const e = event as { readonly event?: string }
   return typeof e.event === 'string' ? e.event : ''
 }
@@ -46,7 +46,7 @@ export function formatAt(at: number, origin?: number): string {
 const ENVELOPE = new Set(['seq', 'at', 'path', 'causedBy', 'durationMs', 'type', 'step'])
 
 /** One line of the body fields that are not the envelope / step (`reason=…`, `attempt=2`, …). */
-export function eventDetail(event: WizardEvent): string {
+export function eventDetail(event: RunEvent): string {
   const parts: string[] = []
   for (const [key, value] of Object.entries(event)) {
     if (ENVELOPE.has(key) || value === undefined) continue
@@ -70,7 +70,7 @@ function brief(value: unknown): string {
 }
 
 /** Case-insensitive substring filter over type / step / event name / path. */
-export function matchesFilter(event: WizardEvent, filter: string): boolean {
+export function matchesFilter(event: RunEvent, filter: string): boolean {
   const needle = filter.trim().toLowerCase()
   if (needle === '') return true
   const hay =

@@ -68,7 +68,7 @@ export function DocsLayout({
         </aside>
 
         <main className="min-w-0">
-          <article ref={articleRef} className="docs-article mx-auto max-w-3xl" data-pagefind-body>
+          <article ref={articleRef} className="docs-article mx-auto" data-pagefind-body>
             {children}
           </article>
           <div className="mx-auto mt-14 grid max-w-3xl grid-cols-1 gap-3 border-t border-neutral-200 pt-6 sm:grid-cols-2 dark:border-neutral-800">

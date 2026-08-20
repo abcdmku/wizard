@@ -1,0 +1,23 @@
+# Drizzle durability
+
+`@openwizard/drizzle` implements the [durable coordination API](/api/durable) with an
+application-owned PostgreSQL or asynchronous SQLite connection.
+
+```sh
+pnpm add @openwizard/durable @openwizard/drizzle drizzle-orm
+```
+
+Define tables beside the application's existing schema, run migrations with Drizzle Kit, then
+adapt the existing database.
+
+```ts file="packages/docs/snippets/integrations/drizzle.ts"
+```
+
+Pass the application's existing Drizzle connection to `createDurableStore`. The adapter does not
+create a connection or read database credentials.
+
+Use `@openwizard/drizzle/sqlite` with `defineSqliteDurableSchema` and
+`createSqliteDrizzleDurableStore` for an asynchronous SQLite driver. The application still owns
+connections, migrations, credentials, and retention.
+
+See the [Drizzle API](/api/drizzle) for both dialects.

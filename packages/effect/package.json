@@ -1,0 +1,67 @@
+{
+  "name": "@openwizard/effect",
+  "version": "0.1.0-next.0",
+  "description": "Effect 3.22.1 integration for OpenWizard FlowRun tasks.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm -w exec vitest run --project effect",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "peerDependencies": {
+    "@openwizard/core": "workspace:^",
+    "@standard-schema/spec": ">=1.1.0 <2",
+    "effect": ">=3.22.1 <4"
+  },
+  "devDependencies": {
+    "@openwizard/core": "workspace:*",
+    "@standard-schema/spec": "^1.1.0",
+    "effect": "3.22.1"
+  },
+  "keywords": [
+    "wizard",
+    "workflow",
+    "effect",
+    "durable-execution",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abcdmku/wizard.git",
+    "directory": "packages/effect"
+  },
+  "bugs": "https://github.com/abcdmku/wizard/issues",
+  "homepage": "https://github.com/abcdmku/wizard#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

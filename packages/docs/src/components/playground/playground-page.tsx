@@ -5,7 +5,7 @@ import { Ide } from './ide'
 import { allSamples, landingSample } from './samples'
 import { usePlayground } from './use-playground'
 
-/** `/playground?example=07-dag-pipeline` opens with that example loaded. */
+/** `/playground?example=11-order-workflow` opens with the backend order example loaded. */
 function requestedSample(search: unknown) {
   const id =
     typeof search === 'object' &&

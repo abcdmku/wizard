@@ -1,27 +1,31 @@
 # Examples
 
-Ten workspace packages under `examples/`, each with a runnable entry point and tests that drive
-it end to end. Most assert on the event log, 09 asserts on the rendered graph, and 08 and 10 drive
-their React UI through the DOM. These pages embed the real sources at build time.
+These workspace packages turn the concepts into runnable code. Read them in order, or jump to the
+first topic you need.
 
-| Example | Shows |
+| Example | Covers |
 |---|---|
-| [01 · Happy path](/examples/01-happy-path) | the smallest useful wizard: a form view, a CRM task, a final step, and validation that comes back as a value |
-| [02 · Recoverable failure](/examples/02-recoverable-failure) | `retry: { attempts, backoff }`, `idempotent` keys, `mapError`, and `retry(step)` after the attempts run out |
-| [03 · Compensation](/examples/03-non-recoverable-compensation) | `onFailure: 'compensate'` unwinding a trip booking in reverse, and `compensate({ from })` to re-try a failed undo |
-| [04 · Resume from snapshot](/examples/04-resume-from-snapshot) | auto-save, crash, `resumeWizard()` on a fresh process, re-armed timers, `migrate` for old snapshots |
-| [05 · External events](/examples/05-external-events) | a payment webhook: schema-checked bodies, early events buffered with a TTL, wait timeouts, `correlate` |
-| [06 · Nested flow](/examples/06-nested-flow) | a fulfilment flow as one step of an order flow: `wizard.child()`, child events with a `path`, nested snapshots |
-| [07 · DAG pipeline](/examples/07-dag-pipeline) | no views at all: fan-out, parallel tasks under `concurrency`, an AND-join, `explain()`, `when` and `skip()` |
-| [08 · React + Mirror](/examples/08-react-mirror) | a checkout the UI drives through a `Mirror` only, over a deny-by-default projection, with a jsdom test |
-| [09 · Mermaid](/examples/09-mermaid) | `toMermaid(inspect(flow))`: the static graph as a Mermaid flowchart, timeout edges and child subgraphs included |
-| [10 · Devtools](/examples/10-devtools) | example 07's pipeline under the `@openwizard/devtools` panel: live graph, event log, inspector, timeline |
+| [01: Happy path](/examples/01-happy-path) | one view, one task, validation, and a final result |
+| [02: Recoverable failure](/examples/02-recoverable-failure) | retries, idempotency, typed errors, and virtual time |
+| [03: Compensation](/examples/03-non-recoverable-compensation) | reverse-order cleanup after a failure |
+| [04: Resume from snapshot](/examples/04-resume-from-snapshot) | save, stop, resume, restore timers, and migrate |
+| [05: Input events](/examples/05-external-events) | typed input events, buffering, timeouts, and correlation |
+| [06: Nested flow](/examples/06-nested-flow) | child runs, commands, events, snapshots, and mirrors |
+| [07: Parallel work](/examples/07-dag-pipeline) | branches, joins, concurrency, skipping, and `explain()` |
+| [08: React and Mirror](/examples/08-react-mirror) | a projected run over a serialized loopback transport |
+| [09: Mermaid](/examples/09-mermaid) | rendering a static flow graph |
+| [10: Devtools](/examples/10-devtools) | graph, events, inspector, and timeline in a live app |
+| [11: Backend order workflow](/examples/11-order-workflow) | retries, events, persistence, and compensation together |
+| [12: Pulumi database binding](/examples/12-pulumi-infrastructure) | validating stack configuration and preserving a secret URL |
+| [13: Deployment artifacts](/examples/13-deployment-artifacts) | building one Nitro host for seven runtime targets |
 
-01 to 07 and 09 also run in the [playground](/playground); 08 and 10 are React apps you run
-locally.
+From the repository root:
 
 ```sh
-pnpm install && pnpm build
-pnpm examples                                   # typecheck + test every example against the built package
-pnpm --filter example-07-dag-pipeline start     # run one example's walk-through
+pnpm install
+pnpm build
+pnpm examples
 ```
+
+Each page links the exact source and test. Examples 01 through 07, 09, and 11 also run in the
+[playground](/playground).

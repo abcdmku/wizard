@@ -251,7 +251,7 @@ Resume (§8.8 row "task active (running)"): `interrupted` = tasks with a run in 
 
 ### 10.5 Snapshot migration (façade, plan §9.5)
 
-`resumeWizardRuntime(def, snapshot, { migrate })` / `…Async`: when `snapshot.flow.name === def.name && snapshot.flow.version !== def.version` (and only then), `migrate(snapshot, { name, version })` runs first; its result is validated like any snapshot (its `flow.version` must equal `def.version` — no auto-bump). A name mismatch never migrates. Sync door: a thenable result → `SNAPSHOT_INCOMPATIBLE` reason `migrate: returned a promise … (use resumeWizardAsync)`; a throw → `migrate: threw (…)`. Async door awaits it (rejection → the same reason).
+`resumeWizardRuntime(def, snapshot, { migrate })` / `…Async`: when `snapshot.flow.name === def.name && snapshot.flow.version !== def.version` (and only then), `migrate(snapshot, { name, version })` runs first; its result is validated like any snapshot (its `flow.version` must equal `def.version` — no auto-bump). A name mismatch never migrates. Sync door: a thenable result → `SNAPSHOT_INCOMPATIBLE` reason `migrate: returned a promise … (use resumeRunAsync)`; a throw → `migrate: threw (…)`. Async door awaits it (rejection → the same reason).
 
 ### 10.6 Selectors + runtime conveniences (plan §9.6)
 

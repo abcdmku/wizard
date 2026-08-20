@@ -36,7 +36,7 @@ const args = (extra: Record<string, unknown> = {}): HookArgs =>
   }) as HookArgs
 
 describe('compile: output shape', () => {
-  const s = defineFlow({
+  const shape = defineFlow({
     name: 'shape',
     version: 2,
     context: z.object({ a: z.string() }),
@@ -51,9 +51,9 @@ describe('compile: output shape', () => {
   const child = defineFlow({ name: 'child', context: z.object({ n: z.number() }) })
   const childFlow = child.steps({ end: child.final({ output: ({ context }) => context.n }) })
 
-  const flow = s.steps(
+  const flow = shape.steps(
     {
-      form: s.view({
+      form: shape.view({
         label: 'Form',
         input: z.object({ qty: z.string().transform(Number) }),
         initial: { qty: '1' },
@@ -64,31 +64,31 @@ describe('compile: output shape', () => {
         exit: () => {},
         next: 'work',
       }),
-      work: s.task(async () => ({ id: 1 }), {
+      work: shape.task(async () => ({ id: 1 }), {
         output: z.object({ id: z.number() }),
         retry: { attempts: 3, backoff: 'exponential', baseMs: 100, factor: 3, maxBackoffMs: 2000 },
         timeout: '5s',
         compensate: () => {},
         next: ({ output }) => (output.id > 0 ? 'wait' : null),
       }),
-      wait: s.wait({
+      wait: shape.wait({
         on: { ping: ({ payload }) => ({ next: payload.n > 0 ? 'route' : undefined }) },
         timeout: { after: '15m', next: 'sub' },
         next: 'route',
       }),
-      route: s.decision({ next: () => ['sub', 'sub2'] }),
-      sub: s.flow(childFlow, {
+      route: shape.decision({ next: () => ['sub', 'sub2'] }),
+      sub: shape.flow(childFlow, {
         context: () => ({ n: 1 }),
         output: z.number(),
         next: 'done',
         dependsOn: ['work'],
       }),
-      sub2: s.flow(childFlow, {
+      sub2: shape.flow(childFlow, {
         context: () => ({ n: 2 }),
         next: 'done',
         dependsOn: { any: ['work', 'wait'] },
       }),
-      done: s.final({ output: ({ context }) => context.a }),
+      done: shape.final({ output: ({ context }) => context.a }),
     },
     { start: 'form' },
   )
@@ -114,11 +114,11 @@ describe('compile: output shape', () => {
   })
 
   it('defaults: version 1, start = first step, halt/ready/Infinity/buffer 5m', () => {
-    const b = defineFlow({ name: 'd', context: boundary.trusted() })
-    const d = compile(b.steps({ a: b.final() }))
-    expect(d.version).toBe(1)
-    expect(d.start).toEqual(['a'])
-    expect(d.policies).toEqual({
+    const defaults = defineFlow({ name: 'd', context: boundary.trusted() })
+    const dFlow = compile(defaults.steps({ a: defaults.final() }))
+    expect(dFlow.version).toBe(1)
+    expect(dFlow.start).toEqual(['a'])
+    expect(dFlow.policies).toEqual({
       onFailure: 'halt',
       autoRun: 'ready',
       concurrency: Number.POSITIVE_INFINITY,
@@ -223,9 +223,9 @@ describe('compile: output shape', () => {
 })
 
 describe('compile: retry policy validation (one shape shared with the machine, no mapping)', () => {
-  const s = defineFlow({ name: 'r', context: boundary.trusted() })
+  const retryPolicy = defineFlow({ name: 'r', context: boundary.trusted() })
   const retryOf = (retry: Any) =>
-    compile(s.steps({ t: s.task(async () => 1, { retry }) })).steps.t?.retry
+    compile(retryPolicy.steps({ t: retryPolicy.task(async () => 1, { retry }) })).steps.t?.retry
   it('passes a valid policy through untouched: immediate, fixed ms, exponential (+ tuning)', () => {
     expect(retryOf({ attempts: 2 })).toEqual({ attempts: 2 })
     expect(retryOf({ attempts: 2, backoff: 0 })).toEqual({ attempts: 2, backoff: 0 })

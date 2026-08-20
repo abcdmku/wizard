@@ -8,11 +8,11 @@ import { boundary } from '../../src/authoring/boundary'
 import { defineFlow } from '../../src/authoring/define-flow'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import { createWizard, type WizardEvent } from '../../src/wizard/create-wizard'
+import { createRun, type RunEvent } from '../../src/wizard/create-wizard'
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
-const s = defineFlow({
+const v02 = defineFlow({
   name: 'v02',
   context: z.object({
     id: z.string(),
@@ -35,63 +35,63 @@ const s = defineFlow({
     'order.cancelled': (p) => p.orderId,
   },
 })
-const flow = s.steps(
+const flow = v02.steps(
   {
-    a: s.view({ input: z.object({ v: z.string() }), next: 'b' }),
-    b: s.view({ next: 'c' }),
-    c: s.view({ when: ({ context }) => context.note !== 'skip-c', next: 'end' }),
-    end: s.final({ output: ({ context }) => `note=${context.note ?? ''}` }),
+    a: v02.view({ input: z.object({ v: z.string() }), next: 'b' }),
+    b: v02.view({ next: 'c' }),
+    c: v02.view({ when: ({ context }) => context.note !== 'skip-c', next: 'end' }),
+    end: v02.final({ output: ({ context }) => `note=${context.note ?? ''}` }),
   },
   { start: 'a' },
 )
 
 function make(extra: { correlationId?: string } = {}) {
   const sched = createTestScheduler({ now: 1_000 })
-  const wizard = createWizard(flow, {
+  const run = createRun(flow, {
     context: { id: 'w' },
     scheduler: sched,
     ids: createSequentialIds(),
     instanceId: 'wiz-1',
     ...extra,
   })
-  const events: WizardEvent<typeof flow>[] = []
-  wizard.observe((e) => events.push(e))
-  const of = <T extends WizardEvent['type']>(type: T) =>
-    events.filter((e): e is Extract<WizardEvent<typeof flow>, { type: T }> => e.type === type)
-  return { wizard, sched, events, of }
+  const events: RunEvent<typeof flow>[] = []
+  run.observe((e) => events.push(e))
+  const of = <T extends RunEvent['type']>(type: T) =>
+    events.filter((e): e is Extract<RunEvent<typeof flow>, { type: T }> => e.type === type)
+  return { run, sched, events, of }
 }
 
-describe('Wizard v0.2: progress / readyViews / skip / invalidate', () => {
+describe('FlowRun v0.2: progress / readyViews / skip / invalidate', () => {
   it('progress counts non-final steps (skipped = done); readyViews lists the current + ready views', async () => {
-    const { wizard, of } = make()
-    expect(wizard.progress()).toEqual({ done: 0, total: 3, ratio: 0 })
-    expect(wizard.readyViews()).toEqual([])
-    await wizard.start()
-    expect(wizard.readyViews()).toEqual(['a'])
-    expect(await wizard.skip('a', 'prefilled')).toMatchObject({ ok: true })
+    const { run, of } = make()
+    expect(run.progress()).toEqual({ done: 0, total: 3, ratio: 0 })
+    expect(run.readyViews()).toEqual([])
+    await run.start()
+    expect(run.readyViews()).toEqual(['a'])
+    expect(await run.skip('a', 'prefilled')).toMatchObject({ ok: true })
     expect(of('step.skipped').at(-1)).toMatchObject({ step: 'a', reason: 'command' })
-    expect(wizard.getState().steps.a.status).toBe('skipped')
-    expect(wizard.getState().current).toBe('b')
-    expect(wizard.progress()).toEqual({ done: 1, total: 3, ratio: 1 / 3 })
-    expect(wizard.readyViews()).toEqual(['b'])
+    expect(run.getState().steps.a.status).toBe('skipped')
+    expect(run.getState().current).toBe('b')
+    expect(run.progress()).toEqual({ done: 1, total: 3, ratio: 1 / 3 })
+    expect(run.readyViews()).toEqual(['b'])
     // `skip('typo')` from JS is a value, never a throw.
-    expect(await wizard.skip('typo' as never)).toMatchObject({ ok: false })
+    expect(await run.skip('typo' as never)).toMatchObject({ ok: false })
     // invalidate a skipped step: back to idle (never automatic).
-    expect(await wizard.invalidate('a')).toMatchObject({ ok: true })
+    expect(await run.invalidate('a')).toMatchObject({ ok: true })
     expect(of('step.invalidated').at(-1)).toMatchObject({ step: 'a', cascade: true })
-    expect(wizard.getState().steps.a.status).toBe('idle')
-    expect(wizard.progress()).toEqual({ done: 0, total: 3, ratio: 0 })
+    expect(run.getState().steps.a.status).toBe('idle')
+    expect(run.progress()).toEqual({ done: 0, total: 3, ratio: 0 })
     // The current view cannot be invalidated (use `back`); an unknown id is a value.
-    expect(await wizard.invalidate('b')).toMatchObject({ ok: false })
-    expect(await wizard.invalidate('typo' as never, { cascade: false })).toMatchObject({
+    expect(await run.invalidate('b')).toMatchObject({ ok: false })
+    expect(await run.invalidate('typo' as never, { cascade: false })).toMatchObject({
       ok: false,
     })
-    wizard.dispose()
+    run.dispose()
   })
 
   it('`when: false` skips a step when it becomes ready (`reason: when`) and the cursor moves past it', async () => {
-    const direct = createWizard(flow, { context: { id: 'w', note: 'skip-c' } })
-    const events: WizardEvent<typeof flow>[] = []
+    const direct = createRun(flow, { context: { id: 'w', note: 'skip-c' } })
+    const events: RunEvent<typeof flow>[] = []
     direct.observe((e) => events.push(e))
     await direct.start()
     await direct.setInput('a', { v: 'x' })
@@ -108,12 +108,12 @@ describe('Wizard v0.2: progress / readyViews / skip / invalidate', () => {
   })
 })
 
-describe('Wizard v0.2: attach, correlation, flow-level `on`', () => {
+describe('FlowRun v0.2: attach, correlation, flow-level `on`', () => {
   it('attach hands the typed send to a source and detaches on dispose (or by hand)', async () => {
-    const { wizard, of } = make()
-    await wizard.start()
+    const { run, of } = make()
+    await run.start()
     let detached = 0
-    const detach = wizard.attach((send) => {
+    const detach = run.attach((send) => {
       void send('note.added', { text: 'from-source' })
       return () => {
         detached += 1
@@ -122,52 +122,52 @@ describe('Wizard v0.2: attach, correlation, flow-level `on`', () => {
     await tick()
     // A view (`a`) has no `note.added` handler; the flow-level one still ran (`flow:` prefix).
     expect(of('event.received').at(-1)).toMatchObject({ event: 'note.added' })
-    expect(wizard.getState().context.note).toBe('flow:from-source')
+    expect(run.getState().context.note).toBe('flow:from-source')
     detach()
     detach() // idempotent
     expect(detached).toBe(1)
-    wizard.attach(() => () => {
+    run.attach(() => () => {
       detached += 1
     })
-    wizard.dispose()
+    run.dispose()
     expect(detached).toBe(2)
-    expect(() => wizard.attach(() => () => {})).toThrow(/disposed/)
+    expect(() => run.attach(() => () => {})).toThrow(/disposed/)
   })
 
   it('correlationId is stored in the state; a correlated event with another id is dropped, matching ids are delivered', async () => {
-    const { wizard, of } = make({ correlationId: 'order-1' })
-    expect(wizard.getState().correlationId).toBe('order-1')
-    await wizard.start()
-    const foreign = await wizard.send('note.added', { text: 'x', orderId: 'order-9' })
+    const { run, of } = make({ correlationId: 'order-1' })
+    expect(run.getState().correlationId).toBe('order-1')
+    await run.start()
+    const foreign = await run.send('note.added', { text: 'x', orderId: 'order-9' })
     expect(foreign).toMatchObject({ ok: false, reason: 'dropped' })
     expect(of('event.dropped').at(-1)).toMatchObject({ event: 'note.added', reason: 'correlation' })
-    expect(wizard.getState().context.note).toBeUndefined()
+    expect(run.getState().context.note).toBeUndefined()
     // Same id (or none): handled by the flow-level handler.
-    await wizard.send('note.added', { text: 'mine', orderId: 'order-1' })
-    expect(wizard.getState().context.note).toBe('flow:mine')
-    await wizard.send('note.added', { text: 'anon' })
-    expect(wizard.getState().context.note).toBe('flow:anon')
+    await run.send('note.added', { text: 'mine', orderId: 'order-1' })
+    expect(run.getState().context.note).toBe('flow:mine')
+    await run.send('note.added', { text: 'anon' })
+    expect(run.getState().context.note).toBe('flow:anon')
     // A flow-level `{ cancel }` cancels the flow.
     expect(
-      await wizard.send('order.cancelled', { orderId: 'order-1', reason: 'changed mind' }),
+      await run.send('order.cancelled', { orderId: 'order-1', reason: 'changed mind' }),
     ).toMatchObject({
       ok: true,
     })
-    expect(wizard.getState().status).toBe('cancelled')
-    expect(wizard.getState().context.cancelled).toBe(true)
-    wizard.dispose()
+    expect(run.getState().status).toBe('cancelled')
+    expect(run.getState().context.cancelled).toBe(true)
+    run.dispose()
   })
 
   it('a task / view `on` handler runs while the step is active; a view handler may move the cursor', async () => {
-    const t = defineFlow({
+    const onKinds = defineFlow({
       name: 'on-kinds',
       context: z.object({ hits: z.array(z.string()).default([]) }),
       events: { ping: z.object({ to: z.string().optional() }) },
     })
     let release: (() => void) | undefined
-    const f = t.steps(
+    const f = onKinds.steps(
       {
-        form: t.view({
+        form: onKinds.view({
           on: {
             ping: ({ payload, update, context }) => {
               update({ hits: [...context.hits, 'form'] })
@@ -176,8 +176,8 @@ describe('Wizard v0.2: attach, correlation, flow-level `on`', () => {
           },
           next: 'work',
         }),
-        other: t.view({ next: 'work' }),
-        work: t.task(
+        other: onKinds.view({ next: 'work' }),
+        work: onKinds.task(
           () =>
             new Promise<number>((resolve) => {
               release = () => resolve(1)
@@ -187,38 +187,38 @@ describe('Wizard v0.2: attach, correlation, flow-level `on`', () => {
             next: 'end',
           },
         ),
-        end: t.final(),
+        end: onKinds.final(),
       },
       { start: 'form' },
     )
-    const wizard = createWizard(f, { context: {} })
-    await wizard.start()
-    expect(await wizard.send('ping', {})).toMatchObject({ ok: true, delivered: ['form'] })
-    expect(wizard.getState().context.hits).toEqual(['form'])
+    const run = createRun(f, { context: {} })
+    await run.start()
+    expect(await run.send('ping', {})).toMatchObject({ ok: true, delivered: ['form'] })
+    expect(run.getState().context.hits).toEqual(['form'])
     // `{ next: 'other' }` from a view handler moves the cursor (cause: 'event').
-    expect(await wizard.send('ping', { to: 'other' })).toMatchObject({ ok: true })
+    expect(await run.send('ping', { to: 'other' })).toMatchObject({ ok: true })
     await tick()
-    expect(wizard.getState().current).toBe('other')
-    await wizard.next() // other → work (task runs, pending)
-    expect(wizard.getState().steps.work.status).toBe('active')
-    expect(await wizard.send('ping', {})).toMatchObject({ ok: true, delivered: ['work'] })
+    expect(run.getState().current).toBe('other')
+    await run.next() // other → work (task runs, pending)
+    expect(run.getState().steps.work.status).toBe('active')
+    expect(await run.send('ping', {})).toMatchObject({ ok: true, delivered: ['work'] })
     await tick()
-    expect(wizard.getState().context.hits).toEqual(['form', 'form', 'work'])
+    expect(run.getState().context.hits).toEqual(['form', 'form', 'work'])
     release?.()
     await tick()
-    expect(wizard.getState().status).toBe('done')
-    wizard.dispose()
+    expect(run.getState().status).toBe('done')
+    run.dispose()
   })
 
   it('compiled handler results reach the machine raw: a wait `{ done }` overrides the output, `{ fail }` fails the wait, a stray task `{ next }` is ignored (reason: kind)', async () => {
-    const t = defineFlow({
+    const rawResults = defineFlow({
       name: 'raw-results',
       context: boundary.trusted<{}>(),
       events: { paid: z.object({ amount: z.number() }), nudge: z.unknown() },
     })
-    const f = t.steps(
+    const f = rawResults.steps(
       {
-        hold: t.wait({
+        hold: rawResults.wait({
           on: {
             paid: ({ payload }) =>
               payload.amount < 0
@@ -227,17 +227,17 @@ describe('Wizard v0.2: attach, correlation, flow-level `on`', () => {
           },
           next: 'work',
         }),
-        work: t.task(() => new Promise<never>(() => {}), {
+        work: rawResults.task(() => new Promise<never>(() => {}), {
           // A JS-style handler returning what a task cannot honour.
           on: { nudge: (() => ({ next: 'end' })) as unknown as () => undefined },
           next: 'end',
         }),
-        end: t.final(),
+        end: rawResults.final(),
       },
       { start: 'hold' },
     )
-    const doneWizard = createWizard(f, { context: {} })
-    const events: WizardEvent[] = []
+    const doneWizard = createRun(f, { context: {} })
+    const events: RunEvent[] = []
     doneWizard.observe((e) => events.push(e))
     await doneWizard.start()
     expect(await doneWizard.send('paid', { amount: 21 })).toMatchObject({ ok: true })
@@ -251,7 +251,7 @@ describe('Wizard v0.2: attach, correlation, flow-level `on`', () => {
     ])
     expect(doneWizard.getState().steps.work.status).toBe('active')
     doneWizard.dispose()
-    const failed = createWizard(f, { context: {} })
+    const failed = createRun(f, { context: {} })
     await failed.start()
     expect(await failed.send('paid', { amount: -1 })).toMatchObject({ ok: true })
     expect(failed.getState().steps.hold.error).toMatchObject({
@@ -263,14 +263,14 @@ describe('Wizard v0.2: attach, correlation, flow-level `on`', () => {
   })
 
   it('readyViews() is memoized per state (one array identity per seq)', async () => {
-    const { wizard } = make()
-    await wizard.start()
-    const first = wizard.readyViews()
+    const { run } = make()
+    await run.start()
+    const first = run.readyViews()
     expect(first).toEqual(['a'])
-    expect(wizard.readyViews()).toBe(first)
-    await wizard.setInput('a', { v: 'x' })
-    expect(wizard.readyViews()).not.toBe(first)
-    expect(wizard.readyViews()).toBe(wizard.readyViews())
-    wizard.dispose()
+    expect(run.readyViews()).toBe(first)
+    await run.setInput('a', { v: 'x' })
+    expect(run.readyViews()).not.toBe(first)
+    expect(run.readyViews()).toBe(run.readyViews())
+    run.dispose()
   })
 })

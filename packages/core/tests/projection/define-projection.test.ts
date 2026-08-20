@@ -6,27 +6,27 @@ import { z } from 'zod'
 import { defineFlow } from '../../src/authoring/define-flow'
 import { WizardError } from '../../src/errors'
 import { defineProjection } from '../../src/projection/define-projection'
-import { createWizard } from '../../src/wizard/create-wizard'
+import { createRun } from '../../src/wizard/create-wizard'
 
-const c = defineFlow({
+const child = defineFlow({
   name: 'child',
   context: z.object({ n: z.number(), childSecret: z.string() }),
 })
-const child = c.steps({
-  work: c.task(async () => ({ r: 1 }), { next: 'end' }),
-  end: c.final({ output: () => 'child-out' }),
+const childFlow = child.steps({
+  work: child.task(async () => ({ r: 1 }), { next: 'end' }),
+  end: child.final({ output: () => 'child-out' }),
 })
 
-const s = defineFlow({
+const root = defineFlow({
   name: 'root',
   context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
 })
-const flow = s.steps(
+const flow = root.steps(
   {
-    form: s.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
-    reserve: s.task(async () => ({ reservationId: 'r' }), { next: 'sub' }),
-    sub: s.flow(child, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
-    done: s.final({ output: () => ({ receipt: 1 }) }),
+    form: root.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
+    reserve: root.task(async () => ({ reservationId: 'r' }), { next: 'sub' }),
+    sub: root.flow(childFlow, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
+    done: root.final({ output: () => ({ receipt: 1 }) }),
   },
   { start: 'form' },
 )
@@ -40,8 +40,8 @@ describe('defineProjection', () => {
       select: undefined,
     })
     expect(projection.flow).toBe(flow)
-    expect(defineProjection(child, { expose: {} }).flow).toBe(child)
-    const select = (s: { seq: number }) => s.seq
+    expect(defineProjection(childFlow, { expose: {} }).flow).toBe(childFlow)
+    const select = (state: { seq: number }) => state.seq
     expect(defineProjection(flow, { select })).toEqual({
       '~types': undefined,
       flow,
@@ -68,7 +68,7 @@ describe('defineProjection', () => {
     )
   })
 
-  it('wizard.project() rejects a projection of a same-name, same-shape flow (identity, not name)', async () => {
+  it('run.project() rejects a projection of a same-name, same-shape flow (identity, not name)', async () => {
     const twinBuilder = defineFlow({
       name: 'root',
       context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
@@ -77,24 +77,27 @@ describe('defineProjection', () => {
       {
         form: twinBuilder.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
         reserve: twinBuilder.task(async () => ({ reservationId: 'r' }), { next: 'sub' }),
-        sub: twinBuilder.flow(child, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
+        sub: twinBuilder.flow(childFlow, {
+          context: () => ({ n: 1, childSecret: 's' }),
+          next: 'done',
+        }),
         done: twinBuilder.final({ output: () => ({ receipt: 1 }) }),
       },
       { start: 'form' },
     )
     const twinProjection = defineProjection(twin, { expose: { context: ['total'] } })
-    const wizard = createWizard(flow, { context: { cartId: 'c', total: 1, secret: 's' } })
+    const run = createRun(flow, { context: { cartId: 'c', total: 1, secret: 's' } })
     // Type-compatible (structural), rejected at runtime (identity).
-    expect(() => wizard.project(twinProjection)).toThrow(WizardError)
+    expect(() => run.project(twinProjection)).toThrow(WizardError)
     try {
-      wizard.project(twinProjection)
+      run.project(twinProjection)
     } catch (error) {
       expect((error as WizardError).code).toBe('DEFINITION_INVALID')
       expect((error as WizardError).message).toContain('different flow object')
     }
-    expect(
-      wizard.project(defineProjection(flow, { expose: { context: ['total'] } })).context,
-    ).toEqual({ total: 1 })
-    wizard.dispose()
+    expect(run.project(defineProjection(flow, { expose: { context: ['total'] } })).context).toEqual(
+      { total: 1 },
+    )
+    run.dispose()
   })
 })

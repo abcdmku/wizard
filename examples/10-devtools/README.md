@@ -1,29 +1,19 @@
-# 10: devtools (Vite + React)
+# 10: Devtools
 
-Example 07's DAG pipeline running in a browser page with the
-[`@openwizard/devtools`](../../packages/devtools/README.md) panel docked underneath, plus an
-`approve` wait step so the page has an external event to send. The fake services take real time,
-so you can watch the run move through the graph.
+This Vite app opens the parallel pipeline from example 07 in the OpenWizard devtools. The panel
+shows live graph status, the committed event log, step details, and timeline replay. Read
+[Run events](../../packages/docs/pages/concepts/observability.mdx) for the data behind the panel.
 
-## What is in the panel
+Source: [flow](./src/pipeline.ts), [run](./src/wizard.ts), [UI](./src/App.tsx),
+[test](./src/app.test.tsx).
 
-| Tab | What it gives you |
-|---|---|
-| Graph | `inspect(pipeline)` laid out by ELK, every card coloured by live status: the `retrying` pulse on `enrich`, the `waiting` dot on `approve`, the dashed and dotted edges |
-| Events | every domain event as it happens, filterable |
-| Inspector | click a card for its state record, its `explain()` reasons and its definition |
-| Timeline | a `seq` slider you can scrub to see the state at any point of the run |
-
-## Run it
+## Run
 
 ```sh
-pnpm --filter example-10-devtools dev     # open the printed URL; ctrl+shift+d toggles the panel
-pnpm --filter example-10-devtools check   # tsc + test + vite build (what CI runs)
+pnpm --filter example-10-devtools dev
+pnpm --filter example-10-devtools check
 ```
 
-## What the test proves
+Press `Ctrl+Shift+D` to toggle the panel.
 
-A headless jsdom run clicks Start, waits for the retry and the approval, sends `review.approved`,
-and checks the flow lands on `done` with the graph cards showing their final statuses. It also
-checks the events tab counter equals `wizard.log().length`, so the panel saw every event the
-wizard emitted.
+Next: [11: Backend order workflow](../11-order-workflow).

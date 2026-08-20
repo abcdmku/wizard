@@ -31,7 +31,7 @@ export interface Ctx {
   readonly warnings: FlowWarning[]
   /** Nesting problems (also listed in `problems`); the first one decides the error code. */
   readonly nesting: NestingProblem[]
-  /** Wizard path of the flow being compiled. */
+  /** Run path of the flow being compiled. */
   readonly path: readonly string[]
   /** Flow objects currently being compiled (ancestors, nearest last). */
   readonly chain: readonly object[]
@@ -90,7 +90,7 @@ export function compileFlow(flow: AnyFlow, ctx: Ctx): CompiledFlow {
     const raw = rawSteps?.[id]
     if (!isStepRecord(raw)) {
       problem(
-        `steps['${id}'] is not a step (build steps with s.view/task/wait/decision/flow/final)`,
+        `steps['${id}'] is not a step (build steps with flow.view/task/wait/decision/flow/final)`,
       )
       continue
     }

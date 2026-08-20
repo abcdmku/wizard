@@ -6,45 +6,47 @@ import { inspect } from '../../src/inspect/graph'
 import { toMermaid } from '../../src/inspect/mermaid'
 
 describe('toMermaid', () => {
-  const f = defineFlow({ name: 'fulfilment', context: z.object({ orderId: z.string() }) })
-  const fulfilment = f.steps({
-    label: f.task(async () => ({ trackingId: 'x' }), { next: 'done' }),
-    done: f.final(),
+  const fulfilment = defineFlow({ name: 'fulfilment', context: z.object({ orderId: z.string() }) })
+  const fulfilmentFlow = fulfilment.steps({
+    label: fulfilment.task(async () => ({ trackingId: 'x' }), { next: 'done' }),
+    done: fulfilment.final(),
   })
-  const c = defineFlow({
+  const checkout = defineFlow({
     name: 'checkout',
     context: z.object({ cartId: z.string(), paymentId: z.string().optional() }),
     events: { 'payment.captured': z.object({ paymentId: z.string() }) },
   })
-  const checkout = c.steps(
+  const checkoutFlow = checkout.steps(
     {
-      shipping: c.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
-      reserve: c.task(async () => ({ reservationId: 'r' }), { next: ['awaitPayment', 'audit'] }),
-      audit: c.task(async () => 1, { next: 'route' }),
-      awaitPayment: c.wait({
+      shipping: checkout.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
+      reserve: checkout.task(async () => ({ reservationId: 'r' }), {
+        next: ['awaitPayment', 'audit'],
+      }),
+      audit: checkout.task(async () => 1, { next: 'route' }),
+      awaitPayment: checkout.wait({
         on: {
           'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
         },
         timeout: { after: '15m', next: 'expired' },
         next: 'route',
       }),
-      route: c.decision({
+      route: checkout.decision({
         dependsOn: ['reserve', 'audit'],
         next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined'),
       }),
-      fulfil: c.flow(fulfilment, {
+      fulfil: checkout.flow(fulfilmentFlow, {
         context: ({ context }) => ({ orderId: context.cartId }),
         next: 'receipt',
       }),
-      receipt: c.final(),
-      declined: c.final(),
-      expired: c.final(),
+      receipt: checkout.final(),
+      declined: checkout.final(),
+      expired: checkout.final(),
     },
     { start: 'shipping' },
   )
 
   it('renders a flowchart TD: id (kind) nodes by shape, start circle, next / labelled dependsOn / dashed timeout edges, dynamic next → ?, child subgraph', () => {
-    expect(toMermaid(inspect(checkout))).toBe(
+    expect(toMermaid(inspect(checkoutFlow))).toBe(
       [
         'flowchart TD',
         '  shipping["shipping (view)"]',
@@ -81,18 +83,18 @@ describe('toMermaid', () => {
   })
 
   it('labels an OR-join `dependsOn (any)`, sanitises ids (reserved words, symbols, digits, quotes) and keeps them unique', () => {
-    const s = defineFlow({ name: 'weird', context: boundary.trusted<{}>() })
-    const weird = s.steps(
+    const weird = defineFlow({ name: 'weird', context: boundary.trusted<{}>() })
+    const weirdFlow = weird.steps(
       {
-        'a-b': s.task(async () => 1, { next: ['end', 'a_b'] }),
-        a_b: s.task(async () => 1, { timeout: '2500ms', next: 'end' }),
-        '1st': s.task(async () => 1, { dependsOn: { any: ['a-b', 'a_b'] }, next: 'say "hi"' }),
-        'say "hi"': s.view({ next: 'end' }),
-        end: s.final(),
+        'a-b': weird.task(async () => 1, { next: ['end', 'a_b'] }),
+        a_b: weird.task(async () => 1, { timeout: '2500ms', next: 'end' }),
+        '1st': weird.task(async () => 1, { dependsOn: { any: ['a-b', 'a_b'] }, next: 'say "hi"' }),
+        'say "hi"': weird.view({ next: 'end' }),
+        end: weird.final(),
       },
       { start: ['a-b', '1st'] },
     )
-    const text = toMermaid(inspect(weird))
+    const text = toMermaid(inspect(weirdFlow))
     expect(text).toContain('  a_b[["a-b (task)"]]')
     expect(text).toContain('  a_b_2[["a_b (task)"]]')
     expect(text).toContain('  n_1st[["1st (task)"]]')
@@ -105,22 +107,22 @@ describe('toMermaid', () => {
     // A task timeout is not an edge (no `timeout.next`), so no dashed edge appears for `a_b`.
     expect(text).not.toContain('a_b_2 -.->')
     // The output is stable.
-    expect(toMermaid(inspect(weird))).toBe(text)
+    expect(toMermaid(inspect(weirdFlow))).toBe(text)
   })
 
   it('entity-escapes label text: line breaks become spaces, & < > " # ; [ ] become Mermaid entities (node labels and subgraph titles)', () => {
     const inner = defineFlow({ name: 'inner', context: boundary.trusted<{}>() })
     const child = inner.steps({ 'a & b': inner.final() })
-    const s = defineFlow({ name: 'hostile', context: boundary.trusted<{}>() })
-    const hostile = s.steps(
+    const hostile = defineFlow({ name: 'hostile', context: boundary.trusted<{}>() })
+    const hostileFlow = hostile.steps(
       {
-        'line\r\nbreak\n<b>': s.view({ next: 'sub[0]; #1' }),
-        'sub[0]; #1': s.flow(child, { context: () => ({}), next: 'end' }),
-        end: s.final(),
+        'line\r\nbreak\n<b>': hostile.view({ next: 'sub[0]; #1' }),
+        'sub[0]; #1': hostile.flow(child, { context: () => ({}), next: 'end' }),
+        end: hostile.final(),
       },
       { start: 'line\r\nbreak\n<b>' },
     )
-    const text = toMermaid(inspect(hostile))
+    const text = toMermaid(inspect(hostileFlow))
     const labels = [...text.matchAll(/"([^"]*)"/g)].map((m) => m[1] ?? '')
     // Once the entities are stripped, no line break / & / < / > / # / ; / [ / ] survives in a label.
     for (const label of labels) {

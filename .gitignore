@@ -5,6 +5,12 @@ node_modules/
 dist/
 *.tsbuildinfo
 .tsdown/
+.output/
+.nitro/
+examples/13-deployment-artifacts/.apphosting/
+examples/13-deployment-artifacts/.wrangler/
+examples/13-deployment-artifacts/staticwebapp.config.json
+examples/13-deployment-artifacts/artifacts/
 
 # test / coverage
 coverage/

@@ -1,6 +1,6 @@
 /**
  * `<StepInspector>` — one step in detail: the stored record (status, phase, attempt, timers,
- * error, input / output as JSON), `wizard.explain(step)` (reasons and cursor candidates) and
+ * error, input / output as JSON), `run.explain(step)` (reasons and cursor candidates) and
  * the static facts of the graph node (kind, hooks, `dependsOn`, `timeout`, edges).
  */
 
@@ -12,14 +12,14 @@ import {
   type DevtoolsSource,
   type DevtoolsTheme,
   type FlowGraphNode,
-  isWizardSource,
+  isFlowRunSource,
   stepKey,
 } from '../types'
 import { JsonView } from './JsonView'
 import { readStep, type StepReading } from './read-step'
 
 /**
- * `<StepInspector>` props: the `source` (wizard or Mirror), the `step` id and the wizard `path`
+ * `<StepInspector>` props: the `source` (run or Mirror), the `step` id and the run `path`
  * of its flow (`[]` = root), the optional static `graph` for the definition facts.
  * @public
  */
@@ -51,7 +51,7 @@ const RECORD_FIELDS = [
 
 /**
  * The record of a step (status, attempt, error, input / output), why it is where it is
- * (`explain`: reasons + candidates — wizard sources only) and its definition facts.
+ * (`explain`: reasons + candidates — run sources only) and its definition facts.
  * @public
  */
 export function StepInspector(props: StepInspectorProps): ReactElement {
@@ -82,7 +82,7 @@ export function StepInspector(props: StepInspectorProps): ReactElement {
       {reading.missing !== undefined && <div className="owd-empty">{reading.missing}</div>}
       {reading.record !== undefined && <RecordSection record={reading.record} />}
       {reading.projected !== undefined && <ProjectedSection reading={reading} />}
-      <ExplainSection reading={reading} isWizard={isWizardSource(props.source)} />
+      <ExplainSection reading={reading} isRun={isFlowRunSource(props.source)} />
       {node !== undefined && props.graph !== undefined && (
         <DefinitionSection node={node} graph={props.graph} />
       )}
@@ -160,10 +160,10 @@ function ProjectedSection({ reading }: { readonly reading: StepReading }): React
 
 function ExplainSection({
   reading,
-  isWizard,
+  isRun,
 }: {
   readonly reading: StepReading
-  readonly isWizard: boolean
+  readonly isRun: boolean
 }): ReactElement {
   const x = reading.explanation
   return (
@@ -171,7 +171,7 @@ function ExplainSection({
       <h4 className="owd-section-title">explain</h4>
       {x === undefined ? (
         <div className="owd-subtle">
-          {isWizard ? 'not available for this step' : 'explain() needs a wizard source'}
+          {isRun ? 'not available for this step' : 'explain() needs a run source'}
         </div>
       ) : (
         <>

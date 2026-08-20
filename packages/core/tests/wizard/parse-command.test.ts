@@ -14,17 +14,17 @@ const midFlow = mid.steps({
   h: mid.flow(leafFlow, { context: () => ({}), next: 'end' }),
   end: mid.final(),
 })
-const s = defineFlow({
+const root = defineFlow({
   name: 'root',
   context: boundary.trusted<{ n: number }>(),
   events: { e: z.object({ id: z.number() }) },
 })
-const flow = s.steps({
-  a: s.view({ input: z.object({ x: z.number(), list: z.array(z.unknown()) }), next: 't' }),
-  t: s.task(async () => 1, { next: 'f' }),
-  f: s.flow(midFlow, { context: () => ({}), next: 'v' }),
-  v: s.view({ next: 'x' }),
-  x: s.final(),
+const flow = root.steps({
+  a: root.view({ input: z.object({ x: z.number(), list: z.array(z.unknown()) }), next: 't' }),
+  t: root.task(async () => 1, { next: 'f' }),
+  f: root.flow(midFlow, { context: () => ({}), next: 'v' }),
+  v: root.view({ next: 'x' }),
+  x: root.final(),
 })
 
 describe('parseCommand(flow, input)', () => {

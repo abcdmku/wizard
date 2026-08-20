@@ -1,5 +1,5 @@
 /**
- * Resume a wizard from a persisted snapshot (plan §8.8).
+ * Resume a run from a persisted snapshot (plan §8.8).
  *
  * 1. `validateSnapshot` — envelope, flow identity, step set, status
  *    invariants, JSON safety (recursively for children).
@@ -9,7 +9,7 @@
  *    the stored ones — this is what turns a persisted JSON form back into the
  *    rich value (`z.coerce.date()`), see `persistence/revivable.ts`.
  * 3. The whole tree is prepared *before* anything is instantiated (atomic): a
- *    `ResumePlan` per wizard, with the plans of its children. Nothing runs
+ *    `ResumePlan` per run, with the plans of its children. Nothing runs
  *    twice — the child factory consumes the prepared child plans as they are.
  * 4. `epoch + 1`, then the interpreter receives `{ type: 'resume', fromSeq }`
  *    (the machine applies the recovery matrix) and children are re-attached.
@@ -27,7 +27,7 @@
  * flow at a different version; its result goes through the same validation (a
  * thenable result is a reason on the sync door, awaited on the async one).
  *
- * @internal Public users see the typed `resumeWizard` / `resumeWizardAsync`.
+ * @internal Public users see the typed `resumeRun` / `resumeRunAsync`.
  */
 
 import type { BoundaryResult, CompiledFlow, RuntimeBoundary } from '../authoring/compiled'
@@ -153,7 +153,7 @@ function migrateSync(
   if (settled === undefined) return input
   if (settled.async) {
     reasons.push(
-      `migrate: returned a promise for ${from.name}@${from.version} (use resumeWizardAsync)`,
+      `migrate: returned a promise for ${from.name}@${from.version} (use resumeRunAsync)`,
     )
     return input
   }
@@ -251,9 +251,7 @@ export const parseBoundarySync: BoundaryParser = (at, boundary, value, reasons) 
   const settled = callSync(() => boundary.parse(value), `${at}: boundary`, reasons)
   if (settled === undefined) return undefined
   if (settled.async) {
-    reasons.push(
-      `${at}: async boundaries are not supported by resumeWizard (use resumeWizardAsync)`,
-    )
+    reasons.push(`${at}: async boundaries are not supported by resumeRun (use resumeRunAsync)`)
     return undefined
   }
   return interpretResult(at, settled.value, reasons)
@@ -277,7 +275,7 @@ function interpretResult(
 }
 
 /**
- * Structure + boundaries for one wizard and, recursively, its children;
+ * Structure + boundaries for one run and, recursively, its children;
  * collects human-readable reasons instead of throwing. Exported for tests;
  * `resumeWizardRuntime` / `resumeWizardRuntimeAsync` are the production callers.
  */

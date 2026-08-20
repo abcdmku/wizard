@@ -1,29 +1,29 @@
-import type { AnyFlow, Explanation, FlowGraph, Wizard } from '@openwizard/core'
+import type { AnyFlow, Explanation, FlowGraph, FlowRun } from '@openwizard/core'
 import { useMemo } from 'react'
 import { stringify } from './format'
 import { type StepRef, safeInspect, snapshotAt } from './graph-view'
 
 interface ExplainViewProps {
-  readonly wizard: Wizard<AnyFlow> | undefined
+  readonly run: FlowRun<AnyFlow> | undefined
   readonly selected: StepRef | null
   readonly onSelect: (ref: StepRef) => void
 }
 
 type StepExplanation = Explanation<AnyFlow> & { readonly note?: string }
 
-/** `wizard.explain(step)` for the root, `wizard.child(...).explain(step)` down a path when the child is live. */
-function explainAt(wizard: Wizard<AnyFlow>, ref: StepRef): StepExplanation {
+/** `run.explain(step)` for the root, `run.child(...).explain(step)` down a path when the child is live. */
+function explainAt(run: FlowRun<AnyFlow>, ref: StepRef): StepExplanation {
   try {
-    let target: Wizard<AnyFlow> = wizard
+    let target: FlowRun<AnyFlow> = run
     for (const step of ref.path) target = target.child(step)
     return target.explain(ref.id)
   } catch (error) {
     return {
-      status: snapshotAt(wizard, ref.path)?.state.steps[ref.id]?.status ?? 'unknown',
+      status: snapshotAt(run, ref.path)?.state.steps[ref.id]?.status ?? 'unknown',
       phase: undefined,
       reasons: [],
       candidates: [],
-      note: `child wizard not live: ${error instanceof Error ? error.message : String(error)}`,
+      note: `child run not live: ${error instanceof Error ? error.message : String(error)}`,
     }
   }
 }
@@ -40,24 +40,24 @@ function Row({ label, value }: { readonly label: string; readonly value: string 
 const list = (values: readonly string[]) => (values.length === 0 ? '[]' : values.join(', '))
 
 /** The Explain tab: pick a step, read `{ status, phase, reasons, candidates }` — plus progress and ready views. */
-export function ExplainView({ wizard, selected, onSelect }: ExplainViewProps) {
+export function ExplainView({ run, selected, onSelect }: ExplainViewProps) {
   const graph = useMemo<FlowGraph | null>(() => {
-    if (!wizard) return null
-    const result = safeInspect(wizard.flow)
+    if (!run) return null
+    const result = safeInspect(run.flow)
     return 'error' in result ? null : result
-  }, [wizard])
+  }, [run])
   // Computed on every render: the parent re-renders after each batch of events.
-  const live = wizard
+  const live = run
     ? {
-        explanation: selected ? explainAt(wizard, selected) : null,
-        progress: wizard.progress(),
-        readyViews: wizard.readyViews(),
-        status: wizard.getState().status,
-        current: wizard.getState().current,
+        explanation: selected ? explainAt(run, selected) : null,
+        progress: run.progress(),
+        readyViews: run.readyViews(),
+        status: run.getState().status,
+        current: run.getState().current,
       }
     : null
 
-  if (!wizard || !graph || !live) {
+  if (!run || !graph || !live) {
     return (
       <p className="p-4 font-mono text-xs text-neutral-500">
         Run the code, then pick a step to see why it is (not) where you expect.

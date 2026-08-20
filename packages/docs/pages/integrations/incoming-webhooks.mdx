@@ -1,0 +1,47 @@
+# Incoming webhooks
+
+An incoming webhook verifies a signed request, parses its data through a flow event boundary, then
+sends that input event to one run. The examples use the `orderFlow` defined in the
+[run API guide](/integrations/run-api), which declares `review.approved`.
+
+## Register runs by subject
+
+The verified `subject` must resolve to the live run. Save this registry as `incoming-runs.ts`:
+
+```ts file="packages/docs/snippets/http/incoming-runs.ts"
+```
+
+The example keys runs by public subject. A production registry should enforce the sender's tenant
+or account boundary before returning a run.
+
+## Create receivers
+
+Save the receiver registry as `incoming-http.ts`:
+
+```ts file="packages/docs/snippets/http/incoming-http.ts"
+```
+
+This creates `POST /webhooks/{event}` for every declared input event. Unlike the authenticated
+[run API](/integrations/run-api), an incoming delivery has no tenant identity. Its resolver maps
+the verified `subject` to a run.
+
+If a flow declares several input events, add an `events` array inside `receive` to expose only the
+ones that the sender may use.
+
+## Signed request
+
+```json
+{
+  "type": "review.approved",
+  "timestamp": "2026-08-19T15:30:00.000Z",
+  "subject": "order-42",
+  "data": { "reviewerId": "user-9" }
+}
+```
+
+The sender signs the exact body with `webhook-id`, `webhook-timestamp`, and `webhook-signature`.
+Do not parse and reserialize the body before OpenWizard verifies it. Add a durable
+`WebhookIdempotencyStore` when retries can reach more than one process.
+
+The accepted input produces automatic run events such as `event.received`. To send those facts to
+registered callbacks, continue to [outgoing webhooks](/integrations/outgoing-webhooks).

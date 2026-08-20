@@ -43,11 +43,11 @@ const parent = (childDef = child()) =>
 describe('e2e nested flows', () => {
   it('creates the child with the mapped context, forwards its events with path, and completes the parent with its output', async () => {
     const t = e2e(parent())
-    expect(() => t.wizard.child('fulfil')).toThrow(/not been created/)
-    await t.wizard.start()
+    expect(() => t.run.child('fulfil')).toThrow(/not been created/)
+    await t.run.start()
     // The parent task ran, the flow step entered, childContext ran, the child was created and started.
     expect(t.rec('fulfil').status).toBe('active')
-    const c = t.wizard.child('fulfil')
+    const c = t.run.child('fulfil')
     expect(c.path).toEqual(['fulfil'])
     expect(c.getState().context).toEqual({ orderId: 'o-1' })
     expect(c.getState().current).toBe('confirm')
@@ -62,7 +62,7 @@ describe('e2e nested flows', () => {
     expect(childEvents.every((e) => e.path[0] === 'fulfil')).toBe(true)
     // Parent state carries the child summary (waiting on the view).
     expect(t.rec('fulfil').child).toMatchObject({ status: 'waiting', current: 'confirm' })
-    expect(t.wizard.getState().status).toBe('waiting')
+    expect(t.run.getState().status).toBe('waiting')
     // Drive the child directly.
     expect(await c.next()).toMatchObject({ ok: true, from: 'confirm', to: 'ship' })
     expect(c.getState().status).toBe('done')
@@ -70,10 +70,10 @@ describe('e2e nested flows', () => {
     // ... which completes the parent flow step with the child output and finishes the parent.
     expect(t.rec('fulfil')).toMatchObject({ status: 'done', output: { tracking: 'TRK-o-1' } })
     expect(t.rec('fulfil').child).toMatchObject({ status: 'done', progress: 1 })
-    expect(t.wizard.getState().status).toBe('done')
-    expect(t.wizard.getState().output).toEqual({ tracking: 'TRK-o-1' })
+    expect(t.run.getState().status).toBe('done')
+    expect(t.run.getState().output).toEqual({ tracking: 'TRK-o-1' })
     // Snapshot includes the child.
-    const snap = t.wizard.getSnapshot()
+    const snap = t.run.getSnapshot()
     expect(Object.keys(snap.children)).toEqual(['fulfil'])
     expect(snap.children.fulfil).toMatchObject({
       v: 1,
@@ -86,21 +86,21 @@ describe('e2e nested flows', () => {
   it('routes wire child commands through the parent FIFO (child.command → child.send) and rejects bad targets', async () => {
     const t = e2e(parent())
     expect(
-      await t.wizard.dispatch({ type: 'child', path: ['fulfil'], command: { type: 'next' } }),
+      await t.run.dispatch({ type: 'child', path: ['fulfil'], command: { type: 'next' } }),
     ).toMatchObject({
       ok: false,
       code: 'FLOW_NOT_STARTED',
     })
-    await t.wizard.start()
+    await t.run.start()
     expect(
-      await t.wizard.dispatch({ type: 'child', path: ['pay'], command: { type: 'next' } }),
+      await t.run.dispatch({ type: 'child', path: ['pay'], command: { type: 'next' } }),
     ).toMatchObject({
       ok: false,
       code: 'NOT_A_FLOW_STEP',
       step: 'pay',
     })
     t.clear()
-    const r = await t.wizard.dispatch({
+    const r = await t.run.dispatch({
       type: 'child',
       path: ['fulfil'],
       command: { type: 'next' },
@@ -108,11 +108,11 @@ describe('e2e nested flows', () => {
     expect(r).toMatchObject({ ok: true })
     expect(t.of('child.command')[0]).toMatchObject({ step: 'fulfil', command: { type: 'next' } })
     // The child processed `next` (view → task → final) and the parent finished.
-    expect(t.wizard.child('fulfil').getState().status).toBe('done')
-    expect(t.wizard.getState().status).toBe('done')
+    expect(t.run.child('fulfil').getState().status).toBe('done')
+    expect(t.run.getState().status).toBe('done')
     // Terminal parent still lets `child` commands through the gate; the child answers itself.
     expect(
-      await t.wizard.dispatch({ type: 'child', path: ['fulfil'], command: { type: 'next' } }),
+      await t.run.dispatch({ type: 'child', path: ['fulfil'], command: { type: 'next' } }),
     ).toMatchObject({ ok: false, code: 'NOT_ACTIVE' })
   })
 
@@ -122,14 +122,14 @@ describe('e2e nested flows', () => {
       context: guard((v) => typeof (v as any)?.orderId === 'number', 'orderId must be a number'),
     }
     const t = e2e(parent(strictChild))
-    await t.wizard.start()
+    await t.run.start()
     expect(t.rec('fulfil')).toMatchObject({
       status: 'failed',
       error: { kind: 'hook', name: 'BoundaryRejection' },
     })
     expect(t.rec('fulfil').error?.message).toContain('orderId must be a number')
-    expect(() => t.wizard.child('fulfil')).toThrow()
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(() => t.run.child('fulfil')).toThrow()
+    expect(t.run.getState().status).toBe('failed')
   })
 
   it('a failing child fails the parent flow step with kind child', async () => {
@@ -150,13 +150,13 @@ describe('e2e nested flows', () => {
       steps: { f: flowStep(boom, { context: () => ({}), next: 'end' }), end: final() },
     })
     const t = e2e(p)
-    await t.wizard.start()
-    expect(t.wizard.child('f').getState().status).toBe('failed')
+    await t.run.start()
+    expect(t.run.child('f').getState().status).toBe('failed')
     expect(t.rec('f')).toMatchObject({
       status: 'failed',
       error: { kind: 'child', message: 'child task exploded' },
     })
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('failed')
   })
 
   it('a flow step with a childOutput hook maps the child output; two levels of nesting keep their paths', async () => {
@@ -189,12 +189,12 @@ describe('e2e nested flows', () => {
       },
     })
     const t = e2e(root)
-    await t.wizard.start()
-    expect(t.wizard.getState().status).toBe('done')
-    expect(t.wizard.getState().output).toEqual({ wrapped: 'leaf-out' })
-    expect(t.wizard.child('f').child('f').path).toEqual(['f', 'f'])
+    await t.run.start()
+    expect(t.run.getState().status).toBe('done')
+    expect(t.run.getState().output).toEqual({ wrapped: 'leaf-out' })
+    expect(t.run.child('f').child('f').path).toEqual(['f', 'f'])
     const paths = new Set(t.events.map((e) => e.path.join('/')))
     expect(paths).toEqual(new Set(['', 'f', 'f/f']))
-    expect(Object.keys(t.wizard.getSnapshot().children.f?.children ?? {})).toEqual(['f'])
+    expect(Object.keys(t.run.getSnapshot().children.f?.children ?? {})).toEqual(['f'])
   })
 })

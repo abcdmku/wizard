@@ -1,7 +1,6 @@
 import { boundary, defineFlow } from '@openwizard/core'
 import { z } from 'zod'
 
-/** Pipeline services; the slow ones are async so branches can overlap. */
 export interface Deps {
   source: { fetch(name: string): { rows: number } }
   normalizer: { run(rows: number): Promise<{ normalized: number }> }
@@ -9,16 +8,13 @@ export interface Deps {
   warehouse: { write(batch: { normalized: number; enriched: number }): { batchId: string } }
 }
 
-/**
- * The pipeline as a function of its policies so the tests can show `concurrency` and
- * `autoRun: 'manual'` on the same graph. Steps and edges are identical in every variant.
- */
+/** Build the same graph with different execution policies. */
 export function definePipeline(policies: { concurrency: number; autoRun?: 'ready' | 'manual' }) {
-  const s = defineFlow({
+  const ingestPipeline = defineFlow({
     name: 'ingest-pipeline',
     context: z.object({
       source: z.string(),
-      // Every branch writes its own keys into the shared context (shallow-merged patches).
+      // Each branch writes different keys into the shared context.
       rows: z.number().int().nonnegative().default(0),
       normalized: z.number().int().nonnegative().optional(),
       enriched: z.number().int().nonnegative().optional(),
@@ -33,18 +29,18 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
     ...(policies.autoRun !== undefined ? { autoRun: policies.autoRun } : {}),
   })
 
-  return s.steps(
+  return ingestPipeline.steps(
     {
-      ingest: s.task(
+      ingest: ingestPipeline.task(
         ({ context, deps, update }) => {
           const { rows } = deps.source.fetch(context.source)
           update({ rows })
           return { rows }
         },
-        // `next` is a NAVIGATION edge: fan-out arrives at both branches, which then run in parallel.
+        // An array of targets starts both branches.
         { next: ['normalize', 'enrich'] },
       ),
-      normalize: s.task(
+      normalize: ingestPipeline.task(
         async ({ context, deps, update }) => {
           const { normalized } = await deps.normalizer.run(context.rows)
           update({ normalized })
@@ -52,28 +48,25 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
         },
         { next: 'gate' },
       ),
-      enrich: s.task(
+      enrich: ingestPipeline.task(
         async ({ context, deps, update }) => {
           const { enriched, quality } = await deps.enricher.run(context.rows)
           update({ enriched, quality })
           return { enriched, quality }
         },
         {
-          // `when` (v0.2) is evaluated once the step is ready: `false` skips it
-          // (`step.skipped { reason: 'when' }`). A skipped step counts as done for `dependsOn`
-          // and its `next` targets are still arrived, so the gate below is not stuck.
+          // A false `when` skips the branch but still satisfies the join.
           when: ({ context }) => context.enrichment === 'on',
           next: 'gate',
         },
       ),
-      // `dependsOn` is DATA READINESS: the gate is arrived by whichever branch finishes first,
-      // but only becomes ready once BOTH are done (an AND-join; `{ any: [...] }` would be OR).
-      gate: s.decision({
+      // The gate activates from either branch and becomes ready after both finish.
+      gate: ingestPipeline.decision({
         dependsOn: ['normalize', 'enrich'],
         next: ({ context }) =>
           context.enrichment === 'off' || context.quality >= 0.8 ? 'persist' : 'quarantine',
       }),
-      persist: s.task(
+      persist: ingestPipeline.task(
         ({ context, deps }) =>
           deps.warehouse.write({
             normalized: context.normalized ?? 0,
@@ -81,8 +74,10 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
           }),
         { next: 'done' },
       ),
-      quarantine: s.final({ output: ({ context }) => `quarantined (quality ${context.quality})` }),
-      done: s.final({ output: ({ context }) => `stored ${context.rows} rows` }),
+      quarantine: ingestPipeline.final({
+        output: ({ context }) => `quarantined (quality ${context.quality})`,
+      }),
+      done: ingestPipeline.final({ output: ({ context }) => `stored ${context.rows} rows` }),
     },
     { start: 'ingest' },
   )

@@ -1,16 +1,16 @@
 /**
  * Shared fixture for the React binding tests: a checkout flow (view → task → final), its
- * client projection, and helpers to build a Wizard or a loopback Mirror.
+ * client projection, and helpers to build a FlowRun or a loopback Mirror.
  */
 import {
   boundary,
   createMirror,
   createMirrorSource,
-  createWizard,
+  createRun,
   defineFlow,
   defineProjection,
+  type FlowRun,
   type Mirror,
-  type Wizard,
 } from '@openwizard/core'
 import { createLocalTransport, createTestScheduler } from '@openwizard/core/testing'
 import { z } from 'zod'
@@ -19,7 +19,7 @@ export interface Deps {
   inventory: { reserve(cartId: string): Promise<{ reservationId: string }> }
 }
 
-const s = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({
     cartId: z.string(),
@@ -31,22 +31,22 @@ const s = defineFlow({
   deps: boundary.trusted<Deps>(),
 })
 
-export const checkout = s.steps(
+export const checkoutFlow = checkout.steps(
   {
-    shipping: s.view({
+    shipping: checkout.view({
       input: z.object({ address: z.string().min(1), express: z.boolean().default(false) }),
       exit: ({ output, update }) => update({ express: output.express }),
       next: 'reserve',
     }),
-    reserve: s.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
+    reserve: checkout.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
       next: 'receipt',
     }),
-    receipt: s.final({ output: ({ context }) => ({ cartId: context.cartId }) }),
+    receipt: checkout.final({ output: ({ context }) => ({ cartId: context.cartId }) }),
   },
   { start: 'shipping' },
 )
 
-export const checkoutClient = defineProjection(checkout, {
+export const checkoutClient = defineProjection(checkoutFlow, {
   expose: {
     steps: { shipping: { input: true }, reserve: { output: true } },
     context: ['total', 'express'],
@@ -71,8 +71,8 @@ export const instantDeps: Deps = {
   inventory: { reserve: async (cartId) => ({ reservationId: `res-${cartId}` }) },
 }
 
-export function makeWizard(deps: Deps = instantDeps): Wizard<typeof checkout> {
-  return createWizard(checkout, {
+export function makeRun(deps: Deps = instantDeps): FlowRun<typeof checkoutFlow> {
+  return createRun(checkoutFlow, {
     context: { cartId: 'c1', total: 10 },
     deps,
     scheduler: createTestScheduler({ now: 1_000 }),
@@ -80,16 +80,16 @@ export function makeWizard(deps: Deps = instantDeps): Wizard<typeof checkout> {
   })
 }
 
-/** A started wizard mirrored through the loopback (frames arrive synchronously). */
+/** A started run mirrored through the loopback (frames arrive synchronously). */
 export async function makeMirror(deps: Deps = instantDeps): Promise<{
-  wizard: Wizard<typeof checkout>
+  run: FlowRun<typeof checkoutFlow>
   mirror: Mirror<typeof checkoutClient>
 }> {
-  const wizard = makeWizard(deps)
-  await wizard.start()
-  const source = createMirrorSource(wizard, checkoutClient)
+  const run = makeRun(deps)
+  await run.start()
+  const source = createMirrorSource(run, checkoutClient)
   const mirror = createMirror<typeof checkoutClient>({ transport: createLocalTransport(source) })
-  return { wizard, mirror }
+  return { run, mirror }
 }
 
 export const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))

@@ -1,0 +1,65 @@
+{
+  "name": "@openwizard/durable",
+  "version": "0.1.0-next.0",
+  "description": "OpenWizard storage and coordination contracts for leases, fencing, snapshot CAS, idempotency, and durable timer claims.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm -w exec vitest run --project durable",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "keywords": [
+    "wizard",
+    "workflow",
+    "durable-execution",
+    "coordination",
+    "leases",
+    "idempotency",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abcdmku/wizard.git",
+    "directory": "packages/durable"
+  },
+  "bugs": "https://github.com/abcdmku/wizard/issues",
+  "homepage": "https://github.com/abcdmku/wizard#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@openwizard/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@openwizard/core": "workspace:*"
+  }
+}

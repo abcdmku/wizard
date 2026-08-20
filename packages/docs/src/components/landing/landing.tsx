@@ -21,18 +21,18 @@ export function Landing() {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:items-start">
           <h2 className="mb-3 text-2xl font-bold tracking-tight text-ink lg:hidden dark:text-white">
-            Try it live
+            Run an order live
           </h2>
           {/* One IDE instance. Fixed height on small screens; on desktop it fills the column and the
               available height, so a short window shrinks it instead of pushing the footer away. */}
           <div className="h-[560px] w-full overflow-hidden lg:h-[min(74dvh,720px)] lg:w-full">
-            <Ide state={playground} title="OpenWizard IDE" />
+            <Ide state={playground} title="Backend order workflow" />
           </div>
         </div>
       </div>
 
       <footer className="flex shrink-0 items-center justify-between px-6 py-3 text-[11px] text-neutral-400 lg:px-10 xl:px-14 dark:text-neutral-600">
-        <span suppressHydrationWarning>&copy; {year} OpenWizard · MIT</span>
+        <span suppressHydrationWarning>&copy; {year} OpenWizard, MIT</span>
         <div className="flex items-center gap-4">
           <Link to="/$" params={{ _splat: 'getting-started' }} className={FOOTER_LINK}>
             Docs

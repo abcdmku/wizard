@@ -1,26 +1,22 @@
 # API reference
 
-Three views of the same surface, all generated from the code and re-checked in CI so they can't drift from what ships.
+Read the guides first, then use these generated references for exact signatures and types.
 
-- [`@openwizard/core`](/api/core) is the package README, from the authoring shape to the guarantees, with an export table per entry at the bottom.
-- [`@openwizard/react`](/api/react) is the React binding README with its own export table.
-- [TypeDoc](/typedoc/) lists every exported symbol with its signature and TSDoc, generated from the built declaration files.
+- [`@openwizard/core`](/api/core) defines flows, runs, events, and projections. Start with
+  [getting started](/getting-started).
+- [`@openwizard/durable`](/api/durable) coordinates persisted runs across workers. Read the
+  [durability guide](/guides/durability).
+- [`@openwizard/drizzle`](/api/drizzle) stores durable runs in PostgreSQL or SQLite. See the
+  [Drizzle integration](/integrations/drizzle).
+- [`@openwizard/effect`](/api/effect) adapts Effect 3 programs. See the
+  [Effect 3 integration](/integrations/effect).
+- [`@openwizard/effect-v4`](/api/effect-v4) adapts Effect 4 beta programs. See the
+  [Effect 4 integration](/integrations/effect-v4).
+- [`@openwizard/react`](/api/react) binds runs and Mirrors to React. See the
+  [React integration](/integrations/react).
+- [`@openwizard/opentelemetry`](/api/opentelemetry) records run events as spans. See the
+  [OpenTelemetry integration](/integrations/opentelemetry).
+- [`@openwizard/webhooks`](/api/webhooks) builds signed webhooks and authenticated run APIs. Start
+  with [HTTP and webhooks](/integrations/webhooks).
 
-## Entry points
-
-| Import | What it holds |
-|---|---|
-| `@openwizard/core` | `defineFlow`, `boundary`, `createWizard` / `createWizardAsync`, `resumeWizard` / `resumeWizardAsync`, `createMemoryStore`, `defineProjection`, `parseCommand`, `createMirror` / `createMirrorSource`, `parseFrame` / `parseWireCommand`, `inspect` / `toMermaid`, `isChildEvent`, `isWizardError` / `WizardError`, and every public type. |
-| `@openwizard/core/testing` | `createTestScheduler` (virtual time, a `Scheduler` plus a `Clock`) and `createLocalTransport` (an in-process Mirror loopback). A separate entry so neither ends up in an application bundle. |
-| `@openwizard/react` | `bindReact` and the binding types (`ReactBinding`, `UseStepResult`, `ChildBinding`, ...). |
-
-## What CI checks
-
-The emitted declarations carry no `any` and no type assertions, and every export has a test plus a `.test-d.ts` assertion if it is generic. The [contributing guide](https://github.com/abcdmku/wizard/blob/main/CONTRIBUTING.md) has the rest of the rules.
-
-| Command | What it enforces |
-|---|---|
-| `pnpm check:api` | `api/core.d.ts` and `api/react.d.ts` are snapshots of the public exports, so a change to the surface shows up as a reviewable diff |
-| `pnpm check:docs` | every export has a row in an export table, every documented import names a real export, and the README quickstart matches example 01 |
-| `pnpm check:public-tags` | every exported symbol has TSDoc with `@public`, and nothing tagged `@internal` is exported |
-| `pnpm test:canary` | the type tests actually run, proved by a file that is required to fail typechecking |
+[Open the complete TypeDoc index](/typedoc/).

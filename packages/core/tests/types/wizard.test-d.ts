@@ -1,35 +1,44 @@
 /**
- * Type tests — the `Wizard<F>` surface (ADR-001 case 13): go/setInput/resetInput/validate accept
+ * Type tests — the `FlowRun<F>` surface (ADR-001 case 13): go/setInput/resetInput/validate accept
  * views only, retry tasks only, send known events only, child() flow steps only, `deps` required
- * iff declared; typed Snapshot / WizardEvent (root | child) / Command<F> (dispatch is typed, the
- * untrusted door is `parseCommand(flow, unknown)`); createWizard / resumeWizard(Async) options.
+ * iff declared; typed Snapshot / RunEvent (root | child) / Command<F> (dispatch is typed, the
+ * untrusted door is `parseCommand(flow, unknown)`); createRun / resumeRun(Async) options.
  */
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
 import { defineFlow } from '../../src/authoring/define-flow'
-import type { AbortSignalLike, Ctx, Issue, Progress } from '../../src/authoring/types'
+import type {
+  AbortSignalLike,
+  AnyFlow,
+  Ctx,
+  Flow,
+  FlowOutput,
+  FlowStep,
+  Issue,
+  Progress,
+} from '../../src/authoring/types'
 import type { WizardErrorCode } from '../../src/errors'
 import type { Command as MachineCommand } from '../../src/machine/commands'
 import type { DomainEvent } from '../../src/machine/events'
 import { defineProjection } from '../../src/projection/define-projection'
 import {
-  type ChildWizardEvent,
+  type ChildRunEvent,
   type Command,
-  createWizard,
-  createWizardAsync,
+  createRun,
+  createRunAsync,
   type Explanation,
+  type FlowRun,
   isChildEvent,
   type ResumeOptions,
-  type RootWizardEvent,
-  resumeWizard,
-  resumeWizardAsync,
+  type RootRunEvent,
+  type RunEvent,
+  type RunOptions,
+  resumeRun,
+  resumeRunAsync,
   type Snapshot,
   type SnapshotMigration,
   type StepState,
-  type Wizard,
-  type WizardEvent,
-  type WizardOptions,
 } from '../../src/wizard/create-wizard'
 import { parseCommand } from '../../src/wizard/parse-command'
 import type { CommandResult, NavResult, SendResult } from '../../src/wizard/results'
@@ -40,19 +49,19 @@ interface CheckoutDeps {
   }
 }
 
-const g = defineFlow({ name: 'grandchild', context: z.object({ sku: z.string() }) })
-const grandchild = g.steps({
-  pick: g.view({ input: z.object({ bin: z.string() }), next: 'done' }),
-  done: g.final(),
+const grandchild = defineFlow({ name: 'grandchild', context: z.object({ sku: z.string() }) })
+const grandchildFlow = grandchild.steps({
+  pick: grandchild.view({ input: z.object({ bin: z.string() }), next: 'done' }),
+  done: grandchild.final(),
 })
-const f = defineFlow({ name: 'fulfilment', context: z.object({ orderId: z.string() }) })
-const fulfilment = f.steps({
-  label: f.task(async () => ({ trackingId: 'x' }), { next: 'confirm' }),
-  confirm: f.view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
-  pack: f.flow(grandchild, { context: () => ({ sku: 's' }), next: 'done' }),
-  done: f.final({ output: () => ({ trackingId: 'x' }) }),
+const fulfilment = defineFlow({ name: 'fulfilment', context: z.object({ orderId: z.string() }) })
+const fulfilmentFlow = fulfilment.steps({
+  label: fulfilment.task(async () => ({ trackingId: 'x' }), { next: 'confirm' }),
+  confirm: fulfilment.view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
+  pack: fulfilment.flow(grandchildFlow, { context: () => ({ sku: 's' }), next: 'done' }),
+  done: fulfilment.final({ output: () => ({ trackingId: 'x' }) }),
 })
-const c = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({ cartId: z.string(), total: z.number(), express: z.boolean().default(false) }),
   events: {
@@ -61,27 +70,49 @@ const c = defineFlow({
   },
   deps: boundary.trusted<CheckoutDeps>(),
 })
-const checkout = c.steps(
+const checkoutFlow = checkout.steps(
   {
-    shipping: c.view({
+    shipping: checkout.view({
       input: z.object({ address: z.string(), express: z.boolean().default(false) }),
       next: 'reserve',
     }),
-    reserve: c.task(
+    reserve: checkout.task(
       ({ context, deps, signal }) => deps.inventory.reserve(context.cartId, { signal }),
       { next: 'awaitPayment' },
     ),
-    awaitPayment: c.wait({ on: { 'payment.captured': () => {} }, next: 'fulfil' }),
-    fulfil: c.flow(fulfilment, {
+    awaitPayment: checkout.wait({ on: { 'payment.captured': () => {} }, next: 'fulfil' }),
+    fulfil: checkout.flow(fulfilmentFlow, {
       context: ({ context }) => ({ orderId: context.cartId }),
       next: 'receipt',
     }),
-    receipt: c.final(),
+    receipt: checkout.final(),
   },
   { start: 'shipping' },
 )
-type CheckoutF = typeof checkout
-declare const wizard: Wizard<CheckoutF>
+type CheckoutF = typeof checkoutFlow
+type EventLeafFlow = Flow<
+  unknown,
+  unknown,
+  {},
+  unknown,
+  { readonly done: FlowStep<never, { readonly leaf: true }, never, 'final', never> }
+>
+type EventParentFlow<CF extends AnyFlow, K extends string> = Flow<
+  unknown,
+  unknown,
+  {},
+  unknown,
+  { readonly [P in K]: FlowStep<never, FlowOutput<CF>, never, 'flow', CF> }
+>
+type EventDepth1 = EventParentFlow<EventLeafFlow, 'd1'>
+type EventDepth2 = EventParentFlow<EventDepth1, 'd2'>
+type EventDepth3 = EventParentFlow<EventDepth2, 'd3'>
+type EventDepth4 = EventParentFlow<EventDepth3, 'd4'>
+type EventDepth5 = EventParentFlow<EventDepth4, 'd5'>
+type EventDepth6 = EventParentFlow<EventDepth5, 'd6'>
+type EventDepth7 = EventParentFlow<EventDepth6, 'd7'>
+type EventDepth8 = EventParentFlow<EventDepth7, 'd8'>
+declare const run: FlowRun<CheckoutF>
 declare const untrusted: unknown
 /** Type-level probes: a command of the checkout flow, and a child command built from a path. */
 declare function cmd(command: Command<CheckoutF>): void
@@ -90,82 +121,80 @@ declare function child<const P extends readonly [string, ...string[]], const C>(
   command: C,
 ): { readonly type: 'child'; readonly path: P; readonly command: C }
 
-describe('case 13: Wizard<F> method typing', () => {
+describe('case 13: FlowRun<F> method typing', () => {
   it('go/setInput/resetInput/validate accept view ids only', () => {
-    expectTypeOf(wizard.go('shipping')).toEqualTypeOf<Promise<NavResult>>()
+    expectTypeOf(run.go('shipping')).toEqualTypeOf<Promise<NavResult>>()
     // @ts-expect-error `go` accepts view ids only
-    wizard.go('reserve')
+    run.go('reserve')
     // @ts-expect-error `go('typo')`
-    wizard.go('typo')
-    expectTypeOf(wizard.setInput('shipping', { address: 'x' })).toEqualTypeOf<
-      Promise<CommandResult>
-    >()
+    run.go('typo')
+    expectTypeOf(run.setInput('shipping', { address: 'x' })).toEqualTypeOf<Promise<CommandResult>>()
     // @ts-expect-error draft must match the input schema (INPUT side)
-    wizard.setInput('shipping', { address: 1 })
+    run.setInput('shipping', { address: 1 })
     // @ts-expect-error unknown draft key
-    wizard.setInput('shipping', { nope: 1 })
+    run.setInput('shipping', { nope: 1 })
     // @ts-expect-error `resetInput` accepts view ids only
-    wizard.resetInput('reserve')
+    run.resetInput('reserve')
     // @ts-expect-error `validate` accepts view ids only
-    wizard.validate('fulfil')
+    run.validate('fulfil')
   })
   it('run/retry accept task ids only; send accepts declared events only (payload is unknown, correlationId optional)', () => {
-    expectTypeOf(wizard.retry('reserve')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(run.retry('reserve')).toEqualTypeOf<Promise<CommandResult>>()
     // @ts-expect-error `retry` accepts task ids only
-    wizard.retry('shipping')
-    expectTypeOf(wizard.run('reserve')).toEqualTypeOf<Promise<CommandResult>>()
+    run.retry('shipping')
+    expectTypeOf(run.run('reserve')).toEqualTypeOf<Promise<CommandResult>>()
     // @ts-expect-error `run` accepts task ids only
-    wizard.run('shipping')
+    run.run('shipping')
     // @ts-expect-error `run('typo')`
-    wizard.run('typo')
-    expectTypeOf(wizard.send('payment.captured', { paymentId: 'p' } as unknown)).toEqualTypeOf<
+    run.run('typo')
+    expectTypeOf(run.send('payment.captured', { paymentId: 'p' } as unknown)).toEqualTypeOf<
       Promise<SendResult>
     >()
-    expectTypeOf(wizard.send('payment.captured', {}, { correlationId: 'c' })).toEqualTypeOf<
+    expectTypeOf(run.send('payment.captured', {}, { correlationId: 'c' })).toEqualTypeOf<
       Promise<SendResult>
     >()
     // @ts-expect-error unknown event
-    wizard.send('payment.typo', {})
+    run.send('payment.typo', {})
     // @ts-expect-error unknown send option
-    wizard.send('payment.captured', {}, { nope: 1 })
+    run.send('payment.captured', {}, { nope: 1 })
   })
-  it('child() accepts flow-step ids only and returns a typed child wizard', () => {
-    const child = wizard.child('fulfil')
-    expectTypeOf(child).toEqualTypeOf<Wizard<typeof fulfilment>>()
-    expectTypeOf(child.getState().context).toEqualTypeOf<Ctx<typeof fulfilment>>()
+  it('child() accepts flow-step ids only and returns a typed child run', () => {
+    const child = run.child('fulfil')
+    expectTypeOf(child).toEqualTypeOf<FlowRun<typeof fulfilmentFlow>>()
+    expectTypeOf(child.getState().context).toEqualTypeOf<Ctx<typeof fulfilmentFlow>>()
     // @ts-expect-error `child('viewStep')` rejected
-    wizard.child('shipping')
+    run.child('shipping')
   })
   it('project() accepts a projection of this flow only', () => {
-    const projection = defineProjection(checkout, {
+    const projection = defineProjection(checkoutFlow, {
       expose: { steps: { shipping: { input: true } }, context: ['total'] },
     })
-    const projected = wizard.project(projection)
+    const projected = run.project(projection)
     expectTypeOf(projected.context).toEqualTypeOf<{ total: number }>()
     expectTypeOf(projected.current).toEqualTypeOf<'shipping' | null>()
-    const other = defineProjection(fulfilment, { expose: {} })
+    const other = defineProjection(fulfilmentFlow, { expose: {} })
     // @ts-expect-error a projection of another flow is rejected
-    wizard.project(other)
+    run.project(other)
   })
   it('compensate/dispatch/getState/subscribe/observe/log/save/dispose/id/epoch/flow are present', () => {
-    expectTypeOf(wizard.compensate({ from: 'reserve' })).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(run.compensate({ from: 'reserve' })).toEqualTypeOf<Promise<CommandResult>>()
     // @ts-expect-error `compensate.from` is a step id
-    wizard.compensate({ from: 'typo' })
-    expectTypeOf(wizard.dispatch({ type: 'go', step: 'shipping' })).toEqualTypeOf<
+    run.compensate({ from: 'typo' })
+    expectTypeOf(run.dispatch({ type: 'go', step: 'shipping' })).toEqualTypeOf<
       Promise<CommandResult>
     >()
-    expectTypeOf(wizard.id).toEqualTypeOf<string>()
-    expectTypeOf(wizard.epoch).toEqualTypeOf<number>()
-    expectTypeOf(wizard.flow).toEqualTypeOf<CheckoutF>()
-    expectTypeOf(wizard.subscribe(() => {})).toEqualTypeOf<() => void>()
-    expectTypeOf(wizard.save()).toEqualTypeOf<Promise<void>>()
-    expectTypeOf(wizard.dispose()).toEqualTypeOf<void>()
-    expectTypeOf(wizard.start()).toEqualTypeOf<Promise<CommandResult>>()
-    expectTypeOf(wizard.runReady()).toEqualTypeOf<Promise<CommandResult>>()
-    expectTypeOf(wizard.reset()).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(run.id).toEqualTypeOf<string>()
+    expectTypeOf(run.epoch).toEqualTypeOf<number>()
+    expectTypeOf(run.flow).toEqualTypeOf<CheckoutF>()
+    expectTypeOf(run.subscribe(() => {})).toEqualTypeOf<() => void>()
+    expectTypeOf(run.save()).toEqualTypeOf<Promise<void>>()
+    expectTypeOf(run.dispose()).toEqualTypeOf<void>()
+    expectTypeOf(run.start()).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(run.runReady()).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(run.reset()).toEqualTypeOf<Promise<CommandResult>>()
   })
   it('SendResult: every failure carries code + message; rejected keeps issues, dropped keeps reason', async () => {
-    const result = await wizard.send('payment.captured', {})
+    const result = await run.send('payment.captured', {})
     if (result.ok) {
       expectTypeOf(result.delivered).toEqualTypeOf<readonly string[]>()
     } else {
@@ -180,34 +209,34 @@ describe('case 13: Wizard<F> method typing', () => {
     }
   })
   it('explain() accepts any step id of the flow and returns a typed Explanation', () => {
-    expectTypeOf(wizard.explain('reserve')).toEqualTypeOf<Explanation<CheckoutF>>()
-    expectTypeOf(wizard.explain('fulfil').candidates).toEqualTypeOf<readonly 'shipping'[]>()
-    expectTypeOf(wizard.explain('shipping').reasons).toEqualTypeOf<readonly string[]>()
+    expectTypeOf(run.explain('reserve')).toEqualTypeOf<Explanation<CheckoutF>>()
+    expectTypeOf(run.explain('fulfil').candidates).toEqualTypeOf<readonly 'shipping'[]>()
+    expectTypeOf(run.explain('shipping').reasons).toEqualTypeOf<readonly string[]>()
     // @ts-expect-error `explain('typo')`
-    wizard.explain('typo')
+    run.explain('typo')
   })
   it('v0.2: skip / invalidate take step ids; progress / readyViews are typed selectors; attach hands out the typed send', () => {
-    expectTypeOf(wizard.skip('reserve')).toEqualTypeOf<Promise<CommandResult>>()
-    expectTypeOf(wizard.skip('shipping', 'not needed')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(run.skip('reserve')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(run.skip('shipping', 'not needed')).toEqualTypeOf<Promise<CommandResult>>()
     // @ts-expect-error `skip('typo')`
-    wizard.skip('typo')
-    expectTypeOf(wizard.invalidate('reserve')).toEqualTypeOf<Promise<CommandResult>>()
-    expectTypeOf(wizard.invalidate('reserve', { cascade: false })).toEqualTypeOf<
+    run.skip('typo')
+    expectTypeOf(run.invalidate('reserve')).toEqualTypeOf<Promise<CommandResult>>()
+    expectTypeOf(run.invalidate('reserve', { cascade: false })).toEqualTypeOf<
       Promise<CommandResult>
     >()
     // @ts-expect-error `invalidate('typo')`
-    wizard.invalidate('typo')
+    run.invalidate('typo')
     // @ts-expect-error unknown invalidate option
-    wizard.invalidate('reserve', { deep: true })
-    expectTypeOf(wizard.progress()).toEqualTypeOf<Progress>()
-    expectTypeOf(wizard.progress()).toEqualTypeOf<{
+    run.invalidate('reserve', { deep: true })
+    expectTypeOf(run.progress()).toEqualTypeOf<Progress>()
+    expectTypeOf(run.progress()).toEqualTypeOf<{
       readonly done: number
       readonly total: number
       readonly ratio: number
     }>()
-    expectTypeOf(wizard.readyViews()).toEqualTypeOf<readonly 'shipping'[]>()
-    const detach = wizard.attach((send) => {
-      expectTypeOf(send).toEqualTypeOf<Wizard<CheckoutF>['send']>()
+    expectTypeOf(run.readyViews()).toEqualTypeOf<readonly 'shipping'[]>()
+    const detach = run.attach((send) => {
+      expectTypeOf(send).toEqualTypeOf<FlowRun<CheckoutF>['send']>()
       void send('payment.captured', {})
       // @ts-expect-error the attached send is typed by the flow
       void send('payment.typo', {})
@@ -215,13 +244,13 @@ describe('case 13: Wizard<F> method typing', () => {
     })
     expectTypeOf(detach).toEqualTypeOf<() => void>()
     // @ts-expect-error a source must return its teardown
-    wizard.attach(() => {})
+    run.attach(() => {})
   })
 })
 
 describe('typed Snapshot / StepState', () => {
   it('getSnapshot() is the typed envelope; getState() the typed state', () => {
-    const snap = wizard.getSnapshot()
+    const snap = run.getSnapshot()
     expectTypeOf(snap).toEqualTypeOf<Snapshot<CheckoutF>>()
     expectTypeOf(snap.v).toEqualTypeOf<1>()
     expectTypeOf(snap.state.current).toEqualTypeOf<'shipping' | null>()
@@ -235,45 +264,110 @@ describe('typed Snapshot / StepState', () => {
     >()
     expectTypeOf(snap.state.steps.shipping.kind).toEqualTypeOf<'view'>()
     expectTypeOf(snap.state.steps.shipping).toEqualTypeOf<StepState<CheckoutF, 'shipping'>>()
-    expectTypeOf(snap.children.fulfil).toEqualTypeOf<Snapshot<typeof fulfilment> | undefined>()
+    expectTypeOf(snap.children.fulfil).toEqualTypeOf<Snapshot<typeof fulfilmentFlow> | undefined>()
     // @ts-expect-error only flow steps have child snapshots
     snap.children.shipping
-    expectTypeOf(wizard.getState()).toEqualTypeOf<Snapshot<CheckoutF>['state']>()
-    expectTypeOf(wizard.getState().steps.reserve.status).toEqualTypeOf<
+    expectTypeOf(run.getState()).toEqualTypeOf<Snapshot<CheckoutF>['state']>()
+    expectTypeOf(run.getState().steps.reserve.status).toEqualTypeOf<
       StepState<CheckoutF, 'reserve'>['status']
     >()
   })
 })
 
-describe('typed WizardEvent / Command', () => {
-  it('observe/log events: root events carry StepId/EventType (path []), child events string ids (path [step, …]); isChildEvent narrows', () => {
+describe('typed RunEvent / Command', () => {
+  it('observe/log events keep each nested flow correlated with its path; isChildEvent narrows', () => {
     type Ids = 'shipping' | 'reserve' | 'awaitPayment' | 'fulfil' | 'receipt'
-    wizard.observe((e) => {
-      expectTypeOf(e).toEqualTypeOf<WizardEvent<CheckoutF>>()
+    run.observe((e) => {
+      expectTypeOf(e).toEqualTypeOf<RunEvent<CheckoutF>>()
       expectTypeOf(e.seq).toEqualTypeOf<number>()
-      expectTypeOf(e.path).toEqualTypeOf<readonly [] | readonly [string, ...string[]]>()
+      expectTypeOf(e.path).toMatchTypeOf<
+        readonly [] | readonly ['fulfil'] | readonly ['fulfil', 'pack']
+      >()
       if (isChildEvent(e)) {
-        expectTypeOf(e).toEqualTypeOf<ChildWizardEvent>()
-        expectTypeOf(e.path).toEqualTypeOf<readonly [string, ...string[]]>()
-        if (e.type === 'step.done') expectTypeOf(e.step).toEqualTypeOf<string>()
-        if (e.type === 'event.received') expectTypeOf(e.event).toEqualTypeOf<string>()
+        expectTypeOf(e).toEqualTypeOf<ChildRunEvent<CheckoutF>>()
+        expectTypeOf(e.path).toMatchTypeOf<readonly ['fulfil'] | readonly ['fulfil', 'pack']>()
+        if (e.type === 'step.done') expectTypeOf(e.step).toEqualTypeOf<'label' | 'pack' | 'done'>()
         return
       }
-      expectTypeOf(e).toEqualTypeOf<RootWizardEvent<CheckoutF>>()
+      expectTypeOf(e).toEqualTypeOf<RootRunEvent<CheckoutF>>()
       expectTypeOf(e.path).toEqualTypeOf<readonly []>()
-      if (e.type === 'step.done') expectTypeOf(e.step).toEqualTypeOf<Ids>()
+      if (e.type === 'step.done') expectTypeOf(e.step).toEqualTypeOf<Exclude<Ids, 'shipping'>>()
       if (e.type === 'event.received')
         expectTypeOf(e.event).toEqualTypeOf<'payment.captured' | 'payment.failed'>()
       if (e.type === 'flow.failed') expectTypeOf(e.step).toEqualTypeOf<Ids | undefined>()
     })
-    // Without narrowing, ids are the union of both halves (i.e. string).
-    wizard.observe((e) => {
-      if (e.type === 'step.done') expectTypeOf(e.step).toEqualTypeOf<string>()
+    // Without narrowing, ids are the exact union across the root and its descendants.
+    run.observe((e) => {
+      if (e.type === 'step.done')
+        expectTypeOf(e.step).toEqualTypeOf<
+          'reserve' | 'awaitPayment' | 'fulfil' | 'receipt' | 'label' | 'pack' | 'done'
+        >()
     })
-    expectTypeOf(wizard.log()).toEqualTypeOf<readonly WizardEvent<CheckoutF>[]>()
-    expectTypeOf<WizardEvent<CheckoutF>>().toMatchTypeOf<WizardEvent>()
+    expectTypeOf(run.log()).toEqualTypeOf<readonly RunEvent<CheckoutF>[]>()
+    const genericEvent: RunEvent = {} as RunEvent<CheckoutF>
+    expectTypeOf(genericEvent.type).toEqualTypeOf<RunEvent['type']>()
     // A raw domain event (path: readonly string[]) is neither half without a path refinement.
-    expectTypeOf<DomainEvent>().not.toMatchTypeOf<WizardEvent>()
+    expectTypeOf<DomainEvent>().not.toMatchTypeOf<RunEvent>()
+  })
+  it('correlates committed root event data with the flow', () => {
+    type Events = RootRunEvent<CheckoutF>
+    type Reserved = Extract<Events, { type: 'step.runSucceeded'; step: 'reserve' }>
+    type ReserveDone = Extract<Events, { type: 'step.done'; step: 'reserve' }>
+    type Payment = Extract<Events, { type: 'event.received'; event: 'payment.captured' }>
+    type ChildStarted = Extract<Events, { type: 'child.started'; step: 'fulfil' }>
+    type FulfilmentDone = Extract<Events, { type: 'child.summary'; step: 'fulfil' }>
+    type FulfilmentFlowDone = Extract<RootRunEvent<typeof fulfilmentFlow>, { type: 'flow.done' }>
+
+    expectTypeOf<Reserved['output']>().toEqualTypeOf<{ reservationId: string }>()
+    expectTypeOf<ReserveDone['output']>().toEqualTypeOf<{ reservationId: string } | undefined>()
+    expectTypeOf<Payment['payload']>().toEqualTypeOf<{ paymentId: string }>()
+    expectTypeOf<ChildStarted['context']>().toEqualTypeOf<{ orderId: string }>()
+    expectTypeOf<ChildStarted['childPath']>().toEqualTypeOf<readonly ['fulfil']>()
+    expectTypeOf<FulfilmentDone['summary']['current']>().toEqualTypeOf<'confirm' | null>()
+    expectTypeOf<FulfilmentDone['done']>().toEqualTypeOf<
+      { readonly output: { trackingId: string } } | undefined
+    >()
+    expectTypeOf<FulfilmentFlowDone['output']>().toEqualTypeOf<{ trackingId: string } | undefined>()
+    expectTypeOf<Extract<Events, { type: 'step.done'; step: 'shipping' }>>().toEqualTypeOf<never>()
+    expectTypeOf<Extract<Events, { type: 'input.changed' }>['patch']>().toEqualTypeOf<unknown>()
+  })
+  it('correlates descendant event data with the flow named by path', () => {
+    type Events = ChildRunEvent<CheckoutF>
+    type LabelSucceeded = Extract<
+      Events,
+      { path: readonly ['fulfil']; type: 'step.runSucceeded'; step: 'label' }
+    >
+    type GrandchildValidated = Extract<
+      Events,
+      { path: readonly ['fulfil', 'pack']; type: 'step.validated'; step: 'pick' }
+    >
+    type GrandchildStarted = Extract<
+      Events,
+      { path: readonly ['fulfil']; type: 'child.started'; step: 'pack' }
+    >
+
+    expectTypeOf<LabelSucceeded['output']>().toEqualTypeOf<{ trackingId: string }>()
+    expectTypeOf<GrandchildValidated['output']>().toEqualTypeOf<{ bin: string }>()
+    expectTypeOf<GrandchildStarted['context']>().toEqualTypeOf<{ sku: string }>()
+    expectTypeOf<GrandchildStarted['childPath']>().toEqualTypeOf<readonly ['fulfil', 'pack']>()
+    expectTypeOf<
+      Extract<Events, { path: readonly ['fulfil']; type: 'step.done'; step: 'reserve' }>
+    >().toEqualTypeOf<never>()
+    expectTypeOf<
+      Extract<Events, { path: readonly ['fulfil', 'pack']; type: 'step.done'; step: 'label' }>
+    >().toEqualTypeOf<never>()
+    expectTypeOf<ChildRunEvent['path']>().toEqualTypeOf<readonly [string, ...string[]]>()
+    expectTypeOf<Extract<ChildRunEvent, { type: 'step.done' }>['step']>().toEqualTypeOf<string>()
+  })
+  it('keeps the deepest runtime-supported child path typed', () => {
+    type DeepDone = Extract<
+      ChildRunEvent<EventDepth8>,
+      {
+        path: readonly ['d8', 'd7', 'd6', 'd5', 'd4', 'd3', 'd2', 'd1']
+        type: 'flow.done'
+      }
+    >
+    expectTypeOf<DeepDone['output']>().toEqualTypeOf<{ readonly leaf: true } | undefined>()
   })
   it('Command<F> types every id: go/setInput/resetInput views, run/retry tasks, send events, compensate.from steps', () => {
     const go: Command<CheckoutF> = { type: 'go', step: 'shipping' }
@@ -336,19 +430,19 @@ describe('typed WizardEvent / Command', () => {
   })
   it('dispatch() is typed by the flow; the untrusted door is parseCommand(flow, unknown) → Command<F> (no cast)', () => {
     // @ts-expect-error unknown view id
-    wizard.dispatch({ type: 'go', step: 'typo' })
+    run.dispatch({ type: 'go', step: 'typo' })
     // @ts-expect-error unknown event
-    wizard.dispatch({ type: 'send', event: 'nope', payload: {} })
+    run.dispatch({ type: 'send', event: 'nope', payload: {} })
     // @ts-expect-error non-task id
-    wizard.dispatch({ type: 'retry', step: 'shipping' })
+    run.dispatch({ type: 'retry', step: 'shipping' })
     // @ts-expect-error wrong patch
-    wizard.dispatch({ type: 'setInput', step: 'shipping', patch: { address: 1 } })
+    run.dispatch({ type: 'setInput', step: 'shipping', patch: { address: 1 } })
     // @ts-expect-error a raw machine command (string ids) is not a Command<F>
-    wizard.dispatch({} as MachineCommand)
-    const parsed = parseCommand(checkout, untrusted)
+    run.dispatch({} as MachineCommand)
+    const parsed = parseCommand(checkoutFlow, untrusted)
     if (parsed.ok) {
       expectTypeOf(parsed.value).toEqualTypeOf<Command<CheckoutF>>()
-      wizard.dispatch(parsed.value)
+      run.dispatch(parsed.value)
     } else {
       expectTypeOf(parsed.issues[0]?.message).toEqualTypeOf<string | undefined>()
     }
@@ -358,31 +452,31 @@ describe('typed WizardEvent / Command', () => {
   })
 })
 
-describe('createWizard / resumeWizard options', () => {
+describe('createRun / resumeRun options', () => {
   it('context is the INPUT side; deps required iff declared; the option names', () => {
-    const created = createWizard(checkout, {
+    const created = createRun(checkoutFlow, {
       context: { cartId: 'c', total: 1 }, // `express` optional (schema default), typed INPUT side
       deps: {} as CheckoutDeps,
     })
-    expectTypeOf(created).toEqualTypeOf<Wizard<CheckoutF>>()
+    expectTypeOf(created).toEqualTypeOf<FlowRun<CheckoutF>>()
     // @ts-expect-error `deps` is required because the flow declares a deps boundary
-    createWizard(checkout, { context: { cartId: 'c', total: 1 } })
+    createRun(checkoutFlow, { context: { cartId: 'c', total: 1 } })
     // @ts-expect-error context must match the INPUT type
-    createWizard(checkout, { context: { cartId: 1, total: 1 }, deps: {} as CheckoutDeps })
-    createWizard(fulfilment, { context: { orderId: 'o' } }) // flow without deps → `deps` optional
-    expectTypeOf(createWizardAsync(fulfilment, { context: { orderId: 'o' } })).toEqualTypeOf<
-      Promise<Wizard<typeof fulfilment>>
+    createRun(checkoutFlow, { context: { cartId: 1, total: 1 }, deps: {} as CheckoutDeps })
+    createRun(fulfilmentFlow, { context: { orderId: 'o' } }) // flow without deps → `deps` optional
+    expectTypeOf(createRunAsync(fulfilmentFlow, { context: { orderId: 'o' } })).toEqualTypeOf<
+      Promise<FlowRun<typeof fulfilmentFlow>>
     >()
-    const resumed = resumeWizard(checkout, {} as unknown, { deps: {} as CheckoutDeps })
-    expectTypeOf(resumed).toEqualTypeOf<Wizard<CheckoutF>>()
+    const resumed = resumeRun(checkoutFlow, {} as unknown, { deps: {} as CheckoutDeps })
+    expectTypeOf(resumed).toEqualTypeOf<FlowRun<CheckoutF>>()
     // @ts-expect-error resume needs deps too
-    resumeWizard(checkout, {} as unknown, {})
+    resumeRun(checkoutFlow, {} as unknown, {})
     expectTypeOf(
-      resumeWizardAsync(checkout, {} as unknown, { deps: {} as CheckoutDeps }),
-    ).toEqualTypeOf<Promise<Wizard<CheckoutF>>>()
+      resumeRunAsync(checkoutFlow, {} as unknown, { deps: {} as CheckoutDeps }),
+    ).toEqualTypeOf<Promise<FlowRun<CheckoutF>>>()
     // @ts-expect-error async resume needs deps too
-    resumeWizardAsync(checkout, {} as unknown, {})
-    expectTypeOf<keyof WizardOptions<CheckoutF>>().toEqualTypeOf<
+    resumeRunAsync(checkoutFlow, {} as unknown, {})
+    expectTypeOf<keyof RunOptions<CheckoutF>>().toEqualTypeOf<
       | 'context'
       | 'deps'
       | 'instanceId'
@@ -396,16 +490,18 @@ describe('createWizard / resumeWizard options', () => {
       | 'clock'
       | 'scheduler'
       | 'ids'
+      | 'beforeEffects'
+      | 'beforeTimer'
       | 'strict'
       | 'logSize'
     >()
-    expectTypeOf<Parameters<NonNullable<WizardOptions<CheckoutF>['redact']>>[0]>().toEqualTypeOf<
+    expectTypeOf<Parameters<NonNullable<RunOptions<CheckoutF>['redact']>>[0]>().toEqualTypeOf<
       Snapshot<CheckoutF>
     >()
   })
-  it('v0.2: createWizard takes correlationId; resume takes migrate (and no correlationId)', () => {
-    createWizard(fulfilment, { context: { orderId: 'o' }, correlationId: 'order-1' })
-    resumeWizard(fulfilment, {} as unknown, {
+  it('v0.2: createRun takes correlationId; resume takes migrate (and no correlationId)', () => {
+    createRun(fulfilmentFlow, { context: { orderId: 'o' }, correlationId: 'order-1' })
+    resumeRun(fulfilmentFlow, {} as unknown, {
       migrate: (snapshot, from) => {
         expectTypeOf(snapshot).toEqualTypeOf<unknown>()
         expectTypeOf(from).toEqualTypeOf<{ readonly name: string; readonly version: number }>()
@@ -416,8 +512,8 @@ describe('createWizard / resumeWizard options', () => {
       SnapshotMigration | undefined
     >()
     // @ts-expect-error the correlation id comes from the snapshot on resume
-    resumeWizard(fulfilment, {} as unknown, { correlationId: 'x' })
+    resumeRun(fulfilmentFlow, {} as unknown, { correlationId: 'x' })
     // @ts-expect-error `migrate` is a resume-only option
-    createWizard(fulfilment, { context: { orderId: 'o' }, migrate: (s: unknown) => s })
+    createRun(fulfilmentFlow, { context: { orderId: 'o' }, migrate: (s: unknown) => s })
   })
 })

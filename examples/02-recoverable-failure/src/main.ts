@@ -3,9 +3,9 @@
  * A flaky ledger fails twice; the retry policy waits 200 ms, then 400 ms. The time is virtual
  * (the test scheduler doubles as the clock), so the demo finishes instantly.
  */
-import { createWizard } from '@openwizard/core'
+import { createRun } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
-import { type Deps, syncInvoice } from './sync-invoice'
+import { type Deps, syncInvoiceFlow } from './sync-invoice'
 
 let calls = 0
 const deps: Deps = {
@@ -19,32 +19,32 @@ const deps: Deps = {
   },
 }
 
-const sched = createTestScheduler({ now: 0 })
-const wizard = createWizard(syncInvoice, {
+const scheduler = createTestScheduler({ now: 0 })
+const run = createRun(syncInvoiceFlow, {
   context: { invoiceId: 'INV-7', amount: 120 },
   deps,
-  scheduler: sched,
+  scheduler: scheduler,
 })
-wizard.observe((event) => {
+run.observe((event) => {
   if (event.type === 'step.runFailed')
     console.log(
-      `t=${sched.now()}  attempt ${event.attempt} failed: ${event.error.message}${event.willRetry ? ' → will retry' : ''}`,
+      `t=${scheduler.now()}  attempt ${event.attempt} failed: ${event.error.message}${event.willRetry ? ' → will retry' : ''}`,
     )
   if (event.type === 'step.retryScheduled')
-    console.log(`t=${sched.now()}  retry #${event.attempt} scheduled for t=${event.dueAt}`)
+    console.log(`t=${scheduler.now()}  retry #${event.attempt} scheduled for t=${event.dueAt}`)
   if (event.type === 'step.runSucceeded')
     console.log(
-      `t=${sched.now()}  attempt ${event.attempt} succeeded: ${JSON.stringify(event.output)}`,
+      `t=${scheduler.now()}  attempt ${event.attempt} succeeded: ${JSON.stringify(event.output)}`,
     )
 })
 
-const settle = () => new Promise<void>((r) => setTimeout(r, 0))
-await wizard.start()
+const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+await run.start()
 await settle()
-while (sched.pending() > 0) {
-  console.log(`         explain(post): ${wizard.explain('post').reasons.join(', ')}`)
-  sched.flush() // jump to the next due timer
+while (scheduler.pending() > 0) {
+  console.log(`         explain(post): ${run.explain('post').reasons.join(', ')}`)
+  scheduler.flush() // jump to the next due timer
   await settle()
 }
-console.log('status:', wizard.getState().status, '| output:', wizard.getState().output)
-wizard.dispose()
+console.log('status:', run.getState().status, '| output:', run.getState().output)
+run.dispose()

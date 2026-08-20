@@ -1,7 +1,7 @@
 /**
  * Snapshot envelope + structural validation (plan §8.8).
  *
- * `toSnapshot(state, children, savedAt)` wraps a wizard state (and its live
+ * `toSnapshot(state, children, savedAt)` wraps a run state (and its live
  * children's snapshots) in the versioned, JSON-serializable envelope that
  * `Store`s persist. `validateSnapshot(def, unknown)` performs every check
  * that does not need to run user code: envelope, flow identity, step-set

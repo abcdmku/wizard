@@ -1,70 +1,24 @@
 # Getting started
 
-OpenWizard is a workflow orchestrator for TypeScript. You define a flow once as data, then drive it with one live object where every method, step id and payload is typed by that definition, on a server, in the browser or at the edge.
-
-## Install
+Install core and one [Standard Schema](https://standardschema.dev/) library:
 
 ```sh
-pnpm add @openwizard/core zod   # or npm / yarn / bun. Zod 4, Valibot, ArkType: any Standard Schema
-pnpm add @openwizard/react      # optional React binding
-# test helpers live in @openwizard/core/testing, a separate entry, so they stay out of your bundle
+pnpm add @openwizard/core zod
 ```
 
-Node 20 or newer, or any ES2022 runtime. ESM and CommonJS both ship, but the quickstart uses top-level `await`, so run it as ESM (`"type": "module"` in your `package.json`, or an `.mts` file).
+Create `order.mts`:
 
-## The flow
-
-`examples/01-happy-path/src/onboarding.ts`, embedded from the repository at build time: a form view, a task that calls a CRM, a final step.
-
-```ts file="examples/01-happy-path/src/onboarding.ts"
+```ts file="packages/docs/snippets/getting-started/order.mts"
 ```
 
-## Driving it
-
-`main.ts` creates the wizard, watches the events, and walks it to the end.
-
-```ts title="main.ts"
-// main.ts, run with: npx tsx main.ts (or compile with tsc and run: node main.js)
-import { createWizard } from '@openwizard/core'
-import { type Deps, onboarding } from './onboarding'
-
-const deps: Deps = { crm: { upsert: (contact) => ({ id: `crm_${contact.email}` }) } }
-const wizard = createWizard(onboarding, { context: { email: 'ada@example.com' }, deps })
-wizard.observe((event) => console.log(event.seq, event.type)) // every domain event, typed
-
-await wizard.start() // the cursor lands on 'profile'
-await wizard.next() // { ok: false, code: 'INVALID_INPUT', issues: [...] }, a value, not a throw
-await wizard.setInput('profile', { company: 'Acme', role: 'engineer' })
-await wizard.next() // { ok: true, from: 'profile', to: 'save' }, the task ran, the flow is done
-
-wizard.getState().steps.save.output // { id: string } | undefined, typed from the task's `run`
-wizard.getState().output // string | undefined, typed from the final step
-wizard.explain('save') // { status: 'done', phase: undefined, reasons: [], candidates: [] }
-```
-
-That first `next()` fails on purpose: the draft is empty, and the Zod issues come back as a value. The flow types everything you can call, so `setInput('typo', ...)`, `go('save')` (not a view) and `send('unknown-event', ...)` are compile errors.
+Run it:
 
 ```sh
-npx tsx main.ts   # prints the events, then the state
+pnpm tsx order.mts
 ```
 
-<Callout type="tip" title="Run it in the browser">
-  The same program runs on the [landing page](/) and in the [playground](/playground) against
-  the real `@openwizard/core`.
-</Callout>
+`defineFlow` owns the context type. `steps()` checks every referenced step id. `createRun` parses
+the context, starts `prepare`, follows its `next`, and returns the final output as a result value.
 
-## What you just used
-
-| Idea | Read more |
-|---|---|
-| `defineFlow` returns pre-bound step constructors (`s.view`, `s.task`, `s.final`, ...), so hooks are typed without generics | [Defining flows](/concepts/defining-flows), [Steps and kinds](/concepts/steps) |
-| `input`, `context` and `deps` are boundaries, the only doors data comes through | [Boundaries](/concepts/boundaries) |
-| `next()` answers `{ ok: false, code, issues }` instead of throwing | [Results as values](/concepts/results) |
-| `observe()` streams typed events, `explain(step)` says why a step is where it is | [Events and observability](/concepts/observability) |
-| A synchronous chain of hooks is committed before `next()` returns | [Guarantees](/concepts/guarantees) |
-
-## Next steps
-
-- [Concepts](/concepts) in order, about twenty minutes.
-- [Examples](/examples): ten workspace packages, each with tests that drive it end to end.
-- [API reference](/api) to keep open while you build.
+Read [How it works](/how-it-works) next. The complete runnable version is
+[Example 11](/examples/11-order-workflow).

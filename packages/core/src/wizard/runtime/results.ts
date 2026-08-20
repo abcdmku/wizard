@@ -82,7 +82,7 @@ export function findRejected(batch: readonly DomainEvent[]): RejectedResult | un
 }
 
 export function commandResult(processed: Processed): CommandResult {
-  if (processed.disposed) return { ok: false, code: 'DISPOSED', message: 'wizard disposed' }
+  if (processed.disposed) return { ok: false, code: 'DISPOSED', message: 'run disposed' }
   return findRejected(processed.batch) ?? { ok: true, seq: processed.seq }
 }
 
@@ -175,7 +175,7 @@ export function toNavResult(outcome: TxOutcome): NavResult {
         error: outcome.error,
       }
     case 'disposed':
-      return { ok: false, reason: 'failed', code: 'DISPOSED', message: 'wizard disposed' }
+      return { ok: false, reason: 'failed', code: 'DISPOSED', message: 'run disposed' }
   }
 }
 
@@ -194,7 +194,7 @@ export const DROPPED_DISPOSED: SendResult = {
   ok: false,
   reason: 'dropped',
   code: 'DISPOSED',
-  message: 'wizard disposed',
+  message: 'run disposed',
 }
 
 /** The `SendResult` of a routed event: who handled it (steps, buffer, flow-level handler) or why not. */

@@ -271,7 +271,7 @@ function FlowSvg({
   )
 }
 
-/** Every flow of the graph (root first, then each child flow) as a stacked set of SVG DAGs. */
+/** Every flow of the graph (root first, then each child flow) as a stacked set of SVG graphs. */
 export function FlowGraphView({ graph, liveState, selected, onSelect }: FlowGraphViewProps) {
   const flows = useMemo(
     () => flowsOf(graph).map((flow) => ({ ...flow, layout: layoutFlow(flow.nodes, flow.edges) })),

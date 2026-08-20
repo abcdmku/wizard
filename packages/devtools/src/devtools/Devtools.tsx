@@ -15,18 +15,18 @@ import {
   type DevtoolsTheme,
   type GraphInput,
   type GraphSelection,
+  isFlowRunSource,
   isProjectedState,
-  isWizardSource,
 } from '../types'
 import { EventsTab, GraphTab, InspectorTab, type Shared, TimelineTab } from './tabs'
 import { useHotkey } from './use-hotkey'
 import { type DockPosition, useResize } from './use-resize'
 
 /**
- * `<Devtools>` props: the `source` (a `Wizard` or a `Mirror`), the graph (`flow` / `graph`; a
- * wizard source brings its own flow), `theme`, `defaultOpen`, dock `position` and `defaultSize`
+ * `<Devtools>` props: the `source` (a `FlowRun` or a `Mirror`), the graph (`flow` / `graph`; a
+ * run source brings its own flow), `theme`, `defaultOpen`, dock `position` and `defaultSize`
  * (px), the toggle `hotkey` (default `ctrl+shift+d`, `false` to disable), `context` (the input
- * `createWizard` received) for a full-range timeline, `maxEvents` for the event buffer.
+ * `createRun` received) for a full-range timeline, `maxEvents` for the event buffer.
  * @public
  */
 export interface DevtoolsProps extends GraphInput {
@@ -53,12 +53,12 @@ const TABS: ReadonlyArray<readonly [Tab, string]> = [
  * The composite devtools panel: the flow graph with the live overlay (and the time-travelled
  * state while the timeline scrubs), the event log, the step inspector and the timeline, in a
  * dockable, resizable panel. Works over a `Mirror` too (graph + inspector from the projected
- * state; the events and the timeline need a wizard and say so).
+ * state; the events and the timeline need a run and say so).
  * @public
  */
 export function Devtools(props: DevtoolsProps): ReactElement {
   const { source } = props
-  const wizard = isWizardSource(source) ? source : undefined
+  const run = isFlowRunSource(source) ? source : undefined
   const [open, setOpen] = useState(props.defaultOpen ?? false)
   const [tab, setTab] = useState<Tab>('graph')
   const [position, setPosition] = useState<DockPosition>(props.position ?? 'bottom')
@@ -71,14 +71,14 @@ export function Devtools(props: DevtoolsProps): ReactElement {
 
   const graph: FlowGraphData | undefined = useMemo(() => {
     if (props.graph !== undefined) return props.graph
-    const flow = props.flow ?? wizard?.flow
+    const flow = props.flow ?? run?.flow
     return flow === undefined ? undefined : inspect(flow)
-  }, [props.graph, props.flow, wizard])
+  }, [props.graph, props.flow, run])
 
   // Buffers live here so closing the panel / switching tabs loses nothing.
-  const buffer = useEventBuffer(wizard, props.maxEvents)
+  const buffer = useEventBuffer(run, props.maxEvents)
   const events = useBufferedEvents(buffer)
-  const window = useReplayWindow(wizard, { context: props.context })
+  const window = useReplayWindow(run, { context: props.context })
 
   const [selection, setSelection] = useState<GraphSelection | null>(null)
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null)
@@ -163,7 +163,7 @@ export function Devtools(props: DevtoolsProps): ReactElement {
             <GraphTab shared={shared} />
           </div>
           <div className="owd-tab-pane" hidden={tab !== 'events'}>
-            <EventsTab shared={shared} events={wizard === undefined ? undefined : events} />
+            <EventsTab shared={shared} events={run === undefined ? undefined : events} />
           </div>
           <div className="owd-tab-pane" hidden={tab !== 'inspector'}>
             <InspectorTab shared={shared} />
@@ -180,7 +180,7 @@ export function Devtools(props: DevtoolsProps): ReactElement {
 /** Status / seq / instance of the source, live. */
 function SourceMeta({ source }: { readonly source: DevtoolsSource }): ReactElement {
   const snapshot = useSourceSnapshot(source)
-  if (isWizardSource(source)) {
+  if (isFlowRunSource(source)) {
     const state = source.getState()
     return (
       <span className="owd-panel-meta owd-mono">
@@ -199,7 +199,7 @@ function SourceMeta({ source }: { readonly source: DevtoolsSource }): ReactEleme
 }
 
 function statusOf(source: DevtoolsSource): string {
-  if (isWizardSource(source)) return source.getState().status
+  if (isFlowRunSource(source)) return source.getState().status
   const projected = source.getSnapshot()
   return isProjectedState(projected) ? projected.status : 'idle'
 }

@@ -54,7 +54,7 @@ interface CheckoutDeps {
   payments: { createIntent(cartId: string, total: number): Promise<{ intentId: string }> }
 }
 
-const f = defineFlow({
+const fulfilment = defineFlow({
   name: 'fulfilment',
   context: z.object({
     orderId: z.string(),
@@ -63,16 +63,16 @@ const f = defineFlow({
   }),
   deps: boundary.trusted<Pick<CheckoutDeps, 'shipping'>>(),
 })
-export const fulfilment = f.steps({
-  label: f.task(({ context, deps }) => deps.shipping.createLabel(context), {
+export const fulfilmentFlow = fulfilment.steps({
+  label: fulfilment.task(({ context, deps }) => deps.shipping.createLabel(context), {
     exit: ({ output, update }) => update({ trackingId: output.trackingId }),
     next: 'done',
   }),
   // ADR-001 L1: sibling `steps` cannot be typed per flow; the typed idiom is context.
-  done: f.final({ output: ({ context }) => ({ trackingId: context.trackingId }) }),
+  done: fulfilment.final({ output: ({ context }) => ({ trackingId: context.trackingId }) }),
 })
 
-const c = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({
     cartId: z.string(),
@@ -88,14 +88,14 @@ const c = defineFlow({
   deps: boundary.trusted<CheckoutDeps>(),
   onFailure: 'compensate',
 })
-export const checkout = c.steps(
+export const checkoutFlow = checkout.steps(
   {
-    shipping: c.view({
+    shipping: checkout.view({
       input: z.object({ address: z.string().min(1), express: z.boolean().default(false) }),
       exit: ({ output, update }) => update({ express: output.express }),
       next: 'reserve',
     }),
-    reserve: c.task(
+    reserve: checkout.task(
       ({ context, deps, signal }) => deps.inventory.reserve(context.cartId, { signal }),
       {
         retry: { attempts: 3, backoff: 'exponential' },
@@ -103,7 +103,7 @@ export const checkout = c.steps(
         next: 'awaitPayment',
       },
     ),
-    awaitPayment: c.wait({
+    awaitPayment: checkout.wait({
       enter: ({ context, deps }) => deps.payments.createIntent(context.cartId, context.total),
       on: {
         'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
@@ -112,19 +112,21 @@ export const checkout = c.steps(
       timeout: { after: '15m', next: 'expired' },
       next: 'route',
     }),
-    route: c.decision({ next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined') }),
-    fulfil: c.flow(fulfilment, {
+    route: checkout.decision({
+      next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined'),
+    }),
+    fulfil: checkout.flow(fulfilmentFlow, {
       context: ({ context }) => ({ orderId: context.cartId, express: context.express }),
       deps: ({ deps }) => ({ shipping: deps.shipping }),
       next: 'receipt',
     }),
-    receipt: c.final(),
-    declined: c.final(),
-    expired: c.final(),
+    receipt: checkout.final(),
+    declined: checkout.final(),
+    expired: checkout.final(),
   },
   { start: 'shipping' },
 )
-type CheckoutF = typeof checkout
+type CheckoutF = typeof checkoutFlow
 
 describe('case 1: end-to-end example', () => {
   it('extracts ids, kinds, context, deps, events and outputs', () => {
@@ -182,11 +184,11 @@ describe('case 1: end-to-end example', () => {
     expectTypeOf<OutputOf<CheckoutF, 'fulfil'>>().toEqualTypeOf<{
       trackingId: string | undefined
     }>()
-    expectTypeOf<FlowOutput<typeof fulfilment>>().toEqualTypeOf<{
+    expectTypeOf<FlowOutput<typeof fulfilmentFlow>>().toEqualTypeOf<{
       trackingId: string | undefined
     }>()
     expectTypeOf<FlowOutput<CheckoutF>>().toEqualTypeOf<undefined>()
-    expectTypeOf<ChildFlowOf<CheckoutF, 'fulfil'>>().toEqualTypeOf<typeof fulfilment>()
+    expectTypeOf<ChildFlowOf<CheckoutF, 'fulfil'>>().toEqualTypeOf<typeof fulfilmentFlow>()
     // refs captured through string / fn / array / union+null / timeout.next
     expectTypeOf<StepTypesOf<CheckoutF, 'shipping'>['refs']>().toEqualTypeOf<'reserve'>()
     expectTypeOf<StepTypesOf<CheckoutF, 'awaitPayment'>['refs']>().toEqualTypeOf<
@@ -198,12 +200,12 @@ describe('case 1: end-to-end example', () => {
   })
 
   it('hover-quality: a step in Flow.steps is a concrete compact FlowStep; every flow satisfies AnyFlow', () => {
-    expectTypeOf(checkout.steps.reserve).toEqualTypeOf<
+    expectTypeOf(checkoutFlow.steps.reserve).toEqualTypeOf<
       FlowStep<never, { reservationId: string }, 'awaitPayment', 'task', never>
     >()
-    expectTypeOf(checkout).toMatchTypeOf<AnyFlow>()
-    expectTypeOf(fulfilment).toMatchTypeOf<AnyFlow>()
-    const full = c.task(
+    expectTypeOf(checkoutFlow).toMatchTypeOf<AnyFlow>()
+    expectTypeOf(fulfilmentFlow).toMatchTypeOf<AnyFlow>()
+    const full = checkout.task(
       ({ deps, context, signal }) => deps.inventory.reserve(context.cartId, { signal }),
       {
         next: 'awaitPayment',
@@ -229,30 +231,30 @@ describe('case 1: end-to-end example', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type SmallCtx = { a: string; b: number }
-const s = defineFlow({ name: 'small', context: boundary.trusted<SmallCtx>() })
+const small = defineFlow({ name: 'small', context: boundary.trusted<SmallCtx>() })
 const se = defineFlow({
   name: 'small-events',
   context: boundary.trusted<SmallCtx>(),
   events: { ping: boundary.trusted<{ n: number }>() },
 })
 
-export const bad2 = s.steps({
+export const bad2 = small.steps({
   // @ts-expect-error case 2 — `next: 'typo'` is reported on THIS step's property line
-  a: s.view({ next: 'typo' }),
-  b: s.final(),
+  a: small.view({ next: 'typo' }),
+  b: small.final(),
 })
-export const bad3 = s.steps({
+export const bad3 = small.steps({
   // @ts-expect-error case 3 — the literal survives through the fn return (`N`), still rejected here
-  a: s.decision({ next: () => 'typo' }),
-  b: s.final(),
+  a: small.decision({ next: () => 'typo' }),
+  b: small.final(),
 })
 export const bad4 = se.steps({
   // @ts-expect-error case 4 — `timeout.next` typo
   a: se.wait({ on: { ping: () => {} }, timeout: { after: '1m', next: 'typo' }, next: 'b' }),
   b: se.final(),
 })
-export const bad5 = s.steps(
-  { a: s.view({ next: 'b' }), b: s.final() },
+export const bad5 = small.steps(
+  { a: small.view({ next: 'b' }), b: small.final() },
   // @ts-expect-error case 5 — `start` must be a step id (completions offer 'a' | 'b')
   { start: 'typo' },
 )
@@ -272,12 +274,12 @@ describe('cases 2–5: no cascade — shape (B) keeps T precise even when the ch
 // Cases 6–8 — modules (spread), excess properties, context variance
 // ─────────────────────────────────────────────────────────────────────────────
 
-const m = defineFlow({ name: 'module', context: boundary.trusted<{ a: string }>() })
+const module = defineFlow({ name: 'module', context: boundary.trusted<{ a: string }>() })
 export const addressModule = {
-  m1: m.view({ input: z.object({ street: z.string() }), next: 'm2' }),
-  m2: m.task(({ context }) => Promise.resolve({ ok: context.a.length > 0 }), { next: 'root' }), // refers outside the module
+  m1: module.view({ input: z.object({ street: z.string() }), next: 'm2' }),
+  m2: module.task(({ context }) => Promise.resolve({ ok: context.a.length > 0 }), { next: 'root' }), // refers outside the module
 }
-export const ok6 = s.steps({ ...addressModule, root: s.view({ next: 'm1' }) }) // superset context accepts a { a } module (case 8 ✓)
+export const ok6 = small.steps({ ...addressModule, root: small.view({ next: 'm1' }) }) // superset context accepts a { a } module (case 8 ✓)
 describe('case 6: module spread', () => {
   it('composes and keeps outputs', () => {
     expectTypeOf<StepId<typeof ok6>>().toEqualTypeOf<'m1' | 'm2' | 'root'>()
@@ -285,40 +287,40 @@ describe('case 6: module spread', () => {
   })
 })
 // @ts-expect-error case 6 — `{ ...mod }` alone: 'root' is unresolved; spreads cannot be elaborated per property → error on the argument
-export const bad6 = s.steps({ ...addressModule })
+export const bad6 = small.steps({ ...addressModule })
 
-export const bad7 = s.steps({
+export const bad7 = small.steps({
   // @ts-expect-error case 7 — excess property `nxt` inside a constructor
-  a: s.view({ nxt: 'b' }),
-  b: s.final(),
+  a: small.view({ nxt: 'b' }),
+  b: small.final(),
 })
 
 const unrelated = defineFlow({ name: 'unrelated', context: boundary.trusted<{ z: boolean }>() })
 export const unrelatedSteps = { u: unrelated.view({ exit: ({ context }) => context.z, next: 'u' }) }
-export const bad8 = s.steps({
+export const bad8 = small.steps({
   // @ts-expect-error case 8 — a step bound to an unrelated context is rejected on its property line
   u: unrelatedSteps.u,
-  root: s.final(),
+  root: small.final(),
 })
 const depsMod = defineFlow({
   name: 'deps-module',
   context: boundary.trusted<{ a: string }>(),
   deps: boundary.trusted<{ mailer: { send(to: string): Promise<void> } }>(),
 })
-export const bad8deps = s.steps({
+export const bad8deps = small.steps({
   // @ts-expect-error case 8 (deps) — module needs `mailer`, this flow provides no deps
   m: depsMod.task(({ deps, context }) => deps.mailer.send(context.a), { next: 'root' }),
-  root: s.final(),
+  root: small.final(),
 })
 const evMod = defineFlow({
   name: 'ev-module',
   context: boundary.trusted<{ a: string }>(),
   events: { other: boundary.trusted<{ x: number }>() },
 })
-export const bad8events = s.steps({
+export const bad8events = small.steps({
   // @ts-expect-error case 8 (events) — module listens for an event this flow does not declare
   w: evMod.wait({ on: { other: () => {} }, next: 'root' }),
-  root: s.final(),
+  root: small.final(),
 })
 const evSubset = defineFlow({ name: 'ev-subset', context: boundary.trusted<{ a: string }>() })
 export const ok8events = se.steps({
@@ -330,21 +332,21 @@ export const ok8events = se.steps({
 // Case 9 — order (in)dependence with `s.task(run, options)`
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ok9 = s.steps({
+export const ok9 = small.steps({
   // compensate/next BEFORE anything else — still typed
-  t1: s.task(async () => ({ id: 1 }), {
+  t1: small.task(async () => ({ id: 1 }), {
     compensate: ({ output }) => output.id.toFixed(),
     next: ({ output }) => (output.id > 0 ? 't2' : 't3'),
     exit: ({ output }) => output.id,
     retry: { attempts: 2 },
   }),
   // sync run, `next` first, `output` boundary overrides the run return type
-  t2: s.task(() => 'raw-json', {
+  t2: small.task(() => 'raw-json', {
     next: 't3',
     output: z.object({ parsed: z.number() }),
     compensate: ({ output }) => output.parsed,
   }),
-  t3: s.final(),
+  t3: small.final(),
 })
 describe('case 9: task(run, options) is order independent', () => {
   it('outputs and refs', () => {
@@ -353,21 +355,21 @@ describe('case 9: task(run, options) is order independent', () => {
     expectTypeOf<StepTypesOf<typeof ok9, 't1'>['refs']>().toEqualTypeOf<'t2' | 't3'>()
   })
 })
-export const bad9 = s.steps({
-  t1: s.task(async () => ({ id: 1 }), {
+export const bad9 = small.steps({
+  t1: small.task(async () => ({ id: 1 }), {
     // @ts-expect-error `output` is `{ id: number }` (not any/unknown): unknown property rejected regardless of order
     compensate: ({ output }) => output.nope,
     next: 't2',
   }),
-  t2: s.final(),
+  t2: small.final(),
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Case 10 — `initial` vs `input`; INPUT vs OUTPUT with .default()/.transform()
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ok10 = s.steps({
-  form: s.view({
+export const ok10 = small.steps({
+  form: small.view({
     input: z.object({
       qty: z.string().transform((x) => Number(x)),
       express: z.boolean().default(false),
@@ -378,7 +380,7 @@ export const ok10 = s.steps({
     exit: ({ output }) => output.express, // parsed
     next: 'done',
   }),
-  done: s.final(),
+  done: small.final(),
 })
 describe('case 10: draft (INPUT) vs output (OUTPUT)', () => {
   it('InputOf/DraftOf are the INPUT side, OutputOf the OUTPUT side', () => {
@@ -394,18 +396,18 @@ describe('case 10: draft (INPUT) vs output (OUTPUT)', () => {
   })
 })
 // order inside a view/flow cfg never matters either: `input`/`output` are boundaries (inferred in pass 1)
-export const okOrderView = s.steps({
-  v: s.view({
+export const okOrderView = small.steps({
+  v: small.view({
     exit: ({ output }) => output.qty.toFixed(),
     next: 'f',
     input: z.object({ qty: z.number() }),
   }),
-  f: s.flow(fulfilment, {
+  f: small.flow(fulfilmentFlow, {
     exit: ({ output }) => output.trackingId,
     next: 'done',
     context: ({ context }) => ({ orderId: context.a, express: false }),
   }),
-  done: s.final(),
+  done: small.final(),
 })
 describe('case 10b: cfg property order', () => {
   it('view/flow outputs come from boundaries / child flow', () => {
@@ -415,14 +417,14 @@ describe('case 10b: cfg property order', () => {
     }>()
   })
 })
-export const bad10 = s.steps({
-  form: s.view({
+export const bad10 = small.steps({
+  form: small.view({
     input: z.object({ qty: z.string() }),
     // @ts-expect-error case 10 — `initial` must be a Partial of the schema INPUT (`qty` is a string)
     initial: { qty: 1 },
     next: 'done',
   }),
-  done: s.final(),
+  done: small.final(),
 })
 describe('case 10c: no cascade — schema wins', () => {
   it('InputOf is still the schema input', () => {
@@ -436,30 +438,30 @@ describe('case 10c: no cascade — schema wins', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 declare const widened: Partial<{ foo: string }>
-export const okNoInput = s.steps({
-  v: s.view({ next: 'done', exit: ({ output }) => output }),
-  done: s.final(),
+export const okNoInput = small.steps({
+  v: small.view({ next: 'done', exit: ({ output }) => output }),
+  done: small.final(),
 })
-export const badInitialNoInput = s.steps({
+export const badInitialNoInput = small.steps({
   // @ts-expect-error `initial` requires `input` (Partial<never> = never): a widened value is rejected
-  v: s.view({ initial: widened, next: 'done' }),
+  v: small.view({ initial: widened, next: 'done' }),
   // @ts-expect-error … so is an explicit object literal
-  v2: s.view({ initial: { foo: 'x' }, next: 'done' }),
-  done: s.final(),
+  v2: small.view({ initial: { foo: 'x' }, next: 'done' }),
+  done: small.final(),
 })
-export const badAnnotatedHookNoInput = s.steps({
+export const badAnnotatedHookNoInput = small.steps({
   // @ts-expect-error an annotated hook parameter cannot invent an output type: `output` is undefined here
-  v: s.view({ next: 'done', exit: ({ output }: { output: { foo: string } }) => output.foo }),
-  done: s.final(),
+  v: small.view({ next: 'done', exit: ({ output }: { output: { foo: string } }) => output.foo }),
+  done: small.final(),
 })
-export const badAnnotatedHookWithInput = s.steps({
-  v: s.view({
+export const badAnnotatedHookWithInput = small.steps({
+  v: small.view({
     input: z.object({ foo: z.string() }),
     // @ts-expect-error the annotation must match the boundary OUTPUT ({ foo: string }), it does not retype it
     exit: ({ output }: { output: { bar: number } }) => output.bar,
     next: 'done',
   }),
-  done: s.final(),
+  done: small.final(),
 })
 describe('inputless views', () => {
   it('have no draft and no output, whatever `initial` / hook annotations say', () => {
@@ -480,7 +482,7 @@ describe('inputless views', () => {
 describe('decision output', () => {
   it('is readonly N[] over the ids the decision may choose', () => {
     expectTypeOf<OutputOf<CheckoutF, 'route'>>().toEqualTypeOf<readonly ('fulfil' | 'declined')[]>()
-    const d = s.decision({ next: () => (Math.random() > 0.5 ? 'a' : ['a', 'b']) })
+    const d = small.decision({ next: () => (Math.random() > 0.5 ? 'a' : ['a', 'b']) })
     expectTypeOf<NonNullable<(typeof d)['~types']>['output']>().toEqualTypeOf<
       readonly ('a' | 'b')[]
     >()
@@ -589,23 +591,23 @@ describe('case 11: boundary inference', () => {
 // Wait steps — output is the union over ALL flow events (+ timeout); on/timeout/next any order
 // ─────────────────────────────────────────────────────────────────────────────
 
-const w = defineFlow({
+const waits = defineFlow({
   name: 'waits',
   context: boundary.trusted<SmallCtx>(),
   events: { e1: boundary.trusted<{ x: number }>(), e2: boundary.trusted<{ y: string }>() },
 })
-export const okWait = w.steps({
-  w: w.wait({
+export const okWait = waits.steps({
+  w: waits.wait({
     next: ({ output }) => (output.event === 'e1' ? (output.payload.x > 0 ? 'done' : 'w2') : 'w2'),
     timeout: { after: 3000, next: 'done' },
     on: { e1: ({ payload }) => ({ next: payload.x > 1 ? 'done' : undefined }) }, // handler-returned target is captured too
   }),
-  w2: w.wait({
+  w2: waits.wait({
     on: { e2: ({ payload, update }) => update({ a: payload.y }) },
     exit: ({ output }) => output.event, // 'e1' | 'e2' — no timeout declared, no timeout marker
     next: 'done',
   }),
-  done: w.final(),
+  done: waits.final(),
 })
 describe('wait output', () => {
   it('is the union over all events, plus the timeout marker only when the step declares timeout; refs include handler targets', () => {
@@ -625,7 +627,7 @@ describe('wait output', () => {
     >()
   })
   it('hooks of a wait without timeout never see the marker', () => {
-    w.wait({
+    waits.wait({
       on: { e1: () => {} },
       // @ts-expect-error `output.event` is 'e1' | 'e2' here: comparing with 'timeout' has no overlap
       exit: ({ output }) => output.event === 'timeout',
@@ -633,25 +635,25 @@ describe('wait output', () => {
     })
   })
 })
-export const badWait = w.steps({
-  w: w.wait({
+export const badWait = waits.steps({
+  w: waits.wait({
     // @ts-expect-error unknown event name in `on` (excess property on a concrete mapped type)
     on: { e3: () => {} },
     next: 'done',
   }),
-  done: w.final(),
+  done: waits.final(),
 })
-export const badWaitArrayNext = w.steps({
+export const badWaitArrayNext = waits.steps({
   // @ts-expect-error a handler's `next` override is a single id (what the runtime supports), not a list: refs widen to string
-  w: w.wait({
+  w: waits.wait({
     on: {
       // @ts-expect-error … and the handler's return type itself is rejected
       e1: () => ({ next: ['done', 'w2'] }),
     },
     next: 'done',
   }),
-  w2: w.final(),
-  done: w.final(),
+  w2: waits.final(),
+  done: waits.final(),
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -660,26 +662,26 @@ export const badWaitArrayNext = w.steps({
 
 declare const dyn: string
 // @ts-expect-error computed/dynamic key → index signature → rejected by NoDynamicKeys (error on the argument)
-export const badDynamic = s.steps({ [dyn]: s.view({ next: 'x' }), b: s.final() })
+export const badDynamic = small.steps({ [dyn]: small.view({ next: 'x' }), b: small.final() })
 const K = 'lit' as const
-export const okComputedLiteral = s.steps({ [K]: s.view({ next: 'b' }), b: s.final() }) // computed LITERAL keys are fine
+export const okComputedLiteral = small.steps({ [K]: small.view({ next: 'b' }), b: small.final() }) // computed LITERAL keys are fine
 describe('computed literal keys', () => {
   it('are literal ids', () => {
     expectTypeOf<StepId<typeof okComputedLiteral>>().toEqualTypeOf<'lit' | 'b'>()
   })
 })
-export const dupOverwritten = s.steps({
+export const dupOverwritten = small.steps({
   // @ts-expect-error TS2783: 'm1' is specified more than once, so this usage will be overwritten by the spread
-  m1: s.view({ next: 'root' }),
+  m1: small.view({ next: 'root' }),
   ...addressModule,
-  root: s.view({ next: 'm1' }),
+  root: small.view({ next: 'm1' }),
 })
-// `{ ...addressModule, m1: s.view(...) }` (explicit AFTER spread) compiles — the explicit key wins silently;
+// `{ ...addressModule, m1: small.view(...) }` (explicit AFTER spread) compiles — the explicit key wins silently;
 // the runtime (compile.ts) still validates ids.
-export const dupExplicitWins = s.steps({
+export const dupExplicitWins = small.steps({
   ...addressModule,
-  m1: s.view({ next: 'root' }),
-  root: s.view({ next: 'm1' }),
+  m1: small.view({ next: 'root' }),
+  root: small.view({ next: 'm1' }),
 })
 describe('duplicate keys across a spread', () => {
   it('explicit key wins', () => {
@@ -687,12 +689,12 @@ describe('duplicate keys across a spread', () => {
   })
 })
 declare const someString: string
-export const badWidened = s.steps({
+export const badWidened = small.steps({
   // @ts-expect-error `next` returning a widened `string` is rejected (refs: string ⊄ ids)
-  a: s.decision({ next: ({ context }) => context.a }),
+  a: small.decision({ next: ({ context }) => context.a }),
   // @ts-expect-error `next: string` variable is rejected
-  b: s.view({ next: someString }),
-  c: s.final(),
+  b: small.view({ next: someString }),
+  c: small.final(),
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -701,19 +703,19 @@ export const badWidened = s.steps({
 
 // @ts-expect-error `name` is required (persistence identity)
 export const _nameRequired = defineFlow({ context: boundary.trusted<SmallCtx>() })
-export const badDeps = s.steps({
-  a: s.task(async () => 1, { next: 'b' }),
+export const badDeps = small.steps({
+  a: small.task(async () => 1, { next: 'b' }),
   // @ts-expect-error `dependsOn: ['nope']` — unknown id
-  b: s.task(async () => 2, { dependsOn: ['nope'] }),
-  c: s.final(),
+  b: small.task(async () => 2, { dependsOn: ['nope'] }),
+  c: small.final(),
 })
-export const okDeps = s.steps({
-  a: s.task(async () => 1, { next: ['b', 'c'] }),
-  b: s.task(async () => 2, { next: 'join' }),
-  c: s.task(async () => 3, { next: 'join' }),
-  join: s.task(async () => 4, { dependsOn: ['b', 'c'], next: 'anyJoin' }),
-  anyJoin: s.task(async () => 5, { dependsOn: { any: ['b', 'c'] }, next: 'done' }),
-  done: s.final(),
+export const okDeps = small.steps({
+  a: small.task(async () => 1, { next: ['b', 'c'] }),
+  b: small.task(async () => 2, { next: 'join' }),
+  c: small.task(async () => 3, { next: 'join' }),
+  join: small.task(async () => 4, { dependsOn: ['b', 'c'], next: 'anyJoin' }),
+  anyJoin: small.task(async () => 5, { dependsOn: { any: ['b', 'c'] }, next: 'done' }),
+  done: small.final(),
 })
 describe('dependsOn', () => {
   it('captures ids into refs', () => {
@@ -747,18 +749,18 @@ describe('AnyFlow', () => {
 
 // One RetryPolicy shape for the DSL and the machine: `backoff` is a fixed number of ms or
 // 'exponential' (+ baseMs / factor / maxBackoffMs); the old `delay` / 'fixed' form is gone.
-const r = defineFlow({ name: 'retry', context: boundary.trusted<{}>() })
+const retry = defineFlow({ name: 'retry', context: boundary.trusted<{}>() })
 describe('RetryPolicy', () => {
   it('is the machine shape (attempts, backoff: number | exponential, baseMs, factor, maxBackoffMs)', () => {
     expectTypeOf<RetryPolicy>().toEqualTypeOf<CompiledRetryPolicy>()
-    r.task(() => 1, { retry: { attempts: 3, backoff: 100 } })
-    r.task(() => 1, {
+    retry.task(() => 1, { retry: { attempts: 3, backoff: 100 } })
+    retry.task(() => 1, {
       retry: { attempts: 3, backoff: 'exponential', baseMs: 50, factor: 3, maxBackoffMs: 5_000 },
     })
     // @ts-expect-error `delay` is not a field: use `backoff: <ms>`
-    r.task(() => 1, { retry: { attempts: 3, delay: 100 } })
+    retry.task(() => 1, { retry: { attempts: 3, delay: 100 } })
     // @ts-expect-error `'fixed'` is not a backoff: use a number of ms
-    r.task(() => 1, { retry: { attempts: 3, backoff: 'fixed' } })
+    retry.task(() => 1, { retry: { attempts: 3, backoff: 'fixed' } })
     // @ts-expect-error `maxDelay` is not a field: use `maxBackoffMs`
     defineFlow({ name: 'x', context: boundary.trusted<{}>(), retry: { attempts: 1, maxDelay: 5 } })
   })

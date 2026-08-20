@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 500" role="img" aria-labelledby="durability-title durability-desc">
+  <title id="durability-title">Durable worker handoff</title>
+  <desc id="durability-desc">Worker A acquires fencing token 41 and writes snapshot v1. Worker B then acquires token 42, which makes the next write from worker A stale and rejected. Worker B resumes v1 and writes v2 under the newer fence.</desc>
+  <style>
+    svg { --d-paper: #fff; --d-surface: #fafafa; --d-ink: #171717; --d-muted: #737373; --d-line: #d4d4d4; --d-soft: #f5f5f5; --d-inverse: #fff; }
+    @media (prefers-color-scheme: dark) { svg { --d-paper: #0a0a0a; --d-surface: #151515; --d-ink: #fafafa; --d-muted: #a3a3a3; --d-line: #404040; --d-soft: #1f1f1f; --d-inverse: #0a0a0a; } }
+    text { font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: var(--d-ink); }
+    .name { font-size: 18px; }
+    .cap { font-size: 13.5px; letter-spacing: .1em; fill: var(--d-muted); }
+    .api { font-size: 13.5px; fill: var(--d-ink); }
+    .on { fill: var(--d-inverse); }
+    .on-dim { fill: var(--d-inverse); opacity: .6; }
+    .plate { fill: none; stroke: var(--d-line); stroke-width: 1.5; }
+    .node { fill: var(--d-surface); stroke: var(--d-line); stroke-width: 1.75; }
+    .solid { fill: var(--d-ink); stroke: var(--d-ink); stroke-width: 1.75; }
+    .life { fill: none; stroke: var(--d-line); stroke-width: 1.75; stroke-dasharray: 2 8; stroke-linecap: round; }
+    .wire { fill: none; stroke: var(--d-muted); stroke-width: 1.75; stroke-linecap: round; marker-end: url(#du-tip); }
+    .stale { fill: none; stroke: var(--d-muted); stroke-width: 1.75; stroke-linecap: round; stroke-dasharray: 2 8; }
+    .chip { fill: var(--d-paper); stroke: var(--d-line); stroke-width: 1.5; }
+    .dot { fill: var(--d-muted); }
+  </style>
+  <defs>
+    <marker id="du-tip" viewBox="0 0 9 8" markerWidth="9" markerHeight="8" markerUnits="userSpaceOnUse" refX="8.6" refY="4" orient="auto">
+      <path d="M0 .4 8.6 4 0 7.6 2.1 4Z" fill="var(--d-muted)"/>
+    </marker>
+    <pattern id="du-grid" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1.1" cy="1.1" r="1.1" fill="var(--d-line)"/>
+    </pattern>
+  </defs>
+
+  <rect x="16" y="16" width="888" height="468" rx="22" fill="url(#du-grid)" opacity=".5"/>
+  <rect class="plate" x="16" y="16" width="888" height="468" rx="22"/>
+
+  <rect class="node" x="98" y="52" width="196" height="72" rx="14"/>
+  <text class="name" x="122" y="84">worker A</text>
+  <text class="cap" x="122" y="108">OWNER a</text>
+
+  <rect class="solid" x="362" y="52" width="196" height="72" rx="14"/>
+  <text class="name on" x="386" y="84">store</text>
+  <text class="cap on-dim" x="386" y="108">FENCED</text>
+
+  <rect class="node" x="626" y="52" width="196" height="72" rx="14"/>
+  <text class="name" x="650" y="84">worker B</text>
+  <text class="cap" x="650" y="108">OWNER b</text>
+
+  <path class="life" d="M196 124v344M460 124v344M724 124v344"/>
+
+  <text class="cap" x="52" y="175">1</text>
+  <path class="wire" d="M196 170h258"/>
+  <rect class="chip" x="261" y="155" width="129" height="30" rx="11"/>
+  <text class="api" x="325" y="175" text-anchor="middle">acquire · 41</text>
+
+  <text class="cap" x="52" y="231">2</text>
+  <path class="wire" d="M196 226h258"/>
+  <rect class="chip" x="277" y="211" width="97" height="30" rx="11"/>
+  <text class="api" x="325" y="231" text-anchor="middle">write v1</text>
+
+  <text class="cap" x="52" y="287">3</text>
+  <path class="wire" d="M724 282H466"/>
+  <rect class="chip" x="531" y="267" width="129" height="30" rx="11"/>
+  <text class="api" x="595" y="287" text-anchor="middle">acquire · 42</text>
+
+  <text class="cap" x="52" y="343">4</text>
+  <path class="stale" d="M196 338h202"/>
+  <rect class="chip" x="207" y="323" width="162" height="30" rx="11"/>
+  <text class="api" x="288" y="343" text-anchor="middle">write v2 · stale</text>
+  <circle cx="416" cy="338" r="13" fill="var(--d-surface)" stroke="var(--d-line)" stroke-width="1.75"/>
+  <path d="M410 332l12 12m0-12l-12 12" stroke="var(--d-muted)" stroke-width="1.9" stroke-linecap="round"/>
+
+  <text class="cap" x="52" y="399">5</text>
+  <path class="wire" d="M460 394h258"/>
+  <rect class="chip" x="540" y="379" width="105" height="30" rx="11"/>
+  <text class="api" x="592" y="399" text-anchor="middle">resume v1</text>
+
+  <text class="cap" x="52" y="455">6</text>
+  <path class="wire" d="M724 450H466"/>
+  <rect class="chip" x="527" y="435" width="137" height="30" rx="11"/>
+  <text class="api" x="595" y="455" text-anchor="middle">write v2 · 42</text>
+
+  <circle class="dot" cx="196" cy="170" r="3.25"/>
+  <circle class="dot" cx="196" cy="226" r="3.25"/>
+  <circle class="dot" cx="724" cy="282" r="3.25"/>
+  <circle class="dot" cx="196" cy="338" r="3.25"/>
+  <circle class="dot" cx="460" cy="394" r="3.25"/>
+  <circle class="dot" cx="724" cy="450" r="3.25"/>
+</svg>

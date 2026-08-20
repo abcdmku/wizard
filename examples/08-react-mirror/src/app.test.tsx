@@ -1,7 +1,7 @@
 /**
- * Headless run of the whole example: the "server" (wizard + source + serialized loopback), the
+ * Headless run of the whole example: the "server" (run + source + serialized loopback), the
  * client Mirror and the React UI, driven through the DOM only. Proves the flow works end to end,
- * that the UI never needs the wizard, and that no card number ever reaches the wizard: what
+ * that the UI never needs the run, and that no card number ever reaches the run: what
  * crosses `setInput` is the provider token.
  */
 import { createTestScheduler } from '@openwizard/core/testing'
@@ -37,14 +37,14 @@ function instantDeps(log: string[]): CheckoutDeps {
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
-describe('08 react + mirror: the UI drives the wizard through the Mirror only', () => {
-  it('shipping → payment (tokenised card) → reserve (retried) → charge → receipt', async () => {
+describe('08 react + mirror: the UI drives the run through the Mirror only', () => {
+  it('moves from shipping to a receipt without exposing the card number', async () => {
     const log: string[] = []
-    const sched = createTestScheduler({ now: 0 })
-    const { transport, wizard } = startServer({
+    const scheduler = createTestScheduler({ now: 0 })
+    const { transport, run } = startServer({
       deps: instantDeps(log),
       delayMs: 0,
-      scheduler: sched,
+      scheduler: scheduler,
     })
     const mirror = createClient(transport)
     render(<App mirror={mirror} />)
@@ -58,28 +58,28 @@ describe('08 react + mirror: the UI drives the wizard through the Mirror only', 
     fireEvent.click(screen.getByLabelText('Express delivery'))
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }))
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Payment' })).toBeTruthy())
-    expect(wizard.getState().current).toBe('payment')
+    expect(run.getState().current).toBe('payment')
 
     // Payment: a bad card never leaves the browser (tokenisation fails locally).
     fireEvent.change(screen.getByLabelText('Card number'), { target: { value: '1234' } })
     fireEvent.click(screen.getByRole('button', { name: /Pay/ }))
     await waitFor(() => expect(screen.getByText('Card number must be 16 digits')).toBeTruthy())
-    expect(wizard.getState().steps.payment.input).toBeUndefined()
+    expect(run.getState().steps.payment.input).toBeUndefined()
 
-    // A good card is tokenised by the provider stub; only the token reaches the wizard.
+    // A good card is tokenised by the provider stub; only the token reaches the run.
     fireEvent.click(screen.getByRole('button', { name: 'Use a test card' }))
     fireEvent.click(screen.getByRole('button', { name: /Pay/ }))
-    await waitFor(() => expect(wizard.getState().current).not.toBe('payment'), { timeout: 3000 })
-    const snapshotJson = JSON.stringify(wizard.getSnapshot())
+    await waitFor(() => expect(run.getState().current).not.toBe('payment'), { timeout: 3000 })
+    const snapshotJson = JSON.stringify(run.getSnapshot())
     expect(snapshotJson).not.toContain('4242424242424242')
     expect(snapshotJson).toMatch(/tok_[a-z0-9]+/)
-    expect(wizard.getState().steps.payment.output).toMatchObject({ last4: '4242' })
+    expect(run.getState().steps.payment.output).toMatchObject({ last4: '4242' })
 
     // Tasks: reserve fails once (visible error), the retry timer fires, then charge, then the receipt.
     await waitFor(() => expect(screen.getByText(/warehouse timeout/)).toBeTruthy())
-    expect(wizard.getState().steps.reserve.status).toBe('active')
+    expect(run.getState().steps.reserve.status).toBe('active')
     await act(async () => {
-      sched.advance(400) // the retry timer
+      scheduler.advance(400) // the retry timer
       await tick()
     })
     await waitFor(
@@ -94,22 +94,22 @@ describe('08 react + mirror: the UI drives the wizard through the Mirror only', 
       expect.stringMatching(/^charge:tok_[a-z0-9]+:129\.5$/),
     ])
     expect(screen.getByText('Express')).toBeTruthy()
-    expect(wizard.getState().status).toBe('done')
-    // The mirror shows the same base facts as the wizard, and nothing it should not see.
+    expect(run.getState().status).toBe('done')
+    // The mirror shows the same base facts as the run, and nothing it should not see.
     const view = mirror.getSnapshot()
     expect(view?.status).toBe('done')
     expect(view?.output).toMatchObject({ customer: 'Ada Lovelace', express: true, total: 129.5 })
     expect(view?.context).toEqual({ total: 129.5, express: true }) // cartId is not exposed
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 
-  it('cancel while the tasks run', async () => {
+  it('cancels the order while tasks are running', async () => {
     const log: string[] = []
     const deps = instantDeps(log)
     // A reserve that never resolves keeps the flow "running" so the cancel button is visible.
     deps.inventory.reserve = () => new Promise(() => {})
-    const { transport, wizard } = startServer({ deps, delayMs: 0 })
+    const { transport, run } = startServer({ deps, delayMs: 0 })
     const mirror = createClient(transport)
     render(<App mirror={mirror} />)
     await mirror.setInput('shipping', { name: 'Grace', address: 'Somewhere far away' })
@@ -121,8 +121,8 @@ describe('08 react + mirror: the UI drives the wizard through the Mirror only', 
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: /Order (cancelled|compensating)/ })).toBeTruthy(),
     )
-    await waitFor(() => expect(wizard.getState().status).toBe('cancelled'))
+    await waitFor(() => expect(run.getState().status).toBe('cancelled'))
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 })

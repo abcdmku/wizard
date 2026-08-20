@@ -172,7 +172,7 @@ describe('on — correlation', () => {
     expect(err.types).toEqual(['event.received', 'event.dropped'])
   })
 
-  it('a wizard without a correlationId never filters; a caller-provided correlationId is recorded but does not filter', () => {
+  it('a run without a correlationId never filters; a caller-provided correlationId is recorded but does not filter', () => {
     const h = createHarness(correlated())
     h.start()
     const r = h.cmd({

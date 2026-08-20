@@ -1,10 +1,10 @@
 import { inspect, toMermaid } from '@openwizard/core'
 import { describe, expect, it } from 'vitest'
-import { checkout } from './checkout'
+import { checkoutFlow } from './checkout'
 
 describe('09 mermaid: toMermaid(inspect(flow))', () => {
-  it('renders the checkout graph as a flowchart TD (nodes by kind, next / dependsOn / timeout edges, ? for a dynamic next, the child as a subgraph)', () => {
-    const graph = inspect(checkout)
+  it('renders step kinds, edges, a dynamic target, and a child subgraph', () => {
+    const graph = inspect(checkoutFlow)
     expect(graph.warnings).toEqual([])
     expect(toMermaid(graph)).toBe(
       [
@@ -41,6 +41,6 @@ describe('09 mermaid: toMermaid(inspect(flow))', () => {
       ].join('\n'),
     )
     // Same graph in, same text out, so it is safe to commit next to the flow (docs, PR diffs).
-    expect(toMermaid(inspect(checkout))).toBe(toMermaid(graph))
+    expect(toMermaid(inspect(checkoutFlow))).toBe(toMermaid(graph))
   })
 })

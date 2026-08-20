@@ -14,8 +14,8 @@ import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { createMirrorSource } from '../../src/mirror/source'
 import type { WireAck, WireCommand } from '../../src/mirror/wire'
 import { defineProjection } from '../../src/projection/define-projection'
-import { createWizard } from '../../src/wizard/create-wizard'
-import { checkoutClient, makeWizard, tick } from './fixture'
+import { createRun } from '../../src/wizard/create-wizard'
+import { checkoutClient, makeRun, tick } from './fixture'
 
 /** A Standard Schema whose `validate` is asynchronous (resolves on a later microtask). */
 function asyncSchema<T>(): StandardSchemaV1<T> {
@@ -43,46 +43,46 @@ const cmd = (
 })
 
 describe('createMirrorSource: the dispatch gate', () => {
-  const s = defineFlow({
+  const asyncEvents = defineFlow({
     name: 'async-events',
     context: boundary.trusted<Record<string, never>>(),
     events: { ping: asyncSchema<{ readonly id: string }>() },
   })
-  const pings = s.steps(
+  const pings = asyncEvents.steps(
     {
-      wait: s.wait({ on: { ping: () => {} }, next: 'end' }),
-      end: s.final(),
+      wait: asyncEvents.wait({ on: { ping: () => {} }, next: 'end' }),
+      end: asyncEvents.final(),
     },
     { start: 'wait' },
   )
   const pingsClient = defineProjection(pings, { expose: {} })
 
   it('two concurrent sends through an ASYNC event boundary with the same expectedSeq: one passes, the other is STALE', async () => {
-    const wizard = createWizard(pings, {
+    const run = createRun(pings, {
       context: {},
       instanceId: 'wiz-1',
       scheduler: createTestScheduler(),
       ids: createSequentialIds(),
     })
-    await wizard.start()
-    const source = createMirrorSource(wizard, pingsClient)
-    const seq = wizard.getState().seq
+    await run.start()
+    const source = createMirrorSource(run, pingsClient)
+    const seq = run.getState().seq
     const [a, b] = await Promise.all([
       source.dispatch(cmd('a', { type: 'send', event: 'ping', payload: { id: '1' } }, seq)),
       source.dispatch(cmd('b', { type: 'send', event: 'ping', payload: { id: '2' } }, seq)),
     ])
     expect(a.result).toMatchObject({ ok: true })
     expect(b.result).toMatchObject({ ok: false, code: 'STALE' })
-    expect(b.seq).toBe(wizard.getState().seq)
+    expect(b.seq).toBe(run.getState().seq)
     // Exactly one event was received.
-    expect(wizard.log().filter((e) => e.type === 'event.received')).toHaveLength(1)
-    wizard.dispose()
+    expect(run.log().filter((e) => e.type === 'event.received')).toHaveLength(1)
+    run.dispose()
   })
 
   it('commands without expectedSeq are ordered behind a pending send too (the gate is one ordering point)', async () => {
-    const wizard = createWizard(pings, { context: {}, instanceId: 'wiz-1' })
-    await wizard.start()
-    const source = createMirrorSource(wizard, pingsClient)
+    const run = createRun(pings, { context: {}, instanceId: 'wiz-1' })
+    await run.start()
+    const source = createMirrorSource(run, pingsClient)
     const order: string[] = []
     const first = source
       .dispatch(cmd('a', { type: 'send', event: 'ping', payload: { id: '1' } }))
@@ -93,16 +93,19 @@ describe('createMirrorSource: the dispatch gate', () => {
     await Promise.all([first, second])
     // The send was routed first (the wait completed, the flow is done); the cancel came after → rejected.
     expect(order).toEqual(['a:true', 'b:false'])
-    wizard.dispose()
+    run.dispose()
   })
 
   it('the gate is released once a command is ENQUEUED: a transition waiting on a slow hook does not block other clients', async () => {
     let releaseEnter: () => void = () => {}
-    const f = defineFlow({ name: 'slow-enter', context: boundary.trusted<Record<string, never>>() })
-    const flow = f.steps(
+    const slowEnter = defineFlow({
+      name: 'slow-enter',
+      context: boundary.trusted<Record<string, never>>(),
+    })
+    const flow = slowEnter.steps(
       {
-        a: f.view({ next: 'b' }),
-        b: f.view({
+        a: slowEnter.view({ next: 'b' }),
+        b: slowEnter.view({
           enter: () =>
             new Promise<void>((resolve) => {
               releaseEnter = resolve
@@ -111,9 +114,9 @@ describe('createMirrorSource: the dispatch gate', () => {
       },
       { start: 'a' },
     )
-    const wizard = createWizard(flow, { context: {}, instanceId: 'wiz-1' })
-    await wizard.start()
-    const source = createMirrorSource(wizard, defineProjection(flow, { expose: {} }))
+    const run = createRun(flow, { context: {}, instanceId: 'wiz-1' })
+    await run.start()
+    const source = createMirrorSource(run, defineProjection(flow, { expose: {} }))
     let nextSettled = false
     const pendingNext = source.dispatch(cmd('n', { type: 'next' })).then((ack) => {
       nextSettled = true
@@ -127,7 +130,7 @@ describe('createMirrorSource: the dispatch gate', () => {
     releaseEnter()
     const next = await pendingNext
     expect(next.commandId).toBe('n')
-    wizard.dispose()
+    run.dispose()
   })
 })
 
@@ -136,9 +139,9 @@ describe('createMirrorSource: hostile input never rejects', () => {
     source.dispatch(input as WireCommand)
 
   it('deep, wide, huge and prototype-flavoured payloads are INVALID_COMMAND values (the decoder has limits)', async () => {
-    const wizard = makeWizard()
-    await wizard.start()
-    const source = createMirrorSource(wizard, checkoutClient)
+    const run = makeRun()
+    await run.start()
+    const source = createMirrorSource(run, checkoutClient)
 
     let deep: unknown = 1
     for (let i = 0; i < 20_000; i += 1) deep = { a: deep }
@@ -179,7 +182,7 @@ describe('createMirrorSource: hostile input never rejects', () => {
     )
     expect(proto.result).toMatchObject({ ok: true })
     expect({} as { polluted?: boolean }).not.toHaveProperty('polluted')
-    expect(Object.hasOwn(wizard.getState().steps.shipping.input ?? {}, '__proto__')).toBe(true)
+    expect(Object.hasOwn(run.getState().steps.shipping.input ?? {}, '__proto__')).toBe(true)
     // …but on the envelope it is an unknown property.
     const envelope = await dispatchRaw(
       source,
@@ -224,10 +227,10 @@ describe('createMirrorSource: hostile input never rejects', () => {
     const commandInherited = await source.dispatch(cmd('ci', Object.create({ type: 'next' })))
     expect(commandInherited.result).toMatchObject({ ok: false, code: 'INVALID_COMMAND' })
 
-    // The wizard is untouched by all of it.
-    expect(wizard.getState().current).toBe('shipping')
+    // The run is untouched by all of it.
+    expect(run.getState().current).toBe('shipping')
     const acks: WireAck[] = [tooDeep, wide, huge, hugeId, envelope, event, step]
     expect(acks.every((a) => a.result.ok === false)).toBe(true)
-    wizard.dispose()
+    run.dispose()
   })
 })

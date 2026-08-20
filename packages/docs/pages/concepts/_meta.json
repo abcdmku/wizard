@@ -1,17 +1,17 @@
 {
   "index": "Overview",
-  "steps": "Steps and kinds",
   "defining-flows": "Defining flows",
   "boundaries": "Boundaries",
+  "steps": "Steps and kinds",
   "results": "Results as values",
-  "policies": "Policies",
-  "observability": "Events and observability",
+  "external-events": "Event inputs",
+  "observability": "Run events",
+  "policies": "Failures and retries",
+  "dag": "Parallel work and joins",
+  "nesting": "Nested flows",
   "persistence": "Persistence and resume",
-  "external-events": "External events",
-  "nesting": "Nesting",
-  "dag": "DAGs",
   "projections": "Projections and the Mirror",
   "react": "React",
   "testing": "Testing",
-  "guarantees": "Guarantees"
+  "guarantees": "Runtime guarantees"
 }

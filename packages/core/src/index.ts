@@ -10,6 +10,16 @@
 // biome-ignore assist/source/organizeImports: hand-grouped by concept (sections below); new sections are appended, never re-sorted
 export { boundary } from './authoring/boundary'
 export { defineFlow } from './authoring/define-flow'
+export {
+  createTaskFailure,
+  isTaskAdapter,
+  isTaskFailure,
+  TASK_ADAPTER,
+  type TaskAdapter,
+  type TaskAdapterMetadata,
+  type TaskFailure,
+  type TaskFailureKind,
+} from './authoring/task-adapter'
 export type {
   AnyFlow,
   Boundary,
@@ -32,6 +42,7 @@ export type {
   PayloadOf,
   Progress,
   RetryPolicy,
+  RunArgs,
   SerializedError,
   StepApi,
   StepId,
@@ -40,7 +51,7 @@ export type {
   TaskId,
   ViewId,
   WaitOutput,
-  WizardStatus,
+  RunStatus,
 } from './authoring/types'
 // ---- errors ------------------------------------------------------------------
 export { isWizardError, WizardError, type WizardErrorCode } from './errors'
@@ -64,29 +75,45 @@ export {
   type ProjectionSelect,
   type StepExpose,
 } from './projection/define-projection'
-// ---- wizard ------------------------------------------------------------------
+// ---- run ------------------------------------------------------------------
+export { RUN_EVENT_TYPES } from './machine/events'
 export {
   type ChildCommand,
-  type ChildWizardEvent,
+  type ChildRunEvent,
   type Command,
-  createWizard,
-  createWizardAsync,
+  createRun,
+  createRunAsync,
   isChildEvent,
   type ResumeOptions,
-  resumeWizard,
-  resumeWizardAsync,
-  type RootWizardEvent,
+  resumeRun,
+  resumeRunAsync,
+  type RootRunEvent,
   type SetInputCommand,
   type Snapshot,
   type SnapshotMigration,
   type StepErrorOf,
   type StepState,
-  type Wizard,
-  type WizardEvent,
-  type WizardOptions,
+  type FlowRun,
+  type RunEvent,
+  type RunEventType,
+  type RunOptions,
 } from './wizard/create-wizard'
 export { parseCommand } from './wizard/parse-command'
-export type { CommandResult, NavResult, SendResult } from './wizard/results'
+export {
+  RunLifecycleError,
+  type CompensationFailure,
+  type CompensationSummary,
+  type CommandResult,
+  type FlowFailure,
+  type NavResult,
+  type RunCancelled,
+  type RunDone,
+  type RunFailed,
+  type RunLifecycleCode,
+  type RunResult,
+  type SendResult,
+  type StepFailure,
+} from './wizard/results'
 export type { Explanation } from './wizard/create-wizard'
 // ---- injectables -------------------------------------------------------------
 // (`createTestScheduler` / `TestScheduler` live in `@openwizard/core/testing`.)
@@ -112,7 +139,7 @@ export {
   type WireCommand,
 } from './mirror/wire'
 // ---- declaration-emit support ------------------------------------------------
-// (`Step` / `FlowStep` are the inferred types of `s.view(…)` results and of `Flow.steps[k]`,
+// (`Step` / `FlowStep` are the inferred types of `flow.view(…)` results and of `Flow.steps[k]`,
 // `MemoryStore` of `createMemoryStore()`; a consumer compiling with `declaration: true` must
 // be able to name them when it exports a flow, a step or a store — TS4023 otherwise.)
 export type { FlowStep, Step } from './authoring/types'

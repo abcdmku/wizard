@@ -10,38 +10,38 @@ import { boundary } from '../../src/authoring/boundary'
 import { defineFlow } from '../../src/authoring/define-flow'
 import { WizardError } from '../../src/errors'
 import { createMemoryStore } from '../../src/persistence/memory-store'
-import { createWizard, resumeWizard, type WizardEvent } from '../../src/wizard/create-wizard'
+import { createRun, type RunEvent, resumeRun } from '../../src/wizard/create-wizard'
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('persistence: JSON-checked before every store write', () => {
-  const s = defineFlow({ name: 'dates', context: z.object({ tenant: z.string() }) })
+  const dates = defineFlow({ name: 'dates', context: z.object({ tenant: z.string() }) })
 
   it('a task output holding a Date (no output boundary) is not written: onPersistError + persist.failed name the path; getSnapshot() stays live', async () => {
-    const stamped = s.steps(
+    const stamped = dates.steps(
       {
-        save: s.task(() => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }), {
+        save: dates.task(() => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }), {
           next: 'end',
         }),
-        end: s.final(),
+        end: dates.final(),
       },
       { start: 'save' },
     )
     const store = createMemoryStore()
     const errors: unknown[] = []
-    const events: WizardEvent<typeof stamped>[] = []
-    const wizard = createWizard(stamped, {
+    const events: RunEvent<typeof stamped>[] = []
+    const run = createRun(stamped, {
       context: { tenant: 't1' },
       store,
       key: 'dates/1',
       onPersistError: (error) => errors.push(error),
     })
-    wizard.observe((event) => events.push(event))
-    await wizard.start()
+    run.observe((event) => events.push(event))
+    await run.start()
     await tick()
-    expect(wizard.getState().status).toBe('done')
+    expect(run.getState().status).toBe('done')
     // The live snapshot still holds the Date …
-    expect(wizard.getSnapshot().state.steps.save.output?.createdAt).toBeInstanceOf(Date)
+    expect(run.getSnapshot().state.steps.save.output?.createdAt).toBeInstanceOf(Date)
     // … but nothing with a Date in it reached the store (the task ran in the first drain, so no
     // snapshot at all was written).
     expect(await store.get('dates/1')).toBeNull()
@@ -67,12 +67,12 @@ describe('persistence: JSON-checked before every store write', () => {
       location: 'state.steps.save.output.createdAt',
       path: [],
     })
-    expect(failed[0]?.seq).toBe(wizard.getState().seq) // the seq of the snapshot that failed to persist
-    expect(wizard.log().some((e) => e.type === 'persist.failed')).toBe(true)
+    expect(failed[0]?.seq).toBe(run.getState().seq) // the seq of the snapshot that failed to persist
+    expect(run.log().some((e) => e.type === 'persist.failed')).toBe(true)
 
     // A manual save() rejects with the same error (and records the event again).
-    await expect(wizard.save()).rejects.toMatchObject({ code: 'SNAPSHOT_NOT_SERIALIZABLE' })
-    wizard.dispose()
+    await expect(run.save()).rejects.toMatchObject({ code: 'SNAPSHOT_NOT_SERIALIZABLE' })
+    run.dispose()
   })
 
   it('every other non-JSON value is caught with its path (Map, Set, RegExp, class instance, function, undefined slot, bigint, NaN)', async () => {
@@ -91,83 +91,83 @@ describe('persistence: JSON-checked before every store write', () => {
       inf: Number.POSITIVE_INFINITY,
     }
     for (const [name, value] of Object.entries(values)) {
-      const flow = s.steps(
-        { t: s.task(() => ({ [name]: value }), { next: 'end' }), end: s.final() },
+      const flow = dates.steps(
+        { t: dates.task(() => ({ [name]: value }), { next: 'end' }), end: dates.final() },
         { start: 't' },
       )
       const errors: WizardError[] = []
-      const wizard = createWizard(flow, {
+      const run = createRun(flow, {
         context: { tenant: 't1' },
         store: createMemoryStore(),
         onPersistError: (error) => {
           if (error instanceof WizardError) errors.push(error)
         },
       })
-      await wizard.start()
+      await run.start()
       await tick()
       expect(errors[0]?.code, name).toBe('SNAPSHOT_NOT_SERIALIZABLE')
       expect(errors[0]?.message, name).toContain(
         `state.steps.t.output.${name}${name === 'holes' ? '[1]' : ''} is`,
       )
-      wizard.dispose()
+      run.dispose()
     }
   })
 
   it('an undefined PROPERTY is tolerated (JSON.stringify omits it), like a real store would', async () => {
-    const flow = s.steps(
-      { t: s.task(() => ({ id: 'x', note: undefined }), { next: 'end' }), end: s.final() },
+    const flow = dates.steps(
+      { t: dates.task(() => ({ id: 'x', note: undefined }), { next: 'end' }), end: dates.final() },
       { start: 't' },
     )
     const store = createMemoryStore()
     const errors: unknown[] = []
-    const wizard = createWizard(flow, {
+    const run = createRun(flow, {
       context: { tenant: 't1' },
       store,
       key: 'k',
       onPersistError: (error) => errors.push(error),
     })
-    await wizard.start()
+    await run.start()
     await tick()
     expect(errors).toEqual([])
     const saved = (await store.get('k')) as { state: { steps: { t: { output: unknown } } } }
     expect(saved.state.steps.t.output).toEqual({ id: 'x' })
-    wizard.dispose()
+    run.dispose()
   })
 
-  it('a Date under a reviving boundary (task `output` with z.coerce.date()) is written as JSON and comes back as a Date after resumeWizard', async () => {
-    const stamped = s.steps(
+  it('a Date under a reviving boundary (task `output` with z.coerce.date()) is written as JSON and comes back as a Date after resumeRun', async () => {
+    const stamped = dates.steps(
       {
-        save: s.task(() => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }), {
+        save: dates.task(() => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }), {
           output: z.object({ id: z.string(), createdAt: z.coerce.date() }),
           next: 'gate',
         }),
-        gate: s.view({ input: z.object({ ok: z.literal(true) }), next: 'end' }),
-        end: s.final({ output: ({ steps }) => steps.save?.output }),
+        gate: dates.view({ input: z.object({ ok: z.literal(true) }), next: 'end' }),
+        end: dates.final({ output: ({ steps }) => steps.save?.output }),
       },
       { start: 'save' },
     )
     const store = createMemoryStore()
     const errors: unknown[] = []
-    const wizard = createWizard(stamped, {
+    const run = createRun(stamped, {
       context: { tenant: 't1' },
       store,
       key: 'dates/2',
       onPersistError: (error) => errors.push(error),
     })
-    await wizard.start()
+    await run.start()
     await tick()
-    expect(wizard.getState().current).toBe('gate')
-    expect(wizard.getState().steps.save.output?.createdAt).toBeInstanceOf(Date)
+    expect(run.getState().current).toBe('gate')
+    expect(run.getState().steps.save.output?.createdAt).toBeInstanceOf(Date)
     expect(errors).toEqual([])
     // The store holds the JSON form …
     const raw = (await store.get('dates/2')) as {
       state: { steps: { save: { output: { createdAt: unknown } } } }
     }
     expect(raw.state.steps.save.output.createdAt).toBe('2023-11-14T22:13:20.000Z')
-    wizard.dispose()
+    run.dispose()
 
     // … and resume re-parses it through the boundary: a Date again, same instant.
-    const resumed = resumeWizard(stamped, raw, { store, key: 'dates/2' })
+    const resumed = resumeRun(stamped, raw, { store, key: 'dates/2' })
     const revived = resumed.getState().steps.save.output?.createdAt
     expect(revived).toBeInstanceOf(Date)
     expect(revived?.getTime()).toBe(1_700_000_000_000)
@@ -182,26 +182,26 @@ describe('persistence: JSON-checked before every store write', () => {
     const okFlow = coerced.steps({ end: coerced.final() })
     const errors: unknown[] = []
     const store = createMemoryStore()
-    const wizard = createWizard(okFlow, {
+    const run = createRun(okFlow, {
       context: { since: '2024-01-01T00:00:00.000Z' },
       store,
       key: 'ctx',
       onPersistError: (error) => errors.push(error),
     })
-    expect(wizard.getState().context.since).toBeInstanceOf(Date)
-    await wizard.save()
+    expect(run.getState().context.since).toBeInstanceOf(Date)
+    await run.save()
     expect(errors).toEqual([])
-    const resumed = resumeWizard(okFlow, await store.get('ctx'), {})
+    const resumed = resumeRun(okFlow, await store.get('ctx'), {})
     expect(resumed.getState().context.since).toBeInstanceOf(Date)
     resumed.dispose()
-    wizard.dispose()
+    run.dispose()
 
     const trusted = defineFlow({
       name: 'ctx-trusted',
       context: boundary.trusted<{ readonly since: Date }>(),
     })
     const trustedFlow = trusted.steps({ end: trusted.final() })
-    const bad = createWizard(trustedFlow, {
+    const bad = createRun(trustedFlow, {
       context: { since: new Date() },
       store: createMemoryStore(),
       onPersistError: () => {},
@@ -214,9 +214,9 @@ describe('persistence: JSON-checked before every store write', () => {
   })
 
   it('a store rejection is reported the same way (persist.failed { reason: "store" })', async () => {
-    const flow = s.steps({ end: s.final() })
+    const flow = dates.steps({ end: dates.final() })
     const errors: unknown[] = []
-    const wizard = createWizard(flow, {
+    const run = createRun(flow, {
       context: { tenant: 't1' },
       store: {
         get: async () => null,
@@ -228,14 +228,14 @@ describe('persistence: JSON-checked before every store write', () => {
       key: 'k',
       onPersistError: (error) => errors.push(error),
     })
-    await wizard.start()
+    await run.start()
     await tick()
     expect(errors.map((e) => (e as Error).message)).toEqual(['disk full'])
-    expect(wizard.log().find((e) => e.type === 'persist.failed')).toMatchObject({
+    expect(run.log().find((e) => e.type === 'persist.failed')).toMatchObject({
       reason: 'store',
       key: 'k',
       message: 'disk full',
     })
-    wizard.dispose()
+    run.dispose()
   })
 })

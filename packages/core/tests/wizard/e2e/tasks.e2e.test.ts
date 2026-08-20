@@ -28,7 +28,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       },
     })
     const t = e2e(def, { now: 50_000 })
-    await t.wizard.start()
+    await t.run.start()
     expect(t.rec('t')).toMatchObject({ status: 'active', attempt: 1, runId: 1 })
     await tick()
     // Attempt 1 failed → retry scheduled at now + 100.
@@ -40,7 +40,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
     const scheduled = t.of('step.retryScheduled')[0]
     expect(scheduled).toMatchObject({ step: 't', attempt: 2, dueAt: 50_100, timerId: 'retry:t' })
     expect(t.rec('t').retryAt).toBe(50_100)
-    expect(t.wizard.getState().timers['retry:t']).toMatchObject({
+    expect(t.run.getState().timers['retry:t']).toMatchObject({
       at: 50_100,
       purpose: 'retry',
       step: 't',
@@ -54,7 +54,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
     expect(t.rec('t').retryAt).toBeUndefined()
     await tick()
     expect(t.rec('t')).toMatchObject({ status: 'done', output: { attempt: 2 } })
-    expect(t.wizard.getState().status).toBe('done')
+    expect(t.run.getState().status).toBe('done')
     expect(t.of('step.runSucceeded')[0]).toMatchObject({ attempt: 2 })
     expect(t.of('timer.fired')).toHaveLength(1)
   })
@@ -77,7 +77,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       },
     })
     const t = e2e(def)
-    await t.wizard.start()
+    await t.run.start()
     await tick()
     t.sched.advance(10)
     await tick()
@@ -86,19 +86,19 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       [2, false],
     ])
     expect(t.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'run', message: 'down' } })
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('failed')
     expect(t.types()).toContain('flow.failed')
     // Recoverable halt-failure: only retry/cancel/compensate are accepted.
-    expect(await t.wizard.next()).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
+    expect(await t.run.next()).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
     fail = false
-    const retried = t.wizard.retry('t')
+    const retried = t.run.retry('t')
     // The retry command commits synchronously (runStarted); the async run lands later.
     expect(t.rec('t')).toMatchObject({ status: 'active', attempt: 1 })
     expect(await retried).toMatchObject({ ok: true })
     await tick()
     expect(t.rec('t')).toMatchObject({ status: 'done', output: 'up' })
-    expect(t.wizard.getState().status).toBe('done')
-    expect(await t.wizard.retry('t')).toMatchObject({ ok: false })
+    expect(t.run.getState().status).toBe('done')
+    expect(await t.run.retry('t')).toMatchObject({ ok: false })
   })
 
   it('a timeout aborts the run (signal), fails with kind:timeout after the retries, and retry() works', async () => {
@@ -120,7 +120,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       },
     })
     const t = e2e(def)
-    await t.wizard.start()
+    await t.run.start()
     t.sched.advance(499)
     expect(t.rec('t').status).toBe('active')
     t.sched.advance(1)
@@ -131,13 +131,13 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       timedOut: true,
     })
     expect(t.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'timeout' } })
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('failed')
     hang = false
-    expect(await t.wizard.retry('t')).toMatchObject({ ok: true })
+    expect(await t.run.retry('t')).toMatchObject({ ok: true })
     await tick()
     expect(t.rec('t')).toMatchObject({ status: 'done', output: 'fast' })
     expect(signals).toHaveLength(2)
-    expect(t.wizard.getState().status).toBe('done')
+    expect(t.run.getState().status).toBe('done')
   })
 
   it('an output boundary rejects the run value → the task fails with the boundary issues', async () => {
@@ -154,12 +154,12 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       },
     })
     const t = e2e(def)
-    await t.wizard.start()
+    await t.run.start()
     expect(t.rec('t')).toMatchObject({
       status: 'failed',
       error: { kind: 'run', name: 'BoundaryRejection' },
     })
     expect(t.of('step.runFailed')[0]?.error.message).toContain('id must be a string')
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('failed')
   })
 })

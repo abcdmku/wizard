@@ -2,7 +2,7 @@
  * The machine contract: three pure functions + an initial-state builder.
  *
  * `MachineEnv` is the only "ambient" input: the compiled flow, id/clock
- * providers (injectable for deterministic tests) and the wizard path.
+ * providers (injectable for deterministic tests) and the run path.
  * Everything else flows through explicit parameters.
  *
  * Determinism rules (see plan §8.1):
@@ -21,7 +21,7 @@ import type { WizardState } from './state'
 
 export interface MachineEnv {
   readonly def: CompiledFlow
-  /** Path of this wizard instance ([] = root). */
+  /** Path of this run instance ([] = root). */
   readonly path: readonly string[]
   /** Monotonic wall clock (injectable). */
   now(): number
@@ -41,7 +41,7 @@ export interface InitialStateOptions {
   readonly context: unknown
   readonly now: number
   readonly epoch?: number
-  /** v0.2: correlation id stored in `WizardState.correlationId` (`createWizard(flow, { correlationId })`). */
+  /** v0.2: correlation id stored in `WizardState.correlationId` (`createRun(flow, { correlationId })`). */
   readonly correlationId?: string
 }
 

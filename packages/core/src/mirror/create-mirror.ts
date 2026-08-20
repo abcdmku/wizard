@@ -1,9 +1,9 @@
 /**
- * `createMirror({ transport })` — the client-side, read-only replica of a wizard seen through a
+ * `createMirror({ transport })` — the client-side, read-only replica of a run seen through a
  * projection (plan §1.7 / §8.9). Typed by the projection (`createMirror<typeof projection>`, a
  * type-only import on the client), it applies frames from the transport, exposes the latest
  * projected state with `getSnapshot`/`subscribe` (stable identity per applied frame, structural
- * sharing of unchanged slices), and offers the same typed command sugar as `Wizard`, each call
+ * sharing of unchanged slices), and offers the same typed command sugar as `FlowRun`, each call
  * travelling as a `WireCommand` and resolving with the ack's `CommandResult`.
  *
  * Frame rules: every frame goes through `parseFrame` (malformed frames are ignored); a frame is
@@ -59,7 +59,7 @@ export interface MirrorOptions<P extends AnyProjection> {
 
 /**
  * The typed command sugar of a Mirror (and of a `MirrorChild`), typed by flow `F`: the same
- * methods as `Wizard`, each resolving with the ack's `CommandResult`; `dispatch` is the wire
+ * methods as `FlowRun`, each resolving with the ack's `CommandResult`; `dispatch` is the wire
  * door; `child(step)` scopes the same sugar to a nested flow.
  * @public
  */
@@ -105,13 +105,13 @@ export interface MirrorCommands<F extends AnyFlow> {
  * @public
  */
 export interface MirrorChild<F extends AnyFlow> extends MirrorCommands<F> {
-  /** Path from the root wizard to this child (`['fulfil']`, `['fulfil', 'pack']`). */
+  /** Path from the root run to this child (`['fulfil']`, `['fulfil', 'pack']`). */
   readonly path: readonly [string, ...string[]]
 }
 
 /**
- * Client-side replica of a wizard through projection `P`: read the projected state
- * (`getSnapshot`/`subscribe`), and send typed commands — the same sugar as `Wizard`
+ * Client-side replica of a run through projection `P`: read the projected state
+ * (`getSnapshot`/`subscribe`), and send typed commands — the same sugar as `FlowRun`
  * (`MirrorCommands`), each resolving with the ack's `CommandResult`; transport failures and
  * misrouted acks reject. `instanceId/epoch/seq` mirror the last applied frame (`null` before
  * the first one); `connected` is true from the first frame until `dispose`.

@@ -27,6 +27,8 @@ export function toConfig(opts: ResumeWizardRuntimeOptions, restore: RestoreChild
     strict: opts.strict,
     logSize: opts.logSize,
     abortGraceMs: opts.abortGraceMs,
+    beforeEffects: opts.beforeEffects,
+    beforeTimer: opts.beforeTimer,
     onListenerError: opts.onListenerError,
     persistence:
       opts.store === undefined

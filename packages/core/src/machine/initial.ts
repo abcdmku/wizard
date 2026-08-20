@@ -1,5 +1,5 @@
 /**
- * `initialState` — the state of a wizard instance before `start`.
+ * `initialState` — the state of a run instance before `start`.
  *
  * Every step of the compiled flow gets an idle record so `steps[id]` is always
  * defined for known ids (the machine never has to guard against missing records

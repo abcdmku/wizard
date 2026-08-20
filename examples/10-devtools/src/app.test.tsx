@@ -8,20 +8,20 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from './App'
 import { makeDeps } from './pipeline'
-import { createPipelineWizard } from './wizard'
+import { createPipelineRun } from './wizard'
 
 afterEach(cleanup)
 
 const cardOf = (root: ParentNode, id: string) =>
   [...root.querySelectorAll<HTMLElement>('.owd-node-card')].find(
-    (c) => c.querySelector('.owd-node-id')?.textContent === id,
+    (node) => node.querySelector('.owd-node-id')?.textContent === id,
   )
 
 describe('10 devtools: the page drives the pipeline and the panel follows', () => {
-  it('start → approve → done, with the graph overlay and the event log live', async () => {
-    const wizard = createPipelineWizard(makeDeps(0))
-    const { container } = render(<App wizard={wizard} />)
-    // The panel is open by default and draws the wizard's own flow.
+  it('moves through approval while the graph and event log update', async () => {
+    const run = createPipelineRun(makeDeps(0))
+    const { container } = render(<App run={run} />)
+    // The panel is open by default and draws the run's own flow.
     await waitFor(() => expect(cardOf(container, 'ingest')).toBeDefined())
     fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     // Fake enricher fails once → retry (1.2 s) → then the gate → the approval wait.
@@ -31,12 +31,12 @@ describe('10 devtools: the page drives the pipeline and the panel follows', () =
     })
     expect(cardOf(container, 'gate')?.dataset.status).toBe('done')
     fireEvent.click(screen.getByRole('button', { name: 'Send review.approved' }))
-    await waitFor(() => expect(wizard.getState().status).toBe('done'))
+    await waitFor(() => expect(run.getState().status).toBe('done'))
     await waitFor(() => expect(cardOf(container, 'done')?.dataset.status).toBe('done'))
     expect(container.querySelector('.status code')?.textContent).toBe('done')
-    // The events tab counted every event the wizard emitted.
+    // The events tab counted every event the run emitted.
     const eventsTab = screen.getByRole('button', { name: /^Events/ })
-    expect(Number(eventsTab.querySelector('.owd-count')?.textContent)).toBe(wizard.log().length)
-    wizard.dispose()
+    expect(Number(eventsTab.querySelector('.owd-count')?.textContent)).toBe(run.log().length)
+    run.dispose()
   }, 10_000)
 })

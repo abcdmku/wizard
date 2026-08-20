@@ -1,6 +1,6 @@
 /**
- * Typed façade: `createWizard(flow, options)` / `createWizardAsync` / `resumeWizard` /
- * `resumeWizardAsync` and the `Wizard<F>` interface — thin, typed wrappers over the untyped
+ * Typed façade: `createRun(flow, options)` / `createRunAsync` / `resumeRun` /
+ * `resumeRunAsync` and the `FlowRun<F>` interface — thin, typed wrappers over the untyped
  * `WizardRuntime`.
  *
  * The façade compiles the flow (cached per flow object), pushes `context` (and `deps`, when the
@@ -21,6 +21,7 @@ import { initialState, machine } from '../../machine'
 import type { DomainEvent } from '../../machine/events'
 import type { WizardState } from '../../machine/state'
 import { applyProjection } from '../../projection/apply-projection'
+import type { RunResult } from '../results'
 import { resumeWizardRuntime, resumeWizardRuntimeAsync } from '../resume'
 import {
   createWizardRuntime,
@@ -29,29 +30,42 @@ import {
   type WizardRuntimeOptions,
 } from '../runtime'
 import type { Snapshot as RuntimeSnapshot } from '../snapshot'
-import type { Explanation, Snapshot, WizardEvent } from './state'
-import type { ResumeOptions, SharedOptions, Wizard, WizardOptions } from './wizard'
+import type { Explanation, RunEvent, Snapshot } from './state'
+import type { FlowRun, ResumeOptions, RunOptions, SharedOptions } from './wizard'
 
+export type {
+  CompensationFailure,
+  CompensationSummary,
+  FlowFailure,
+  RunCancelled,
+  RunDone,
+  RunFailed,
+  RunLifecycleCode,
+  RunResult,
+  StepFailure,
+} from '../results'
+export { RunLifecycleError } from '../results'
 export type { AnyChildCommand, ChildCommand, Command, SetInputCommand } from './command'
 export {
-  type ChildWizardEvent,
+  type ChildRunEvent,
   type Explanation,
   isChildEvent,
-  type RootWizardEvent,
+  type RootRunEvent,
+  type RunEvent,
+  type RunEventType,
   type Snapshot,
   type StepErrorOf,
   type StepState,
-  type WizardEvent,
 } from './state'
-export type { ResumeOptions, SnapshotMigration, Wizard, WizardOptions } from './wizard'
+export type { FlowRun, ResumeOptions, RunOptions, SnapshotMigration } from './wizard'
 
 /**
- * Create a wizard from a flow: parses `context` (and `deps`) through the flow's boundaries
- * synchronously (async boundaries → use `createWizardAsync`), compiles the flow and starts a
+ * Create a run from a flow: parses `context` (and `deps`) through the flow's boundaries
+ * synchronously (async boundaries → use `createRunAsync`), compiles the flow and starts a
  * runtime. Call `start()` to activate the entry step(s).
  * @public
  */
-export function createWizard<F extends AnyFlow>(flow: F, options: WizardOptions<F>): Wizard<F> {
+export function createRun<F extends AnyFlow>(flow: F, options: RunOptions<F>): FlowRun<F> {
   const def = compile(flow)
   const context = parseSync(def.context, options.context, 'context')
   const deps = def.deps === undefined ? options.deps : parseSync(def.deps, options.deps, 'deps')
@@ -65,13 +79,13 @@ export function createWizard<F extends AnyFlow>(flow: F, options: WizardOptions<
 }
 
 /**
- * Like `createWizard`, for flows whose context / deps boundaries are asynchronous.
+ * Like `createRun`, for flows whose context / deps boundaries are asynchronous.
  * @public
  */
-export async function createWizardAsync<F extends AnyFlow>(
+export async function createRunAsync<F extends AnyFlow>(
   flow: F,
-  options: WizardOptions<F>,
-): Promise<Wizard<F>> {
+  options: RunOptions<F>,
+): Promise<FlowRun<F>> {
   const def = compile(flow)
   const context = await parseAsync(def.context, options.context, 'context')
   const deps =
@@ -86,17 +100,17 @@ export async function createWizardAsync<F extends AnyFlow>(
 }
 
 /**
- * Resume a wizard from a persisted snapshot: the envelope, flow identity, step set and every
+ * Resume a run from a persisted snapshot: the envelope, flow identity, step set and every
  * boundary are re-validated (`WizardError('SNAPSHOT_INCOMPATIBLE')` lists every reason);
  * `epoch` increments; interrupted work follows the recovery matrix. A snapshot of another flow
  * `version` goes through `options.migrate` first (else `SNAPSHOT_INCOMPATIBLE`).
  * @public
  */
-export function resumeWizard<F extends AnyFlow>(
+export function resumeRun<F extends AnyFlow>(
   flow: F,
   snapshot: unknown,
   options: ResumeOptions<F>,
-): Wizard<F> {
+): FlowRun<F> {
   const def = compile(flow)
   const deps = def.deps === undefined ? options.deps : parseSync(def.deps, options.deps, 'deps')
   const runtime = resumeWizardRuntime(def, snapshot, {
@@ -108,16 +122,16 @@ export function resumeWizard<F extends AnyFlow>(
 }
 
 /**
- * Like `resumeWizard`, for flows with asynchronous boundaries (context, deps, view inputs, task
+ * Like `resumeRun`, for flows with asynchronous boundaries (context, deps, view inputs, task
  * / flow outputs, event payloads): every boundary is awaited BEFORE any runtime is constructed,
  * so resume stays atomic (`SNAPSHOT_INCOMPATIBLE` lists every reason, nothing runs on failure).
  * @public
  */
-export async function resumeWizardAsync<F extends AnyFlow>(
+export async function resumeRunAsync<F extends AnyFlow>(
   flow: F,
   snapshot: unknown,
   options: ResumeOptions<F>,
-): Promise<Wizard<F>> {
+): Promise<FlowRun<F>> {
   const def = compile(flow)
   const deps =
     def.deps === undefined ? options.deps : await parseAsync(def.deps, options.deps, 'deps')
@@ -131,7 +145,7 @@ export async function resumeWizardAsync<F extends AnyFlow>(
 
 /** Options that only exist at creation (`instanceId`, `correlationId` → `state.correlationId`). */
 function createOptions<F extends AnyFlow>(
-  options: WizardOptions<F>,
+  options: RunOptions<F>,
 ): Pick<WizardRuntimeOptions, 'instanceId' | 'correlationId'> {
   return {
     ...(options.instanceId !== undefined ? { instanceId: options.instanceId } : {}),
@@ -149,6 +163,8 @@ function resumeOnlyOptions<F extends AnyFlow>(
 function runtimeOptions<F extends AnyFlow>(
   options: SharedOptions<F>,
 ): Omit<WizardRuntimeOptions, 'context' | 'deps' | 'instanceId' | 'correlationId'> {
+  const beforeEffects = options.beforeEffects
+  const beforeTimer = options.beforeTimer
   return {
     machine,
     initialState,
@@ -163,6 +179,29 @@ function runtimeOptions<F extends AnyFlow>(
     ...(options.clock !== undefined ? { clock: options.clock } : {}),
     ...(options.scheduler !== undefined ? { scheduler: options.scheduler } : {}),
     ...(options.ids !== undefined ? { ids: options.ids } : {}),
+    ...(beforeEffects !== undefined
+      ? {
+          beforeEffects: (input: {
+            readonly snapshot: RuntimeSnapshot
+            readonly events: readonly DomainEvent[]
+          }) =>
+            beforeEffects(
+              input as unknown as {
+                readonly snapshot: Snapshot<F>
+                readonly events: readonly RunEvent<F>[]
+              },
+            ),
+        }
+      : {}),
+    ...(beforeTimer !== undefined
+      ? {
+          beforeTimer: (timer: {
+            readonly timerId: string
+            readonly dueAt: number
+            readonly expected: { readonly epoch: number; readonly seq: number }
+          }) => beforeTimer(timer),
+        }
+      : {}),
     ...(options.strict !== undefined ? { strict: options.strict } : {}),
     ...(options.logSize !== undefined ? { logSize: options.logSize } : {}),
   }
@@ -173,7 +212,7 @@ function parseSync(boundary: RuntimeBoundary, value: unknown, what: 'context' | 
   if (isThenable(result)) {
     throw new WizardError(
       'DEFINITION_INVALID',
-      `${what} boundary must be synchronous for createWizard/resumeWizard; use createWizardAsync/resumeWizardAsync`,
+      `${what} boundary must be synchronous for createRun/resumeRun; use createRunAsync/resumeRunAsync`,
     )
   }
   return unwrap(result, what)
@@ -196,12 +235,12 @@ function unwrap(result: Awaited<ReturnType<RuntimeBoundary['parse']>>, what: str
   )
 }
 
-const wrappers = new WeakMap<WizardRuntime, Wizard<AnyFlow>>()
+const wrappers = new WeakMap<WizardRuntime, FlowRun<AnyFlow>>()
 
-function wrap<F extends AnyFlow>(runtime: WizardRuntime, flow: F, def: CompiledFlow): Wizard<F> {
+function wrap<F extends AnyFlow>(runtime: WizardRuntime, flow: F, def: CompiledFlow): FlowRun<F> {
   const existing = wrappers.get(runtime)
-  if (existing !== undefined) return existing as unknown as Wizard<F>
-  const wizard: Wizard<F> = {
+  if (existing !== undefined) return existing as unknown as FlowRun<F>
+  const run: FlowRun<F> = {
     id: runtime.id,
     get epoch() {
       return runtime.epoch
@@ -226,13 +265,17 @@ function wrap<F extends AnyFlow>(runtime: WizardRuntime, flow: F, def: CompiledF
     dispatch: (command) => runtime.dispatch(command),
     attach: (source) => runtime.attach(source),
     getState: () => runtime.getState() as Snapshot<F>['state'],
+    result: () => runtime.result() as RunResult<F> | undefined,
+    awaitResult: () => runtime.awaitResult() as Promise<RunResult<F>>,
+    subscribeResult: (listener) =>
+      runtime.subscribeResult(listener as (result: ReturnType<WizardRuntime['result']>) => void),
     getSnapshot: () => runtime.getSnapshot() as unknown as Snapshot<F>,
     explain: (step) => runtime.explain(step) as Explanation<F>,
     progress: () => runtime.progress(),
     readyViews: () => runtime.readyViews() as readonly ViewId<F>[],
     subscribe: (listener) => runtime.subscribe(listener as (state: WizardState) => void),
     observe: (listener) => runtime.observe(listener as (event: DomainEvent) => void),
-    log: () => runtime.log() as readonly WizardEvent<F>[],
+    log: () => runtime.log() as readonly RunEvent<F>[],
     child: (step) => {
       const childRuntime = runtime.child(step)
       const childDef = def.steps[step]?.child
@@ -240,14 +283,14 @@ function wrap<F extends AnyFlow>(runtime: WizardRuntime, flow: F, def: CompiledF
       if (childDef === undefined || childFlow === undefined) {
         throw new WizardError('NOT_A_FLOW_STEP', `'${step}' is not a flow step`, { step })
       }
-      return wrap(childRuntime, childFlow, childDef) as Wizard<ChildFlowOf<F, typeof step>>
+      return wrap(childRuntime, childFlow, childDef) as FlowRun<ChildFlowOf<F, typeof step>>
     },
     project: (projection) => {
       // Identity, not name: a same-name, same-shape flow is type-compatible but not this flow.
       if (projection.flow !== flow) {
         throw new WizardError(
           'DEFINITION_INVALID',
-          `projection was defined for flow '${projection.flow.name}' (a different flow object), not for this wizard's flow '${def.name}'`,
+          `projection was defined for flow '${projection.flow.name}' (a different flow object), not for this run's flow '${def.name}'`,
         )
       }
       return applyProjection(projection, runtime.getState(), def, runtime.getSnapshot().children)
@@ -255,6 +298,6 @@ function wrap<F extends AnyFlow>(runtime: WizardRuntime, flow: F, def: CompiledF
     save: () => runtime.save(),
     dispose: () => runtime.dispose(),
   }
-  wrappers.set(runtime, wizard as unknown as Wizard<AnyFlow>)
-  return wizard
+  wrappers.set(runtime, run as unknown as FlowRun<AnyFlow>)
+  return run
 }

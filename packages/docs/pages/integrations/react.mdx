@@ -1,0 +1,17 @@
+# React
+
+`@openwizard/react` binds typed hooks to a local run or a projected client mirror.
+
+```sh
+pnpm add @openwizard/react
+```
+
+```tsx file="packages/docs/snippets/http/react.tsx"
+```
+
+This uses the `orderFlow` from the [run API guide](/integrations/run-api), which declares the
+`address` view. Passing the run as a prop keeps run creation and ownership outside the component.
+
+For a browser client, bind to a projection and pass a `Mirror` instead of a server run. The
+[React concept guide](/concepts/react) covers projections, transport, nested flows, and server
+rendering. See the [React API](/api/react) for every hook.

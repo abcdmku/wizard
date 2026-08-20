@@ -7,7 +7,7 @@ import {
   boundary,
   createMirror,
   createMirrorSource,
-  createWizard,
+  createRun,
   defineFlow,
   defineProjection,
 } from '@openwizard/core'
@@ -18,16 +18,16 @@ export interface Deps {
   api: { fetch(): Promise<number> }
 }
 
-const c = defineFlow({ name: 'pack', context: z.object({ items: z.number() }) })
-export const packFlow = c.steps(
+const pack = defineFlow({ name: 'pack', context: z.object({ items: z.number() }) })
+export const packFlow = pack.steps(
   {
-    count: c.task(({ context }) => context.items * 2, { next: 'packed' }),
-    packed: c.final({ output: ({ steps }) => steps.count?.output }),
+    count: pack.task(({ context }) => context.items * 2, { next: 'packed' }),
+    packed: pack.final({ output: ({ steps }) => steps.count?.output }),
   },
   { start: 'count' },
 )
 
-const s = defineFlow({
+const ingest = defineFlow({
   name: 'ingest',
   context: z.object({
     source: z.string(),
@@ -39,14 +39,14 @@ const s = defineFlow({
   concurrency: 2,
 })
 
-export const pipeline = s.steps(
+export const pipeline = ingest.steps(
   {
-    form: s.view({
+    form: ingest.view({
       input: z.object({ name: z.string().min(1) }),
       initial: { name: '' },
       next: 'ingest',
     }),
-    ingest: s.task(
+    ingest: ingest.task(
       async ({ deps, update }) => {
         const rows = await deps.api.fetch()
         update({ rows })
@@ -54,45 +54,45 @@ export const pipeline = s.steps(
       },
       { retry: { attempts: 2, backoff: 100 }, next: ['normalize', 'enrich'] },
     ),
-    normalize: s.task(({ context }) => ({ normalized: context.rows ?? 0 }), { next: 'gate' }),
-    enrich: s.task(({ update }) => update({ quality: 0.9 }), {
+    normalize: ingest.task(({ context }) => ({ normalized: context.rows ?? 0 }), { next: 'gate' }),
+    enrich: ingest.task(({ update }) => update({ quality: 0.9 }), {
       when: ({ context }) => (context.rows ?? 0) > 0,
       next: 'gate',
     }),
-    gate: s.decision({
+    gate: ingest.decision({
       dependsOn: ['normalize', 'enrich'],
       next: ({ context }) => (context.quality >= 0.8 ? 'awaitPayment' : 'rejected'),
     }),
-    awaitPayment: s.wait({
+    awaitPayment: ingest.wait({
       on: { 'payment.captured': () => undefined },
       timeout: { after: '15m', next: 'rejected' },
       next: 'pack',
     }),
-    pack: s.flow(packFlow, {
+    pack: ingest.flow(packFlow, {
       context: ({ context }) => ({ items: context.rows ?? 0 }),
       next: 'review',
     }),
-    review: s.view({ next: 'done' }),
+    review: ingest.view({ next: 'done' }),
     // A `back`-like loop: review → form closes a cycle (NAV_CYCLE) the layout must break.
-    again: s.view({ next: 'form' }),
-    rejected: s.final({ output: () => 'rejected' }),
-    done: s.final({ output: ({ context }) => `stored ${context.rows ?? 0} rows` }),
-    orphan: s.final(),
+    again: ingest.view({ next: 'form' }),
+    rejected: ingest.final({ output: () => 'rejected' }),
+    done: ingest.final({ output: ({ context }) => `stored ${context.rows ?? 0} rows` }),
+    orphan: ingest.final(),
   },
   { start: 'form' },
 )
 
 export const context = { source: 'crm' }
 
-export function makeWizard(fetch: () => Promise<number> = async () => 100) {
+export function makeRun(fetch: () => Promise<number> = async () => 100) {
   const sched = createTestScheduler({ now: 1_000 })
-  const wizard = createWizard(pipeline, {
+  const run = createRun(pipeline, {
     context,
     deps: { api: { fetch } },
     scheduler: sched,
     logSize: 1_000,
   })
-  return { wizard, sched }
+  return { run, sched }
 }
 
 export const pipelineClient = defineProjection(pipeline, {
@@ -107,23 +107,23 @@ export const pipelineClient = defineProjection(pipeline, {
   },
 })
 
-/** A wizard plus a loopback Mirror over `pipelineClient` (serialized, like a wire). */
+/** A run plus a loopback Mirror over `pipelineClient` (serialized, like a wire). */
 export function makeMirror(fetch?: () => Promise<number>) {
-  const { wizard, sched } = makeWizard(fetch)
-  const source = createMirrorSource(wizard, pipelineClient)
+  const { run, sched } = makeRun(fetch)
+  const source = createMirrorSource(run, pipelineClient)
   const mirror = createMirror<typeof pipelineClient>({
     transport: createLocalTransport(source, { serialize: true }),
   })
-  return { wizard, sched, mirror }
+  return { run, sched, mirror }
 }
 
 export const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
 
-/** Drive the wizard through form → ingest → branches → gate → awaitPayment (active). */
-export async function runToWait(wizard: ReturnType<typeof makeWizard>['wizard']): Promise<void> {
-  await wizard.start()
-  await wizard.setInput('form', { name: 'ada' })
-  await wizard.next()
+/** Drive the run through form → ingest → branches → gate → awaitPayment (active). */
+export async function runToWait(run: ReturnType<typeof makeRun>['run']): Promise<void> {
+  await run.start()
+  await run.setInput('form', { name: 'ada' })
+  await run.next()
   await settle()
   await settle()
 }

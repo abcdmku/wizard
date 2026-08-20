@@ -1,5 +1,5 @@
 /**
- * Typed end-to-end smoke test: `defineFlow` → `createWizard` → view → task → final, through the
+ * Typed end-to-end smoke test: `defineFlow` → `createRun` → view → task → final, through the
  * real machine + interpreter. Asserts typed `getState().current`, typed outputs, projections,
  * events, resume, and the door-level errors of the façade.
  */
@@ -13,18 +13,13 @@ import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { createMemoryStore } from '../../src/persistence/memory-store'
 import { defineProjection } from '../../src/projection/define-projection'
-import {
-  createWizard,
-  createWizardAsync,
-  resumeWizard,
-  type WizardEvent,
-} from '../../src/wizard/create-wizard'
+import { createRun, createRunAsync, type RunEvent, resumeRun } from '../../src/wizard/create-wizard'
 
 interface Deps {
   inventory: { reserve(cartId: string): Promise<{ reservationId: string }> }
 }
 
-const s = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({
     cartId: z.string(),
@@ -35,17 +30,17 @@ const s = defineFlow({
   events: { 'payment.captured': z.object({ paymentId: z.string() }) },
   deps: boundary.trusted<Deps>(),
 })
-const checkout = s.steps(
+const checkoutFlow = checkout.steps(
   {
-    shipping: s.view({
+    shipping: checkout.view({
       input: z.object({ address: z.string().min(1), express: z.boolean().default(false) }),
       exit: ({ output, update }) => update({ address: output.address, express: output.express }),
       next: 'reserve',
     }),
-    reserve: s.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
+    reserve: checkout.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
       next: 'receipt',
     }),
-    receipt: s.final({
+    receipt: checkout.final({
       output: ({ context, steps }) => ({
         cartId: context.cartId,
         express: context.express,
@@ -59,9 +54,9 @@ const deps: Deps = {
   inventory: { reserve: async (cartId) => ({ reservationId: `res-${cartId}` }) },
 }
 
-function make(extra: Partial<Parameters<typeof createWizard<typeof checkout>>[1]> = {}) {
+function make(extra: Partial<Parameters<typeof createRun<typeof checkoutFlow>>[1]> = {}) {
   const sched = createTestScheduler({ now: 1_000 })
-  return createWizard(checkout, {
+  return createRun(checkoutFlow, {
     context: { cartId: 'c1', total: 10 },
     deps,
     scheduler: sched,
@@ -71,33 +66,33 @@ function make(extra: Partial<Parameters<typeof createWizard<typeof checkout>>[1]
   })
 }
 
-describe('createWizard: typed end-to-end', () => {
+describe('createRun: typed end-to-end', () => {
   it('view → task → final with typed state, outputs and events', async () => {
-    const wizard = make()
-    const events: WizardEvent<typeof checkout>[] = []
-    wizard.observe((e) => events.push(e))
-    expect(wizard.id).toBe('wiz-1')
-    expect(wizard.epoch).toBe(0)
-    expect(wizard.flow).toBe(checkout)
-    expect(wizard.getState().context).toEqual({ cartId: 'c1', total: 10, express: false }) // parsed (default applied)
-    expect(wizard.getState().status).toBe('idle')
+    const run = make()
+    const events: RunEvent<typeof checkoutFlow>[] = []
+    run.observe((e) => events.push(e))
+    expect(run.id).toBe('wiz-1')
+    expect(run.epoch).toBe(0)
+    expect(run.flow).toBe(checkoutFlow)
+    expect(run.getState().context).toEqual({ cartId: 'c1', total: 10, express: false }) // parsed (default applied)
+    expect(run.getState().status).toBe('idle')
 
-    expect(await wizard.start()).toMatchObject({ ok: true })
-    expect(wizard.getState().current).toBe('shipping')
-    expect(wizard.getSnapshot().state.current).toBe('shipping')
+    expect(await run.start()).toMatchObject({ ok: true })
+    expect(run.getState().current).toBe('shipping')
+    expect(run.getSnapshot().state.current).toBe('shipping')
 
     // draft is rejected by the input boundary → INVALID_INPUT with issues, cursor stays
-    const rejected = await wizard.next()
+    const rejected = await run.next()
     expect(rejected).toMatchObject({ ok: false, code: 'INVALID_INPUT' })
-    expect(wizard.getState().steps.shipping.issues?.length).toBeGreaterThan(0)
+    expect(run.getState().steps.shipping.issues?.length).toBeGreaterThan(0)
 
-    expect(await wizard.setInput('shipping', { address: 'Main St' })).toMatchObject({ ok: true })
-    expect(await wizard.validate('shipping')).toEqual([])
-    const nav = await wizard.next()
+    expect(await run.setInput('shipping', { address: 'Main St' })).toMatchObject({ ok: true })
+    expect(await run.validate('shipping')).toEqual([])
+    const nav = await run.next()
     expect(nav).toMatchObject({ ok: true, from: 'shipping', to: 'reserve' })
     // the task ran (async run resolves through the queue), auto-advanced to the final
     await new Promise((r) => setTimeout(r, 0))
-    const state = wizard.getState()
+    const state = run.getState()
     expect(state.status).toBe('done')
     expect(state.steps.shipping.output).toEqual({ address: 'Main St', express: false })
     expect(state.steps.reserve.output).toEqual({ reservationId: 'res-c1' })
@@ -105,107 +100,107 @@ describe('createWizard: typed end-to-end', () => {
     expect(state.context.address).toBe('Main St')
     expect(events.some((e) => e.type === 'step.done' && e.step === 'reserve')).toBe(true)
     expect(events.some((e) => e.type === 'flow.done')).toBe(true)
-    expect(wizard.log().length).toBeGreaterThan(0)
-    wizard.dispose()
+    expect(run.log().length).toBeGreaterThan(0)
+    run.dispose()
   })
 
   it('project() applies a deny-by-default projection; the wrong flow is rejected', async () => {
-    const wizard = make()
-    await wizard.start()
-    await wizard.setInput('shipping', { address: 'x' })
-    const projection = defineProjection(checkout, {
+    const run = make()
+    await run.start()
+    await run.setInput('shipping', { address: 'x' })
+    const projection = defineProjection(checkoutFlow, {
       expose: { steps: { shipping: { input: true } }, context: ['total'] },
     })
-    const projected = wizard.project(projection)
+    const projected = run.project(projection)
     expect(projected.context).toEqual({ total: 10 })
     expect(projected.current).toBe('shipping')
     expect(projected.steps.shipping.input).toEqual({ address: 'x' })
     expect(projected.steps.shipping.phase).toBe('waiting')
     expect('output' in projected.steps.reserve).toBe(false)
-    const o = defineFlow({ name: 'other', context: boundary.trusted() })
-    const other = o.steps({ e: o.final() })
-    const otherProjection = defineProjection(other, { expose: {} })
-    expect(() => wizard.project(otherProjection as any)).toThrowError(/defined for flow 'other'/)
-    wizard.dispose()
+    const other = defineFlow({ name: 'other', context: boundary.trusted() })
+    const otherFlow = other.steps({ e: other.final() })
+    const otherProjection = defineProjection(otherFlow, { expose: {} })
+    expect(() => run.project(otherProjection as any)).toThrowError(/defined for flow 'other'/)
+    run.dispose()
   })
 
   it('send() routes declared events; an undeclared event is a programmer error', async () => {
-    const wizard = make()
-    await wizard.start()
-    const result = await wizard.send('payment.captured', { paymentId: 'p' })
+    const run = make()
+    await run.start()
+    const result = await run.send('payment.captured', { paymentId: 'p' })
     expect(result).toMatchObject({ ok: true, buffered: true }) // no wait step listens → buffered
-    const bad = await wizard.send('payment.captured', { nope: 1 })
+    const bad = await run.send('payment.captured', { nope: 1 })
     expect(bad).toMatchObject({ ok: false, reason: 'rejected' })
-    await expect(wizard.send('unknown' as any, {})).rejects.toThrow(WizardError)
-    wizard.dispose()
+    await expect(run.send('unknown' as any, {})).rejects.toThrow(WizardError)
+    run.dispose()
   })
 
   it('dispatch() is the wire door: bad shapes and unknown steps are results, not throws', async () => {
-    const wizard = make()
-    await wizard.start()
+    const run = make()
+    await run.start()
     // `Command<F>` rejects unknown ids at compile time; a JS caller still gets a result, not a throw.
-    expect(await wizard.dispatch({ type: 'go', step: 'nope' } as never)).toMatchObject({
+    expect(await run.dispatch({ type: 'go', step: 'nope' } as never)).toMatchObject({
       ok: false,
       code: 'NOT_A_VIEW',
     })
-    expect(await wizard.dispatch({ type: 'wat' } as any)).toMatchObject({
+    expect(await run.dispatch({ type: 'wat' } as any)).toMatchObject({
       ok: false,
       code: 'INVALID_COMMAND',
     })
-    wizard.dispose()
+    run.dispose()
   })
 
   it('run(task) starts one ready task under autoRun: manual; reset() returns to the initial state', async () => {
-    const m = defineFlow({
+    const manual = defineFlow({
       name: 'manual',
       context: z.object({ n: z.number() }),
       autoRun: 'manual',
     })
-    const manual = m.steps(
+    const manualFlow = manual.steps(
       {
-        a: m.task(({ context }) => context.n + 1, { next: 'b' }),
-        b: m.task(({ steps }) => (steps.a?.output as number) * 2, { next: 'end' }),
-        end: m.final({ output: ({ steps }) => steps.b?.output }),
+        a: manual.task(({ context }) => context.n + 1, { next: 'b' }),
+        b: manual.task(({ steps }) => (steps.a?.output as number) * 2, { next: 'end' }),
+        end: manual.final({ output: ({ steps }) => steps.b?.output }),
       },
       { start: 'a' },
     )
-    const wizard = createWizard(manual, { context: { n: 1 }, instanceId: 'wiz-m' })
-    await wizard.start()
-    expect(wizard.getState().status).toBe('waiting') // ready, but not started: manual
-    expect(wizard.getState().steps.a.status).toBe('idle')
-    expect(wizard.explain('a').reasons).toContain('auto-run-manual')
-    expect(await wizard.run('a')).toMatchObject({ ok: true })
+    const run = createRun(manualFlow, { context: { n: 1 }, instanceId: 'wiz-m' })
+    await run.start()
+    expect(run.getState().status).toBe('waiting') // ready, but not started: manual
+    expect(run.getState().steps.a.status).toBe('idle')
+    expect(run.explain('a').reasons).toContain('auto-run-manual')
+    expect(await run.run('a')).toMatchObject({ ok: true })
     await new Promise((r) => setTimeout(r, 0))
-    expect(wizard.getState().steps.a.output).toBe(2)
-    expect(await wizard.run('b')).toMatchObject({ ok: true })
+    expect(run.getState().steps.a.output).toBe(2)
+    expect(await run.run('b')).toMatchObject({ ok: true })
     await new Promise((r) => setTimeout(r, 0))
-    expect(wizard.getState().steps.b.output).toBe(4)
+    expect(run.getState().steps.b.output).toBe(4)
     // The final step is a non-view step too: under `manual` it waits for runReady().
-    expect(wizard.getState().status).toBe('waiting')
-    expect(await wizard.runReady()).toMatchObject({ ok: true })
-    expect(wizard.getState().status).toBe('done')
-    expect(wizard.getState().output).toBe(4)
+    expect(run.getState().status).toBe('waiting')
+    expect(await run.runReady()).toMatchObject({ ok: true })
+    expect(run.getState().status).toBe('done')
+    expect(run.getState().output).toBe(4)
     // Not a task / not active → results, not throws.
-    expect(await wizard.dispatch({ type: 'run', step: 'end' } as never)).toMatchObject({
+    expect(await run.dispatch({ type: 'run', step: 'end' } as never)).toMatchObject({
       ok: false,
     })
-    expect(await wizard.reset()).toMatchObject({ ok: true })
-    expect(wizard.getState()).toMatchObject({ status: 'idle', current: null, active: [] })
-    expect(wizard.getState().steps.a.status).toBe('idle')
-    expect(wizard.log().some((e) => e.type === 'flow.reset')).toBe(true)
-    expect(await wizard.start()).toMatchObject({ ok: true }) // runs again after a reset
-    wizard.dispose()
+    expect(await run.reset()).toMatchObject({ ok: true })
+    expect(run.getState()).toMatchObject({ status: 'idle', current: null, active: [] })
+    expect(run.getState().steps.a.status).toBe('idle')
+    expect(run.log().some((e) => e.type === 'flow.reset')).toBe(true)
+    expect(await run.start()).toMatchObject({ ok: true }) // runs again after a reset
+    run.dispose()
   })
 
   it('save/resume round trip through a memory store keeps typed state and bumps epoch', async () => {
     const store = createMemoryStore()
-    const wizard = make({ store, key: 'k1' })
-    await wizard.start()
-    await wizard.setInput('shipping', { address: 'Main St' })
-    await wizard.save()
-    wizard.dispose()
+    const run = make({ store, key: 'k1' })
+    await run.start()
+    await run.setInput('shipping', { address: 'Main St' })
+    await run.save()
+    run.dispose()
     const saved = await store.get('k1')
-    const resumed = resumeWizard(checkout, saved, {
+    const resumed = resumeRun(checkoutFlow, saved, {
       deps,
       scheduler: createTestScheduler({ now: 2_000 }),
       ids: createSequentialIds(),
@@ -215,14 +210,14 @@ describe('createWizard: typed end-to-end', () => {
     expect(resumed.getState().steps.shipping.input).toEqual({ address: 'Main St' })
     expect(resumed.getState().context.cartId).toBe('c1')
     resumed.dispose()
-    expect(() => resumeWizard(checkout, { v: 1 }, { deps })).toThrow(WizardError)
+    expect(() => resumeRun(checkoutFlow, { v: 1 }, { deps })).toThrow(WizardError)
   })
 })
 
-describe('createWizard: doors', () => {
+describe('createRun: doors', () => {
   it('rejects a context that fails its boundary (BOUNDARY_REJECTED with issues)', () => {
     try {
-      createWizard(checkout, { context: { cartId: 1 } as any, deps })
+      createRun(checkoutFlow, { context: { cartId: 1 } as any, deps })
       expect.unreachable()
     } catch (error) {
       expect(error).toBeInstanceOf(WizardError)
@@ -231,7 +226,7 @@ describe('createWizard: doors', () => {
     }
   })
 
-  it('an async context boundary (async Standard Schema) needs createWizardAsync', async () => {
+  it('an async context boundary (async Standard Schema) needs createRunAsync', async () => {
     const asyncSchema: StandardSchemaV1<{ n: number }, { n: number; parsed: true }> = {
       '~standard': {
         version: 1,
@@ -242,61 +237,64 @@ describe('createWizard: doors', () => {
             : { issues: [{ message: 'expected { n: number }' }] },
       },
     }
-    const a = defineFlow({ name: 'async', context: asyncSchema })
-    const flow = a.steps({ end: a.final({ output: ({ context }) => context }) })
-    expect(() => createWizard(flow, { context: { n: 1 } })).toThrowError(/use createWizardAsync/)
-    const wizard = await createWizardAsync(flow, { context: { n: 1 } })
-    expect(wizard.getState().context).toEqual({ n: 1, parsed: true })
-    wizard.dispose()
-    await expect(createWizardAsync(flow, { context: { n: 'x' } as never })).rejects.toMatchObject({
+    const async = defineFlow({ name: 'async', context: asyncSchema })
+    const flow = async.steps({ end: async.final({ output: ({ context }) => context }) })
+    expect(() => createRun(flow, { context: { n: 1 } })).toThrowError(/use createRunAsync/)
+    const run = await createRunAsync(flow, { context: { n: 1 } })
+    expect(run.getState().context).toEqual({ n: 1, parsed: true })
+    run.dispose()
+    await expect(createRunAsync(flow, { context: { n: 'x' } as never })).rejects.toMatchObject({
       code: 'BOUNDARY_REJECTED',
     })
   })
 
   it('parses deps through the deps boundary and hands them to hooks', async () => {
     let seen: unknown
-    const d = defineFlow({
+    const depsFlow = defineFlow({
       name: 'deps',
       context: boundary.trusted<{}>(),
       deps: boundary.parse((v) => ({ ...(v as object), parsed: true }) as { parsed: boolean }),
     })
-    const flow = d.steps({
-      t: d.task(
+    const flow = depsFlow.steps({
+      t: depsFlow.task(
         ({ deps }) => {
           seen = deps
           return 1
         },
         { next: 'e' },
       ),
-      e: d.final(),
+      e: depsFlow.final(),
     })
-    const wizard = createWizard(flow, { context: {}, deps: { parsed: false } })
-    await wizard.start()
+    const run = createRun(flow, { context: {}, deps: { parsed: false } })
+    await run.start()
     await new Promise((r) => setTimeout(r, 0))
     expect(seen).toEqual({ parsed: true })
-    wizard.dispose()
+    run.dispose()
   })
 
-  it('child() returns a typed wizard for an active flow step, memoised per runtime', async () => {
-    const c = defineFlow({ name: 'child', context: z.object({ n: z.number() }) })
-    const child = c.steps({
-      hold: c.view({ next: 'end' }),
-      end: c.final({ output: ({ context }) => context.n }),
+  it('child() returns a typed run for an active flow step, memoised per runtime', async () => {
+    const child = defineFlow({ name: 'child', context: z.object({ n: z.number() }) })
+    const childFlow = child.steps({
+      hold: child.view({ next: 'end' }),
+      end: child.final({ output: ({ context }) => context.n }),
     })
-    const p = defineFlow({ name: 'parent', context: boundary.trusted<{ n: number }>() })
-    const parent = p.steps({
-      sub: p.flow(child, { context: ({ context }) => ({ n: context.n + 1 }), next: 'end' }),
-      end: p.final(),
+    const parent = defineFlow({ name: 'parent', context: boundary.trusted<{ n: number }>() })
+    const parentFlow = parent.steps({
+      sub: parent.flow(childFlow, {
+        context: ({ context }) => ({ n: context.n + 1 }),
+        next: 'end',
+      }),
+      end: parent.final(),
     })
-    const wizard = createWizard(parent, { context: { n: 1 } })
-    await wizard.start()
+    const run = createRun(parentFlow, { context: { n: 1 } })
+    await run.start()
     await new Promise((r) => setTimeout(r, 0))
-    const sub = wizard.child('sub')
-    expect(sub).toBe(wizard.child('sub'))
-    expect(sub.flow).toBe(child)
+    const sub = run.child('sub')
+    expect(sub).toBe(run.child('sub'))
+    expect(sub.flow).toBe(childFlow)
     expect(sub.getState().context).toEqual({ n: 2 }) // mapped and parsed by the child's boundary
     expect(sub.getState().current).toBe('hold')
-    expect(wizard.getSnapshot().children.sub?.state.current).toBe('hold')
-    wizard.dispose()
+    expect(run.getSnapshot().children.sub?.state.current).toBe('hold')
+    run.dispose()
   })
 })

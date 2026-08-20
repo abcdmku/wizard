@@ -1,13 +1,13 @@
 /**
- * Source adapter: the untyped view of what a `Wizard` and a `Mirror` share (subscribe /
+ * Source adapter: the untyped view of what a `FlowRun` and a `Mirror` share (subscribe /
  * getSnapshot / the command sugar), how each exposes the state the hooks read, and how a nested
  * flow's slice is found (`steps[step].child…` of a projected state, `children[step].state` of a
- * wizard snapshot). One adapter per source object.
+ * run snapshot). One adapter per source object.
  *
  * @internal
  */
 
-/** Structural view of what `Wizard` and `Mirror` share (plus `getState`, Wizard only). */
+/** Structural view of what `FlowRun` and `Mirror` share (plus `getState`, FlowRun only). */
 export interface RawSource extends RawActions {
   subscribe(listener: (state?: unknown) => void): () => void
   getSnapshot(): unknown
@@ -19,7 +19,7 @@ export interface RawState {
   readonly steps: Readonly<Record<string, unknown>>
 }
 
-/** A Wizard snapshot as the child reader walks it (`children[step].state`). */
+/** A FlowRun snapshot as the child reader walks it (`children[step].state`). */
 interface RawSnapshot {
   readonly state: RawState
   readonly children?: Readonly<Record<string, RawSnapshot | undefined>>
@@ -56,7 +56,7 @@ export interface Adapter {
   getChildState(path: readonly string[]): RawState | null
   /**
    * The child slice inside a FIXED server snapshot (`Provider.serverSnapshot`): walked from the
-   * projected state over a Mirror; `null` over a Wizard (its `serverSnapshot` is the wizard
+   * projected state over a Mirror; `null` over a FlowRun (its `serverSnapshot` is the run
    * state, which carries child summaries only).
    */
   childOfServerState(state: RawState, path: readonly string[]): RawState | null
@@ -86,7 +86,7 @@ function childOfProjected(state: RawState | null, path: readonly string[]): RawS
   return slice
 }
 
-/** The child slice of a Wizard snapshot: `children[p0].children[p1]….state` (`null` when absent). */
+/** The child slice of a FlowRun snapshot: `children[p0].children[p1]….state` (`null` when absent). */
 function childOfSnapshot(snapshot: RawSnapshot, path: readonly string[]): RawState | null {
   let node: RawSnapshot | undefined = snapshot
   for (const step of path) {
@@ -109,18 +109,18 @@ export function adapt(source: object): Adapter {
   const existing = adapters.get(source)
   if (existing !== undefined) return existing
   const raw = source as RawSource
-  const wizardState = raw.getState
-  const isWizard = typeof wizardState === 'function'
-  const getState = isWizard
-    ? () => wizardState.call(raw) as RawState // Wizard: the state (never null)
+  const runState = raw.getState
+  const isRun = typeof runState === 'function'
+  const getState = isRun
+    ? () => runState.call(raw) as RawState // FlowRun: the state (never null)
     : () => raw.getSnapshot() as RawState | null // Mirror: projected state, null before the first frame
   const adapter: Adapter = {
     subscribe: (listener) => raw.subscribe(() => listener()),
     getState,
-    getChildState: isWizard
+    getChildState: isRun
       ? (path) => childOfSnapshot(raw.getSnapshot() as RawSnapshot, path)
       : (path) => childOfProjected(getState(), path),
-    childOfServerState: isWizard ? () => null : childOfProjected,
+    childOfServerState: isRun ? () => null : childOfProjected,
     actions: {
       start: () => raw.start(),
       next: () => raw.next(),

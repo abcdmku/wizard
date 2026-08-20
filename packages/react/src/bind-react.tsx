@@ -2,7 +2,7 @@
  * `bindReact<T>()` — tRPC-style binding: the flow/projection is a TYPE parameter (a type-only
  * import on the client), the live instance is supplied through `Provider`. Returns a `Provider`
  * and hooks typed by `T`, all built on `useSyncExternalStore` over the source's own
- * `subscribe`/`getSnapshot` (Wizard) or `subscribe`/`getSnapshot` (Mirror): snapshot identities
+ * `subscribe`/`getSnapshot` (FlowRun) or `subscribe`/`getSnapshot` (Mirror): snapshot identities
  * are stable per commit/frame, so `useStep`/`useSelector` re-render only when their slice
  * changes. Action objects are memoised per source (stable identities for effects and memo).
  *
@@ -12,7 +12,7 @@
  *
  * Child flows (v0.2): `useChild(step)` returns hooks bound to the child slice — over a Mirror the
  * `steps[step].child` slice of the projected state (exposed with `child: ExposeSpec`), over a
- * Wizard `getSnapshot().children[step].state` — and a scoped `MirrorChild`-shaped action set
+ * FlowRun `getSnapshot().children[step].state` — and a scoped `MirrorChild`-shaped action set
  * (every command wrapped as `{ type: 'child', path, command }` through the source's `dispatch`).
  * Child bindings are memoised per (binding, path) so their hooks have stable identities.
  *
@@ -52,7 +52,7 @@ import type {
 
 /**
  * Create a typed React binding for a flow or a projection. The type parameter is the only
- * link to the definition (`bindReact<typeof checkoutClient>()`); the live `Wizard` / `Mirror`
+ * link to the definition (`bindReact<typeof checkoutClient>()`); the live `FlowRun` / `Mirror`
  * is supplied through `<Provider source={…}>`.
  * @public
  */
@@ -239,7 +239,7 @@ export function bindReact<T extends BindTarget>(): ReactBinding<T> {
   type ChildBindingOf<K extends ChildBindingId<T>> = ChildBinding<
     ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>,
     ChildStateOf<T, K>,
-    T extends AnyProjection ? 'mirror' : 'wizard'
+    T extends AnyProjection ? 'mirror' : 'run'
   >
   function useChild<K extends ChildBindingId<T>>(step: K): ChildBindingOf<K> {
     useBound('useChild')

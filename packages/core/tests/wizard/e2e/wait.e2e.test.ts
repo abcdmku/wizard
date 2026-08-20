@@ -29,9 +29,9 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       },
     })
     const t = e2e(def, { context: {} })
-    await t.wizard.start()
-    expect(t.wizard.getState().status).toBe('waiting')
-    const bad = await t.wizard.send('payment.captured', { nope: 1 })
+    await t.run.start()
+    expect(t.run.getState().status).toBe('waiting')
+    const bad = await t.run.send('payment.captured', { nope: 1 })
     expect(bad).toEqual({
       ok: false,
       reason: 'rejected',
@@ -45,7 +45,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
     })
     expect(t.rec('w').status).toBe('active')
 
-    const good = await t.wizard.send(
+    const good = await t.run.send(
       'payment.captured',
       { paymentId: 'p_1' },
       { correlationId: 'req-1' },
@@ -58,12 +58,12 @@ describe('e2e wait: routing, inbox, timeouts', () => {
     })
     expect(t.of('event.delivered')[0]).toMatchObject({ to: 'w', payload: { paymentId: 'p_1' } })
     // Handler `update()` landed before the step completed; output = { event, payload } by default.
-    expect(t.wizard.getState().context).toEqual({ paymentId: 'p_1' })
+    expect(t.run.getState().context).toEqual({ paymentId: 'p_1' })
     expect(t.rec('w')).toMatchObject({
       status: 'done',
       output: { event: 'payment.captured', payload: { paymentId: 'p_1' } },
     })
-    expect(t.wizard.getState().status).toBe('done')
+    expect(t.run.getState().status).toBe('done')
     const order = t.types()
     expect(order.indexOf('context.changed')).toBeLessThan(order.indexOf('step.done'))
   })
@@ -81,32 +81,32 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       },
     })
     const t = e2e(def, { now: 1_000 })
-    await t.wizard.start()
+    await t.run.start()
     // Nobody listens yet → buffered with a TTL timer.
-    const early = await t.wizard.send('hello', { n: 1 })
+    const early = await t.run.send('hello', { n: 1 })
     expect(early).toMatchObject({ ok: true, delivered: [], buffered: true })
     expect(t.of('event.buffered')[0]).toMatchObject({
       event: 'hello',
       expiresAt: 2_000,
       payload: { n: 1 },
     })
-    expect(t.wizard.getState().inbox).toHaveLength(1)
+    expect(t.run.getState().inbox).toHaveLength(1)
     expect(t.sched.pending()).toBe(1)
     // A second buffered event of another kind expires by TTL.
-    await t.wizard.send('other', { n: 2 })
-    expect(t.wizard.getState().inbox).toHaveLength(2)
+    await t.run.send('other', { n: 2 })
+    expect(t.run.getState().inbox).toHaveLength(2)
     // Move the cursor: the wait enters and drains the oldest matching entry first.
     t.sched.advance(500)
-    await t.wizard.next()
+    await t.run.next()
     expect(t.of('event.delivered')[0]).toMatchObject({ event: 'hello', to: 'w', payload: { n: 1 } })
     expect(t.rec('w')).toMatchObject({ status: 'done', output: { got: { n: 1 } } })
-    expect(t.wizard.getState().status).toBe('done')
-    expect(t.wizard.getState().inbox.map((e) => e.event)).toEqual(['other'])
+    expect(t.run.getState().status).toBe('done')
+    expect(t.run.getState().inbox.map((e) => e.event)).toEqual(['other'])
     // The remaining entry expires when its TTL timer fires (flow is done; the inbox still empties).
     t.sched.advance(500)
     expect(t.of('event.expired')[0]).toMatchObject({ event: 'other' })
-    expect(t.wizard.getState().inbox).toEqual([])
-    expect(t.wizard.getState().timers).toEqual({})
+    expect(t.run.getState().inbox).toEqual([])
+    expect(t.run.getState().timers).toEqual({})
   })
 
   it('drops when buffering is off', async () => {
@@ -118,8 +118,8 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       steps: { form: view({ next: 'end' }), end: final() },
     })
     const t = e2e(def)
-    await t.wizard.start()
-    expect(await t.wizard.send('hello', {})).toEqual({
+    await t.run.start()
+    expect(await t.run.send('hello', {})).toEqual({
       ok: false,
       reason: 'dropped',
       code: 'NOT_ACTIVE',
@@ -144,7 +144,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       },
     })
     const t = e2e(def, { now: 100_000 })
-    await t.wizard.start()
+    await t.run.start()
     expect(t.rec('w').deadline).toBe(100_000 + 15 * 60_000)
     expect(t.of('timer.scheduled')[0]).toMatchObject({
       timerId: 'wait:w',
@@ -153,17 +153,17 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       step: 'w',
     })
     t.sched.advance(15 * 60_000 - 1)
-    expect(t.wizard.getState().status).toBe('waiting')
+    expect(t.run.getState().status).toBe('waiting')
     t.sched.advance(1)
     expect(t.of('timer.fired')[0]).toMatchObject({ timerId: 'wait:w' })
     expect(t.rec('w')).toMatchObject({ status: 'done', output: { event: 'timeout' } })
     expect(t.of('step.done')[0]).toMatchObject({ step: 'w', next: 'expired' })
     expect(t.rec('expired').status).toBe('done')
     expect(t.rec('ok').status).toBe('idle')
-    expect(t.wizard.getState().output).toBe('timed out')
-    expect(t.wizard.getState().timers).toEqual({})
+    expect(t.run.getState().output).toBe('timed out')
+    expect(t.run.getState().timers).toEqual({})
     // A late event is rejected as a value (terminal).
-    expect(await t.wizard.send('hello', {})).toMatchObject({ ok: false, reason: 'dropped' })
+    expect(await t.run.send('hello', {})).toMatchObject({ ok: false, reason: 'dropped' })
   })
 
   it('a handler may keep waiting, override the target with { next }, or fail the step', async () => {
@@ -190,28 +190,28 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       },
     })
     const t = e2e(def)
-    await t.wizard.start()
-    expect(await t.wizard.send('ping', {})).toMatchObject({ ok: true, delivered: ['w'] })
+    await t.run.start()
+    expect(await t.run.send('ping', {})).toMatchObject({ ok: true, delivered: ['w'] })
     expect(t.rec('w').status).toBe('active') // keep
-    expect(t.wizard.getState().timers['wait:w']).toBeDefined()
+    expect(t.run.getState().timers['wait:w']).toBeDefined()
     mode = 'next'
-    await t.wizard.send('ping', {})
+    await t.run.send('ping', {})
     expect(t.rec('w')).toMatchObject({ status: 'done', output: 'routed' })
     expect(t.of('step.done').find((e) => e.step === 'w')).toMatchObject({ next: 'alt' })
-    expect(t.wizard.getState().output).toBe('alt')
-    expect(t.wizard.getState().timers).toEqual({}) // timeout timer cleared on completion
+    expect(t.run.getState().output).toBe('alt')
+    expect(t.run.getState().timers).toEqual({}) // timeout timer cleared on completion
     expect(t.sched.pending()).toBe(0)
 
     // fail path
     mode = 'fail'
     const t2 = e2e(def)
-    await t2.wizard.start()
-    await t2.wizard.send('ping', {})
+    await t2.run.start()
+    await t2.run.send('ping', {})
     expect(t2.rec('w')).toMatchObject({
       status: 'failed',
       error: { kind: 'hook', message: 'refused' },
     })
-    expect(t2.wizard.getState().status).toBe('failed')
+    expect(t2.run.getState().status).toBe('failed')
   })
 
   it('a handler that throws fails the wait step (kind hook) under the halt policy', async () => {
@@ -232,14 +232,14 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       },
     })
     const t = e2e(def)
-    await t.wizard.start()
-    const r = await t.wizard.send('ping', {})
+    await t.run.start()
+    const r = await t.run.send('ping', {})
     expect(r).toMatchObject({ ok: true, delivered: ['w'] }) // routing succeeded; failure is a state fact
     expect(t.rec('w')).toMatchObject({
       status: 'failed',
       error: { kind: 'hook', message: 'handler exploded' },
     })
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('failed')
   })
 
   it('a task in flight while a wait listens: send() to the wait works while the task runs', async () => {
@@ -254,15 +254,15 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       },
     })
     const t = e2e(def)
-    await t.wizard.start()
-    expect(t.wizard.getState().active).toEqual(['t', 'w'])
-    expect(t.wizard.getState().status).toBe('running')
-    expect(await t.wizard.send('ping', {})).toMatchObject({ ok: true, delivered: ['w'] })
+    await t.run.start()
+    expect(t.run.getState().active).toEqual(['t', 'w'])
+    expect(t.run.getState().status).toBe('running')
+    expect(await t.run.send('ping', {})).toMatchObject({ ok: true, delivered: ['w'] })
     expect(t.rec('w')).toMatchObject({ status: 'done', output: 'pinged' })
     finish('t-done')
     await Promise.resolve()
     await Promise.resolve()
     expect(t.rec('t')).toMatchObject({ status: 'done', output: 't-done' })
-    expect(t.wizard.getState().active).toEqual([])
+    expect(t.run.getState().active).toEqual([])
   })
 })

@@ -7,9 +7,9 @@
 import type { Progress as MachineProgress } from '../../machine/selectors'
 import type {
   Issue as MachineIssue,
+  RunStatus as MachineRunStatus,
   SerializedError as MachineSerializedError,
   StepStatus as MachineStepStatus,
-  WizardStatus as MachineWizardStatus,
 } from '../../machine/state'
 import type { RetryPolicy as CompiledRetryPolicy, StepKind as CompiledStepKind } from '../compiled'
 
@@ -59,10 +59,10 @@ export type StepKind = CompiledStepKind
 export type StepStatus = MachineStepStatus
 
 /**
- * Status of a wizard instance: `idle | running | waiting | done | failed | compensating | cancelled`.
+ * Status of a run instance: `idle | running | waiting | done | failed | compensating | cancelled`.
  * @public
  */
-export type WizardStatus = MachineWizardStatus
+export type RunStatus = MachineRunStatus
 
 /**
  * Retry policy for tasks (plain data, so `inspect()` shows it; the retry STATE — `attempt`, the
@@ -75,7 +75,7 @@ export type WizardStatus = MachineWizardStatus
 export type RetryPolicy = CompiledRetryPolicy
 
 /**
- * Progress of a wizard (`wizard.progress()`, `ClientState.progress` with `expose.progress: true`):
+ * Progress of a run (`run.progress()`, `ClientState.progress` with `expose.progress: true`):
  * `total` counts the non-final steps, `done` those of them that are `done` or `skipped`,
  * `ratio` is `done / total` (`0` when there is nothing to count, `1` once the flow is `done`).
  * @public

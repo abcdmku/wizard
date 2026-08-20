@@ -1,11 +1,11 @@
 /**
- * `createMirrorSource(wizard, projection)` — the server half of the wire protocol (plan §8.9).
+ * `createMirrorSource(run, projection)` — the server half of the wire protocol (plan §8.9).
  *
- * Wraps a live `Wizard` and a deny-by-default `Projection` (of the SAME flow object —
+ * Wraps a live `FlowRun` and a deny-by-default `Projection` (of the SAME flow object —
  * `DEFINITION_INVALID` otherwise): `subscribe` pushes the current `Frame` immediately and then
  * one frame per committed batch; `dispatch` decodes a `WireCommand` with
- * `parseWireCommand(wizard.flow, …)` (shape + ids), checks the instance id and `expectedSeq`,
- * hands the typed command to `wizard.dispatch` and answers with a `WireAck`. A host wires
+ * `parseWireCommand(run.flow, …)` (shape + ids), checks the instance id and `expectedSeq`,
+ * hands the typed command to `run.dispatch` and answers with a `WireAck`. A host wires
  * `subscribe` to its push channel (SSE / WS) and `dispatch` to its command endpoint, after its
  * own authorization.
  *
@@ -22,7 +22,7 @@ import type { BoundaryResult } from '../authoring/compiled'
 import type { AnyFlow } from '../authoring/types'
 import { describeError, WizardError } from '../errors'
 import type { Projection } from '../projection/define-projection'
-import type { Snapshot, Wizard } from '../wizard/create-wizard'
+import type { FlowRun, Snapshot } from '../wizard/create-wizard'
 import type { CommandResult } from '../wizard/results'
 import { type Frame, parseWireCommand, type WireAck, type WireCommand } from './wire'
 
@@ -39,23 +39,23 @@ export interface MirrorSource<S> {
    * Decode + gate a wire command and dispatch it. Never rejects for data problems: a bad
    * shape or an id unknown to the flow → `INVALID_COMMAND` (with issues), a foreign
    * `instanceId` → `INVALID_COMMAND`, an `expectedSeq` that is not the current seq → `STALE`,
-   * a disposed wizard or source → `DISPOSED`; otherwise the wizard's own `CommandResult`. The
+   * a disposed run or source → `DISPOSED`; otherwise the run's own `CommandResult`. The
    * ack's `seq` is the instance seq after processing.
    */
   dispatch(command: WireCommand): Promise<WireAck>
-  /** Stop pushing frames, drop every subscriber and answer `DISPOSED` to later commands. Does not dispose the wizard. */
+  /** Stop pushing frames, drop every subscriber and answer `DISPOSED` to later commands. Does not dispose the run. */
   dispose(): void
 }
 
 /**
- * Create the server half of a Mirror for `wizard` seen through `projection` (which must be
- * defined for the wizard's flow OBJECT — `DEFINITION_INVALID` otherwise, same name or not).
- * Frames are built with `wizard.project(projection)` and cached per snapshot, so many
+ * Create the server half of a Mirror for `run` seen through `projection` (which must be
+ * defined for the run's flow OBJECT — `DEFINITION_INVALID` otherwise, same name or not).
+ * Frames are built with `run.project(projection)` and cached per snapshot, so many
  * subscribers share one object.
  * @public
  */
 export function createMirrorSource<F extends AnyFlow, S>(
-  wizard: Wizard<F>,
+  run: FlowRun<F>,
   projection: Projection<F, S>,
 ): MirrorSource<S> {
   const listeners = new Set<(frame: Frame<S>) => void>()
@@ -65,14 +65,14 @@ export function createMirrorSource<F extends AnyFlow, S>(
   let gate: Promise<void> = Promise.resolve()
 
   const currentFrame = (): Frame<S> => {
-    const snapshot = wizard.getSnapshot()
+    const snapshot = run.getSnapshot()
     if (cache !== undefined && cache.snapshot === snapshot) return cache.frame
     const frame: Frame<S> = {
       kind: 'snapshot',
       instanceId: snapshot.instanceId,
       epoch: snapshot.epoch,
       seq: snapshot.seq,
-      state: wizard.project(projection),
+      state: run.project(projection),
     }
     cache = { snapshot, frame }
     return frame
@@ -80,7 +80,7 @@ export function createMirrorSource<F extends AnyFlow, S>(
   // Validates the projection against the flow eagerly (throws DEFINITION_INVALID).
   currentFrame()
 
-  const unsubscribeWizard = wizard.subscribe(() => {
+  const unsubscribeWizard = run.subscribe(() => {
     if (listeners.size === 0) return
     const frame = currentFrame()
     for (const listener of Array.from(listeners)) listener(frame)
@@ -89,7 +89,7 @@ export function createMirrorSource<F extends AnyFlow, S>(
   const ack = (commandId: string, result: CommandResult): WireAck => ({
     commandId,
     result,
-    seq: wizard.getState().seq,
+    seq: run.getState().seq,
   })
 
   const disposedAck = (commandId: string): WireAck =>
@@ -103,7 +103,7 @@ export function createMirrorSource<F extends AnyFlow, S>(
     }
     let parsed: BoundaryResult<WireCommand<F>>
     try {
-      parsed = parseWireCommand(wizard.flow, input)
+      parsed = parseWireCommand(run.flow, input)
     } catch (error) {
       release()
       return Promise.resolve(
@@ -126,17 +126,17 @@ export function createMirrorSource<F extends AnyFlow, S>(
       )
     }
     const wire = parsed.value
-    if (wire.instanceId !== wizard.id) {
+    if (wire.instanceId !== run.id) {
       release()
       return Promise.resolve(
         ack(wire.commandId, {
           ok: false,
           code: 'INVALID_COMMAND',
-          message: `command addressed to instance '${wire.instanceId}', this source serves '${wizard.id}'`,
+          message: `command addressed to instance '${wire.instanceId}', this source serves '${run.id}'`,
         }),
       )
     }
-    const seq = wizard.getState().seq
+    const seq = run.getState().seq
     if (wire.expectedSeq !== undefined && wire.expectedSeq !== seq) {
       release()
       return Promise.resolve(
@@ -150,7 +150,7 @@ export function createMirrorSource<F extends AnyFlow, S>(
     let pending: Promise<CommandResult>
     try {
       // `parseWireCommand(flow, …)` decoded `command` into a `Command<F>` — no cast needed.
-      pending = wizard.dispatch(wire.command)
+      pending = run.dispatch(wire.command)
     } catch (error) {
       release()
       return Promise.reject(error)

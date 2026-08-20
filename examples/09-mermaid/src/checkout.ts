@@ -9,22 +9,22 @@ export interface Deps {
 
 // ── child flow: fulfilment ────────────────────────────────────────────────────────────────
 
-const f = defineFlow({
+const fulfilment = defineFlow({
   name: 'fulfilment',
   context: z.object({ orderId: z.string(), trackingId: z.string().optional() }),
   deps: boundary.trusted<Deps>(),
 })
-export const fulfilment = f.steps({
-  label: f.task(({ context, deps }) => deps.shipping.createLabel(context.orderId), {
+export const fulfilmentFlow = fulfilment.steps({
+  label: fulfilment.task(({ context, deps }) => deps.shipping.createLabel(context.orderId), {
     exit: ({ output, update }) => update({ trackingId: output.trackingId }),
     next: 'done',
   }),
-  done: f.final({ output: ({ context }) => ({ trackingId: context.trackingId }) }),
+  done: fulfilment.final({ output: ({ context }) => ({ trackingId: context.trackingId }) }),
 })
 
 // ── root flow: checkout ───────────────────────────────────────────────────────────────────
 
-const s = defineFlow({
+const checkout = defineFlow({
   name: 'checkout',
   context: z.object({ cartId: z.string(), paymentId: z.string().optional() }),
   events: { 'payment.captured': z.object({ paymentId: z.string() }) },
@@ -36,29 +36,29 @@ const s = defineFlow({
  * edge, a decision with a dynamic `next` (the graph cannot know its targets), an AND-join
  * (`dependsOn`), a nested flow and three finals.
  */
-export const checkout = s.steps(
+export const checkoutFlow = checkout.steps(
   {
-    shipping: s.view({ input: z.object({ address: z.string().min(1) }), next: 'reserve' }),
-    reserve: s.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
+    shipping: checkout.view({ input: z.object({ address: z.string().min(1) }), next: 'reserve' }),
+    reserve: checkout.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
       next: ['awaitPayment', 'audit'],
     }),
-    audit: s.task(async () => ({ audited: true }), { next: 'route' }),
-    awaitPayment: s.wait({
+    audit: checkout.task(async () => ({ audited: true }), { next: 'route' }),
+    awaitPayment: checkout.wait({
       on: { 'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }) },
       timeout: { after: '15m', next: 'expired' },
       next: 'route',
     }),
-    route: s.decision({
+    route: checkout.decision({
       dependsOn: ['awaitPayment', 'audit'],
       next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined'),
     }),
-    fulfil: s.flow(fulfilment, {
+    fulfil: checkout.flow(fulfilmentFlow, {
       context: ({ context }) => ({ orderId: context.cartId }),
       next: 'receipt',
     }),
-    receipt: s.final(),
-    declined: s.final(),
-    expired: s.final(),
+    receipt: checkout.final(),
+    declined: checkout.final(),
+    expired: checkout.final(),
   },
   { start: 'shipping' },
 )

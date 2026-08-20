@@ -25,6 +25,7 @@
  */
 
 import type { CompiledFlow, CompiledStep, HookArgs } from '../authoring/compiled'
+import { isTaskFailure } from '../authoring/task-adapter'
 import { WizardError } from '../errors'
 import type { EffectResult, HookName, Message } from '../machine/commands'
 import type { CallEffect } from '../machine/effects'
@@ -147,13 +148,15 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     flags: { timedOut?: true; cancelled?: true; syncViolation?: true } = {},
   ): void => {
     const { effectId, hook, token } = inf.effect
-    const issues = error instanceof BoundaryRejection ? error.issues : undefined
+    const taskFailure = hook === 'run' && isTaskFailure(error) ? error : undefined
+    const reportedError = taskFailure?.error ?? error
+    const issues = reportedError instanceof BoundaryRejection ? reportedError.issues : undefined
     if (hook === 'run' && opts.def.steps[token.step]?.hooks.mapError !== undefined) {
       rawFailures.set(token.step, {
         step: token.step,
         runId: token.runId,
         attempt: token.attempt,
-        error,
+        error: reportedError,
       })
     }
     settle(inf, {
@@ -161,10 +164,18 @@ export function createExecutor(opts: ExecutorOptions): Executor {
       effectId,
       hook,
       token,
-      error: toSerializedError(error),
+      error: toSerializedError(reportedError),
       ...(issues !== undefined ? { issues } : {}),
       durationMs: opts.clock.now() - inf.startedAt,
       ...flags,
+      ...(taskFailure !== undefined
+        ? {
+            failure: {
+              kind: taskFailure.kind,
+              ...(taskFailure.data !== undefined ? { data: taskFailure.data } : {}),
+            },
+          }
+        : {}),
       ...echo(inf),
     })
   }

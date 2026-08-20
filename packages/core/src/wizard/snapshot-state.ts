@@ -7,7 +7,17 @@
  */
 
 import type { CompiledFlow } from '../authoring/compiled'
-import type { NavPhase, SagaEntry, SagaEntryRef, StepStatus, TimerEntry } from '../machine/state'
+import type {
+  CompensationFailureState,
+  FlowFailureState,
+  NavPhase,
+  SagaEntry,
+  SagaEntryRef,
+  StepErrorKind,
+  StepStatus,
+  TerminalState,
+  TimerEntry,
+} from '../machine/state'
 import { decodeCommand } from './parse-command'
 import {
   describe,
@@ -80,6 +90,8 @@ export function checkState(def: CompiledFlow, state: Rec, reasons: string[]): vo
   }
   if (!isRecord(state.saga)) reasons.push('state.saga: expected an object')
   else checkSaga(def, state.saga, reasons)
+  if (state.failure !== undefined) checkFailure(def, state.failure, 'state.failure', reasons)
+  if (state.terminal !== undefined) checkTerminal(def, state, state.terminal, reasons)
   checkInbox(def, state, reasons)
   checkTimers(def, state, reasons)
   checkIdentity(state, reasons)
@@ -277,6 +289,116 @@ function checkSaga(def: CompiledFlow, saga: Rec, reasons: string[]): void {
   if (saga.reason !== undefined && !isString(saga.reason)) {
     reasons.push('state.saga.reason: expected a string')
   }
+}
+
+const FAILURE_KINDS: ReadonlySet<string> = new Set<StepErrorKind | 'runtime'>([
+  'validation',
+  'guard',
+  'run',
+  'typed',
+  'defect',
+  'timeout',
+  'compensate',
+  'interrupted',
+  'child',
+  'hook',
+  'sync-violation',
+  'runtime',
+])
+
+function checkFailure(
+  def: CompiledFlow,
+  value: unknown,
+  at: string,
+  reasons: string[],
+): value is FlowFailureState {
+  if (!isRecord(value)) {
+    reasons.push(`${at}: expected { step?, error }`)
+    return false
+  }
+  if (value.step !== undefined && (!isString(value.step) || def.steps[value.step] === undefined)) {
+    reasons.push(`${at}.step: unknown step ${describe(value.step)}`)
+  }
+  if (!isSerializedError(value.error)) reasons.push(`${at}.error: expected { name, message }`)
+  if (value.kind !== undefined && (!isString(value.kind) || !FAILURE_KINDS.has(value.kind))) {
+    reasons.push(`${at}.kind: unknown failure kind ${describe(value.kind)}`)
+  }
+  if (value.at !== undefined && !isFiniteNumber(value.at)) {
+    reasons.push(`${at}.at: expected a number`)
+  }
+  if (value.attempt !== undefined && !isNonNegativeInt(value.attempt)) {
+    reasons.push(`${at}.attempt: expected a non-negative integer`)
+  }
+  if (value.issues !== undefined && !Array.isArray(value.issues)) {
+    reasons.push(`${at}.issues: expected an array`)
+  }
+  return true
+}
+
+function checkTerminal(
+  def: CompiledFlow,
+  state: Rec,
+  value: unknown,
+  reasons: string[],
+): value is TerminalState {
+  const at = 'state.terminal'
+  if (!isRecord(value)) {
+    reasons.push(`${at}: expected { status }`)
+    return false
+  }
+  if (value.status !== 'done' && value.status !== 'failed' && value.status !== 'cancelled') {
+    reasons.push(`${at}.status: expected 'done' | 'failed' | 'cancelled'`)
+  } else if (
+    state.status !== value.status &&
+    !(state.status === 'failed' && value.status === 'failed')
+  ) {
+    reasons.push(`${at}.status: does not match state.status '${String(state.status)}'`)
+  }
+  if (value.failure !== undefined) checkFailure(def, value.failure, `${at}.failure`, reasons)
+  if (value.reason !== undefined && !isString(value.reason)) {
+    reasons.push(`${at}.reason: expected a string`)
+  }
+  if (value.compensation !== undefined) {
+    const c = value.compensation
+    if (!isRecord(c)) reasons.push(`${at}.compensation: expected { outcome, failures }`)
+    else {
+      if (c.outcome !== 'failed' && c.outcome !== 'cancelled') {
+        reasons.push(`${at}.compensation.outcome: expected 'failed' | 'cancelled'`)
+      }
+      if (!Array.isArray(c.failures)) {
+        reasons.push(`${at}.compensation.failures: expected an array`)
+      } else {
+        c.failures.forEach((failure, i) => {
+          checkCompensationFailure(def, failure, `${at}.compensation.failures[${i}]`, reasons)
+        })
+      }
+    }
+  }
+  return true
+}
+
+function checkCompensationFailure(
+  def: CompiledFlow,
+  value: unknown,
+  at: string,
+  reasons: string[],
+): value is CompensationFailureState {
+  if (!isRecord(value)) {
+    reasons.push(`${at}: expected { step, runId, error }`)
+    return false
+  }
+  if (!isString(value.step) || def.steps[value.step] === undefined) {
+    reasons.push(`${at}.step: unknown step ${describe(value.step)}`)
+  }
+  if (!isNonNegativeInt(value.runId)) reasons.push(`${at}.runId: expected a non-negative integer`)
+  if (!isSerializedError(value.error)) reasons.push(`${at}.error: expected { name, message }`)
+  return true
+}
+
+function isSerializedError(
+  value: unknown,
+): value is { readonly name: string; readonly message: string } {
+  return isRecord(value) && isString(value.name) && isString(value.message)
 }
 
 function checkInbox(def: CompiledFlow, state: Rec, reasons: string[]): void {

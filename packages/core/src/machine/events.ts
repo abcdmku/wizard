@@ -4,26 +4,19 @@
  * `log()` keeps a bounded ring for tracing and devtools.
  *
  * Every event carries an `Envelope` (assigned by the interpreter): a monotonic
- * `seq`, a timestamp, the wizard `path` (nested flows), and `causedBy` — the
+ * `seq`, a timestamp, the run `path` (nested flows), and `causedBy` — the
  * seq of the message/event that caused it — so causality can be replayed.
  */
 
 import type { Command } from './commands'
-import type {
-  ChildSummary,
-  Issue,
-  NavCause,
-  NavPhase,
-  SerializedError,
-  WizardStatus,
-} from './state'
+import type { ChildSummary, Issue, NavCause, NavPhase, RunStatus, SerializedError } from './state'
 
 export interface Envelope {
-  /** Monotonic per wizard instance. */
+  /** Monotonic per run instance. */
   readonly seq: number
   /** `clock.now()` when applied. */
   readonly at: number
-  /** Path of the wizard that produced the event: [] for the root, ['fulfil'] for a child. */
+  /** Path of the run that produced the event: [] for the root, ['fulfil'] for a child. */
   readonly path: readonly string[]
   /** seq of the causing event, if any (effect results reference the event that planned the effect). */
   readonly causedBy?: number
@@ -40,6 +33,8 @@ export type DomainEventBody =
       readonly step?: string
       readonly error: SerializedError
       readonly code?: 'AUTO_ADVANCE_LOOP' | 'STEP_FAILED' | 'CHILD_FAILED'
+      /** The task's `mapError` value, when this failure came from a task. */
+      readonly data?: unknown
     }
   /** `outcome` = what `flow.compensated` will report ('cancelled' when triggered by `cancel`, else 'failed'). */
   | {
@@ -60,7 +55,7 @@ export type DomainEventBody =
       readonly interrupted: readonly string[]
     }
   | { readonly type: 'flow.reset' }
-  | { readonly type: 'flow.status'; readonly status: WizardStatus }
+  | { readonly type: 'flow.status'; readonly status: RunStatus }
   // ---- navigation (cursor) -------------------------------------------------
   | {
       readonly type: 'transition.started'
@@ -127,7 +122,15 @@ export type DomainEventBody =
       readonly type: 'step.failed'
       readonly step: string
       readonly error: SerializedError
-      readonly kind: 'run' | 'timeout' | 'hook' | 'child' | 'sync-violation' | 'interrupted'
+      readonly kind:
+        | 'run'
+        | 'typed'
+        | 'defect'
+        | 'timeout'
+        | 'hook'
+        | 'child'
+        | 'sync-violation'
+        | 'interrupted'
       readonly data?: unknown
     }
   | { readonly type: 'step.skipped'; readonly step: string; readonly reason?: string }
@@ -194,6 +197,8 @@ export type DomainEventBody =
       readonly error: SerializedError
       readonly willRetry: boolean
       readonly timedOut?: boolean
+      /** Failure channel from a task adapter; ordinary tasks leave this absent. */
+      readonly failureKind?: 'typed' | 'defect' | 'interrupted'
       readonly data?: unknown
     }
   /** `dueAt` (not `at`, which is the envelope timestamp) = absolute time of the retry. */
@@ -247,7 +252,7 @@ export type DomainEventBody =
       readonly payload?: unknown
     }
   | { readonly type: 'event.expired'; readonly event: string; readonly inboxId: string }
-  /** `reason`: `'no-listener'`, or `'correlation'` (v0.2: `correlate[event](payload)` ≠ the wizard's `correlationId`). */
+  /** `reason`: `'no-listener'`, or `'correlation'` (v0.2: `correlate[event](payload)` ≠ the run's `correlationId`). */
   | { readonly type: 'event.dropped'; readonly event: string; readonly reason: string }
   /** v0.2: delivered to the flow-level `on[event]` handler (`plan` → `call { hook: 'flowOn' }`), after step deliveries. */
   | {
@@ -289,7 +294,7 @@ export type DomainEventBody =
   | { readonly type: 'timer.fired'; readonly timerId: string }
   | { readonly type: 'timer.cleared'; readonly timerId: string }
   // ---- nested flows --------------------------------------------------------
-  /** `childPath` = the child's wizard path (`[...path, step]`; `path` is the envelope field). `context` = value returned by `childContext` (input for `child.create`). */
+  /** `childPath` = the child's run path (`[...path, step]`; `path` is the envelope field). `context` = value returned by `childContext` (input for `child.create`). */
   | {
       readonly type: 'child.started'
       readonly step: string
@@ -350,6 +355,71 @@ export type TransitionRejectReason =
 
 export type DomainEvent = Envelope & DomainEventBody
 export type DomainEventType = DomainEventBody['type']
+
+const RUN_EVENT_TYPE_RECORD: Readonly<Record<DomainEventType, true>> = Object.freeze({
+  'child.command': true,
+  'child.started': true,
+  'child.summary': true,
+  'command.rejected': true,
+  'context.changed': true,
+  'event.buffered': true,
+  'event.delivered': true,
+  'event.dropped': true,
+  'event.expired': true,
+  'event.flowDelivered': true,
+  'event.handlerFailed': true,
+  'event.handlerResultIgnored': true,
+  'event.received': true,
+  'event.rejected': true,
+  'flow.cancelled': true,
+  'flow.compensated': true,
+  'flow.compensating': true,
+  'flow.done': true,
+  'flow.failed': true,
+  'flow.reset': true,
+  'flow.resumed': true,
+  'flow.started': true,
+  'flow.status': true,
+  'input.changed': true,
+  'persist.failed': true,
+  'result.ignored': true,
+  'step.arrived': true,
+  'step.cancelled': true,
+  'step.compensated': true,
+  'step.compensationFailed': true,
+  'step.compensationStarted': true,
+  'step.done': true,
+  'step.enterCompleted': true,
+  'step.entered': true,
+  'step.exited': true,
+  'step.failed': true,
+  'step.guardEvaluated': true,
+  'step.idempotencyKeyRequested': true,
+  'step.invalidated': true,
+  'step.mapErrorStarted': true,
+  'step.retryScheduled': true,
+  'step.runFailed': true,
+  'step.runStarted': true,
+  'step.runSucceeded': true,
+  'step.skipped': true,
+  'step.validated': true,
+  'step.validationFailed': true,
+  'step.whenEvaluated': true,
+  'step.whenStarted': true,
+  'timer.cleared': true,
+  'timer.fired': true,
+  'timer.scheduled': true,
+  'transition.committed': true,
+  'transition.failed': true,
+  'transition.phase': true,
+  'transition.rejected': true,
+  'transition.started': true,
+})
+
+/** Every event name emitted by a run. @public */
+export const RUN_EVENT_TYPES = Object.freeze(
+  Object.keys(RUN_EVENT_TYPE_RECORD),
+) as readonly DomainEventType[]
 
 /** Narrow a domain event by type. */
 export type EventOf<T extends DomainEventType> = Extract<DomainEvent, { type: T }>

@@ -1,10 +1,10 @@
 /** Helpers shared by the toy machine's decide / apply: entering a step, static advance, commit. */
 
 import type { DomainEventBody } from '../../../src/machine/events'
-import type { WizardState, WizardStatus } from '../../../src/machine/state'
+import type { RunStatus, WizardState } from '../../../src/machine/state'
 import type { MachineEnv } from '../../../src/machine/types'
 
-export const TERMINAL: ReadonlySet<WizardStatus> = new Set(['done', 'failed', 'cancelled'])
+export const TERMINAL: ReadonlySet<RunStatus> = new Set(['done', 'failed', 'cancelled'])
 
 /** Events that arrive at + enter `id` (and kick off kind-specific work). */
 export function enterEvents(

@@ -3,7 +3,7 @@
  * shell's shared state (selection, selected seq, time-travel state, buffers).
  */
 
-import type { FlowGraph as FlowGraphData, WizardEvent } from '@openwizard/core'
+import type { FlowGraph as FlowGraphData, RunEvent } from '@openwizard/core'
 import { type ChangeEvent, type ReactElement, useMemo } from 'react'
 import { EventLog } from '../events/EventLog'
 import { FlowGraph } from '../graph/FlowGraph'
@@ -13,11 +13,11 @@ import type { ReplayState, ReplayWindowStore } from '../timeline/replay-window'
 import { Timeline } from '../timeline/Timeline'
 import {
   type DevtoolsSource,
+  type FlowRunSource,
   type GraphSelection,
-  isWizardSource,
+  isFlowRunSource,
   type StepStatusMap,
   stepKey,
-  type WizardSource,
 } from '../types'
 
 export interface Shared {
@@ -44,8 +44,8 @@ export function GraphTab({ shared }: { readonly shared: Shared }): ReactElement 
   if (shared.graph === undefined) {
     return (
       <Note>
-        no graph to draw — pass `flow` (or `graph`, from inspect(flow)) to the panel; a wizard
-        source brings its own.
+        no graph to draw — pass `flow` (or `graph`, from inspect(flow)) to the panel; a run source
+        brings its own.
       </Note>
     )
   }
@@ -66,10 +66,10 @@ export function EventsTab({
   events,
 }: {
   readonly shared: Shared
-  readonly events: readonly WizardEvent[] | undefined
+  readonly events: readonly RunEvent[] | undefined
 }): ReactElement {
   if (events === undefined)
-    return <Note>the event log needs a wizard source (a Mirror only receives frames).</Note>
+    return <Note>the event log needs a run source (a Mirror only receives frames).</Note>
   return (
     <EventLog
       events={events}
@@ -141,11 +141,11 @@ export function TimelineTab({
   readonly store: ReplayWindowStore | undefined
   readonly context: unknown
 }): ReactElement {
-  if (!isWizardSource(shared.source) || store === undefined) {
-    return <Note>the timeline replays a wizard's events — a Mirror source has none.</Note>
+  if (!isFlowRunSource(shared.source) || store === undefined) {
+    return <Note>the timeline replays a run's events — a Mirror source has none.</Note>
   }
-  const wizard: WizardSource = shared.source
-  return <Timeline source={wizard} store={store} context={context} onScrub={shared.setTravel} />
+  const run: FlowRunSource = shared.source
+  return <Timeline source={run} store={store} context={context} onScrub={shared.setTravel} />
 }
 
 function Note({ children }: { readonly children: string }): ReactElement {

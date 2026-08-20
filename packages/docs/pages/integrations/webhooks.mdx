@@ -1,0 +1,49 @@
+# HTTP and webhooks
+
+OpenWizard exposes three HTTP boundaries.
+
+| Boundary | Direction | Data |
+|---|---|---|
+| [Run REST API](/integrations/run-api) | client to run | selected reads and commands |
+| [Incoming webhook](/integrations/incoming-webhooks) | sender to run | one signed input event declared by the flow |
+| [Outgoing webhook](/integrations/outgoing-webhooks) | run to callback | one signed copy of a selected run event |
+
+An input event is a command such as `review.approved`. A run event is a committed fact such as
+`event.received`, `step.done`, or `flow.failed`. An outgoing webhook sends a selected run event to
+a registered callback.
+
+## One registry
+
+The guides below define each imported module. The registry combines them without repeating their
+configuration:
+
+```ts file="packages/docs/snippets/http/registry.ts"
+```
+
+The [run API guide](/integrations/run-api) defines `Principal`, `orderFlow`, and `runs`. The
+[incoming guide](/integrations/incoming-webhooks) defines the subject lookup. The
+[outgoing guide](/integrations/outgoing-webhooks) defines `createOrderWebhooks`.
+
+The flow name supplies the default ids and paths. Override a path only when its default does not
+fit the application.
+
+## Mount with Nitro
+
+Call the [registry factory above](#one-registry) with the host's auth provider, webhook store, and
+signing secret. Export the result as `http` from `server/http.ts`, then mount that value:
+
+```ts
+import { withNitro } from '@openwizard/webhooks/nitro'
+import { defineConfig } from 'nitro'
+import { http } from './server/http'
+
+export default defineConfig(
+  withNitro(
+    { compatibilityDate: '2026-08-19', serverDir: './server' },
+    { http, source: new URL('./server/http.ts', import.meta.url) },
+  ),
+)
+```
+
+`withNitro` writes the route handlers and combines their OpenAPI operations. Continue with the
+[run API](/integrations/run-api), then add only the webhook directions the application needs.

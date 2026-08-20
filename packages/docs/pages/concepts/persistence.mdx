@@ -1,110 +1,22 @@
 # Persistence and resume
 
-A wizard's state is a versioned, JSON-safe snapshot. Give `createWizard` a `Store` and it queues a write after every committed change; `resumeWizard` picks the instance up again in a fresh process.
+Core can store one JSON-safe snapshot per key. It assumes that only one live run owns the key.
 
-```ts
-// the whole Store port, so wrapping Redis, Postgres or a KV takes a few lines
-interface Store {
-  get(key: string): Promise<unknown | null> // null when the key is unknown
-  set(key: string, snapshot: unknown): Promise<void>
-  delete(key: string): Promise<void>
-}
+```ts file="packages/docs/snippets/concepts/persistence.ts"
 ```
 
-## Saving
+With a store configured, the run saves after each committed change by default. Resume checks the
+flow name, version, step set, state invariants, and stored boundary values before it creates a live
+run. A version change needs a `migrate` function.
 
-```ts
-import { createMemoryStore, createWizard } from '@openwizard/core'
+Snapshots reject values that a JSON round trip would change, including `Map`, `Set`, `bigint`,
+functions, and non-finite numbers. A `Date` is safe only where a boundary restores it from its JSON
+form. Keep secrets in dependencies.
 
-const wizard = createWizard(approval, {
-  context: { requestId: '42', amount: 1_250 },
-  deps,
-  store: createMemoryStore(), // JSON round trip per write, so it behaves like a database, not a shared object
-  key: 'tenant-a/expense-approval/42',
-})
+A task that was running during a crash is interrupted. An idempotent task restarts automatically
+with the same key. A non-idempotent task becomes a recoverable interrupted failure. Timers resume
+from their stored absolute deadlines.
 
-await wizard.save() // force a write right now
-```
-
-| Option | What it does |
-|---|---|
-| `key` | the store key, defaults to the instance id |
-| `autoSave` | `'change'`, the default once a store is given, or `'off'` to call `save()` yourself |
-| `debounceMs` | coalesce bursts of auto-saves into one write, default `0` |
-| `redact` | last chance to strip fields, runs right before `store.set` |
-| `onPersistError` | called when an auto-save fails, since nobody is awaiting it |
-
-`getSnapshot()` returns the envelope `{ v, flow: { name, version }, instanceId, epoch, seq, savedAt, state, children }`, cached per state, where `children` holds the snapshots of any live child flows.
-
-<Callout type="warning" title="Persistence is single-owner">
-  Run one live wizard per store key. `Store` is plain get, set and delete, with no compare-and-swap
-  or lease, so two replicas resuming the same snapshot will both run its side effects.
-</Callout>
-
-### Snapshots have to be JSON
-
-`JSON.stringify` mangles values silently, so the wizard walks the snapshot right before `store.set` and blocks the write on a `Map`, `Set`, `RegExp`, class instance, function, `bigint`, `NaN`, `Infinity`, or an `undefined` slot in an array.
-
-```ts
-await wizard.save()
-// rejects with WizardError('SNAPSHOT_NOT_SERIALIZABLE'), naming state.steps.save.output.rows
-// save() always rejects its caller; an auto-save has no caller, so that one goes to onPersistError
-// either way you get a persist.failed event, and getSnapshot() is untouched
-```
-
-A `Date`, or any object with `toJSON()`, is the exception, accepted exactly where a schema parses the value again on resume: a task's `output`, a view's `input`, the flow `context`, and event payloads.
-
-```ts
-z.object({ createdAt: z.coerce.date() }) // the stored ISO string comes back as a Date on resume
-z.object({ createdAt: z.date() })        // resume rejects it: z.date() runs, but a stored ISO string is not a Date
-```
-
-Anywhere else, or behind `boundary.trusted()`, `guard` or `assert`, nothing re-parses, so store the ISO string yourself or pass the value through `deps`.
-
-## Resuming
-
-```ts
-import { resumeWizard } from '@openwizard/core'
-
-const wizard = resumeWizard(approval, await store.get(key), { deps, store, key })
-wizard.epoch // 1, incremented on every resume
-wizard.log()[0] // { type: 'flow.resumed', fromSeq, interrupted: [...] }
-```
-
-Resume treats the snapshot as untrusted input. It re-checks the envelope, the step set, the status invariants, JSON safety and every boundary, children included, and reports everything wrong at once as one `WizardError('SNAPSHOT_INCOMPATIBLE')`.
-
-Use `resumeWizardAsync` when a boundary or a `migrate` is async, because it awaits the whole tree before anything is instantiated. The sync version just lists the async boundary as one of the reasons.
-
-### The recovery matrix
-
-| Persisted situation | On resume |
-|---|---|
-| navigation in flight (`nav.phase !== 'idle'`) | `transition.rejected { reason: 'resumed' }`, the cursor stays put |
-| task running | `step.failed { kind: 'interrupted' }`, and `retry(step)` re-runs it; a task marked `idempotent` is instead re-run immediately with the same `idempotencyKey` (`step.runStarted { resumed: true }`) |
-| task with `retryAt`, wait with `deadline`, inbox TTLs | timers re-armed from their absolute times, firing immediately if already overdue; the inbox is drained first |
-| flow step active | the child is restored from `snapshot.children[step]`, or re-created if it's missing |
-| `compensating` | continues unwinding from the compensation stack |
-| `done` / `cancelled`, or a `failed` flow that finished compensating | restored read-only |
-| halt-failed (a step failed, nothing unwound) | restored still recoverable, so `retry`, `invalidate`, `compensate` and `cancel` all still work |
-
-The interrupted task is the row worth staring at: the runtime can't know whether the side effect already landed, so re-running it is your call through `retry()`, or the service's through `idempotent`.
-
-## migrate(snapshot, from)
-
-A snapshot whose `flow.version` differs is rejected as `SNAPSHOT_INCOMPATIBLE` unless you pass a converter, which is called only when the versions differ. Its result goes through the same validation as any other snapshot.
-
-```ts
-import { resumeWizard, type Snapshot } from '@openwizard/core'
-
-const wizard = resumeWizard(checkoutV2, saved, {
-  deps,
-  migrate: (snapshot, from) => {
-    const snap = snapshot as Snapshot<typeof checkoutV1> // from = { name: 'checkout', version: 1 }
-    const flow = { name: snap.flow.name, version: 2 } // carried in the envelope and in state.flow
-    const context = { ...snap.state.context, currency: 'EUR' } // v2 added currency, so default it
-    return { ...snap, flow, state: { ...snap.state, flow, context } }
-  },
-})
-```
-
-[Example 04](/examples/04-resume-from-snapshot) crashes mid-wait, resumes three virtual hours later, lets a 48-hour deadline fire, retries an interrupted task, and migrates a v1 snapshot.
+Use [Durability and retries](/guides/durability) when several workers may own the same key. It adds
+leases, fenced writes, request deduplication, and timer claims. Next, choose what may cross a
+client boundary in [Projections and the Mirror](/concepts/projections).

@@ -13,7 +13,7 @@ import type { StepKind } from './primitives'
  */
 export type Ctx<F extends AnyFlow> = NonNullable<F['~types']>['ctx']
 /**
- * Context input type of a flow (boundary INPUT side — what `createWizard` accepts).
+ * Context input type of a flow (boundary INPUT side — what `createRun` accepts).
  * @public
  */
 export type ContextInput<F extends AnyFlow> = NonNullable<F['~types']>['ctxIn']
@@ -71,7 +71,7 @@ export type OutputOf<F extends AnyFlow, K extends StepId<F>> = StepTypesOf<F, K>
  */
 export type ChildFlowOf<F extends AnyFlow, K extends StepId<F>> = StepTypesOf<F, K>['child']
 /**
- * Mapped error type of a task (`s.task(run, { mapError })` → the value stored as
+ * Mapped error type of a task (`flow.task(run, { mapError })` → the value stored as
  * `steps[k].error.data`); `never` for steps without `mapError`.
  * @public
  */

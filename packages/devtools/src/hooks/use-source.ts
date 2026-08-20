@@ -1,5 +1,5 @@
 /**
- * Subscriptions over a `DevtoolsSource`: the latest snapshot (`getSnapshot()` — a wizard's is
+ * Subscriptions over a `DevtoolsSource`: the latest snapshot (`getSnapshot()` — a run's is
  * cached per commit, a Mirror's per frame, so identities are stable) and the live overlay
  * derived from it.
  */

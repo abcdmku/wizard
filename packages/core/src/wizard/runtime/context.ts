@@ -17,6 +17,7 @@ import { samePath } from '../../machine/util'
 import type { PersistenceDriver } from '../../persistence/driver'
 import { type Snapshot, toSnapshot } from '../snapshot'
 import type { Processed } from './results'
+import { createTerminalResultTracker, type TerminalResultTracker } from './terminal-results'
 import { createTxTracker, type TxTracker } from './transactions'
 import type { BuildInit, ResumePlan, RuntimeConfig, WizardRuntime } from './types'
 
@@ -27,6 +28,7 @@ export interface RuntimeContext {
   readonly instanceId: string
   readonly interp: Interpreter<WizardRuntime, ResumePlan>
   readonly tx: TxTracker
+  readonly terminal: TerminalResultTracker
   readonly stateListeners: Set<(state: WizardState) => void>
   readonly eventListeners: Set<(event: DomainEvent) => void>
   /** Resolvers of the commands enqueued and not yet processed. */
@@ -83,6 +85,9 @@ export function createContext(
   // The interpreter's callbacks read `ctx` lazily (they run after construction) — only for the
   // fields that are not known yet here (`tx`, `driver`).
   let ctx: RuntimeContext
+  let terminal: TerminalResultTracker
+  const beforeEffects = cfg.beforeEffects
+  const beforeTimer = cfg.beforeTimer
   const tx = createTxTracker(() => ctx.disposed)
   const interp = createInterpreter<WizardRuntime, ResumePlan>({
     def,
@@ -94,14 +99,38 @@ export function createContext(
     ...(cfg.strict !== undefined ? { strict: cfg.strict } : {}),
     ...(cfg.logSize !== undefined ? { logSize: cfg.logSize } : {}),
     ...(cfg.abortGraceMs !== undefined ? { abortGraceMs: cfg.abortGraceMs } : {}),
+    ...(init.persist && beforeEffects !== undefined
+      ? {
+          beforeEffects: (_state: WizardState, batch: readonly DomainEvent[]) =>
+            beforeEffects({
+              snapshot: ctx.getSnapshot(),
+              events: batch,
+            }),
+        }
+      : {}),
+    ...(init.persist && beforeTimer !== undefined
+      ? {
+          beforeTimer: (
+            timerId: string,
+            at: number,
+            expected: { readonly epoch: number; readonly seq: number },
+          ) => beforeTimer({ timerId, dueAt: at, expected }),
+        }
+      : {}),
     children: { factory: childFactory(() => ctx), ancestors: init.ancestors },
     onListenerError,
+    onStateSwap: () => {
+      // The durable before-effects barrier reads the new state before publication. Invalidate
+      // this cache at the swap point without notifying external subscribers yet.
+      snapshotCache = undefined
+    },
     onEvent: (event) => {
       if (samePath(event.path, init.path)) tx.track(event)
       notify(eventListeners, event)
     },
-    onCommit: (state) => {
+    onCommit: (state, batch) => {
       snapshotCache = undefined
+      terminal.commit(state, batch)
       notify(stateListeners, state)
     },
     onProcessed: (msg, batch) => {
@@ -116,6 +145,7 @@ export function createContext(
       else if (effect.kind === 'persist') ctx.driver?.notify(effect.reason)
     },
   })
+  terminal = createTerminalResultTracker({ getState: interp.getState, notify })
   ctx = {
     def,
     cfg,
@@ -123,6 +153,7 @@ export function createContext(
     instanceId,
     interp,
     tx,
+    terminal,
     stateListeners,
     eventListeners,
     pendingMessages,
@@ -131,7 +162,7 @@ export function createContext(
     driver: undefined,
     disposed: false,
     onListenerError,
-    disposedError: () => new WizardError('DISPOSED', `wizard '${instanceId}' is disposed`),
+    disposedError: () => new WizardError('DISPOSED', `run '${instanceId}' is disposed`),
     notify,
     getSnapshot() {
       const state = interp.getState()

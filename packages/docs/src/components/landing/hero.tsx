@@ -7,7 +7,7 @@ export function Hero() {
   return (
     <div className="lg:w-[30vw] lg:max-w-[440px] lg:shrink-0 lg:text-right">
       <p className="mb-4 font-mono text-[11px] tracking-[0.22em] text-neutral-600 uppercase dark:text-neutral-400">
-        Typed workflows
+        Typed workflow runtime
       </p>
       <h1
         className="text-6xl font-black leading-[0.92] text-ink lg:text-[clamp(3rem,5.2vw,6rem)] dark:text-white"
@@ -18,7 +18,7 @@ export function Hero() {
       <p className="mt-5 text-[15px] leading-relaxed text-neutral-500 lg:ml-auto lg:max-w-[70%] dark:text-neutral-400">
         {site.tagline}{' '}
         <span className="text-neutral-700 dark:text-neutral-300">
-          Runs on the server, in the browser and at the edge.
+          Backend workers, edge hosts, and human forms use the same typed run.
         </span>
       </p>
 
@@ -35,10 +35,10 @@ export function Hero() {
       <div className="mt-3 flex lg:justify-end">
         <Link
           to="/$"
-          params={{ _splat: 'getting-started' }}
+          params={{ _splat: 'guides/order-workflow' }}
           className="text-[13px] font-medium text-neutral-400 no-underline transition-colors hover:text-ink dark:text-neutral-500 dark:hover:text-white"
         >
-          Read the docs &rarr;
+          Start the backend order guide &rarr;
         </Link>
       </div>
     </div>

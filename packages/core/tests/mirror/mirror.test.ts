@@ -1,6 +1,6 @@
 /**
  * `createMirror` — frame ordering rules (§8.9), structural sharing, command sugar → wire
- * commands, and the end-to-end loop `createWizard` → `createMirrorSource` →
+ * commands, and the end-to-end loop `createRun` → `createMirrorSource` →
  * `createLocalTransport` → `createMirror` (including deterministic latency + serialisation).
  */
 import { describe, expect, it } from 'vitest'

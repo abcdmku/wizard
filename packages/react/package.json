@@ -1,7 +1,7 @@
 {
   "name": "@openwizard/react",
-  "version": "0.0.0",
-  "description": "React binding for OpenWizard — bindReact() gives typed Provider / useSnapshot / useCurrent / useStep / useSelector / useActions hooks over a Wizard or a Mirror.",
+  "version": "0.1.0-next.0",
+  "description": "Typed React hooks for an OpenWizard FlowRun or Mirror.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

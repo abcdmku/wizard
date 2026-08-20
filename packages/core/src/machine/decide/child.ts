@@ -9,10 +9,10 @@ import type { EffectResult } from '../commands'
 import { completeStep } from '../nav'
 import { onCompensated } from '../saga'
 import { failStep } from '../scheduler'
-import type { WizardStatus } from '../state'
+import type { RunStatus } from '../state'
 import { ignore } from './results'
 
-const CHILD_TERMINAL: ReadonlySet<WizardStatus> = new Set(['done', 'failed', 'cancelled'])
+const CHILD_TERMINAL: ReadonlySet<RunStatus> = new Set(['done', 'failed', 'cancelled'])
 
 export function onChildResult(b: Batch, msg: Extract<EffectResult, { type: 'res.child' }>): void {
   const r = rec(b, msg.step)

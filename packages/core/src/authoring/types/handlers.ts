@@ -68,7 +68,7 @@ export type FlowOnHandlers<C, Ev, D> = {
 /**
  * Correlation extractors (`defineFlow({ correlate })`): per event, the correlation id of a
  * parsed payload (`undefined` = this payload carries none). An event whose id differs from the
- * wizard's `correlationId` (`createWizard(flow, { correlationId })`) is dropped
+ * run's `correlationId` (`createRun(flow, { correlationId })`) is dropped
  * (`event.dropped { reason: 'correlation' }`), never buffered.
  * @public
  */

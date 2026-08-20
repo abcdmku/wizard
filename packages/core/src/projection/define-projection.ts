@@ -1,21 +1,21 @@
 /**
- * Projections — client views of a wizard (plan §1.7 / §8.9 / §9.8, ADR-001 case 12).
+ * Projections — client views of a run (plan §1.7 / §8.9 / §9.8, ADR-001 case 12).
  *
  * `defineProjection(flow, { expose })` is deny-by-default: it captures the exposure spec as a
  * literal type so the projected `ClientState<F, E>` contains exactly what is listed — picked
  * context keys, the flow `output` only with `output: true`, `progress` only with
  * `progress: true`, and per step `input` (draft) / `output` / `issues` / `error` (with its
  * `mapError` `data`) / nested `child` only where exposed. Base facts per step (`id`, `kind`,
- * `status`, `phase`, `attempt`) and per wizard (`instanceId`, `epoch`, `seq`, `status`,
+ * `status`, `phase`, `attempt`) and per run (`instanceId`, `epoch`, `seq`, `status`,
  * `current`) always cross. Everything else is absent from the type AND from the runtime object
  * (`applyProjection`).
  *
  * `defineProjection(flow, { select })` (v0.2) is the arbitrary alternative: `select` maps the
- * typed wizard state (`Snapshot<F>['state']`) to whatever the client needs; the projected type
+ * typed run state (`Snapshot<F>['state']`) to whatever the client needs; the projected type
  * is its return type. The two forms are mutually exclusive; both are `Projection<F, S>` where
  * `S` is the projected state type (what Mirror frames carry).
  *
- * A projection keeps a reference to the `Flow` object it was defined for; `wizard.project()`
+ * A projection keeps a reference to the `Flow` object it was defined for; `run.project()`
  * and `createMirrorSource()` compare by identity (a same-name, same-shape flow is rejected).
  *
  * @packageDocumentation
@@ -32,11 +32,11 @@ import type {
   KindOf,
   OutputOf,
   Progress,
+  RunStatus,
   SerializedError,
   StepId,
   StepStatus,
   ViewId,
-  WizardStatus,
 } from '../authoring/types'
 import { WizardError } from '../errors'
 import type { StepPhase as MachineStepPhase } from '../machine/selectors'
@@ -140,7 +140,7 @@ export type ClientStepState<F extends AnyFlow, K extends StepId<F>, SE, Depth ex
       : {})
 
 /**
- * The projected (client-safe) state of a wizard for exposure spec `E`. `Depth` counts the child
+ * The projected (client-safe) state of a run for exposure spec `E`. `Depth` counts the child
  * edges still allowed: 8 real child levels below the root are typed precisely, deeper ones are
  * `ClientStateFallback`. The flow `output` is present only with `expose.output: true`,
  * `progress` only with `expose.progress: true`.
@@ -152,7 +152,7 @@ export type ClientState<F extends AnyFlow, E, Depth extends number = 8> = [Depth
       readonly instanceId: string
       readonly epoch: number
       readonly seq: number
-      readonly status: WizardStatus
+      readonly status: RunStatus
       readonly current: ViewId<F> | null
       readonly context: Pick<Ctx<F>, ExposedContextKeys<F, E>>
       readonly steps: {
@@ -162,7 +162,7 @@ export type ClientState<F extends AnyFlow, E, Depth extends number = 8> = [Depth
       ([E] extends [{ readonly progress: true }] ? { readonly progress: Progress } : {})
 
 /**
- * A `select` projection's mapper: from the typed wizard state to the projected value.
+ * A `select` projection's mapper: from the typed run state to the projected value.
  * @public
  */
 export type ProjectionSelect<F extends AnyFlow, S> = (state: Snapshot<F>['state']) => S
@@ -176,7 +176,7 @@ export type ProjectionSelect<F extends AnyFlow, S> = (state: Snapshot<F>['state'
  */
 export interface Projection<F extends AnyFlow, S> {
   readonly '~types': { readonly flow: F; readonly state: S } | undefined
-  /** The source flow (identity: `wizard.project()` rejects a projection of any other flow object). */
+  /** The source flow (identity: `run.project()` rejects a projection of any other flow object). */
   readonly flow: F
   /** The exposure spec (deny-by-default projections); `undefined` for a `select` projection. */
   readonly expose: ExposeSpec<F> | undefined
@@ -210,9 +210,9 @@ export type ProjectionOutput<P extends AnyProjection> = NonNullable<P['~types']>
 /**
  * Define a projection of a flow. `{ expose }`: deny-by-default — only the listed step inputs /
  * outputs / issues / errors, child summaries or specs, context keys, the flow output (`output:
- * true`) and `progress` (`progress: true`) cross the wire (`wizard.project(projection)` →
- * `ClientState<F, E>`). `{ select }`: an arbitrary typed mapper over the wizard state
- * (`wizard.project(projection)` → its return type). The two are mutually exclusive.
+ * true`) and `progress` (`progress: true`) cross the wire (`run.project(projection)` →
+ * `ClientState<F, E>`). `{ select }`: an arbitrary typed mapper over the run state
+ * (`run.project(projection)` → its return type). The two are mutually exclusive.
  * @public
  */
 export function defineProjection<

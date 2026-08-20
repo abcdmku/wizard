@@ -87,7 +87,7 @@ export function createCommands(ctx: RuntimeContext): Commands {
   }
 
   /**
-   * Façade-side async work (a thenable boundary or validate hook) must not outlive the wizard:
+   * Façade-side async work (a thenable boundary or validate hook) must not outlive the run:
    * `dispose()` settles it with `onDisposed()`; the abandoned thenable keeps its handlers so it
    * never rejects unhandled.
    */
@@ -115,7 +115,7 @@ export function createCommands(ctx: RuntimeContext): Commands {
   /** The `NavResult` of a processed navigation command: settled in its batch, later in the drain, or on dispose. */
   const navResult = (processed: Processed): MaybePromise<NavResult> => {
     if (processed.disposed) {
-      return { ok: false, reason: 'failed', code: 'DISPOSED', message: 'wizard disposed' }
+      return { ok: false, reason: 'failed', code: 'DISPOSED', message: 'run disposed' }
     }
     const rejected = findRejected(processed.batch)
     if (rejected !== undefined) return rejectedNavResult(rejected)

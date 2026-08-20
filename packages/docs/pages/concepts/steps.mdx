@@ -1,152 +1,32 @@
 # Steps and kinds
 
-A flow is a map of steps, built with the six constructors `defineFlow` hands back. Under the
-default `autoRun: 'ready'`, every kind except a view starts on its own once it is ready, and a
-view waits for the cursor.
+A flow is a map of six step kinds. With the default `autoRun: 'ready'`, a ready task, wait,
+decision, child flow, or final step starts automatically. A ready view becomes the current view.
 
-| Kind | Enters when | Completes when |
+| Kind | Purpose | Advances when |
 |---|---|---|
-| `s.view(cfg)` | the cursor arrives via `start`, `next`, `go`, or `back` | `next()` parses the draft through `input`, then `validate` and `canExit` pass |
-| `s.task(run, opts)` | it is ready | `run` settles, optionally re-checked by `output` |
-| `s.wait(cfg)` | it is ready | an `on[event]` handler resolves it or `timeout.after` fires |
-| `s.decision(cfg)` | it is ready | `next(args)` returns a target |
-| `s.flow(child, cfg)` | it is ready, which creates the child wizard | the child reaches a `final` |
-| `s.final(cfg)` | it is ready | immediately, and the flow is `done` |
+| `view` | collect or review input | `next()` accepts its parsed draft |
+| `task` | call a service or compute | its `run` function succeeds |
+| `wait` | pause for an input event | a handler completes it or its timeout fires |
+| `decision` | choose the next target | its `next` function succeeds |
+| `flow` | run a child flow | the child finishes successfully |
+| `final` | finish the run | its output function succeeds |
 
-## `next` and `dependsOn`
+Save the assembled flow as `order-flow.ts`:
 
-`next` says where the flow goes when a step completes, `dependsOn` says what has to be done
-first, and together they cover wizards, DAGs and everything in between.
-
-```ts
-export const pipeline = s.steps({
-  fetch: s.task(getRows, { next: ['clean', 'audit'] }), // an array fans out, both arrive
-  clean: s.task(normalize, { next: 'load' }),
-  audit: s.task(checkRows, { next: 'load' }),
-  // arrived at twice, ready once both are done ({ any: [...] } when one is enough)
-  load: s.task(insert, { dependsOn: ['clean', 'audit'], next: 'done' }),
-  done: s.final(),
-})
+```ts file="packages/docs/snippets/concepts/order-flow.ts"
 ```
 
-## `on`, `when` and `label`
+The file imports `order` from the [Defining flows example](/concepts/defining-flows), saved as
+`order-definition.ts`.
 
-Every kind takes `on` and `label`. `when` is on every kind but `final`.
+`next` activates another step. `dependsOn` delays an activated step until its prerequisites
+finish. Hooks receive typed `context`, `deps`, `step`, `path`, `signal`, and `update` values. A
+hook that handles an output or input event receives the matching type.
 
-| Option | What it does |
-|---|---|
-| `on: { [event]: handler }` | Handles an event while the step is active. A view handler may return `{ next }` to move the cursor, a wait handler has its own contract (below), and other kinds can only `update()` the context. |
-| `when` | Skip predicate, on every kind but `final`. Returning `false` once the step is ready skips it (`step.skipped { reason: 'when' }`), and it still counts as done for `dependsOn`. |
-| `label` | Free text for tooling. |
+Views retain drafts. Tasks can add output validation, retries, timeouts, idempotency, and
+compensation. Wait steps are covered with [event inputs](/concepts/external-events). Flow steps are
+covered in [Nested flows](/concepts/nesting).
 
-## `s.view(cfg)`
-
-The step that waits for a person, and the active view is the cursor, `getState().current`.
-`setInput(view, patch)` shallow-merges a partial draft typed `DraftOf<F, K>`.
-
-| Option | What it does |
-|---|---|
-| `input?: Boundary<O, I>` | Parsed on `next()` / `go()`. Hooks and `steps[k].output` see the output side. |
-| `initial?: Partial<I>` | Seeds the draft the first time the view is entered. |
-| `validate?` | Runs after `input` parses. Returning issues rejects with `INVALID_INPUT`. |
-| `canEnter?`, `canExit?` | Guards; `false` rejects with `GUARD_BLOCKED`. On a fan-out every target's `canEnter` runs first, so the move is all or nothing. |
-| `enter?`, `exit?` | Effects when the cursor arrives or leaves. `exit` also sees `output`, `to` and `direction`. |
-
-```ts
-account: s.view({
-  input: z.object({ email: z.email() }),
-  exit: ({ output, update }) => update({ email: output.email }), // hand the parsed draft on
-  next: 'plan',
-})
-```
-
-## `s.task(run, options)`
-
-`run` starts as soon as the step is ready, and what it returns is the step's output,
-`OutputOf<F, K>`. It comes first so `options.next` and `compensate` are typed from its return
-value.
-
-| Option | What it does |
-|---|---|
-| `output?` | Re-checks the value coming back from another system. A rejection fails the task with the issues. |
-| `retry?` | A `RetryPolicy` overriding the flow default. Retries are timers that persist and re-arm on resume. |
-| `timeout?` | A `Duration`. Aborts the run through `signal`, and once the retries are spent the task fails with `kind: 'timeout'`. |
-| `compensate?` | The undo hook for `onFailure: 'compensate'` and `cancel()`. It receives the task's own `output`. |
-| `idempotent?` | `true`, or a function of the run args returning a key. On resume a `running` task is re-run with the same key instead of failing as `interrupted`. |
-| `mapError?` | Maps a failure to a JSON-safe value stored as `steps[k].error.data`, typed `ErrorOf<F, K>`. |
-
-```ts
-post: s.task(
-  ({ context, deps, idempotencyKey }) => deps.ledger.post(context.invoiceId, { idempotencyKey }),
-  {
-    retry: { attempts: 3, backoff: 'exponential' },
-    idempotent: ({ context }) => `invoice:${context.invoiceId}`, // a crash re-run reuses the key
-    mapError: (error, { attempt }) => ({ attempt, message: String(error) }), // JSON-safe for clients
-    next: 'receipt',
-  },
-)
-```
-
-## `s.wait(cfg)`
-
-Pauses until an event arrives or a deadline passes, completing with `{ event, payload }`. `on` is
-required, one handler per event, and the payload is already parsed when the handler runs.
-
-```ts
-awaitPayment: s.wait({
-  on: {
-    'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
-    'payment.disputed': () => ({ keep: true }),
-  },
-  timeout: { after: '15m', next: 'expired' }, // absolute deadline, and adds { event: 'timeout' } to the output
-  next: 'receipt',
-})
-```
-
-| The handler returns | What happens |
-|---|---|
-| nothing | Completes with `{ event, payload }` and follows the static `next`. |
-| `{ next }` | Completes and overrides the target. |
-| `{ keep: true }` | Consumes the event and keeps waiting. |
-| `{ done: output }` | Completes with that output instead of the event. |
-| `{ fail: reason }`, or a throw | Fails the step. |
-
-See [External events](/concepts/external-events) for the inbox, correlation and flow-level handlers.
-
-## `s.decision(cfg)`
-
-A step that exists to pick a target, so its `next` is required and is a function. Give it a
-`dependsOn` and it becomes a join, the gate of a DAG.
-
-```ts
-route: s.decision({
-  dependsOn: ['fraudCheck', 'stockCheck'], // both must be done before it decides
-  next: ({ context }) => (context.risk > 0.8 ? 'review' : 'ship'), // output is the chosen ids, ['ship']
-})
-```
-
-## `s.flow(child, cfg)`
-
-Embeds another flow as a step. The child gets its own wizard, queue, instance id and snapshot in
-`Snapshot.children[step]`, and its events reach the parent with a `path`.
-
-| Option | What it does |
-|---|---|
-| `context` (required) | Builds the child's context input, parsed once by the child's own context boundary. |
-| `deps?` | Builds the child's deps. Omit it and the child receives the parent's `deps` unchanged. |
-| `output?` | Re-checks or retypes the child's output. Defaults to `FlowOutput<Child>`. |
-| `exit?`, `on?`, `when?`, `next?`, `dependsOn?` | As on every kind. `exit` sees the child's output. |
-
-Nesting is capped at 8 levels, and a flow inside one of its own ancestors throws `NESTING_CYCLE`
-(see [Nesting](/concepts/nesting)).
-
-## `s.final(cfg?)`
-
-Ends the flow. An `output` function makes the result `getState().output`, and `FlowOutput<F>` is
-the union of every final's output type. Reaching a final cancels the other active steps with
-`step.cancelled { reason: 'flow-done' }`.
-
-## Wrong option, wrong kind
-
-`input` on a task or `when` on a final is `DEFINITION_INVALID`: TypeScript puts the error on the
-offending property, and the runtime check catches the same mistakes for JavaScript callers.
+Commands report normal rejections as values. Read [Results as values](/concepts/results) before
+adding failure policies.

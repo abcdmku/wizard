@@ -11,11 +11,11 @@ import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindReact } from '../src/index'
 import {
-  type checkout,
   checkoutClient,
+  type checkoutFlow,
   controlledDeps,
   makeMirror,
-  makeWizard,
+  makeRun,
   tick,
 } from './fixture'
 
@@ -24,7 +24,7 @@ afterEach(cleanup)
 /** Server HTML without React's text-node separators (`<!-- -->`). */
 const text = (html: string): string => html.replace(/<!--.*?-->/g, '')
 
-const owFlow = bindReact<typeof checkout>()
+const owFlow = bindReact<typeof checkoutFlow>()
 const owMirror = bindReact<typeof checkoutClient>()
 
 // The two bindings have different hook types (a union of generic methods is not callable), so
@@ -111,7 +111,7 @@ const Status = {
 describe('bindReact over a Mirror', () => {
   it('drives the flow through the loopback; the projected state is what the hooks see', async () => {
     const { deps, release } = controlledDeps()
-    const { wizard, mirror } = await makeMirror(deps)
+    const { run, mirror } = await makeMirror(deps)
     let shippingRenders = 0
     let reserveRenders = 0
     render(
@@ -156,14 +156,14 @@ describe('bindReact over a Mirror', () => {
     expect(screen.getByTestId('status').textContent).toBe('done/none')
     expect(mirror.getSnapshot()?.steps.reserve.output).toEqual({ reservationId: 'res-c1' })
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 
   it('renders the fallback until the first frame arrives, then the children', async () => {
     const sched = createTestScheduler()
-    const wizard = makeWizard()
-    await wizard.start()
-    const source = createMirrorSource(wizard, checkoutClient)
+    const run = makeRun()
+    await run.start()
+    const source = createMirrorSource(run, checkoutClient)
     const transport = createLocalTransport(source, { delayMs: 100, scheduler: sched })
     const mirror: Mirror<typeof checkoutClient> = createMirror({ transport })
     render(
@@ -179,11 +179,11 @@ describe('bindReact over a Mirror', () => {
     expect(screen.queryByText('connecting')).toBeNull()
     expect(screen.getByTestId('status').textContent).toBe('waiting/shipping')
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 
   it('actions resolve with the ack result (CommandResult) and useStep helpers are bound to the step', async () => {
-    const { wizard, mirror } = await makeMirror()
+    const { run, mirror } = await makeMirror()
     let helpers: ReturnType<typeof owMirror.useStep<'shipping'>> | undefined
     function Probe() {
       helpers = owMirror.useStep('shipping')
@@ -200,11 +200,11 @@ describe('bindReact over a Mirror', () => {
       result = await helpers?.setInput({ address: 'Elm St', express: true })
     })
     expect(result).toMatchObject({ ok: true })
-    expect(wizard.getState().steps.shipping.input).toEqual({ address: 'Elm St', express: true })
+    expect(run.getState().steps.shipping.input).toEqual({ address: 'Elm St', express: true })
     await act(async () => {
       result = await helpers?.resetInput()
     })
-    expect(wizard.getState().steps.shipping.input).toBeUndefined()
+    expect(run.getState().steps.shipping.input).toBeUndefined()
     await act(async () => {
       result = await helpers?.next()
     })
@@ -214,11 +214,11 @@ describe('bindReact over a Mirror', () => {
     })
     expect(result).toHaveProperty('ok') // go() targets this view; the machine decides
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 
   it('StrictMode: no listener leaks after unmount, and replacing the Provider source unsubscribes the old one', async () => {
-    const { wizard, mirror } = await makeMirror()
+    const { run, mirror } = await makeMirror()
     const state = mirror.getSnapshot()
     if (state === null) throw new Error('no frame')
     // Fake Mirror-like sources that count their listeners (only subscribe/getSnapshot are read here).
@@ -253,16 +253,16 @@ describe('bindReact over a Mirror', () => {
     unmount()
     expect(b.count()).toBe(0)
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 
   it('SSR: `serverSnapshot` renders on the server and hydrates without a mismatch even when the live source already moved on', async () => {
-    const wizard = makeWizard()
-    await wizard.start()
+    const run = makeRun()
+    await run.start()
     // What the server rendered with (captured while the mirror still sat at `shipping`).
-    const serverSnapshot = wizard.project(checkoutClient)
+    const serverSnapshot = run.project(checkoutClient)
     const sched = createTestScheduler()
-    const source = createMirrorSource(wizard, checkoutClient)
+    const source = createMirrorSource(run, checkoutClient)
     const transport = createLocalTransport(source, { delayMs: 100, scheduler: sched })
     const mirror: Mirror<typeof checkoutClient> = createMirror({ transport })
     const tree = (
@@ -279,9 +279,9 @@ describe('bindReact over a Mirror', () => {
     expect(text(html)).toContain('waiting/shipping')
     expect(html).not.toContain('connecting')
 
-    // Between server render and hydration the wizard moves on and the mirror catches up.
-    await wizard.setInput('shipping', { address: 'Main St' })
-    await wizard.next()
+    // Between server render and hydration the run moves on and the mirror catches up.
+    await run.setInput('shipping', { address: 'Main St' })
+    await run.next()
     await tick()
     act(() => {
       sched.advance(100)
@@ -307,14 +307,14 @@ describe('bindReact over a Mirror', () => {
     })
     container.remove()
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 
   it('without `serverSnapshot` the server render uses the live source (fallback while a Mirror has no frame)', async () => {
-    const wizard = makeWizard()
-    await wizard.start()
+    const run = makeRun()
+    await run.start()
     const sched = createTestScheduler()
-    const source = createMirrorSource(wizard, checkoutClient)
+    const source = createMirrorSource(run, checkoutClient)
     const transport = createLocalTransport(source, { delayMs: 100, scheduler: sched })
     const mirror: Mirror<typeof checkoutClient> = createMirror({ transport })
     expect(
@@ -324,17 +324,17 @@ describe('bindReact over a Mirror', () => {
         </owMirror.Provider>,
       ),
     ).toContain('connecting')
-    // A Wizard source has state right away.
+    // A FlowRun source has state right away.
     expect(
       text(
         renderToString(
-          <owFlow.Provider source={wizard}>
+          <owFlow.Provider source={run}>
             <Status.flow />
           </owFlow.Provider>,
         ),
       ),
     ).toContain('waiting/shipping')
     mirror.dispose()
-    wizard.dispose()
+    run.dispose()
   })
 })

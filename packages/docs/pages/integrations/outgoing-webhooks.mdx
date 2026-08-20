@@ -1,0 +1,56 @@
+# Outgoing webhooks
+
+Outgoing webhooks observe committed run events and enqueue one delivery record per matching tenant
+subscription. A worker signs and sends each queued record.
+
+## Select run events
+
+The flow already types the events emitted by `run.observe()`.
+
+Save the subscription factory as `order-webhooks.ts`:
+
+```ts file="packages/docs/snippets/http/order-webhooks.ts"
+```
+
+The [run API guide](/integrations/run-api) defines `Principal` and `orderFlow`. The host passes the
+same scope provider used by the run API.
+
+Use a short event list as the public contract. Omitting `events` or setting it to `inherit`
+exposes every raw run event, which can contain context, input, output, payload, command, and error
+data.
+
+The returned HTTP resources let authenticated tenants create callback subscriptions for the
+selected event names. Add them to the shared registry with `outbound: webhooks`, as shown in
+[HTTP and webhooks](/integrations/webhooks).
+
+## Attach before the run starts
+
+```ts file="packages/docs/snippets/http/run-order.ts"
+```
+
+`attach` observes new committed events, so call it before `start` or any command that matters.
+`flush` waits until every event observed so far reaches the durable delivery queue. The observer
+is live and does not replay events emitted while the process was stopped.
+
+## Deliver queued work
+
+```ts file="packages/docs/snippets/http/webhook-worker.ts"
+```
+
+Run `work` from a queue consumer, scheduled job, or service loop. It leases due records, signs the
+stored body, and retries transient failures. Delivery is at least once and order is not
+guaranteed. Receivers should deduplicate `webhook-id`.
+
+The built-in endpoint check requires HTTPS and rejects local or private addresses. A production
+`WebhookStore` must persist subscriptions and deliveries, claim work atomically, and settle by
+lease id. `createMemoryWebhookStore()` is for tests and one-process development.
+
+## Custom public events
+
+Use explicit schemas only when a partner contract should differ from Wizard's run events.
+
+```ts file="packages/docs/snippets/http/partner-webhooks.ts"
+```
+
+Publish these custom events from an application outbox with a stable `eventId`. The inherited run
+event path above needs no second schema registry.

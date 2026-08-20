@@ -2,7 +2,7 @@
  * @openwizard/devtools — React devtools for OpenWizard: `<FlowGraph>` (React Flow + ELK graph
  * of `inspect(flow)` with a live status overlay), `<EventLog>`, `<StepInspector>`, `<Timeline>`
  * (time travel with `replay`) and the dockable `<Devtools>` panel that composes them over a
- * `Wizard` or a `Mirror`. Import `@openwizard/devtools/style.css` once for the styles.
+ * `FlowRun` or a `Mirror`. Import `@openwizard/devtools/style.css` once for the styles.
  *
  * @packageDocumentation
  */
@@ -38,7 +38,7 @@ export {
   type ModelNodeKind,
 } from './layout/model'
 // ---- live overlay ---------------------------------------------------------------------------
-export { collectStatuses, overlayOf, wizardPhaseReader } from './status'
+export { collectStatuses, overlayOf, runPhaseReader } from './status'
 // ---- types ----------------------------------------------------------------------------------
 export {
   type DevtoolsSource,
@@ -48,7 +48,7 @@ export {
   type GraphInput,
   type GraphSelection,
   isProjectedState,
-  isWizardSource,
+  isFlowRunSource,
   type MirrorSource,
   type ProjectedState,
   type ProjectedStep,
@@ -57,5 +57,5 @@ export {
   type StepStatusInfo,
   type StepStatusMap,
   stepKey,
-  type WizardSource,
+  type FlowRunSource,
 } from './types'

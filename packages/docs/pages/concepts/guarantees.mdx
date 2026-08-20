@@ -1,69 +1,17 @@
-# Guarantees
+# Runtime guarantees
 
-The promises the runtime keeps, stated the way the tests state them: golden scenarios for the
-machine, property tests for replay, type tests for the public surface, all in
-`packages/core/tests`.
+Design around these rules:
 
-| Guarantee | What it means |
-|---|---|
-| Sync-commit | A public call whose hooks are all synchronous has committed before it returns. |
-| Batch atomicity | One FIFO queue, `decide → apply → plan → commit`, and nothing observes a half-applied state. |
-| [Boundaries are the only doors](/concepts/boundaries) | Data gets in through `context`, `setInput`, `send` or resume, each through a declared boundary, exactly once. |
-| [Results as values](/concepts/results) | Data problems are `{ ok: false, code, ... }` results and events. `WizardError` is for programmer errors only. |
-| [Snapshots stay JSON-safe](/concepts/persistence) | A write `JSON.stringify` would distort never happens, and resume re-validates everything. |
+- The flow owns ids and data types. Runtime [boundaries](/concepts/boundaries) parse context,
+  input events, view drafts at validation, and stored values at resume.
+- Commands return [result values](/concepts/results). `WizardError` reports misuse or an invalid
+  runtime contract.
+- Subscribers receive [run events](/concepts/observability) only after the complete batch commits.
+- Snapshots are checked before storage and again on [resume](/concepts/persistence).
+- External effects are at least once. Use the stable idempotency key described in
+  [Failures and retries](/concepts/policies).
+- Core storage has one owner per key. Use the [durability guide](/guides/durability) for worker
+  handoff and fenced writes.
 
-## Sync-commit and `strict: 'sync'`
-
-For a call made from outside a hook or a listener, if every hook it triggers returns a plain
-value rather than a promise, the state is committed and listeners are notified before the call
-returns. `strict: 'sync'` enforces it: the first thenable becomes a `SYNC_VIOLATION` failure,
-with nothing to roll back because nothing after it was committed.
-
-## One queue, one commit
-
-Every message, whether a command, a hook result, a timer firing or a child's result, goes through
-the same loop.
-
-```
-loop: msg = queue.shift()
-  events    = decide(def, state, msg)        // pure; [] means "nothing happens"
-  nextState = events.reduce(apply, state)    // fold the whole batch
-  effects   = plan(def, nextState, events)   // sees the post-batch state plus the batch
-  commit(nextState, events)                  // swap state, notify event listeners per event, state listeners once
-  for (fx of effects) execute(fx)            // only after commit; sync results join the same drain
-```
-
-State listeners run once per committed batch and effects run only after it, so listeners and
-persistence never see a half-applied state. A navigation command that arrives mid-transition is
-rejected with `nav-busy`, and a hook result whose token (`{ step, runId, attempt?, txId? }`) no
-longer matches the state, say a retry that raced a cancel, becomes `result.ignored`.
-
-## Snapshots are JSON-checked, resume re-validates
-
-A write that `JSON.stringify` would distort never happens. You get `SNAPSHOT_NOT_SERIALIZABLE`
-plus a `persist.failed` event naming the offending path.
-
-A `Date` survives only where a boundary revives it on resume, and a `SerializedError` is
-`{ name, message, code? }`, never a stack.
-
-The snapshot is the authority. The event log is an advisory, bounded trace, and
-`replay(log) == state` is a property test rather than something the hot path relies on.
-
-## Public surface hygiene
-
-The emitted declarations contain no `any` and no type assertions, and CI diffs `api/core.d.ts` to
-keep it that way. Every export is documented, tested and listed in the generated export table,
-with exactly one type extractor per concept.
-
-## Concept budget
-
-The vocabulary is deliberately small.
-
-| Vocabulary | Values |
-|---|---|
-| step kinds | six: `view`, `task`, `wait`, `decision`, `flow`, `final` |
-| step statuses | `idle`, `active`, `done`, `failed`, `skipped`, `cancelled`, `compensating`, `compensated` |
-| wizard statuses | `idle`, `running`, `waiting`, `done`, `failed`, `compensating`, `cancelled` |
-
-Anything derived, like `phase`, `progress`, `readyViews` and `explain`, lives in memoized
-selectors that never call hooks. The [design docs](/design) record why.
+The [core API reference](/api/core) lists the complete public surface. The [examples](/examples)
+exercise the same contracts with runnable tests.

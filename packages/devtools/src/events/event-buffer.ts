@@ -1,28 +1,28 @@
 /**
- * A bounded, subscribable buffer of the events a wizard emits: seeded with `wizard.log()` and
- * fed by `wizard.observe()` (root and child events alike). Appends are coalesced per microtask
+ * A bounded, subscribable buffer of the events a run emits: seeded with `run.log()` and
+ * fed by `run.observe()` (root and child events alike). Appends are coalesced per microtask
  * so a batch of events costs one notification; snapshots are immutable arrays (stable between
  * changes) for `useSyncExternalStore`.
  */
 
-import type { WizardEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
-import type { WizardSource } from '../types'
+import type { FlowRunSource } from '../types'
 
 export const DEFAULT_MAX_EVENTS = 2_000
 
 export interface EventBuffer {
   /** The current events, oldest first (at most `max`). */
-  readonly events: readonly WizardEvent[]
+  readonly events: readonly RunEvent[]
   subscribe(listener: () => void): () => void
   /** Replace the contents (the `log()` seed) and notify. */
-  seed(events: readonly WizardEvent[]): void
-  push(event: WizardEvent): void
+  seed(events: readonly RunEvent[]): void
+  push(event: RunEvent): void
 }
 
 export function createEventBuffer(max: number): EventBuffer {
-  let events: readonly WizardEvent[] = []
-  let pending: WizardEvent[] = []
+  let events: readonly RunEvent[] = []
+  let pending: RunEvent[] = []
   let scheduled = false
   const listeners = new Set<() => void>()
   const notify = (): void => {
@@ -62,12 +62,12 @@ export function createEventBuffer(max: number): EventBuffer {
 }
 
 /**
- * The live buffer of a wizard: seeded with `log()` and fed by `observe()` for as long as the
+ * The live buffer of a run: seeded with `log()` and fed by `observe()` for as long as the
  * component lives (both in the same effect, so no event falls between them). Without a source
  * the buffer stays empty.
  */
 export function useEventBuffer(
-  source: WizardSource | undefined,
+  source: FlowRunSource | undefined,
   max: number = DEFAULT_MAX_EVENTS,
 ): EventBuffer {
   const buffer = useMemo(() => createEventBuffer(max), [max])
@@ -83,7 +83,7 @@ export function useEventBuffer(
 }
 
 /** The events of a buffer, re-rendering when it changes. */
-export function useBufferedEvents(buffer: EventBuffer): readonly WizardEvent[] {
+export function useBufferedEvents(buffer: EventBuffer): readonly RunEvent[] {
   return useSyncExternalStore(
     (listener) => buffer.subscribe(listener),
     () => buffer.events,
