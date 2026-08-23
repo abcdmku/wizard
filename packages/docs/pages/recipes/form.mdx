@@ -1,0 +1,25 @@
+# Collect form input
+
+Use a `view` when a person must provide data before the workflow can continue. A checkout address screen and an account signup form are both views.
+
+This example collects one email. The view owns the unfinished draft, and the run stays in `waiting` until the application successfully calls `next()`.
+
+```ts file="packages/docs/snippets/learn/form.ts"
+```
+
+The flow definition describes the form, but it does not render anything. Your server, CLI, or UI drives the live run:
+
+```ts file="packages/docs/snippets/learn/run-form.mts"
+```
+
+The usual UI loop is:
+
+1. Read `run.getState()` and render the current view.
+2. Call `setInput('contact', patch)` as the draft changes.
+3. Call `next()` when the user submits.
+4. If it returns validation issues, display them and keep rendering `contact`.
+5. If it succeeds, render whatever step is current next or wait for the run's final result.
+
+Keep the view's `input` schema focused on fields from that screen. Copy only values that later steps need into context in `exit`. This keeps half-finished input out of the shared workflow data.
+
+OpenWizard manages workflow state and validation. Your application still owns labels, controls, accessibility, HTTP routes, and how errors appear to the user.

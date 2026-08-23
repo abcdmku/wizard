@@ -1,24 +1,77 @@
 # Getting started
 
-Install core and one [Standard Schema](https://standardschema.dev/) library:
+OpenWizard is useful when a job has named stages and you need to know which stage is active. A signup might collect an email, create an account, and send a confirmation. An order might wait for payment before it ships.
+
+This page starts with a one-step flow so you can see the basic API without database or HTTP code getting in the way. The flow takes a name and returns a greeting.
+
+## Install
+
+You need Node.js 20 or newer.
 
 ```sh
-pnpm add @openwizard/core zod
+npm install @openwizard/core zod
+npm install --save-dev tsx typescript
 ```
 
-Create `order.mts`:
+`@openwizard/core` is the runtime. Zod checks data that enters the flow. `tsx` runs the TypeScript example without a separate build step.
 
-```ts file="packages/docs/snippets/getting-started/order.mts"
+OpenWizard accepts any [Standard Schema](https://standardschema.dev/) library. The examples use Zod because its schemas are short and familiar.
+
+## Define a flow
+
+Create `src/hello-flow.ts`:
+
+```ts file="examples/01-happy-path/src/hello-flow.ts"
 ```
 
-Run it:
+Read the definition from the outside in:
+
+1. `context` describes the data every step may read. This flow requires one string named `name`.
+2. `defineFlow()` creates a builder whose step functions know that context type.
+3. `hello.steps()` gives every step an id. This flow has one step named `done`.
+4. `hello.final()` ends the run. Its `output` function creates the value returned to the caller.
+
+The definition is inert. Importing this file does not create timers, call services, or start the `done` step.
+
+## Run it
+
+Create `src/main.ts`:
+
+```ts file="examples/01-happy-path/src/main.ts"
+```
+
+Run the file:
 
 ```sh
-pnpm tsx order.mts
+npx tsx src/main.ts
 ```
 
-`defineFlow` owns the context type. `steps()` checks every referenced step id. `createRun` parses
-the context, starts `prepare`, follows its `next`, and returns the final output as a result value.
+You should see:
 
-Read [How it works](/how-it-works) next. The complete runnable version is
-[Example 11](/examples/11-order-workflow).
+```text
+Hello, Ada!
+```
+
+Here is what each call does:
+
+1. `createRun()` checks `{ name: 'Ada' }` against the flow's context schema and creates one live run in the `idle` state.
+2. `start()` activates the first step. A final step runs immediately, so this run changes to `done`.
+3. `awaitResult()` returns the completed run's output, `Hello, Ada!`.
+4. `dispose()` releases resources owned by the live run, such as timers and listeners.
+
+## Why the flow and run are separate
+
+The flow definition is reusable. Your application can import `helloFlow` once and create a separate run for Ada, Lin, or any other request. Each run has its own context, state, output, and id.
+
+```ts
+const ada = createRun(helloFlow, { context: { name: 'Ada' } })
+const lin = createRun(helloFlow, { context: { name: 'Lin' } })
+```
+
+Starting `ada` does not change `lin`. This separation matters as soon as several users can use the same workflow at the same time.
+
+## What to read next
+
+Read [how a flow becomes a running workflow](/learn/mental-model) next. Then learn [how each step behaves](/learn/steps) and [how a view collects input](/learn/input).
+
+If the hello flow feels too small to explain why OpenWizard exists, read [why the deep features matter](/advanced). It starts with crashes, duplicate requests, competing workers, early webhooks, compensation, and safe browser state.

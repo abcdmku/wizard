@@ -1,0 +1,30 @@
+# Use a child flow
+
+Use a `flow` step when one stage of a larger workflow has its own workflow. A checkout may run an address flow that is also used by account settings.
+
+The parent and child remain separate runs. Each has its own context, steps, state, and final result.
+
+```ts file="packages/docs/snippets/recipes/nested.ts"
+```
+
+When the checkout reaches its `address` step, this happens:
+
+1. The parent's `context` function creates `{ city: context.city }` for the child.
+2. OpenWizard checks that object against the child flow's context schema.
+3. The child starts and the parent `address` step stays active.
+4. The child reaches its final step and returns the city.
+5. That value becomes the output of the parent's `address` step.
+6. The parent follows `next: 'done'`.
+
+The child does not automatically share the parent's context. The mapping function makes the data crossing that boundary explicit.
+
+Get the live child after the parent step has started it:
+
+```ts
+const child = run.child('address')
+console.log(child.getState())
+```
+
+The parent can send commands to that child object while it is live. A snapshot also stores active child runs so they can resume with the parent.
+
+Use a child flow when the child has several stages, its own tests, or more than one parent. A plain task is easier to understand for one function call.

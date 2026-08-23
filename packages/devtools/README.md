@@ -1,39 +1,19 @@
 # @openwizard/devtools
 
-A dockable React panel with a flow graph, committed event log, step inspector, and replay timeline.
-
-## Install
+A React panel for inspecting a flow graph, events, step state, and replay history.
 
 ```sh
-pnpm add -D @openwizard/devtools
+npm install @openwizard/devtools @xyflow/react elkjs react react-dom
 ```
-
-React, React DOM, and `@openwizard/core` are peer dependencies.
-
-## Example
-
-The [devtools example](../docs/pages/examples/10-devtools.mdx) defines `pipelineFlow`. This
-component accepts a live run created from that flow.
 
 ```tsx
-import type { FlowRun } from '@openwizard/core'
 import { Devtools } from '@openwizard/devtools'
 import '@openwizard/devtools/style.css'
-import type { pipelineFlow } from './pipeline'
 
-export function WorkflowDevtools({
-  run,
-}: {
-  run: FlowRun<typeof pipelineFlow>
-}) {
-  return <Devtools source={run} defaultOpen />
-}
+export const Tools = ({ run }) => <Devtools source={run} />
 ```
 
-The panel works with a `FlowRun` or `Mirror`. Event replay needs a live run.
-
-See the [devtools example](../docs/pages/examples/10-devtools.mdx) and the
-[export reference](#exports).
+Read the [devtools package guide](../docs/pages/packages/devtools.mdx).
 
 ## Exports
 

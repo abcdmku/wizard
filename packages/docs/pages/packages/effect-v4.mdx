@@ -1,0 +1,18 @@
+# Effect 4 beta
+
+`@openwizard/effect-v4` adapts an Effect 4 beta program into a task function accepted by `flow.task()`. It exists separately from the Effect 3 adapter because the two Effect versions are not API-compatible.
+
+```sh
+npm install @openwizard/effect-v4 effect@4.0.0-beta.107
+```
+
+```ts file="packages/effect-v4/snippets/basic.ts"
+```
+
+The adapter maps a successful Effect value to the task output and a typed Effect failure to task error data. OpenWizard still controls retries, timeouts, and workflow state around the Effect execution.
+
+Effect 4 is a beta dependency. Pin the exact version your application tests. An Effect beta update may require application or adapter changes even when your OpenWizard flow stays the same.
+
+Ordinary promise-returning tasks do not need an adapter. Use [`@openwizard/effect`](/packages/effect) for Effect 3.
+
+[Effect 4 API lookup](/api/effect-v4)

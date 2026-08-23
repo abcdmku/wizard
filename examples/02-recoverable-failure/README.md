@@ -1,17 +1,12 @@
-# 02: Recoverable failure
+# Example 02: retry failed work
 
-This flow posts an invoice to a flaky ledger. Its tests cover retries, stable idempotency keys,
-typed error data, virtual time, and manual recovery after retries run out. It builds on
-[01: Happy path](../01-happy-path) and [Policies](../../packages/docs/pages/concepts/policies.mdx).
-
-Source: [flow](./src/sync-invoice.ts), [walkthrough](./src/main.ts),
-[test](./src/sync-invoice.test.ts).
-
-## Run
+A ledger call fails twice, waits between attempts, then succeeds.
 
 ```sh
 pnpm --filter example-02-recoverable-failure start
 pnpm --filter example-02-recoverable-failure check
 ```
 
-Next: [03: Compensation](../03-non-recoverable-compensation).
+Read `src/sync-invoice.ts` for the flow, then `src/main.ts` for the fake ledger and virtual clock. The test shows automatic retries, exhausted retries, and `run.retry('post')`.
+
+The example passes the task's `idempotencyKey` to the ledger. A real ledger should reject duplicate requests with the same key.

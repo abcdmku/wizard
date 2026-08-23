@@ -3,8 +3,8 @@
  * order flow because that is the shortest path to the product's main use case.
  */
 
-import onboardingMain from '../../../../../examples/01-happy-path/src/main.ts?raw'
-import onboardingFlow from '../../../../../examples/01-happy-path/src/onboarding.ts?raw'
+import helloFlow from '../../../../../examples/01-happy-path/src/hello-flow.ts?raw'
+import helloMain from '../../../../../examples/01-happy-path/src/main.ts?raw'
 import syncInvoiceMain from '../../../../../examples/02-recoverable-failure/src/main.ts?raw'
 import syncInvoiceFlow from '../../../../../examples/02-recoverable-failure/src/sync-invoice.ts?raw'
 import bookTripFlow from '../../../../../examples/03-non-recoverable-compensation/src/book-trip.ts?raw'
@@ -34,14 +34,14 @@ export interface PlaygroundSample {
   readonly files: readonly PlaygroundFile[]
 }
 
-/** Example 11 as the landing sample: a backend order, retry, snapshot, and typed webhook. */
+/** Keep the landing example small enough to understand without scrolling. */
 export const landingSample: PlaygroundSample = {
   id: 'landing',
-  title: 'Backend order (example 11)',
+  title: 'Hello flow',
   entry: 'main.ts',
   files: [
-    { name: 'order-workflow.ts', content: backendOrderFlow },
-    { name: 'main.ts', content: backendOrderMain },
+    { name: 'hello-flow.ts', content: helloFlow },
+    { name: 'main.ts', content: helloMain },
   ],
 }
 
@@ -70,7 +70,7 @@ export const exampleSamples: readonly PlaygroundSample[] = [
     backendOrderFlow,
     backendOrderMain,
   ),
-  example('01-happy-path', '01 - happy path', 'onboarding.ts', onboardingFlow, onboardingMain),
+  example('01-happy-path', '01 - hello flow', 'hello-flow.ts', helloFlow, helloMain),
   example(
     '02-recoverable-failure',
     '02 - recoverable failure',

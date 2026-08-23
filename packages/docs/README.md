@@ -1,8 +1,8 @@
-# @openwizard/docs
+# OpenWizard documentation
 
-The private package that builds the OpenWizard documentation site.
+The public guides live in [`pages`](./pages). Code blocks with a `file` attribute load their content from real TypeScript files under [`snippets`](./snippets) or [`examples`](../../examples).
 
-## Run it
+## Run the site
 
 From the repository root:
 
@@ -12,12 +12,15 @@ pnpm build
 pnpm docs:dev
 ```
 
-The site opens at `http://localhost:3000`. Build the packages first because the examples and API
-reference use their emitted code and declarations.
+The local site opens at `http://localhost:3000`.
 
-Content lives in [`pages`](./pages). Start with
-[getting started](./pages/getting-started.mdx). The [API index](./pages/api/index.mdx) links each
-package reference and its generated TypeDoc.
+## Check a change
 
-Use `pnpm --filter @openwizard/docs check` to typecheck the snippets and site, verify links, and
-build the production output.
+```sh
+pnpm --filter @openwizard/docs check
+pnpm check:docs
+```
+
+The first command type-checks the site and snippets, runs snippet tests, checks internal links, builds every page, and generates TypeDoc. The second checks documented package exports, imports in code fences, and the root quickstart.
+
+Start reading at [getting started](./pages/getting-started.mdx). The [advanced path](./pages/advanced/index.mdx) explains recovery, graph execution, durability, event routing, projections, and replay from tested source.

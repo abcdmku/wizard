@@ -1,0 +1,49 @@
+# Test a flow through its public behavior
+
+A useful flow test creates a real run and sends the same commands your application will send. You do not need a browser, HTTP server, or database to check navigation and state changes.
+
+```ts file="packages/docs/snippets/learn/testing.test.ts"
+```
+
+Read the test as a short story:
+
+1. Create a fresh signup run with empty context.
+2. Start it so `contact` becomes the current view.
+3. Store an invalid email draft.
+4. Call `next()` to try to leave the view.
+5. Check that the command failed and the run stayed on `contact`.
+
+Those assertions describe behavior a user can observe. They do not depend on internal event ordering.
+
+Depending on the feature, check one or more of these public values:
+
+- the command result
+- the final result
+- the current step or status
+- calls made through fake dependencies, such as a test email client
+
+Avoid checking every emitted event in a basic navigation test. Exact event order is useful when you are testing event behavior itself, but otherwise it makes a test fail after harmless runtime changes.
+
+## Replace outside services with dependencies
+
+If a task sends email or writes to a payment API, pass that client through the flow's `deps`. A test can then provide a small fake that records calls or returns a controlled error. The flow definition stays the same, and the test does not make a network request.
+
+This also lets you test retries safely. Configure the fake to fail twice, succeed once, and assert the number of calls and the final result.
+
+## Test timers without waiting
+
+Real delays make tests slow and unreliable. `@openwizard/core/testing` exports `createTestScheduler()`. Pass it to `createRun()` and advance its clock yourself.
+
+```ts
+import { createTestScheduler } from '@openwizard/core/testing'
+
+const scheduler = createTestScheduler({ now: 0 })
+const run = createRun(flow, { context, scheduler })
+
+await run.start()
+scheduler.advance(1_000)
+```
+
+Advancing the scheduler runs callbacks whose deadline has arrived. Use it for retry backoff, task timeouts, wait timeouts, and buffered event expiry without making the test sleep for real time.
+
+Call `run.dispose()` at the end of each test so timers and subscriptions from one test cannot affect another.

@@ -1,7 +1,7 @@
 {
   "name": "@openwizard/react",
   "version": "0.1.0-next.0",
-  "description": "Typed React hooks for an OpenWizard FlowRun or Mirror.",
+  "description": "React hooks for a local OpenWizard run, or a filtered copy of a server run.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

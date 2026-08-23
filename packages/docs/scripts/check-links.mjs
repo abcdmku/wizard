@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Every internal link in `pages/**` must point at a page that exists (`/concepts/steps`, with an
+ * Every internal link in `pages/**` must point at a page that exists (`/learn/steps`, with an
  * optional `#hash` / `?query`), at a route the app serves (`/`, `/playground`) or at a generated
  * directory (`/typedoc/`, `/pagefind/`). Hardcoded `_splat` slugs in `src/**` are checked too.
  */

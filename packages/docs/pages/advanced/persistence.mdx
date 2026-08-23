@@ -1,0 +1,47 @@
+# Carry waits and timers across deployments
+
+A useful snapshot must preserve more than context. If a run is waiting 48 hours for approval, a restart three hours later should leave 45 hours on the deadline. It should not restart the clock or call completed tasks again.
+
+The approval example has a notification task, an external event, a 48-hour timeout, and three final routes:
+
+```ts file="examples/04-resume-from-snapshot/src/approval.ts" lines="8-49"
+```
+
+## A snapshot records execution facts
+
+The saved object contains the flow name and version, run id, epoch, sequence number, context, every step record, navigation history, inbox entries, timers, saga state, and child snapshots.
+
+`resumeRun()` checks that structure before using it. It then increments the epoch, emits `flow.resumed`, restores active waits and children, and re-arms timers from their absolute deadlines.
+
+The tested example saves at the wait step and resumes three hours later:
+
+```ts file="examples/04-resume-from-snapshot/src/approval.test.ts" lines="43-96"
+```
+
+The resumed timer fires after the remaining 45 hours. The completed `notify` task stays done.
+
+## Interrupted tasks require an explicit policy
+
+A snapshot can contain a task with status `active` because the process died before its promise settled.
+
+- A non-idempotent interrupted task becomes `failed` on resume with error kind `interrupted`. The host inspects the outside system and calls `retry()` only when safe.
+- An idempotent interrupted task runs again with the same idempotency key. The outside service must deduplicate it.
+
+This prevents resume from silently repeating an unknown side effect.
+
+## Version the flow when saved data changes
+
+The flow name and version identify the code expected to read a snapshot. If version 2 adds a required `currency` field, OpenWizard rejects a version 1 snapshot with `SNAPSHOT_INCOMPATIBLE` unless the host supplies `migrate`.
+
+```ts file="examples/04-resume-from-snapshot/src/approval.test.ts" lines="172-205"
+```
+
+The migration receives the raw saved object and its old flow identity. It must return a snapshot whose envelope and nested state both name the new version. After migration, normal snapshot and schema validation still run.
+
+Keep migrations deterministic and test them against saved fixtures from every supported version. A deployment that cannot read existing runs is a data migration problem, even when no SQL table changed.
+
+## Core persistence assumes one owner
+
+Core serializes writes so an older snapshot from the same process cannot overwrite a newer one. It does not provide a lease or compare-and-swap check across processes.
+
+Use core `Store` when one process owns each run. Use [multi-worker durability](/advanced/durability) when separate workers can race on the same key.

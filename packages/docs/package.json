@@ -8,7 +8,8 @@
     "dev": "vite dev --port 3000",
     "build": "vite build && node ./scripts/postbuild.mjs",
     "build:typedoc": "typedoc",
-    "check": "tsc --noEmit -p tsconfig.json && node ./scripts/check-links.mjs && pnpm run build",
+    "check": "tsc --noEmit -p tsconfig.json && pnpm run check:snippets && node ./scripts/check-links.mjs && pnpm run build",
+    "check:snippets": "vitest run --config vitest.config.ts",
     "check:links": "node ./scripts/check-links.mjs",
     "preview": "vite preview"
   },
@@ -18,6 +19,7 @@
     "@mdx-js/react": "^3.1.1",
     "@monaco-editor/react": "^4.7.0",
     "@openwizard/core": "workspace:*",
+    "@openwizard/devtools": "workspace:*",
     "@openwizard/drizzle": "workspace:*",
     "@openwizard/durable": "workspace:*",
     "@openwizard/effect": "workspace:*",
@@ -54,6 +56,7 @@
     "typedoc": "^0.28.20",
     "typescript": "~5.9.3",
     "unist-util-visit": "^5.1.0",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
   }
 }

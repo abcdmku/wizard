@@ -1,0 +1,12 @@
+{
+  "index": "Package guide",
+  "core": "Core",
+  "react": "React",
+  "devtools": "Devtools",
+  "durable": "Durable runs",
+  "drizzle": "Drizzle storage",
+  "effect": "Effect 3",
+  "effect-v4": "Effect 4 beta",
+  "opentelemetry": "OpenTelemetry",
+  "webhooks": "Webhooks and HTTP"
+}

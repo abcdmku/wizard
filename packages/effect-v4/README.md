@@ -1,43 +1,14 @@
 # @openwizard/effect-v4
 
-Effect 4 beta task adapters for OpenWizard. Use `@openwizard/effect` for stable Effect 3.
-
-## Install
+Run Effect 4 beta programs as OpenWizard tasks.
 
 ```sh
-pnpm add @openwizard/core @openwizard/effect-v4 effect@beta zod
+npm install @openwizard/effect-v4 effect@4.0.0-beta.107
 ```
 
-## Example
+`makeEffectV4Runner()` turns an Effect program into a function accepted by `flow.task()`.
 
-```ts
-import { defineFlow } from '@openwizard/core'
-import { makeEffectV4Runner } from '@openwizard/effect-v4'
-import { Effect, Layer } from 'effect'
-import { z } from 'zod'
-
-const effects = makeEffectV4Runner(Layer.empty)
-const checkout = defineFlow({
-  name: 'checkout',
-  context: z.object({ orderId: z.string() }),
-})
-
-const checkoutFlow = checkout.steps({
-  charge: checkout.task(
-    effects.task(
-      ({ context }) => Effect.succeed({ charged: context.orderId }),
-      {
-        output: z.object({ charged: z.string() }),
-        error: z.never(),
-      },
-    ),
-  ),
-})
-```
-
-This package tracks the Effect 4 beta API and may change with Effect prereleases.
-
-Read the [Effect 4 integration](../docs/pages/integrations/effect-v4.mdx) and the [Effect 4 API](../docs/pages/api/effect-v4.mdx).
+Read the [Effect 4 beta package guide](../docs/pages/packages/effect-v4.mdx).
 
 ## Exports
 
@@ -56,4 +27,3 @@ Read the [Effect 4 integration](../docs/pages/integrations/effect-v4.mdx) and th
 | `makeEffectV4Runner` | function | Create an Effect 4 task runner from a managed runtime or closed Layer. | [src](../../packages/effect-v4/src/runner.ts#L201) |
 
 <!-- exports:end -->
-

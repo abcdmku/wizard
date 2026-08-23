@@ -1,17 +1,12 @@
-# 05: Event inputs
+# Example 05: receive events
 
-This checkout waits for payment events sent with `run.send()`. It covers payload validation,
-early-event buffering, expiry, wait timeouts, correlation, and flow-level handlers. Read
-[Event inputs](../../packages/docs/pages/concepts/external-events.mdx) for the event model.
-
-Source: [flow](./src/checkout.ts), [walkthrough](./src/main.ts),
-[test](./src/checkout.test.ts).
-
-## Run
+A checkout waits for payment events from another system.
 
 ```sh
 pnpm --filter example-05-external-events start
 pnpm --filter example-05-external-events check
 ```
 
-Next: [06: Nested flow](../06-nested-flow).
+`src/checkout.ts` declares event schemas, a correlation rule, a buffer policy, and a wait step. `src/main.ts` sends four cases: invalid data, another order's event, an early event, and an event consumed by the wait.
+
+The runtime checks every payload before a handler receives it.

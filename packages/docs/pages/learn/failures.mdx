@@ -1,0 +1,52 @@
+# What happens when a task fails
+
+A task often calls something that can fail for a short time. A database can be busy. A service can return an error. OpenWizard treats a thrown error or rejected promise as a failed task attempt.
+
+This example simulates storage being busy twice. The third call succeeds:
+
+```ts file="packages/docs/snippets/learn/retry.ts"
+```
+
+The retry policy belongs to the `save` task. It means:
+
+- Make the first call with `attempt` equal to `1`.
+- If it fails, wait 1,000 milliseconds and try again with `attempt` equal to `2`.
+- If that fails, wait again and make one final call with `attempt` equal to `3`.
+
+`attempts` counts extra tries after the first call. This is easy to misread. `attempts: 2` allows at most three calls to the task function.
+
+If one attempt succeeds, OpenWizard stores its output and follows `next`. Earlier failed attempts remain visible in the event log, but the step ends as `done`.
+
+## Inspect a task after every attempt fails
+
+When every allowed attempt fails, the task and run enter `failed`. With the default recoverable failure behavior, the run stops there instead of moving to `done`.
+
+The stored step error includes a message, failure kind, timestamp, and attempt number. Read it from state before deciding what to do:
+
+```ts
+const state = run.getState()
+console.error(state.steps.save.error)
+```
+
+Your application can retry the failed step later, perhaps after a user clicks a button or a service recovers:
+
+```ts
+const result = await run.retry('save')
+if (!result.ok) console.error(result.code, result.message)
+```
+
+`run.retry('save')` resets the task's attempt counter and starts a new retry cycle. Check its command result because the run may have changed before the request arrives.
+
+## Safe retries
+
+Retries mean the same logical task can call an outside service more than once. A crash can also happen after the outside service succeeds but before OpenWizard saves that success. Use the `idempotencyKey` passed to the task when the service supports idempotent requests.
+
+```ts
+builder.task(({ idempotencyKey }) =>
+  payments.charge({ amount: 500, idempotencyKey }),
+)
+```
+
+The key stays the same when an idempotent task is rerun after a crash. OpenWizard supplies the key, but the remote service must store and enforce it. Without that support, a payment or email may happen twice.
+
+Use a `timeout` on a task that should not run forever. The task receives a `signal` that aborts when the timeout fires. Pass that signal to APIs such as `fetch` so the underlying work can stop too.

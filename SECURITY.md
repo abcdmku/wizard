@@ -2,47 +2,42 @@
 
 ## Report a vulnerability
 
-Do not open a public issue. Use GitHub's private vulnerability reporting for this repository.
-OpenWizard supports the latest published minor of each package and ships fixes as patch releases.
+Use the repository's private GitHub security advisory form when possible. Do not post working exploit details in a public issue.
 
-## What OpenWizard checks
+Include the affected package and version, a small reproduction, the impact, and any workaround you found.
 
-- `resumeRun` rechecks the flow identity, snapshot structure, and every declared data boundary.
-- A store write rejects values that cannot survive a JSON round trip. `SerializedError` contains
-  only `name`, `message`, and an optional `code`.
-- `defineProjection(flow, { expose })` hides context, drafts, outputs, issues, errors, child state,
-  final output, and progress unless the projection lists them.
-- A `select` projection may return any part of the typed state. Treat its return value as public
-  wire data and review it accordingly.
-- A correlation mismatch drops the input event instead of buffering it. Correlation routes data.
-  It does not authenticate the sender.
-- `parseCommand` and `parseWireCommand` check command shape, known ids, and JSON limits. The
-  machine still rejects commands that are invalid for the current state.
-- A Mirror validates each frame and ignores malformed or retired run instances.
-- Incoming webhooks verify the signature before parsing the declared input-event payload.
-- Outgoing callback registration rejects non-HTTPS and obvious local or private targets by
-  default. Recheck endpoint policy before delivery.
+## Rules for applications
 
-## What the application must enforce
+OpenWizard coordinates application code. Your host still owns authentication, authorization, secrets, database access, and network policy.
 
-- Scope storage and run lookup by tenant, flow, and entity. Never use raw user input as a storage
-  key.
-- Keep one owner per core `Store` key. Use `@openwizard/durable` when another worker can take over.
-- Keep credentials, card numbers, and other secrets out of context, drafts, outputs, mapped error
-  data, and input-event payloads. Pass server secrets through dependencies.
-- Authenticate and authorize before dispatching a command, sending an input event, or resolving a
-  run for an HTTP request.
-- Treat `boundary.trusted<T>()` as unchecked. Use it only for values the host constructs or has
-  already validated.
-- Make external task calls idempotent. Retries and crash recovery can execute a task more than
-  once.
-- Set HTTP body limits before calling OpenWizard decoders.
-- Encrypt webhook signing secrets at rest. Scope subscriptions and delivery logs by tenant.
-- Allowlist outgoing run event names. Raw events may contain context, input, output, command,
-  payload, and mapped error data.
-- Deduplicate incoming and outgoing webhook message ids in shared storage when more than one
-  process can receive or deliver them.
+### Check outside data
 
-See [Runtime guarantees](./packages/docs/pages/concepts/guarantees.mdx),
-[Projections and the Mirror](./packages/docs/pages/concepts/projections.mdx), and
-[HTTP and webhooks](./packages/docs/pages/integrations/webhooks.mdx) for the matching APIs.
+Use schemas for starting context, view input, event payloads, and task output that came from another system. `boundary.trusted<T>()` skips runtime checks, so use it only for values your server constructed.
+
+### Keep dependencies on the server
+
+Put database clients, API clients, and secrets in `deps`. Do not put them in context or step output. Snapshots contain context and step data.
+
+### Keep snapshots tenant-scoped
+
+Choose store keys that include the tenant and resource identity. Check the caller's tenant before loading a run. A run id by itself is not authorization.
+
+Use the `redact` option before persistence when a snapshot contains data your store should not keep.
+
+### Expose only selected client state
+
+Use `defineProjection()` before sending run state to a browser. Projections expose nothing by default. Add only the context fields and step fields the UI needs.
+
+### Treat remote tasks as at-least-once
+
+A task may run again after a crash. Pass its `idempotencyKey` to services that create charges, reservations, messages, or other writes. The remote service must enforce the key.
+
+### Use durable storage for several workers
+
+Core's `Store` assumes one live owner per key. Use `@openwizard/durable` when several processes may handle the same run. The in-memory core and durable stores are for tests and local processes.
+
+### Verify webhooks
+
+Keep signing secrets in a secret manager. Verify the raw request body and signature before parsing business data. `@openwizard/webhooks` does this in `resource.handle(request)`.
+
+Restrict outgoing webhook destinations to approved hosts or networks. Store message ids when duplicate delivery must be suppressed.

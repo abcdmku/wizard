@@ -1,0 +1,22 @@
+# OpenTelemetry
+
+`@openwizard/opentelemetry` translates a run's event stream into tracing spans. It lets an existing OpenTelemetry setup show when a run starts, how long steps take, and where failures occur.
+
+```sh
+npm install @openwizard/opentelemetry @opentelemetry/api
+```
+
+Your application must configure the OpenTelemetry SDK, tracer provider, and exporter first. This package only creates spans through the OpenTelemetry API.
+
+Attach instrumentation before the run starts so it sees the full lifecycle:
+
+```ts file="packages/docs/snippets/packages/opentelemetry.mts"
+```
+
+`instrumentRun(run)` subscribes to events from that run. Call `stop()` before disposing the run or when the run should no longer emit telemetry.
+
+By default, the adapter does not copy context, view input, step output, event payloads, idempotency keys, or error messages into spans. Those values can contain personal data or secrets. Enable extra attributes only after deciding what your tracing backend is allowed to store.
+
+Read [explain, observe, and replay](/advanced/operations) for the event and state model that instrumentation consumes.
+
+[OpenTelemetry API lookup](/api/opentelemetry)

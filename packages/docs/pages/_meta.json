@@ -1,10 +1,9 @@
 {
   "getting-started": "Getting started",
-  "how-it-works": "How it works",
-  "concepts": { "title": "Concepts" },
-  "guides": { "title": "Guides" },
-  "integrations": { "title": "Integrations" },
+  "learn": { "title": "Learn" },
+  "advanced": { "title": "Advanced" },
+  "recipes": { "title": "Recipes" },
+  "packages": { "title": "Packages" },
   "examples": { "title": "Examples" },
-  "api": { "title": "API reference" },
-  "design": { "title": "Design docs" }
+  "api": { "title": "API lookup" }
 }

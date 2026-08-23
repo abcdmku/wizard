@@ -1,0 +1,26 @@
+# React
+
+`@openwizard/react` re-renders React components when a run's state changes. The package can read a `FlowRun` in the same process or a `Mirror` that represents a server-owned run in the browser.
+
+```sh
+npm install @openwizard/react react
+```
+
+Create one binding for the flow type. The binding gives its hooks the exact context, step ids, inputs, and outputs from that flow:
+
+```tsx file="packages/docs/snippets/packages/react.tsx"
+```
+
+Render the binding's `Provider` above components that call its hooks. Pass one stable source object to the provider.
+
+- `useSnapshot()` subscribes to the whole visible run state.
+- `useStep('stepId')` reads one typed step and includes actions that apply to it.
+- `useActions()` returns commands such as navigation, input changes, and events.
+
+The hooks do not create or persist the run. Your application owns the source and decides when to dispose it.
+
+The example passes a local run directly, which is useful for a client-only app or a component test. If the real run lives on a server, do not copy its full snapshot into the browser by default. Define a projection containing the fields the client may see, create a `Mirror` that sends commands to the server, and pass that mirror to a binding typed by the projection.
+
+Read [projections and mirrors](/advanced/projections) for the server-to-browser data boundary and versioned frame model.
+
+[React API lookup](/api/react)

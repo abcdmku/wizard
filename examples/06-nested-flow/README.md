@@ -1,16 +1,12 @@
-# 06: Nested flow
+# Example 06: parent and child flows
 
-An order runs fulfilment as a child step. The example covers child context mapping, `run.child()`,
-nested commands, child event paths, nested snapshots, and `mirror.child()`. It builds on
-[05: Event inputs](../05-external-events) and [Nested flows](../../packages/docs/pages/concepts/nesting.mdx).
-
-Source: [flows](./src/order.ts), [walkthrough](./src/main.ts), [test](./src/order.test.ts).
-
-## Run
+An order flow runs a smaller fulfilment flow as one of its steps.
 
 ```sh
 pnpm --filter example-06-nested-flow start
 pnpm --filter example-06-nested-flow check
 ```
 
-Next: [07: Parallel work](../07-dag-pipeline).
+Read `src/order.ts` from the child definition to the parent definition. The parent maps its context into the child.
+
+`src/main.ts` starts the parent, gets the live child with `run.child('fulfil')`, and drives the child's view. The test also drives the child through a Mirror.

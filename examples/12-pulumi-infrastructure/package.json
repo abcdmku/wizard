@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "description": "Bind OpenWizard deployment resources with Pulumi.",
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit && vitest run --root .",
     "start": "pulumi up"

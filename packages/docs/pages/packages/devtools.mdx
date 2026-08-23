@@ -1,0 +1,20 @@
+# Devtools
+
+`@openwizard/devtools` helps answer questions such as "why is this step waiting?" and "which event changed the context?" It renders the flow graph, current step records, event log, and replay timeline for a run-like source.
+
+```sh
+npm install @openwizard/devtools @xyflow/react elkjs react react-dom
+```
+
+Import the stylesheet once and render the panel with a live run:
+
+```tsx file="packages/docs/snippets/packages/devtools.tsx"
+```
+
+`source={run}` subscribes the panel to that run. The panel is closed by default, and `Ctrl+Shift+D` toggles it. Mount it somewhere that stays alive for as long as you want to inspect the run.
+
+Devtools shows the data supplied by its source. In a local development screen, that may be the full run. In a browser connected to a server, use a projection and mirror so the client receives only approved fields.
+
+Do not treat hiding the panel as an authorization boundary. Remove it from production builds or secure the data source with the same care as any other debugging endpoint.
+
+[Devtools API lookup](/api/devtools)

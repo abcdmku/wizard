@@ -1,0 +1,49 @@
+# Expose less state to the browser
+
+A server-owned run may contain inventory ids, payment tokens, task outputs, raw errors, and internal context. A React screen usually needs a few form fields, validation issues, public totals, and the final receipt.
+
+Sending the full snapshot and hiding fields in the component is not a security boundary. `defineProjection()` creates a smaller runtime object and a matching TypeScript type before the state reaches a transport.
+
+```ts file="packages/docs/snippets/advanced/projection.ts"
+```
+
+## Exposure is deny by default
+
+The projection above exposes:
+
+- the `payment` draft and validation issues
+- `context.total`
+- the final flow output
+
+It omits `cartId`, `paymentToken`, other step outputs, navigation history, timers, the event inbox, and error details not explicitly selected.
+
+Every exposed projection still includes the base facts needed to render workflow progress. These are the run identity, epoch, sequence, status, current view, and each step's id, kind, status, phase, and attempt.
+
+`select` is the alternative to an exposure specification. It maps the full typed server state into any client shape. Use `expose` when standard workflow state is useful. Use `select` when the client needs a purpose-built view model.
+
+## A mirror is a versioned client copy
+
+The server connects a run and projection to a mirror source. The client creates a mirror over a transport:
+
+```text
+server FlowRun -> projection -> versioned frames -> browser Mirror
+browser command -> transport -> authenticated server dispatch -> FlowRun
+```
+
+Frames carry `instanceId`, `epoch`, and `seq`. The mirror ignores an older frame that arrives after a newer one. Commands carry ids so the transport can match acknowledgements and reject malformed responses.
+
+The local transport in example 08 JSON-round-trips every frame and command. A production application replaces it with WebSocket, server-sent events, or HTTP while keeping the same `Transport` contract.
+
+## Projection is data minimization, not authorization
+
+The projection controls what state a client can receive. The server must still authenticate commands and confirm the caller may access that run. A client with a valid transport should not be allowed to guess another run id.
+
+Sensitive source data should stay out of the run when possible. Example 08 tokenizes a card number in the browser with the payment provider. Only the opaque token enters the view draft, snapshot, projection, and wire frames.
+
+Run the complete server, mirror, transport, and React example with:
+
+```sh
+pnpm --filter example-08-react-mirror dev
+```
+
+Use [`@openwizard/react`](/packages/react) to bind projected step ids and actions to hooks.

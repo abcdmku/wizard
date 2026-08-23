@@ -1,47 +1,27 @@
 # @openwizard/durable
 
-Leases, fenced writes, deduplication, and durable timers for OpenWizard runs with more than one possible owner.
-
-## Install
+Leases and fenced storage for runs that several workers may try to own.
 
 ```sh
-pnpm add @openwizard/core @openwizard/durable
+npm install @openwizard/durable @openwizard/core
 ```
-
-## Example
-
-The [order workflow example](../docs/pages/examples/11-order-workflow.mdx) defines `orderFlow`.
-The host below opens one durable owner for that flow.
 
 ```ts
 import { createDurableRun, createMemoryDurableStore } from '@openwizard/durable'
-import { orderFlow } from './order-flow'
 
-const opened = await createDurableRun(orderFlow, {
-  context: { orderId: 'order-42' },
-  key: 'tenant-a/order-42',
-  ownerId: 'worker-1',
+const opened = await createDurableRun(flow, {
+  context,
   store: createMemoryDurableStore(),
+  key: 'run-42',
+  ownerId: 'worker-a',
 })
 
-if (!opened.ok) throw new Error(opened.code)
-
-await opened.host.dispatch(
-  { type: 'start' },
-  {
-    commandId: 'start-order-42',
-    expectedVersion: opened.host.version,
-  },
-)
-
-await opened.host.dispose()
+if (opened.ok) await opened.host.run.start()
 ```
 
-`createMemoryDurableStore()` is for tests and single-process development. Use a persistent
-`DurableStore` adapter when another process can take ownership. External effects still need
-idempotency keys because execution is at least once.
+The memory store is for tests. Durable tasks are at-least-once, so outside services still need idempotency.
 
-Read [durability](../docs/pages/guides/durability.mdx) and the [durable API](../docs/pages/api/durable.mdx). PostgreSQL and SQLite adapters are in [`@openwizard/drizzle`](../docs/pages/integrations/drizzle.mdx).
+Read the [durable runs guide](../docs/pages/packages/durable.mdx).
 
 ## Exports
 

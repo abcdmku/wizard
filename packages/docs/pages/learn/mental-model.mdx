@@ -1,0 +1,70 @@
+# How a flow becomes a running workflow
+
+Suppose your application signs up a user. It collects an email, creates an account, and reports success. OpenWizard separates the reusable description of that work from each live attempt to perform it.
+
+That separation gives you four pieces to keep track of: a flow definition, a run, its steps, and its context. They have different jobs.
+
+## A flow defines the possible work
+
+A flow is a reusable definition. It contains named steps and the links that tell OpenWizard what may run next.
+
+```text
+collectEmail -> sendEmail -> done
+```
+
+A flow also defines the schema for its starting context and, when needed, its external events and dependencies. Calling `defineFlow()` and `steps()` creates an inert definition object. It does not start any work.
+
+Your application normally defines a flow once in a module and imports it wherever it needs to create or resume a run.
+
+## A run is one live attempt
+
+A run is one execution of a flow. Ten users going through the same signup flow create ten separate runs. One user can finish while another is still entering an email.
+
+```ts
+const run = createRun(signupFlow, {
+  context: { userId: 'user-42' },
+})
+
+await run.start()
+```
+
+`createRun()` checks the starting context and creates an idle run. `start()` activates the flow's starting step. The run then owns its state, timers, event listeners, step outputs, and saved snapshot.
+
+Use the run object to send commands such as `next()`, `send()`, `retry()`, or `cancel()`. Use `getState()` when your server or UI needs to know what is happening now.
+
+## Steps describe each stage
+
+A step is one named stage of the work. For example, `collectEmail` can pause for user input, `sendEmail` can call an email service, and `done` can return the flow's final output.
+
+Each step has an id such as `collectEmail`. Links such as `next: 'sendEmail'` form a graph. OpenWizard also uses step ids in state, commands, event logs, and TypeScript types. A misspelled id in a flow definition fails validation instead of becoming a broken route at runtime.
+
+A step's output belongs to that step. For example, the result of `sendEmail` is available at `state.steps.sendEmail.output` after the task succeeds.
+
+## Context carries shared data
+
+Context is data shared by all steps in one run.
+
+```ts
+{ userId: 'user-42', email: 'ada@example.com' }
+```
+
+Every step can read context. A hook can call `update()` to shallow-merge changed fields into it. Use context for values that later steps need, such as a user id or email address.
+
+Do not use context for a temporary form draft or a service client. A view owns its draft until validation succeeds. Service clients belong in `deps`, where they stay outside saved state.
+
+Keep context JSON-safe if you plan to save the run. Strings, numbers, booleans, arrays, plain objects, and `null` survive a snapshot. Database clients and class instances do not.
+
+## Follow one run through the pieces
+
+For a signup flow, the lifecycle looks like this:
+
+1. The application imports the reusable `signupFlow` definition.
+2. It calls `createRun(signupFlow, { context: {} })` for one user.
+3. `start()` enters the `collectEmail` step and the run waits.
+4. The user supplies a valid email. The step copies it into the run's context and links to `sendEmail`.
+5. The `sendEmail` task runs and stores its own output.
+6. The `done` step creates the final result and changes the run status to `done`.
+
+The definition says what can happen. The run records what has happened for one attempt.
+
+Next, learn [what each step kind does to a live run](/learn/steps).

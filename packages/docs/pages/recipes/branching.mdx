@@ -1,0 +1,16 @@
+# Choose a branch
+
+Use a `decision` when the run must choose one route from current data. In this delivery flow, the customer's selected speed decides which fulfillment task runs.
+
+```ts file="packages/docs/snippets/recipes/branching.ts"
+```
+
+When the run reaches `choose`, OpenWizard calls its `next` function with the current context. The function returns either `'express'` or `'standard'`. That returned string is a step id, not an arbitrary label.
+
+Only the selected task becomes ready. The other task stays idle. Both possible tasks link to `done`, so the paths meet again after their different work finishes.
+
+TypeScript checks literal ids returned by the decision. A typo such as `'expres'` fails the build because the flow has no step with that id. OpenWizard also validates step links when the flow definition is created.
+
+Keep side effects out of a decision. Let it choose the route, then put the database or HTTP call in the selected task. This makes retries and failures belong to the step that performs the work.
+
+Use `when` instead when a step should either run or be skipped while the rest of the route stays the same. Use a decision when choosing one target changes which path becomes active.

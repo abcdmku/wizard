@@ -1,0 +1,18 @@
+# Effect 3
+
+OpenWizard tasks normally use functions that return a value or promise. `@openwizard/effect` adapts an Effect 3 program to that same task contract, so an application already using Effect can keep its typed error and service model.
+
+```sh
+npm install @openwizard/effect effect@^3.22.1
+```
+
+```ts file="packages/effect/snippets/basic.ts"
+```
+
+`makeEffectRunner()` creates a runner from a runtime `Layer`. `runner.task()` then builds the task function passed to `flow.task()`. When the Effect succeeds, its value becomes the task output. When its typed error channel fails, the adapter stores that value as task error data. Defects and interruptions remain distinct failure kinds.
+
+The runtime `Layer` supplies Effect services when the task runs. OpenWizard still owns task attempts, retry timing, timeout state, and step transitions.
+
+You do not need this package for ordinary promises. Use it only with Effect 3. Use [`@openwizard/effect-v4`](/packages/effect-v4) for Effect 4 beta because the Effect versions have different APIs.
+
+[Effect 3 API lookup](/api/effect)

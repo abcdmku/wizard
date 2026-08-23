@@ -1,0 +1,19 @@
+# Core
+
+`@openwizard/core` is the required package. It defines flows, creates and resumes live runs, validates data, moves between steps, manages timers, and produces snapshots and event logs.
+
+```sh
+npm install @openwizard/core zod
+```
+
+## What core includes
+
+A core run lives in your JavaScript process. Your code calls methods such as `start()`, `next()`, `send()`, and `retry()`. The run updates its state and starts any task, timer, or child flow made ready by that command.
+
+Core does not choose an HTTP framework, render a UI, or open a database connection. This lets the same flow run in a CLI, server, queue worker, or test.
+
+Core does include a small persistence interface. Pass a `Store` when one process owns each run. Add [`@openwizard/durable`](/packages/durable) when several processes need coordinated access to the same run.
+
+Start with [getting started](/getting-started). The [learning path](/learn) explains the runtime by following one run through input, tasks, failures, events, and a restart.
+
+Use the [core API lookup](/api/core) when you need an exact option or return type.

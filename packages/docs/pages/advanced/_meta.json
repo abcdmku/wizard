@@ -1,0 +1,12 @@
+{
+  "index": "Why the deep features matter",
+  "recovery": "Retries and idempotency",
+  "compensation": "Compensation",
+  "graphs": "Graph execution",
+  "persistence": "Snapshots and migrations",
+  "durability": "Multi-worker durability",
+  "events": "External event routing",
+  "nested": "Nested workflows",
+  "projections": "Projections and mirrors",
+  "operations": "Explain, observe, and replay"
+}

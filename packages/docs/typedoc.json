@@ -9,6 +9,7 @@
     "typedoc/effect.ts",
     "typedoc/effect-v4.ts",
     "typedoc/react.ts",
+    "typedoc/devtools.ts",
     "typedoc/opentelemetry.ts",
     "typedoc/webhooks.ts"
   ],

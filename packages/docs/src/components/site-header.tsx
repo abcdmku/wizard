@@ -6,7 +6,9 @@ import { ThemeToggle } from './theme-toggle'
 
 const TOP_LINKS = [
   { label: 'Docs', slug: 'getting-started' },
-  { label: 'Concepts', slug: 'concepts' },
+  { label: 'Learn', slug: 'learn' },
+  { label: 'Advanced', slug: 'advanced' },
+  { label: 'Recipes', slug: 'recipes' },
   { label: 'Examples', slug: 'examples' },
   { label: 'API', slug: 'api' },
 ] as const

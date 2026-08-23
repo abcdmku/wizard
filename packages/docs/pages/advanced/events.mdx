@@ -1,0 +1,40 @@
+# Route outside events without trusting them
+
+A payment webhook has three separate questions:
+
+1. Is the payload valid?
+2. Does it belong to this run?
+3. Is a step listening now, or did the event arrive early?
+
+The checkout example answers each question in the flow definition:
+
+```ts file="examples/05-external-events/src/checkout.ts"
+```
+
+## Boundaries run before handlers
+
+`send('payment.captured', payload)` parses the unknown payload through the declared schema. A rejected payload produces `BOUNDARY_REJECTED` with issues. No step or flow handler sees it.
+
+Webhook signature verification belongs at the HTTP boundary. The event schema then checks the verified body before it changes workflow state.
+
+## Correlation protects the run id
+
+The host creates an order run with `correlationId: 'o-1'`. The flow's `correlate` function extracts `payload.orderId`. If it returns another id, OpenWizard drops the event with reason `correlation` instead of delivering or buffering it.
+
+Correlation is a routing check, not authentication. Your webhook route still decides which tenant and run the sender may access.
+
+## The inbox handles valid early events
+
+If a valid, correlated event arrives before `awaitPayment` becomes active, OpenWizard can place it in the run's FIFO inbox. When the wait enters, it consumes the oldest matching entry.
+
+`unmatchedEvents: { buffer: true, ttl: '10m' }` gives each entry an expiry timer. A stale event leaves the inbox instead of completing a much later wait.
+
+Set `buffer: false` when an early event indicates a caller bug. In that mode, `send()` returns a dropped result immediately.
+
+## Step handlers and flow handlers have different reach
+
+A wait step handler completes or keeps that wait, updates context, and may override the next target. A flow-level handler runs regardless of the active step. The example uses that wider scope for `order.cancelled`.
+
+Wait timeouts are routes, not thrown exceptions. If no payment event arrives within 30 minutes, the wait completes with `{ event: 'timeout' }` and follows its timeout target.
+
+The inbox, deadlines, correlation id, and active listeners all survive a snapshot. That is what makes an event-driven wait different from keeping a promise open in one server process.

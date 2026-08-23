@@ -1,0 +1,55 @@
+# Explain and rebuild a run from facts
+
+When a workflow is stuck, a state dump says what exists now. Operators also need to know why a step is blocked and which transitions produced that state.
+
+OpenWizard exposes three levels of inspection:
+
+- `getState()` returns the current run state.
+- `explain(step)` returns stable reason codes for one step.
+- `observe()` and `log()` expose the ordered domain events that changed the run.
+
+The example below captures every event, asks why the form is waiting, completes it, and rebuilds the final state with `replay()`:
+
+```ts file="packages/docs/snippets/advanced/inspection.ts"
+```
+
+## `explain()` answers why a step did not run
+
+The query reports stored status, live phase, ready view candidates, and reasons such as:
+
+| Reason | Meaning |
+|---|---|
+| `flow-not-started` | `start()` has not activated the entry step |
+| `not-activated` | No completed predecessor has arrived at this step |
+| `deps-unmet:normalize` | A named dependency has not completed or skipped |
+| `guard-false:canEnter` | The last entry guard rejected the transition |
+| `concurrency-limit` | Ready task work is waiting for a task slot |
+| `auto-run-manual` | The flow requires `run()` or `runReady()` |
+| `retrying` | A failed attempt has a future retry deadline |
+| `failed:interrupted` | Resume found a non-idempotent task in flight |
+
+`explain()` is a pure query. It does not start work or emit events, and it remains callable after `dispose()`.
+
+## Events are the audit trail of state changes
+
+`observe()` receives committed events from the root and nested runs. Every event has an `instanceId`, `epoch`, sequence number, timestamp, type, and child path.
+
+`log()` keeps a bounded in-memory ring, 200 events by default. Increase `logSize` for local diagnostics, or stream `observe()` events to storage when you need a complete audit history. A bounded log that dropped its beginning cannot rebuild the initial state by itself.
+
+OpenTelemetry and devtools consume this same event stream. Telemetry failures are isolated from workflow execution so an exporter cannot fail the run.
+
+## Replay does not call hooks
+
+`replay(flow, events, options)` folds committed events through the same state reducer used by the live runtime. It does not call a task, handler, validation hook, compensation, timer, or outside service.
+
+For a complete fresh-run log, replayed state equals `getState()`. `upTo` stops at a sequence number for time travel. `from` starts with an earlier saved state when the log is only a tail or the run was resumed.
+
+Child events have their own sequence numbers, so root replay skips them. Parent `child.summary` events carry the child facts needed by the parent state.
+
+Replay proves what state follows from recorded facts. It does not prove that an outside service told the truth or that an event store retained every event. Preserve the full ordered stream when audits depend on it.
+
+## Progress has a narrow definition
+
+`progress()` counts non-final steps. Completed and skipped steps count as done. The ratio becomes `1` when the flow reaches `done`, even if an optional branch was skipped.
+
+That metric is useful for a step rail. It is not an estimate of elapsed time or remaining cost. Use domain-specific progress in context when those meanings matter.

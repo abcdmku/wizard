@@ -1,0 +1,49 @@
+# How save and resume survive a restart
+
+A live run is a JavaScript object in one process. If that process stops, the object disappears. A snapshot records enough state to create a replacement run that continues from the same point.
+
+A snapshot includes the run id, flow name and version, context, step state, timers, event inbox, and child runs. It does not contain the flow definition or service clients. Your application supplies those again when it resumes.
+
+```ts file="packages/docs/snippets/learn/persistence.mts"
+```
+
+Follow the ownership change in the example:
+
+1. `first` starts and waits at the `contact` view.
+2. `setInput()` stores an email draft in that step's state.
+3. `save()` waits until the snapshot has been written under `signup-1`.
+4. `dispose()` releases resources owned by the old in-memory run. It does not delete the stored snapshot.
+5. The application loads that snapshot and passes it to `resumeRun()` with the same `signupFlow` definition.
+6. `second` starts at the saved view with the saved draft, so `next()` can continue the signup.
+
+The second object is a new live run for the same persisted instance. Its `epoch` increases so stale commands from the older owner can be rejected.
+
+## Choose when snapshots are written
+
+Pass a `store` to `createRun()` to enable persistence. By default, OpenWizard schedules a write after state changes. The store key is the run's `instanceId` unless you configure another key through the runtime options.
+
+```ts
+const run = createRun(flow, {
+  context,
+  instanceId: 'run-42',
+  store,
+})
+```
+
+Automatic saving is useful during normal progress, but the write may still be pending when your code continues. Call `save()` when the next operation depends on the snapshot already being durable. It writes the current snapshot immediately and waits for the store.
+
+Set `autoSave: 'off'` if your application wants full control and will call `save()` itself.
+
+Core's `createMemoryStore()` is useful for tests and examples. It loses everything when the process stops, so it does not demonstrate restart safety by itself.
+
+Implement the small `Store` interface for your database when one process at a time owns each run. The interface needs `get`, `set`, and `delete` for one snapshot per key.
+
+Core storage does not coordinate competing processes. Use [`@openwizard/durable`](/packages/durable) when several workers may try to run commands or timers for the same key. Use [`@openwizard/drizzle`](/packages/drizzle) to store that durable data in PostgreSQL or SQLite.
+
+## Keep saved state serializable
+
+Before a write, OpenWizard checks that the snapshot can survive a JSON round trip. Do not put functions, class instances, `Map`, database clients, or unhandled `Date` objects in context or step outputs.
+
+Store a date as an ISO string unless a schema boundary parses it back into a `Date` during resume. Put service clients in `deps`, which are not part of the snapshot. Pass the same dependency shape again when you call `resumeRun()`.
+
+If a value is not serializable, the write fails with `SNAPSHOT_NOT_SERIALIZABLE` and identifies its path. OpenWizard does this before calling the store so a broken snapshot does not silently replace a good one.

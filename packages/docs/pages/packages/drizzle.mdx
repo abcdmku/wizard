@@ -1,0 +1,27 @@
+# Drizzle storage
+
+`@openwizard/drizzle` stores the coordination data required by [`@openwizard/durable`](/packages/durable). It supports PostgreSQL and asynchronous SQLite drivers through Drizzle ORM.
+
+Use this package when separate workers must coordinate ownership through a shared database. It is not required for a core run that only needs a simple snapshot store.
+
+```sh
+npm install @openwizard/drizzle @openwizard/durable drizzle-orm
+```
+
+Define the OpenWizard tables inside your application's Drizzle schema:
+
+```ts file="packages/docs/snippets/packages/drizzle.ts"
+```
+
+The helper returns table definitions. It does not create those tables in the database. Continue through the normal Drizzle workflow:
+
+1. Export these tables from your schema module.
+2. Generate and run a migration.
+3. Create your Drizzle database connection.
+4. Pass the database connection and the same table definitions to `createSqliteDrizzleDurableStore()` or `createPgDrizzleDurableStore()`.
+
+The durable store then uses those tables for snapshots, leases, deduplicated commands, and claimed timers. OpenWizard does not open the database connection, generate migrations, or run migrations for you.
+
+Choose a `tablePrefix` that will not collide with other tables in the schema. Keep the generated tables together so application migrations update the durable contract as one unit.
+
+[Drizzle API lookup](/api/drizzle)

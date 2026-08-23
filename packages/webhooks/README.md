@@ -1,52 +1,25 @@
 # @openwizard/webhooks
 
-`@openwizard/webhooks` connects a flow to authenticated REST, signed input events, and signed
-outgoing run events.
+Signed incoming events, authenticated run APIs, and signed outgoing callbacks.
 
 ```sh
-pnpm add @openwizard/webhooks @openwizard/core
+npm install @openwizard/webhooks @openwizard/core
 ```
-
-| Feature | Direction | Contract |
-|---|---|---|
-| run API | API client to run | selected reads and commands |
-| incoming webhook | sender to run | input events declared by the flow |
-| outgoing webhook | run to callback | automatic events emitted by the run |
-
-## Outgoing run events
-
-The [run API guide](../docs/pages/integrations/run-api.mdx) defines `Principal` and `orderFlow`.
-The host supplies the same auth provider and its persistent webhook store.
 
 ```ts
-import {
-  createWebhookSubscriptions,
-  type ScopeProvider,
-  type WebhookStore,
-} from '@openwizard/webhooks'
-import type { Principal } from './auth'
-import { orderFlow } from './order-flow'
+import { defineWebhook } from '@openwizard/webhooks'
 
-export function createOrderWebhooks(
-  auth: ScopeProvider<Principal>,
-  store: WebhookStore,
-) {
-  return createWebhookSubscriptions(orderFlow, {
-    events: ['flow.done', 'flow.failed'],
-    store,
-    api: { auth },
-  })
-}
+const resource = defineWebhook({
+  flow,
+  event: 'payment.received',
+  secret,
+  resolveRun,
+})
 ```
 
-The flow supplies the event names and payload types. Use a short event list because inheriting
-every raw run event may expose context, input, output, command, and error data.
+Pass an incoming `Request` to `resource.handle(request)`. The resource verifies its signature before sending the event to a run.
 
-Read the [HTTP registry](../docs/pages/integrations/webhooks.mdx),
-[run API](../docs/pages/integrations/run-api.mdx),
-[incoming webhook](../docs/pages/integrations/incoming-webhooks.mdx), and
-[outgoing webhook](../docs/pages/integrations/outgoing-webhooks.mdx) guides in that order. Their
-examples define every local import and compile as part of the documentation build.
+Read the [webhooks package guide](../docs/pages/packages/webhooks.mdx).
 
 ## Exports
 

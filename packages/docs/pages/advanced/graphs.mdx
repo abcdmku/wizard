@@ -1,0 +1,42 @@
+# Run a graph instead of a fixed sequence
+
+Some workflows are not a straight line. Two tasks may run together, an optional branch may be skipped, and a later step may require both branches before it starts.
+
+The ingest example fans out into normalization and enrichment, joins them at a decision, then stores or quarantines the batch:
+
+```text
+                         /-> normalize --\
+ingest ----------------<                 >-> gate -> persist -> done
+                         \-> enrich ----/       \-> quarantine
+```
+
+```ts file="examples/07-dag-pipeline/src/pipeline.ts"
+```
+
+## Fan-out and join are separate decisions
+
+Returning `next: ['normalize', 'enrich']` makes both branches ready. It does not say when `gate` may run.
+
+`dependsOn: ['normalize', 'enrich']` defines the join. Both branches can arrive at `gate`, but the decision stays blocked until both dependencies are `done` or `skipped`.
+
+This separation handles branches that finish in either order. `run.explain('gate')` reports the exact missing dependency while it waits.
+
+## Concurrency is a budget
+
+`concurrency: 2` allows two task functions to run at once for one run. If five tasks become ready, three remain ready until a slot opens. Views and wait steps do not consume this task budget.
+
+Set `autoRun: 'manual'` when a worker pool should choose when ready tasks start. `runReady()` starts ready work up to the concurrency limit, while `run('stepId')` targets one ready task.
+
+## Optional work still satisfies the join
+
+The `enrich` task has a `when` predicate. When enrichment is off, OpenWizard marks it `skipped` and lets it satisfy `dependsOn`. The branch did not run, but the graph can still reach `gate`.
+
+An operator can also call `skip()` on ready or active work. Skipping an active task aborts its signal and ignores a late result. Use this for an optional integration that should not block the whole run.
+
+## Invalidation reruns derived work
+
+`invalidate('normalize')` moves a completed step back to `idle`. With the default cascading behavior, completed transitive dependents return to `idle` too. The old output moves to `previousOutput` so an interface can compare the last result while recomputation runs.
+
+Invalidation is explicit. OpenWizard never guesses that a context change makes an old output stale. Your application decides which step to invalidate and whether to cascade.
+
+Parallel tasks share context, so design branches to update different fields or make the merge order irrelevant. The runtime sequences committed updates, but it cannot decide which competing business value should win.

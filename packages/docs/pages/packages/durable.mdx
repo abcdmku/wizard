@@ -1,0 +1,28 @@
+# Durable runs
+
+A core store saves snapshots but assumes one live process controls each run. That assumption breaks when two server instances handle commands for the same order or two workers wake the same timer.
+
+`@openwizard/durable` coordinates those processes. A worker must hold a time-limited lease before it changes a run. Fencing prevents an old lease holder from writing after a newer owner takes over. Command ids prevent the same request from being applied twice, and timer claims prevent two workers from firing one timer.
+
+```sh
+npm install @openwizard/durable @openwizard/core
+```
+
+This local example opens a durable host with the in-memory durable store:
+
+```ts file="packages/docs/snippets/packages/durable.mts"
+```
+
+`key: 'hello-1'` identifies the durable run. `ownerId: 'worker-a'` identifies the process trying to own it. On success, `opened.host.run` is the normal typed core run, and the host keeps its lease and persistence rules around it.
+
+`createDurableRun()` may return `LEASE_BUSY` when another worker owns the key. That is expected contention, not corrupted state. Do not run the command outside the durable host. Retry at or after the returned `retryAt` time.
+
+The in-memory durable store only demonstrates the contract in one process. It cannot coordinate separate machines. Use a database implementation in production. [`@openwizard/drizzle`](/packages/drizzle) provides PostgreSQL and SQLite adapters.
+
+Durable execution is at-least-once. A worker can call an outside service successfully and crash before saving the result. The next owner may run that task again. Pass OpenWizard's idempotency key to the outside service and make that service reject or reuse duplicate requests.
+
+Call `host.dispose()` when the worker is finished. It waits for in-flight persistence barriers, stops lease renewal, and releases the lease.
+
+Read [multi-worker durability](/advanced/durability) for the lease, fencing, compare-and-swap, deduplication, failover, and timer-claim model.
+
+[Durable API lookup](/api/durable)

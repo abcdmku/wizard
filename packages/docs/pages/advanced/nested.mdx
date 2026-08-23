@@ -1,0 +1,36 @@
+# Give a subsystem its own run
+
+A child flow is useful when one stage has its own navigation, tasks, tests, timers, or reuse. It is more than a function call. The child has a run id, state, context, snapshot, and event path inside its parent.
+
+The order example pays in the parent, runs fulfilment as a child flow, and copies the child's tracking output back into parent context:
+
+```ts file="examples/06-nested-flow/src/order.ts"
+```
+
+## The boundary between parent and child is explicit
+
+The parent `flow` step maps its context into the child's starting context. The child parses that value with its own schema. Dependencies pass through unchanged by default, or the parent can map a different dependency object.
+
+The child cannot silently read or mutate parent context. When it finishes, its typed final output becomes the parent flow step's output. The parent's `exit` hook decides what to copy back.
+
+This boundary makes reuse honest. A fulfilment flow can run under several parents without assuming their context shapes.
+
+## Parent state includes a child summary
+
+While the child is live, `run.child('fulfil')` returns its typed `FlowRun`. The parent step also stores a child summary with status and current view.
+
+`getSnapshot()` stores the full active child snapshot under the parent step id. Resuming the parent restores the child and its remaining timers. Disposing the parent disposes its children.
+
+## Event paths identify the emitting run
+
+Root events have `path: []`. Events forwarded from the fulfilment child have `path: ['fulfil']`. Deeper nesting appends more step ids.
+
+```ts
+run.observe((event) => {
+  console.log(event.path, event.type)
+})
+```
+
+Use `isChildEvent(event)` when TypeScript needs to narrow a `RunEvent` to the child event family. The path lets logs and devtools show where a repeated step id came from.
+
+Use a normal task when the child would contain one function and no independent lifecycle. A nested run is valuable only when that separation buys reuse, state ownership, or recovery.

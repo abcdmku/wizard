@@ -1,43 +1,14 @@
 # @openwizard/effect
 
-Effect 3 task adapters for OpenWizard. The core runtime stays independent of Effect.
-
-## Install
+Run Effect 3 programs as OpenWizard tasks.
 
 ```sh
-pnpm add @openwizard/core @openwizard/effect effect zod
+npm install @openwizard/effect effect@^3.22.1
 ```
 
-## Example
+`makeEffectRunner()` turns an Effect program into a function accepted by `flow.task()`.
 
-```ts
-import { defineFlow } from '@openwizard/core'
-import { makeEffectRunner } from '@openwizard/effect'
-import { Effect, Layer } from 'effect'
-import { z } from 'zod'
-
-const effects = makeEffectRunner(Layer.empty)
-const checkout = defineFlow({
-  name: 'checkout',
-  context: z.object({ orderId: z.string() }),
-})
-
-const checkoutFlow = checkout.steps({
-  charge: checkout.task(
-    effects.task(
-      ({ context }) => Effect.succeed({ charged: context.orderId }),
-      {
-        output: z.object({ charged: z.string() }),
-        error: z.never(),
-      },
-    ),
-  ),
-})
-```
-
-The adapter validates Effect success and typed failure values before the runtime stores them. OpenWizard still owns retries and cancellation.
-
-Read the [Effect 3 integration](../docs/pages/integrations/effect.mdx) and the [Effect API](../docs/pages/api/effect.mdx).
+Read the [Effect 3 package guide](../docs/pages/packages/effect.mdx).
 
 ## Exports
 
@@ -56,4 +27,3 @@ Read the [Effect 3 integration](../docs/pages/integrations/effect.mdx) and the [
 | `makeEffectRunner` | function | Create an Effect 3 task runner from a managed runtime or closed Layer. | [src](../../packages/effect/src/runner.ts#L233) |
 
 <!-- exports:end -->
-

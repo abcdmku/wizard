@@ -1,7 +1,7 @@
 {
   "name": "@openwizard/webhooks",
   "version": "0.1.0-next.0",
-  "description": "Incoming receivers, outbound subscriptions, and authenticated HTTP APIs for OpenWizard flows.",
+  "description": "HTTP APIs, signed incoming events, and signed callbacks for OpenWizard runs.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

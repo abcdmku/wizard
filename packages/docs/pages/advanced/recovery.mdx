@@ -1,0 +1,52 @@
+# Retry work without losing the history
+
+A retry loop can make a flaky call succeed. Production recovery needs more information than that. You need to know the current attempt, the next deadline, the error safe to persist, and whether a crash makes another call safe.
+
+The invoice example sends one logical write to a ledger. It combines four controls on the same task:
+
+```ts file="examples/02-recoverable-failure/src/sync-invoice.ts"
+```
+
+## Retry deadlines are run state
+
+`attempts: 3` means one initial call plus three retries. Exponential backoff uses 200 ms, 400 ms, and 800 ms with the default settings.
+
+After a failure, the step remains active with `phase: 'retrying'`. Its `retryAt` deadline appears in state and in a `step.retryScheduled` event. Saving the run saves that deadline. A resumed run re-arms the remaining timer instead of starting a fresh delay.
+
+Nothing calls the ledger before the deadline. A test can prove the exact schedule with `createTestScheduler()` instead of sleeping.
+
+## Typed error data survives storage
+
+Raw JavaScript errors are inconsistent and may contain data you should not persist. `mapError` converts the thrown value into a small application type:
+
+```ts
+{ code: 'LEDGER_UNAVAILABLE', attempt: 4 }
+```
+
+OpenWizard stores that value at `state.steps.post.error.data`. The exported `ErrorOf<typeof flow, 'post'>` type lets a UI or operator tool handle it without casting.
+
+The original serialized error message remains available for diagnostics. The mapped data is the stable contract your application can branch on.
+
+## A crash creates an ambiguity
+
+Consider this order of events:
+
+```text
+ledger accepts request -> worker crashes -> success was never saved
+```
+
+No workflow engine can infer whether the ledger applied the request. OpenWizard gives every task attempt an `idempotencyKey`. Marking a task `idempotent` also tells resume that it may reissue an interrupted call with the same key.
+
+The ledger must enforce that key. If it stores the first result under `invoice:INV-7`, the second call can return the same result without posting the invoice twice.
+
+For a non-idempotent task found in `active` state after a crash, resume marks the step as `failed` with `kind: 'interrupted'`. The host must inspect the outside system and decide whether to call `retry()`.
+
+## A recoverable halt keeps the evidence
+
+When automatic retries run out, the default failure policy halts the run. It does not erase the step output, attempt count, error, or log. An operator can repair the dependency and call:
+
+```ts
+const retried = await run.retry('post')
+```
+
+That starts a new retry cycle for the failed task. Use [compensation](/advanced/compensation) when a terminal failure should undo earlier completed side effects instead of waiting for repair.

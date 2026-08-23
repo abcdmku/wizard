@@ -1,0 +1,11 @@
+{
+  "index": "Start here",
+  "mental-model": "Mental model",
+  "steps": "Steps",
+  "input": "Input and validation",
+  "results": "Results and state",
+  "failures": "Failures and retries",
+  "events": "Events and waiting",
+  "persistence": "Save and resume",
+  "testing": "Testing"
+}

@@ -1,7 +1,7 @@
 {
   "name": "@openwizard/core",
   "version": "0.1.0-next.0",
-  "description": "Typed flow authoring and runtime for servers, browsers, and edge workers.",
+  "description": "Define TypeScript workflows and run them. Wait, retry, save, and resume.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

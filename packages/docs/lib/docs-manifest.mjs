@@ -85,7 +85,7 @@ export function buildDocsManifest(docsRoot) {
       continue
     }
     if (value && typeof value === 'object') {
-      // A section folder: "concepts": { "title": "Concepts" } — ordered by pages/concepts/_meta.json
+      // A section folder: "learn": { "title": "Learn" }, ordered by pages/learn/_meta.json.
       const sectionId = key
       const sectionMeta = readJson(resolve(pagesRoot, sectionId, '_meta.json')) ?? {}
       const slugs = []

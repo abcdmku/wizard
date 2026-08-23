@@ -1,17 +1,12 @@
-# 09: Mermaid
+# Example 09: Mermaid diagram
 
-This program turns `inspect(flow)` into a deterministic Mermaid diagram. It shows steps, edges,
-timeouts, decisions, joins, and nested flows without running the flow. See
-[Run events](../../packages/docs/pages/concepts/observability.mdx) for `inspect()`.
-
-Source: [flow](./src/checkout.ts), [renderer](./src/main.ts),
-[test](./src/mermaid.test.ts).
-
-## Run
+Inspect a flow and print a Mermaid flowchart.
 
 ```sh
 pnpm --filter example-09-mermaid start
 pnpm --filter example-09-mermaid check
 ```
 
-Next: [10: Devtools](../10-devtools).
+`src/checkout.ts` defines the flow. `src/main.ts` passes it through `inspect()` and `toMermaid()`.
+
+The output is text. Paste it into any Mermaid renderer or store it with generated documentation.

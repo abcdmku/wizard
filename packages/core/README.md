@@ -1,50 +1,30 @@
 # @openwizard/core
 
-The typed runtime for defining and running OpenWizard flows. It has no database, UI, or web
-framework dependency.
-
-## Install
+Define a workflow, create one run, and control it with typed commands.
 
 ```sh
-pnpm add @openwizard/core zod
+npm install @openwizard/core zod
 ```
-
-## Example
 
 ```ts
 import { createRun, defineFlow } from '@openwizard/core'
 import { z } from 'zod'
 
-const order = defineFlow({
-  name: 'order',
-  context: z.object({ orderId: z.string() }),
+const hello = defineFlow({
+  name: 'hello',
+  context: z.object({ name: z.string() }),
+})
+const helloFlow = hello.steps({
+  done: hello.final({ output: ({ context }) => `Hello, ${context.name}!` }),
 })
 
-const orderFlow = order.steps(
-  {
-    prepare: order.task(
-      ({ context }) => ({ prepared: context.orderId }),
-      { next: 'done' },
-    ),
-    done: order.final({
-      output: ({ context }) => ({ orderId: context.orderId }),
-    }),
-  },
-  { start: 'prepare' },
-)
-
-const run = createRun(orderFlow, { context: { orderId: 'order-42' } })
+const run = createRun(helloFlow, { context: { name: 'Ada' } })
 await run.start()
-
-const result = await run.awaitResult()
-if (result.status === 'done') console.log(result.output)
+console.log(await run.awaitResult())
+run.dispose()
 ```
 
-The flow definition supplies the step ids, inputs, outputs, commands, and run event types.
-
-Read [getting started](../docs/pages/getting-started.mdx) and the
-[core concepts](../docs/pages/concepts/index.mdx). See the
-[core API](../docs/pages/api/core.mdx) for exact signatures.
+Read [getting started](../docs/pages/getting-started.mdx) and the [core package guide](../docs/pages/packages/core.mdx).
 
 ## Exports
 

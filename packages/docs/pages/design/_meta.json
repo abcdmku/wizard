@@ -1,8 +1,0 @@
-{
-  "index": "Decisions",
-  "architecture-plan": "Architecture plan",
-  "machine-spec": "Machine specification",
-  "adr-000-engine-and-no-modes": "ADR-000 · Engine and no modes",
-  "adr-001-type-strategy": "ADR-001 · Type strategy",
-  "adr-002-deployment-artifacts": "ADR-002 · Deployment artifacts"
-}

@@ -1,7 +1,0 @@
-{
-  "index": "Overview",
-  "human-form": "Collect form input",
-  "order-workflow": "Receive an order event",
-  "durability": "Resume on another worker",
-  "deployment": "Deploy a host"
-}

@@ -2,7 +2,7 @@
   "name": "openwizard-monorepo",
   "private": true,
   "version": "0.0.0",
-  "description": "A typed TypeScript runtime for long-running, event-driven flows.",
+  "description": "TypeScript workflows that wait, retry, and resume.",
   "license": "MIT",
   "repository": {
     "type": "git",

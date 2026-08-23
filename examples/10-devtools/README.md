@@ -1,19 +1,12 @@
-# 10: Devtools
+# Example 10: devtools
 
-This Vite app opens the parallel pipeline from example 07 in the OpenWizard devtools. The panel
-shows live graph status, the committed event log, step details, and timeline replay. Read
-[Run events](../../packages/docs/pages/concepts/observability.mdx) for the data behind the panel.
-
-Source: [flow](./src/pipeline.ts), [run](./src/wizard.ts), [UI](./src/App.tsx),
-[test](./src/app.test.tsx).
-
-## Run
+Inspect a live pipeline in the OpenWizard React devtools.
 
 ```sh
 pnpm --filter example-10-devtools dev
 pnpm --filter example-10-devtools check
 ```
 
-Press `Ctrl+Shift+D` to toggle the panel.
+`src/pipeline.ts` defines the flow. `src/wizard.ts` creates its run. `src/App.tsx` renders the run and the `Devtools` panel.
 
-Next: [11: Backend order workflow](../11-order-workflow).
+Open the panel to view the graph, event log, step details, and replay timeline.

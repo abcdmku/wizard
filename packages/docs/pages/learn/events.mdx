@@ -1,0 +1,59 @@
+# How a run waits for another system
+
+A task is for work the current process can start. A `wait` step is for work that must happen somewhere else first.
+
+For example, an approval request may stay open until a webhook, queue consumer, or administrator reports who approved it. The run should remember that it is waiting without repeatedly calling the outside system.
+
+```ts file="packages/docs/snippets/learn/events.mts"
+```
+
+There are two connected parts in the example:
+
+1. The flow header declares an event named `approved` and a schema for its payload.
+2. The `waitForApproval` step registers a handler for that event.
+
+After `start()`, the wait step is active and the run status is `waiting`. Calling `run.send('approved', { by: 'Grace' })` follows this path:
+
+1. OpenWizard parses the payload with the declared event schema.
+2. It finds the active step listening for `approved`.
+3. The handler copies `payload.by` into context.
+4. The wait step finishes and follows `next: 'done'`.
+
+`send()` returns which steps received the event and whether OpenWizard buffered it. The method returning `ok: true` means routing succeeded. Read run state or the final result to see what the handler caused.
+
+## Invalid payloads
+
+This payload is rejected because the `approved` schema requires `by`:
+
+```ts
+const result = await run.send('approved', {})
+
+if (!result.ok) console.error(result.issues)
+```
+
+The handler never sees invalid data. The wait remains active, so a later valid event can still complete it.
+
+## An event can arrive before the wait starts
+
+Real events do not always arrive in the order your code expects. A webhook might reach your server while the run is still on an earlier form step.
+
+OpenWizard buffers a valid event with no active listener by default. The default time to live is five minutes. If a matching wait becomes active before the entry expires, OpenWizard delivers the oldest matching buffered event to it.
+
+Choose the buffer window based on how long an early event is still useful to your application:
+
+```ts
+defineFlow({
+  name: 'approval',
+  context: schema,
+  events,
+  unmatchedEvents: { buffer: true, ttl: '30m' },
+})
+```
+
+Set `buffer: false` when delivering an event before its listener should be an error. In that case, `send()` returns a dropped result instead of saving the event.
+
+## Route shared event streams to the right run
+
+If one queue or webhook route carries events for many runs, give each event a `correlationId`. Define the flow's `correlate` function for that event so a run accepts only the id that belongs to it. This prevents an approval for one order from completing another order's wait step.
+
+Correlation chooses the run. The event schema still checks the payload, and the active wait step still decides whether it handles that event name.

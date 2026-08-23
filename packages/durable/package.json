@@ -1,7 +1,7 @@
 {
   "name": "@openwizard/durable",
   "version": "0.1.0-next.0",
-  "description": "OpenWizard storage and coordination contracts for leases, fencing, snapshot CAS, idempotency, and durable timer claims.",
+  "description": "Leases and storage so more than one worker can own a saved OpenWizard run.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

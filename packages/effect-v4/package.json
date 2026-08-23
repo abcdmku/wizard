@@ -1,7 +1,7 @@
 {
   "name": "@openwizard/effect-v4",
   "version": "0.1.0-next.0",
-  "description": "Effect 4 beta integration for OpenWizard FlowRun tasks.",
+  "description": "Run Effect 4 beta programs as OpenWizard tasks.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,

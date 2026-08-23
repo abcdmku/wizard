@@ -1,31 +1,40 @@
-# Examples
+# Runnable examples
 
-These workspace packages turn the concepts into runnable code. Read them in order, or jump to the
-first topic you need.
-
-| Example | Covers |
-|---|---|
-| [01: Happy path](/examples/01-happy-path) | one view, one task, validation, and a final result |
-| [02: Recoverable failure](/examples/02-recoverable-failure) | retries, idempotency, typed errors, and virtual time |
-| [03: Compensation](/examples/03-non-recoverable-compensation) | reverse-order cleanup after a failure |
-| [04: Resume from snapshot](/examples/04-resume-from-snapshot) | save, stop, resume, restore timers, and migrate |
-| [05: Input events](/examples/05-external-events) | typed input events, buffering, timeouts, and correlation |
-| [06: Nested flow](/examples/06-nested-flow) | child runs, commands, events, snapshots, and mirrors |
-| [07: Parallel work](/examples/07-dag-pipeline) | branches, joins, concurrency, skipping, and `explain()` |
-| [08: React and Mirror](/examples/08-react-mirror) | a projected run over a serialized loopback transport |
-| [09: Mermaid](/examples/09-mermaid) | rendering a static flow graph |
-| [10: Devtools](/examples/10-devtools) | graph, events, inspector, and timeline in a live app |
-| [11: Backend order workflow](/examples/11-order-workflow) | retries, events, persistence, and compensation together |
-| [12: Pulumi database binding](/examples/12-pulumi-infrastructure) | validating stack configuration and preserving a secret URL |
-| [13: Deployment artifacts](/examples/13-deployment-artifacts) | building one Nitro host for seven runtime targets |
-
-From the repository root:
+Run an example from the repository root:
 
 ```sh
-pnpm install
-pnpm build
-pnpm examples
+pnpm --filter example-01-happy-path start
 ```
 
-Each page links the exact source and test. Examples 01 through 07, 09, and 11 also run in the
-[playground](/playground).
+Replace the package name with the example you want. Run its test and type check with `check`:
+
+```sh
+pnpm --filter example-01-happy-path check
+```
+
+## Start here
+
+| Example | What the code proves | Try it |
+|---|---|---|
+| `01-happy-path` | The smallest flow and run | [Playground](/playground?example=01-happy-path) |
+| `02-recoverable-failure` | Timed retries and a later manual retry | [Playground](/playground?example=02-recoverable-failure) |
+| `04-resume-from-snapshot` | Save, dispose, resume, and continue | [Playground](/playground?example=04-resume-from-snapshot) |
+| `05-external-events` | Validate, correlate, buffer, and deliver events | [Playground](/playground?example=05-external-events) |
+
+## Read after the basics
+
+| Example | Topic | Try it |
+|---|---|---|
+| `03-non-recoverable-compensation` | Undo completed work after a later task fails | [Playground](/playground?example=03-non-recoverable-compensation) |
+| `06-nested-flow` | Parent and child runs | [Playground](/playground?example=06-nested-flow) |
+| `07-dag-pipeline` | Parallel tasks and a join | [Playground](/playground?example=07-dag-pipeline) |
+| `08-react-mirror` | React over a projected browser mirror | Run locally |
+| `09-mermaid` | Turn a flow into Mermaid text | [Playground](/playground?example=09-mermaid) |
+| `10-devtools` | Inspect a live run in React | Run locally |
+| `11-order-workflow` | A larger order workflow | [Playground](/playground?example=11-order-workflow) |
+| `12-pulumi-infrastructure` | Bind deployment resources with Pulumi | Run locally |
+| `13-deployment-artifacts` | Build host artifacts for several providers | Run locally |
+
+Each example keeps its flow, runner, and tests in its own `examples/<name>/src` folder. Read the flow file first, then `main.ts`, then the test.
+
+Example 11 is the best place to see several production features working together. The [advanced overview](/advanced) explains why each part exists before you read the full order code.

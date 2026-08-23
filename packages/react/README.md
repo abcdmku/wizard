@@ -1,46 +1,21 @@
 # @openwizard/react
 
-Typed React hooks for a local `FlowRun` or a client-side `Mirror`.
-
-## Install
+React hooks for a local run or a browser mirror of a server run.
 
 ```sh
-pnpm add @openwizard/core @openwizard/react react
+npm install @openwizard/react react
 ```
 
-## Example
-
-The [run API guide](../docs/pages/integrations/run-api.mdx) defines the `orderFlow` used here.
-
 ```tsx
-import type { FlowRun } from '@openwizard/core'
 import { bindReact } from '@openwizard/react'
 import type { orderFlow } from './order-flow'
 
-const orderUI = bindReact<typeof orderFlow>()
-
-export function Order({
-  run,
-}: {
-  run: FlowRun<typeof orderFlow>
-}) {
-  return (
-    <orderUI.Provider source={run}>
-      <Status />
-    </orderUI.Provider>
-  )
-}
-
-function Status() {
-  const status = orderUI.useSelector((state) => state.status)
-  return <output>{status}</output>
-}
+export const order = bindReact<typeof orderFlow>()
 ```
 
-Bind a flow for an in-process run. Bind a projection when the browser connects to a server-owned
-run through a `Mirror`.
+Render `order.Provider` above components that call `order.useSnapshot()`, `order.useStep()`, or `order.useActions()`.
 
-Read the [React integration](../docs/pages/integrations/react.mdx) and the [React API](../docs/pages/api/react.mdx).
+Read the [React package guide](../docs/pages/packages/react.mdx).
 
 ## Exports
 

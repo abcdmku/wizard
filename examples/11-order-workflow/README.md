@@ -1,18 +1,14 @@
-# 11: Backend order workflow
+# Example 11: order workflow
 
-This order flow reserves inventory, charges with retry and idempotency, requests fulfilment, waits
-for a typed shipment event, saves snapshots, and compensates a later failure. The
-[order event guide](../../packages/docs/pages/guides/order-workflow.mdx) introduces the wait step
-used here.
-
-Source: [flow](./src/order-workflow.ts), [walkthrough](./src/main.ts),
-[test](./src/order-workflow.test.ts).
-
-## Run
+A larger backend example with inventory, payment, fulfilment, a shipment event, saved state, retries, and compensation.
 
 ```sh
 pnpm --filter example-11-order-workflow start
 pnpm --filter example-11-order-workflow check
 ```
 
-Next: [12: Pulumi database binding](../12-pulumi-infrastructure).
+Read `src/order-workflow.ts` one step at a time. External services live in `deps`; saved business data lives in context. Each remote write receives an idempotency key.
+
+Read `src/main.ts` after the flow. It supplies fake services, starts the run, saves it, and sends the shipment event.
+
+Use examples 01 through 05 before this one.

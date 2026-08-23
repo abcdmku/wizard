@@ -1,0 +1,56 @@
+# How a view collects and validates input
+
+A task can finish without asking anyone for help. A form cannot. A `view` step represents that pause in the workflow.
+
+This signup flow starts at a view named `contact`. The run stays there until the application supplies a valid email and calls `next()`.
+
+```ts file="packages/docs/snippets/learn/form.ts"
+```
+
+## The draft and context have different jobs
+
+The view's `input` schema describes its draft. The draft belongs to the `contact` step while the user edits it. It is separate from the run's shared context.
+
+OpenWizard checks the draft when `next()` tries to leave the view. If it passes, the parsed value becomes the view step's `output`. The `exit` hook then copies `output.email` into context with `update()` because the final step needs it later.
+
+Keeping unfinished input out of context prevents later steps from reading an email before validation succeeds.
+
+## Drive the view from your application
+
+```ts file="packages/docs/snippets/learn/run-form.mts"
+```
+
+The calls have separate responsibilities:
+
+1. `start()` enters `contact`. The run status becomes `waiting` and `state.current` becomes `'contact'`.
+2. `setInput('contact', patch)` shallow-merges a patch into that view's draft. This lets a UI save one changed field at a time.
+3. `next()` parses the full draft with the Zod schema. If it is valid, the view exits and the run follows `next: 'done'`.
+4. The final step reads the email from context and finishes the run.
+
+`setInput()` does not mean "submit the form." It stores a draft. `next()` is the operation that tries to leave the current view.
+
+## Handle invalid input without an exception
+
+If the email is invalid, `next()` returns a result with `ok: false` and validation issues:
+
+```ts
+const moved = await run.next()
+
+if (!moved.ok) {
+  console.log(moved.code)
+  console.log(moved.issues)
+}
+```
+
+The run stays on `contact`, the `exit` hook does not run, and the invalid value is not copied into context. A UI can display the issues and let the user edit the same draft.
+
+## Where data gets checked
+
+The runtime checks data at boundaries where values enter trusted flow state:
+
+- `createRun()` checks the starting context.
+- `next()` checks a view draft.
+- `send()` checks an event payload.
+- A task can check a service response with an `output` schema before storing it.
+
+Use `boundary.trusted<Type>()` only when your application constructed and checked the value before passing it to OpenWizard. It supplies a TypeScript type but performs no runtime validation.

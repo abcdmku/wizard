@@ -1,45 +1,22 @@
 # @openwizard/opentelemetry
 
-OpenTelemetry spans for a live OpenWizard run. The package observes committed run events. It does
-not configure an SDK or exporter.
-
-## Install
+Create OpenTelemetry spans from the events a run records.
 
 ```sh
-pnpm add @openwizard/core @openwizard/opentelemetry @opentelemetry/api
+npm install @openwizard/opentelemetry @opentelemetry/api
 ```
-
-## Example
-
-The [order flow from the run API guide](../docs/pages/integrations/run-api.mdx) supplies the
-`orderFlow` type used here.
 
 ```ts
-import type { FlowRun } from '@openwizard/core'
 import { instrumentRun } from '@openwizard/opentelemetry'
-import { trace } from '@opentelemetry/api'
-import type { orderFlow } from './order-flow'
 
-export async function runWithTracing(
-  run: FlowRun<typeof orderFlow>,
-) {
-  const telemetry = instrumentRun(run, {
-    tracer: trace.getTracer('order-service'),
-  })
-
-  try {
-    await run.start()
-    return await run.awaitResult()
-  } finally {
-    telemetry.stop()
-  }
-}
+const telemetry = instrumentRun(run)
+await run.start()
+telemetry.stop()
 ```
 
-Attach instrumentation before starting the run. The default spans omit payloads, outputs, and
-error messages.
+The package does not configure an OpenTelemetry SDK or exporter.
 
-Read the [OpenTelemetry integration](../docs/pages/integrations/opentelemetry.mdx) and the [OpenTelemetry API](../docs/pages/api/opentelemetry.mdx).
+Read the [OpenTelemetry package guide](../docs/pages/packages/opentelemetry.mdx).
 
 ## Exports
 

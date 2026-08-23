@@ -1,0 +1,50 @@
+# Keep one effective owner across workers
+
+Saving a snapshot does not stop two workers from loading it and both charging the customer. Multi-worker execution needs coordination around the run, not only storage underneath it.
+
+`@openwizard/durable` puts five checks around a core run:
+
+1. A lease gives one owner temporary control of a key.
+2. A fencing token stops an expired owner from committing after a replacement takes over.
+3. Compare-and-swap checks the expected `{ epoch, seq }` before replacing a snapshot.
+4. Command and event ids store completed results for duplicate requests.
+5. Timer claims stop two workers from firing the same persisted deadline.
+
+This tested docs example applies one command, replays its duplicate result, and rejects a second owner while the lease is live:
+
+```ts file="packages/docs/snippets/advanced/durable.ts"
+```
+
+## Expected races return values
+
+Opening a key owned by another worker returns:
+
+```ts
+{ ok: false, code: 'LEASE_BUSY', retryAt }
+```
+
+That is normal contention. Retry after `retryAt` instead of treating it as a server crash.
+
+An external command should go through `host.dispatch()` with a stable `commandId`. The first request returns `status: 'applied'`. A duplicate with the same id and request digest returns the stored result with `status: 'replayed'`. Reusing the id for different content returns `DEDUPLICATE_CONFLICT`.
+
+Pass `expectedVersion` when a client command depends on state it previously read. If another command changed the run first, the durable host returns `CAS_CONFLICT` with the actual version.
+
+## Persistence happens before newly planned effects
+
+The durable host installs a commit barrier in core. After a command changes state, it writes the fenced snapshot before OpenWizard starts any new task, child flow, or timer effect planned by that state.
+
+This ordering prevents a worker from starting work whose ready state was never committed. It does not make the outside task effect atomic with the database write.
+
+## Failover rejects the old owner
+
+When a lease expires, another worker can acquire a new fencing token and resume the record. A late task result from the old owner cannot pass the fence. The old host stops and later commands return `LEASE_LOST`.
+
+An idempotent task interrupted by that failover may run under the new owner with the same task key. This is still at-least-once execution. The remote service must enforce the key.
+
+## Timers use the saved version
+
+A timer claim includes its id, due time, and expected snapshot version. A worker cannot claim a timer before it is due, after another worker claimed it, or after a later snapshot replaced it.
+
+The timer completion marker and the next snapshot commit happen atomically in the durable store. A failover can therefore continue the deadline without two successful firings.
+
+The in-memory durable store only tests this contract in one process. Use [`@openwizard/drizzle`](/packages/drizzle) for PostgreSQL or asynchronous SQLite coordination.

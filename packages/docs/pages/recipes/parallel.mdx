@@ -1,0 +1,36 @@
+# Run work in parallel
+
+Parallel starts help when two pieces of work do not depend on each other. A dashboard can load a profile and recent orders at the same time instead of waiting for one request before starting the other.
+
+```ts file="packages/docs/snippets/recipes/parallel.ts"
+```
+
+The flow has two entry steps because `start` is an array. Calling `run.start()` makes both `loadProfile` and `loadOrders` ready in the same run.
+
+Each task points to `join`, but arrival alone is not enough to run it. The `dependsOn` list keeps `join` blocked until both tasks have finished. The decision then runs once and moves to `done`.
+
+This is the important shape:
+
+```text
+loadProfile --\
+               join -> done
+loadOrders  --/
+```
+
+Without the dependency list, the first completed branch could activate `join` while the other task was still running.
+
+## Limit how many tasks run at once
+
+Starting several branches makes them eligible to run together. Set `concurrency` on `defineFlow()` when your database or outside service needs a limit:
+
+```ts
+const builder = defineFlow({
+  name: 'dashboard',
+  context: schema,
+  concurrency: 2,
+})
+```
+
+With `concurrency: 2`, at most two task steps execute at the same time for that run. Other ready tasks remain queued until a slot opens. The limit does not count views or wait steps because those steps are paused instead of executing task code.
+
+Do not add parallel branches just because two lines of code look independent. Use them when the work is safe to overlap and the later join names the dependency explicitly.

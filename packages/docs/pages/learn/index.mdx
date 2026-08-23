@@ -1,0 +1,16 @@
+# Learn OpenWizard
+
+This section explains what happens inside a run and why each API exists. Read it in order the first time. Each page adds one new behavior to the small flow from the previous page.
+
+1. [How a flow becomes a running workflow](/learn/mental-model) separates the reusable definition from one live run and explains where data lives.
+2. [How steps behave](/learn/steps) shows which steps run automatically, which ones pause, and how `next` links move the run.
+3. [How a view collects and validates input](/learn/input) follows a form draft from `setInput()` through `next()` and into shared context.
+4. [How commands, state, and final results differ](/learn/results) explains the three values applications commonly confuse.
+5. [What happens when a task fails](/learn/failures) follows automatic retries, a halted run, and a later manual retry.
+6. [How a run waits for another system](/learn/events) declares an event, validates its payload, and delivers it to an active wait step.
+7. [How save and resume survive a restart](/learn/persistence) writes a snapshot, disposes the old process object, and creates a new run from stored state.
+8. [How to test public behavior](/learn/testing) checks commands and state without starting a UI or server.
+
+The first four pages are enough to build a local workflow that runs tasks and collects input. Read the later pages when your workflow crosses a process boundary, can fail, or must survive a restart.
+
+The [advanced path](/advanced) continues with the production guarantees behind retries, compensation, graph execution, snapshot migration, multi-worker durability, projections, and replay.

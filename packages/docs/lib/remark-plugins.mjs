@@ -67,16 +67,10 @@ export function remarkCodeFrom({ repoRoot }) {
 function siteRouteFor(repoPath) {
   const path = repoPath.replace(/\/$/, '')
   if (path === 'README.md') return '/getting-started'
-  if (path === 'packages/core/README.md') return '/api/core'
-  if (path === 'packages/react/README.md') return '/api/react'
   if (path === 'examples') return '/examples'
-  if (path === 'DECISIONS.md' || path === 'docs/design/adr') return '/design'
-  if (path === 'docs/design/architecture-plan.md') return '/design/architecture-plan'
-  if (path === 'docs/design/machine-spec.md') return '/design/machine-spec'
-  const adr = path.match(/^docs\/design\/adr\/(ADR-\d+)-([a-z0-9-]+)\.md$/)
-  if (adr) return `/design/${adr[1].toLowerCase()}-${adr[2]}`
-  const example = path.match(/^examples\/(\d\d-[a-z0-9-]+)(?:\/README\.md)?$/)
-  if (example) return `/examples/${example[1]}`
+  const packageReadme = path.match(/^packages\/([a-z0-9-]+)\/README\.md$/)
+  if (packageReadme && packageReadme[1] !== 'docs') return `/packages/${packageReadme[1]}`
+  if (/^examples\/\d\d-[a-z0-9-]+(?:\/README\.md)?$/.test(path)) return '/examples'
   return null
 }
 

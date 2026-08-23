@@ -1,18 +1,12 @@
-# 03: Compensation
+# Example 03: compensate completed work
 
-This trip flow reserves a flight, hotel, and car before payment fails. It demonstrates
-`onFailure: 'compensate'`, typed undo hooks, reverse-order cleanup, and retrying one failed undo.
-Start with [02: Recoverable failure](../02-recoverable-failure), then read
-[Policies](../../packages/docs/pages/concepts/policies.mdx).
-
-Source: [flow](./src/book-trip.ts), [walkthrough](./src/main.ts),
-[test](./src/book-trip.test.ts).
-
-## Run
+Flight, hotel, and car reservations succeed. Payment fails, so the completed reservations are undone in reverse order.
 
 ```sh
 pnpm --filter example-03-non-recoverable-compensation start
 pnpm --filter example-03-non-recoverable-compensation check
 ```
 
-Next: [04: Resume from a snapshot](../04-resume-from-snapshot).
+Read `src/book-trip.ts` first. Each task that can be undone has a `compensate` function. The flow uses `onFailure: 'compensate'`.
+
+`src/main.ts` supplies fake services and prints the unwind order. The test also covers a compensation function that fails and is retried.

@@ -1,18 +1,12 @@
-# 07: Parallel work
+# Example 07: parallel pipeline
 
-This ingest pipeline runs normalization and enrichment together, then joins them before saving.
-It covers parallel `next` targets, `dependsOn`, concurrency limits, manual execution, `when`,
-`skip()`, and `explain()`. Read
-[Parallel work and joins](../../packages/docs/pages/concepts/dag.mdx) for the readiness rules.
-
-Source: [flow](./src/pipeline.ts), [walkthrough](./src/main.ts),
-[test](./src/pipeline.test.ts).
-
-## Run
+Two tasks run at the same time. A join waits for both before the pipeline continues.
 
 ```sh
 pnpm --filter example-07-dag-pipeline start
 pnpm --filter example-07-dag-pipeline check
 ```
 
-Next: [08: React and Mirror](../08-react-mirror).
+Read `src/pipeline.ts` for multiple start steps, `dependsOn`, a condition, and a concurrency limit. `src/main.ts` prints the static graph and advances the virtual clock as each branch finishes.
+
+The test also covers manual task control and a dependency on any one of several steps.
