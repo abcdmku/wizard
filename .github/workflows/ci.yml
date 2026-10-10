@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main, v3]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Build + full verification. The build toolchain (tsdown/unrun) needs Node >= 22;
+  # the published packages support Node >= 20, which the `node20` job proves below.
+  verify:
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Type-test canary (the typecheck harness must fail on a real type error)
+        run: pnpm test:canary
+      - run: pnpm publint
+      - run: pnpm attw
+      - run: pnpm size
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+      - run: pnpm check:api
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+      - run: pnpm check:docs
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+      - run: pnpm check:public-tags
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+      - run: pnpm examples
+      - name: Docs site (typecheck, links, prerender, search index, TypeDoc)
+        run: pnpm --filter @openwizard/docs check
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+      - name: Upload built packages for the Node 20 consumer job
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: packages/*/dist
+          if-no-files-found: error
+
+  # Consume the built packages on Node 20 (the minimum supported runtime): run the
+  # node-environment test suites and the node examples against the artifacts built
+  # above. (jsdom, used by the React/devtools suites and examples 08/10, needs Node 22 —
+  # that is test infrastructure, not the library.)
+  node20:
+    name: ubuntu-latest / node 20 (consumer)
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: packages
+      - run: pnpm vitest run --project core --project examples
+      - run: pnpm -r --filter "./examples/*" --filter "!example-08-react-mirror" --filter "!example-10-devtools" run check

@@ -1,0 +1,31 @@
+/* ---- timeline ---------------------------------------------------------------------------- */
+.owd-timeline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--owd-surface);
+  overflow: auto;
+}
+.owd-timeline-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--owd-border);
+}
+.owd-range {
+  flex: 1 1 auto;
+  accent-color: var(--owd-accent);
+  min-width: 120px;
+}
+.owd-timeline-seq {
+  min-width: 110px;
+  text-align: right;
+  color: var(--owd-subtle);
+}
+.owd-timeline-state {
+  padding: 8px 12px;
+}
+.owd-timeline-state[data-live="true"] .owd-kv-value[data-status] {
+  color: var(--owd-status, inherit);
+}

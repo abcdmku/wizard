@@ -1,0 +1,123 @@
+# Projections and the Mirror
+
+A client never sees the wizard. It sees a **projection** — deny-by-default: only what you list
+crosses the wire — and talks back through one door, `dispatch(command)`, whose payloads are
+decoded from untrusted JSON by `parseCommand`. The **Mirror** is the client half in core: a
+read-only replica of the projected state with the same typed command sugar as `Wizard`, fed by
+frames over any transport you implement.
+
+## `defineProjection(flow, { expose })`
+
+```ts
+import { defineProjection, type ProjectionOutput } from '@openwizard/core'
+
+const checkoutClient = defineProjection(checkout, {
+  expose: {
+    steps: {
+      shipping: { input: true, issues: true }, // the draft and its validation issues
+      reserve: { error: true }, //                 the sanitized error ({ name, message, code?, data? })
+    },
+    context: ['total'], //                        picked context keys
+    output: true, //                              the flow output (a final's `output`)
+    progress: true, //                            { done, total, ratio }
+  },
+})
+type CheckoutClientState = ProjectionOutput<typeof checkoutClient> // ClientState<F, E>
+const state = wizard.project(checkoutClient) // { status, current, context: { total }, output?, progress, steps: { shipping: { input?, issues? } … } }
+```
+
+Per step the flags are `input` / `output` / `issues` / `error` (`ClientStepError`: `{ name,
+message, code? }` plus the task's `mapError` value as `data`, typed `ErrorOf<F, K>`) and, on flow
+steps, `child` (`true` = the compact `{ status, current, progress, seq }` summary; a nested spec =
+the projected child state, deny-by-default inside, up to 8 levels). `ClientState` carries per step
+only `{ id, kind, status, phase?, attempt }` plus exactly what is exposed — the type mirrors the
+object (unexposed = absent, not optional). `SerializedError` never carries a stack.
+
+A `Projection<F, S>` is data a client can import **type-only**; it keeps a reference to its flow
+object, and `wizard.project()` / `createMirrorSource()` accept it for that flow object only
+(`DEFINITION_INVALID` for another flow, even a same-name, same-shape one).
+
+### `select` projections
+
+When the deny-by-default spec is not enough, map the typed wizard state yourself:
+
+```ts
+const summary = defineProjection(checkout, {
+  select: (state) => ({ at: state.current, paid: state.context.paymentId !== undefined }),
+}) // Projection<typeof checkout, { at: 'shipping' | null; paid: boolean }>
+```
+
+`expose` and `select` are mutually exclusive (a compile-time error, `DEFINITION_INVALID` from JS).
+You own the exposure: put nothing in the result that must not cross the wire.
+
+## The wire door: `dispatch` and `parseCommand`
+
+`dispatch(command)` is typed by the flow (`Command<F>`: `go` / `setInput` / `resetInput` take a
+`ViewId` — and `setInput.patch` is that view's `DraftOf` —, `run` / `retry` a `TaskId`, `send` a
+declared event, `child.path` flow steps with the nested command typed by the child flow).
+Untrusted request bodies become a `Command<F>` through `parseCommand(flow, unknown)`: exact
+per-type field allow-lists, JSON-only payloads, child path depth ≤ 8, and every id checked against
+the flow (unknown → issues):
+
+```ts
+import { type Command, parseCommand } from '@openwizard/core'
+
+const decoded = parseCommand(checkout, request.body) // { ok: true, value: Command<typeof checkout> } | { ok: false, issues }
+if (decoded.ok) await wizard.dispatch(decoded.value) // after YOUR authorization — no cast
+// Command<F> = start | next | back | go | setInput | resetInput | send | run | runReady | retry
+//            | cancel | compensate | reset | skip | invalidate | child { path: [flowStep, …], command }
+```
+
+Servers allow-list commands after authentication; the library decodes and types, you authorize.
+
+## The Mirror
+
+`createMirrorSource(wizard, projection)` on the server publishes one `Frame` per commit
+(`{ kind: 'snapshot', instanceId, epoch, seq, state }`) and answers `WireCommand`s
+(`{ commandId, instanceId, expectedSeq?, command }`) with `WireAck`s (`{ commandId, result,
+seq }`) — decoded with `parseWireCommand`, gated by `instanceId` / `expectedSeq` (a mismatch is
+`{ ok: false, code: 'STALE' }` and the client resyncs from the next frame); dispatches are
+serialized so the seq check and the enqueue are one step; hostile input (20 000-deep payloads,
+`__proto__` keys, 64 KiB+ strings) is an `INVALID_COMMAND` value, never a rejection.
+
+`createMirror({ transport })` on the client is a read-only replica with the same typed command
+sugar as `Wizard` (`MirrorCommands`: `start` … `reset`, `skip`, `invalidate`, `send(event,
+payload, { correlationId })`), applying frames through `parseFrame` (malformed frames are ignored,
+a retired instance id never comes back), and rejecting an ack that is not for the command it
+sent. A `Transport<S>` is the one interface a host implements — SSE + POST, WebSocket,
+postMessage; `createLocalTransport` (in `@openwizard/core/testing`) is the in-process loopback.
+
+```ts
+import { createMirror, createMirrorSource } from '@openwizard/core'
+import { createLocalTransport } from '@openwizard/core/testing'
+
+const source = createMirrorSource(wizard, checkoutClient) // server
+const mirror = createMirror<typeof checkoutClient>({
+  transport: createLocalTransport(source, { serialize: true }), // JSON round trip, like a wire
+})
+await mirror.setInput('shipping', { address: '12 Analytical Way' }) // typed by the projection's flow
+mirror.getSnapshot()?.steps.shipping.issues
+```
+
+### Nested flows on the client
+
+Expose the child with a nested spec (`steps: { fulfil: { child: { steps: { pick: { input: true }
+} } } }`) and its projected state rides in `steps.fulfil.child`; `mirror.child('fulfil')` returns a
+`MirrorChild` — the same sugar typed by the CHILD flow, every call wrapped as `{ type: 'child',
+path: ['fulfil'], command }` (nestable: `.child('fulfil').child('pack')`).
+
+```ts
+const fulfil = mirror.child('fulfil') // MirrorChild<typeof fulfilment>
+await fulfil.setInput('pick', { warehouse: 'east' }) // { type: 'child', path: ['fulfil'], command: { type: 'setInput', … } }
+mirror.getSnapshot()?.steps.fulfil.child?.steps.pick.input // the child's projected slice
+```
+
+## Where the pieces live
+
+- Server: the flow module, `createWizard`, `createMirrorSource`, your transport's server side,
+  your authorization in front of `dispatch`.
+- Client: a **type-only** import of the projection, `createMirror`, your transport's client side,
+  the [React binding](/concepts/react).
+- [Example 08](/examples/08-react-mirror) is a Vite + React checkout whose UI touches only a
+  Mirror over a loopback transport (with latency and JSON serialization) — swap the transport for
+  SSE / WS and the UI code does not change.

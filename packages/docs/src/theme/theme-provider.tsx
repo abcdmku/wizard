@@ -1,65 +1,90 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 
-type Theme = 'light' | 'dark'
+export type Theme = 'light' | 'dark' | 'system'
+export type ResolvedTheme = 'light' | 'dark'
 
 interface ThemeContextValue {
-  theme: Theme
-  resolvedTheme: Theme | null
-  ready: boolean
-  setTheme: (theme: Theme) => void
-  toggleTheme: () => void
+  /** The user's choice (`system` follows the OS). */
+  readonly theme: Theme
+  /** What is actually applied; `dark` until hydration when the page was rendered dark. */
+  readonly resolvedTheme: ResolvedTheme
+  readonly setTheme: (theme: Theme) => void
 }
 
+const STORAGE_KEY = 'ow-theme'
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-function getPreferredTheme(): Theme {
-  if (typeof window === 'undefined') {
-    return 'light'
-  }
+/**
+ * Runs before hydration (inlined in `<head>`): applies the stored / OS theme as a class on
+ * `<html>` so the first paint has the right colours. Kept in sync with `applyTheme` below.
+ */
+export const themeBootScript = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');var d=t==='dark'||((t===null||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches);var c=document.documentElement.classList;c.toggle('dark',d);c.toggle('light',!d);}catch(e){}})();`
 
-  const saved = window.localStorage.getItem('theme')
-  if (saved === 'light' || saved === 'dark') {
-    return saved
-  }
+const systemPrefersDark = () =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
 
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+function resolve(theme: Theme): ResolvedTheme {
+  return theme === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : theme
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light')
-  const [ready, setReady] = useState(false)
+function applyTheme(resolved: ResolvedTheme): void {
+  const classes = document.documentElement.classList
+  classes.toggle('dark', resolved === 'dark')
+  classes.toggle('light', resolved === 'light')
+}
+
+function storedTheme(): Theme {
+  const saved = window.localStorage.getItem(STORAGE_KEY)
+  return saved === 'light' || saved === 'dark' ? saved : 'system'
+}
+
+export function ThemeProvider({ children }: { readonly children: ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>('system')
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light')
 
   useEffect(() => {
-    setTheme(getPreferredTheme())
-    setReady(true)
+    const initial = storedTheme()
+    setThemeState(initial)
+    setResolvedTheme(resolve(initial))
   }, [])
 
   useEffect(() => {
-    if (!ready) return
-    const root = document.documentElement
-    root.classList.remove('light', 'dark')
-    root.classList.add(theme)
-    window.localStorage.setItem('theme', theme)
-  }, [theme, ready])
+    if (theme !== 'system') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => {
+      const next = resolve('system')
+      setResolvedTheme(next)
+      applyTheme(next)
+    }
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [theme])
+
+  const setTheme = useCallback((next: Theme) => {
+    window.localStorage.setItem(STORAGE_KEY, next)
+    setThemeState(next)
+    const resolved = resolve(next)
+    setResolvedTheme(resolved)
+    applyTheme(resolved)
+  }, [])
 
   const value = useMemo<ThemeContextValue>(
-    () => ({
-      theme,
-      resolvedTheme: ready ? theme : null,
-      ready,
-      setTheme,
-      toggleTheme: () => setTheme((current) => (current === 'dark' ? 'light' : 'dark')),
-    }),
-    [ready, theme],
+    () => ({ theme, resolvedTheme, setTheme }),
+    [theme, resolvedTheme, setTheme],
   )
-
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
-export function useTheme() {
+export function useTheme(): ThemeContextValue {
   const context = useContext(ThemeContext)
-  if (!context) {
-    throw new Error('useTheme must be used within ThemeProvider.')
-  }
+  if (!context) throw new Error('useTheme must be used within ThemeProvider')
   return context
 }

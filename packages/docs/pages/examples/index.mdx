@@ -1,23 +1,24 @@
 # Examples
 
-All examples in this section reflect the current API surface (`createWizardFactory` / `createReactWizardFactory`).
+Every example is a workspace package under `examples/` with a runnable `main.ts` and a test that
+drives the flow end to end and asserts on the event log. The pages below embed the real sources
+at build time — nothing is copied by hand — and each runnable example can be loaded verbatim in
+the [playground](/playground).
 
-## Example Matrix
+| Example | Shows |
+|---|---|
+| [01 · Happy path](/examples/01-happy-path) | view → task → final, typed input, `deps`, validation as values, the sync-commit guarantee, `getSnapshot()` |
+| [02 · Recoverable failure](/examples/02-recoverable-failure) | `retry: { attempts, backoff: 'exponential' }` driven by `createTestScheduler()`, exhausted retries → `retry(step)`, `idempotent` keys, `mapError` → typed `error.data` |
+| [03 · Compensation](/examples/03-non-recoverable-compensation) | `onFailure: 'compensate'`: reverse-order unwind, `saga.failures`, `compensate({ from })` |
+| [04 · Resume from snapshot](/examples/04-resume-from-snapshot) | auto-save to a store, crash, `resumeWizard()`, re-armed timers, interrupted task → `retry()`, snapshot `migrate` |
+| [05 · External events](/examples/05-external-events) | webhooks through an event boundary, early events buffered in the inbox, TTL, wait timeout, correlation ids, flow-level `on` |
+| [06 · Nested flow](/examples/06-nested-flow) | `s.flow(child, { context })`, `wizard.child()`, child events with `path`, nested snapshots, `mirror.child()` |
+| [07 · DAG pipeline](/examples/07-dag-pipeline) | fan-out, parallel tasks under `concurrency`, AND-join with `dependsOn`, `explain()`, `autoRun: 'manual'`, `when`, `skip()`, `progress()` |
+| [08 · React + Mirror](/examples/08-react-mirror) | Vite + React: the UI touches only a `Mirror` (deny-by-default projection over a loopback transport) via `bindReact()` hooks; tokenised payment, headless jsdom test |
+| [09 · Mermaid](/examples/09-mermaid) | `toMermaid(inspect(flow))`: the static graph as a Mermaid flowchart (kinds, `next` / `dependsOn` / `timeout` edges, dynamic `next`, child subgraph) |
 
-- `basic-form-wizard`
-- `advanced-branching`
-- `react-router-wizard`
-- `node-saga-wizard`
-- `persistence-local`
-- `router-guard`
-- `zod-validation`
-
-## Build Validation
-
-Docs checks run a build matrix against the in-scope examples via:
-
-```bash
-pnpm --filter @wizard/docs check:examples
+```sh
+pnpm install && pnpm build
+pnpm examples                                   # typecheck + test every example against the built package
+pnpm --filter example-07-dag-pipeline start     # run one example's walk-through
 ```
-
-The DAG visualizer demo is tracked separately from this matrix.

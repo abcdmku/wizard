@@ -1,10 +1,15 @@
 {
-  "extends": "../../tsconfig.json",
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "lib": ["ES2022"],
-    "types": ["node"]
+    "rootDir": ".",
+    "noEmit": true,
+    "types": [],
+    "paths": {
+      "@openwizard/core": ["./src/index.ts"],
+      "@openwizard/core/testing": ["./src/testing.ts"]
+    }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "tests/__canary__/**"]
 }

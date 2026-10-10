@@ -1,98 +1,79 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { fileURLToPath, URL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import mdx from '@mdx-js/rollup'
-import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import { defineConfig } from 'vite'
-import viteTsConfigPaths from 'vite-tsconfig-paths'
-import remarkGfm from 'remark-gfm'
+import react from '@vitejs/plugin-react'
 import rehypePrettyCode from 'rehype-pretty-code'
-import { remarkCodeImport } from './lib/remark-code-import.js'
+import rehypeSlug from 'rehype-slug'
+import remarkGfm from 'remark-gfm'
+import { defineConfig } from 'vite'
+import { buildDocsManifest } from './lib/docs-manifest.mjs'
+import { remarkCodeFrom, remarkRepoLinks } from './lib/remark-plugins.mjs'
+import { docsManifestPlugin, monacoLibsPlugin } from './lib/vite-plugins.mjs'
 
-function resolveBasePath() {
-  const isProd = process.env.NODE_ENV === 'production'
-  const isGitHubActions = process.env.GITHUB_ACTIONS === 'true'
-  const githubRepository = process.env.GITHUB_REPOSITORY
+const docsRoot = fileURLToPath(new URL('.', import.meta.url))
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
+const pagesRoot = fileURLToPath(new URL('./pages', import.meta.url))
+const githubUrl = `https://github.com/${process.env.GITHUB_REPOSITORY ?? 'abcdmku/wizard'}`
 
-  if (!isProd || !isGitHubActions || !githubRepository) {
-    return '/'
-  }
-
-  const [owner, repo] = githubRepository.split('/')
-  if (!owner || !repo) {
-    return '/'
-  }
-
-  const isUserPage = repo === `${owner}.github.io`
-  return isUserPage ? '/' : `/${repo}/`
-}
-
-function loadPrerenderPages() {
-  const filePath = resolve(
-    fileURLToPath(new URL('.', import.meta.url)),
-    'src/generated/prerender-pages.json',
-  )
-
-  if (!existsSync(filePath)) {
-    return ['/']
-  }
-
-  try {
-    const content = readFileSync(filePath, 'utf8')
-    const pages = JSON.parse(content)
-    if (Array.isArray(pages) && pages.length > 0) {
-      return pages
-    }
-  } catch (error) {
-    console.warn('[docs/vite] Failed to parse prerender pages file:', error)
-  }
-
-  return ['/']
+/**
+ * GitHub Pages serves a project site under `/<repo>/`. `DOCS_BASE` overrides; otherwise the base
+ * is derived from `GITHUB_REPOSITORY` in production builds on Actions, and `/` everywhere else.
+ */
+function resolveBasePath(): string {
+  if (process.env.DOCS_BASE) return process.env.DOCS_BASE
+  const repository = process.env.GITHUB_REPOSITORY
+  if (process.env.NODE_ENV !== 'production' || process.env.GITHUB_ACTIONS !== 'true') return '/'
+  const [owner, repo] = repository?.split('/') ?? []
+  if (!owner || !repo || repo === `${owner}.github.io`) return '/'
+  return `/${repo}/`
 }
 
 const base = resolveBasePath()
-const prerenderPages = loadPrerenderPages()
-const prettyCodeOptions = {
-  theme: {
-    light: 'github-light',
-    dark: 'github-dark',
-  },
-  keepBackground: false,
-  defaultLang: 'plaintext',
-  bypassInlineCode: true,
-}
+const prerenderPages = [...buildDocsManifest(docsRoot).prerenderPages, '/playground']
 
 export default defineConfig({
   base,
-  resolve: {
-    dedupe: ['react', 'react-dom'],
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-  },
+  // Markdown imported from outside this package (READMEs, design docs) is compiled to modules
+  // importing react / @mdx-js/react: `dedupe` resolves those from here, not from the repo root.
+  resolve: { dedupe: ['react', 'react-dom', '@mdx-js/react'] },
+  optimizeDeps: { exclude: ['virtual:docs-manifest', 'virtual:monaco-libs'] },
+  worker: { format: 'es' },
   plugins: [
-    viteTsConfigPaths({
-      projects: ['./tsconfig.json'],
-    }),
-    mdx({
-      providerImportSource: '@mdx-js/react',
-      remarkPlugins: [remarkGfm, remarkCodeImport],
-      rehypePlugins: [[rehypePrettyCode, prettyCodeOptions]],
-    }),
+    docsManifestPlugin(docsRoot),
+    monacoLibsPlugin(docsRoot),
+    {
+      enforce: 'pre',
+      ...mdx({
+        providerImportSource: '@mdx-js/react',
+        remarkPlugins: [
+          remarkGfm,
+          [remarkCodeFrom, { repoRoot }],
+          [remarkRepoLinks, { repoRoot, pagesRoot, githubUrl }],
+        ],
+        rehypePlugins: [
+          rehypeSlug,
+          [
+            rehypePrettyCode,
+            {
+              theme: { light: 'github-light', dark: 'github-dark' },
+              keepBackground: false,
+              defaultLang: 'plaintext',
+              bypassInlineCode: true,
+            },
+          ],
+        ],
+      }),
+    },
+    tailwindcss(),
     tanstackStart({
       prerender: {
         enabled: true,
-        autoSubfolderIndex: true,
         crawlLinks: false,
-        autoStaticPathsDiscovery: true,
+        autoSubfolderIndex: true,
+        failOnError: true,
       },
-      pages: prerenderPages.map((path) => ({
-        path,
-        prerender: {
-          enabled: true,
-        },
-      })),
+      pages: prerenderPages.map((path) => ({ path, prerender: { enabled: true } })),
     }),
     react(),
   ],

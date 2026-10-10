@@ -1,198 +1,169 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { withBase } from '@/lib/base-path'
+import { Search } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
-type SearchResult = {
-  id: string
-  title: string
-  excerpt: string
-  url: string
+interface SearchHit {
+  readonly id: string
+  readonly title: string
+  readonly excerpt: string
+  readonly url: string
 }
 
-type PagefindResult = {
-  id: string
-  data: () => Promise<{
-    excerpt: string
-    meta: {
-      title?: string
-    }
-    url: string
+interface PagefindResult {
+  readonly id: string
+  data(): Promise<{
+    readonly excerpt: string
+    readonly meta: { readonly title?: string }
+    readonly url: string
   }>
 }
 
-type PagefindResponse = {
-  results: PagefindResult[]
+interface Pagefind {
+  search(query: string): Promise<{ readonly results: readonly PagefindResult[] }>
 }
 
-type PagefindModule = {
-  search: (query: string) => Promise<PagefindResponse>
+let pagefindPromise: Promise<Pagefind> | null = null
+
+/** The Pagefind bundle is produced by `postbuild.mjs` over the prerendered HTML (absent in dev). */
+function loadPagefind(): Promise<Pagefind> {
+  pagefindPromise ??= import(
+    /* @vite-ignore */ `${import.meta.env.BASE_URL}pagefind/pagefind.js`
+  ) as Promise<Pagefind>
+  return pagefindPromise
 }
 
-let pagefindModulePromise: Promise<PagefindModule> | null = null
-
-async function getPagefind() {
-  if (!pagefindModulePromise) {
-    const pagefindPath = `${import.meta.env.BASE_URL}pagefind/pagefind.js`
-    pagefindModulePromise = import(/* @vite-ignore */ pagefindPath) as Promise<PagefindModule>
-  }
-  return pagefindModulePromise
+async function runSearch(query: string): Promise<readonly SearchHit[]> {
+  const pagefind = await loadPagefind()
+  const { results } = await pagefind.search(query)
+  return Promise.all(
+    results.slice(0, 8).map(async (result) => {
+      const data = await result.data()
+      return {
+        id: result.id,
+        title: data.meta.title ?? data.url,
+        excerpt: data.excerpt,
+        url: data.url,
+      }
+    }),
+  )
 }
 
-function getAnchorHref(url: string) {
-  if (url.startsWith('/')) {
-    return withBase(url)
-  }
-  return url
-}
-
+/** Header search button + modal; `/` opens it, `Escape` closes it. */
 export function SearchDialog() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [hits, setHits] = useState<readonly SearchHit[]>([])
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
-      const isTypingTarget =
+      const typing =
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
-        target?.isContentEditable
-
-      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !isTypingTarget) {
+        target?.isContentEditable === true
+      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !typing) {
         event.preventDefault()
         setOpen(true)
-        return
-      }
-
-      if (event.key === 'Escape') {
+      } else if (event.key === 'Escape') {
         setOpen(false)
       }
     }
-
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
   useEffect(() => {
-    let disposed = false
-
-    async function runSearch() {
-      if (!open || query.trim().length < 2) {
-        setResults([])
-        setError(null)
-        return
-      }
-
-      setLoading(true)
-      setError(null)
-
-      try {
-        const pagefind = await getPagefind()
-        const response = await pagefind.search(query.trim())
-        const topResults = response.results.slice(0, 8)
-        const hydrated = await Promise.all(
-          topResults.map(async (result) => {
-            const data = await result.data()
-            return {
-              id: result.id,
-              title: data.meta.title ?? data.url,
-              excerpt: data.excerpt,
-              url: data.url,
-            } satisfies SearchResult
-          }),
-        )
-
-        if (!disposed) {
-          setResults(hydrated)
-        }
-      } catch (searchError) {
-        if (!disposed) {
-          setResults([])
-          setError('Search index is not ready. Run `pnpm --filter @wizard/docs build` first.')
-        }
-      } finally {
-        if (!disposed) {
-          setLoading(false)
-        }
-      }
+    if (!open || query.trim().length < 2) {
+      setHits([])
+      setStatus('idle')
+      return
     }
-
-    void runSearch()
-
+    let cancelled = false
+    setStatus('loading')
+    runSearch(query.trim())
+      .then((found) => {
+        if (cancelled) return
+        setHits(found)
+        setStatus('idle')
+      })
+      .catch(() => {
+        if (!cancelled) setStatus('error')
+      })
     return () => {
-      disposed = true
+      cancelled = true
     }
   }, [open, query])
 
-  const hint = useMemo(() => {
-    if (loading) return 'Searching...'
-    if (error) return error
-    if (query.trim().length < 2) return 'Type at least 2 characters'
-    if (results.length === 0) return 'No matches'
-    return `${results.length} result${results.length === 1 ? '' : 's'}`
-  }, [error, loading, query, results.length])
+  const hint =
+    status === 'loading'
+      ? 'Searching…'
+      : status === 'error'
+        ? 'The search index is built with the site (pnpm docs:build); it is not available in dev.'
+        : query.trim().length < 2
+          ? 'Type at least two characters'
+          : hits.length === 0
+            ? 'No matches'
+            : `${hits.length} result${hits.length === 1 ? '' : 's'}`
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
+        className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-900 dark:border-neutral-800 dark:text-neutral-400 dark:hover:border-neutral-600 dark:hover:text-neutral-100"
       >
-        Search
-        <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] dark:border-slate-700 dark:bg-slate-900">
+        <Search className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="hidden sm:inline">Search</span>
+        <kbd className="hidden rounded border border-neutral-200 px-1 font-mono text-[10px] sm:inline dark:border-neutral-700">
           /
         </kbd>
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 p-4 pt-16">
-          <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-[#0d0d0d]">
-            <div className="border-b border-slate-200 p-3 dark:border-slate-700">
-              <input
-                autoFocus
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search docs..."
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 dark:border-slate-700 dark:bg-[#111] dark:text-slate-100"
-              />
-            </div>
-
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]">
+          <button
+            type="button"
+            aria-label="Close search"
+            onClick={() => setOpen(false)}
+            className="absolute inset-0 cursor-default bg-black/40 backdrop-blur-[2px]"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Search the docs"
+            className="relative w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-ink-2"
+          >
+            <input
+              // biome-ignore lint/a11y/noAutofocus: a search dialog should focus its input when opened
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search the docs…"
+              className="w-full border-b border-neutral-200 bg-transparent px-4 py-3 text-sm outline-none dark:border-neutral-800"
+            />
             <div className="max-h-[60vh] overflow-y-auto">
-              <div className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                {hint}
-              </div>
-
-              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                {results.map((result) => (
-                  <li key={result.id}>
+              <p className="px-4 py-2 text-xs text-neutral-500">{hint}</p>
+              <ul className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
+                {hits.map((hit) => (
+                  <li key={hit.id}>
                     <a
-                      href={getAnchorHref(result.url)}
-                      className="block px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-900"
+                      // Pagefind resolves result URLs against its bundle location, so they already carry the base.
+                      href={hit.url}
                       onClick={() => setOpen(false)}
+                      className="block px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900"
                     >
-                      <div className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {result.title}
+                      <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                        {hit.title}
                       </div>
                       <div
-                        className="text-xs text-slate-600 dark:text-slate-300"
-                        dangerouslySetInnerHTML={{ __html: result.excerpt }}
+                        className="mt-0.5 text-xs leading-5 text-neutral-500"
+                        // biome-ignore lint/security/noDangerouslySetInnerHtml: Pagefind excerpts are generated from our own prerendered pages
+                        dangerouslySetInnerHTML={{ __html: hit.excerpt }}
                       />
                     </a>
                   </li>
                 ))}
               </ul>
-            </div>
-
-            <div className="flex justify-end border-t border-slate-200 p-2 dark:border-slate-700">
-              <button
-                type="button"
-                className="rounded-md px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
-                onClick={() => setOpen(false)}
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>

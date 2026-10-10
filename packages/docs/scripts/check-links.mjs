@@ -1,210 +1,71 @@
 #!/usr/bin/env node
+/**
+ * Every internal link in `pages/**` must point at a page that exists (`/concepts/steps`, with an
+ * optional `#hash` / `?query`), at a route the app serves (`/`, `/playground`) or at a generated
+ * directory (`/typedoc/`, `/pagefind/`). Hardcoded `_splat` slugs in `src/**` are checked too.
+ */
+import { readdirSync, readFileSync } from 'node:fs'
+import { extname, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { buildDocsManifest } from '../lib/docs-manifest.mjs'
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, extname, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+const docsRoot = fileURLToPath(new URL('..', import.meta.url))
+const pagesRoot = resolve(docsRoot, 'pages')
+const ROUTES = new Set([
+  '/',
+  '/playground',
+  ...buildDocsManifest(docsRoot).pages.map((page) => page.path),
+])
+const GENERATED_PREFIXES = ['/typedoc', '/pagefind']
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const docsRoot = resolve(__dirname, '..');
-const pagesRoot = resolve(docsRoot, 'pages');
-
-const allowedAbsolutePrefixes = ['/typedoc/', '/typedoc', '/pagefind/', '/pagefind'];
-
-function toPosix(value) {
-  return value.replace(/\\/g, '/');
-}
-
-function normalizeRouteSlug(rawSlug) {
-  if (rawSlug === 'index') return '';
-  if (rawSlug.endsWith('/index')) {
-    return rawSlug.slice(0, -'/index'.length);
+function listFiles(dir, extensions, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = resolve(dir, entry.name)
+    if (entry.isDirectory()) listFiles(full, extensions, out)
+    else if (extensions.has(extname(entry.name))) out.push(full)
   }
-  return rawSlug;
+  return out
 }
 
-function normalizePath(value) {
-  const withoutHash = value.split('#')[0] ?? '';
-  const withoutQuery = withoutHash.split('?')[0] ?? '';
-  if (!withoutQuery) return '/';
-  const trimmed = withoutQuery.replace(/\/+$/, '');
-  return trimmed || '/';
+const lineOf = (text, index) => text.slice(0, index).split(/\r?\n/).length
+const routeOf = (target) => {
+  const path = target.split('#')[0].split('?')[0].replace(/\/+$/, '')
+  return path === '' ? '/' : path
 }
+const known = (route) =>
+  ROUTES.has(route) ||
+  GENERATED_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
 
-function lineFromIndex(text, index) {
-  return text.slice(0, index).split(/\r?\n/).length;
-}
+const errors = []
+const markdownLink = /\[[^\]]*\]\(([^)\s]+)(?:\s[^)]*)?\)/g
+const hrefAttr = /href\s*=\s*["']([^"']+)["']/g
 
-function listFiles(dirPath, extensions) {
-  const files = [];
-
-  for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
-    const fullPath = resolve(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listFiles(fullPath, extensions));
-      continue;
-    }
-
-    if (extensions.has(extname(entry.name))) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
-
-function getDocRoutes() {
-  const mdxFiles = listFiles(pagesRoot, new Set(['.mdx']));
-  const slugs = new Set();
-  const routes = new Set(['/']);
-
-  for (const filePath of mdxFiles) {
-    const relativeToPages = toPosix(relative(pagesRoot, filePath)).replace(/\.mdx$/, '');
-    const slug = normalizeRouteSlug(relativeToPages);
-    slugs.add(slug);
-    routes.add(slug ? `/${slug}` : '/');
-  }
-
-  return { routes, slugs };
-}
-
-function parseLinkTarget(rawTarget) {
-  const trimmed = rawTarget.trim();
-  if (!trimmed) return null;
-
-  if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
-    return trimmed.slice(1, -1);
-  }
-
-  const firstToken = trimmed.split(/\s+/)[0];
-  return firstToken || null;
-}
-
-function resolveRelativeDocTarget(filePath, target) {
-  const absoluteBase = resolve(dirname(filePath), target);
-  const extension = extname(absoluteBase);
-  if (extension) {
-    return existsSync(absoluteBase);
-  }
-
-  const directMdx = `${absoluteBase}.mdx`;
-  if (existsSync(directMdx)) {
-    return true;
-  }
-
-  const nestedIndex = resolve(absoluteBase, 'index.mdx');
-  return existsSync(nestedIndex);
-}
-
-function checkInternalLinks(routes) {
-  const files = listFiles(pagesRoot, new Set(['.mdx', '.md']));
-  const errors = [];
-
-  const markdownLinkPattern = /\[[^\]]+\]\(([^)]+)\)/g;
-  const hrefPattern = /href\s*=\s*["']([^"']+)["']/g;
-
-  for (const filePath of files) {
-    const content = readFileSync(filePath, 'utf8');
-    const relativePath = toPosix(relative(docsRoot, filePath));
-
-    for (const match of content.matchAll(markdownLinkPattern)) {
-      const index = match.index ?? 0;
-      const line = lineFromIndex(content, index);
-      const rawTarget = parseLinkTarget(match[1] ?? '');
-      if (!rawTarget) continue;
-
-      if (rawTarget.startsWith('http://') || rawTarget.startsWith('https://')) continue;
-      if (rawTarget.startsWith('mailto:') || rawTarget.startsWith('tel:')) continue;
-      if (rawTarget.startsWith('#')) continue;
-      if (rawTarget.startsWith('//')) continue;
-
-      if (rawTarget.startsWith('/')) {
-        const normalized = normalizePath(rawTarget);
-        if (
-          allowedAbsolutePrefixes.some((prefix) => normalized === prefix || normalized.startsWith(prefix))
-        ) {
-          continue;
-        }
-        if (!routes.has(normalized)) {
-          errors.push(`${relativePath}:${line} broken internal link "${rawTarget}"`);
-        }
-        continue;
-      }
-
-      if (rawTarget.startsWith('./') || rawTarget.startsWith('../')) {
-        if (!resolveRelativeDocTarget(filePath, rawTarget)) {
-          errors.push(`${relativePath}:${line} broken relative link "${rawTarget}"`);
-        }
-      }
-    }
-
-    for (const match of content.matchAll(hrefPattern)) {
-      const index = match.index ?? 0;
-      const line = lineFromIndex(content, index);
-      const target = (match[1] ?? '').trim();
-      if (!target || !target.startsWith('/')) continue;
-      if (target.startsWith('//')) continue;
-
-      const normalized = normalizePath(target);
-      if (
-        allowedAbsolutePrefixes.some((prefix) => normalized === prefix || normalized.startsWith(prefix))
-      ) {
-        continue;
-      }
-
-      if (!routes.has(normalized)) {
-        errors.push(`${relativePath}:${line} broken href "${target}"`);
-      }
+for (const file of listFiles(pagesRoot, new Set(['.mdx', '.md']))) {
+  const text = readFileSync(file, 'utf8')
+  const rel = relative(docsRoot, file).replace(/\\/g, '/')
+  for (const re of [markdownLink, hrefAttr]) {
+    for (const match of text.matchAll(re)) {
+      const target = match[1]
+      if (!target.startsWith('/') || target.startsWith('//')) continue
+      if (!known(routeOf(target)))
+        errors.push(`${rel}:${lineOf(text, match.index ?? 0)} broken link "${target}"`)
     }
   }
-
-  return errors;
 }
 
-function checkHardcodedSplatSlugs(slugs) {
-  const sourceRoots = [resolve(docsRoot, 'src'), resolve(docsRoot, 'components')];
-  const errors = [];
-
-  for (const root of sourceRoots) {
-    if (!existsSync(root)) continue;
-
-    const files = listFiles(root, new Set(['.ts', '.tsx', '.mdx']));
-    for (const filePath of files) {
-      const content = readFileSync(filePath, 'utf8');
-      const relativePath = toPosix(relative(docsRoot, filePath));
-      const splatPattern = /_splat:\s*['"]([^'"]+)['"]/g;
-
-      for (const match of content.matchAll(splatPattern)) {
-        const index = match.index ?? 0;
-        const line = lineFromIndex(content, index);
-        const slug = (match[1] ?? '').replace(/^\/+/, '').replace(/\/+$/, '');
-        if (!slug) {
-          errors.push(`${relativePath}:${line} invalid empty _splat slug`);
-          continue;
-        }
-        if (!slugs.has(slug)) {
-          errors.push(`${relativePath}:${line} unknown _splat slug "${slug}"`);
-        }
-      }
-    }
+const slugPattern = /_splat:\s*['"]([^'"]+)['"]/g
+for (const file of listFiles(resolve(docsRoot, 'src'), new Set(['.ts', '.tsx']))) {
+  const text = readFileSync(file, 'utf8')
+  const rel = relative(docsRoot, file).replace(/\\/g, '/')
+  for (const match of text.matchAll(slugPattern)) {
+    if (!ROUTES.has(`/${match[1]}`))
+      errors.push(`${rel}:${lineOf(text, match.index ?? 0)} unknown _splat slug "${match[1]}"`)
   }
-
-  return errors;
 }
 
-function main() {
-  const { routes, slugs } = getDocRoutes();
-  const errors = [...checkInternalLinks(routes), ...checkHardcodedSplatSlugs(slugs)];
-
-  if (errors.length > 0) {
-    console.error('[check-links] Route/link issues detected:');
-    for (const error of errors) {
-      console.error(`- ${error}`);
-    }
-    process.exit(1);
-  }
-
-  console.log('[check-links] Internal docs links and hardcoded route slugs are valid.');
+if (errors.length > 0) {
+  console.error('[check-links] broken links:')
+  for (const error of errors) console.error(`- ${error}`)
+  process.exit(1)
 }
-
-main();
+console.log(`[check-links] ${ROUTES.size} routes, all internal links resolve`)

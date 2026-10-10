@@ -1,0 +1,29 @@
+# API reference
+
+Three sources, all generated from the code and kept in sync by CI:
+
+- [`@openwizard/core`](/api/core) — the package README rendered as-is: authoring shape, the six
+  step kinds, hooks, boundaries, `createWizard`, every `Wizard` method and its result type,
+  events / `explain` / `inspect`, persistence, projections and the wire door, testing helpers,
+  guarantees — and the **generated export table** of `@openwizard/core` and
+  `@openwizard/core/testing` (`scripts/gen-export-tables.mjs`, checked in CI).
+- [`@openwizard/react`](/api/react) — the React binding README with its export table.
+- [TypeDoc](/typedoc/) — every exported symbol with its signature and TSDoc, generated from the
+  built declaration files (`packages/core/dist/index.d.ts`, `packages/core/dist/testing.d.ts`,
+  `packages/react/dist/index.d.ts`).
+
+## Entry points
+
+| Import | What it holds |
+|---|---|
+| `@openwizard/core` | `defineFlow`, `boundary`, `createWizard` / `createWizardAsync`, `resumeWizard` / `resumeWizardAsync`, `createMemoryStore`, `defineProjection`, `parseCommand`, `createMirror` / `createMirrorSource`, `parseFrame` / `parseWireCommand`, `inspect` / `toMermaid`, `isChildEvent`, `isWizardError` / `WizardError`, and every public type. |
+| `@openwizard/core/testing` | `createTestScheduler` (virtual time: a `Scheduler` + `Clock`) and `createLocalTransport` (an in-process Mirror loopback) — never in an application bundle. |
+| `@openwizard/react` | `bindReact` and the binding types (`ReactBinding`, `UseStepResult`, `ChildBinding`, …). |
+
+## Surface hygiene
+
+The emitted declarations contain no `any` and no type assertions; `api/core.d.ts` and
+`api/react.d.ts` in the repository are snapshots of the public surface diffed in CI
+(`pnpm check:api`). Every export has a test, a `.test-d.ts` assertion if it is generic, TSDoc
+with `@public`, and a row in the export table (`pnpm check:docs`) — the
+[contributing guide](https://github.com/abcdmku/wizard/blob/main/CONTRIBUTING.md) lists the rules.

@@ -1,0 +1,227 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f1ea;
+  --ink: #1e1b16;
+  --muted: #6d675c;
+  --card: #fffdf8;
+  --line: #e2dccf;
+  --accent: #b5471f;
+  --accent-ink: #fff7f2;
+  --ok: #2f7a4b;
+  --warn: #b8860b;
+  --bad: #b3261e;
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.45;
+}
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+.page {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+}
+.masthead {
+  margin-bottom: 1.5rem;
+}
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+h1 {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+.lede {
+  margin: 0;
+  color: var(--muted);
+  max-width: 38rem;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.03),
+    0 12px 32px -20px rgba(30, 27, 22, 0.35);
+}
+.muted {
+  color: var(--muted);
+}
+
+.rail {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+}
+.rail-item {
+  display: grid;
+  gap: 0.15rem;
+  padding-top: 0.5rem;
+  border-top: 3px solid var(--line);
+  font-size: 0.85rem;
+}
+.rail-item.is-active {
+  border-top-color: var(--accent);
+}
+.rail-item.is-done {
+  border-top-color: var(--ok);
+}
+.rail-item.is-failed,
+.rail-item.is-cancelled,
+.rail-item.is-compensated {
+  border-top-color: var(--bad);
+}
+.rail-dot {
+  display: none;
+}
+.rail-label {
+  font-weight: 600;
+}
+.rail-status {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.form {
+  display: grid;
+  gap: 0.9rem;
+}
+.field {
+  display: grid;
+  gap: 0.3rem;
+}
+.field > span:first-child {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+input[type="text"],
+input:not([type]) {
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.issue {
+  color: var(--bad);
+  font-size: 0.85rem;
+}
+.actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  margin-top: 0.4rem;
+}
+button {
+  font: inherit;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}
+button.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  justify-self: start;
+  text-decoration: underline;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.task {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.task.is-done {
+  border-color: var(--ok);
+}
+.task.is-failed {
+  border-color: var(--bad);
+}
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.2rem;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+}
+.spinner.on {
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.receipt {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+  margin: 0;
+}
+.receipt dt {
+  color: var(--muted);
+}
+.receipt dd {
+  margin: 0;
+}
+
+.wire {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--line);
+  font-size: 0.8rem;
+  color: var(--muted);
+}

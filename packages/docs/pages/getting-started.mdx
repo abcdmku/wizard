@@ -1,57 +1,84 @@
-# Getting Started
+# Getting started
 
-This guide uses the current `@wizard/core` API.
+OpenWizard is a TypeScript-first, type-safe orchestrator for sync and async workflows — on the
+server, in the browser, at the edge. You define a flow once (views, tasks, waits, decisions,
+nested flows, finals) and drive it with one live object whose every method, id and payload is
+typed by that definition. This page installs the package and runs the quickstart from the
+repository; the [concepts](/concepts) explain each idea in depth and the
+[examples](/examples) are tested walk-throughs.
 
-## 1. Create a typed factory
+## Install
 
-```ts
-import { createWizardFactory } from '@wizard/core';
-
-type Context = {
-  userId?: string;
-  total: number;
-};
-
-const factory = createWizardFactory<Context>();
-const { defineSteps, step } = factory;
+```sh
+pnpm add @openwizard/core zod    # or npm / yarn / bun — Zod 4, or any Standard Schema library
+pnpm add @openwizard/react       # optional React binding
 ```
 
-## 2. Define steps
+Node ≥ 20 (or any ES2022 runtime) and ESM (`"type": "module"` in your `package.json`, or `.mts`
+files). Test helpers (`createTestScheduler`, `createLocalTransport`) live in a separate entry,
+`@openwizard/core/testing`, so they never end up in an application bundle.
 
-```ts
-const steps = defineSteps({
-  account: step({
-    data: { email: '' },
-    next: ['review'],
-    validate: ({ data }) => {
-      if (!data.email.includes('@')) throw new Error('Invalid email');
-    },
-  }),
-  review: step({
-    data: { agreed: false },
-    next: [],
-  }),
-});
+<Callout type="info" title="Bring your own schema library">
+  Any [Standard Schema](https://standardschema.dev) — Zod 4, Valibot, ArkType — is a boundary. The
+  examples use Zod because it is the most common; nothing in the core depends on it.
+</Callout>
+
+## Quickstart
+
+Two files. `onboarding.ts` below is `examples/01-happy-path/src/onboarding.ts`, embedded from the
+repository at build time (CI keeps the README, this page and the example identical): a form, a
+task that calls an out-of-domain service, and a final step.
+
+```ts file="examples/01-happy-path/src/onboarding.ts"
 ```
 
-## 3. Create wizard instance
+`main.ts` drives it (top-level `await`, so ESM):
 
-```ts
-export const wizard = factory.createWizard(steps, {
-  context: { total: 0 },
-});
+```ts title="main.ts"
+// main.ts — run with: npx tsx main.ts   (or compile with tsc and run `node main.js`)
+import { createWizard } from '@openwizard/core'
+import { type Deps, onboarding } from './onboarding'
+
+const deps: Deps = { crm: { upsert: (contact) => ({ id: `crm_${contact.email}` }) } }
+const wizard = createWizard(onboarding, { context: { email: 'ada@example.com' }, deps })
+wizard.observe((event) => console.log(event.seq, event.type)) // every domain event, typed
+
+await wizard.start() //            → the cursor is on 'profile'
+await wizard.next() //             → { ok: false, code: 'INVALID_INPUT', issues: [...] } — a value, not a throw
+await wizard.setInput('profile', { company: 'Acme', role: 'engineer' })
+await wizard.next() //             → { ok: true, from: 'profile', to: 'save' }; task ran; flow done
+
+wizard.getState().steps.save.output // { id: string } | undefined — typed from the task's `run`
+wizard.getState().output // string | undefined — typed from the final step
+wizard.explain('save') // { status: 'done', phase: undefined, reasons: [], candidates: [] }
 ```
 
-## 4. Navigate
-
-```ts
-wizard.setStepData('account', { email: 'user@example.com' });
-await wizard.next();
-console.log(wizard.step); // "review"
+```sh
+npx tsx main.ts     # prints the events, then the state
 ```
 
-## Notes
+Everything you can call is typed by `onboarding`: `setInput('typo', …)`, `go('save')` (not a
+view) or `send('unknown-event', …)` are compile errors, and every id in a `next` / `dependsOn` is
+checked when the flow is assembled.
 
-- Current state is exposed through getters like `wizard.step`, `wizard.context`, and `wizard.data`.
-- Use `wizard.helpers` for progress/status/navigation checks.
-- Step wrappers are available through `wizard.getStep(name)` and `wizard.getCurrentStep()`.
+<Callout type="tip" title="Run it in the browser">
+  The same program runs on the [landing page](/) and in the [playground](/playground) against the
+  real `@openwizard/core` — press **Run** and watch the Trace tab. The playground can load every
+  example verbatim.
+</Callout>
+
+## What you just used
+
+| Idea | Where to read more |
+|---|---|
+| `defineFlow` returns pre-bound step constructors (`s.view`, `s.task`, `s.final`, …) so hooks are typed without generics | [Defining flows](/concepts/defining-flows), [Steps and kinds](/concepts/steps) |
+| `input`, `context` and `deps` are **boundaries** — the only doors data comes through | [Boundaries](/concepts/boundaries) |
+| `next()` answers `{ ok: false, code, issues }` instead of throwing | [Results as values](/concepts/results) |
+| `observe()` streams typed domain events; `explain(step)` tells you why a step is where it is | [Events and observability](/concepts/observability) |
+| A synchronous chain of hooks is committed before `next()` returns | [Guarantees](/concepts/guarantees) |
+
+## Next steps
+
+- Read the [concepts](/concepts) in order — they build on each other and take about twenty minutes.
+- Open an [example](/examples): each is a workspace package with a test that asserts on the event log.
+- Keep the [API reference](/api) at hand — `packages/core/README.md` rendered, plus the generated export tables and TypeDoc.

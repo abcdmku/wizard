@@ -1,7 +1,8 @@
 {
-  "name": "@wizard/core",
-  "version": "0.0.1",
-  "description": "Deeply type-safe, isomorphic, headless multi-step wizard library",
+  "name": "@openwizard/core",
+  "version": "0.0.0",
+  "description": "OpenWizard core — a TypeScript-first, type-safe orchestrator for sync and async workflows. Framework-agnostic; runs on the server, in the browser, and at the edge.",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.cjs",
@@ -9,58 +10,73 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
-    "./zod": {
-      "types": "./dist/zod.d.ts",
-      "import": "./dist/zod.js",
-      "require": "./dist/zod.cjs"
+    "./testing": {
+      "import": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      },
+      "require": {
+        "types": "./dist/testing.d.cts",
+        "default": "./dist/testing.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "testing": [
+        "./dist/testing.d.ts"
+      ]
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
-  },
-  "dependencies": {
-    "@tanstack/store": "^0.7.5"
-  },
-  "peerDependencies": {
-    "zod": "^3.0.0"
-  },
-  "peerDependenciesMeta": {
-    "zod": {
-      "optional": true
-    }
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --project core",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.2",
-    "vitest": "^3.2.4",
-    "zod": "^3.24.1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/user/wizard"
+    "@standard-schema/spec": "^1.1.0"
   },
   "keywords": [
     "wizard",
-    "multi-step",
-    "form",
-    "stepper",
+    "workflow",
+    "orchestrator",
+    "state-machine",
+    "saga",
+    "dag",
     "typescript",
-    "headless",
-    "isomorphic"
+    "type-safe",
+    "isomorphic",
+    "headless"
   ],
-  "author": "",
-  "license": "MIT"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abcdmku/wizard.git",
+    "directory": "packages/core"
+  },
+  "bugs": "https://github.com/abcdmku/wizard/issues",
+  "homepage": "https://github.com/abcdmku/wizard#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

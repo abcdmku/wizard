@@ -1,0 +1,97 @@
+# Policies
+
+Behaviour derives from step kinds plus a small set of policies — data, not code paths. There is
+no `mode`: a pure wizard is "only views", a pure DAG is "only tasks with `dependsOn`", a saga is
+"tasks with `compensate` and `onFailure: 'compensate'`". Presets are documentation.
+
+| Policy | Where | Values | What it does |
+|---|---|---|---|
+| `onFailure` | flow | `'halt'` (default) \| `'compensate'` | What happens when a task fails with no retries left. |
+| `retry` | flow default, per task | `RetryPolicy` | Retries after the first failure, spaced by `backoff`. |
+| `timeout` | per task | `Duration` | Aborts the run (`signal`), then fails with `kind: 'timeout'` after the retries. |
+| `autoRun` | flow | `'ready'` (default) \| `'manual'` | Ready non-view steps start automatically, or on `runReady()`. |
+| `concurrency` | flow | `number` (default `Infinity`) | Maximum tasks running at once. |
+| `unmatchedEvents` | flow | `{ buffer: boolean; ttl: Duration }` (default buffer for `'5m'`) | Events with no active listener are buffered (FIFO) or dropped. |
+
+## `onFailure: 'halt' | 'compensate'`
+
+**Halt** keeps the flow recoverable: exhausted retries → `step.failed { kind: 'run' }` →
+`flow.failed { code: 'STEP_FAILED' }`; `next()` is rejected as a value (`FLOW_TERMINAL`), and
+`retry(step)` re-runs the task (`attempt` resets) — the flow then completes normally.
+
+**Compensate** unwinds: running tasks are aborted and every in-flight attempt is allowed to
+settle (a late success is recorded and pushed on the stack), then every completed step with a
+`compensate` hook is undone in reverse completion order, one at a time, best effort. Failures
+are collected in `saga.failures` rather than thrown (`step.compensationFailed`, the step's
+`error.kind === 'compensate'`), and `compensate({ from })` re-attempts exactly that entry later.
+The outcome is `flow.compensated { outcome: 'failed' | 'cancelled', failures }`; a compensated
+flow is terminal. `cancel(reason?)` triggers the same unwind under this policy.
+
+```ts
+import { boundary, defineFlow } from '@openwizard/core'
+import { z } from 'zod'
+
+interface Deps {
+  hotels: { reserve(trip: string): { booking: string }; cancel(booking: string): void }
+  payments: { charge(trip: string, amount: number): { receipt: string } }
+}
+
+const s = defineFlow({
+  name: 'book-trip',
+  context: z.object({ tripId: z.string(), total: z.number().positive() }),
+  deps: boundary.trusted<Deps>(),
+  onFailure: 'compensate',
+})
+
+export const bookTrip = s.steps({
+  reserveHotel: s.task(({ context, deps }) => deps.hotels.reserve(context.tripId), {
+    compensate: ({ output, deps }) => deps.hotels.cancel(output.booking), // `output` is this task's own result
+    next: 'charge',
+  }),
+  charge: s.task(({ context, deps }) => deps.payments.charge(context.tripId, context.total), {
+    next: 'confirmed', // no `compensate`: a failed charge has nothing to undo — it triggers the unwind
+  }),
+  confirmed: s.final(),
+})
+```
+
+[Example 03](/examples/03-non-recoverable-compensation) walks through the unwind and the
+re-attempt.
+
+## `retry` and `timeout`
+
+`RetryPolicy` is plain data (so `inspect()` can show it): `{ attempts, backoff?, baseMs?,
+factor?, maxBackoffMs? }` — `attempts` retries after the first failure (`attempts: 1` = one retry,
+two runs); `backoff` a fixed number of ms (absent = immediately) or `'exponential'` =
+`min(baseMs × factor^(attempt-1), maxBackoffMs)` with defaults 200 ms / 2 / 30 s. Retries are
+timers (`step.retryScheduled { dueAt, timerId }`); the attempt counter and the `retryAt` deadline
+persist and are re-armed on resume, the policy itself is read from the flow. While waiting,
+`explain(step)` reports `phase: 'retrying'`.
+
+`timeout` aborts the run through `args.signal` (`AbortSignalLike`) and, once the retries are
+spent, fails with `kind: 'timeout'`.
+
+[Example 02](/examples/02-recoverable-failure) drives an exponential policy with the test
+scheduler.
+
+## `autoRun` and `concurrency`
+
+With `autoRun: 'ready'` every ready `task` / `wait` / `decision` / `flow` step starts as soon as it
+is ready — tasks bounded by `concurrency`, chosen in activation order; `explain(step)` says
+`concurrency-limit` while a task waits for a slot. With `autoRun: 'manual'` ready steps report
+`auto-run-manual` and start on `runReady()` (or `run(task)` for one of them) — stage by stage,
+under the host's control. Views never auto-complete: they wait for the cursor.
+
+## `unmatchedEvents`
+
+An event with no active listener is buffered (`event.buffered { expiresAt }`, `state.inbox`) and
+delivered the moment a step that handles it enters — the "webhook arrived early" race — or dropped
+(`event.dropped { reason: 'no-listener' }`) when `buffer: false`. Entries expire after `ttl`
+(`event.expired`). See [External events](/concepts/external-events).
+
+## Where the policies show up
+
+- `inspect(flow)` — nodes carry `timeout` and `dependsOn`; hooks by name (`retry` is read from
+  the definition when the runtime schedules).
+- The trace — `step.retryScheduled`, `flow.compensating { plan }`, `event.buffered`, …
+- `explain(step)` — `retrying`, `concurrency-limit`, `auto-run-manual`, `flow-compensating`, …

@@ -1,0 +1,111 @@
+# Persistence and resume
+
+A wizard's state is a versioned, JSON-safe **snapshot**. Give `createWizard` a `Store` and it
+auto-saves after every committed change; a fresh process resumes the same instance with
+`resumeWizard()`, which re-validates everything, bumps `epoch`, re-arms timers and applies a
+recovery matrix to work that was in flight when the snapshot was taken.
+
+```ts
+import type { Store } from '@openwizard/core'
+// interface Store { get(key): Promise<unknown | null>; set(key, snapshot): Promise<void>; delete(key): Promise<void> }
+```
+
+## Saving
+
+```ts
+import { createMemoryStore, createWizard } from '@openwizard/core'
+
+const store = createMemoryStore() // a JSON round trip on every write, like a real database
+const wizard = createWizard(approval, {
+  context: { requestId: '42', amount: 1_250 },
+  deps,
+  store,
+  key: 'tenant-a/expense-approval/42', // default: the instance id
+  autoSave: 'change', //                 default when a store is given ('off' to save() manually)
+  debounceMs: 0, //                      coalesce auto-saves
+  redact: (snapshot) => snapshot, //     applied right before store.set
+  onPersistError: (error) => {}, //      a write failed (store error, or a non-JSON snapshot); default: rethrown async
+})
+await wizard.save() // force a write now
+```
+
+`getSnapshot()` is the envelope `{ v, flow: { name, version }, instanceId, epoch, seq, savedAt,
+state, children }` — cached per state, `children` holding the snapshots of live child flows.
+
+**JSON-checked before every store write.** Right before `store.set` the value is walked: a `Map`,
+`Set`, `RegExp`, class instance, function, `bigint`, `NaN` / `Infinity` or `undefined` array slot
+anywhere in it means the write does not happen — `onPersistError` receives a
+`WizardError('SNAPSHOT_NOT_SERIALIZABLE')` naming the exact location
+(`state.steps.save.output.createdAt`, also on `error.issues[0].path` and `error.step`), a
+`persist.failed` event is logged, and `save()` rejects with it. The live `getSnapshot()` is
+untouched; you fix the flow. One deliberate exception: a `Date` (any object with `toJSON()`) is
+accepted exactly where a schema / parse boundary re-parses its JSON form on resume — a task
+`output`, a view `input`, the flow `context`, an event boundary (`z.coerce.date()` turns the
+stored ISO string back into a `Date`; a `z.date()` there would make resume reject the snapshot
+loudly instead of quietly handing you a string). Anywhere else, or under `boundary.trusted()` /
+`guard` / `assert`, store the JSON form or keep the value out of the state (`deps`).
+
+<Callout type="warning" title="Persistence is single-owner">
+  One live wizard per store key. `Store` is plain `get / set / delete` — no compare-and-swap, lease
+  or fencing — so two replicas resuming the same snapshot at the same time would both run its side
+  effects. Resume on another replica only after the first instance is disposed (a crash, a drain,
+  a hand-over you control).
+</Callout>
+
+## Resuming
+
+```ts
+import { resumeWizard, resumeWizardAsync } from '@openwizard/core'
+
+const saved = await store.get(key) // unknown | null
+const wizard = resumeWizard(approval, saved, { deps, store, key })
+wizard.epoch // 1 (incremented on every resume)
+wizard.log()[0] // { type: 'flow.resumed', fromSeq, interrupted: [...] }
+const other = await resumeWizardAsync(approval, saved, { deps }) // flows with async boundaries
+```
+
+Resume validates the envelope (`v`, `flow.name` / `version`, `instanceId`, `seq`), the step set,
+status invariants, JSON safety and **every boundary** (context, view outputs, task / flow outputs
+and their copies on the compensation stack, event payloads in the inbox, nested children) —
+otherwise `WizardError('SNAPSHOT_INCOMPATIBLE')` lists every reason. `resumeWizardAsync` awaits
+every boundary of the whole tree BEFORE anything is instantiated (still atomic); the sync
+`resumeWizard` reports an asynchronous boundary as a reason pointing to it.
+
+### The recovery matrix
+
+| Persisted situation | On resume |
+|---|---|
+| navigation in flight (`nav.phase !== 'idle'`) | `transition.rejected { reason: 'resumed' }`; the cursor stays |
+| task running | `step.failed { kind: 'interrupted' }` — `retry(step)` re-runs it; an `idempotent` task is instead RE-RUN at once with the same `idempotencyKey` (`step.runStarted { resumed: true }`) |
+| task with `retryAt` / wait with `deadline` / inbox TTLs | timers re-armed from their absolute times (fire immediately if overdue); the inbox is drained first |
+| flow step active | child restored from `snapshot.children[step]` (re-created if missing) |
+| `compensating` | continues unwinding from the stack |
+| terminal (`done` / `failed` / `cancelled`) | restored read-only |
+
+The host decides whether an interrupted side effect may run again (`retry()`), or declares the
+task `idempotent` and hands the key to the service so a re-run is safe by construction.
+
+## Migrating snapshots
+
+A snapshot whose `flow.version` differs from the flow's is `SNAPSHOT_INCOMPATIBLE` — unless
+`resumeWizard(flow, saved, { migrate })` converts it first. `migrate(snapshot, from)`
+(`SnapshotMigration`) is called only when the versions differ, with the raw snapshot and
+`from: { name, version }`; its result is validated like any snapshot and must carry the flow's
+version in the envelope AND in `state.flow` (an async converter is accepted by
+`resumeWizardAsync`). `flow.name` must always match.
+
+```ts
+import { resumeWizard, type Snapshot } from '@openwizard/core'
+
+const wizard = resumeWizard(checkoutV2, saved, {
+  deps,
+  migrate: (snapshot, from) => {
+    const snap = snapshot as Snapshot<typeof checkoutV1> // from = { name: 'checkout', version: 1 }
+    const flow = { name: snap.flow.name, version: 2 }
+    return { ...snap, flow, state: { ...snap.state, flow, context: { ...snap.state.context, currency: 'EUR' } } }
+  },
+})
+```
+
+[Example 04](/examples/04-resume-from-snapshot) crashes mid-wait, resumes three (virtual) hours
+later, lets the 48-hour deadline fire, retries an interrupted task and migrates a v1 snapshot.

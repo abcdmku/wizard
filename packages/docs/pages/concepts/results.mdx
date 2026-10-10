@@ -1,0 +1,72 @@
+# Results as values
+
+Every `Wizard` method is sugar over `dispatch(command)`, and every result is a value. Data
+problems — validation failures, guards, busy navigation, terminal flows, dropped events,
+incompatible payloads — are `{ ok: false, code, … }` results (and events). `WizardError` is thrown
+only for programmer errors.
+
+## The three result types
+
+```ts
+import type { CommandResult, NavResult, SendResult } from '@openwizard/core'
+// CommandResult = { ok: true; seq } | { ok: false; code; message; step?; issues? }
+// NavResult     = { ok: true; from; to; seq }
+//               | { ok: false; reason: 'validation' | 'guard-canExit' | 'guard-canEnter' | 'nav-busy'
+//                            | 'not-a-view' | 'not-active' | 'not-reachable' | 'no-target' | 'no-history'
+//                            | 'flow-terminal' | 'flow-not-started' | …; code; message; step?; issues? }
+//               | { ok: false; reason: 'failed'; code: WizardErrorCode | 'HOOK_FAILED'; message; step?; error? }
+// SendResult    = { ok: true; delivered: string[]; buffered: boolean; seq }
+//               | { ok: false; reason: 'rejected'; code: 'BOUNDARY_REJECTED'; message; issues }
+//               | { ok: false; reason: 'dropped'; code: 'NOT_ACTIVE' | 'DISPOSED' | 'FLOW_TERMINAL' | …; message }
+```
+
+| Method | Returns |
+|---|---|
+| `next()`, `back()`, `go(view)` | `NavResult` — the cursor moves through the full pipeline (parse → validate → canExit → resolve → canEnter → exit → enter). |
+| `send(event, payload)` | `SendResult` — delivered to the listening steps, buffered in the inbox, rejected by the boundary, or dropped. |
+| `start()`, `setInput()`, `resetInput()`, `run()`, `retry()`, `cancel()`, `runReady()`, `compensate()`, `reset()`, `skip()`, `invalidate()`, `dispatch()` | `CommandResult`. |
+
+One vocabulary: every `{ ok: false }` result carries `code` (a `WizardErrorCode`, plus `STALE` /
+`FLOW_COMPENSATING` / `HOOK_FAILED` where they apply) and `message`; `dispatch({ type: 'send' })`
+returns the same `code` a `send()` would, as a `CommandResult`.
+
+```ts
+const rejected = await wizard.next()
+if (!rejected.ok && rejected.reason === 'validation') {
+  rejected.issues // Standard Schema issues, ready for a form
+}
+
+const moved = await wizard.go('review')
+if (!moved.ok && moved.reason === 'not-reachable') {
+  wizard.explain('review').reasons // ['deps-unmet:pay', …] — the same reasons the machine used
+}
+```
+
+## When something does throw
+
+`WizardError` (with a stable `code: WizardErrorCode`, `isWizardError(e)`) is thrown only for
+misuse: `DISPOSED`, `DEFINITION_INVALID`, `BOUNDARY_REJECTED` (context / deps at the door),
+`SNAPSHOT_INCOMPATIBLE`, `SNAPSHOT_NOT_SERIALIZABLE` (a `save()` of a non-JSON snapshot),
+`NESTING_CYCLE`, `NESTING_TOO_DEEP`, `UNKNOWN_EVENT` (`send()` with an undeclared name — the
+types already prevent it), `UNKNOWN_STEP` (`validate`), `NOT_A_FLOW_STEP` / `NOT_ACTIVE`
+(`child`).
+
+```ts
+import { isWizardError } from '@openwizard/core'
+
+try {
+  wizard.child('shipping') // not a flow step
+} catch (error) {
+  if (isWizardError(error)) error.code // 'NOT_A_FLOW_STEP'
+}
+```
+
+## Why values
+
+- A form can render `issues` without a `try` block, and a server can return them as JSON.
+- Rejections are also **events** (`transition.rejected`, `event.rejected`, `command.rejected`),
+  so the trace tells the same story as the return value.
+- Sync-commit still holds: when every hook is synchronous, the state is committed and the
+  promise already settled before the call returns — the result describes what actually happened.
+- The wire door (`dispatch`) and the Mirror carry the same shapes, so a client sees exactly what
+  the server saw.

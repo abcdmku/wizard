@@ -1,37 +1,21 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": false,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "useDefineForClassFields": true,
-    "baseUrl": ".",
+    "noEmit": true,
     "paths": {
-      "@wizard/core": ["packages/core/src/index.ts"],
-      "@wizard/core/*": ["packages/core/src/*"],
-      "@wizard/react": ["packages/react/src/index.ts"],
-      "@wizard/react/*": ["packages/react/src/*"]
+      "@openwizard/core": ["./packages/core/src/index.ts"],
+      "@openwizard/core/testing": ["./packages/core/src/testing.ts"],
+      "@openwizard/react": ["./packages/react/src/index.ts"]
     }
   },
-  "exclude": ["node_modules", "dist", "build", "coverage"]
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/src/**/*.tsx",
+    "packages/*/tests/**/*.ts",
+    "packages/*/tests/**/*.tsx",
+    "scripts/**/*.mjs",
+    "vitest.config.ts"
+  ],
+  "exclude": ["**/node_modules", "**/dist"]
 }

@@ -1,0 +1,88 @@
+/* ---- event log --------------------------------------------------------------------------- */
+.owd-log {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 160px;
+  background: var(--owd-surface);
+}
+.owd-log-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--owd-border);
+}
+.owd-log-bar .owd-input {
+  flex: 1 1 auto;
+  max-width: 420px;
+}
+.owd-log-viewport {
+  flex: 1 1 auto;
+  overflow: auto;
+  position: relative;
+}
+.owd-log-head,
+.owd-log-row {
+  display: grid;
+  grid-template-columns: 56px 92px 200px 130px 110px minmax(120px, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 0 8px;
+  width: 100%;
+  min-width: 720px;
+  text-align: left;
+}
+.owd-log-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 24px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--owd-subtle);
+  background: var(--owd-muted);
+  border-bottom: 1px solid var(--owd-border);
+}
+.owd-log-row {
+  font: inherit;
+  font-size: 11px;
+  color: var(--owd-text);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--owd-border) 50%, transparent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.owd-log-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.owd-log-row:hover {
+  background: var(--owd-muted);
+}
+.owd-log-row[data-selected="true"] {
+  background: color-mix(in srgb, var(--owd-accent) 14%, transparent);
+}
+.owd-log-row[data-child="true"] {
+  color: var(--owd-subtle);
+}
+.owd-log-type[data-family="flow"] {
+  color: var(--owd-accent-2);
+}
+.owd-log-type[data-family="step"] {
+  color: var(--owd-success);
+}
+.owd-log-type[data-family="transition"] {
+  color: var(--owd-accent);
+}
+.owd-log-type[data-family="event"],
+.owd-log-type[data-family="timer"] {
+  color: var(--owd-warn);
+}
+.owd-log-type[data-family="command"],
+.owd-log-type[data-family="result"],
+.owd-log-type[data-family="persist"] {
+  color: var(--owd-danger);
+}

@@ -1,0 +1,103 @@
+# Testing
+
+The runtime never calls `Date.now()` or `setTimeout` directly: it uses the injectable `clock` /
+`scheduler`. `@openwizard/core/testing` — a separate entry so nothing here ships in an application
+bundle — holds the two helpers that make tests deterministic: `createTestScheduler` (virtual
+time) and `createLocalTransport` (a Mirror without a network).
+
+## `createTestScheduler()`
+
+`createTestScheduler({ now? })` returns a `TestScheduler` — a `Scheduler` and a `Clock` at once —
+so one object drives retries, wait timeouts and inbox TTLs:
+
+```ts
+import { createWizard } from '@openwizard/core'
+import { createTestScheduler } from '@openwizard/core/testing'
+
+const sched = createTestScheduler({ now: 1_000 })
+const wizard = createWizard(checkout, { context, deps, scheduler: sched }) // sched is the clock too
+await wizard.start()
+sched.pending() // armed timers
+sched.advance(200) // fires every timer due within 200 ms, in order, synchronously
+sched.flush() // fires everything that is left
+```
+
+Timers fire synchronously inside `advance()`, so the resulting state is committed when it
+returns; async hooks (real promises) still need a microtask tick:
+
+```ts
+const settle = () => new Promise<void>((r) => setTimeout(r, 0))
+
+await wizard.start()
+await settle() // attempt 1 fails → retry scheduled at now + 200 ms
+expect(wizard.explain('post')).toMatchObject({ phase: 'retrying', reasons: ['retrying'] })
+sched.advance(200) // attempt 2 starts (and fails) exactly at the deadline
+await settle()
+```
+
+Fakes that take virtual time on the wizard's own scheduler prove parallelism
+([example 07](/examples/07-dag-pipeline)): `sched.setTimeout(() => resolve(value), 300)` inside a
+dependency, then `advance(300)` from the test.
+
+## Fake deps, real assertions
+
+Out-of-domain services enter through `deps` (`boundary.trusted<Deps>()`), so a test passes
+in-memory fakes and asserts on what they recorded — and on the event log:
+
+```ts
+const log = wizard.log().map((event) => `${event.type}${'step' in event ? `:${event.step}` : ''}`)
+expect(log).toContain('step.validationFailed:profile')
+expect(log.at(-1)).toBe('flow.done')
+```
+
+Every [example](/examples) is a workspace package with exactly this kind of test; the root
+`pnpm test` runs them against the sources, each example's `pnpm --filter … check` against the
+built package.
+
+## Type tests
+
+Type assertions live next to the runtime tests as `*.test-d.ts` files (`expectTypeOf`,
+`@ts-expect-error`) and run through the TypeScript checker in CI — a `.test-d.ts` that
+"passes" without being type-checked was a v1 mistake this repository guards against with a
+canary that must fail.
+
+```ts
+import { expectTypeOf } from 'vitest'
+import type { OutputOf } from '@openwizard/core'
+
+expectTypeOf<OutputOf<typeof onboarding, 'save'>>().toEqualTypeOf<{ id: string }>()
+// @ts-expect-error — not a view
+wizard.go('save')
+```
+
+## A Mirror end to end, no network
+
+```ts
+import { createMirror, createMirrorSource } from '@openwizard/core'
+import { createLocalTransport } from '@openwizard/core/testing'
+
+const source = createMirrorSource(wizard, checkoutClient)
+const mirror = createMirror<typeof checkoutClient>({
+  transport: createLocalTransport(source, { serialize: true }), // JSON round trip, like a wire
+})
+```
+
+`createLocalTransport(source, { delayMs?, serialize?, scheduler? })` — `delayMs` delays every
+frame and every command / ack hop, `serialize: true` JSON-round-trips them, and `scheduler` lets
+the delays run on virtual time. [Example 08](/examples/08-react-mirror) drives its whole React UI
+through the DOM this way (jsdom + Testing Library) and asserts that no card number ever reaches
+the wizard.
+
+## Sync-commit in tests
+
+When every hook a call triggers is synchronous, the state is committed before the returned
+promise is awaited — a test can assert without `await`:
+
+```ts
+const pending = wizard.next()
+expect(wizard.getState().status).toBe('done')
+expect(await pending).toMatchObject({ ok: true, from: 'profile', to: 'save' })
+```
+
+`createWizard(flow, { strict: 'sync' })` turns the first thenable into a `SYNC_VIOLATION` failure
+— useful to guard a flow that must stay synchronous.

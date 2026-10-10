@@ -1,0 +1,17 @@
+{
+  "name": "example-07-dag-pipeline",
+  "private": true,
+  "type": "module",
+  "description": "OpenWizard example: a server-side DAG — fan-out with next: [...], parallel tasks under a concurrency budget, an AND-join with dependsOn, explain() on the gate, autoRun 'manual' + runReady(), when / skip() / progress().",
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json && vitest run --root .",
+    "start": "tsx src/main.ts"
+  },
+  "devDependencies": {
+    "@openwizard/core": "workspace:*",
+    "tsx": "^4.23.12",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10",
+    "zod": "^4.4.3"
+  }
+}

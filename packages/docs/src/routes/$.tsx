@@ -1,70 +1,47 @@
-import { useEffect, useState } from 'react'
 import { MDXProvider } from '@mdx-js/react'
 import { createFileRoute, notFound } from '@tanstack/react-router'
-import { DocsLayout } from '@/components/docs-layout'
-import { getDocPageBySlug, getDocSibling } from '@/lib/docs'
+import { Suspense, useEffect } from 'react'
+import { DocsLayout } from '../components/docs-layout'
+import { mdxComponents } from '../components/mdx/mdx-components'
 import {
-  getLoadedDocModule,
-  hasDocModule,
-  loadDocModule,
-  prefetchDocModuleBySlug,
-} from '@/lib/docs-modules'
-import { mdxComponents } from '../../mdx-components'
+  hasPageModule,
+  loadPageModule,
+  pageBySlug,
+  pageComponent,
+  prefetchPage,
+  siblingPage,
+} from '../lib/docs'
+import { site } from '../lib/site'
 
 export const Route = createFileRoute('/$')({
   loader: async ({ params }) => {
-    const page = getDocPageBySlug(params._splat)
-    if (!page || !hasDocModule(page.modulePath)) {
-      throw notFound()
-    }
-
-    await loadDocModule(page.modulePath)
-
+    const page = pageBySlug(params._splat)
+    if (!page || !hasPageModule(page.modulePath)) throw notFound()
+    await loadPageModule(page.modulePath)
     return { page }
   },
-  component: CatchAllDocsRoute,
+  head: ({ loaderData }) => ({
+    meta: loaderData ? [{ title: `${loaderData.page.title} — ${site.name}` }] : [],
+  }),
+  component: DocsPageRoute,
 })
 
-function CatchAllDocsRoute() {
+function DocsPageRoute() {
   const { page } = Route.useLoaderData()
-  const [reloadKey, setReloadKey] = useState(0)
-  const modulePath = page.modulePath
-  const loadedModule = getLoadedDocModule(modulePath)
-  const MdxPage = loadedModule?.default
+  const MdxPage = pageComponent(page.modulePath)
 
   useEffect(() => {
-    prefetchDocModuleBySlug(getDocSibling(page.slug, -1)?.slug)
-    prefetchDocModuleBySlug(getDocSibling(page.slug, 1)?.slug)
+    prefetchPage(siblingPage(page.slug, -1)?.slug)
+    prefetchPage(siblingPage(page.slug, 1)?.slug)
   }, [page.slug])
-
-  useEffect(() => {
-    if (loadedModule) {
-      return
-    }
-
-    let cancelled = false
-    void loadDocModule(modulePath).then(() => {
-      if (!cancelled) {
-        setReloadKey((value) => value + 1)
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [loadedModule, modulePath])
 
   return (
     <DocsLayout page={page}>
-      {MdxPage ? (
-        <MDXProvider components={mdxComponents}>
+      <MDXProvider components={mdxComponents}>
+        <Suspense fallback={null}>
           <MdxPage key={page.slug} />
-        </MDXProvider>
-      ) : (
-        <div key={`${modulePath}-${reloadKey}`} className="py-8 text-sm text-slate-500">
-          Loading page...
-        </div>
-      )}
+        </Suspense>
+      </MDXProvider>
     </DocsLayout>
   )
 }
