@@ -1,6 +1,6 @@
 {
   "name": "@openwizard/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "OpenWizard core — a TypeScript-first, type-safe orchestrator for sync and async workflows. Framework-agnostic; runs on the server, in the browser, and at the edge.",
   "license": "MIT",
   "type": "module",

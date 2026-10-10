@@ -1,6 +1,6 @@
 {
   "name": "@openwizard/devtools",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Devtools for OpenWizard — a React Flow + ELK graph of a flow with live status overlay, an event log, a step inspector and a replay timeline, in one dockable <Devtools> panel over a Wizard or a Mirror.",
   "license": "MIT",
   "type": "module",
