@@ -3,6 +3,9 @@
  * @internal
  */
 
+import { isRecord } from '../record'
+import type { SerializedError } from './state'
+
 /** Shallow copy without the given keys (needed because optional fields must be absent, not `undefined`). */
 export function omit<T extends object, K extends keyof T>(obj: T, keys: readonly K[]): Omit<T, K> {
   const drop: ReadonlySet<PropertyKey> = new Set(keys)
@@ -17,6 +20,11 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   return proto === Object.prototype || proto === null
 }
 
+/** A serialized error as hooks report it and snapshots store it: `{ name, message }`. */
+export function isSerializedError(value: unknown): value is SerializedError {
+  return isRecord(value) && typeof value.name === 'string' && typeof value.message === 'string'
+}
+
 /** Normalize a `NextRef` value into a target list (`null`/`undefined` → []). */
 export function normalizeTargets(value: unknown): readonly string[] {
   if (typeof value === 'string') return [value]
@@ -24,7 +32,7 @@ export function normalizeTargets(value: unknown): readonly string[] {
   return []
 }
 
-/** Element-wise equality of two wizard paths. */
+/** Element-wise equality of two run paths. */
 export function samePath(a: readonly string[], b: readonly string[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false

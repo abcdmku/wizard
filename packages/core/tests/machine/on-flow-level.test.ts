@@ -1,28 +1,37 @@
 /**
- * v0.2 §10.1 — flow-level `on` handlers, resume with buffered events, correlation. Pure machine tests.
+ * Flow-level `on` handlers, resume with buffered events, correlation. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, of, replay, task, view, wait } from '../helpers/fixtures'
+import {
+  createHarness,
+  eventStep,
+  flow,
+  of,
+  replay,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const on = () => undefined
 const yes = () => true
 
 describe('on — flow-level handlers', () => {
-  it('delivered after step-level handlers in the same batch (event.flowDelivered → call flowOn with step ""), not buffered', () => {
+  it('delivered after step-level handlers in the same batch (event.wizardDelivered → call wizardOn with step ""), not buffered', () => {
     const h = createHarness(
       flow({
         start: 'w',
-        steps: { w: wait({ on: { paid: on }, next: 'end' }), end: final() },
+        steps: { w: eventStep({ on: { paid: on }, next: 'end' }), end: routingStep() },
         on: { paid: on, other: on },
       }),
     )
     h.start()
     const r = h.cmd({ type: 'send', event: 'paid', payload: { n: 1 } })
-    expect(r.types).toEqual(['event.received', 'event.delivered', 'event.flowDelivered'])
+    expect(r.types).toEqual(['event.received', 'event.delivered', 'event.wizardDelivered'])
     const calls = r.effects.filter((e) => e.kind === 'call')
     expect(calls.map((c) => [c.hook, c.step])).toEqual([
       ['on', 'w'],
-      ['flowOn', ''],
+      ['wizardOn', ''],
     ])
     expect(calls[1]).toMatchObject({
       token: { step: '', runId: 0 },
@@ -30,34 +39,34 @@ describe('on — flow-level handlers', () => {
     })
     // only the flow handles `other`: no buffering, no drop
     const o = h.cmd({ type: 'send', event: 'other', payload: null })
-    expect(o.types).toEqual(['event.received', 'event.flowDelivered'])
+    expect(o.types).toEqual(['event.received', 'event.wizardDelivered'])
     expect(h.state.inbox).toEqual([])
     // its void result is silent
-    expect(h.ok(h.call('flowOn'), undefined).types).toEqual([])
+    expect(h.ok(h.call('wizardOn'), undefined).types).toEqual([])
   })
 
   it('{ cancel: reason } from the flow-level handler cancels the flow like the cancel command (compensation policy applies)', () => {
     const halt = createHarness(
       flow({
         start: 't',
-        steps: { t: task({ next: 'end' }), end: final() },
+        steps: { t: runStep({ next: 'end' }), end: routingStep() },
         on: { abort: on },
       }),
     )
     halt.start()
     halt.cmd({ type: 'send', event: 'abort', payload: null })
-    const r = halt.ok(halt.call('flowOn'), { cancel: 'user-abort' })
-    expect(r.types).toEqual(['step.cancelled', 'flow.cancelled'])
-    expect(of(r, 'flow.cancelled')[0]).toMatchObject({ reason: 'user-abort' })
+    const r = halt.ok(halt.call('wizardOn'), { cancel: 'user-abort' })
+    expect(r.types).toEqual(['step.cancelled', 'run.cancelled'])
+    expect(of(r, 'run.cancelled')[0]).toMatchObject({ reason: 'user-abort' })
     expect(halt.state.status).toBe('cancelled')
 
     const saga = createHarness(
       flow({
         start: 't',
         steps: {
-          t: task({ compensate: on, next: 'u' }),
-          u: task(),
-          end: final(),
+          t: runStep({ compensate: on, next: 'u' }),
+          u: runStep(),
+          end: routingStep(),
         },
         policies: { onFailure: 'compensate' },
         on: { abort: on },
@@ -66,8 +75,8 @@ describe('on — flow-level handlers', () => {
     saga.start()
     saga.ok(saga.call('run', 't'), 1)
     saga.cmd({ type: 'send', event: 'abort', payload: null })
-    const c = saga.ok(saga.call('flowOn'), { cancel: 'abort' })
-    expect(c.types.slice(0, 2)).toEqual(['flow.compensating', 'step.cancelled'])
+    const c = saga.ok(saga.call('wizardOn'), { cancel: 'abort' })
+    expect(c.types.slice(0, 2)).toEqual(['run.compensating', 'step.cancelled'])
     expect(saga.state.status).toBe('compensating')
   })
 
@@ -75,7 +84,7 @@ describe('on — flow-level handlers', () => {
     const h = createHarness(
       flow({
         start: 'w',
-        steps: { w: wait({ on: { e: on }, next: 'end' }), end: final() },
+        steps: { w: eventStep({ on: { e: on }, next: 'end' }), end: routingStep() },
         on: { e: on },
       }),
     )
@@ -92,13 +101,14 @@ describe('on — flow-level handlers', () => {
     )
     expect(of(r, 'event.handlerFailed')[0]).not.toHaveProperty('step')
     h.ok(stepCall!, undefined)
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     h.cmd({ type: 'send', event: 'e', payload: 2 }) // rejected: terminal — no call planned
-    // a stale flowOn result once terminal
+    // a stale wizardOn result once terminal
     const stale = h.step({
       type: 'res.ok',
       effectId: 'x',
-      hook: 'flowOn',
+      hook: 'wizardOn',
       token: { step: '', runId: 0 },
       value: { cancel: 'late' },
       durationMs: 0,
@@ -112,7 +122,7 @@ describe('on — resume', () => {
     const h = createHarness(
       flow({
         start: 'v',
-        steps: { v: view({ canExit: yes, on: { ping: on }, next: 'end' }), end: final() },
+        steps: { v: view({ canExit: yes, on: { ping: on }, next: 'end' }), end: routingStep() },
       }),
     )
     h.start()
@@ -122,7 +132,7 @@ describe('on — resume', () => {
     expect(h.state.inbox).toHaveLength(2)
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
     expect(r.types).toEqual([
-      'flow.resumed',
+      'run.resumed',
       'transition.rejected',
       'timer.cleared',
       'event.delivered',
@@ -141,7 +151,7 @@ describe('on — correlation', () => {
   const correlated = () =>
     flow({
       start: 'w',
-      steps: { w: wait({ on: { paid: on }, next: 'end' }), end: final() },
+      steps: { w: eventStep({ on: { paid: on }, next: 'end' }), end: routingStep() },
       correlate: {
         paid: (p) => (p as { orderId?: string }).orderId,
         boom: () => {
@@ -172,7 +182,7 @@ describe('on — correlation', () => {
     expect(err.types).toEqual(['event.received', 'event.dropped'])
   })
 
-  it('a wizard without a correlationId never filters; a caller-provided correlationId is recorded but does not filter', () => {
+  it('a run without a correlationId never filters; a caller-provided correlationId is recorded but does not filter', () => {
     const h = createHarness(correlated())
     h.start()
     const r = h.cmd({

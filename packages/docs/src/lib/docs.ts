@@ -8,7 +8,7 @@ export const docsPageMap: ReadonlyMap<string, DocsPage> = new Map(
   docsPages.map((page) => [page.slug, page]),
 )
 
-export function normalizeSlug(value: string | undefined): string {
+function normalizeSlug(value: string | undefined): string {
   return (value ?? '')
     .replace(/^\/+/, '')
     .replace(/\/+$/, '')
@@ -54,10 +54,6 @@ export function loadPageModule(modulePath: string): Promise<MdxModule> {
     .finally(() => pending.delete(modulePath))
   pending.set(modulePath, promise)
   return promise
-}
-
-export function loadedPageModule(modulePath: string): MdxModule | undefined {
-  return loaded.get(modulePath)
 }
 
 const lazyPages = new Map<string, ComponentType>()

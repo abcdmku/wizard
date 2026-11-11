@@ -1,124 +1,107 @@
-/**
- * Extractors — one per concept, every one an indexed access on `'~types'` (no distributive
- * conditionals): context, deps, events, step ids and per-step facts of a flow.
- * @packageDocumentation
- */
+/** One extractor for each public type fact. */
 
-import type { AnyFlow } from './flow'
 import type { StepKind } from './primitives'
+import type { StepFacts } from './step'
+import type { AnyWizardDefinition, RemainingDeps } from './wizard'
 
+export type TypesOf<F extends AnyWizardDefinition> = NonNullable<F['~types']>
+/** The parsed context seen by hooks. @public */
+export type Ctx<F extends AnyWizardDefinition> = TypesOf<F>['ctx']
+/** The input accepted by the context boundary at run creation. @public */
+export type ContextInput<F extends AnyWizardDefinition> = TypesOf<F>['ctxIn']
+/** All dependencies seen by hooks, including supplied dependencies. @public */
+export type DepsOf<F extends AnyWizardDefinition> = TypesOf<F>['deps']
 /**
- * Parsed context type of a flow (boundary OUTPUT side).
+ * The dependencies still required when creating or resuming a run.
+ * That is `DepsOf` minus what `provide()` bound.
  * @public
  */
-export type Ctx<F extends AnyFlow> = NonNullable<F['~types']>['ctx']
-/**
- * Context input type of a flow (boundary INPUT side — what `createWizard` accepts).
- * @public
- */
-export type ContextInput<F extends AnyFlow> = NonNullable<F['~types']>['ctxIn']
-/**
- * Deps type of a flow (`unknown` when the flow declares no `deps` boundary).
- * @public
- */
-export type DepsOf<F extends AnyFlow> = NonNullable<F['~types']>['deps']
-/**
- * Event map of a flow (`{ [event]: payload }`).
- * @public
- */
-export type EventMapOf<F extends AnyFlow> = NonNullable<F['~types']>['events']
-/**
- * Declared event names of a flow.
- * @public
- */
-export type EventType<F extends AnyFlow> = Extract<keyof EventMapOf<F>, string>
-/**
- * Parsed payload type of one event.
- * @public
- */
-export type PayloadOf<F extends AnyFlow, E extends EventType<F>> = EventMapOf<F>[E]
-/**
- * Step ids of a flow.
- * @public
- */
-export type StepId<F extends AnyFlow> = Extract<keyof F['steps'], string>
-/**
- * Phantom facts of one step.
- * @public
- */
-export type StepTypesOf<F extends AnyFlow, K extends StepId<F>> = NonNullable<
-  F['steps'][K]['~types']
+export type RequiredDepsOf<F extends AnyWizardDefinition> = RemainingDeps<
+  TypesOf<F>['deps'],
+  TypesOf<F>['provided']
 >
-/**
- * Raw input (draft, INPUT side of the view's `input` boundary) type of a step; `never` without a draft.
- * @public
- */
-export type InputOf<F extends AnyFlow, K extends StepId<F>> = StepTypesOf<F, K>['input']
-/**
- * Draft patch type of a view (`Partial` of the INPUT side) — what `setInput` accepts.
- * @public
- */
-export type DraftOf<F extends AnyFlow, K extends StepId<F>> = Partial<InputOf<F, K>>
-/**
- * Output type of a step: parsed input (view), run result (task), `{ event, payload }` (wait),
- * child output (flow), `output()` result (final); `undefined` when the step has none.
- * @public
- */
-export type OutputOf<F extends AnyFlow, K extends StepId<F>> = StepTypesOf<F, K>['output']
-/**
- * Child flow of a `flow` step (`never` for other kinds).
- * @public
- */
-export type ChildFlowOf<F extends AnyFlow, K extends StepId<F>> = StepTypesOf<F, K>['child']
-/**
- * Mapped error type of a task (`s.task(run, { mapError })` → the value stored as
- * `steps[k].error.data`); `never` for steps without `mapError`.
- * @public
- */
-export type ErrorOf<F extends AnyFlow, K extends StepId<F>> = StepTypesOf<F, K>['error']
-/**
- * Kind of a step.
- * @public
- */
-export type KindOf<F extends AnyFlow, K extends StepId<F>> = F['steps'][K]['kind']
-/**
- * `true` when step `K` is exactly of kind `Kind` — or when its kind is the fully widened
- * `StepKind` (a wildcard flow such as `AnyFlow`, where every id is a `string` anyway). A step
- * whose kind is a partial union (`'view' | 'task'`) is NOT of either kind (safe direction).
- * @public
- */
-export type HasKind<F extends AnyFlow, K extends StepId<F>, Kind extends StepKind> = [
-  KindOf<F, K>,
-] extends [Kind]
-  ? true
-  : [StepKind] extends [KindOf<F, K>]
-    ? true
-    : false
-/**
- * Ids of the view steps (`go`, `setInput`, `resetInput`, `validate` accept these).
- * @public
- */
-export type ViewId<F extends AnyFlow> = {
-  [K in StepId<F>]: HasKind<F, K, 'view'> extends true ? K : never
+type EventMapOf<F extends AnyWizardDefinition> = unknown extends TypesOf<F>['events']
+  ? Record<string, unknown>
+  : TypesOf<F>['events']
+type EventInputMapOf<F extends AnyWizardDefinition> = unknown extends TypesOf<F>['eventsIn']
+  ? Record<string, unknown>
+  : TypesOf<F>['eventsIn']
+/** The event boundary input accepted by send. @public */
+export type PayloadInput<
+  F extends AnyWizardDefinition,
+  E extends EventType<F>,
+> = EventInputMapOf<F>[E & keyof EventInputMapOf<F>]
+/** The declared external event names. @public */
+export type EventType<F extends AnyWizardDefinition> = Extract<keyof EventMapOf<F>, string>
+/** The parsed event payload seen by handlers. @public */
+export type PayloadOf<F extends AnyWizardDefinition, E extends EventType<F>> = EventMapOf<F>[E]
+type StepsOf<F extends AnyWizardDefinition> = TypesOf<F>['steps']
+/** The literal ids of an assembled wizard. @public */
+export type StepId<F extends AnyWizardDefinition> =
+  unknown extends StepsOf<F> ? string : Extract<keyof StepsOf<F>, string>
+type FactsOf<F extends AnyWizardDefinition, K> =
+  unknown extends StepsOf<F>
+    ? StepFacts
+    : K extends keyof StepsOf<F>
+      ? NonNullable<StepsOf<F>[K]['~types' & keyof StepsOf<F>[K]]>
+      : never
+export type Fact<F extends AnyWizardDefinition, K, P extends keyof StepFacts> =
+  FactsOf<F, K> extends infer X ? (P extends keyof X ? X[P] : never) : never
+/** The kind of a step in an assembled wizard. @public */
+export type KindOf<F extends AnyWizardDefinition, K> =
+  unknown extends StepsOf<F>
+    ? StepKind
+    : K extends keyof StepsOf<F>
+      ? StepsOf<F>[K] extends { readonly kind: infer Kd }
+        ? Kd
+        : never
+      : never
+/** The inferred output of one step. @public */
+export type OutputOf<F extends AnyWizardDefinition, K extends StepId<F>> = Fact<F, K, 'output'>
+/** The raw input of a view, or never for steps without input. @public */
+export type InputOf<F extends AnyWizardDefinition, K extends StepId<F>> = Fact<F, K, 'input'>
+/** A partial patch of a view boundary input. @public */
+export type DraftOf<F extends AnyWizardDefinition, K extends StepId<F>> = Partial<InputOf<F, K>>
+/** The JSON error data produced by mapError or a run adapter. @public */
+export type ErrorOf<F extends AnyWizardDefinition, K extends StepId<F>> = Fact<F, K, 'error'>
+/** Whether a step maps over items. @public */
+export type IsEach<F extends AnyWizardDefinition, K extends StepId<F>> = [
+  Fact<F, K, 'each'>,
+] extends [never]
+  ? false
+  : NonNullable<Fact<F, K, 'each'>>
+/** The child wizard of a child step, or never for other step kinds. @public */
+export type ChildWizardOf<F extends AnyWizardDefinition, K extends StepId<F>> =
+  unknown extends StepsOf<F>
+    ? AnyWizardDefinition
+    : Extract<Fact<F, K, 'child'>, AnyWizardDefinition>
+/** The ids of view steps. @public */
+export type ViewId<F extends AnyWizardDefinition> = {
+  [K in StepId<F>]: [KindOf<F, K>] extends ['view']
+    ? K
+    : [StepKind] extends [KindOf<F, K>]
+      ? K
+      : never
 }[StepId<F>]
-/**
- * Ids of the task steps (`retry`, `run` accept these).
- * @public
- */
-export type TaskId<F extends AnyFlow> = {
-  [K in StepId<F>]: HasKind<F, K, 'task'> extends true ? K : never
+/** The ids of runnable steps. @public */
+export type RunStepId<F extends AnyWizardDefinition> = {
+  [K in StepId<F>]: [Fact<F, K, 'runnable'>] extends [never]
+    ? never
+    : [Fact<F, K, 'runnable'>] extends [false]
+      ? never
+      : K
 }[StepId<F>]
-/**
- * Ids of the `flow` steps (`child()` accepts these).
- * @public
- */
-export type ChildStepId<F extends AnyFlow> = {
-  [K in StepId<F>]: [ChildFlowOf<F, K>] extends [never] ? never : K
+/** The ids of runnable steps and mapped child steps that can retry failed items. @public */
+export type RetryStepId<F extends AnyWizardDefinition> = {
+  [K in StepId<F>]: K extends RunStepId<F> ? K : [IsEach<F, K>] extends [true] ? K : never
 }[StepId<F>]
-/**
- * Output type of a flow: the union of its `final` steps' outputs.
- * @public
- */
-export type FlowOutput<F extends AnyFlow> = {
-  [K in StepId<F>]: HasKind<F, K, 'final'> extends true ? OutputOf<F, K> : never
+/** The ids of child steps. @public */
+export type ChildStepId<F extends AnyWizardDefinition> = {
+  [K in StepId<F>]: [KindOf<F, K>] extends ['child']
+    ? K
+    : [StepKind] extends [KindOf<F, K>]
+      ? K
+      : never
 }[StepId<F>]
+/** The stored selector result or resolved union of sink outputs. @public */
+export type WizardOutput<F extends AnyWizardDefinition> = TypesOf<F>['output']

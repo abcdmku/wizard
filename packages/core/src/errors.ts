@@ -1,7 +1,7 @@
 /**
- * `WizardError` — the ONE error type of the public API, thrown only for programmer errors
- * (plan §8.2): a disposed wizard, an invalid definition, an incompatible snapshot, an undeclared
- * event name, `child()` of a non-flow / inactive step, a boundary rejecting `context` / `deps` at
+ * `WizardError` — the ONE error type of the public API, thrown only for programmer errors:
+ * a disposed run, an invalid definition, an incompatible snapshot, an undeclared
+ * event name, `child()` of a step that is not a child step or not active, a boundary rejecting `context` / `deps` at
  * the door. Data problems never throw: machine-level rejections are events
  * (`command.rejected`, `transition.rejected`, …) and the façade returns them as values
  * (`{ ok: false, code, message, issues? }` — `CommandResult` / `NavResult` / `SendResult`),
@@ -21,18 +21,21 @@ export type WizardErrorCode =
   | 'UNKNOWN_STEP'
   | 'UNKNOWN_EVENT'
   | 'NOT_A_VIEW'
-  | 'NOT_A_TASK'
-  | 'NOT_A_FLOW_STEP'
+  | 'NOT_RUNNABLE'
+  | 'NOT_A_CHILD_STEP'
   | 'NOT_ACTIVE'
   | 'NOT_REACHABLE'
   | 'NAV_BUSY'
   | 'NO_TARGET'
   | 'NO_HISTORY'
   | 'INVALID_INPUT'
+  | 'INVALID_ARGUMENT'
   | 'BOUNDARY_REJECTED'
   | 'GUARD_BLOCKED'
-  | 'FLOW_TERMINAL'
-  | 'FLOW_NOT_STARTED'
+  | 'CANCELLED'
+  | 'RUN_TERMINAL'
+  | 'RUN_HALTED'
+  | 'RUN_NOT_STARTED'
   | 'INVALID_COMMAND'
   | 'SYNC_VIOLATION'
   | 'SNAPSHOT_INCOMPATIBLE'
@@ -44,7 +47,7 @@ export type WizardErrorCode =
 
 /**
  * Error thrown for programmer errors (misuse of the API): unknown event names,
- * incompatible snapshots, invalid definitions, disposed wizards. Data problems
+ * incompatible snapshots, invalid definitions, disposed runs. Data problems
  * (validation, rejected commands) are returned as `{ ok: false }` results instead.
  *
  * @public

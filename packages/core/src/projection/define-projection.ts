@@ -1,47 +1,47 @@
 /**
- * Projections — client views of a wizard (plan §1.7 / §8.9 / §9.8, ADR-001 case 12).
+ * A projection defines the state and transient progress allowed across a transport.
  *
- * `defineProjection(flow, { expose })` is deny-by-default: it captures the exposure spec as a
- * literal type so the projected `ClientState<F, E>` contains exactly what is listed — picked
- * context keys, the flow `output` only with `output: true`, `progress` only with
- * `progress: true`, and per step `input` (draft) / `output` / `issues` / `error` (with its
- * `mapError` `data`) / nested `child` only where exposed. Base facts per step (`id`, `kind`,
- * `status`, `phase`, `attempt`) and per wizard (`instanceId`, `epoch`, `seq`, `status`,
- * `current`) always cross. Everything else is absent from the type AND from the runtime object
- * (`applyProjection`).
+ * `defineProjection(wizard, { expose })` includes base run/step facts and only the listed
+ * context keys, inputs, outputs, issues, errors and children. `expose.progress: true` adds
+ * completion counters; `expose.waitingFor: true` adds flat waits. A step's transient events
+ * need its own `steps[id].progress: true`, including inside each nested child exposure.
  *
- * `defineProjection(flow, { select })` (v0.2) is the arbitrary alternative: `select` maps the
- * typed wizard state (`Snapshot<F>['state']`) to whatever the client needs; the projected type
- * is its return type. The two forms are mutually exclusive; both are `Projection<F, S>` where
- * `S` is the projected state type (what Mirror frames carry).
+ * `defineProjection(wizard, { select, progress? })` maps the typed state to any selected value.
+ * Transient events require explicit per-step entries in `progress`, independently of that
+ * value. Adding a `scope` boundary changes the mapper argument to `{ state, scope }` and makes
+ * that principal required by `run.project` and `createMirrorSource`. Scope stays server-side.
  *
- * A projection keeps a reference to the `Flow` object it was defined for; `wizard.project()`
- * and `createMirrorSource()` compare by identity (a same-name, same-shape flow is rejected).
+ * A wizard and its provided variants share projection identity. A separately authored
+ * same-name, same-shape definition is rejected.
  *
  * @packageDocumentation
  */
 
+import { isBoundary } from '../authoring/boundary'
 import type {
-  AnyFlow,
-  ChildFlowOf,
+  AnyWizardDefinition,
+  Boundary,
+  ChildWizardOf,
   Ctx,
   DraftOf,
   ErrorOf,
-  FlowOutput,
+  IsEach,
   Issue,
   KindOf,
   OutputOf,
   Progress,
+  RunStatus,
   SerializedError,
   StepId,
   StepStatus,
   ViewId,
-  WizardStatus,
+  WizardOutput,
 } from '../authoring/types'
 import { WizardError } from '../errors'
 import type { StepPhase as MachineStepPhase } from '../machine/selectors'
-import type { ChildSummary as MachineChildSummary } from '../machine/state'
+import type { ChildSummary } from '../machine/state'
 import type { Snapshot } from '../wizard/create-wizard'
+import type { WaitingFor } from '../wizard/results'
 
 /**
  * Live phase of a step as seen by UIs (`blocked | ready | entering | validating | running |
@@ -50,39 +50,53 @@ import type { Snapshot } from '../wizard/create-wizard'
  */
 export type StepPhase = MachineStepPhase
 
-/**
- * Compact status of a child flow as stored on the parent's flow step (`status`, `current`,
- * `progress` 0..1, `seq`) — what `child: true` exposes.
- * @public
- */
-export type ChildSummary = MachineChildSummary
+export type { ChildSummary } from '../machine/state'
 
 /**
  * Exposure of one step: its draft `input`, its `output`, its validation `issues`, its sanitized
- * `error` (with the `mapError` `data`), and — flow steps only — `child`: `true` for the compact
- * `ChildSummary`, or a nested (deny-by-default) spec for the projected child state. Nothing is
- * exposed by default.
+ * `error` (with the `mapError` `data`), its hook `progress(value)` events (`progress: true`:
+ * forwarded to mirrors as transient progress frames, `mirror.observe()`; never in the state), and
+ * — child steps only — `child`: `true` for the compact `ChildSummary`, or a nested
+ * spec for projected child state. Mapped children use arrays in input order, with `null` for
+ * children not created yet. Nothing is exposed by default.
  * @public
  */
-export type StepExpose<F extends AnyFlow, K extends StepId<F>> = {
+export type StepExpose<F extends AnyWizardDefinition, K extends StepId<F>> = {
   readonly input?: boolean
   readonly output?: boolean
   readonly issues?: boolean
   readonly error?: boolean
-} & ([ChildFlowOf<F, K>] extends [never]
+  readonly progress?: boolean
+} & ([ChildWizardOf<F, K>] extends [never]
   ? {}
-  : { readonly child?: boolean | ExposeSpec<ChildFlowOf<F, K>> })
+  : { readonly child?: boolean | ExposeSpec<ChildWizardOf<F, K>> })
 
 /**
  * What a projection exposes: per-step flags, the context keys that cross the wire, whether the
- * flow `output` does (`output: true`) and whether `progress` does (`progress: true`).
+ * wizard `output` does (`output: true`) and whether the `progress` summary (`{ done, total,
+ * ratio }`) does (`progress: true`; a step's hook progress events need its own `progress: true`).
  * @public
  */
-export interface ExposeSpec<F extends AnyFlow> {
+export interface ExposeSpec<F extends AnyWizardDefinition> {
   readonly steps?: { readonly [K in StepId<F>]?: StepExpose<F, K> }
   readonly context?: readonly (keyof Ctx<F> & string)[]
   readonly output?: boolean
   readonly progress?: boolean
+  /** Flat waits, with paths relative to the projected run. */
+  readonly waitingFor?: boolean
+}
+
+/**
+ * Transient progress selected by step. `true` exposes that step's own progress events; a child
+ * wizard's events require its own nested `child` map. This does not add fields to projected state.
+ * @public
+ */
+export type ProgressSpec<F extends AnyWizardDefinition> = {
+  readonly [K in StepId<F>]?:
+    | boolean
+    | ({ readonly progress?: boolean } & ([ChildWizardOf<F, K>] extends [never]
+        ? { readonly child?: never }
+        : { readonly child?: ProgressSpec<ChildWizardOf<F, K>> }))
 }
 
 /** Depth budget: `Prev[D]` = one child edge deeper; `Prev[0]` = `never` = beyond the budget. */
@@ -92,7 +106,7 @@ type StepExposeOf<E, K extends PropertyKey> = E extends { readonly steps: infer 
     ? S[K]
     : undefined
   : undefined
-type ExposedContextKeys<F extends AnyFlow, E> = E extends {
+type ExposedContextKeys<F extends AnyWizardDefinition, E> = E extends {
   readonly context: readonly (infer CK)[]
 }
   ? Extract<CK, keyof Ctx<F>>
@@ -108,12 +122,19 @@ export interface ClientStateFallback {
 
 /**
  * A step error as a projection exposes it (`error: true`): `{ name, message, code? }` — never a
- * stack — plus `data`, the task's `mapError` value (`ErrorOf<F, K>`), when it has one.
+ * stack — plus `data`, the runnable step's `mapError` value (`ErrorOf<F, K>`), when present.
  * @public
  */
 export interface ClientStepError<E> extends SerializedError {
   readonly data?: E
 }
+
+type ClientChild<F extends AnyWizardDefinition, K extends StepId<F>, S> =
+  boolean extends IsEach<F, K>
+    ? S | readonly (S | null)[]
+    : true extends IsEach<F, K>
+      ? readonly (S | null)[]
+      : S
 
 /**
  * Projected state of one step: base facts (`id`, `kind`, `status`, `phase`, `attempt`) plus
@@ -121,7 +142,12 @@ export interface ClientStepError<E> extends SerializedError {
  * of child levels still allowed below this step.
  * @public
  */
-export type ClientStepState<F extends AnyFlow, K extends StepId<F>, SE, Depth extends number> = {
+export type ClientStepState<
+  F extends AnyWizardDefinition,
+  K extends StepId<F>,
+  SE,
+  Depth extends number,
+> = {
   readonly id: K
   readonly kind: KindOf<F, K>
   readonly status: StepStatus
@@ -134,54 +160,67 @@ export type ClientStepState<F extends AnyFlow, K extends StepId<F>, SE, Depth ex
     ? { readonly error?: ClientStepError<ErrorOf<F, K>> }
     : {}) &
   ([SE] extends [{ readonly child: true }]
-    ? { readonly child?: ChildSummary }
+    ? { readonly child?: ClientChild<F, K, ChildSummary> }
     : SE extends { readonly child: infer CE extends object }
-      ? { readonly child?: ClientState<ChildFlowOf<F, K>, CE, Depth> }
+      ? { readonly child?: ClientChild<F, K, ClientState<ChildWizardOf<F, K>, CE, Depth>> }
       : {})
 
 /**
- * The projected (client-safe) state of a wizard for exposure spec `E`. `Depth` counts the child
+ * The projected (client-safe) state of a run for exposure spec `E`. `Depth` counts the child
  * edges still allowed: 8 real child levels below the root are typed precisely, deeper ones are
- * `ClientStateFallback`. The flow `output` is present only with `expose.output: true`,
+ * `ClientStateFallback`. The wizard `output` is present only with `expose.output: true`,
  * `progress` only with `expose.progress: true`.
  * @public
  */
-export type ClientState<F extends AnyFlow, E, Depth extends number = 8> = [Depth] extends [never]
+export type ClientState<F extends AnyWizardDefinition, E, Depth extends number = 8> = [
+  Depth,
+] extends [never]
   ? ClientStateFallback
   : {
       readonly instanceId: string
       readonly epoch: number
       readonly seq: number
-      readonly status: WizardStatus
+      readonly status: RunStatus
       readonly current: ViewId<F> | null
       readonly context: Pick<Ctx<F>, ExposedContextKeys<F, E>>
       readonly steps: {
         readonly [K in StepId<F>]: ClientStepState<F, K, StepExposeOf<E, K>, Prev[Depth]>
       }
-    } & ([E] extends [{ readonly output: true }] ? { readonly output?: FlowOutput<F> } : {}) &
-      ([E] extends [{ readonly progress: true }] ? { readonly progress: Progress } : {})
+    } & ([E] extends [{ readonly output: true }] ? { readonly output?: WizardOutput<F> } : {}) &
+      ([E] extends [{ readonly progress: true }] ? { readonly progress: Progress } : {}) &
+      ([E] extends [{ readonly waitingFor: true }]
+        ? { readonly waitingFor: readonly WaitingFor<F>[] }
+        : {})
 
 /**
- * A `select` projection's mapper: from the typed wizard state to the projected value.
+ * A `select` projection's mapper: from the typed run state to the projected value.
  * @public
  */
-export type ProjectionSelect<F extends AnyFlow, S> = (state: Snapshot<F>['state']) => S
+export type ProjectionSelect<F extends AnyWizardDefinition, S, Scope = never> = [Scope] extends [
+  never,
+]
+  ? (state: Snapshot<F>['state']) => S
+  : (input: { readonly state: Snapshot<F>['state']; readonly scope: Scope }) => S
 
 /**
- * A projection of flow `F` producing the client state type `S` — either deny-by-default
+ * A projection of wizard `F` producing the client state type `S` — either deny-by-default
  * (`expose`, `S = ClientState<F, E>`) or arbitrary (`select`, `S` = its return type). The
- * `Flow` object it belongs to is compared by identity; `S` is what Mirror frames carry
+ * wizard it belongs to is compared by identity; `S` is what Mirror frames carry
  * (`ProjectionOutput<P>`).
  * @public
  */
-export interface Projection<F extends AnyFlow, S> {
-  readonly '~types': { readonly flow: F; readonly state: S } | undefined
-  /** The source flow (identity: `wizard.project()` rejects a projection of any other flow object). */
-  readonly flow: F
+export interface Projection<F extends AnyWizardDefinition, S, Scope = never> {
+  readonly '~types': { readonly wizard: F; readonly state: S; readonly scope: Scope } | undefined
+  /** The authored source wizard. Provided variants share its identity; separately authored definitions do not. */
+  readonly wizard: F
   /** The exposure spec (deny-by-default projections); `undefined` for a `select` projection. */
   readonly expose: ExposeSpec<F> | undefined
+  /** Per-step transient progress allowed by a `select` projection; absent means no events. */
+  readonly progress: ProgressSpec<F> | undefined
+  /** Principal boundary for a scoped `select`; `undefined` for unscoped projections. */
+  readonly scope: [Scope] extends [never] ? undefined : Boundary<Scope, Scope>
   /** The mapper (`select` projections); `undefined` for an `expose` projection. */
-  readonly select: ProjectionSelect<F, S> | undefined
+  readonly select: ProjectionSelect<F, S, Scope> | undefined
 }
 
 /**
@@ -190,42 +229,62 @@ export interface Projection<F extends AnyFlow, S> {
  * @public
  */
 export interface AnyProjection {
-  readonly '~types': { readonly flow: AnyFlow; readonly state: unknown } | undefined
-  readonly flow: AnyFlow
+  readonly '~types':
+    | {
+        readonly wizard: AnyWizardDefinition
+        readonly state: unknown
+        readonly scope: unknown
+      }
+    | undefined
+  readonly wizard: AnyWizardDefinition
 }
 
 /**
- * The flow type a projection was defined for.
+ * The wizard type a projection was defined for.
  * @public
  */
-export type ProjectionFlow<P extends AnyProjection> = NonNullable<P['~types']>['flow']
+export type ProjectionWizard<P extends AnyProjection> = NonNullable<P['~types']>['wizard']
 
 /**
- * The projected state type of a projection (`ClientState` of its flow for its exposure spec, or
+ * The projected state type of a projection (`ClientState` of its wizard for its exposure spec, or
  * the `select` mapper's return type).
  * @public
  */
 export type ProjectionOutput<P extends AnyProjection> = NonNullable<P['~types']>['state']
 
+/** The principal type required by a scoped projection, or `never` when it is unscoped.
+ * @public
+ */
+export type ProjectionScope<P extends AnyProjection> = NonNullable<P['~types']>['scope']
+
 /**
- * Define a projection of a flow. `{ expose }`: deny-by-default — only the listed step inputs /
- * outputs / issues / errors, child summaries or specs, context keys, the flow output (`output:
- * true`) and `progress` (`progress: true`) cross the wire (`wizard.project(projection)` →
- * `ClientState<F, E>`). `{ select }`: an arbitrary typed mapper over the wizard state
- * (`wizard.project(projection)` → its return type). The two are mutually exclusive.
+ * Define a projection of a wizard. `{ expose }` returns only the selected fields and base facts.
+ * `{ select }` returns its mapper's result, and `progress` separately allows transient step events.
+ * The two state definitions are mutually exclusive.
  * @public
  */
 export function defineProjection<
-  F extends AnyFlow,
-  const E extends ExposeSpec<F>,
-  S = ClientState<F, E>,
+  F extends AnyWizardDefinition,
+  const E extends ExposeSpec<F> = never,
+  S = unknown,
+  Scope = never,
 >(
-  flow: F,
+  wizard: F,
   options:
-    | { readonly expose: E; readonly select?: undefined }
-    | { readonly expose?: undefined; readonly select: ProjectionSelect<F, S> },
-): Projection<F, S> {
-  const { expose, select } = options
+    | {
+        readonly expose: E
+        readonly scope?: never
+        readonly select?: undefined
+        readonly progress?: never
+      }
+    | {
+        readonly expose?: undefined
+        readonly scope?: Boundary<Scope, Scope>
+        readonly select: ProjectionSelect<F, S, Scope>
+        readonly progress?: ProgressSpec<F>
+      },
+): Projection<F, [E] extends [never] ? S : ClientState<F, E>, Scope> {
+  const { expose, scope, select, progress } = options
   // The parameter type makes this a compile-time error; JS callers get the same rule at runtime.
   if ((expose === undefined) === (select === undefined)) {
     throw new WizardError(
@@ -239,5 +298,33 @@ export function defineProjection<
   if (select !== undefined && typeof select !== 'function') {
     throw new WizardError('DEFINITION_INVALID', 'defineProjection: `select` must be a function')
   }
-  return { '~types': undefined, flow, expose, select: select as ProjectionSelect<F, S> | undefined }
+  if (Object.hasOwn(options, 'scope') && !isBoundary(scope)) {
+    throw new WizardError('DEFINITION_INVALID', 'defineProjection: `scope` must be a boundary')
+  }
+  if (scope !== undefined && expose !== undefined) {
+    throw new WizardError(
+      'DEFINITION_INVALID',
+      'defineProjection: `scope` is only valid with a `select` mapper',
+    )
+  }
+  if (
+    progress !== undefined &&
+    (expose !== undefined ||
+      typeof progress !== 'object' ||
+      progress === null ||
+      Array.isArray(progress))
+  ) {
+    throw new WizardError(
+      'DEFINITION_INVALID',
+      'defineProjection: `progress` must be a per-step map with a `select` mapper',
+    )
+  }
+  return {
+    '~types': undefined,
+    wizard,
+    expose,
+    progress,
+    ...(scope === undefined ? {} : { scope }),
+    select: select as ProjectionSelect<AnyWizardDefinition, unknown, unknown> | undefined,
+  } as Projection<F, [E] extends [never] ? S : ClientState<F, E>, Scope>
 }

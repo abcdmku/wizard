@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import type { WizardState } from '../../src/machine/state'
 import { type Snapshot, toSnapshot, validateSnapshot } from '../../src/wizard/snapshot'
-import { flow, initialState, testEnv, trusted } from '../helpers/fake-machine'
+import { flow, initialState, testEnv } from '../helpers/fake-machine'
+import { trusted } from '../helpers/fixtures'
 
 const child = flow({ name: 'child', steps: { c: { kind: 'view' } } })
 const def = flow({
   name: 'main',
   version: 2,
-  events: { ping: trusted },
+  events: { ping: trusted() },
   steps: {
     a: { kind: 'view', next: { kind: 'static', targets: ['f'] } },
-    f: { kind: 'flow', child },
-    end: { kind: 'final' },
+    f: { kind: 'child', child },
+    end: { kind: 'step' },
   },
 })
 
@@ -30,7 +31,7 @@ describe('toSnapshot / validateSnapshot', () => {
     const snap = base()
     expect(snap).toMatchObject({
       v: 1,
-      flow: { name: 'main', version: 2 },
+      wizard: { name: 'main', version: 2 },
       instanceId: 'i1',
       epoch: 0,
       seq: 0,
@@ -69,39 +70,37 @@ describe('toSnapshot / validateSnapshot', () => {
   })
 
   it('rejects wrong flow identity (name / version), on the envelope and in state', () => {
-    expect(reasonsOf({ ...base(), flow: { name: 'other', version: 2 } })).toContain(
-      "flow.name: expected 'main', got 'other'",
+    expect(reasonsOf({ ...base(), wizard: { name: 'other', version: 2 } })).toContain(
+      "wizard.name: expected 'main', got 'other'",
     )
-    expect(reasonsOf({ ...base(), flow: { name: 'main', version: 1 } })).toContain(
-      'flow.version: expected 2, got 1',
+    expect(reasonsOf({ ...base(), wizard: { name: 'main', version: 1 } })).toContain(
+      'wizard.version: expected 2, got 1',
     )
     const snap = base()
     expect(
-      reasonsOf({ ...snap, state: { ...snap.state, flow: { name: 'main', version: 3 } } }),
-    ).toContain('state.flow: expected main@2')
+      reasonsOf({ ...snap, state: { ...snap.state, wizard: { name: 'main', version: 3 } } }),
+    ).toContain('state.wizard: expected main@2')
   })
 
-  it('rejects step-set drift (missing / unknown steps) and kind mismatches', () => {
+  it('rejects steps the flow no longer defines (pointing at renameSteps) and kind mismatches', () => {
     const snap = base()
-    const { a: _a, ...withoutA } = snap.state.steps
-    expect(reasonsOf({ ...snap, state: { ...snap.state, steps: withoutA } })).toContain(
-      "state.steps: missing step 'a'",
-    )
     expect(
       reasonsOf({
         ...snap,
         state: { ...snap.state, steps: { ...snap.state.steps, zz: snap.state.steps.a } },
       }),
-    ).toContain("state.steps: unknown step 'zz'")
+    ).toContain(
+      "state.steps: step 'zz' is no longer defined; if it was renamed, bump the wizard's version and resume with { migrate: (snapshot) => renameSteps(snapshot, { 'zz': '<new id>' }) }",
+    )
     expect(
       reasonsOf({
         ...snap,
         state: {
           ...snap.state,
-          steps: { ...snap.state.steps, a: { ...snap.state.steps.a!, kind: 'task' } },
+          steps: { ...snap.state.steps, a: { ...snap.state.steps.a!, kind: 'step' } },
         },
       }),
-    ).toContain("state.steps.a.kind: expected 'view', got 'task'")
+    ).toContain("state.steps.a.kind: expected 'view', got 'step'")
   })
 
   it('rejects status invariant violations', () => {
@@ -143,6 +142,42 @@ describe('toSnapshot / validateSnapshot', () => {
     expect(reasonsOf({ ...snap, state: { ...s, timers: { t: { at: 'soon' } } } })).toContain(
       'state.timers.t: expected { at, fire }',
     )
+  })
+
+  it('accepts correlationId / when / cursorHint / skipReason / previousOutput and rejects malformed ones', () => {
+    const snap = base()
+    const s = snap.state
+    const end = s.steps.end!
+    const withEnd = (patch: object) => ({
+      ...snap,
+      state: { ...s, steps: { ...s.steps, end: { ...end, ...patch } } },
+    })
+    expect(
+      reasonsOf({
+        ...snap,
+        state: {
+          ...s,
+          correlationId: 'c1',
+          nav: { ...s.nav, cursorHint: 'a' },
+          steps: {
+            ...s.steps,
+            end: { ...end, when: 'pending', skipReason: 'command', previousOutput: 1 },
+          },
+        },
+      }),
+    ).toEqual([])
+    expect(reasonsOf({ ...snap, state: { ...s, correlationId: 7 } })).toEqual([
+      'state.correlationId: expected a string',
+    ])
+    expect(reasonsOf({ ...snap, state: { ...s, nav: { ...s.nav, cursorHint: 'end' } } })).toEqual([
+      "state.nav.cursorHint: expected a view id, got 'end'",
+    ])
+    expect(reasonsOf(withEnd({ when: 'maybe' }))).toEqual([
+      "state.steps.end.when: expected 'pending' | 'passed', got 'maybe'",
+    ])
+    expect(reasonsOf(withEnd({ skipReason: 1 }))).toEqual([
+      'state.steps.end.skipReason: expected a string',
+    ])
   })
 
   it('rejects duplicate active entries, non-view history and inconsistent derived status', () => {
@@ -189,7 +224,9 @@ describe('toSnapshot / validateSnapshot', () => {
           current: 'a',
         },
       }),
-    ).toContain('state.status: running without an active task/decision/flow/final step')
+    ).toContain(
+      'state.status: running without an active runnable, routing, completing, or child step',
+    )
   })
 
   it('validates the saga shapes: SagaEntry stack, SagaEntryRef lists and optional bookkeeping', () => {
@@ -310,7 +347,7 @@ describe('toSnapshot / validateSnapshot', () => {
     )
     expect(reasonsOf({ ...snap, children: { f: childSnap } })).toEqual([])
     expect(reasonsOf({ ...snap, children: { a: childSnap } })).toContain(
-      "children.a: 'a' is not a flow step",
+      "children.a: 'a' is not a child step",
     )
     expect(reasonsOf({ ...snap, children: { f: { ...childSnap, v: 3 } } })).toContain(
       'children.f.v: expected 1, got 3',

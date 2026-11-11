@@ -1,0 +1,36 @@
+# Effect
+
+`@openwizard/effect` runs Effect 4 programs as steps.
+
+```sh
+npm install @openwizard/effect effect@^4.0.0-beta.107
+```
+
+```ts file="packages/effect/snippets/basic.ts" lines="1-34"
+```
+
+```ts file="packages/effect/snippets/basic.ts" lines="63-70"
+```
+
+- The run's `deps` hold a `ManagedRuntime` that provides the program's services. Pass it for each run, or supply it once with `wizard.provide({ runtime })`. A program that needs a service the runtime lacks does not compile.
+- The program's success value is the step's output.
+- Retries, timeouts, waits and snapshots stay with the wizard. A step timeout, `run.cancel()` and `run.dispose()` interrupt the fiber.
+- Dispose the runtime when the application shuts down, not after each run.
+- With `each` or `needs`, build the adapter inside `run`: `run: (args) => runEffect(() => program(args.item, args.needs))`.
+
+| Export | Meaning |
+|---|---|
+| `runEffect(program, { mapError? })` | A value for `step({ run })`. `program(args)` returns the Effect to run |
+| `EffectDeps<Services, RuntimeError?>` | The type of `deps`: `{ runtime }` |
+| `RuntimeErrorOf<Deps>` | The error type of the runtime's layer |
+| `RunEffectOptions` | The type of the second argument of `runEffect` |
+
+| The program | Step `error.kind` | Notes |
+|---|---|---|
+| Fails with a typed error | `typed` | `mapError` returns the JSON stored as `error.data`, typed by `ErrorOf` |
+| Dies with a defect | `defect` | |
+| Is interrupted | `interrupted` | |
+
+A `mapError` or `output` on the step replaces the one `runEffect` supplies.
+
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_effect.html).

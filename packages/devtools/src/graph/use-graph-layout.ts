@@ -1,14 +1,14 @@
 /**
- * `useGraphLayout(graph, engine)` — memoises the model of a `FlowGraph` and runs the (async)
+ * `useGraphLayout(graph, engine)` — memoises the model of a `Manifest` and runs the (async)
  * ELK layout for it, ignoring stale results when the graph changes mid-flight.
  */
 
-import type { FlowGraph } from '@openwizard/core'
+import type { Manifest } from '@openwizard/core/inspect'
 import { useEffect, useMemo, useState } from 'react'
 import { type LayoutEngine, type LayoutResult, layoutGraph } from '../layout/elk'
 import { buildGraphModel, type GraphModel } from '../layout/model'
 
-export interface GraphLayoutState {
+interface GraphLayoutState {
   readonly model: GraphModel | undefined
   readonly layout: LayoutResult | undefined
   /** True while the engine works on the current model. */
@@ -17,7 +17,7 @@ export interface GraphLayoutState {
 }
 
 export function useGraphLayout(
-  graph: FlowGraph | undefined,
+  graph: Manifest | undefined,
   engine?: LayoutEngine,
 ): GraphLayoutState {
   const model = useMemo(() => (graph === undefined ? undefined : buildGraphModel(graph)), [graph])

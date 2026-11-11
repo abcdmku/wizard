@@ -1,12 +1,12 @@
 /**
- * `<EventLog>` live over a wizard: the `log()` seed and every later event (child events too)
+ * `<EventLog>` live over a run: the `log()` seed and every later event (child events too)
  * become rows in seq order, the filter narrows them, a click hands the event back.
  */
-import type { WizardEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { EventLog } from '../src/events/EventLog'
-import { makeWizard, runToWait, settle } from './fixture'
+import { makeRun, runToWait, settle } from './fixture'
 
 afterEach(cleanup)
 
@@ -21,20 +21,20 @@ const scrollTo = (root: HTMLElement, row: number) => {
   fireEvent.scroll(viewport, { target: { scrollTop: row * 24 } })
 }
 
-describe('<EventLog source={wizard}>', () => {
+describe('<EventLog source={run}>', () => {
   it('shows the events already logged, then follows observe() — child events with their path', async () => {
-    const { wizard } = makeWizard()
-    await wizard.start()
-    const seeded = wizard.log().length
-    const { container } = render(<EventLog source={wizard} />)
+    const { run } = makeRun()
+    await run.start()
+    const seeded = run.log().length
+    const { container } = render(<EventLog source={run} />)
     await waitFor(() => expect(counter(container)).toBe(`${seeded} events`))
-    expect(typesOf(container)[0]).toBe('flow.started')
+    expect(typesOf(container)[0]).toBe('run.started')
 
-    await wizard.setInput('form', { name: 'ada' })
-    await wizard.next()
+    await run.setInput('form', { name: 'ada' })
+    await run.next()
     await settle()
     await settle()
-    await wizard.send('payment.captured', { paymentId: 'p1' })
+    await run.send('payment.captured', { paymentId: 'p1' })
     await settle()
     await settle()
     await waitFor(() =>
@@ -50,14 +50,14 @@ describe('<EventLog source={wizard}>', () => {
     await waitFor(() => expect(rows(container).some((r) => r.dataset.child === 'true')).toBe(true))
     const childRow = rows(container).find((r) => r.dataset.child === 'true')
     expect(childRow?.children[4]?.textContent).toBe('pack')
-    wizard.dispose()
+    run.dispose()
   })
 
   it('filters by substring over type / step / event and reports the clicked event', async () => {
-    const { wizard } = makeWizard()
-    await runToWait(wizard)
-    const picked: WizardEvent[] = []
-    const { container } = render(<EventLog source={wizard} onSelect={(e) => picked.push(e)} />)
+    const { run } = makeRun()
+    await runToWait(run)
+    const picked: RunEvent[] = []
+    const { container } = render(<EventLog source={run} onSelect={(e) => picked.push(e)} />)
     await waitFor(() => expect(rows(container).length).toBeGreaterThan(5))
     fireEvent.change(screen.getByLabelText('filter events'), { target: { value: 'runSucceeded' } })
     await waitFor(() =>
@@ -73,6 +73,6 @@ describe('<EventLog source={wizard}>', () => {
     await waitFor(() =>
       expect(rows(container).every((r) => r.textContent?.includes('gate'))).toBe(true),
     )
-    wizard.dispose()
+    run.dispose()
   })
 })

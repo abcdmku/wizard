@@ -1,113 +1,123 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import { defineFlow } from '../../src/authoring/define-flow'
 import { inspect } from '../../src/inspect/graph'
+import { defineWizard } from '../../src/wizard/define-wizard'
 
 describe('inspect', () => {
-  const c = defineFlow({ name: 'child', version: 2, context: z.object({ n: z.number() }) })
-  const child = c.steps({
-    work: c.task(async () => 1, { next: 'end', label: 'Work' }),
-    end: c.final(),
-    lost: c.final(),
-  })
-  const s = defineFlow({
-    name: 'root',
-    context: boundary.trusted<{ a: string }>(),
-    events: { ping: boundary.trusted<{ n: number }>(), pong: boundary.trusted() },
-  })
-  const flow = s.steps(
+  const childWizard = defineWizard(
+    { name: 'child', version: 2, context: z.object({ n: z.number() }), output: () => undefined },
+    ({ step, steps }) =>
+      steps({
+        work: step({ run: async () => 1, next: 'end', label: 'Work' }),
+        end: step({ next: null }),
+        lost: step({ next: null }),
+      }),
+  )
+  const wizard = defineWizard(
     {
-      form: s.view({
-        label: 'Form',
-        input: z.object({ x: z.string() }),
-        enter: () => {},
-        exit: () => {},
-        next: ['reserve', 'wait'],
-      }),
-      reserve: s.task(async () => 1, { timeout: '5s', compensate: () => {}, next: 'route' }),
-      wait: s.wait({
-        on: { ping: () => {}, pong: () => {} },
-        timeout: { after: '1m', next: 'expired' },
-        next: 'route',
-      }),
-      route: s.decision({ next: () => 'sub' }),
-      sub: s.flow(child, { context: () => ({ n: 1 }), dependsOn: ['reserve'], next: 'done' }),
-      done: s.final({ output: () => 1 }),
-      expired: s.final(),
+      name: 'root',
+      context: boundary.trusted<{ a: string }>(),
+      events: { ping: boundary.trusted<{ n: number }>(), pong: boundary.trusted() },
+      output: () => undefined,
     },
-    { start: 'form' },
+    ({ step, view, child, steps }) => {
+      const reserve = step({
+        run: async () => 1,
+        timeout: '5s',
+        compensate: () => {},
+        next: 'route',
+      })
+      return steps(
+        {
+          form: view({
+            label: 'Form',
+            input: z.object({ x: z.string() }),
+            enter: () => {},
+            exit: () => {},
+            next: ['reserve', 'wait'],
+          }),
+          reserve,
+          wait: step({
+            waitFor: { ping: () => {}, pong: () => {} },
+            timeout: { after: '1m', next: 'expired' },
+            next: 'route',
+          }),
+          route: step({ next: () => 'sub', targets: ['sub'] }),
+          sub: child(childWizard, {
+            context: () => ({ n: 1 }),
+            needs: { reserve },
+            next: 'done',
+          }),
+          done: step({ run: () => 1 }),
+          expired: step({ next: null }),
+        },
+        { start: 'form' },
+      )
+    },
   )
 
-  it('lists nodes with kind/label/path/hooks/dependsOn/timeout/dynamicNext/start (recursing into children)', () => {
-    const graph = inspect(flow)
+  it('describes every step: kind, label, hooks, schemas, waits, compensation, child flow (recursing with path)', () => {
+    const graph = inspect(wizard)
     expect(graph.name).toBe('root')
     expect(graph.version).toBe(1)
-    expect(graph.nodes.map((n) => [n.path.join('/'), n.id, n.kind])).toEqual([
-      ['', 'form', 'view'],
-      ['', 'reserve', 'task'],
-      ['', 'wait', 'wait'],
-      ['', 'route', 'decision'],
-      ['', 'sub', 'flow'],
-      ['', 'done', 'final'],
-      ['', 'expired', 'final'],
-      ['sub', 'work', 'task'],
-      ['sub', 'end', 'final'],
-      ['sub', 'lost', 'final'],
+    expect(graph.nodes).toEqual([
+      {
+        id: 'form',
+        kind: 'view',
+        label: 'Form',
+        path: [],
+        hooks: ['enter', 'exit'],
+        start: true,
+        input: {
+          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          type: 'object',
+          properties: { x: { type: 'string' } },
+          required: ['x'],
+        },
+        output: {
+          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          type: 'object',
+          properties: { x: { type: 'string' } },
+          required: ['x'],
+          additionalProperties: false,
+        },
+      },
+      {
+        id: 'reserve',
+        kind: 'step',
+        path: [],
+        hooks: ['run', 'compensate'],
+        timeout: 5000,
+        compensable: true,
+      },
+      {
+        id: 'wait',
+        kind: 'step',
+        path: [],
+        hooks: ['waitFor:ping', 'waitFor:pong'],
+        timeout: 60_000,
+        waitsFor: ['ping', 'pong'],
+      },
+      { id: 'route', kind: 'step', path: [], hooks: ['next'], dynamicNext: true, targets: ['sub'] },
+      {
+        id: 'sub',
+        kind: 'child',
+        path: [],
+        hooks: ['context'], // authoring name (compiled: childContext)
+        needs: { reserve: { kind: 'all', steps: ['reserve'] } },
+        child: { name: 'child', version: 2 },
+      },
+      { id: 'done', kind: 'step', path: [], hooks: ['run'], completes: true },
+      { id: 'expired', kind: 'step', path: [], hooks: [], completes: true },
+      { id: 'work', kind: 'step', label: 'Work', path: ['sub'], hooks: ['run'], start: true },
+      { id: 'end', kind: 'step', path: ['sub'], hooks: [], completes: true },
+      { id: 'lost', kind: 'step', path: ['sub'], hooks: [], completes: true },
     ])
-    const byId = Object.fromEntries(
-      graph.nodes.filter((n) => n.path.length === 0).map((n) => [n.id, n]),
-    )
-    expect(byId.form).toEqual({
-      id: 'form',
-      kind: 'view',
-      label: 'Form',
-      path: [],
-      hooks: ['enter', 'exit'],
-      start: true,
-    })
-    expect(byId.reserve).toEqual({
-      id: 'reserve',
-      kind: 'task',
-      path: [],
-      hooks: ['run', 'compensate'],
-      timeout: 5000,
-    })
-    expect(byId.wait).toEqual({
-      id: 'wait',
-      kind: 'wait',
-      path: [],
-      hooks: ['on:ping', 'on:pong'],
-      timeout: 60_000,
-    })
-    expect(byId.route).toEqual({
-      id: 'route',
-      kind: 'decision',
-      path: [],
-      hooks: ['next'],
-      dynamicNext: true,
-    })
-    expect(byId.sub).toEqual({
-      id: 'sub',
-      kind: 'flow',
-      path: [],
-      hooks: ['context'], // authoring name (compiled: childContext)
-      dependsOn: { all: ['reserve'] },
-    })
-    expect(byId.done).toEqual({ id: 'done', kind: 'final', path: [], hooks: ['output'] })
-    const work = graph.nodes.find((n) => n.id === 'work')
-    expect(work).toEqual({
-      id: 'work',
-      kind: 'task',
-      label: 'Work',
-      path: ['sub'],
-      hooks: ['run'],
-      start: true,
-    })
   })
 
-  it('lists start/next/timeout/dependsOn edges per flow path', () => {
-    const graph = inspect(flow)
+  it('lists start/next/route/timeout/needs edges per flow path', () => {
+    const graph = inspect(wizard)
     expect(graph.edges).toEqual([
       { from: null, to: 'form', kind: 'start', path: [] },
       { from: 'form', to: 'reserve', kind: 'next', path: [] },
@@ -115,15 +125,16 @@ describe('inspect', () => {
       { from: 'reserve', to: 'route', kind: 'next', path: [] },
       { from: 'wait', to: 'route', kind: 'next', path: [] },
       { from: 'wait', to: 'expired', kind: 'timeout', path: [] },
+      { from: 'route', to: 'sub', kind: 'route', path: [] },
       { from: 'sub', to: 'done', kind: 'next', path: [] },
-      { from: 'reserve', to: 'sub', kind: 'dependsOn', path: [] },
+      { from: 'reserve', to: 'sub', kind: 'needs', alias: 'reserve', mode: 'all', path: [] },
       { from: null, to: 'work', kind: 'start', path: ['sub'] },
       { from: 'work', to: 'end', kind: 'next', path: ['sub'] },
     ])
   })
 
   it('carries the compile warnings (with paths) and is stable across calls', () => {
-    const graph = inspect(flow)
+    const graph = inspect(wizard)
     expect(graph.warnings).toEqual([
       {
         code: 'UNREACHABLE',
@@ -132,6 +143,6 @@ describe('inspect', () => {
         path: ['sub'],
       },
     ])
-    expect(inspect(flow).nodes).toEqual(graph.nodes)
+    expect(inspect(wizard).nodes).toEqual(graph.nodes)
   })
 })

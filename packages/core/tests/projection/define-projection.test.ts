@@ -3,48 +3,59 @@
  */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { defineFlow } from '../../src/authoring/define-flow'
 import { WizardError } from '../../src/errors'
 import { defineProjection } from '../../src/projection/define-projection'
-import { createWizard } from '../../src/wizard/create-wizard'
+import { createRun } from '../../src/wizard/create-wizard'
+import { defineWizard } from '../../src/wizard/define-wizard'
 
-const c = defineFlow({
-  name: 'child',
-  context: z.object({ n: z.number(), childSecret: z.string() }),
-})
-const child = c.steps({
-  work: c.task(async () => ({ r: 1 }), { next: 'end' }),
-  end: c.final({ output: () => 'child-out' }),
-})
-
-const s = defineFlow({
-  name: 'root',
-  context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
-})
-const flow = s.steps(
+const childFlow = defineWizard(
   {
-    form: s.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
-    reserve: s.task(async () => ({ reservationId: 'r' }), { next: 'sub' }),
-    sub: s.flow(child, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
-    done: s.final({ output: () => ({ receipt: 1 }) }),
+    name: 'child',
+    context: z.object({ n: z.number(), childSecret: z.string() }),
   },
-  { start: 'form' },
+  ({ step, steps }) =>
+    steps({
+      work: step({
+        run: async () => ({ r: 1 }),
+        next: 'end',
+      }),
+      end: step({ run: () => 'child-out' }),
+    }),
+)
+const flow = defineWizard(
+  {
+    name: 'root',
+    context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
+  },
+  ({ step, view, child, steps }) =>
+    steps(
+      {
+        form: view({ input: z.object({ address: z.string() }), next: 'reserve' }),
+        reserve: step({
+          run: async () => ({ reservationId: 'r' }),
+          next: 'sub',
+        }),
+        sub: child(childFlow, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
+        done: step({ run: () => ({ receipt: 1 }) }),
+      },
+      { start: 'form' },
+    ),
 )
 describe('defineProjection', () => {
   it('records the flow OBJECT and the spec; ~types is undefined; select projections carry the mapper', () => {
     const projection = defineProjection(flow, { expose: { context: ['total'] } })
     expect(projection).toEqual({
       '~types': undefined,
-      flow,
+      wizard: flow,
       expose: { context: ['total'] },
       select: undefined,
     })
-    expect(projection.flow).toBe(flow)
-    expect(defineProjection(child, { expose: {} }).flow).toBe(child)
-    const select = (s: { seq: number }) => s.seq
+    expect(projection.wizard).toBe(flow)
+    expect(defineProjection(childFlow, { expose: {} }).wizard).toBe(childFlow)
+    const select = (state: { seq: number }) => state.seq
     expect(defineProjection(flow, { select })).toEqual({
       '~types': undefined,
-      flow,
+      wizard: flow,
       expose: undefined,
       select,
     })
@@ -67,34 +78,42 @@ describe('defineProjection', () => {
       'DEFINITION_INVALID',
     )
   })
-
-  it('wizard.project() rejects a projection of a same-name, same-shape flow (identity, not name)', async () => {
-    const twinBuilder = defineFlow({
-      name: 'root',
-      context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
-    })
-    const twin = twinBuilder.steps(
+  it('run.project() rejects a projection of a same-name, same-shape flow (identity, not name)', async () => {
+    const twin = defineWizard(
       {
-        form: twinBuilder.view({ input: z.object({ address: z.string() }), next: 'reserve' }),
-        reserve: twinBuilder.task(async () => ({ reservationId: 'r' }), { next: 'sub' }),
-        sub: twinBuilder.flow(child, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
-        done: twinBuilder.final({ output: () => ({ receipt: 1 }) }),
+        name: 'root',
+        context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
       },
-      { start: 'form' },
+      ({ step, view, child, steps }) =>
+        steps(
+          {
+            form: view({ input: z.object({ address: z.string() }), next: 'reserve' }),
+            reserve: step({
+              run: async () => ({ reservationId: 'r' }),
+              next: 'sub',
+            }),
+            sub: child(childFlow, {
+              context: () => ({ n: 1, childSecret: 's' }),
+              next: 'done',
+            }),
+            done: step({ run: () => ({ receipt: 1 }) }),
+          },
+          { start: 'form' },
+        ),
     )
     const twinProjection = defineProjection(twin, { expose: { context: ['total'] } })
-    const wizard = createWizard(flow, { context: { cartId: 'c', total: 1, secret: 's' } })
+    const run = createRun(flow, { context: { cartId: 'c', total: 1, secret: 's' } })
     // Type-compatible (structural), rejected at runtime (identity).
-    expect(() => wizard.project(twinProjection)).toThrow(WizardError)
+    expect(() => run.project(twinProjection)).toThrow(WizardError)
     try {
-      wizard.project(twinProjection)
+      run.project(twinProjection)
     } catch (error) {
       expect((error as WizardError).code).toBe('DEFINITION_INVALID')
-      expect((error as WizardError).message).toContain('different flow object')
+      expect((error as WizardError).message).toContain('different authored definition')
     }
-    expect(
-      wizard.project(defineProjection(flow, { expose: { context: ['total'] } })).context,
-    ).toEqual({ total: 1 })
-    wizard.dispose()
+    expect(run.project(defineProjection(flow, { expose: { context: ['total'] } })).context).toEqual(
+      { total: 1 },
+    )
+    run.dispose()
   })
 })

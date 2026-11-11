@@ -1,5 +1,5 @@
 /**
- * `<Timeline>`: scrubbing to an earlier seq shows the state the wizard had then (the same state
+ * `<Timeline>`: scrubbing to an earlier seq shows the state the run had then (the same state
  * `replay` computes), `onScrub` hands it out, "live" snaps back; mounted late, `context` still
  * gives the whole range while the log starts at seq 1.
  */
@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ReplayState } from '../src/timeline/replay-window'
 import { Timeline } from '../src/timeline/Timeline'
-import { context, makeWizard, pipeline, runToWait, settle } from './fixture'
+import { context, makeRun, pipeline, runToWait, settle } from './fixture'
 
 afterEach(cleanup)
 
@@ -20,30 +20,30 @@ const value = (container: HTMLElement, key: string) =>
 
 describe('<Timeline>', () => {
   it('mounted before start(): scrubs the whole history and hands the replayed state to onScrub', async () => {
-    const { wizard } = makeWizard()
+    const { run } = makeRun()
     const seen: Array<{ state: ReplayState | null; seq: number }> = []
     const { container } = render(
-      <Timeline source={wizard} onScrub={(state, seq) => seen.push({ state, seq })} />,
+      <Timeline source={run} onScrub={(state, seq) => seen.push({ state, seq })} />,
     )
     expect(slider().min).toBe('0')
-    await runToWait(wizard)
+    await runToWait(run)
     await settle()
-    const latest = wizard.getState().seq
+    const latest = run.getState().seq
     await waitFor(() => expect(slider().max).toBe(String(latest)))
     expect(value(container, 'status')).toBe('waiting')
     expect(value(container, 'active')).toBe('awaitPayment')
 
     // Right after the first transition committed: the form is the current view.
-    const afterStart = wizard
+    const afterStart = run
       .log()
       .find((e) => e.type === 'transition.committed' && (e as { to?: string }).to === 'form')?.seq
     if (afterStart === undefined) throw new Error('no transition.committed to form')
     fireEvent.change(slider(), { target: { value: String(afterStart) } })
     await waitFor(() => expect(value(container, 'current')).toBe('form'))
     expect(value(container, 'status')).toBe('waiting')
-    const expected = replay(pipeline, wizard.log(), {
+    const expected = replay(pipeline, run.log(), {
       context,
-      instanceId: wizard.id,
+      instanceId: run.id,
       upTo: afterStart,
     })
     expect(seen.at(-1)?.state).toEqual(expected)
@@ -58,23 +58,23 @@ describe('<Timeline>', () => {
     fireEvent.click(screen.getByLabelText('live'))
     await waitFor(() => expect(seen.at(-1)?.state).toBeNull())
     expect(value(container, 'active')).toBe('awaitPayment')
-    wizard.dispose()
+    run.dispose()
   })
 
   it('mounted late without context: the range starts where it attached; with context: from seq 0', async () => {
-    const { wizard } = makeWizard()
-    await runToWait(wizard)
-    const attachedAt = wizard.getState().seq
-    const late = render(<Timeline source={wizard} />)
+    const { run } = makeRun()
+    await runToWait(run)
+    const attachedAt = run.getState().seq
+    const late = render(<Timeline source={run} />)
     expect(slider().min).toBe(String(attachedAt))
     expect(late.container.querySelector('.owd-note')?.textContent).toContain(
       `starts at seq ${attachedAt}`,
     )
     cleanup()
-    render(<Timeline source={wizard} context={context} />)
+    render(<Timeline source={run} context={context} />)
     expect(slider().min).toBe('0')
     fireEvent.change(slider(), { target: { value: '0' } })
     await waitFor(() => expect(value(document.body, 'status')).toBe('idle'))
-    wizard.dispose()
+    run.dispose()
   })
 })

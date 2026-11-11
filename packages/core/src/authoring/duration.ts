@@ -19,7 +19,7 @@ const DURATION_RE = /^(\d+(?:\.\d+)?)(ms|s|m|h|d)$/
 /**
  * Convert a `Duration` to milliseconds. Numbers pass through (must be finite and ≥ 0);
  * strings need a unit (`ms`, `s`, `m`, `h`, `d`). Throws a `TypeError` for anything else.
- * @public
+ * @internal
  */
 export function parseDuration(duration: Duration): number {
   if (typeof duration === 'number') {

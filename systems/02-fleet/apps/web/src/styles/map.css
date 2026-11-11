@@ -1,0 +1,190 @@
+.map-panel {
+  position: sticky;
+  top: 6.1rem;
+  display: flex;
+  height: calc(100vh - 7.6rem);
+  min-height: 38rem;
+  max-height: 58rem;
+  flex-direction: column;
+  overflow: hidden;
+}
+.map-heading {
+  flex: 0 0 auto;
+}
+.map-legend {
+  display: flex;
+  gap: 0.9rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.57rem;
+  text-transform: uppercase;
+}
+.map-legend span {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.legend-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.legend-dot.delayed {
+  background: var(--amber);
+}
+.legend-dot.offline {
+  background: var(--quiet);
+}
+.fleet-map {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  background: #0c110d;
+  isolation: isolate;
+}
+.fleet-map::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  background: radial-gradient(circle at 55% 45%, rgba(201, 243, 111, 0.04), transparent 42%);
+}
+.road-layer {
+  position: absolute;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  color: rgba(188, 205, 190, 0.04);
+}
+.roads {
+  fill: none;
+  stroke-linecap: round;
+}
+.minor-roads {
+  stroke: #1b241d;
+  stroke-width: 8;
+}
+.major-roads {
+  stroke: #283229;
+  stroke-width: 16;
+}
+.major-roads path {
+  stroke-dasharray: 1 7;
+}
+.route-trace {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-dasharray: 6 9;
+  opacity: 0.35;
+}
+.map-blocks {
+  fill: #141b16;
+  stroke: #273029;
+}
+.map-labels {
+  fill: #4c594f;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+.vehicle-marker {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  gap: 0.55rem;
+  padding: 0;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  transition:
+    left 900ms linear,
+    top 900ms linear;
+  cursor: pointer;
+}
+.vehicle-marker:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+.vehicle-icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid rgba(201, 243, 111, 0.5);
+  border-radius: 50%;
+  color: #15200b;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 5px rgba(201, 243, 111, 0.08),
+    0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.vehicle-icon > span {
+  display: grid;
+  place-items: center;
+}
+.vehicle-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+.vehicle-label {
+  display: block;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  text-align: left;
+  background: rgba(12, 16, 13, 0.9);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
+}
+.vehicle-label strong,
+.vehicle-label small {
+  display: block;
+  white-space: nowrap;
+}
+.vehicle-label strong {
+  font-family: var(--mono);
+  font-size: 0.61rem;
+}
+.vehicle-label small {
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.55rem;
+}
+.vehicle-marker.status-delayed .vehicle-icon {
+  border-color: var(--amber);
+  color: #241504;
+  background: var(--amber);
+}
+.vehicle-marker.status-offline .vehicle-icon {
+  border-color: #626d65;
+  color: #a3aba5;
+  background: #3c443e;
+}
+.vehicle-marker.selected .vehicle-icon {
+  box-shadow:
+    0 0 0 7px rgba(201, 243, 111, 0.16),
+    0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.vehicle-marker.selected .vehicle-label {
+  border-color: rgba(201, 243, 111, 0.5);
+}
+.map-scale {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-end;
+  color: var(--quiet);
+  font-family: var(--mono);
+  font-size: 0.55rem;
+}
+.map-scale span {
+  width: 3rem;
+  height: 0.4rem;
+  border: solid var(--muted);
+  border-width: 0 1px 1px;
+}

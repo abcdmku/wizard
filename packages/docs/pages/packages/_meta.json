@@ -1,0 +1,11 @@
+{
+  "index": "Packages",
+  "core": "Core",
+  "react": "React",
+  "devtools": "Devtools",
+  "durable": "Durable",
+  "drizzle": "Drizzle",
+  "http": "HTTP",
+  "effect": "Effect",
+  "opentelemetry": "OpenTelemetry"
+}

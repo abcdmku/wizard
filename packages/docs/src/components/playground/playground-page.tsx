@@ -5,7 +5,7 @@ import { Ide } from './ide'
 import { allSamples, landingSample } from './samples'
 import { usePlayground } from './use-playground'
 
-/** `/playground?example=07-dag-pipeline` opens with that example loaded. */
+/** `/playground?example=11-order-workflow` opens with the backend order example loaded. */
 function requestedSample(search: unknown) {
   const id =
     typeof search === 'object' &&
@@ -39,7 +39,7 @@ export function PlaygroundPage() {
           title="Playground · runs against the real @openwizard/core"
           samples={allSamples}
           currentSampleId={sample.id}
-          previewClassName="lg:w-[42%] xl:w-[44%]"
+          previewClassName="@2xl:w-[42%] @6xl:w-[44%]"
         />
       </main>
     </div>

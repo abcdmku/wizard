@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 508" role="img" aria-labelledby="boundaries-title boundaries-desc">
+  <title id="boundaries-title">Typed data boundaries</title>
+  <desc id="boundaries-desc">Context, view input, event payloads, and resumed snapshots are unknown until a schema parses them. Accepted values enter the typed wizard, rejected values come back as issues, and dependencies skip the gate because the application builds them.</desc>
+  <style>
+    svg { --d-paper: #fff; --d-surface: #fafafa; --d-ink: #171717; --d-muted: #737373; --d-line: #d4d4d4; --d-soft: #f5f5f5; --d-inverse: #fff; }
+    @media (prefers-color-scheme: dark) { svg { --d-paper: #0a0a0a; --d-surface: #151515; --d-ink: #fafafa; --d-muted: #a3a3a3; --d-line: #404040; --d-soft: #1f1f1f; --d-inverse: #0a0a0a; } }
+    text { font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: var(--d-ink); }
+    .name { font-size: 18px; }
+    .cap { font-size: 13.5px; letter-spacing: .1em; fill: var(--d-muted); }
+    .api { font-size: 13.5px; fill: var(--d-muted); }
+    .on { fill: var(--d-inverse); }
+    .on-dim { fill: var(--d-inverse); opacity: .6; }
+    .plate { fill: none; stroke: var(--d-line); stroke-width: 1.5; }
+    .node { fill: var(--d-surface); stroke: var(--d-line); stroke-width: 1.75; }
+    .solid { fill: var(--d-ink); stroke: var(--d-ink); stroke-width: 1.75; }
+    .wire { fill: none; stroke: var(--d-muted); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#bd-tip); }
+    .dash { stroke-dasharray: 2 8; }
+    .dot { fill: var(--d-muted); }
+  </style>
+  <defs>
+    <marker id="bd-tip" viewBox="0 0 9 8" markerWidth="9" markerHeight="8" markerUnits="userSpaceOnUse" refX="8.6" refY="4" orient="auto">
+      <path d="M0 .4 8.6 4 0 7.6 2.1 4Z" fill="var(--d-muted)"/>
+    </marker>
+    <pattern id="bd-grid" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1.1" cy="1.1" r="1.1" fill="var(--d-line)"/>
+    </pattern>
+  </defs>
+
+  <rect x="16" y="16" width="888" height="476" rx="22" fill="url(#bd-grid)" opacity=".5"/>
+  <rect class="plate" x="16" y="16" width="888" height="476" rx="22"/>
+
+  <text class="cap" x="56" y="56">TRUSTED</text>
+  <rect class="node" x="56" y="70" width="180" height="76" rx="14"/>
+  <text class="name" x="78" y="104">deps</text>
+  <text class="api" x="78" y="128">you build it</text>
+
+  <text class="cap" x="56" y="186">UNKNOWN</text>
+  <rect class="node" x="56" y="198" width="180" height="60" rx="13"/>
+  <text class="name" x="78" y="226">context</text>
+  <text class="api" x="78" y="246">wizard.create</text>
+
+  <rect class="node" x="56" y="268" width="180" height="60" rx="13"/>
+  <text class="name" x="78" y="296">input</text>
+  <text class="api" x="78" y="316">setInput</text>
+
+  <rect class="node" x="56" y="338" width="180" height="60" rx="13"/>
+  <text class="name" x="78" y="366">event</text>
+  <text class="api" x="78" y="386">send</text>
+
+  <rect class="node" x="56" y="408" width="180" height="60" rx="13"/>
+  <text class="name" x="78" y="436">resume</text>
+  <text class="api" x="78" y="456">wizard.resume</text>
+
+  <rect class="solid" x="396" y="186" width="120" height="294" rx="20"/>
+  <text class="name on" x="456" y="326" text-anchor="middle">schema</text>
+  <text class="api on-dim" x="456" y="348" text-anchor="middle">~standard</text>
+  <circle cx="396" cy="228" r="3.75" fill="var(--d-inverse)"/>
+  <circle cx="396" cy="298" r="3.75" fill="var(--d-inverse)"/>
+  <circle cx="396" cy="368" r="3.75" fill="var(--d-inverse)"/>
+  <circle cx="396" cy="438" r="3.75" fill="var(--d-inverse)"/>
+  <circle cx="516" cy="280" r="3.75" fill="var(--d-inverse)"/>
+  <circle cx="516" cy="430" r="3.75" fill="var(--d-inverse)"/>
+
+  <rect class="node" x="644" y="240" width="224" height="80" rx="16"/>
+  <text class="name" x="668" y="276">wizard</text>
+  <text class="cap" x="668" y="300">TYPED VALUES</text>
+
+  <rect class="node" x="644" y="390" width="224" height="80" rx="16"/>
+  <text class="name" x="668" y="426">issues</text>
+  <text class="api" x="668" y="450">returned, not thrown</text>
+
+  <path class="wire" d="M236 228h154"/>
+  <path class="wire" d="M236 298h154"/>
+  <path class="wire" d="M236 368h154"/>
+  <path class="wire" d="M236 438h154"/>
+
+  <path class="wire" d="M516 280h122"/>
+  <text class="cap" x="546" y="264">ACCEPTED</text>
+
+  <path class="wire dash" d="M516 430h122"/>
+  <text class="cap" x="546" y="414">REJECTED</text>
+
+  <path class="wire dash" d="M236 108h484a14 14 0 0 1 14 14v112"/>
+  <text class="api" x="286" y="96">skips the gate</text>
+
+  <circle class="dot" cx="236" cy="228" r="3.25"/>
+  <circle class="dot" cx="236" cy="298" r="3.25"/>
+  <circle class="dot" cx="236" cy="368" r="3.25"/>
+  <circle class="dot" cx="236" cy="438" r="3.25"/>
+  <circle class="dot" cx="236" cy="108" r="3.25"/>
+</svg>

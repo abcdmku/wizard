@@ -9,13 +9,15 @@ import type { CallEffect } from './effects'
 import type { StepRecord } from './state'
 import type { MachineEnv } from './types'
 
-export interface CallOpts {
+interface CallOpts {
   readonly extra?: Readonly<Record<string, unknown>>
   readonly attempt?: number
   readonly txId?: string
   readonly timeoutMs?: number
+  readonly initialSeq?: number
   /** Token runId override (compensation targets a stack entry, not the record's current run). */
   readonly runId?: number
+  readonly failedAtDelivery?: number
 }
 
 export function call(
@@ -29,6 +31,8 @@ export function call(
     runId: opts.runId ?? rec.runId,
     ...(opts.attempt !== undefined ? { attempt: opts.attempt } : {}),
     ...(opts.txId !== undefined ? { txId: opts.txId } : {}),
+    ...(opts.initialSeq !== undefined ? { initialSeq: opts.initialSeq } : {}),
+    ...(opts.failedAtDelivery !== undefined ? { failedAtDelivery: opts.failedAtDelivery } : {}),
   }
   return {
     kind: 'call',

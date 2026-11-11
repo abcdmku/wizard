@@ -1,28 +1,49 @@
 # Security
 
-## Reporting a vulnerability
+## Report a vulnerability
 
-Please do not open a public issue for security problems. Use GitHub's private vulnerability
-reporting on this repository (Security → Report a vulnerability). You will get an
-acknowledgement within a few days. Supported versions: the latest published minor of
-`@openwizard/core` / `@openwizard/react`; fixes are released as patches on that line.
+Use the repository's private GitHub security advisory form when possible. Do not post working exploit details in a public issue.
 
-## Persistence and client exposure — what the library guarantees and what you must do
+Include the affected package and version, a small reproduction, the impact, and any workaround you found.
 
-OpenWizard runs on servers, in browsers and at the edge, and it persists workflow state. The core guarantees:
+## Rules for applications
 
-- **Boundaries revalidate on resume.** `resumeWizard(flow, unknown)` re-runs every declared boundary (context, step inputs / outputs — including their copies on the compensation stack —, event payloads in the inbox, nested children) over the snapshot. A tampered or stale store cannot inject values that the flow's own schemas would reject.
-- **Snapshots are JSON-checked before every store write; resume re-validates.** Right before `store.set` the value is walked; a `Map`, `Set`, `RegExp`, class instance, function, `bigint`, `NaN` or `undefined` array slot fails the write (`WizardError('SNAPSHOT_NOT_SERIALIZABLE')` on `onPersistError`, a `persist.failed` event, the exact path) instead of being silently distorted. A `Date` (any `toJSON()` object) is accepted only where a schema / parse boundary re-parses it on resume (`z.coerce.date()`). Values that must survive persistence are JSON values, or sit under such a boundary. `SerializedError` carries `{ name, message, code }` only — never stacks or attached data.
-- **Projections are deny-by-default.** `defineProjection(flow, { expose })` sends per step only `id` / `kind` / `status` / `phase` / `attempt`; drafts, outputs, validation issues, sanitized errors (with a task's `mapError` value as `data` — keep it free of secrets), child state, context keys, the flow output and `progress` cross the wire only when listed in `expose`. Review every `expose`. A `select` projection (`defineProjection(flow, { select })`) hands you the whole typed state: what its mapper returns IS the wire payload — review it like an `expose`.
-- **Correlated events are dropped, not buffered.** With `defineFlow({ correlate })` and `createWizard({ correlationId })`, an event whose extracted id differs is `event.dropped { reason: 'correlation' }` and never enters the inbox. This is a routing safeguard for multi-instance hosts, not authentication: authorize `send()` before it.
-- **Commands are validated.** `wizard.dispatch(cmd)` is typed by the flow (`Command<F>`); anything arriving from a transport goes through `parseCommand(flow, body)` / `parseWireCommand(flow, body)` (plain objects only, exact shape, JSON-only payloads with limits — depth ≤ 64, ≤ 10 000 values, strings ≤ 64 KiB —, every step id / event name checked against the flow, `__proto__` / `constructor` never looked up as ids) before it can affect state, and the machine still rejects what the types cannot see (`command.rejected`). The decoders never throw; a Mirror source answers `INVALID_COMMAND` values. Put a body-size limit on your HTTP / WebSocket endpoint as well.
-- **Frames are validated on the client.** A Mirror runs `parseFrame` on every frame (malformed frames are ignored, a retired instance id never comes back) and rejects an ack that is not for the command it sent.
+OpenWizard coordinates application code. Your host still owns authentication, authorization, secrets, database access, and network policy.
 
-You are responsible for:
+### Check outside data
 
-- **Key scoping.** Store keys must be tenant/flow/entity scoped (`tenant/checkout/cart_123`) and never taken verbatim from user input.
-- **Single-owner persistence.** One live wizard per store key. `Store` is plain `get / set / delete` — no compare-and-swap, lease or fencing — so two replicas resuming the same snapshot at the same time would both run its side effects. Resume on another replica only after the first instance is disposed; put a lease or a queue partition in front if your deployment cannot guarantee that. `resumeWizard(flow, saved, { migrate })` converts snapshots of an older flow `version`; the converted snapshot is validated like any other.
-- **Secrets stay out of the state.** Do not put credentials, card numbers or tokens you would not persist into `context`, drafts or task outputs — anything in the state is persisted and may be projected. Pass secrets through `deps` (constructed by the host, `boundary.trusted<T>()`), store only references / opaque tokens (a payment provider token, a row id) and resolve them inside hooks. `redact` is for optional, derived fields only: a redacted field that a boundary requires makes resume fail (`SNAPSHOT_INCOMPATIBLE`), and `enter` hooks of already-active steps do not run again on resume to re-derive it.
-- **Authorization.** Authenticate and authorize before calling `dispatch(cmd)`, `send(event, payload)` or a Mirror source's `dispatch(wireCommand)` on behalf of a client. The library routes; it does not authenticate.
-- **`boundary.trusted<T>()`.** It performs no runtime check. Use it only for data you already validated elsewhere, and leave a comment saying where.
-- **Idempotency of side effects.** Tasks may re-run after retries or after a crash/resume (`retry()`; an `idempotent` task is re-run automatically on resume); make external calls idempotent — hand the run's `idempotencyKey` to the service, or key them yourself.
+Use schemas for starting context, view input, event payloads, and task output that came from another system. `boundary.trusted<T>()` skips runtime checks, so use it only for values your server constructed.
+
+### Keep dependencies on the server
+
+Put database clients, API clients, and secrets in `deps`. Do not put them in context or step output. Snapshots contain context and step data.
+
+### Keep snapshots tenant-scoped
+
+Choose store keys that include the tenant and resource identity. Check the caller's tenant before loading a run. A run id by itself is not authorization.
+
+Use the `redact` option before persistence when a snapshot contains data your store should not keep.
+
+### Expose only selected client state
+
+Use `defineProjection()` before sending run state to a browser. Projections expose nothing by default. Add only the context fields and step fields the UI needs.
+
+For principal-specific output, define a scoped `select` projection and create one Mirror source per immutable authenticated principal. Authenticate the caller and perform tenant-scoped run lookup before supplying that scope. Use the source's `authorize({ state, command, scope })` policy for commands. A denial, throw, or rejection fails closed with `FORBIDDEN` and does not reach the machine.
+
+Projection scope stays outside commands, events, snapshots, logs, frames, and acknowledgements. Do not copy a token or principal into context, view input, step output, or the selector's return value. A selector can deliberately disclose scope fields, so JSON-serialize projected frames in role and cross-tenant leak tests.
+
+Hook `progress(value)` payloads never enter persisted state, but can disclose data to observers. A projection forwards them only through explicit per-step progress exposure. Review this allowlist separately from the selector's returned state. Root `expose.progress` exposes the completion summary only.
+
+### Treat remote tasks as at-least-once
+
+A task may run again after a crash. Pass its `idempotencyKey` to services that create charges, reservations, messages, or other writes. The remote service must enforce the key. Event IDs and command IDs deduplicate deliveries at their respective boundaries; they do not make external effects exactly once.
+
+### Use durable storage for several workers
+
+Core's `Store` assumes one live owner per key. Use `@openwizard/durable` when several processes may handle the same run. The in-memory core and durable stores are for tests and local processes.
+
+### Verify webhooks
+
+Keep signing secrets in a secret manager. Verify the raw request body and signature before parsing business data. `@openwizard/http` receivers (`createHTTP(wizard, { receive })`) do this before `resolve` runs.
+
+Restrict outgoing webhook destinations to approved hosts or networks. Store message ids when duplicate delivery must be suppressed.

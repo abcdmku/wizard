@@ -1,7 +1,6 @@
-import { boundary, defineFlow } from '@openwizard/core'
+import { boundary, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-/** Pipeline services; the slow ones are async so branches can overlap. */
 export interface Deps {
   source: { fetch(name: string): { rows: number } }
   normalizer: { run(rows: number): Promise<{ normalized: number }> }
@@ -9,84 +8,75 @@ export interface Deps {
   warehouse: { write(batch: { normalized: number; enriched: number }): { batchId: string } }
 }
 
-/**
- * The pipeline as a function of its policies so the tests can show `concurrency` and
- * `autoRun: 'manual'` on the same graph. Steps and edges are identical in every variant.
- */
+/** Build the same graph with different execution policies. */
 export function definePipeline(policies: { concurrency: number; autoRun?: 'ready' | 'manual' }) {
-  const s = defineFlow({
-    name: 'ingest-pipeline',
-    context: z.object({
-      source: z.string(),
-      // Every branch writes its own keys into the shared context (shallow-merged patches).
-      rows: z.number().int().nonnegative().default(0),
-      normalized: z.number().int().nonnegative().optional(),
-      enriched: z.number().int().nonnegative().optional(),
-      quality: z.number().min(0).max(1).default(0),
-      // 'off' skips the enrichment branch (see `when` on `enrich` below).
-      enrichment: z.enum(['on', 'off']).default('on'),
-    }),
-    deps: boundary.trusted<Deps>(), // built by the host, no runtime check
-    // At most `concurrency` tasks run at the same time; the rest stay ready until a slot frees.
-    concurrency: policies.concurrency,
-    // 'ready' (default) starts ready non-view steps automatically; 'manual' waits for runReady().
-    ...(policies.autoRun !== undefined ? { autoRun: policies.autoRun } : {}),
-  })
-
-  return s.steps(
+  return defineWizard(
     {
-      ingest: s.task(
-        ({ context, deps, update }) => {
-          const { rows } = deps.source.fetch(context.source)
-          update({ rows })
-          return { rows }
-        },
-        // `next` is a NAVIGATION edge: fan-out arrives at both branches, which then run in parallel.
-        { next: ['normalize', 'enrich'] },
-      ),
-      normalize: s.task(
-        async ({ context, deps, update }) => {
-          const { normalized } = await deps.normalizer.run(context.rows)
-          update({ normalized })
-          return { normalized }
-        },
-        { next: 'gate' },
-      ),
-      enrich: s.task(
-        async ({ context, deps, update }) => {
-          const { enriched, quality } = await deps.enricher.run(context.rows)
-          update({ enriched, quality })
-          return { enriched, quality }
-        },
-        {
-          // `when` (v0.2) is evaluated once the step is ready: `false` skips it
-          // (`step.skipped { reason: 'when' }`) — a skipped step counts as done for `dependsOn`
-          // and its `next` targets are still arrived, so the gate below is not stuck.
-          when: ({ context }) => context.enrichment === 'on',
-          next: 'gate',
-        },
-      ),
-      // `dependsOn` is DATA READINESS: the gate is arrived by whichever branch finishes first,
-      // but only becomes ready once BOTH are done (an AND-join; `{ any: [...] }` would be OR).
-      gate: s.decision({
-        dependsOn: ['normalize', 'enrich'],
-        next: ({ context }) =>
-          context.enrichment === 'off' || context.quality >= 0.8 ? 'persist' : 'quarantine',
+      name: 'ingest-pipeline',
+      description:
+        'Ingests rows, normalizes and enriches them in parallel, then stores or quarantines them.',
+      context: z.object({
+        source: z.string(),
+        enrichment: z.enum(['on', 'off']).default('on'),
       }),
-      persist: s.task(
-        ({ context, deps }) =>
-          deps.warehouse.write({
-            normalized: context.normalized ?? 0,
-            enriched: context.enriched ?? 0,
-          }),
-        { next: 'done' },
-      ),
-      quarantine: s.final({ output: ({ context }) => `quarantined (quality ${context.quality})` }),
-      done: s.final({ output: ({ context }) => `stored ${context.rows} rows` }),
+      deps: boundary.trusted<Deps>(),
+      concurrency: policies.concurrency,
+      // Manual mode parks ready tasks until the host calls startReady().
+      ...(policies.autoRun !== undefined ? { autoRun: policies.autoRun } : {}),
     },
-    { start: 'ingest' },
+    ({ step, steps }) => {
+      const ingest = step({
+        description: 'Fetches the source and reports how many rows it holds.',
+        run: ({ context, deps }) => deps.source.fetch(context.source),
+      })
+      // needs activates a consumer and supplies its typed producer output.
+      // Ingest does not need explicit next edges to start both branches.
+      const normalize = step({
+        needs: { ingest },
+        run: ({ needs, deps }) => deps.normalizer.run(needs.ingest.rows),
+      })
+      const enrich = step({
+        needs: { ingest },
+        when: ({ context }) => context.enrichment === 'on',
+        run: ({ needs, deps }) => deps.enricher.run(needs.ingest.rows),
+      })
+      const gate = step({
+        description: 'Stores the batch unless enrichment ran and scored below 0.8.',
+        // Optional needs wait for the producer to settle and return undefined if it was skipped.
+        // A plain enrich need would skip this join when enrichment is disabled.
+        needs: { normalize, enrichment: { optional: enrich } },
+        targets: ['persist', 'quarantine'],
+        next: ({ context, needs }) =>
+          context.enrichment === 'off' || (needs.enrichment?.quality ?? 0) >= 0.8
+            ? 'persist'
+            : 'quarantine',
+      })
+      // The gate starts persist or quarantine. Their needs supply the branch results.
+      const persist = step({
+        needs: { normalize, enrichment: { optional: enrich } },
+        run: ({ needs, deps }) =>
+          deps.warehouse.write({
+            normalized: needs.normalize.normalized,
+            enriched: needs.enrichment?.enriched ?? 0,
+          }),
+      })
+      const quarantine = step({
+        description: 'Reports the quality score that kept the batch out of the warehouse.',
+        needs: { enrichment: { optional: enrich } },
+        run: ({ needs }) => `quarantined (quality ${needs.enrichment?.quality ?? 0})`,
+      })
+      const done = step({
+        description: 'Reports the stored row count. It is skipped when persist is skipped.',
+        needs: { ingest, persist },
+        run: ({ needs }) => `stored ${needs.ingest.rows} rows`,
+      })
+      return steps(
+        { ingest, normalize, enrich, gate, persist, quarantine, done },
+        { start: 'ingest' },
+      )
+    },
   )
 }
 
-/** The default pipeline: two branches may run at once, everything auto-runs. */
+/** The default pipeline lets both branches run together. */
 export const pipeline = definePipeline({ concurrency: 2 })

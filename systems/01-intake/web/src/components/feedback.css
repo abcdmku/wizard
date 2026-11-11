@@ -1,0 +1,141 @@
+.alert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid;
+  border-radius: 0.55rem;
+}
+
+.alert__mark {
+  display: grid;
+  width: 1.4rem;
+  height: 1.4rem;
+  place-items: center;
+  border-radius: 50%;
+  background: currentColor;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.alert__title {
+  margin: 0;
+  color: currentColor;
+  font-weight: 780;
+}
+
+.alert__body {
+  margin-top: 0.18rem;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.alert__body > :last-child {
+  margin-bottom: 0;
+}
+
+.alert--info {
+  border-color: #b6d0df;
+  background: #eaf3f8;
+  color: #245470;
+}
+
+.alert--success {
+  border-color: #aad4c0;
+  background: #e6f4ed;
+  color: #176246;
+}
+
+.alert--warning {
+  border-color: #e1c56d;
+  background: #fff5d8;
+  color: #6c4c00;
+}
+
+.alert--danger {
+  border-color: #e6b0aa;
+  background: #fcebea;
+  color: #8f2e28;
+}
+
+.status-badge {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.48rem;
+  border-radius: 99rem;
+  font-size: 0.73rem;
+  font-weight: 780;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.status-badge__dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-badge--neutral {
+  background: #e9edef;
+  color: #465965;
+}
+
+.status-badge--info {
+  background: #e2f0f6;
+  color: #20536f;
+}
+
+.status-badge--success {
+  background: #def1e7;
+  color: #175d42;
+}
+
+.status-badge--warning {
+  background: #fff0c2;
+  color: #6f4c00;
+}
+
+.status-badge--danger {
+  background: #f9dedb;
+  color: #8c2d27;
+}
+
+.definition-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+}
+
+.definition-list--1 {
+  grid-template-columns: 1fr;
+}
+
+.definition-list--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.definition-list__item {
+  min-width: 0;
+  padding: 0.85rem 1rem 0.85rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.definition-list dt {
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  font-weight: 740;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.definition-list dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+  color: var(--navy-dark);
+  font-weight: 620;
+}

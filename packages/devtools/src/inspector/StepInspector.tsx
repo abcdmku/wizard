@@ -1,33 +1,28 @@
 /**
  * `<StepInspector>` — one step in detail: the stored record (status, phase, attempt, timers,
- * error, input / output as JSON), `wizard.explain(step)` (reasons and cursor candidates) and
- * the static facts of the graph node (kind, hooks, `dependsOn`, `timeout`, edges).
+ * error, input / output as JSON), `run.explain(step)` (reasons and cursor candidates) and
+ * the static facts of the graph node (kind, hooks, `needs`, `timeout`, edges).
  */
 
-import type { FlowGraph } from '@openwizard/core'
+import type { Manifest, ManifestStep } from '@openwizard/core/inspect'
 import { type CSSProperties, type ReactElement, useMemo } from 'react'
+import { definitionPath } from '../graph/instances'
 import { useSourceSnapshot } from '../hooks/use-source'
 import { formatMs } from '../layout/model'
-import {
-  type DevtoolsSource,
-  type DevtoolsTheme,
-  type FlowGraphNode,
-  isWizardSource,
-  stepKey,
-} from '../types'
+import { type DevtoolsSource, type DevtoolsTheme, isRunSource, stepKey } from '../types'
 import { JsonView } from './JsonView'
 import { readStep, type StepReading } from './read-step'
 
 /**
- * `<StepInspector>` props: the `source` (wizard or Mirror), the `step` id and the wizard `path`
- * of its flow (`[]` = root), the optional static `graph` for the definition facts.
+ * `<StepInspector>` props: the `source` (run or Mirror), the `step` id and the run `path`
+ * of its wizard (`[]` = root), the optional static `graph` for the definition facts.
  * @public
  */
 export interface StepInspectorProps {
   readonly source: DevtoolsSource
   readonly step: string
   readonly path?: readonly string[]
-  readonly graph?: FlowGraph
+  readonly graph?: Manifest
   readonly theme?: DevtoolsTheme
   readonly className?: string
   readonly style?: CSSProperties
@@ -51,7 +46,7 @@ const RECORD_FIELDS = [
 
 /**
  * The record of a step (status, attempt, error, input / output), why it is where it is
- * (`explain`: reasons + candidates — wizard sources only) and its definition facts.
+ * (`explain`: reasons + candidates — run sources only) and its definition facts.
  * @public
  */
 export function StepInspector(props: StepInspectorProps): ReactElement {
@@ -61,7 +56,11 @@ export function StepInspector(props: StepInspectorProps): ReactElement {
     () => readStep(props.source, snapshot, path, props.step),
     [props.source, snapshot, path, props.step],
   )
-  const node = props.graph?.nodes.find((n) => n.id === props.step && samePath(n.path, path))
+  const definedPath = props.graph === undefined ? path : definitionPath(props.graph, path)
+  const node =
+    definedPath === undefined
+      ? undefined
+      : props.graph?.nodes.find((n) => n.id === props.step && samePath(n.path, definedPath))
   const theme = props.theme ?? 'system'
   return (
     <div
@@ -82,7 +81,7 @@ export function StepInspector(props: StepInspectorProps): ReactElement {
       {reading.missing !== undefined && <div className="owd-empty">{reading.missing}</div>}
       {reading.record !== undefined && <RecordSection record={reading.record} />}
       {reading.projected !== undefined && <ProjectedSection reading={reading} />}
-      <ExplainSection reading={reading} isWizard={isWizardSource(props.source)} />
+      <ExplainSection reading={reading} isRun={isRunSource(props.source)} />
       {node !== undefined && props.graph !== undefined && (
         <DefinitionSection node={node} graph={props.graph} />
       )}
@@ -134,6 +133,7 @@ function RecordSection({
         <JsonView label="previousOutput" value={record.previousOutput} />
       )}
       {record.child !== undefined && <JsonView label="child" value={record.child} />}
+      {record.each !== undefined && <JsonView label="items" value={record.each} />}
     </section>
   )
 }
@@ -160,10 +160,10 @@ function ProjectedSection({ reading }: { readonly reading: StepReading }): React
 
 function ExplainSection({
   reading,
-  isWizard,
+  isRun,
 }: {
   readonly reading: StepReading
-  readonly isWizard: boolean
+  readonly isRun: boolean
 }): ReactElement {
   const x = reading.explanation
   return (
@@ -171,7 +171,7 @@ function ExplainSection({
       <h4 className="owd-section-title">explain</h4>
       {x === undefined ? (
         <div className="owd-subtle">
-          {isWizard ? 'not available for this step' : 'explain() needs a wizard source'}
+          {isRun ? 'not available for this step' : 'explain() needs a run source'}
         </div>
       ) : (
         <>
@@ -198,8 +198,8 @@ function DefinitionSection({
   node,
   graph,
 }: {
-  readonly node: FlowGraphNode
-  readonly graph: FlowGraph
+  readonly node: ManifestStep
+  readonly graph: Manifest
 }): ReactElement {
   const outgoing = graph.edges.filter((e) => e.from === node.id && samePath(e.path, node.path))
   const incoming = graph.edges.filter((e) => e.to === node.id && samePath(e.path, node.path))
@@ -211,24 +211,24 @@ function DefinitionSection({
         <Fact name="label" value={node.label} />
         <Fact name="hooks" value={node.hooks.length === 0 ? '—' : node.hooks.join(', ')} />
         <Fact
-          name="dependsOn"
-          value={
-            node.dependsOn === undefined
-              ? undefined
-              : 'all' in node.dependsOn
-                ? node.dependsOn.all.join(', ')
-                : `any of ${node.dependsOn.any.join(', ')}`
-          }
-        />
-        <Fact
           name="timeout"
           value={node.timeout === undefined ? undefined : formatMs(node.timeout)}
         />
+        <Fact name="needs" value={node.needs} />
+        <Fact name="each" value={node.each} />
+        <Fact
+          name="sleep"
+          value={
+            node.sleep === undefined || node.sleep === 'dynamic' ? node.sleep : formatMs(node.sleep)
+          }
+        />
+        <Fact name="fallback" value={node.fallback} />
+        <Fact name="sink" value={node.completes === true ? 'yes' : undefined} />
         <Fact
           name="next"
           value={
             node.dynamicNext === true
-              ? 'dynamic (?)'
+              ? `dynamic (${node.targets?.join(', ') ?? '?'})`
               : outgoing
                   .filter((e) => e.kind === 'next')
                   .map((e) => e.to)

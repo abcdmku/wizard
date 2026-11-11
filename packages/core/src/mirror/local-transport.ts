@@ -2,21 +2,21 @@
  * `createLocalTransport(source, options?)` — in-process loopback `Transport` over a
  * `MirrorSource`, for tests, examples and single-process apps. Optional deterministic latency
  * (`delayMs` + injectable `scheduler`) and JSON serialisation (`serialize: true`) so the loop
- * behaves like a real wire (frames and acks are decoupled from the wizard's objects).
+ * behaves like a real wire (frames and acks are decoupled from the run's objects).
  *
  * Exported from `@openwizard/core/testing` (a separate entry): its TYPES are imported from the
- * main entry by package name, so the testing declarations reference `@openwizard/core` instead
- * of duplicating the wire types.
+ * public entries by package name, so testing declarations reference the canonical wire types.
  *
  * @packageDocumentation
  */
 
-import type { MirrorSource, Scheduler, Transport, WireAck } from '@openwizard/core'
+import type { Scheduler } from '@openwizard/core'
+import type { MirrorSource, Transport, WireAck } from '@openwizard/core/mirror'
 import { createRealScheduler } from '../interpreter/env'
 
 /**
  * `createLocalTransport` options: `delayMs` delays every frame and every command/ack hop
- * (default 0 = synchronous frames, acks resolve on the wizard's own microtasks); `scheduler`
+ * (default 0 = synchronous frames, acks resolve on the run's own microtasks); `scheduler`
  * drives those delays (a test scheduler makes them deterministic); `serialize` JSON-round-trips
  * frames, commands and acks (default `false`).
  * @public
@@ -29,7 +29,8 @@ export interface LocalTransportOptions {
 
 /**
  * Loopback transport over a `MirrorSource` (same process, no wire). With the defaults, frames
- * reach the Mirror synchronously on every commit and `send` resolves with the source's ack.
+ * reach the Mirror synchronously on every commit, `send` resolves with the source's ack, and the
+ * source's `dispose()` closes the stream (`onClose`).
  * @public
  */
 export function createLocalTransport<S>(
@@ -47,14 +48,20 @@ export function createLocalTransport<S>(
   const hop = <T>(value: T): Promise<T> => new Promise((resolve) => later(() => resolve(value)))
 
   return {
-    subscribe(onFrame) {
+    subscribe(onFrame, onClose) {
       let open = true
-      const unsubscribe = source.subscribe((frame) => {
-        const copy = clone(frame)
-        later(() => {
-          if (open) onFrame(copy)
-        })
-      })
+      const unsubscribe = source.subscribe(
+        (frame) => {
+          const copy = clone(frame)
+          later(() => {
+            if (open) onFrame(copy)
+          })
+        },
+        () =>
+          later(() => {
+            if (open) onClose?.()
+          }),
+      )
       return () => {
         open = false
         unsubscribe()

@@ -3,7 +3,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import type { DomainEvent } from '../events'
 import { awaitingWhen, cursorInitiated, depsSatisfied, isExplicitCause } from '../selectors'
 import type { NavState, WizardState } from '../state'
@@ -11,24 +11,28 @@ import type { MachineEnv } from '../types'
 import { omit } from '../util'
 import { patchStep, withNav } from './patch'
 
-/** Idle nav that keeps the cross-transaction bookkeeping (`hops`, `deferred`, `cursorHint`). */
-export function idleNav(nav: NavState): NavState {
+/** How many auto-advance sources `nav.trail` keeps. */
+const TRAIL = 4
+
+/** Idle nav that keeps the cross-transaction bookkeeping (`hops`, `trail`, `deferred`, `cursorHint`). */
+function idleNav(nav: NavState): NavState {
   const out: NavState = { phase: 'idle' }
   return {
     ...out,
     ...(nav.hops !== undefined ? { hops: nav.hops } : {}),
+    ...(nav.trail !== undefined ? { trail: nav.trail } : {}),
     ...(nav.deferred !== undefined && nav.deferred.length > 0 ? { deferred: nav.deferred } : {}),
     ...(nav.cursorHint !== undefined ? { cursorHint: nav.cursorHint } : {}),
   }
 }
 
 /**
- * v0.2: a completed transition could not enter its cursor target because the target's `when`
+ * A completed transition could not enter its cursor target because the target's `when`
  * predicate is unresolved → remember it so the cursor rule prefers it once the predicate passes.
  * Same admission rule as `cursorTarget` (a background auto-advance never steals the cursor).
  */
 function pendingCursor(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   targets: readonly string[],
   from: string | null,
@@ -55,8 +59,8 @@ function clearEnterMarkers(
   let next = state
   for (const t of targets ?? []) {
     const rec = next.steps[t]
-    if (rec?.entering === true || rec?.enterDone === true) {
-      next = patchStep(next, t, {}, ['entering', 'enterDone'])
+    if (rec?.entering === true || rec?.enterDone === true || rec?.initializing !== undefined) {
+      next = patchStep(next, t, {}, ['entering', 'enterDone', 'initializing'])
     }
   }
   return next
@@ -66,6 +70,11 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
   switch (ev.type) {
     case 'transition.started': {
       const auto = ev.cause === 'auto'
+      const hops = auto ? (ev.hops ?? (state.nav.hops ?? 0) + 1) : 0
+      const trail =
+        auto && ev.from !== null
+          ? [...(hops > 1 ? (state.nav.trail ?? []) : []), ev.from].slice(-TRAIL)
+          : undefined
       const deferred = (state.nav.deferred ?? []).filter((d) => d.step !== ev.from)
       const nav: NavState = {
         phase: state.nav.phase,
@@ -73,14 +82,15 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
         from: ev.from,
         cause: ev.cause,
         direction: ev.cause === 'back' ? 'back' : 'forward',
-        hops: auto ? (state.nav.hops ?? 0) + 1 : 0,
+        hops,
+        ...(trail !== undefined ? { trail } : {}),
         ...(ev.to !== undefined ? { targets: [ev.to] } : {}),
         ...(deferred.length > 0 ? { deferred } : {}),
-        // v0.2 (§10.2): the hint survives unrelated transactions; only a cursor set (or the hinted
+        // The hint survives unrelated transactions; only a cursor set (or the hinted
         // view entering / skipping / invalidating / failing) forgets it.
         ...(state.nav.cursorHint !== undefined ? { cursorHint: state.nav.cursorHint } : {}),
       }
-      // v0.2: explicit navigation (`go` / `back`) to a view bypasses its `when` — an in-flight
+      // Explicit navigation (`go` / `back`) to a view bypasses its `when` — an in-flight
       // predicate is staled now (its late result is `result.ignored`) so it cannot skip the
       // target while the transaction runs.
       const to = ev.to
@@ -92,26 +102,34 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
     case 'transition.phase': {
       const targets = ev.targets ?? state.nav.targets
       let pending: readonly string[] | undefined
+      let initializing: readonly string[] = []
       if (ev.phase === 'canEnter') {
         pending = (targets ?? []).filter((t) => env.def.steps[t]?.hooks.canEnter !== undefined)
       } else if (ev.phase === 'entering') {
-        // Cursor-initiated transitions run `enter` for every target this commit will enter
-        // (hook present, deps satisfied, and — unless the navigation is explicit — its `when`
-        // passed: `when` runs before `enter`). Auto-advance from a non-view step leaves entry
-        // to the scheduler's `entering` sub-phase.
+        // The first pass initializes missing dynamic view drafts. Once they resolve, a second
+        // `entering` phase runs target `enter` hooks. Non-cursor auto-advance leaves both stages
+        // to the scheduler after commit.
         const explicit = isExplicitCause(state.nav.cause)
-        pending = cursorInitiated(env.def, state.nav)
+        const candidates = cursorInitiated(env.def, state.nav)
           ? (targets ?? []).filter((t) => {
               const rec = state.steps[t]
               return (
                 rec !== undefined &&
-                env.def.steps[t]?.hooks.enter !== undefined &&
                 (rec.status !== 'active' || t === state.nav.from) &&
                 depsSatisfied(env.def, state, t) &&
                 (explicit || !awaitingWhen(env.def, state, t))
               )
             })
           : []
+        initializing = candidates.filter((t) => {
+          const rec = state.steps[t]
+          const def = env.def.steps[t]
+          return def?.kind === 'view' && def.hooks.initial !== undefined && rec?.input === undefined
+        })
+        pending =
+          initializing.length > 0
+            ? initializing
+            : candidates.filter((t) => env.def.steps[t]?.hooks.enter !== undefined)
       }
       const nav: NavState = {
         ...omit(state.nav, ['pendingSteps', 'targets']),
@@ -121,13 +139,23 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
       }
       let next = withNav(state, nav)
       if (ev.phase === 'entering') {
-        for (const t of pending ?? []) next = patchStep(next, t, { entering: true })
+        const init = new Set(initializing)
+        for (const t of pending ?? []) {
+          const rec = next.steps[t]
+          next = init.has(t)
+            ? patchStep(next, t, { initializing: rec?.initializing ?? ev.seq })
+            : patchStep(next, t, { entering: true })
+        }
       }
       return next
     }
     case 'transition.committed': {
       const targets =
-        state.nav.txId === ev.txId && state.nav.targets !== undefined ? state.nav.targets : [ev.to]
+        state.nav.txId === ev.txId && state.nav.targets !== undefined
+          ? state.nav.targets
+          : ev.to === null
+            ? []
+            : [ev.to]
       const view = targets.find((t) => {
         const rec = state.steps[t]
         return rec !== undefined && rec.kind === 'view' && rec.status === 'active'
@@ -141,7 +169,7 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
           history = [...history, view]
         }
       }
-      // v0.2: a cursor set forgets any hint; no cursor → remember the `when`-pending target (if any).
+      // A cursor set forgets any hint; no cursor → remember the `when`-pending target (if any).
       const hint =
         view === undefined
           ? (pendingCursor(env.def, state, targets, ev.from) ?? state.nav.cursorHint)
@@ -153,7 +181,31 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
         current: view ?? state.current,
       }
     }
-    case 'transition.rejected':
+    case 'transition.rejected': {
+      if (state.nav.txId !== ev.txId && state.nav.txId !== undefined) return state
+      const saved = state.nav
+      const nav = idleNav(saved)
+      const from = saved.from
+      const source = from == null ? undefined : state.steps[from]
+      const recover =
+        ev.reason === 'resumed' &&
+        saved.cause === 'auto' &&
+        saved.phase !== 'idle' &&
+        from != null &&
+        source?.kind !== 'view' &&
+        (source?.status === 'done' || source?.status === 'skipped')
+      const deferred =
+        recover && from != null
+          ? [
+              { step: from, ...(saved.targets !== undefined ? { to: saved.targets } : {}) },
+              ...(nav.deferred ?? []).filter((entry) => entry.step !== from),
+            ]
+          : nav.deferred
+      return withNav(clearEnterMarkers(state, saved.targets), {
+        ...nav,
+        ...(deferred !== undefined ? { deferred } : {}),
+      })
+    }
     case 'transition.failed':
       return state.nav.txId === ev.txId || state.nav.txId === undefined
         ? withNav(clearEnterMarkers(state, state.nav.targets), idleNav(state.nav))

@@ -2,8 +2,10 @@ const repository = import.meta.env.VITE_GITHUB_REPOSITORY ?? 'abcdmku/wizard'
 
 export const site = {
   name: 'OpenWizard',
-  tagline:
-    'A TypeScript-first, type-safe orchestrator for sync and async workflows — on the server, in the browser, at the edge.',
+  tagline: 'TypeScript workflows that can wait, retry, and resume.',
+  /** Used in search results. */
+  description:
+    'OpenWizard runs typed TypeScript workflows that can collect input, wait for events, retry failed work, and resume from saved state.',
   repositoryUrl: `https://github.com/${repository}`,
   editBase: `https://github.com/${repository}/blob/main/packages/docs`,
   npmUrl: 'https://www.npmjs.com/package/@openwizard/core',

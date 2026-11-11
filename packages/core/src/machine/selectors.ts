@@ -11,8 +11,11 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledStep, CompiledWizard } from '../authoring/compiled'
+import { childActivity } from './child-activity'
+import { needsSatisfied } from './needs'
 import type { NavCause, NavState, SagaEntryRef, StepRecord, WizardState } from './state'
+import { stepIndex } from './step-index'
 
 /** UI-facing live phase of a step (undefined when the step has no live phase: idle/done/failed/…). */
 export type StepPhase =
@@ -39,11 +42,15 @@ interface Memo {
   readonly phase: Map<string, StepPhase | undefined>
 }
 
-/** v0.2 (§9.6): completion counters over the non-final steps; `skipped` counts as done. */
+/**
+ * Progress of a run (`run.progress()`, `ClientState.progress` with `expose.progress: true`).
+ * It counts completed or skipped steps and reports their fraction of the total.
+ * @public
+ */
 export interface Progress {
   readonly done: number
   readonly total: number
-  /** `done / total` (0 when there is nothing to count); 1 once the flow is `done`. */
+  /** `done / total` (0 when there is nothing to count); 1 once the run is `done`. */
   readonly ratio: number
 }
 
@@ -59,79 +66,81 @@ function memo(state: WizardState): Memo {
 }
 
 // ---------------------------------------------------------------------------
-// Readiness (§3.1)
+// Readiness
 // ---------------------------------------------------------------------------
 
-function isComplete(rec: StepRecord | undefined): boolean {
-  return rec !== undefined && (rec.status === 'done' || rec.status === 'skipped')
+export function isRunnableStep(def: CompiledStep | undefined): def is CompiledStep & {
+  readonly kind: 'step'
+  readonly hooks: CompiledStep['hooks'] & {
+    readonly run: NonNullable<CompiledStep['hooks']['run']>
+  }
+} {
+  return def?.kind === 'step' && def.hooks.run !== undefined
 }
 
-/** `depsSatisfied(id) = !dependsOn || (all: every dep done|skipped) || (any: some dep done|skipped)`. */
-export function depsSatisfied(def: CompiledFlow, state: WizardState, id: string): boolean {
+export function isEventStep(def: CompiledStep | undefined): def is CompiledStep & {
+  readonly hooks: CompiledStep['hooks'] & {
+    readonly waitFor: NonNullable<CompiledStep['hooks']['waitFor']>
+  }
+} {
+  return def?.hooks.waitFor !== undefined
+}
+
+export function isRoutingStep(
+  def: CompiledStep | undefined,
+): def is CompiledStep & { readonly kind: 'step' } {
+  return (
+    def?.kind === 'step' &&
+    def.hooks.run === undefined &&
+    def.hooks.waitFor === undefined &&
+    def.sleep === undefined &&
+    def.each === undefined &&
+    def.next.kind === 'dynamic'
+  )
+}
+
+/** The step's needs are met: every producer has an output, or an optional one settled. */
+export function depsSatisfied(def: CompiledWizard, state: WizardState, id: string): boolean {
   const m = memo(state)
   const cached = m.deps.get(id)
   if (cached !== undefined) return cached
-  const deps = def.steps[id]?.dependsOn
-  let ok = true
-  if (deps !== undefined) {
-    if ('all' in deps) ok = deps.all.every((d) => isComplete(state.steps[d]))
-    else ok = deps.any.some((d) => isComplete(state.steps[d]))
-  }
+  const ok = needsSatisfied(def, state, id)
   m.deps.set(id, ok)
   return ok
 }
 
-/** Ids of unmet dependencies (for `explain`). */
-export function unmetDeps(def: CompiledFlow, state: WizardState, id: string): readonly string[] {
-  const deps = def.steps[id]?.dependsOn
-  if (deps === undefined) return []
-  const list = 'all' in deps ? deps.all : deps.any
-  const unmet = list.filter((d) => !isComplete(state.steps[d]))
-  if ('any' in deps && unmet.length < list.length) return []
-  return unmet
-}
-
 /**
- * v0.2: the step declares a `when` predicate that has not passed for the current activation
+ * The step declares a `when` predicate that has not passed for the current activation
  * (unevaluated, or in flight). Such a step is eligible but not ready: the scheduler evaluates
  * `when` first and either lets it enter (`'passed'`) or skips it.
  */
-export function awaitingWhen(def: CompiledFlow, state: WizardState, id: string): boolean {
+export function awaitingWhen(def: CompiledWizard, state: WizardState, id: string): boolean {
   return def.steps[id]?.hooks.when !== undefined && state.steps[id]?.when !== 'passed'
 }
 
-/** Activated + gated, ignoring `when`: `pendingActivation && status !== 'active' && depsSatisfied(id)` (§3.1). */
-export function eligible(def: CompiledFlow, state: WizardState, id: string): boolean {
+/** Activated + gated, ignoring `when`: `pendingActivation && status !== 'active' && depsSatisfied(id)`. */
+export function eligible(def: CompiledWizard, state: WizardState, id: string): boolean {
   const rec = state.steps[id]
   if (rec === undefined) return false
   return rec.pendingActivation && rec.status !== 'active' && depsSatisfied(def, state, id)
 }
 
-/** `ready(id) = eligible(id) && !awaitingWhen(id)` — may enter now (v0.2 adds the `when` clause). */
-export function ready(def: CompiledFlow, state: WizardState, id: string): boolean {
+/** `ready(id) = eligible(id) && !awaitingWhen(id)` — may enter now. */
+export function ready(def: CompiledWizard, state: WizardState, id: string): boolean {
   return eligible(def, state, id) && !awaitingWhen(def, state, id)
 }
 
-function byArrival(state: WizardState, ids: readonly string[]): readonly string[] {
-  return [...ids].sort(
-    (a, b) => (state.steps[a]?.arrivedSeq ?? 0) - (state.steps[b]?.arrivedSeq ?? 0),
-  )
-}
-
 /** Eligible steps (ready ignoring `when`) in ascending `arrivedSeq` order. */
-export function eligibleSteps(def: CompiledFlow, state: WizardState): readonly string[] {
+export function eligibleSteps(def: CompiledWizard, state: WizardState): readonly string[] {
   const m = memo(state)
   if (m.eligibleSteps !== undefined) return m.eligibleSteps
-  const list = byArrival(
-    state,
-    def.order.filter((id) => eligible(def, state, id)),
-  )
+  const list = stepIndex(state.steps).pending.filter((id) => eligible(def, state, id))
   m.eligibleSteps = list
   return list
 }
 
 /** Ready steps in ascending `arrivedSeq` order (the scheduler's candidate list). */
-export function readySteps(def: CompiledFlow, state: WizardState): readonly string[] {
+export function readySteps(def: CompiledWizard, state: WizardState): readonly string[] {
   const m = memo(state)
   if (m.readySteps !== undefined) return m.readySteps
   const list = eligibleSteps(def, state).filter((id) => !awaitingWhen(def, state, id))
@@ -140,21 +149,21 @@ export function readySteps(def: CompiledFlow, state: WizardState): readonly stri
 }
 
 /** Ready views (cursor-rule candidates), in arrival order. */
-export function readyViews(def: CompiledFlow, state: WizardState): readonly string[] {
+export function readyViews(def: CompiledWizard, state: WizardState): readonly string[] {
   return readySteps(def, state).filter((id) => def.steps[id]?.kind === 'view')
 }
 
-/** Eligible views whose `when` is still unresolved: the cursor rule waits for them (v0.2). */
-export function viewsAwaitingWhen(def: CompiledFlow, state: WizardState): readonly string[] {
+/** Eligible views whose `when` is still unresolved: the cursor rule waits for them. */
+export function viewsAwaitingWhen(def: CompiledWizard, state: WizardState): readonly string[] {
   return eligibleSteps(def, state).filter(
     (id) => def.steps[id]?.kind === 'view' && awaitingWhen(def, state, id),
   )
 }
 
-/** Number of tasks currently active (concurrency budget consumer). */
-export function activeTaskCount(def: CompiledFlow, state: WizardState): number {
+/** Number of active run effects consuming the concurrency budget. */
+export function activeRunCount(def: CompiledWizard, state: WizardState): number {
   let n = 0
-  for (const id of state.active) if (def.steps[id]?.kind === 'task') n++
+  for (const id of state.active) if (isRunnableStep(def.steps[id])) n++
   return n
 }
 
@@ -164,7 +173,7 @@ export function activeTaskCount(def: CompiledFlow, state: WizardState): number {
  * (`from` itself is allowed: `next: 'self'` loops). `undefined` = no cursor target.
  */
 export function cursorTarget(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   targets: readonly string[],
   from: string | null | undefined,
@@ -182,27 +191,15 @@ export function cursorTarget(
 }
 
 // ---------------------------------------------------------------------------
-// Flow-level helpers
+// Wizard-level helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Halt-failure that `retry(step)` can recover from: status 'failed', the flow never
- * compensated (`saga.outcome` unset) and at least one step record is still failed.
- */
-export function isRecoverableFailure(state: WizardState): boolean {
-  return (
-    state.status === 'failed' &&
-    state.saga.outcome === undefined &&
-    Object.values(state.steps).some((r) => r.status === 'failed')
-  )
-}
-
 /** A transition initiated by the cursor (user `next/go/back`, cursor rule): `from` is a view or null. */
-export function cursorInitiated(def: CompiledFlow, nav: NavState): boolean {
+export function cursorInitiated(def: CompiledWizard, nav: NavState): boolean {
   return nav.from == null || def.steps[nav.from]?.kind === 'view'
 }
 
-/** Explicit navigation (`go` / `back`): the user's intent overrides the target's `when` (v0.2). */
+/** Explicit navigation (`go` / `back`): the user's intent overrides the target's `when`. */
 export function isExplicitCause(cause: NavCause | undefined): boolean {
   return cause === 'go' || cause === 'back'
 }
@@ -217,17 +214,16 @@ export function sameEntry(a: SagaEntryRef, b: SagaEntryRef): boolean {
   return a.step === b.step && a.runId === b.runId
 }
 
-/** Terminal = done | cancelled | non-recoverable failed. */
+/** Terminal = done | cancelled | failed (a recoverable failure is `halted`). */
 export function isTerminal(state: WizardState): boolean {
-  if (state.status === 'done' || state.status === 'cancelled') return true
-  return state.status === 'failed' && !isRecoverableFailure(state)
+  return state.status === 'done' || state.status === 'cancelled' || state.status === 'failed'
 }
 
-/** True while a task's `run` effect is in flight (result still expected). */
+/** True while a step's `run` effect is in flight. */
 export function runInFlight(rec: StepRecord | undefined): boolean {
   return (
     rec !== undefined &&
-    rec.kind === 'task' &&
+    rec.kind === 'step' &&
     rec.status === 'active' &&
     rec.attempt >= 1 &&
     rec.retryAt === undefined &&
@@ -247,7 +243,7 @@ const EXIT_PHASES: ReadonlySet<string> = new Set([
   'entering',
 ])
 
-export function phase(def: CompiledFlow, state: WizardState, id: string): StepPhase | undefined {
+export function phase(def: CompiledWizard, state: WizardState, id: string): StepPhase | undefined {
   const m = memo(state)
   if (m.phase.has(id)) return m.phase.get(id)
   const p = computePhase(def, state, id)
@@ -255,13 +251,13 @@ export function phase(def: CompiledFlow, state: WizardState, id: string): StepPh
   return p
 }
 
-function computePhase(def: CompiledFlow, state: WizardState, id: string): StepPhase | undefined {
+function computePhase(def: CompiledWizard, state: WizardState, id: string): StepPhase | undefined {
   const rec = state.steps[id]
   if (rec === undefined) return undefined
   if (rec.status === 'compensating') return 'compensating'
   if (rec.status !== 'active') {
     if (!rec.pendingActivation) return undefined
-    // v0.2: an eligible step whose `when` predicate is unresolved cannot enter yet → blocked.
+    // An eligible step whose `when` predicate is unresolved cannot enter yet → blocked.
     return depsSatisfied(def, state, id) && !awaitingWhen(def, state, id) ? 'ready' : 'blocked'
   }
   if (rec.entering === true) return 'entering'
@@ -274,56 +270,79 @@ function computePhase(def: CompiledFlow, state: WizardState, id: string): StepPh
       }
       return 'waiting'
     }
-    case 'task':
-      return rec.retryAt !== undefined ? 'retrying' : 'running'
-    case 'wait':
-      return 'waiting'
-    case 'flow':
-      return rec.child?.status === 'waiting' ? 'waiting' : 'running'
+    case 'step':
+      return isEventStep(def.steps[id]) || def.steps[id]?.sleep !== undefined
+        ? 'waiting'
+        : rec.retryAt !== undefined
+          ? 'retrying'
+          : 'running'
+    case 'child':
+      return childActivity(rec) === 'waiting' ? 'waiting' : 'running'
     default:
       return 'running'
   }
 }
 
 /** A view the user can `go` to right now: ready or previously visited (`visitedCount > 0`), and not the current one. */
-export function available(def: CompiledFlow, state: WizardState, id: string): boolean {
+export function available(def: CompiledWizard, state: WizardState, id: string): boolean {
   const rec = state.steps[id]
   if (rec === undefined || rec.kind !== 'view' || id === state.current) return false
   return ready(def, state, id) || rec.visitedCount > 0
 }
 
 /**
- * v0.2 (§9.6): `{ done, total, ratio }` over the non-final steps (`done` = status `done` or
- * `skipped`); `ratio` is 1 once the flow is `done` (branches never taken do not count against a
- * finished flow). Memoized per state. `ChildSummary.progress` and `ClientState.progress` use it.
+ * `{ done, total, ratio }` over all steps (`done` = status `done` or
+ * `skipped`). Once the run is `done`, branches never taken drop out: `total = done`, `ratio = 1`.
+ * Memoized per state. `ChildSummary.progress` and `ClientState.progress` use it.
  */
-export function progress(state: WizardState, def: CompiledFlow): Progress {
+export function progress(state: WizardState, def: CompiledWizard): Progress {
   const m = memo(state)
   if (m.progress !== undefined) return m.progress
-  let done = 0
-  let total = 0
-  for (const id of def.order) {
-    const rec = state.steps[id]
-    if (rec === undefined || (def.steps[id]?.kind ?? rec.kind) === 'final') continue
-    total += 1
-    if (rec.status === 'done' || rec.status === 'skipped') done += 1
-  }
-  const ratio = state.status === 'done' ? 1 : total === 0 ? 0 : done / total
-  const p: Progress = { done, total, ratio }
+  const done = stepIndex(state.steps).completed
+  let total = def.order.length
+  if (state.status === 'done') total = done
+  const p: Progress = { done, total, ratio: total === 0 ? 0 : done / total }
   m.progress = p
   return p
 }
 
 /**
- * v0.2 (§9.6): views the user can be on right now — the current view plus every ready view, in
+ * Views the user can be on right now — the current view plus every ready view, in
  * declaration order. Memoized per state (one array identity per seq).
  */
-export function readyOrCurrentViews(def: CompiledFlow, state: WizardState): readonly string[] {
+export function readyOrCurrentViews(def: CompiledWizard, state: WizardState): readonly string[] {
   const m = memo(state)
   if (m.readyOrCurrentViews !== undefined) return m.readyOrCurrentViews
-  const list = def.order.filter(
-    (id) => def.steps[id]?.kind === 'view' && (id === state.current || ready(def, state, id)),
-  )
+  const order = declarationOrder(def)
+  const candidates = readyViews(def, state).filter((id) => id !== state.current)
+  if (state.current !== null) candidates.push(state.current)
+  const list = candidates.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
   m.readyOrCurrentViews = list
   return list
+}
+
+// ---------------------------------------------------------------------------
+// Per-definition facts (memoized per compiled wizard)
+// ---------------------------------------------------------------------------
+
+interface DefFacts {
+  readonly order: ReadonlyMap<string, number>
+}
+
+const defFacts = new WeakMap<CompiledWizard, DefFacts>()
+
+function facts(def: CompiledWizard): DefFacts {
+  let f = defFacts.get(def)
+  if (f === undefined) {
+    f = {
+      order: new Map(def.order.map((id, i) => [id, i])),
+    }
+    defFacts.set(def, f)
+  }
+  return f
+}
+
+/** Step id -> declaration index. */
+function declarationOrder(def: CompiledWizard): ReadonlyMap<string, number> {
+  return facts(def).order
 }

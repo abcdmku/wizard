@@ -1,0 +1,29 @@
+# Branch
+
+Choose the next step from data, or skip a step.
+
+```ts file="packages/docs/snippets/learn/branch.ts"
+```
+
+- A function `next` returns the step to start. List every step it can return in `targets`.
+- Targets it does not return are skipped.
+- `label` reads the branch that ran through an `any` need. A plain need on both branches would skip `label`, because one branch is always skipped.
+- `next` can return an array to start several steps, or `null` to end the branch. On a step with `run`, it receives that step's `output`.
+- A step listed in `targets` starts only when `next` returns it. Its `needs` make it wait. They do not start it.
+
+## Skip one step
+
+```ts
+const giftWrap = step({
+  when: ({ context }) => context.gift,
+  run: ({ deps }) => deps.wrapping.wrap(),
+  next: 'ship',
+})
+```
+
+When `when` returns `false` the step is skipped and `ship` still starts. A step with a plain need on `giftWrap` is skipped with it.
+
+## Next
+
+- [Wait for events and time](/learn/wait)
+- [Step options](/packages/core#declare-a-step)

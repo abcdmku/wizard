@@ -44,6 +44,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.node == 22
       - run: pnpm check:public-tags
         if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+      - name: Verify publishable package files and shared entrypoint types
+        run: pnpm check:pack
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
       - run: pnpm examples
       - name: Docs site (typecheck, links, prerender, search index, TypeDoc)
         run: pnpm --filter @openwizard/docs check

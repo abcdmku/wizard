@@ -1,8 +1,19 @@
 /**
- * v0.2 §10.2 — the `skip` command. Pure machine tests.
+ * The `skip` command. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, of, replay, task, view, wait } from '../helpers/fixtures'
+import {
+  createHarness,
+  eventStep,
+  flow,
+  needAll,
+  needOptional,
+  of,
+  replay,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const yes = () => true
 const on = () => undefined
@@ -13,14 +24,14 @@ describe('skip command', () => {
       start: 'v',
       steps: {
         v: view({ canExit: yes, exit: on, next: ['t', 'w'] }),
-        t: task({ next: 'join' }),
-        w: wait({ on: { e: on }, timeout: { afterMs: 1_000, next: 'join' }, next: 'join' }),
-        join: task({ dependsOn: ['t', 'w'], next: 'end' }),
-        end: final(),
+        t: runStep({ next: 'join' }),
+        w: eventStep({ on: { e: on }, timeout: { afterMs: 1_000, next: 'join' }, next: 'join' }),
+        join: runStep({ needs: needOptional('t', 'w'), next: 'end' }),
+        end: routingStep(),
       },
     })
 
-  it('an active task is cancelled first (run aborted, late result ignored), then skipped; deps count it as done', () => {
+  it('an active step is cancelled first (run aborted, late result ignored), then skipped; optional needs count it as settled', () => {
     const h = createHarness(dag())
     h.start()
     h.cmd('next')
@@ -48,21 +59,22 @@ describe('skip command', () => {
     const s = h.cmd({ type: 'skip', step: 'w' })
     expect(s.types.slice(0, 3)).toEqual(['timer.cleared', 'step.cancelled', 'step.skipped'])
     expect(h.state.timers['wait:w']).toBeUndefined()
-    expect(h.rec('join').status).toBe('active') // both deps "done"
+    expect(h.rec('join').status).toBe('active') // both optional needs settled
     h.ok(h.call('run', 'join'), 1)
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(replay(h)).toEqual(h.state)
   })
 
-  it('a ready (pending, budget-limited) task is skipped without entering; final / unknown / not-ready / done steps are rejected', () => {
+  it('a ready (pending, budget-limited) step is skipped without entering; unknown / not-ready / done steps are rejected', () => {
     const h = createHarness(
       flow({
         start: ['t1', 't2'],
         steps: {
-          t1: task({ next: 'end' }),
-          t2: task({ next: 'end' }),
-          later: task({ next: 'end' }),
-          end: final({ dependsOn: ['t1', 't2'] }),
+          t1: runStep({ next: 'end' }),
+          t2: runStep({ next: 'end' }),
+          later: runStep({ next: 'end' }),
+          end: routingStep({ needs: { ...needAll('t1'), ...needOptional('t2') } }),
         },
         policies: { concurrency: 1 },
       }),
@@ -73,8 +85,8 @@ describe('skip command', () => {
     expect(r.types.slice(0, 1)).toEqual(['step.skipped'])
     expect(h.rec('t2').status).toBe('skipped')
     expect(of(h.cmd({ type: 'skip', step: 'end' }), 'command.rejected')[0]).toMatchObject({
-      code: 'INVALID_COMMAND',
-      reason: 'final-step',
+      code: 'NOT_ACTIVE',
+      reason: 'not-ready',
     })
     expect(of(h.cmd({ type: 'skip', step: 'nope' }), 'command.rejected')[0]?.code).toBe(
       'UNKNOWN_STEP',
@@ -88,6 +100,7 @@ describe('skip command', () => {
       reason: 'not-skippable:skipped',
     })
     h.ok(h.call('run', 't1'), 1)
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
   })
 
@@ -114,7 +127,7 @@ describe('skip command', () => {
         start: 'v',
         steps: {
           v: view({ next: 't' }),
-          t: task({ when: yes, next: 'v2' }),
+          t: runStep({ when: yes, next: 'v2' }),
           v2: view({ next: 't' }),
         },
       }),
@@ -145,10 +158,10 @@ describe('skip command', () => {
         start: 'v',
         steps: {
           v: view({ canExit: yes, next: ['slow', 'w'] }),
-          slow: task({ next: 'w2' }),
+          slow: runStep({ next: 'w2' }),
           w: view({ canExit: yes, next: 'end' }),
           w2: view({ next: 'end' }),
-          end: final({ dependsOn: ['w', 'w2'] }),
+          end: routingStep({ needs: needAll('w', 'w2') }),
         },
       }),
     )

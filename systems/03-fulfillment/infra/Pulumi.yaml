@@ -1,0 +1,8 @@
+name: openwizard-fulfillment
+description: LocalStack infrastructure for the fulfillment reference system
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+    nodeargs: --import tsx
+main: src/index.ts

@@ -1,60 +1,76 @@
-import { defineFlow } from '@openwizard/core'
+﻿import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-const s = defineFlow({
-  name: 'checkout',
-  context: z.object({
-    orderId: z.string(),
-    paymentId: z.string().optional(),
-    declineReason: z.string().optional(),
-  }),
-  // Webhook bodies are untrusted: every `send()` goes through the event's boundary first.
-  events: {
-    'payment.captured': z.object({
-      paymentId: z.string(),
-      amount: z.number().positive(),
-      orderId: z.string().optional(), // the provider echoes our order id
-    }),
-    'payment.failed': z.object({ reason: z.string() }),
-    'order.cancelled': z.object({ orderId: z.string(), reason: z.string() }),
-  },
-  // Flow-level handlers run for an event whatever step is active (after the step-level ones):
-  // a cancellation is a flow-wide concern, so it lives here — `{ cancel }` cancels the flow.
-  on: {
-    'order.cancelled': ({ payload }) => ({ cancel: payload.reason }),
-  },
-  // Correlation: with `createWizard(checkout, { correlationId })`, an event whose extracted id
-  // differs is dropped (`event.dropped { reason: 'correlation' }`) — a webhook for another order
-  // never lands here. Payloads without an id (undefined) are not filtered.
-  correlate: {
-    'payment.captured': (payload) => payload.orderId,
-    'order.cancelled': (payload) => payload.orderId,
-  },
-  // An event with no active listener is buffered (FIFO) for 10 minutes and delivered when a
-  // wait step that handles it enters — the "webhook arrives before we listen" race.
-  unmatchedEvents: { buffer: true, ttl: '10m' },
-})
+/** What the payment provider reported. */
+type Payment =
+  | { readonly status: 'captured'; readonly paymentId: string }
+  | { readonly status: 'failed'; readonly reason: string }
+/** The provider reported nothing in time. */
+type Expired = { readonly status: 'expired' }
 
-export const checkout = s.steps(
+export const checkout = defineWizard(
   {
-    // A view first, so the demo can send events BEFORE the wait step is active.
-    review: s.view({ next: 'awaitPayment' }),
-    awaitPayment: s.wait({
-      on: {
-        // Handlers see the PARSED payload; `update` writes into the typed context.
-        'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
-        // A handler may override the step's static `next`.
-        'payment.failed': ({ payload, update }) => {
-          update({ declineReason: payload.reason })
-          return { next: 'declined' }
-        },
+    name: 'checkout',
+    description: 'Waits for the payment provider to capture or decline the payment for an order.',
+    context: z.object({ orderId: z.string() }),
+    // Every input-event payload passes through its boundary before a handler sees it.
+    events: {
+      'payment.captured': z.object({
+        paymentId: z.string(),
+        amount: z.number().positive(),
+        orderId: z.string().optional(), // the provider echoes our order id
+      }),
+      'payment.failed': z.object({ reason: z.string() }),
+      'order.cancelled': z.object({ orderId: z.string(), reason: z.string() }),
+    },
+    // Wizard-level handlers run after step handlers, regardless of which step is active.
+    on: {
+      'order.cancelled': ({ payload }) => ({ cancel: payload.reason }),
+    },
+    // An event for another correlation id is dropped instead of buffered.
+    correlate: {
+      'payment.captured': (payload) => payload.orderId,
+      'order.cancelled': (payload) => payload.orderId,
+    },
+    // Unmatched events wait in a FIFO inbox for up to ten minutes.
+    unmatchedEvents: { buffer: true, ttl: '10m' },
+  },
+  ({ step, view, steps }) => {
+    // This view lets the demo send payment before the wait step starts.
+    const review = view({ input: z.object({}), initial: {}, next: 'awaitPayment' })
+    const awaitPayment = step({
+      description: 'Waits for the provider. Either event completes the wait with a payment.',
+      waitFor: {
+        'payment.captured': ({ payload }): { done: Payment } => ({
+          done: { status: 'captured', paymentId: payload.paymentId },
+        }),
+        'payment.failed': ({ payload }): { done: Payment } => ({
+          done: { status: 'failed', reason: payload.reason },
+        }),
       },
       timeout: { after: '30m', next: 'expired' },
-      next: 'paid',
-    }),
-    paid: s.final({ output: ({ context }) => `paid (${context.paymentId})` }),
-    declined: s.final({ output: ({ context }) => `declined: ${context.declineReason}` }),
-    expired: s.final({ output: () => 'expired: no payment within 30 minutes' }),
+    })
+    // A wait that times out is skipped and has no output, so the timeout path has its own step.
+    const expired = step({
+      description: 'Records that no payment event arrived in time.',
+      run: (): Expired => ({ status: 'expired' }),
+    })
+    // Exactly one of the two finishes. The need is typed as the union of their outputs, and the
+    // `string` return type makes a missing case a compile error.
+    const result = step({
+      description: 'Turns the outcome into the result of the checkout.',
+      needs: { outcome: { any: [awaitPayment, expired] } },
+      run: ({ needs }): string => {
+        switch (needs.outcome.status) {
+          case 'captured':
+            return `paid (${needs.outcome.paymentId})`
+          case 'failed':
+            return `declined: ${needs.outcome.reason}`
+          case 'expired':
+            return 'expired: no payment within 30 minutes'
+        }
+      },
+    })
+    return steps({ review, awaitPayment, expired, result }, { start: 'review' })
   },
-  { start: 'review' },
 )

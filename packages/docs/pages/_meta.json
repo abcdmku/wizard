@@ -1,7 +1,7 @@
 {
-  "getting-started": "Getting started",
-  "concepts": { "title": "Concepts" },
-  "examples": { "title": "Examples" },
-  "api": { "title": "API reference" },
-  "design": { "title": "Design docs" }
+  "getting-started": "Quickstart",
+  "learn": { "title": "Guide" },
+  "advanced": { "title": "Production" },
+  "packages": { "title": "Reference" },
+  "examples": "Examples"
 }

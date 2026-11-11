@@ -1,17 +1,18 @@
 /**
- * v0.2 §10.3 — explicit `invalidate` (never automatic). Pure machine tests.
+ * Explicit `invalidate` (never automatic). Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
 import {
   createHarness,
-  final,
+  eventStep,
   flow,
   flowStep,
+  needAll,
   of,
   replay,
-  task,
+  routingStep,
+  runStep,
   view,
-  wait,
 } from '../helpers/fixtures'
 
 const on = () => undefined
@@ -21,13 +22,13 @@ const dag = () =>
     start: 'a',
     steps: {
       a: view({ next: 'load' }),
-      load: task({ compensate: on, next: 'b' }),
-      b: view({ dependsOn: ['load'], next: ['t1', 't2'] }),
-      t1: task({ dependsOn: ['load'], next: 'join' }),
-      t2: task({ next: 'join' }),
-      join: task({ dependsOn: ['t1', 't2'], next: 'c' }),
-      c: view({ dependsOn: ['join'], next: 'end' }),
-      end: final(),
+      load: runStep({ compensate: on, next: 'b' }),
+      b: view({ needs: needAll('load'), next: ['t1', 't2'] }),
+      t1: runStep({ needs: needAll('load', 'b'), next: 'join' }),
+      t2: runStep({ next: 'join' }),
+      join: runStep({ needs: needAll('t1', 't2'), next: 'c' }),
+      c: view({ needs: needAll('join'), next: 'end' }),
+      end: routingStep(),
     },
   })
 
@@ -48,7 +49,7 @@ function toC() {
 }
 
 describe('invalidate', () => {
-  it('a done task returns to idle: output → previousOutput, error/issues cleared, saga stack entry kept; without cascade nothing else changes', () => {
+  it('a done step returns to idle: output → previousOutput, error/issues cleared, saga stack entry kept; without cascade nothing else changes', () => {
     const h = toC()
     const r = h.cmd({ type: 'invalidate', step: 'load', cascade: false })
     expect(r.types).toEqual(['step.invalidated'])
@@ -69,7 +70,7 @@ describe('invalidate', () => {
     expect(replay(h)).toEqual(h.state)
   })
 
-  it('cascade (default): every transitive dependsOn dependent that is done/failed/skipped is invalidated too (cause cascade), the current view included when it depends', () => {
+  it('cascade (default): every transitive needs dependent that is done/failed/skipped is invalidated too (cause cascade), the current view included when it depends', () => {
     const h = toC()
     const r = h.cmd({ type: 'invalidate', step: 'load' })
     // dependents of load: b (view, done), t1 (done) → join (done) → c (active, current) — t2 does not depend on load
@@ -110,16 +111,16 @@ describe('invalidate', () => {
     expect(h.state.current).toBe('a')
   })
 
-  it('running dependents are cancelled first (a task run aborted, a child flow cancelled), then invalidated', () => {
-    const child = flow({ start: 'x', steps: { x: view({ next: 'e' }), e: final() } })
+  it('running dependents are cancelled first (a step run aborted, a child run cancelled), then invalidated', () => {
+    const child = flow({ start: 'x', steps: { x: view({ next: 'e' }), e: routingStep() } })
     const h = createHarness(
       flow({
         start: 'seed',
         steps: {
-          seed: task({ next: ['t', 'f'] }),
-          t: task({ dependsOn: ['seed'] }),
-          f: flowStep(child, { dependsOn: ['seed'] }),
-          end: final({ dependsOn: ['t', 'f'] }),
+          seed: runStep({ next: ['t', 'f'] }),
+          t: runStep({ needs: needAll('seed') }),
+          f: flowStep(child, { needs: needAll('seed') }),
+          end: routingStep({ needs: needAll('t', 'f') }),
         },
       }),
     )
@@ -171,13 +172,13 @@ describe('invalidate', () => {
     const h = createHarness(
       flow({
         start: 'v',
-        steps: { v: view({ next: 't' }), t: task({ next: 'end' }), end: final() },
+        steps: { v: view({ next: 't' }), t: runStep({ next: 'end' }), end: routingStep() },
       }),
     )
     h.start()
     h.cmd('next')
     h.err(h.call('run'), 'boom')
-    expect(h.state.status).toBe('failed')
+    expect(h.state.status).toBe('halted')
     // gated like retry: allowed while halted
     const r = h.cmd({ type: 'invalidate', step: 't' })
     expect(r.types).toEqual(['step.invalidated'])
@@ -192,6 +193,7 @@ describe('invalidate', () => {
     h.cmd('next')
     expect(h.rec('t')).toMatchObject({ status: 'active', runId: 2 })
     h.ok(h.call('run'), 'ok')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(replay(h)).toEqual(h.state)
   })
@@ -202,7 +204,7 @@ describe('invalidate', () => {
         start: 'v',
         steps: {
           v: view({ next: 'w' }),
-          w: wait({ when: () => true, on: { e: on }, next: 'v2' }),
+          w: eventStep({ when: () => true, on: { e: on }, next: 'v2' }),
           v2: view({ next: 'w' }),
         },
       }),

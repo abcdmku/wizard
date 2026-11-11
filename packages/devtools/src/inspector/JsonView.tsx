@@ -7,7 +7,7 @@ import { type ReactElement, useState } from 'react'
 
 const FOLD_AT = 600
 
-export function toJson(value: unknown): string {
+function toJson(value: unknown): string {
   const text = JSON.stringify(
     value,
     (_key, v: unknown) => {

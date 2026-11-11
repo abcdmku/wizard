@@ -1,128 +1,163 @@
 /**
- * Public types of the React binding. Everything is derived from the bind target `T` — a flow
- * (`bindReact<typeof flow>()`, source = `Wizard<F>`) or a projection
+ * Public types of the React binding's state, records and actions (the hook bindings themselves
+ * are in `./binding-types`). Everything is derived from the bind target `T` — a wizard
+ * (`bindReact<typeof wizard>()`, source = `Run<F>`) or a projection
  * (`bindReact<typeof projection>()`, source = `Mirror<P>`, typed from a type-only import so no
  * server code reaches the client bundle). Named interfaces on purpose (ADR-001 F7): anonymous
- * object types would print the whole flow once per method in hover / `.d.ts` output.
+ * object types would print the whole run once per method in hover / `.d.ts` output.
  *
  * @packageDocumentation
  */
 
 import type {
-  AnyFlow,
   AnyProjection,
-  ChildFlowOf,
-  ChildStepId,
+  AnyWizardDefinition,
   Command,
   CommandResult,
+  Ctx,
   DraftOf,
   EventType,
-  Mirror,
-  MirrorChild,
+  Explanation,
+  Issue,
   NavResult,
-  ProjectionFlow,
+  PayloadInput,
+  Progress,
   ProjectionOutput,
+  ProjectionWizard,
+  RetryStepId,
+  Run,
+  RunStepId,
+  SendOptions,
   SendResult,
   Snapshot,
   StepId,
-  TaskId,
+  StepPhase,
   ViewId,
-  Wizard,
 } from '@openwizard/core'
-
-import type { ReactElement, ReactNode } from 'react'
+import type { Mirror, MirrorResult } from '@openwizard/core/mirror'
 
 /**
- * What `bindReact<T>()` accepts: a flow (the source is a `Wizard`) or a projection (the source
+ * What `bindReact<T>()` accepts: a wizard (the source is a `Run`) or a projection (the source
  * is a `Mirror`).
  * @public
  */
-export type BindTarget = AnyFlow | AnyProjection
+export type BindTarget = AnyWizardDefinition | AnyProjection
 
 /**
- * The flow behind a bind target (the projection's flow, or the flow itself).
+ * The wizard behind a bind target (the projection's wizard, or the wizard itself).
  * @public
  */
-export type FlowOf<T extends BindTarget> = T extends AnyProjection
-  ? ProjectionFlow<T>
-  : T extends AnyFlow
+export type WizardOf<T extends BindTarget> = T extends AnyProjection
+  ? ProjectionWizard<T>
+  : T extends AnyWizardDefinition
     ? T
     : never
 
 /**
- * The live object a binding's `Provider` takes: `Wizard<F>` for a flow, `Mirror<P>` for a projection.
+ * The live object a binding's `Provider` takes: `Run<F>` for a wizard, `Mirror<P>` for a projection.
  * @public
  */
 export type SourceOf<T extends BindTarget> = T extends AnyProjection
   ? Mirror<T>
-  : T extends AnyFlow
-    ? Wizard<T>
+  : T extends AnyWizardDefinition
+    ? Run<T>
     : never
 
 /**
- * The state the hooks read: `Snapshot<F>['state']` over a Wizard, `ProjectionOutput<P>`
+ * The state the hooks read: `Snapshot<F>['state']` over a Run, `ProjectionOutput<P>`
  * (the projected `ClientState`) over a Mirror.
  * @public
  */
 export type StateOf<T extends BindTarget> = T extends AnyProjection
   ? ProjectionOutput<T>
-  : T extends AnyFlow
+  : T extends AnyWizardDefinition
     ? Snapshot<T>['state']
     : never
 
 /**
- * Result of the navigation actions: `NavResult` from a Wizard, the ack's `CommandResult` from a Mirror.
+ * Result of the commands that are not navigation or `send`: `CommandResult` from a Run, a
+ * `MirrorResult` (the ack's `CommandResult` or `TRANSPORT_FAILED`) from a Mirror.
  * @public
  */
-export type NavResultOf<T extends BindTarget> = T extends AnyProjection ? CommandResult : NavResult
+export type CommandResultOf<T extends BindTarget> = T extends AnyProjection
+  ? MirrorResult
+  : CommandResult
 
 /**
- * Result of the `send` action: `SendResult` from a Wizard, the ack's `CommandResult` from a Mirror.
+ * Result of the navigation actions: `NavResult` from a Run, a `MirrorResult` from a Mirror.
  * @public
  */
-export type SendResultOf<T extends BindTarget> = T extends AnyProjection
-  ? CommandResult
-  : SendResult
+export type NavResultOf<T extends BindTarget> = T extends AnyProjection ? MirrorResult : NavResult
 
 /**
- * The command methods of the source (`useActions()`) — the same sugar as `Wizard` / `Mirror`,
- * typed by the flow; one stable object per source.
+ * Result of the `send` action: `SendResult` from a Run, a `MirrorResult` from a Mirror.
+ * @public
+ */
+export type SendResultOf<T extends BindTarget> = T extends AnyProjection ? MirrorResult : SendResult
+
+/**
+ * The command methods of the source (`useActions()`) — the same sugar as `Run` / `Mirror`,
+ * typed by the wizard; one stable object per source. `send` checks the payload against the
+ * event's schema type (an `unknown` value is accepted and parsed by the event boundary).
  * @public
  */
 export interface Actions<T extends BindTarget> {
-  start(): Promise<CommandResult>
+  start(): Promise<CommandResultOf<T>>
   next(): Promise<NavResultOf<T>>
   back(): Promise<NavResultOf<T>>
-  go(step: ViewId<FlowOf<T>>): Promise<NavResultOf<T>>
-  setInput<K extends ViewId<FlowOf<T>>>(
+  go(step: ViewId<WizardOf<T>>): Promise<NavResultOf<T>>
+  setInput<K extends ViewId<WizardOf<T>>>(
     step: K,
-    patch: DraftOf<FlowOf<T>, K>,
-  ): Promise<CommandResult>
-  resetInput(step: ViewId<FlowOf<T>>): Promise<CommandResult>
-  send<E extends EventType<FlowOf<T>>>(
+    patch: DraftOf<WizardOf<T>, K>,
+  ): Promise<CommandResultOf<T>>
+  resetInput(step: ViewId<WizardOf<T>>): Promise<CommandResultOf<T>>
+  send<E extends EventType<WizardOf<T>>, P>(
     event: E,
-    payload: unknown,
-    options?: { readonly correlationId?: string },
+    payload: P & (unknown extends P ? unknown : PayloadInput<WizardOf<T>, E>),
+    options?: SendOptions,
   ): Promise<SendResultOf<T>>
-  run(step: TaskId<FlowOf<T>>): Promise<CommandResult>
-  retry(step: TaskId<FlowOf<T>>): Promise<CommandResult>
-  cancel(reason?: string): Promise<CommandResult>
-  runReady(): Promise<CommandResult>
+  startStep(step: RunStepId<WizardOf<T>>): Promise<CommandResultOf<T>>
+  retry(
+    step: RetryStepId<WizardOf<T>>,
+    options?: { readonly patch?: Partial<Ctx<WizardOf<T>>> },
+  ): Promise<CommandResultOf<T>>
+  cancel(reason?: string): Promise<CommandResultOf<T>>
+  startReady(): Promise<CommandResultOf<T>>
   compensate(options?: {
-    readonly from?: StepId<FlowOf<T>>
+    readonly from?: StepId<WizardOf<T>>
     readonly reason?: string
-  }): Promise<CommandResult>
-  reset(): Promise<CommandResult>
-  skip(step: StepId<FlowOf<T>>, reason?: string): Promise<CommandResult>
+  }): Promise<CommandResultOf<T>>
+  reset(): Promise<CommandResultOf<T>>
+  skip(step: StepId<WizardOf<T>>, reason?: string): Promise<CommandResultOf<T>>
   invalidate(
-    step: StepId<FlowOf<T>>,
+    step: StepId<WizardOf<T>>,
     options?: { readonly cascade?: boolean },
-  ): Promise<CommandResult>
-  dispatch(command: Command<FlowOf<T>>): Promise<CommandResult>
+  ): Promise<CommandResultOf<T>>
+  dispatch(command: Command<WizardOf<T>>): Promise<CommandResultOf<T>>
 }
 
 /**
- * The record of step `K` of a state slice `S` (a projected `ClientState` or a wizard state):
+ * `useActions()` over a Run: the commands plus the run's pure queries — `validate(view)`
+ * (the view's issues over its current draft), `explain(step)` and `progress()`. Queries read
+ * the run at call time; they do not subscribe the component.
+ * @public
+ */
+export interface RunActions<F extends AnyWizardDefinition> extends Actions<F> {
+  validate(step: ViewId<F>): Promise<readonly Issue[]>
+  explain(step: StepId<F>): Explanation<F>
+  progress(): Progress
+}
+
+/**
+ * What `useActions()` returns: `RunActions` over a Run, `Actions` over a Mirror.
+ * @public
+ */
+export type ActionsOf<T extends BindTarget> = T extends AnyProjection
+  ? Actions<T>
+  : RunActions<WizardOf<T>>
+
+/**
+ * The record of step `K` of a state slice `S` (a projected `ClientState` or a run state):
  * `S['steps'][K]`, `never` when `S` has no such step (a `select` projection whose state is not
  * step-shaped).
  * @public
@@ -134,37 +169,69 @@ export type StepRecordIn<S, K extends PropertyKey> = S extends { readonly steps:
   : never
 
 /**
- * The record of step `K` as the hooks see it (`StepState` over a Wizard, the projected
- * `ClientStepState` over a Mirror).
+ * The record of step `K` as the hooks see it: the projected `ClientStepState` over a Mirror, the
+ * `StepState` over a Run plus its live `phase` (`validating` while a view's `validate` hook
+ * runs, `running`, `retrying`, `waiting`, …) — the same fact a projected record carries.
  * @public
  */
-export type StepRecordOf<T extends BindTarget, K extends StepId<FlowOf<T>>> = StepRecordIn<
-  StateOf<T>,
-  K
->
+export type StepRecordOf<
+  T extends BindTarget,
+  K extends StepId<WizardOf<T>>,
+> = T extends AnyProjection
+  ? StepRecordIn<StateOf<T>, K>
+  : StepRecordIn<StateOf<T>, K> & { readonly phase?: StepPhase }
 
 /**
- * Helpers `useStep(id)` binds to the step: `next`/`back` (flow-level navigation) for every step;
- * `go` (to this view), `setInput` (draft patch, `DraftOf`) and `resetInput` for view steps only.
+ * The field names of view `K`'s draft (what `issuesFor(field)` accepts).
  * @public
  */
-export type StepHelpers<T extends BindTarget, K extends StepId<FlowOf<T>>> = {
-  readonly next: () => Promise<NavResultOf<T>>
-  readonly back: () => Promise<NavResultOf<T>>
-} & (K extends ViewId<FlowOf<T>>
-  ? {
-      readonly go: () => Promise<NavResultOf<T>>
-      readonly setInput: (patch: DraftOf<FlowOf<T>, K>) => Promise<CommandResult>
-      readonly resetInput: () => Promise<CommandResult>
-    }
-  : {})
+export type FieldOf<F extends AnyWizardDefinition, K extends StepId<F>> = keyof NonNullable<
+  DraftOf<F, K>
+> &
+  string
+
+/**
+ * `issuesFor(field)` lists a view's issues whose path starts at `field` (`issuesFor()`: the
+ * issues without a path, e.g. a whole-object check). Offered only where record `R` carries
+ * `issues`: always over a Run, over a projection for a view exposed with `issues: true`.
+ * @internal
+ */
+export type IssuesFor<
+  R,
+  F extends AnyWizardDefinition,
+  K extends StepId<F>,
+> = 'issues' extends keyof R
+  ? { readonly issuesFor: (field?: FieldOf<F, K>) => readonly Issue[] }
+  : {}
+
+/**
+ * Helpers `useStep(id)` binds to a VIEW step (other steps get none): `next` / `back` navigate
+ * from this view — when it is not the current view they resolve `{ ok: false, code:
+ * 'NOT_ACTIVE' }` without sending anything —, `go` moves the cursor to it, `setInput` patches its
+ * draft (`DraftOf`), `resetInput` restores it, and `issuesFor(field)` lists the issues whose
+ * path starts at `field` (only where the record carries `issues`).
+ * @public
+ */
+export type StepHelpers<T extends BindTarget, K extends StepId<WizardOf<T>>> =
+  K extends ViewId<WizardOf<T>>
+    ? {
+        readonly next: () => Promise<NavResultOf<T>>
+        readonly back: () => Promise<NavResultOf<T>>
+        readonly go: () => Promise<NavResultOf<T>>
+        readonly setInput: (patch: DraftOf<WizardOf<T>, K>) => Promise<CommandResultOf<T>>
+        readonly resetInput: () => Promise<CommandResultOf<T>>
+      } & IssuesFor<StepRecordOf<T, K>, WizardOf<T>, K>
+    : {}
 
 /**
  * What `useStep(id)` returns: the typed step record with the bound helpers spread in
- * (`const { status, input, issues, setInput, next } = ow.useStep('shipping')`).
+ * (`const { status, phase, input, issuesFor, setInput, next } = ow.useStep('shipping')`).
  * @public
  */
-export type UseStepResult<T extends BindTarget, K extends StepId<FlowOf<T>>> = StepRecordOf<T, K> &
+export type UseStepResult<T extends BindTarget, K extends StepId<WizardOf<T>>> = StepRecordOf<
+  T,
+  K
+> &
   StepHelpers<T, K>
 
 /**
@@ -172,145 +239,5 @@ export type UseStepResult<T extends BindTarget, K extends StepId<FlowOf<T>>> = S
  * @public
  */
 export type CurrentOf<T extends BindTarget> =
-  | { [K in ViewId<FlowOf<T>>]: StepRecordOf<T, K> }[ViewId<FlowOf<T>>]
+  | { [K in ViewId<WizardOf<T>>]: StepRecordOf<T, K> }[ViewId<WizardOf<T>>]
   | null
-
-/**
- * `Provider` props: the `source` (`Wizard` or `Mirror`), an optional `fallback` rendered until
- * the source has state (a Mirror before its first frame), an optional `serverSnapshot` for
- * server rendering / hydration, and `children`.
- *
- * `serverSnapshot` is the state (`StateOf<T>`: the projected state over a Mirror, the wizard
- * state over a Wizard) the server rendered with. Captured once, on the first render, it is what
- * every hook reads on the server and during hydration (`useSyncExternalStore`'s server
- * snapshot), so the hydrated tree matches the server HTML even if the live source already
- * moved on; React then re-renders with the live state. Without it, hooks read the live source
- * on the server too (fine when the source is a Wizard created for the request).
- * @public
- */
-export interface ProviderProps<T extends BindTarget> {
-  readonly source: SourceOf<T>
-  readonly fallback?: ReactNode
-  readonly serverSnapshot?: StateOf<T>
-  readonly children?: ReactNode
-}
-
-/** The nested child slice of a step record (`record.child`), `never` when it is not a state. */
-type ChildSliceOf<R> = R extends { readonly child?: infer CS }
-  ? [NonNullable<CS>] extends [{ readonly steps: unknown }]
-    ? NonNullable<CS>
-    : never
-  : never
-
-/**
- * The steps of flow `F` whose record in the projected slice `S` carries a nested child state
- * (exposed with `child: ExposeSpec`) — the only children a Mirror binding can read.
- * @public
- */
-export type ExposedChildId<F extends AnyFlow, S> = {
-  [K in StepId<F>]: [ChildSliceOf<StepRecordIn<S, K>>] extends [never] ? never : K
-}[StepId<F>]
-
-/**
- * Ids of the flow steps whose child state the binding can read with `useChild(step)`: over a
- * projection, the flow steps exposed with a nested `child: ExposeSpec` (their projected slice
- * carries `steps`); over a Wizard, every flow step (`Snapshot.children[step]`).
- * @public
- */
-export type ChildBindingId<T extends BindTarget> = T extends AnyProjection
-  ? ExposedChildId<FlowOf<T>, StateOf<T>>
-  : ChildStepId<FlowOf<T>>
-
-/**
- * The child slice `useChild(step)` reads: the projected child `ClientState` over a projection,
- * `Snapshot<Child>['state']` over a Wizard.
- * @public
- */
-export type ChildStateOf<
-  T extends BindTarget,
-  K extends ChildBindingId<T>,
-> = T extends AnyProjection
-  ? ChildSliceOf<StepRecordIn<StateOf<T>, K>>
-  : Snapshot<ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>>['state']
-
-/**
- * Helpers `useChild(step).useStep(id)` binds to a child step: the scoped `MirrorChild` sugar of
- * the child flow (`next` / `back` for every step; `go` / `setInput` / `resetInput` for views).
- * @public
- */
-export type ChildStepHelpers<CF extends AnyFlow, K extends StepId<CF>> = {
-  readonly next: () => Promise<CommandResult>
-  readonly back: () => Promise<CommandResult>
-} & (K extends ViewId<CF>
-  ? {
-      readonly go: () => Promise<CommandResult>
-      readonly setInput: (patch: DraftOf<CF, K>) => Promise<CommandResult>
-      readonly resetInput: () => Promise<CommandResult>
-    }
-  : {})
-
-/**
- * What `useChild(step)` returns: hooks bound to the child slice of the state (`S`), typed by the
- * child flow `CF`. `useSnapshot()` is `null` while the child has no state (its flow step has not
- * been entered); `useStep` throws in that case, so render it under a `useSnapshot()` guard.
- * `useActions()` is the scoped `MirrorChild` sugar (every command wrapped as a `child` command);
- * `useChild` nests further (`Source` says how the grandchild slice is read: `'mirror'` from
- * `steps[step].child` of this slice — only the grandchildren the projection exposes with a
- * nested `child: ExposeSpec` —, `'wizard'` from the child snapshot's `children[step]`, every
- * flow step).
- * @public
- */
-export interface ChildBinding<
-  CF extends AnyFlow,
-  S,
-  Source extends 'wizard' | 'mirror' = 'mirror',
-> {
-  /** The child slice, or `null` before the child exists. */
-  useSnapshot(): S | null
-  /** One child step's record + bound helpers; throws while the child has no state. */
-  useStep<K extends StepId<CF>>(step: K): StepRecordIn<S, K> & ChildStepHelpers<CF, K>
-  /** The child's command sugar (stable identity per source and path). */
-  useActions(): MirrorChild<CF>
-  /** A grandchild binding (over a Mirror: only a grandchild exposed in this slice). */
-  useChild<K extends Source extends 'wizard' ? ChildStepId<CF> : ExposedChildId<CF, S>>(
-    step: K,
-  ): ChildBinding<
-    ChildFlowOf<CF, K & StepId<CF>>,
-    Source extends 'wizard'
-      ? Snapshot<ChildFlowOf<CF, K & StepId<CF>>>['state']
-      : ChildSliceOf<StepRecordIn<S, K>>,
-    Source
-  >
-}
-
-/**
- * What `bindReact<T>()` returns: a `Provider` plus hooks typed by `T`. Every hook must be used
- * inside this binding's `Provider`; all reads go through `useSyncExternalStore` with stable
- * snapshot identities, so a hook re-renders only when its slice changes.
- * @public
- */
-export interface ReactBinding<T extends BindTarget> {
-  readonly Provider: (props: ProviderProps<T>) => ReactElement | null
-  /** The whole state (re-renders on every commit). */
-  useSnapshot(): StateOf<T>
-  /** The current view's record or `null`. */
-  useCurrent(): CurrentOf<T>
-  /** One step's record + bound helpers; re-renders only when that step's slice changes. */
-  useStep<K extends StepId<FlowOf<T>>>(step: K): UseStepResult<T, K>
-  /** A derived value; re-renders when `isEqual` (default `Object.is`) says it changed. */
-  useSelector<R>(select: (state: StateOf<T>) => R, isEqual?: (a: R, b: R) => boolean): R
-  /** The source's command methods (stable identity per source). */
-  useActions(): Actions<T>
-  /**
-   * Hooks bound to a nested flow (`steps[step].child` of the projected state — the flow step
-   * must be exposed with `child: ExposeSpec` — or `Snapshot.children[step]` over a Wizard).
-   * Stable identity per step, so `ow.useChild('fulfil').useStep('pick')` is fine inline.
-   */
-  useChild<K extends ChildBindingId<T>>(
-    step: K,
-  ): ChildBinding<
-    ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>,
-    ChildStateOf<T, K>,
-    T extends AnyProjection ? 'mirror' : 'wizard'
-  >
-}

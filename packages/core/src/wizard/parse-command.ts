@@ -1,15 +1,16 @@
 /**
- * Strict decoder for wire commands (plan §8.9): JSON arrives from a transport
- * as `unknown`; `parseCommand(flow, input)` checks the exact shape — allow-listed
+ * Strict decoder for wire commands: JSON arrives from a transport
+ * as `unknown`; `parseCommand(wizard, input)` checks the exact shape — allow-listed
  * fields per command type (unknown properties are rejected, not dropped),
  * JSON-value payloads (`patch` / `payload` must survive `JSON.stringify`
  * unchanged), no internal commands (`sendRejected` is façade-only) — AND that
- * every id exists in the compiled flow (`go` / `setInput` / `resetInput` name a
- * view, `run` / `retry` a task, `send` a declared event, `compensate.from` /
- * `skip.step` / `invalidate.step` a step (v0.2; `invalidate.cascade` a boolean),
- * every `child` path segment a flow step, the nested command checked
- * against the child flow it reaches). It returns a fresh `Command<F>` or
- * Standard-Schema style issues, so `wizard.dispatch(parsed.value)` typechecks.
+ * every id exists in the compiled wizard (`go` / `setInput` / `resetInput` name a
+ * view, `run` / `retry` a runnable step (`retry.patch` a JSON object), `send` a declared event
+ * (`send.eventId` a dedupe id), `compensate.from` /
+ * `skip.step` / `invalidate.step` a step (`invalidate.cascade` a boolean),
+ * every `child` path segment a child step, the nested command checked
+ * against the child wizard it reaches). It returns a fresh `Command<F>` or
+ * Standard-Schema style issues, so `run.dispatch(parsed.value)` typechecks.
  * The *effective* child path depth (all segments across the nesting) is capped
  * at 8. `decodeCommand` (internal) is the shape-only half the runtime uses.
  *
@@ -22,11 +23,12 @@
  */
 
 import { compile } from '../authoring/compile'
-import type { BoundaryResult, CompiledFlow } from '../authoring/compiled'
-import type { AnyFlow } from '../authoring/types'
+import type { BoundaryResult, CompiledWizard } from '../authoring/compiled'
+import type { AnyWizardDefinition } from '../authoring/types'
 import type { Command } from '../machine/commands'
 import type { Issue } from '../machine/state'
-import { isPlainObject as isRecord } from '../machine/util'
+import { isPlainObject } from '../machine/util'
+import { resolveCommandPath } from './command-path'
 import type { Command as TypedCommand } from './create-wizard'
 import { firstNonJson, type JsonCheckOptions } from './json'
 
@@ -45,14 +47,14 @@ const SHAPES: Readonly<Record<string, readonly string[]>> = {
   start: [],
   next: [],
   back: [],
-  runReady: [],
+  startReady: [],
   reset: [],
   go: ['step!', 'reason'],
   setInput: ['step!', 'patch!'],
   resetInput: ['step!'],
-  run: ['step!'],
-  retry: ['step!'],
-  send: ['event!', 'payload!', 'correlationId'],
+  startStep: ['step!'],
+  retry: ['step!', 'patch'],
+  send: ['event!', 'payload!', 'correlationId', 'eventId'],
   cancel: ['reason'],
   compensate: ['from', 'reason'],
   skip: ['step!', 'reason'],
@@ -61,17 +63,17 @@ const SHAPES: Readonly<Record<string, readonly string[]>> = {
 }
 
 /**
- * Strictly decode an untrusted wire value into a `Command<F>` of `flow`: exact per-type field
+ * Strictly decode an untrusted wire value into a `Command<F>` of `wizard`: exact per-type field
  * allow-lists, JSON-only payloads, child path depth ≤ 8, and every step id / event name checked
- * against the flow (unknown → issues). Use it before `dispatch()` on anything from a transport.
+ * against the wizard (unknown → issues). Use it before `dispatch()` on anything from a transport.
  *
  * @public
  */
-export function parseCommand<F extends AnyFlow>(
-  flow: F,
+export function parseCommand<F extends AnyWizardDefinition>(
+  wizard: F,
   input: unknown,
 ): BoundaryResult<TypedCommand<F>> {
-  const decoded = decodeCommand(input, compile(flow))
+  const decoded = decodeCommand(input, compile(wizard))
   return decoded.ok ? { ok: true, value: decoded.value as TypedCommand<F> } : decoded
 }
 
@@ -79,9 +81,13 @@ export function parseCommand<F extends AnyFlow>(
  * @internal Shape-only decoding (plus id checks when `def` is given): what the runtime's
  * `dispatch()` runs on every input.
  */
-export function decodeCommand(input: unknown, def?: CompiledFlow): BoundaryResult<Command> {
+export function decodeCommand(
+  input: unknown,
+  def?: CompiledWizard,
+  checkIds = true,
+): BoundaryResult<Command> {
   const issues: Issue[] = []
-  const command = parse(input, [], 0, issues, def)
+  const command = parse(input, [], 0, issues, def, checkIds)
   return command === undefined || issues.length > 0
     ? { ok: false, issues }
     : { ok: true, value: command }
@@ -92,9 +98,10 @@ function parse(
   path: readonly PropertyKey[],
   depth: number,
   issues: Issue[],
-  def: CompiledFlow | undefined,
+  def: CompiledWizard | undefined,
+  checkIds: boolean,
 ): Command | undefined {
-  if (!isRecord(input)) {
+  if (!isPlainObject(input)) {
     issues.push({ message: 'command must be an object', path })
     return undefined
   }
@@ -159,19 +166,24 @@ function parse(
     })
     return false
   }
-  /** Flow checks (only with a `def`): the id must name a step of the given kind. */
+  /** Wizard checks (only with a `def`): the id must name a step of the given kind. */
   const stepOfKind = (
     key: string,
     id: string | undefined,
-    kind: 'view' | 'task' | 'any',
+    kind: 'view' | 'runnable' | 'retryable' | 'any',
   ): boolean => {
-    if (def === undefined || id === undefined) return true
+    if (!checkIds || def === undefined || id === undefined) return true
     const found = Object.hasOwn(def.steps, id) ? def.steps[id] : undefined
     if (found === undefined) {
       issues.push({ message: `unknown step '${id}'`, path: [...path, key] })
       return false
     }
-    if (kind !== 'any' && found.kind !== kind) {
+    const matches =
+      kind === 'any' ||
+      found.kind === kind ||
+      (kind === 'runnable' && found.hooks.run !== undefined) ||
+      (kind === 'retryable' && (found.hooks.run !== undefined || found.each !== undefined))
+    if (!matches) {
       issues.push({ message: `'${id}' is not a ${kind} step`, path: [...path, key] })
       return false
     }
@@ -182,7 +194,7 @@ function parse(
     case 'start':
     case 'next':
     case 'back':
-    case 'runReady':
+    case 'startReady':
     case 'reset':
       return { type }
     case 'go': {
@@ -200,24 +212,43 @@ function parse(
       return { type, step, patch: input.patch }
     }
     case 'resetInput':
-    case 'run':
+    case 'startStep': {
+      const step = str('step')
+      if (!stepOfKind('step', step, type === 'resetInput' ? 'view' : 'runnable')) return undefined
+      return step === undefined ? undefined : { type, step }
+    }
     case 'retry': {
       const step = str('step')
-      if (!stepOfKind('step', step, type === 'resetInput' ? 'view' : 'task')) return undefined
-      return step === undefined ? undefined : { type, step }
+      const patch = input.patch
+      if (patch !== undefined && !isPlainObject(patch))
+        issues.push({ message: "'patch' must be an object", path: [...path, 'patch'] })
+      const ok = patch === undefined || json('patch')
+      if (!stepOfKind('step', step, 'retryable')) return undefined
+      if (issues.length > start || step === undefined || !ok) return undefined
+      return isPlainObject(patch) ? { type, step, patch } : { type, step }
     }
     case 'send': {
       const event = str('event')
       const correlationId = str('correlationId')
+      const eventId = str('eventId')
       const ok = json('payload')
-      if (def !== undefined && event !== undefined && !Object.hasOwn(def.events, event)) {
+      if (
+        checkIds &&
+        def !== undefined &&
+        event !== undefined &&
+        !Object.hasOwn(def.events, event)
+      ) {
         issues.push({ message: `unknown event '${event}'`, path: [...path, 'event'] })
         return undefined
       }
       if (issues.length > start || event === undefined || !ok) return undefined
-      return correlationId === undefined
-        ? { type, event, payload: input.payload }
-        : { type, event, payload: input.payload, correlationId }
+      return {
+        type,
+        event,
+        payload: input.payload,
+        ...(correlationId === undefined ? {} : { correlationId }),
+        ...(eventId === undefined ? {} : { eventId }),
+      }
     }
     case 'cancel': {
       const reason = str('reason')
@@ -236,7 +267,7 @@ function parse(
       }
     }
     case 'skip': {
-      // v0.2: any known step (the machine rejects finals / not-ready steps at dispatch time).
+      // Any known step (the machine rejects completing or not-ready steps at dispatch time).
       const step = str('step')
       const reason = str('reason')
       if (!stepOfKind('step', step, 'any')) return undefined
@@ -258,6 +289,7 @@ function parse(
       if (
         !Array.isArray(rawPath) ||
         rawPath.length === 0 ||
+        rawPath.length > MAX_PATH_DEPTH * 2 ||
         !rawPath.every((s) => typeof s === 'string' && s.length > 0 && s.length <= MAX_STRING)
       ) {
         issues.push({
@@ -267,33 +299,24 @@ function parse(
         return undefined
       }
       const segments: string[] = rawPath.map(String)
-      const total = depth + segments.length
+      const resolved = resolveCommandPath(def, segments, path, issues, checkIds)
+      if (resolved === undefined) return undefined
+      const total = depth + resolved.levels
       if (total > MAX_PATH_DEPTH) {
         issues.push({
-          message: `child path nests deeper than ${MAX_PATH_DEPTH} (${total} segments)`,
+          message: `child path nests deeper than ${MAX_PATH_DEPTH} (${total} levels)`,
           path: [...path, 'path'],
         })
         return undefined
       }
-      // Walk the path through the flow tree: every segment must be a flow step; the nested
-      // command is checked against the flow the path reaches.
-      let target = def
-      for (let i = 0; i < segments.length && target !== undefined; i += 1) {
-        const segment = segments[i] as string
-        const stepDef = Object.hasOwn(target.steps, segment) ? target.steps[segment] : undefined
-        if (stepDef === undefined || stepDef.kind !== 'flow' || stepDef.child === undefined) {
-          issues.push({
-            message:
-              stepDef === undefined
-                ? `unknown step '${segment}'`
-                : `'${segment}' is not a flow step`,
-            path: [...path, 'path', i],
-          })
-          return undefined
-        }
-        target = stepDef.child
-      }
-      const command = parse(input.command, [...path, 'command'], total, issues, target)
+      const command = parse(
+        input.command,
+        [...path, 'command'],
+        total,
+        issues,
+        resolved.def,
+        checkIds,
+      )
       if (command === undefined) return undefined
       return { type, path: segments, command }
     }

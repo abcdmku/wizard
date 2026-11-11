@@ -1,48 +1,87 @@
-# Contributing to OpenWizard
+# Contributing
 
-Thanks for helping. This document is short on ceremony and long on the few rules that keep the library small and trustworthy.
+OpenWizard is a pnpm workspace. You need Node.js 22 or newer and pnpm 10. The published packages run on Node.js 20.
 
-## Setup
+## Set up the repository
 
-```bash
+```sh
 pnpm install
-pnpm build        # builds packages/* with tsdown
-pnpm typecheck    # tsc over src + tests (tests are NOT excluded — that was a v1 mistake)
-pnpm test         # vitest, including *.test-d.ts type tests
-pnpm lint         # biome
+pnpm build
+pnpm test
 ```
 
-Node ≥ 22 to develop and build (the tsdown/unrun toolchain needs `Promise.withResolvers`); the published packages run on Node ≥ 20, which CI proves with a Node 20 consumer job that runs the tests and examples against the built artifacts. pnpm 10 (`corepack enable` picks the pinned version). Windows is a first-class dev platform; CI runs ubuntu + windows.
+## Make a change
 
-## The rules
+1. Add or update a focused test for changed behavior or a type contract.
+2. Run the narrow package test while you work.
+3. Run the repository checks before opening a pull request.
+4. Add a changeset for a user-visible package change.
 
-1. **One canonical way.** One authoring path (`defineFlow` + `s.view/task/wait/decision/flow/final`), one live object (`Wizard`), one wire door (`dispatch(Command)`). No aliases, no overloads that branch on argument shape.
-2. **No field without a consumer.** A property in a public type must be read by the runtime and covered by a test. If you cannot point at both, delete the field.
-3. **One extractor per concept.** `InputOf`, `OutputOf`, `PayloadOf`, `Ctx`, `StepId`, … exist exactly once. Do not add a second way to get the same type.
-4. **Every export earns its place.** A new export needs: a unit test, a `.test-d.ts` assertion if it is generic, TSDoc with `@public`, and it will appear in the generated export table (`pnpm docs:gen`).
-5. **No `any` and no `as` in the public surface.** `api/*.d.ts` is diffed in CI; if you change it, run `pnpm check:api:update` and add a changeset explaining why.
-6. **Type tests must run.** Put type assertions in `tests/**/*.test-d.ts`. `pnpm test` runs them through the TypeScript checker; `pnpm test:canary` proves the harness fails on a real error.
-7. **Examples are tests.** Every `examples/*` folder has a test that runs the flow end to end and asserts on the event log. New behavior needs an example or an extension of one.
-8. **Boundaries are the only doors.** Data enters a wizard through `context`, `setInput`, `send`, or `resume`, each through a declared boundary. `boundary.trusted<T>()` and `!` in examples need a one-line comment saying why.
-9. **Changesets.** User-facing changes to `@openwizard/core` or `@openwizard/react` need `pnpm changeset`.
-10. **Decisions are written down.** Non-obvious design choices go in `docs/design/adr/` and `DECISIONS.md`.
-11. **Files stay small.** Under ~400 lines in most cases; split by responsibility (one message family, one event family, one component) rather than growing a file.
-12. **Functions do one thing.** No pass-through wrappers (`foo()` that only calls `bar()`), no one-line helpers used once — inline them.
-13. **No useless tests.** A test must prove behaviour a user relies on or a spec rule. No render-smoke tests that assert nothing, no duplicated cases across suites; prefer one end-to-end scenario over many micro-tests of internals.
+Examples of narrow checks:
 
-## Layout
-
-```
-packages/core     @openwizard/core   authoring, machine (decide/apply/plan), interpreter, wizard façade, persistence, projections, mirror, inspect
-                  @openwizard/core/testing  (src/testing.ts) createTestScheduler + createLocalTransport — test helpers, never in an app bundle
-packages/react    @openwizard/react  bindReact() hooks over Wizard | Mirror
-examples/*        runnable, tested examples (each is a workspace package)
-docs/design       architecture plan + ADRs
-scripts/          governance scripts (export tables, doc imports, api snapshot, public tags, canary)
+```sh
+pnpm --filter @openwizard/core test
+pnpm --filter @openwizard/react test
+pnpm --filter example-01-happy-path check
+pnpm --filter @openwizard/docs check
 ```
 
-## Pull requests
+Run the main repository checks:
 
-- Keep PRs focused; describe the behavior change and the tests that prove it.
-- CI must be green on ubuntu and windows.
-- If a change touches the machine (`packages/core/src/machine/**`), include a golden scenario or extend one (`packages/core/tests/scenarios/`).
+```sh
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm check:api
+pnpm check:docs
+```
+
+`pnpm release:check` runs the longer package, size, export, example, and documentation checks used before publishing.
+
+## Find the right code
+
+| Folder | Contents |
+|---|---|
+| `packages/core` | Wizard definitions, runtime, state, persistence, mirrors, and tests |
+| `packages/react` | React bindings |
+| `packages/devtools` | React inspection tools |
+| `packages/durable` | Leases, fenced writes, and durable run hosting |
+| `packages/drizzle` | PostgreSQL and SQLite durable stores |
+| `packages/effect` | Effect task adapters |
+| `packages/opentelemetry` | Run tracing |
+| `packages/http` | Generated HTTP API, signed webhooks, outbound callbacks, browser client |
+| `packages/docs` | Public documentation site and checked snippets |
+| `examples` | Runnable projects and their tests |
+
+## Change the docs
+
+Write for someone who has not used a workflow engine. A page teaches one idea, in this order:
+
+1. The title, then one sentence that says what the reader will be able to do.
+2. A complete example, loaded from a tested file with a `file="packages/docs/snippets/..."` fence. Keep it under about 30 lines.
+3. Three to six short statements or one small table. Cut a sentence that would not change what the reader types.
+4. At most three links: the next page and the reference entry.
+
+State each fact once in the site and link to it from other pages. Option lists belong on the reference pages in `packages/docs/pages/packages`. Word budgets, not counting code and tables: 200 for the Quickstart, 250 for a Guide page, 350 for a Production page.
+
+Every snippet a page shows needs a test in `packages/docs/snippets` that asserts the result the page states. Write snippets the way `snippets/agents/refund.ts` is written: `needs` for hand-offs and `deps` for services. The `_meta.json` file of each folder in `packages/docs/pages` sets the order and titles of the navigation.
+
+`README.md` and `packages/core/AGENTS.md` copy snippet files into fences with `title="..."`. After you change one of those files, run `node scripts/check-readme-quickstart.mjs --write README.md packages/core/AGENTS.md`. The export tables in the package READMEs come from `pnpm docs:gen`. Edit the doc comments in the source, not the tables.
+
+Run both checks after changing docs:
+
+```sh
+pnpm --filter @openwizard/docs check
+pnpm check:docs
+```
+
+## Add a changeset
+
+```sh
+pnpm changeset
+```
+
+Choose only the published packages whose public behavior changed. Documentation-only changes usually do not need a package release.
+
+See [RELEASING.md](./RELEASING.md) for the maintainer release process.

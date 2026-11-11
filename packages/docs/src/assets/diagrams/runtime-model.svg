@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 270" role="img" aria-labelledby="runtime-model-title runtime-model-desc">
+  <title id="runtime-model-title">One OpenWizard state transition</title>
+  <desc id="runtime-model-desc">A command, event, or completed effect changes the recorded run state. The new state may start a task, timer, or child run. The recorded state can be saved to and resumed from a JSON snapshot.</desc>
+  <style>
+    text { font-family: "Geist Mono Variable", ui-monospace, monospace; fill: var(--d-ink); font-size: 14px; }
+    .small { font-size: 11px; fill: var(--d-muted); }
+    .node { fill: var(--d-surface); stroke: var(--d-line); stroke-width: 1.5; }
+    .wire { fill: none; stroke: var(--d-muted); stroke-width: 1.5; marker-end: url(#runtime-model-arrow); }
+    .link { fill: none; stroke: var(--d-muted); stroke-width: 1.5; }
+  </style>
+  <defs>
+    <marker id="runtime-model-arrow" viewBox="0 0 8 8" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0l8 4-8 4z" fill="var(--d-muted)"/>
+    </marker>
+  </defs>
+
+  <text class="small" x="24" y="28">INPUT</text>
+  <rect class="node" x="24" y="42" width="190" height="72" rx="8"/>
+  <text x="119" y="70" text-anchor="middle">command, event,</text>
+  <text x="119" y="93" text-anchor="middle">or effect result</text>
+
+  <path class="wire" d="M214 78h58"/>
+
+  <text class="small" x="288" y="28">RECORDED RUN</text>
+  <rect class="node" x="288" y="42" width="264" height="72" rx="8"/>
+  <text x="420" y="70" text-anchor="middle">state changes</text>
+  <text class="small" x="420" y="93" text-anchor="middle">context · step state · deadlines</text>
+
+  <path class="wire" d="M552 78h58"/>
+
+  <text class="small" x="626" y="28">PLANNED WORK</text>
+  <rect class="node" x="626" y="42" width="264" height="72" rx="8"/>
+  <text x="758" y="70" text-anchor="middle">task, timer,</text>
+  <text x="758" y="93" text-anchor="middle">or child run</text>
+
+  <path class="link" d="M420 114v54"/>
+  <text class="small" x="434" y="145">save / resume</text>
+  <rect class="node" x="334" y="168" width="172" height="58" rx="8"/>
+  <text x="420" y="194" text-anchor="middle">JSON snapshot</text>
+  <text class="small" x="420" y="212" text-anchor="middle">state at one sequence</text>
+</svg>

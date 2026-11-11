@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "system": "03-fulfillment",
+  "drill": "fraud-review",
+  "wizardLoc": 79,
+  "workaroundHelpers": 0,
+  "casts": 0,
+  "explicitGenerics": 0,
+  "typecheckMs": 2495,
+  "filesTouched": [
+    "packages/contracts/src/order-input.ts",
+    "packages/domain/src/events.ts",
+    "packages/domain/src/readiness-steps.ts",
+    "packages/domain/src/projections.ts",
+    "apps/orchestrator/src/operator-routes.ts",
+    "tests/flow.test.ts"
+  ]
+}

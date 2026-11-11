@@ -1,109 +1,153 @@
 /**
- * `toMermaid(graph)` — render a `FlowGraph` (from `inspect(flow)`) as a Mermaid `flowchart TD`
- * (plan §9.8): one node per step labelled `id (kind)` (shape by kind), `start` circles, solid
- * `next` edges, `dependsOn` edges labelled (`dependsOn` / `dependsOn (any)`), `timeout` edges
- * dashed and labelled with the duration, a dynamic `next` as a dashed edge to a `?` node, and
- * every child flow in a `subgraph` linked from its flow step. Pure text; paste it into any
- * Mermaid renderer.
+ * `toMermaid(graph)` — render a manifest (from `inspect(wizard)`) as a Mermaid `flowchart TD`
+ * titled with the wizard name. Pure text; paste it into any Mermaid renderer.
  *
  * @packageDocumentation
  */
 
-import type { FlowGraph, FlowGraphNode } from './graph'
-
-const RESERVED = new Set([
-  'end',
-  'graph',
-  'subgraph',
-  'flowchart',
-  'style',
-  'classdef',
-  'class',
-  'click',
-  'linkstyle',
-  'direction',
-])
+import { duration, Ids, quote, shape } from './mermaid-syntax'
+import type { Manifest, ManifestEdge, ManifestStep } from './types'
 
 /**
- * Render a `FlowGraph` as Mermaid (`flowchart TD`): nodes `id (kind)`, `next` edges, labelled
- * `dependsOn` edges, dashed labelled `timeout` edges, dynamic `next` as a dashed edge to a `?`
- * node, child flows as subgraphs. Deterministic for a given graph.
+ * Render a manifest as Mermaid: one node per step (text = `label` or id, shape by kind: view
+ * `[…]`, step `[[…]]`, child `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
+ * retries, run timeout, `compensable`), a start circle per wizard, solid `next` edges, dashed
+ * `route` edges to declared targets (a dashed edge to `?` when targets are undeclared),
+ * named `needs` labels on joins (merged with activation edges),
+ * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child wizard
+ * in a `subgraph` titled with its wizard name. Deterministic for a given manifest.
  * @public
  */
-export function toMermaid(graph: FlowGraph): string {
+export function toMermaid(graph: Manifest): string {
   const ids = new Ids()
-  const lines: string[] = ['flowchart TD']
-  const flows = groupByPath(graph)
-  const declaredStarts = new Set<string>()
-  // Nodes and edges of a flow are declared inside its subgraph (root flow: top level).
+  const groups = groupByPath(graph)
+  const lines: string[] = ['---', `title: ${JSON.stringify(graph.name)}`, '---', 'flowchart TD']
+  // Nodes and edges of a wizard are declared inside its subgraph (root wizard: top level).
   const render = (path: readonly string[], indent: string): void => {
-    const group = flows.get(key(path))
+    const group = groups.get(key(path))
     if (group === undefined) return
     const nodeId = (id: string): string => ids.of([...path, id])
+    const waitTimeouts = new Set(group.edges.flatMap((e) => (e.kind === 'timeout' ? [e.from] : [])))
     for (const node of group.nodes) {
-      lines.push(`${indent}${nodeId(node.id)}${shape(node.kind, `${node.id} (${node.kind})`)}`)
+      const text = quote(node.label ?? node.id, ...tagLine(node, waitTimeouts.has(node.id)))
+      lines.push(`${indent}${nodeId(node.id)}${shape(node.kind, text)}`)
     }
+    const start = ids.of([...path, '$start'])
+    if (group.edges.some((e) => e.kind === 'start')) lines.push(`${indent}${start}((" "))`)
     for (const edge of group.edges) {
-      if (edge.from === null) {
-        // `start` edges: one small circle per flow.
-        const start = ids.of([...path, '$start'])
-        if (!declaredStarts.has(start)) {
-          declaredStarts.add(start)
-          lines.push(`${indent}${start}((" "))`)
-        }
-        lines.push(`${indent}${start} --> ${nodeId(edge.to)}`)
-        continue
-      }
-      const from = nodeId(edge.from)
-      const to = nodeId(edge.to)
-      switch (edge.kind) {
-        case 'next':
-          lines.push(`${indent}${from} --> ${to}`)
-          break
-        case 'dependsOn': {
-          const spec = group.nodes.find((n) => n.id === edge.to)?.dependsOn
-          const label = spec !== undefined && 'any' in spec ? 'dependsOn (any)' : 'dependsOn'
-          lines.push(`${indent}${from} -->|${label}| ${to}`)
-          break
-        }
-        case 'timeout': {
-          const ms = group.nodes.find((n) => n.id === edge.from)?.timeout
-          lines.push(
-            `${indent}${from} -.->|timeout${ms === undefined ? '' : ` ${duration(ms)}`}| ${to}`,
-          )
-          break
-        }
-        default:
-          break
-      }
+      if (edge.kind === 'start') lines.push(`${indent}${start} --> ${nodeId(edge.to)}`)
+    }
+    for (const link of links(group)) {
+      lines.push(`${indent}${nodeId(link.from)} ${link.arrow}${link.label} ${nodeId(link.to)}`)
     }
     for (const node of group.nodes) {
-      if (node.dynamicNext !== true) continue
-      const q = ids.of([...path, node.id, '$next'])
-      lines.push(`${indent}${nodeId(node.id)} -.-> ${q}{"?"}`)
+      for (const event of node.waitsFor ?? []) {
+        const ev = ids.of([...path, '$event', event])
+        lines.push(`${indent}${ev}>${quote(event)}] -.-> ${nodeId(node.id)}`)
+      }
+      if (node.dynamicNext === true && node.targets === undefined) {
+        const q = ids.of([...path, node.id, '$next'])
+        lines.push(`${indent}${nodeId(node.id)} -.-> ${q}{"?"}`)
+      }
     }
-    // Child flows: a subgraph per flow step that has one, linked from its step.
+    // Child wizards: a subgraph per child step that has one, linked from its step.
     for (const node of group.nodes) {
-      if (node.kind !== 'flow') continue
       const childPath = [...path, node.id]
-      if (!flows.has(key(childPath))) continue
-      const sg = ids.of([...childPath, '$flow'])
-      lines.push(`${indent}subgraph ${sg} ["${quote(node.id)}"]`)
+      if (node.kind !== 'child' || !groups.has(key(childPath))) continue
+      const sg = ids.of([...childPath, '$child'])
+      lines.push(`${indent}subgraph ${sg} [${quote(node.child?.name ?? node.id)}]`)
       render(childPath, `${indent}  `)
       lines.push(`${indent}end`)
-      lines.push(`${indent}${nodeId(node.id)} -.->|child| ${sg}`)
+      lines.push(`${indent}${nodeId(node.id)} -.->|"child"| ${sg}`)
     }
   }
   render([], '  ')
   return lines.join('\n')
 }
 
-interface Group {
-  readonly nodes: FlowGraphNode[]
-  readonly edges: FlowGraph['edges'][number][]
+/** The second text line of a node: `may skip`, retries, run timeout, `compensable`. */
+function tagLine(node: ManifestStep, waitTimeout: boolean): string[] {
+  const tags: string[] = []
+  if (node.hooks.includes('when')) tags.push('may skip')
+  if (node.retry !== undefined)
+    tags.push(`${node.retry.retries} ${node.retry.retries === 1 ? 'retry' : 'retries'}`)
+  if (node.timeout !== undefined && !waitTimeout) tags.push(`timeout ${duration(node.timeout)}`)
+  if (node.compensable === true) tags.push('compensable')
+  if (node.sleep !== undefined)
+    tags.push(node.sleep === 'dynamic' ? 'sleep (dynamic)' : `sleep ${duration(node.sleep)}`)
+  if (node.each !== undefined)
+    tags.push(
+      node.each.concurrency === undefined ? 'each' : `each · concurrency ${node.each.concurrency}`,
+    )
+  return tags.length > 0 ? [tags.join(' · ')] : []
 }
 
-function groupByPath(graph: FlowGraph): Map<string, Group> {
+interface Link {
+  readonly from: string
+  readonly to: string
+  readonly arrow: '-->' | '-.->'
+  /** `|"…"|` or `''`. */
+  readonly label: string
+}
+
+interface Pair {
+  readonly from: string
+  readonly to: string
+  readonly kinds: Set<ManifestEdge['kind']>
+}
+
+/**
+ * One link per step pair for normal and pull edges, then separate dashed alternate edges.
+ */
+function links(group: Group): Link[] {
+  const pairs = new Map<string, Pair>()
+  const alternates: Link[] = []
+  for (const edge of group.edges) {
+    if (edge.from === null || edge.kind === 'start') continue
+    if (edge.kind === 'timeout' || edge.kind === 'fallback') {
+      const ms = group.nodes.find((n) => n.id === edge.from)?.timeout
+      const label =
+        edge.kind === 'fallback'
+          ? 'fallback'
+          : ms === undefined
+            ? 'timeout'
+            : `timeout ${duration(ms)}`
+      alternates.push({ from: edge.from, to: edge.to, arrow: '-.->', label: `|${quote(label)}|` })
+      continue
+    }
+    const pair = JSON.stringify([edge.from, edge.to])
+    const kinds = pairs.get(pair)?.kinds ?? new Set()
+    kinds.add(edge.kind)
+    if (!pairs.has(pair)) pairs.set(pair, { from: edge.from, to: edge.to, kinds })
+  }
+  return [...[...pairs.values()].map((pair) => pairLink(group, pair)), ...alternates]
+}
+
+function pairLink(group: Group, { from, to, kinds }: Pair): Link {
+  const route = kinds.has('route') && !kinds.has('next')
+  const parts: string[] = []
+  if (route) parts.push('route')
+  if (kinds.has('needs')) {
+    const needs = group.nodes.find((node) => node.id === to)?.needs ?? {}
+    for (const [alias, need] of Object.entries(needs)) {
+      if (need.steps.includes(from))
+        parts.push(`needs: ${alias}${need.kind === 'all' ? '' : ` (${need.kind})`}`)
+    }
+  }
+  return {
+    from,
+    to,
+    arrow: route ? '-.->' : '-->',
+    label: parts.length > 0 ? `|${quote(parts.join(' · '))}|` : '',
+  }
+}
+
+interface Group {
+  readonly nodes: ManifestStep[]
+  readonly edges: ManifestEdge[]
+}
+
+function groupByPath(graph: Manifest): Map<string, Group> {
   const groups = new Map<string, Group>()
   const groupOf = (path: readonly string[]): Group => {
     const k = key(path)
@@ -121,82 +165,4 @@ function groupByPath(graph: FlowGraph): Map<string, Group> {
 
 function key(path: readonly string[]): string {
   return JSON.stringify(path)
-}
-
-/** Stable, unique, Mermaid-safe identifiers for (path, id) pairs. */
-class Ids {
-  private readonly byKey = new Map<string, string>()
-  private readonly taken = new Set<string>()
-
-  of(segments: readonly string[]): string {
-    const k = key(segments)
-    const existing = this.byKey.get(k)
-    if (existing !== undefined) return existing
-    let base = segments.map(sanitize).join('__')
-    if (base.length === 0 || /^[0-9]/.test(base)) base = `n_${base}`
-    if (RESERVED.has(base.toLowerCase())) base = `${base}_`
-    let candidate = base
-    for (let n = 2; this.taken.has(candidate); n += 1) candidate = `${base}_${n}`
-    this.taken.add(candidate)
-    this.byKey.set(k, candidate)
-    return candidate
-  }
-}
-
-function sanitize(segment: string): string {
-  return segment.replace(/^\$/, '_').replace(/[^A-Za-z0-9_]/g, '_')
-}
-
-/**
- * Mermaid entity codes for the characters that would end (`"`), break (`;`, `[` / `]`) or
- * reinterpret (`&`, `<`, `>`, `#` — HTML / entity syntax) a quoted label.
- */
-const ENTITIES: Readonly<Record<string, string>> = {
-  '"': '#quot;',
-  '&': '#amp;',
-  '<': '#lt;',
-  '>': '#gt;',
-  '#': '#35;',
-  ';': '#59;',
-  '[': '#91;',
-  ']': '#93;',
-}
-
-/**
- * Text safe inside a quoted Mermaid label: line breaks become spaces (a raw CR / LF ends the
- * statement) and every entity / syntax character is written as a Mermaid entity code.
- */
-function quote(text: string): string {
-  return text.replace(/\r\n|\r|\n/g, ' ').replace(/["&<>#;[\]]/g, (c) => ENTITIES[c] ?? c)
-}
-
-function shape(kind: FlowGraphNode['kind'], label: string): string {
-  const text = `"${quote(label)}"`
-  switch (kind) {
-    case 'view':
-      return `[${text}]`
-    case 'task':
-      return `[[${text}]]`
-    case 'wait':
-      return `([${text}])`
-    case 'decision':
-      return `{${text}}`
-    case 'flow':
-      return `[/${text}/]`
-    case 'final':
-      return `((${text}))`
-  }
-}
-
-/** `900000` → `15m`; falls back to the largest whole unit, else `ms`. */
-function duration(ms: number): string {
-  const units: ReadonlyArray<readonly [suffix: string, size: number]> = [
-    ['d', 86_400_000],
-    ['h', 3_600_000],
-    ['m', 60_000],
-    ['s', 1_000],
-  ]
-  for (const [suffix, size] of units)
-    if (ms >= size && ms % size === 0) return `${ms / size}${suffix}`
-  return `${ms}ms`
 }

@@ -5,9 +5,7 @@
  * @internal
  */
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+export { isRecord } from '../record'
 
 export function isString(value: unknown): value is string {
   return typeof value === 'string'
@@ -46,12 +44,14 @@ function describeProto(proto: object): string {
  * Reject anything `JSON.stringify` would drop or distort — including `undefined`
  * values: the state contract says optional fields are *absent*, never undefined,
  * so an `undefined` here means the snapshot did not come from a serializer.
+ * `ancestors` holds the objects on the current path only: a value referenced twice
+ * (shared, not circular) is fine, JSON simply duplicates it.
  */
 export function checkJsonSafe(
   value: unknown,
   path: string,
   reasons: string[],
-  seen: WeakSet<object>,
+  ancestors: Set<object>,
 ): void {
   switch (typeof value) {
     case 'undefined':
@@ -75,21 +75,22 @@ export function checkJsonSafe(
       return
   }
   if (value === null) return
-  if (seen.has(value)) {
+  if (ancestors.has(value)) {
     reasons.push(`${path}: circular reference`)
     return
   }
-  seen.add(value)
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i += 1)
-      checkJsonSafe(value[i], `${path}[${i}]`, reasons, seen)
-    return
-  }
   const proto = Object.getPrototypeOf(value)
-  if (proto !== Object.prototype && proto !== null) {
+  if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) {
     reasons.push(`${path}: non-plain object (${describeProto(proto)}) is not serializable`)
     return
   }
-  for (const [key, item] of Object.entries(value))
-    checkJsonSafe(item, `${path}.${key}`, reasons, seen)
+  ancestors.add(value)
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1)
+      checkJsonSafe(value[i], `${path}[${i}]`, reasons, ancestors)
+  } else {
+    for (const [key, item] of Object.entries(value))
+      checkJsonSafe(item, `${path}.${key}`, reasons, ancestors)
+  }
+  ancestors.delete(value)
 }

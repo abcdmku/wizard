@@ -61,27 +61,23 @@ export function useToc(articleRef: RefObject<HTMLElement | null>) {
 export function Toc({
   items,
   activeId,
+  showTitle = true,
 }: {
   readonly items: readonly TocItem[]
   readonly activeId: string | null
+  readonly showTitle?: boolean
 }) {
   if (items.length === 0) return null
   return (
-    <nav aria-label="On this page">
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-        On this page
-      </h2>
-      <ul className="space-y-0.5 border-l border-neutral-200 text-[12.5px] dark:border-neutral-800">
+    <nav aria-label="On this page" className="docs-toc">
+      {showTitle && <h2>On this page</h2>}
+      <ul>
         {items.map((item) => (
           <li key={item.id}>
             <a
               href={`#${item.id}`}
-              className={`-ml-px block border-l py-1 pr-2 leading-5 transition-colors ${
-                item.level === 3 ? 'pl-6' : 'pl-3'
-              } ${
-                activeId === item.id
-                  ? 'border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
+              className={`${item.level === 3 ? 'docs-toc-link-nested' : ''} ${
+                activeId === item.id ? 'docs-toc-link-active' : ''
               }`}
             >
               {item.text}

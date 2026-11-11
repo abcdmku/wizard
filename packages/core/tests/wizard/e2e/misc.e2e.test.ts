@@ -1,14 +1,14 @@
 /**
  * (g) dispose() settles pending promises with DISPOSED and (h) strict:'sync'
  * violations keep their SYNC_VIOLATION code end-to-end — with the REAL machine.
- * Plus: persistence through the wizard with the real machine (autoSave + resume
+ * Plus: persistence through the run with the real machine (autoSave + resume
  * from the store).
  */
 
 import { describe, expect, it } from 'vitest'
 import { createMemoryStore } from '../../../src/persistence/memory-store'
 import type { Snapshot } from '../../../src/wizard/snapshot'
-import { final, flow, task, view } from '../../helpers/fixtures'
+import { flow, routingStep, runStep, view } from '../../helpers/fixtures'
 import { e2e, e2eResume, tick } from './harness'
 
 describe('e2e dispose', () => {
@@ -19,7 +19,7 @@ describe('e2e dispose', () => {
       start: 'a',
       steps: {
         a: view({ exit: () => new Promise<void>(() => {}), next: 't' }),
-        t: task({
+        t: runStep({
           run: ({ signal: s }) => {
             signal = s
             return new Promise(() => {})
@@ -28,18 +28,18 @@ describe('e2e dispose', () => {
       },
     })
     const t = e2e(def)
-    await t.wizard.start()
-    const pending = t.wizard.next()
-    expect(t.wizard.getState().nav.phase).toBe('exiting')
-    t.wizard.dispose()
-    expect(await pending).toEqual({
+    await t.run.start()
+    const pending = t.run.next()
+    expect(t.run.getState().nav.phase).toBe('exiting')
+    t.run.dispose()
+    const disposedNav = {
       ok: false,
       reason: 'failed',
       code: 'DISPOSED',
-      message: 'wizard disposed',
-    })
-    await expect(t.wizard.next()).rejects.toMatchObject({ code: 'DISPOSED' })
-    expect(() => t.wizard.child('a')).toThrow()
+      message: 'the run is disposed; create or resume a new run',
+    }
+    expect(await pending).toEqual(disposedNav)
+    expect(await t.run.next()).toEqual(disposedNav)
 
     // A running task at dispose time: aborted, silenced.
     const u = e2e(
@@ -47,7 +47,7 @@ describe('e2e dispose', () => {
         name: 'run',
         start: 't',
         steps: {
-          t: task({
+          t: runStep({
             run: ({ signal: s }) => {
               signal = s
               return new Promise(() => {})
@@ -56,29 +56,29 @@ describe('e2e dispose', () => {
         },
       }),
     )
-    await u.wizard.start()
+    await u.run.start()
     expect(signal?.aborted).toBe(false)
-    u.wizard.dispose()
+    u.run.dispose()
     expect(signal?.aborted).toBe(true)
     expect(u.sched.pending()).toBe(0)
   })
 })
 
 describe("e2e strict: 'sync'", () => {
-  it('a thenable from a task run fails the step with code SYNC_VIOLATION preserved on the error', async () => {
+  it('a thenable from a step run fails the step with code SYNC_VIOLATION preserved on the error', async () => {
     const def = flow({
       name: 'strict-task',
       start: 't',
-      steps: { t: task({ run: async () => 1, next: 'end' }), end: final() },
+      steps: { t: runStep({ run: async () => 1, next: 'end' }), end: routingStep() },
     })
     const t = e2e(def, { strict: 'sync' })
-    await t.wizard.start()
+    await t.run.start()
     expect(t.rec('t')).toMatchObject({ status: 'failed', error: { code: 'SYNC_VIOLATION' } })
     expect(t.of('step.runFailed')[0]).toMatchObject({
       willRetry: false,
       error: { code: 'SYNC_VIOLATION' },
     })
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('halted')
   })
 
   it("a strict-sync violation is step.failed{kind:'sync-violation'} and is never retried, even with a retry policy", async () => {
@@ -86,12 +86,12 @@ describe("e2e strict: 'sync'", () => {
       name: 'strict-retry',
       start: 't',
       steps: {
-        t: task({ run: async () => 1, retry: { attempts: 2, backoff: 10 }, next: 'end' }),
-        end: final(),
+        t: runStep({ run: async () => 1, retry: { retries: 2, backoff: 10 }, next: 'end' }),
+        end: routingStep(),
       },
     })
     const t = e2e(def, { strict: 'sync' })
-    await t.wizard.start()
+    await t.run.start()
     expect(t.of('step.runFailed')).toHaveLength(1)
     expect(t.of('step.runFailed')[0]).toMatchObject({
       willRetry: false,
@@ -107,7 +107,7 @@ describe("e2e strict: 'sync'", () => {
       status: 'failed',
       error: { kind: 'sync-violation', code: 'SYNC_VIOLATION' },
     })
-    expect(t.wizard.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('halted')
     expect(t.sched.pending()).toBe(0)
     t.sched.advance(1_000)
     expect(t.of('step.runStarted')).toHaveLength(1)
@@ -120,8 +120,8 @@ describe("e2e strict: 'sync'", () => {
       steps: { a: view({ exit: async () => undefined, next: 'b' }), b: view() },
     })
     const t = e2e(def, { strict: 'sync' })
-    await t.wizard.start()
-    const nav = await t.wizard.next()
+    await t.run.start()
+    const nav = await t.run.next()
     expect(nav).toMatchObject({
       ok: false,
       reason: 'failed',
@@ -133,9 +133,9 @@ describe("e2e strict: 'sync'", () => {
       step: 'a',
       error: { code: 'SYNC_VIOLATION' },
     })
-    expect(t.wizard.getState().current).toBe('a')
-    expect(t.wizard.getState().nav.phase).toBe('idle')
-    expect(await t.wizard.dispatch({ type: 'next' })).toMatchObject({
+    expect(t.run.getState().current).toBe('a')
+    expect(t.run.getState().nav.phase).toBe('idle')
+    expect(await t.run.dispatch({ type: 'next' })).toMatchObject({
       ok: false,
       code: 'SYNC_VIOLATION',
       step: 'a',
@@ -151,40 +151,66 @@ describe('e2e persistence with the real machine', () => {
       start: 'a',
       steps: {
         a: view({ next: 't' }),
-        t: task({ run: async () => 'done', next: 'end' }),
-        end: final(),
+        t: runStep({ run: async () => 'done', next: 'end' }),
+        end: routingStep(),
       },
     })
     const t = e2e(def, { store, key: 'k' })
-    await t.wizard.start()
+    await t.run.start()
     await tick()
     const saved = (await store.get('k')) as Snapshot
     expect(saved).toMatchObject({
       v: 1,
-      flow: { name: 'persist', version: 1 },
-      seq: t.wizard.getState().seq,
+      wizard: { name: 'persist', version: 1 },
+      seq: t.run.getState().seq,
     })
-    const nav = t.wizard.next()
+    const nav = t.run.next()
     // Synchronously after next(): the async task is running — this is the "crash mid-run" snapshot
     // (the store receives it too, followed by the done snapshot once the run settles).
-    const running = JSON.parse(JSON.stringify(t.wizard.getSnapshot())) as Snapshot
+    const running = JSON.parse(JSON.stringify(t.run.getSnapshot())) as Snapshot
     expect(running.state.steps.t?.status).toBe('active')
     await nav
     await tick()
     await new Promise((r) => setTimeout(r, 0))
-    expect(t.wizard.getState().status).toBe('done')
+    expect(t.run.getState().status).toBe('done')
     expect(((await store.get('k')) as Snapshot).state.status).toBe('done')
-    t.wizard.dispose()
+    t.run.dispose()
 
     // Resume the "crashed mid-run" snapshot: interrupted → retry → done, still persisting.
     const b = e2eResume(def, running, { store, key: 'k' })
-    expect(b.wizard.epoch).toBe(1)
+    expect(b.run.epoch).toBe(1)
     expect(b.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'interrupted' } })
-    await b.wizard.retry('t')
+    await b.run.retry('t')
     await tick()
-    expect(b.wizard.getState().status).toBe('done')
-    await b.wizard.save()
+    expect(b.run.getState().status).toBe('done')
+    await b.run.save()
     const final2 = (await store.get('k')) as Snapshot
     expect(final2).toMatchObject({ epoch: 1, state: { status: 'done' } })
+  })
+})
+
+describe('e2e progress', () => {
+  it('progress(value) reaches observe() but never the log, the state or the snapshot', async () => {
+    const def = flow({
+      name: 'progress',
+      start: 't',
+      steps: {
+        t: runStep({
+          run: ({ progress }) => {
+            progress({ done: 1, total: 2 })
+            return 'ok'
+          },
+          next: 'end',
+        }),
+        end: routingStep(),
+      },
+    })
+    const t = e2e(def)
+    await t.run.start()
+    expect(t.of('step.progress')).toMatchObject([
+      { type: 'step.progress', step: 't', value: { done: 1, total: 2 }, path: [] },
+    ])
+    expect(t.run.log().some((event) => event.type === 'step.progress')).toBe(false)
+    expect(JSON.stringify(t.run.getSnapshot())).not.toContain('"total":2')
   })
 })

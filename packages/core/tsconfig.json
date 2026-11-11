@@ -7,7 +7,8 @@
     "types": [],
     "paths": {
       "@openwizard/core": ["./src/index.ts"],
-      "@openwizard/core/testing": ["./src/testing.ts"]
+      "@openwizard/core/testing": ["./src/testing.ts"],
+      "@openwizard/core/inspect": ["./src/inspect/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"],

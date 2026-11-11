@@ -1,7 +1,21 @@
 {
   "$schema": "https://typedoc.org/schema.json",
   "name": "OpenWizard API",
-  "entryPoints": ["typedoc/core.ts", "typedoc/core-testing.ts", "typedoc/react.ts"],
+  "entryPoints": [
+    "typedoc/core.ts",
+    "typedoc/core-inspect.ts",
+    "typedoc/core-mirror.ts",
+    "typedoc/core-testing.ts",
+    "typedoc/durable.ts",
+    "typedoc/durable-store.ts",
+    "typedoc/durable-testing.ts",
+    "typedoc/drizzle.ts",
+    "typedoc/effect.ts",
+    "typedoc/react.ts",
+    "typedoc/devtools.ts",
+    "typedoc/opentelemetry.ts",
+    "typedoc/http.ts"
+  ],
   "tsconfig": "tsconfig.typedoc.json",
   "out": "dist/typedoc",
   "readme": "none",

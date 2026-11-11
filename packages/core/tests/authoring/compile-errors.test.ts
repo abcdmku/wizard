@@ -1,202 +1,241 @@
-/**
- * `compile()` — definition problems (all listed at once) and per-kind allow-lists.
- */
 import { describe, expect, it } from 'vitest'
-import { boundary } from '../../src/authoring/boundary'
+import { z } from 'zod'
 import { compile } from '../../src/authoring/compile'
-import type { AnyFlow } from '../../src/authoring/types'
+import { RUN_ADAPTER } from '../../src/authoring/run-adapter'
 import { WizardError } from '../../src/errors'
+import { issuesOf, rawFlow, rawStep } from './helpers'
 
-/** Hand-build a Flow object (JS-caller shape) around raw step records. */
-function rawFlow(
-  steps: Record<string, Partial<CompiledStepLike>>,
-  extra: Record<string, unknown> = {},
-): AnyFlow {
-  return {
-    '~types': undefined,
-    name: 'raw',
-    context: boundary.trusted(),
-    steps: Object.fromEntries(
-      Object.entries(steps).map(([id, s]) => [
-        id,
-        { '~types': undefined, '~bound': undefined, ...s },
-      ]),
-    ),
-    ...extra,
-  } as unknown as AnyFlow
-}
-type CompiledStepLike = Record<string, unknown> & { kind: string }
-
-function issuesOf(fn: () => unknown): string[] {
-  try {
-    fn()
-  } catch (error) {
-    if (error instanceof WizardError) return (error.issues ?? []).map((i) => i.message)
-    throw error
-  }
-  throw new Error('expected a WizardError')
-}
-
-describe('compile: validation errors (all problems listed at once)', () => {
-  it('unknown ids in next/dependsOn/timeout.next/start, final with next, wait without handlers/timeout, input on non-view', () => {
-    const problems = issuesOf(() =>
-      compile(
-        rawFlow(
-          {
-            a: { kind: 'view', next: ['b', 'nope'] },
-            b: {
-              kind: 'task',
-              run: () => 1,
-              dependsOn: ['ghost'],
-              input: boundary.trusted(),
-              next: 'w',
-            },
-            w: { kind: 'wait', on: {}, timeout: { after: '1m', next: 'missing' } },
-            w2: { kind: 'wait', on: {} },
-            end: { kind: 'final', next: 'a' },
-          },
-          { start: 'zzz', events: {} },
-        ),
-      ),
-    )
-    expect(problems).toEqual([
-      "step 'a': next: unknown step 'nope'",
-      "step 'b': dependsOn: unknown step 'ghost'",
-      "step 'b': only view steps accept 'input' (kind 'task')",
-      "step 'w': timeout.next: unknown step 'missing'",
-      "step 'w2': a wait with no handlers and no timeout can never complete",
-      "step 'end': a final step cannot have next",
-      "start: unknown step 'zzz'",
-    ])
-  })
-
-  it('handlers for undeclared events, malformed hooks, missing run/next/context/child, bad policies', () => {
-    const problems = issuesOf(() =>
-      compile(
-        rawFlow(
-          {
-            t: { kind: 'task', enter: 42, next: 'd' },
-            d: { kind: 'decision' },
-            w: { kind: 'wait', on: { ghost: () => {}, bad: 'x' }, next: 'f' },
-            f: { kind: 'flow', next: 'x' },
-            x: { kind: 'nope' },
-            y: { kind: 'final', label: 3 },
-          },
-          {
-            events: { bad: boundary.trusted() },
-            onFailure: 'explode',
-            autoRun: 'never',
-            concurrency: 0,
-            unmatchedEvents: { buffer: 'yes' },
-            retry: { attempts: 'x' },
-          },
-        ),
-      ),
-    )
-    expect(problems).toEqual([
-      "step 't': 'enter' must be a function",
-      "step 't': a task needs a 'run' function",
-      "step 'd': a decision needs a 'next' function",
-      "step 'w': on['ghost']: the flow declares no event 'ghost'",
-      "step 'w': on['bad'] must be a function",
-      "step 'f': a flow step needs a child flow (s.flow(child, cfg))",
-      "steps['x'] is not a step (build steps with s.view/task/wait/decision/flow/final)",
-      "step 'y': 'label' must be a string",
-      "onFailure must be 'halt' | 'compensate'",
-      "autoRun must be 'ready' | 'manual'",
-      'concurrency must be a number >= 1',
-      'unmatchedEvents must be { buffer, ttl }',
-      'retry.attempts must be a non-negative integer',
-    ])
-  })
-
-  it('dependency cycles (each reported once), self-dependency, bad durations, empty flow, missing name/context', () => {
-    const problems = issuesOf(() =>
-      compile(
-        rawFlow({
-          a: { kind: 'task', run: () => 1, dependsOn: ['b'], next: 'b' },
-          b: { kind: 'task', run: () => 1, dependsOn: ['c'], next: 'c' },
-          c: { kind: 'task', run: () => 1, dependsOn: ['a'], timeout: '3 weeks', next: 'me' },
-          me: { kind: 'task', run: () => 1, dependsOn: ['me'] },
-        }),
-      ),
-    )
-    expect(problems).toEqual([
-      "step 'c': timeout: invalid duration: '3 weeks' (expected e.g. '250ms', '15s', '15m', '2h', '1d')",
-      'dependency cycle: a -> b -> c -> a',
-      'dependency cycle: me -> me',
-    ])
-    expect(issuesOf(() => compile(rawFlow({})))).toEqual(['flow has no steps'])
+describe('compile validation for JavaScript definitions', () => {
+  it('reports a malformed run adapter output as a definition issue', () => {
     expect(
       issuesOf(() =>
-        compile({
-          steps: { a: { kind: 'final', '~types': undefined } },
-          context: 'nope',
-        } as unknown as AnyFlow),
+        compile(
+          rawFlow({
+            work: rawStep({ run: { [RUN_ADAPTER]: { run: () => 1, output: {} } } }),
+          }),
+        ),
       ),
-    ).toEqual(["'name' must be a non-empty string", "'context' must be a boundary"])
+    ).toEqual(["step 'work': run adapter output must be a boundary"])
   })
 
-  it('throws WizardError DEFINITION_INVALID with a message listing every problem', () => {
+  it('lists unknown ids across static references and entry points together', () => {
+    expect(
+      issuesOf(() =>
+        compile(
+          rawFlow(
+            {
+              a: rawStep({
+                run: () => 1,
+                next: ['b', 'missing-next'],
+                needs: { gone: 'missing-need' },
+                fallback: 'missing-fallback',
+              }),
+              b: rawStep({
+                waitFor: { ready: () => ({ done: true }) },
+                timeout: { after: '1m', next: 'missing-timeout' },
+              }),
+              route: rawStep({ next: () => 'a', targets: ['a', 'missing-target'] }),
+            },
+            { start: 'missing-start', events: { ready: z.boolean() } },
+          ),
+        ),
+      ),
+    ).toEqual([
+      "step 'a': next: unknown step 'missing-next'",
+      "step 'a': needs.gone: unknown step 'missing-need'",
+      "step 'a': fallback: unknown step 'missing-fallback'",
+      "step 'b': timeout.next: unknown step 'missing-timeout'",
+      "step 'route': targets: unknown step 'missing-target'",
+      "start: unknown step 'missing-start'",
+    ])
+  })
+
+  it('rejects undeclared events and malformed handlers on each event boundary', () => {
+    expect(
+      issuesOf(() =>
+        compile(
+          rawFlow(
+            {
+              form: rawStep({ input: z.string(), on: { ghost: () => undefined } }, 'view'),
+              work: rawStep({ run: () => 1, on: { known: 42 } }),
+              wait: rawStep({ waitFor: { ghost: () => ({ done: true }), known: 'nope' } }),
+            },
+            {
+              events: { known: z.string() },
+              on: { ghost: () => undefined, known: 5 },
+              correlate: { other: () => 'x', known: 'no' },
+            },
+          ),
+        ),
+      ),
+    ).toEqual([
+      "on['ghost']: the wizard declares no event 'ghost'",
+      "on['known'] must be a function",
+      "correlate['other']: the wizard declares no event 'other'",
+      "correlate['known'] must be a function",
+      "step 'form': on['ghost']: the wizard declares no event 'ghost'",
+      "step 'work': on['known'] must be a function",
+      "step 'wait': waitFor['ghost']: the wizard declares no event 'ghost'",
+      "step 'wait': waitFor['known'] must be a function",
+    ])
+  })
+
+  it.each<[Record<string, unknown>, string]>([
+    [
+      { run: () => 1, waitFor: { ready: () => ({ done: true }) } },
+      "a step has one behavior: 'run', 'waitFor', or 'sleep'",
+    ],
+    [{ run: () => 1, sleep: '1s' }, "a step has one behavior: 'run', 'waitFor', or 'sleep'"],
+    [
+      { waitFor: { ready: () => ({ done: true }) }, sleep: '1s' },
+      "a step has one behavior: 'run', 'waitFor', or 'sleep'",
+    ],
+    [{ next: () => null }, "a function 'next' must declare 'targets'"],
+    [{ next: 'end', targets: ['end'] }, "'targets' requires a function 'next'"],
+    [{ each: () => [], next: 'end' }, "'each' requires 'run'"],
+    [{ retry: { retries: 1 }, next: 'end' }, "'retry' requires 'run'"],
+    [{ fallback: 'end', next: 'end' }, "'fallback' requires 'run'"],
+    [{ complete: true }, "'complete' is not an option of a step step"],
+    [{ route: () => 'end' }, "'route' is not an option of a step step"],
+  ])('rejects incompatible or removed options %j', (config, message) => {
+    expect(
+      issuesOf(() =>
+        compile(
+          rawFlow(
+            {
+              work: rawStep(config),
+              end: rawStep({ run: () => true }),
+            },
+            { events: { ready: z.boolean() } },
+          ),
+        ),
+      ),
+    ).toEqual([`step 'work': ${message}`])
+  })
+
+  it('restricts waitFor to dedicated event steps and rejects view-only fields on steps', () => {
+    expect(
+      issuesOf(() =>
+        compile(
+          rawFlow(
+            {
+              form: rawStep({ input: z.string(), waitFor: { ready: () => undefined } }, 'view'),
+              work: rawStep({ run: () => 1, input: z.number(), canExit: () => true }),
+              child: rawStep(
+                { context: () => ({}), waitFor: { ready: () => undefined } },
+                'child',
+                rawFlow({ end: rawStep({ run: () => true }) }),
+              ),
+            },
+            { events: { ready: z.boolean() } },
+          ),
+        ),
+      ),
+    ).toEqual([
+      "step 'form': 'waitFor' is not an option of a view step",
+      "step 'work': 'input' is not an option of a step step",
+      "step 'work': 'canExit' is not an option of a step step",
+      "step 'child': 'waitFor' is not an option of a child step",
+    ])
+  })
+
+  it.each<[string, Record<string, unknown> | undefined, string]>([
+    ['start', undefined, 'start must contain at least one step'],
+    ['next', { next: [] }, "step 'work': next must contain at least one step"],
+    [
+      'targets',
+      { next: () => null, targets: [] },
+      "step 'work': targets must contain at least one step",
+    ],
+    [
+      'needs.any',
+      { run: () => 1, needs: { first: { any: [] } } },
+      "step 'work': needs.first.any must contain at least one step",
+    ],
+    [
+      'needs',
+      { run: () => 1, needs: {} },
+      "step 'work': 'needs' must contain at least one dependency",
+    ],
+    ['waitFor', { waitFor: {} }, "step 'work': 'waitFor' must contain at least one event handler"],
+  ])('rejects an empty %s', (field, config, message) => {
+    const flow = rawFlow(
+      { work: rawStep(config ?? { run: () => 1 }) },
+      field === 'start' ? { start: [] } : {},
+    )
+    expect(issuesOf(() => compile(flow))).toEqual([message])
+  })
+
+  it('rejects an empty step map', () => {
+    expect(issuesOf(() => compile(rawFlow({})))).toEqual(['wizard has no steps'])
+  })
+
+  it.each([0, -1, 1.5, Number.NaN, null])(
+    'rejects invalid per-item concurrency %s',
+    (concurrency) => {
+      expect(
+        issuesOf(() =>
+          compile(
+            rawFlow({
+              work: rawStep({ each: () => [1, 2], run: () => 1, concurrency }),
+            }),
+          ),
+        ),
+      ).toEqual(["step 'work': 'concurrency' must be a positive integer or Infinity"])
+    },
+  )
+
+  it('rejects item options without each and malformed each/key functions', () => {
+    expect(
+      issuesOf(() =>
+        compile(
+          rawFlow({
+            work: rawStep({ run: () => 1, concurrency: 2, key: () => 'key' }),
+            badItems: rawStep({ run: () => 1, each: [1, 2] }),
+            badKey: rawStep({ run: () => 1, each: () => [1, 2], key: 'key' }),
+          }),
+        ),
+      ),
+    ).toEqual([
+      "step 'work': 'concurrency' requires 'each'",
+      "step 'work': 'key' requires 'each'",
+      "step 'badItems': 'each' must be a function",
+      "step 'badKey': 'key' must be a function",
+    ])
+  })
+
+  it('reports needs cycles, including any-needs and self dependencies', () => {
+    expect(
+      issuesOf(() =>
+        compile(
+          rawFlow({
+            a: rawStep({ run: () => 1, needs: { b: 'b' } }),
+            b: rawStep({ run: () => 1, needs: { c: 'c' } }),
+            c: rawStep({ run: () => 1, needs: { first: { any: ['a'] } } }),
+            self: rawStep({ run: () => 1, needs: { self: 'self' } }),
+          }),
+        ),
+      ),
+    ).toEqual(['dependency cycle: a -> b -> c -> a', 'dependency cycle: self -> self'])
+  })
+
+  it('returns DEFINITION_INVALID and includes each issue in its message', () => {
     try {
-      compile(rawFlow({ a: { kind: 'view', next: 'x' }, b: { kind: 'final', next: 'a' } }))
+      compile(rawFlow({ work: rawStep({ run: () => 1, next: 'missing', timeout: '3 weeks' }) }))
       expect.unreachable()
     } catch (error) {
       expect(error).toBeInstanceOf(WizardError)
-      const e = error as WizardError
-      expect(e.code).toBe('DEFINITION_INVALID')
-      expect(e.message).toContain("flow 'raw' is invalid:")
-      expect(e.message).toContain("- step 'a': next: unknown step 'x'")
-      expect(e.message).toContain("- step 'b': a final step cannot have next")
+      if (!(error instanceof WizardError)) throw error
+      expect(error.code).toBe('DEFINITION_INVALID')
+      expect(error.issues).toEqual([
+        { message: "step 'work': next: unknown step 'missing'" },
+        {
+          message:
+            "step 'work': timeout: invalid duration: '3 weeks' (expected e.g. '250ms', '15s', '15m', '2h', '1d')",
+        },
+      ])
+      expect(error.message).toContain("wizard 'raw' is invalid:")
+      for (const issue of error.issues ?? []) expect(error.message).toContain(`- ${issue.message}`)
     }
-  })
-
-  it('per-kind allow-lists: a field another kind owns is a problem naming the kinds that accept it', () => {
-    const problems = issuesOf(() =>
-      compile(
-        rawFlow(
-          {
-            // `on: {}` is accepted on a view since v0.2 (any kind may listen)
-            v: { kind: 'view', run: () => 1, retry: { attempts: 1 }, on: {}, next: 't' },
-            t: {
-              kind: 'task',
-              run: () => 1,
-              input: boundary.trusted(),
-              canExit: () => true,
-              next: 'w',
-            },
-            w: { kind: 'wait', on: { e: () => {} }, compensate: () => {}, child: {}, next: 'd' },
-            d: {
-              kind: 'decision',
-              next: () => 'f',
-              enter: () => {},
-              timeout: 5,
-              idempotent: true,
-              mapError: () => 1,
-            },
-            f: { kind: 'flow', child: undefined, context: () => ({}), initial: {}, next: 'end' },
-            end: { kind: 'final', validate: () => {}, exit: () => {}, when: () => true },
-          },
-          { events: { e: boundary.trusted() } },
-        ),
-      ),
-    )
-    expect(problems).toEqual([
-      "step 'v': only task steps accept 'run' (kind 'view')",
-      "step 'v': only task steps accept 'retry' (kind 'view')",
-      "step 't': only view steps accept 'input' (kind 'task')",
-      "step 't': only view steps accept 'canExit' (kind 'task')",
-      "step 'w': only task steps accept 'compensate' (kind 'wait')",
-      "step 'w': only flow steps accept 'child' (kind 'wait')",
-      "step 'd': only view/task/wait steps accept 'enter' (kind 'decision')",
-      "step 'd': only task/wait steps accept 'timeout' (kind 'decision')",
-      "step 'd': only task steps accept 'idempotent' (kind 'decision')",
-      "step 'd': only task steps accept 'mapError' (kind 'decision')",
-      "step 'f': only view steps accept 'initial' (kind 'flow')",
-      "step 'f': a flow step needs a child flow (s.flow(child, cfg))",
-      "step 'end': only view steps accept 'validate' (kind 'final')",
-      "step 'end': only view/task/wait/flow steps accept 'exit' (kind 'final')",
-      "step 'end': only view/task/wait/decision/flow steps accept 'when' (kind 'final')",
-    ])
   })
 })

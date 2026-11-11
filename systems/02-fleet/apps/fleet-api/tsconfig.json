@@ -1,0 +1,9 @@
+{
+  "extends": ["../../../../tsconfig.base.json", "../../tsconfig.json"],
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": "../.."
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
+}

@@ -3,27 +3,28 @@
  *
  * Pure query over selectors; reason codes are stable strings the façade and
  * devtools can match on:
- * `unknown-step`, `flow-not-started`, `flow-terminal`, `flow-compensating`,
+ * `unknown-step`, `run-not-started`, `run-terminal`, `run-compensating`, `run-halted`,
  * `nav-busy`, `not-activated`, `deps-unmet:<id>`, `guard-false:canEnter`,
  * `guard-false:canExit`, `concurrency-limit`, `auto-run-manual`,
- * `failed:<kind>`, `not-current`, `entering`, `retrying`, `when-pending` (v0.2:
+ * `failed:<kind>`, `not-current`, `entering`, `retrying`, `when-pending` (
  * the step's `when` predicate has not passed yet), `skipped:<reason>`.
  * `candidates` = ready views the cursor could move to.
  *
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
+import { unmetNeeds } from './needs'
 import {
-  activeTaskCount,
+  activeRunCount,
   awaitingWhen,
   eligible,
+  isRunnableStep,
   isTerminal,
   phase,
   ready,
   readyViews,
   type StepPhase,
-  unmetDeps,
 } from './selectors'
 import type { StepStatus, WizardState } from './state'
 
@@ -34,15 +35,16 @@ export interface Explanation {
   readonly candidates: readonly string[]
 }
 
-export function explain(def: CompiledFlow, state: WizardState, stepId: string): Explanation {
+export function explain(def: CompiledWizard, state: WizardState, stepId: string): Explanation {
   const rec = state.steps[stepId]
   const candidates = readyViews(def, state).filter((id) => id !== state.current)
   if (rec === undefined)
     return { status: 'unknown', phase: undefined, reasons: ['unknown-step'], candidates }
   const reasons: string[] = []
-  if (state.status === 'idle') reasons.push('flow-not-started')
-  else if (isTerminal(state)) reasons.push('flow-terminal')
-  else if (state.status === 'compensating') reasons.push('flow-compensating')
+  if (state.status === 'idle') reasons.push('run-not-started')
+  else if (isTerminal(state)) reasons.push('run-terminal')
+  else if (state.status === 'compensating') reasons.push('run-compensating')
+  else if (state.status === 'halted') reasons.push('run-halted')
   if (state.nav.phase !== 'idle') reasons.push('nav-busy')
 
   if (rec.status === 'active') {
@@ -59,12 +61,12 @@ export function explain(def: CompiledFlow, state: WizardState, stepId: string): 
   ) {
     if (!rec.pendingActivation) reasons.push('not-activated')
     if (rec.status === 'skipped') reasons.push(`skipped:${rec.skipReason ?? 'unknown'}`)
-    for (const dep of unmetDeps(def, state, stepId)) reasons.push(`deps-unmet:${dep}`)
+    for (const dep of unmetNeeds(def, state, stepId)) reasons.push(`deps-unmet:${dep}`)
     if (eligible(def, state, stepId) && awaitingWhen(def, state, stepId))
       reasons.push('when-pending')
     if (ready(def, state, stepId)) {
       const stepDef = def.steps[stepId]
-      if (stepDef?.kind === 'task' && activeTaskCount(def, state) >= def.policies.concurrency)
+      if (isRunnableStep(stepDef) && activeRunCount(def, state) >= def.policies.concurrency)
         reasons.push('concurrency-limit')
       if (stepDef !== undefined && stepDef.kind !== 'view' && def.policies.autoRun === 'manual')
         reasons.push('auto-run-manual')

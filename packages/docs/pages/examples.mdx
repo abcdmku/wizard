@@ -1,0 +1,38 @@
+# Examples
+
+Run a complete project that shows one feature, or read a larger system.
+
+```sh
+git clone https://github.com/abcdmku/wizard && cd wizard
+pnpm install && pnpm build
+pnpm --filter example-01-happy-path start
+```
+
+Each example lives in `examples/<name>` with a wizard, a `main.ts` and a test. Replace `start` with `check` to type-check and test it. For a row marked "dev", use `dev` in place of `start`.
+
+| Example | Shows | Try |
+|---|---|---|
+| `01-happy-path` | The smallest wizard and run | [Playground](/playground?example=01-happy-path) |
+| `02-recoverable-failure` | Retries with backoff, then a manual `retry()` | [Playground](/playground?example=02-recoverable-failure) |
+| `03-non-recoverable-compensation` | Undoing finished steps after a later one fails | [Playground](/playground?example=03-non-recoverable-compensation) |
+| `04-resume-from-snapshot` | Save, dispose, resume and continue | [Playground](/playground?example=04-resume-from-snapshot) |
+| `05-external-events` | Events that are validated, buffered and delivered | [Playground](/playground?example=05-external-events) |
+| `06-nested-wizard` | A parent wizard and a child wizard | [Playground](/playground?example=06-nested-wizard) |
+| `07-dag-pipeline` | Two steps in parallel and a typed join | [Playground](/playground?example=07-dag-pipeline) |
+| `08-react-mirror` | React over a mirror of a projection | dev |
+| `09-mermaid` | A wizard printed as a Mermaid diagram | [Playground](/playground?example=09-mermaid) |
+| `10-devtools` | The devtools panel on a live run | dev |
+| `11-order-workflow` | An order with retries, undo, a webhook and a 24-hour timeout | [Playground](/playground?example=11-order-workflow) |
+| `12-pulumi-infrastructure` | Database resources for a deployment, with Pulumi | `check` |
+| `13-deployment-artifacts` | One Nitro host built for Node and serverless providers | dev |
+
+## Read a larger system
+
+Four systems in `systems/` run with Docker Compose. Each README lists the commands, ports and demo accounts.
+
+| System | Shows |
+|---|---|
+| [Grant intake](https://github.com/abcdmku/wizard/blob/main/systems/01-intake/README.md) | A resumable form for applicants, a projection for reviewers, and a background worker |
+| [Fleet dispatch](https://github.com/abcdmku/wizard/blob/main/systems/02-fleet/README.md) | A dispatch console fed by a projection over server-sent events |
+| [Fulfillment](https://github.com/abcdmku/wizard/blob/main/systems/03-fulfillment/README.md) | An order across a browser, an HTTP service, durable runs, queues and a signed callback |
+| [Dungeon](https://github.com/abcdmku/wizard/blob/main/systems/04-dungeon/README.md) | A multiplayer room where the server owns the state and PostgreSQL keeps it across restarts |

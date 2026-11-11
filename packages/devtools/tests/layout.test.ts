@@ -3,7 +3,7 @@
  * isolated nodes), the handle picker and the ELK layout — with the real bundled elkjs, and with a
  * stub engine to see exactly what ELK is asked to lay out.
  */
-import { inspect } from '@openwizard/core'
+import { inspect, type Manifest } from '@openwizard/core/inspect'
 import type { ElkNode } from 'elkjs/lib/elk-api'
 import { describe, expect, it } from 'vitest'
 import { findBackEdges, findIsolated } from '../src/layout/cycles'
@@ -30,26 +30,75 @@ describe('buildGraphModel', () => {
     expect(keys.indexOf('pack')).toBeLessThan(keys.indexOf('pack/count'))
   })
 
-  it('draws every edge kind with the right label, plus a `?` port for a dynamic next', () => {
+  it('labels activation, data, routing and timeout edges', () => {
     expect(edge(`start:${entryKey([])}->form`)?.kind).toBe('start')
     expect(edge('next:ingest->normalize')?.kind).toBe('next')
-    expect(edge('dependsOn:normalize->gate')).toMatchObject({
-      kind: 'dependsOn',
-      label: 'dependsOn',
+    expect(edge('needs:normalize->gate')).toMatchObject({
+      kind: 'needs',
+      label: 'needs normalize',
+    })
+    expect(edge('needs:enrich->gate')).toMatchObject({
+      kind: 'needs',
+      label: 'needs enrich (optional)',
     })
     expect(edge('timeout:awaitPayment->rejected')).toMatchObject({
       kind: 'timeout',
       label: 'timeout 15m',
     })
-    expect(node('gate#dyn')?.kind).toBe('dynamic')
-    expect(edge('dynamic:gate')).toMatchObject({
+    expect(node('gate#dyn')).toBeUndefined()
+    expect(edge('route:gate->awaitPayment')).toMatchObject({
       source: 'gate',
-      target: 'gate#dyn',
-      kind: 'dynamic',
+      target: 'awaitPayment',
+      kind: 'route',
+      label: 'route',
     })
     // Child edges live in the group's scope.
-    expect(edge('next:pack/count->pack/packed')?.parent).toBe('pack')
+    expect(edge('needs:pack/count->pack/packed')).toMatchObject({
+      parent: 'pack',
+      kind: 'needs',
+      label: 'needs count',
+    })
     expect(edge(`start:${entryKey(['pack'])}->pack/count`)?.parent).toBe('pack')
+  })
+
+  it('draws the declared targets of a dynamic next as `route` edges, with no `?` port', () => {
+    const routed: Manifest = {
+      name: 'routed',
+      version: 1,
+      fingerprint: '0000000000000000',
+      schemas: { events: {} },
+      nodes: [
+        {
+          id: 'decide',
+          kind: 'step',
+          path: [],
+          hooks: ['next'],
+          dynamicNext: true,
+          targets: ['a', 'b'],
+          start: true,
+        },
+        { id: 'a', kind: 'step', path: [], hooks: [], completes: true },
+        { id: 'b', kind: 'step', path: [], hooks: [], completes: true },
+      ],
+      edges: [
+        { from: null, to: 'decide', kind: 'start', path: [] },
+        { from: 'decide', to: 'a', kind: 'route', path: [] },
+        { from: 'decide', to: 'b', kind: 'route', path: [] },
+      ],
+      warnings: [],
+    }
+    const { nodes, edges } = buildGraphModel(routed)
+    expect(nodes.map((n) => [n.key, n.kind])).toEqual([
+      [entryKey([]), 'entry'],
+      ['decide', 'step'],
+      ['a', 'step'],
+      ['b', 'step'],
+    ])
+    expect(edges.map((e) => [e.key, e.kind, e.label])).toEqual([
+      [`start:${entryKey([])}->decide`, 'start', undefined],
+      ['route:decide->a', 'route', 'route'],
+      ['route:decide->b', 'route', 'route'],
+    ])
   })
 
   it('indexes the flow warnings by step key', () => {

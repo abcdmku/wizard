@@ -6,7 +6,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import { describeError, WizardError } from '../../errors'
 import type { ChildFactory } from '../../interpreter/child'
 import { createInterpreter, type Interpreter } from '../../interpreter/interpreter'
@@ -16,25 +16,32 @@ import type { Issue, WizardState } from '../../machine/state'
 import { samePath } from '../../machine/util'
 import type { PersistenceDriver } from '../../persistence/driver'
 import { type Snapshot, toSnapshot } from '../snapshot'
+import { createCommandCommits } from './command-commits'
+import { disposeRuntimeContext } from './dispose'
 import type { Processed } from './results'
+import { createTerminalResultTracker, type TerminalResultTracker } from './terminal-results'
 import { createTxTracker, type TxTracker } from './transactions'
 import type { BuildInit, ResumePlan, RuntimeConfig, WizardRuntime } from './types'
 
 export interface RuntimeContext {
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   readonly cfg: RuntimeConfig
   readonly init: BuildInit
   readonly instanceId: string
   readonly interp: Interpreter<WizardRuntime, ResumePlan>
+  readonly commandCommits: ReturnType<typeof createCommandCommits>
   readonly tx: TxTracker
+  readonly terminal: TerminalResultTracker
   readonly stateListeners: Set<(state: WizardState) => void>
   readonly eventListeners: Set<(event: DomainEvent) => void>
   /** Resolvers of the commands enqueued and not yet processed. */
   readonly pendingMessages: Map<Message, (processed: Processed) => void>
   /** Façade-side async work (boundaries, validate hooks) still pending: settled on dispose. */
   readonly pendingOps: Set<() => void>
-  /** Disposers of `attach()`ed event sources (v0.2): run on `dispose()`. */
+  /** Disposers of `attach()`ed event sources: run on `dispose()`. */
   readonly attached: Set<() => void>
+  /** The children that were live at `dispose()` (disposed with it): what `child()` answers afterwards. */
+  readonly disposedChildren: Map<string, WizardRuntime>
   /** The persistence driver of a persisting root (set by `attachPersistence`). */
   driver: PersistenceDriver | undefined
   disposed: boolean
@@ -43,14 +50,14 @@ export interface RuntimeContext {
   readonly onListenerError: (error: unknown) => void
   /** Isolated listener call: an exception goes to `onListenerError`, never to the caller. */
   notify<T>(listeners: Set<(value: T) => void>, value: T): void
-  /** Versioned, JSON-safe snapshot including live children; cached per state + children. */
+  /** Versioned, JSON-safe snapshot of the committed state and its children; cached per pair. */
   getSnapshot(): Snapshot
   /** A write failed (auto-save or `save()`): record `persist.failed` (the caller hands the error on). */
   reportPersistFailure(key: string, error: unknown): void
 }
 
 export function createContext(
-  def: CompiledFlow,
+  def: CompiledWizard,
   cfg: RuntimeConfig,
   init: BuildInit,
   childFactory: (ctx: () => RuntimeContext) => ChildFactory<WizardRuntime, ResumePlan>,
@@ -83,6 +90,10 @@ export function createContext(
   // The interpreter's callbacks read `ctx` lazily (they run after construction) — only for the
   // fields that are not known yet here (`tx`, `driver`).
   let ctx: RuntimeContext
+  let terminal: TerminalResultTracker
+  const beforeEffects = cfg.beforeEffects
+  const beforeTimer = cfg.beforeTimer
+  const commandCommits = createCommandCommits()
   const tx = createTxTracker(() => ctx.disposed)
   const interp = createInterpreter<WizardRuntime, ResumePlan>({
     def,
@@ -94,17 +105,43 @@ export function createContext(
     ...(cfg.strict !== undefined ? { strict: cfg.strict } : {}),
     ...(cfg.logSize !== undefined ? { logSize: cfg.logSize } : {}),
     ...(cfg.abortGraceMs !== undefined ? { abortGraceMs: cfg.abortGraceMs } : {}),
+    ...(cfg.eventIds !== undefined ? { eventIds: cfg.eventIds } : {}),
+    ...(cfg.parent !== undefined ? { parent: cfg.parent } : {}),
+    ...(init.persist && beforeEffects !== undefined
+      ? {
+          // The barrier sees the staged pair; `getState`/`getSnapshot` keep the committed one.
+          beforeEffects: (state, batch, _effects, children, message) =>
+            beforeEffects({
+              snapshot: toSnapshot(state, children, env.clock.now()),
+              events: batch,
+              commands: commandCommits.forBatch(message, batch, state.seq),
+            }),
+        }
+      : {}),
+    ...(init.persist && beforeTimer !== undefined
+      ? {
+          beforeTimer: (
+            timerId: string,
+            at: number,
+            expected: { readonly epoch: number; readonly seq: number },
+          ) => beforeTimer({ timerId, dueAt: at, expected }),
+        }
+      : {}),
     children: { factory: childFactory(() => ctx), ancestors: init.ancestors },
     onListenerError,
+    onFatal: () => disposeRuntimeContext(ctx),
     onEvent: (event) => {
       if (samePath(event.path, init.path)) tx.track(event)
       notify(eventListeners, event)
     },
-    onCommit: (state) => {
+    onCommit: (state, batch) => {
       snapshotCache = undefined
+      terminal.commit(state, batch)
       notify(stateListeners, state)
     },
     onProcessed: (msg, batch) => {
+      if (beforeEffects === undefined || !init.persist || batch.length === 0)
+        commandCommits.forBatch(msg, batch, interp.getState().seq)
       const resolve = pendingMessages.get(msg)
       if (resolve === undefined) return
       pendingMessages.delete(msg)
@@ -116,6 +153,7 @@ export function createContext(
       else if (effect.kind === 'persist') ctx.driver?.notify(effect.reason)
     },
   })
+  terminal = createTerminalResultTracker({ getState: interp.getState, notify })
   ctx = {
     def,
     cfg,
@@ -123,15 +161,18 @@ export function createContext(
     instanceId,
     interp,
     tx,
+    commandCommits,
+    terminal,
     stateListeners,
     eventListeners,
     pendingMessages,
     pendingOps: new Set(),
     attached: new Set(),
+    disposedChildren: new Map(),
     driver: undefined,
     disposed: false,
     onListenerError,
-    disposedError: () => new WizardError('DISPOSED', `wizard '${instanceId}' is disposed`),
+    disposedError: () => new WizardError('DISPOSED', `run '${instanceId}' is disposed`),
     notify,
     getSnapshot() {
       const state = interp.getState()

@@ -2,7 +2,7 @@
   "name": "example-03-non-recoverable-compensation",
   "private": true,
   "type": "module",
-  "description": "OpenWizard example: onFailure 'compensate' — three reservations undone in reverse order when the payment fails; a failing compensation is recorded and re-attempted with compensate({ from }).",
+  "description": "Compensate three reservations in reverse order and retry one failed compensation.",
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json && vitest run --root .",
     "start": "tsx src/main.ts"

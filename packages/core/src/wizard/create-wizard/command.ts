@@ -1,17 +1,20 @@
 /**
- * The wire command typed by a flow: `Command<F>` and its correlated members (`SetInputCommand`,
+ * The wire command typed by a wizard: `Command<F>` and its correlated members (`SetInputCommand`,
  * `ChildCommand`, `AnyChildCommand`).
  * @packageDocumentation
  */
 
 import type {
-  AnyFlow,
-  ChildFlowOf,
+  AnyWizardDefinition,
   ChildStepId,
+  ChildWizardOf,
+  Ctx,
   DraftOf,
   EventType,
+  IsEach,
+  RetryStepId,
+  RunStepId,
   StepId,
-  TaskId,
   ViewId,
 } from '../../authoring/types'
 
@@ -19,32 +22,37 @@ import type {
 type CommandDepthPrev = [never, 0, 1, 2, 3, 4, 5, 6, 7]
 
 /**
- * A `child` command with `string` ids: what typed child commands widen to for a wildcard flow
- * (`AnyFlow`) or beyond the depth budget.
+ * A `child` command with `string` ids: what typed child commands widen to for a wildcard wizard
+ * (`AnyWizardDefinition`) or beyond the depth budget.
  * @public
  */
 export interface AnyChildCommand {
   readonly type: 'child'
   readonly path: readonly [string, ...string[]]
-  readonly command: Command<AnyFlow>
+  readonly command: Command<AnyWizardDefinition>
 }
 
 /**
  * `setInput` correlated per view: `step: K` with `patch: DraftOf<F, K>`.
  * @public
  */
-export type SetInputCommand<F extends AnyFlow> = {
+export type SetInputCommand<F extends AnyWizardDefinition> = {
   [K in ViewId<F>]: { readonly type: 'setInput'; readonly step: K; readonly patch: DraftOf<F, K> }
 }[ViewId<F>]
 
+type ChildPrefix<F extends AnyWizardDefinition, K extends ChildStepId<F>> =
+  true extends IsEach<F, K> ? readonly [K, string] : readonly [K]
+
 /**
- * A command addressed to a nested flow: `path: [flowStep]` with a `Command` of that child, or a
- * longer path (`[flowStep, grandChildStep, …]`) whose `command` is typed for the flow at its end
- * — the flattened form of nesting `child` commands. For a wildcard flow or beyond the depth
+ * A command addressed to a nested run: `path: [childStep]` with a `Command` of that child, or a
+ * longer path (`[childStep, grandChildStep, …]`) whose `command` is typed for the wizard at its end
+ * — the flattened form of nesting `child` commands. For a wildcard wizard or beyond the depth
  * budget (8 child levels) it is `AnyChildCommand` (ids widen to `string`).
  * @public
  */
-export type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] extends [never]
+export type ChildCommand<F extends AnyWizardDefinition, Depth extends number = 8> = [
+  Depth,
+] extends [never]
   ? AnyChildCommand
   : string extends ChildStepId<F>
     ? AnyChildCommand
@@ -52,17 +60,17 @@ export type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] 
         [K in ChildStepId<F>]:
           | {
               readonly type: 'child'
-              readonly path: readonly [K]
-              readonly command: Command<ChildFlowOf<F, K>, CommandDepthPrev[Depth]>
+              readonly path: ChildPrefix<F, K>
+              readonly command: Command<ChildWizardOf<F, K>, CommandDepthPrev[Depth]>
             }
-          | (ChildCommand<ChildFlowOf<F, K>, CommandDepthPrev[Depth]> extends infer Inner
+          | (ChildCommand<ChildWizardOf<F, K>, CommandDepthPrev[Depth]> extends infer Inner
               ? Inner extends {
                   readonly path: infer P extends readonly string[]
                   readonly command: infer C
                 }
                 ? {
                     readonly type: 'child'
-                    readonly path: readonly [K, ...P]
+                    readonly path: readonly [...ChildPrefix<F, K>, ...P]
                     readonly command: C
                   }
                 : never
@@ -70,16 +78,17 @@ export type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] 
       }[ChildStepId<F>]
 
 /**
- * A wire command (JSON), typed by the flow: `go` / `setInput` / `resetInput` take a `ViewId<F>`
- * (`setInput.patch` is that view's `DraftOf`), `run` / `retry` a `TaskId<F>`, `send` an
- * `EventType<F>` (its `payload` stays `unknown` — it is re-parsed by the event boundary),
+ * A wire command (JSON), typed by the wizard: `go` / `setInput` / `resetInput` take a `ViewId<F>`
+ * (`setInput.patch` is that view's `DraftOf`), `run` / `retry` a `RunStepId<F>` (`retry.patch` a
+ * context patch), `send` an `EventType<F>` (its `payload` stays `unknown` — it is re-parsed by
+ * the event boundary; `eventId` dedupes deliveries),
  * `compensate.from` / `skip.step` / `invalidate.step` a `StepId<F>`, and `child` a typed
  * `ChildCommand<F>`. `Depth` bounds the child recursion (8 child levels; beyond it ids widen to
- * `string`). Untrusted input becomes a `Command<F>` through `parseCommand(flow, input)`;
- * `Command<AnyFlow>` is the untyped shape.
+ * `string`). Untrusted input becomes a `Command<F>` through `parseCommand(wizard, input)`;
+ * `Command<AnyWizardDefinition>` is the untyped shape.
  * @public
  */
-export type Command<F extends AnyFlow = AnyFlow, Depth extends number = 8> =
+export type Command<F extends AnyWizardDefinition = AnyWizardDefinition, Depth extends number = 8> =
   | { readonly type: 'start' }
   | { readonly type: 'next' }
   | { readonly type: 'back' }
@@ -91,10 +100,11 @@ export type Command<F extends AnyFlow = AnyFlow, Depth extends number = 8> =
       readonly event: EventType<F>
       readonly payload: unknown
       readonly correlationId?: string
+      readonly eventId?: string
     }
-  | { readonly type: 'run'; readonly step: TaskId<F> }
-  | { readonly type: 'runReady' }
-  | { readonly type: 'retry'; readonly step: TaskId<F> }
+  | { readonly type: 'startStep'; readonly step: RunStepId<F> }
+  | { readonly type: 'startReady' }
+  | { readonly type: 'retry'; readonly step: RetryStepId<F>; readonly patch?: Partial<Ctx<F>> }
   | { readonly type: 'cancel'; readonly reason?: string }
   | { readonly type: 'compensate'; readonly from?: StepId<F>; readonly reason?: string }
   | { readonly type: 'reset' }

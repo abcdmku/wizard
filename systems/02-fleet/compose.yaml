@@ -1,0 +1,64 @@
+name: openwizard-fleet
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fleet
+      POSTGRES_USER: fleet
+      POSTGRES_PASSWORD: fleet
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - fleet-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fleet -d fleet"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  fleet-api:
+    build:
+      context: ../..
+      dockerfile: systems/02-fleet/apps/fleet-api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://fleet:fleet@postgres:5432/fleet
+      PORT: 8787
+      HOST: 0.0.0.0
+    command: ["node", "systems/02-fleet/apps/fleet-api/dist/main.mjs"]
+    ports:
+      - "${FLEET_API_PORT:-8787}:8787"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    init: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  web:
+    build:
+      context: ../..
+      dockerfile: systems/02-fleet/apps/web/Dockerfile
+    environment:
+      FLEET_API_URL: /api
+      FLEET_API_UPSTREAM: http://fleet-api:8787
+    ports:
+      - "${FLEET_WEB_PORT:-3000}:8080"
+    depends_on:
+      fleet-api:
+        condition: service_healthy
+    init: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  fleet-postgres-data:

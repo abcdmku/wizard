@@ -1,0 +1,19 @@
+{
+  "name": "example-12-pulumi-infrastructure",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bind OpenWizard deployment resources with Pulumi.",
+  "scripts": {
+    "check": "tsc -p tsconfig.json --noEmit && vitest run --root .",
+    "start": "pulumi up"
+  },
+  "dependencies": {
+    "@pulumi/pulumi": "3.258.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,4 +1,5 @@
-import { Clock, MirrorSource, Scheduler, Transport } from "@openwizard/core";
+import { Clock, Scheduler } from "@openwizard/core";
+import { MirrorSource, Transport } from "@openwizard/core/mirror";
 //#region src/interpreter/test-scheduler.d.ts
 /**
  * Virtual-time scheduler + clock for tests (what `createTestScheduler()` returns): `advance(ms)`
@@ -14,7 +15,7 @@ interface TestScheduler extends Scheduler, Clock {
   pending(): number;
 }
 /**
- * Deterministic scheduler + clock for tests: `createWizard(flow, { scheduler })` (it doubles as
+ * Deterministic scheduler + clock for tests: `wizard.create(input, { scheduler })` (it doubles as
  * the clock), then `advance(ms)` / `flush()` to fire retries, wait timeouts and inbox TTLs
  * without real waiting. Timers fire synchronously inside `advance`, so state is committed when
  * it returns (async hooks still need their promises to settle).
@@ -27,7 +28,7 @@ declare function createTestScheduler(options?: {
 //#region src/mirror/local-transport.d.ts
 /**
  * `createLocalTransport` options: `delayMs` delays every frame and every command/ack hop
- * (default 0 = synchronous frames, acks resolve on the wizard's own microtasks); `scheduler`
+ * (default 0 = synchronous frames, acks resolve on the run's own microtasks); `scheduler`
  * drives those delays (a test scheduler makes them deterministic); `serialize` JSON-round-trips
  * frames, commands and acks (default `false`).
  * @public
@@ -39,7 +40,8 @@ interface LocalTransportOptions {
 }
 /**
  * Loopback transport over a `MirrorSource` (same process, no wire). With the defaults, frames
- * reach the Mirror synchronously on every commit and `send` resolves with the source's ack.
+ * reach the Mirror synchronously on every commit, `send` resolves with the source's ack, and the
+ * source's `dispose()` closes the stream (`onClose`).
  * @public
  */
 declare function createLocalTransport<S>(source: MirrorSource<S>, options?: LocalTransportOptions): Transport<S>;

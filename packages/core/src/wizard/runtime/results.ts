@@ -1,14 +1,15 @@
 /**
  * Result mapping: a processed batch (or a transaction outcome) → the value the public method
- * returns (`CommandResult` / `NavResult` / `SendResult`, plan §8.2). Pure functions.
+ * returns (`CommandResult` / `NavResult` / `SendResult`). Pure functions.
  *
  * @internal
  */
 
 import type { WizardErrorCode } from '../../errors'
 import type { DomainEvent, TransitionRejectReason } from '../../machine/events'
-import type { SerializedError } from '../../machine/state'
+import type { Issue, SerializedError } from '../../machine/state'
 import type { CommandResult, NavResult, SendResult } from '../results'
+import { commandStep, droppedMessage, navMessage, rejectionMessage } from './messages'
 import type { TxOutcome } from './transactions'
 
 /** What the interpreter did with one enqueued command. */
@@ -18,14 +19,14 @@ export interface Processed {
   readonly disposed: boolean
 }
 
-type ResultCode = WizardErrorCode | 'STALE' | 'FLOW_COMPENSATING'
+type ResultCode = WizardErrorCode | 'STALE' | 'RUN_COMPENSATING'
 
 const RESULT_CODES: ReadonlySet<string> = new Set<ResultCode>([
   'UNKNOWN_STEP',
   'UNKNOWN_EVENT',
   'NOT_A_VIEW',
-  'NOT_A_TASK',
-  'NOT_A_FLOW_STEP',
+  'NOT_RUNNABLE',
+  'NOT_A_CHILD_STEP',
   'NOT_ACTIVE',
   'NOT_REACHABLE',
   'NAV_BUSY',
@@ -34,8 +35,9 @@ const RESULT_CODES: ReadonlySet<string> = new Set<ResultCode>([
   'INVALID_INPUT',
   'BOUNDARY_REJECTED',
   'GUARD_BLOCKED',
-  'FLOW_TERMINAL',
-  'FLOW_NOT_STARTED',
+  'RUN_TERMINAL',
+  'RUN_HALTED',
+  'RUN_NOT_STARTED',
   'INVALID_COMMAND',
   'SYNC_VIOLATION',
   'SNAPSHOT_INCOMPATIBLE',
@@ -43,8 +45,9 @@ const RESULT_CODES: ReadonlySet<string> = new Set<ResultCode>([
   'NESTING_TOO_DEEP',
   'DEFINITION_INVALID',
   'DISPOSED',
+  'CANCELLED',
   'STALE',
-  'FLOW_COMPENSATING',
+  'RUN_COMPENSATING',
 ])
 
 function isResultCode(code: string): code is ResultCode {
@@ -54,27 +57,24 @@ function isResultCode(code: string): code is ResultCode {
 /** A `WizardErrorCode` carried by a serialized hook error (e.g. `SYNC_VIOLATION`), if recognized. */
 function wizardCodeOf(error: SerializedError): WizardErrorCode | undefined {
   const code = error.code
-  if (code === undefined || !isResultCode(code) || code === 'STALE' || code === 'FLOW_COMPENSATING')
+  if (code === undefined || !isResultCode(code) || code === 'STALE' || code === 'RUN_COMPENSATING')
     return undefined
   return code
 }
 
-type RejectedResult = Extract<CommandResult, { ok: false }>
+type RejectedResult = Omit<Extract<CommandResult, { ok: false }>, 'code'> & {
+  readonly code: ResultCode
+}
 
 /** The first `command.rejected` of a batch as a `{ ok: false }` result. */
 export function findRejected(batch: readonly DomainEvent[]): RejectedResult | undefined {
   for (const event of batch) {
     if (event.type !== 'command.rejected') continue
-    const step =
-      'step' in event.command && typeof event.command.step === 'string'
-        ? event.command.step
-        : event.command.type === 'child'
-          ? event.command.path[0]
-          : undefined
+    const step = commandStep(event.command)
     return {
       ok: false,
       code: isResultCode(event.code) ? event.code : 'INVALID_COMMAND',
-      message: event.reason,
+      message: rejectionMessage(event.reason, event.command),
       ...(step !== undefined ? { step } : {}),
     }
   }
@@ -82,19 +82,18 @@ export function findRejected(batch: readonly DomainEvent[]): RejectedResult | un
 }
 
 export function commandResult(processed: Processed): CommandResult {
-  if (processed.disposed) return { ok: false, code: 'DISPOSED', message: 'wizard disposed' }
+  if (processed.disposed) return DISPOSED_COMMAND
   return findRejected(processed.batch) ?? { ok: true, seq: processed.seq }
 }
 
 /** A `command.rejected` on a navigation command as a `NavResult` (`STALE` / compensating → `INVALID_COMMAND`). */
 export function rejectedNavResult(rejected: RejectedResult): NavResult {
+  if (rejected.code === 'STALE')
+    return { ok: false, reason: 'failed', code: 'STALE', message: rejected.message }
   return {
     ok: false,
     reason: reasonForCode(rejected.code),
-    code:
-      rejected.code === 'FLOW_COMPENSATING' || rejected.code === 'STALE'
-        ? 'INVALID_COMMAND'
-        : rejected.code,
+    code: rejected.code === 'RUN_COMPENSATING' ? 'INVALID_COMMAND' : rejected.code,
     message: rejected.message,
     ...(rejected.step !== undefined ? { step: rejected.step } : {}),
     ...(rejected.issues !== undefined ? { issues: rejected.issues } : {}),
@@ -125,9 +124,10 @@ const NAV_CODE: Readonly<Record<TransitionRejectReason, WizardErrorCode>> = {
   'guard-canEnter': 'GUARD_BLOCKED',
   'no-target': 'NO_TARGET',
   'no-history': 'NO_HISTORY',
-  'flow-terminal': 'FLOW_TERMINAL',
-  'flow-not-started': 'FLOW_NOT_STARTED',
-  'flow-compensating': 'INVALID_COMMAND',
+  'run-terminal': 'RUN_TERMINAL',
+  'run-halted': 'RUN_HALTED',
+  'run-not-started': 'RUN_NOT_STARTED',
+  'run-compensating': 'INVALID_COMMAND',
   resumed: 'INVALID_COMMAND',
   'auto-advance-loop': 'INVALID_COMMAND',
 }
@@ -141,9 +141,10 @@ const CODE_REASON: Readonly<Partial<Record<ResultCode, TransitionRejectReason>>>
   GUARD_BLOCKED: 'guard-canEnter',
   NO_TARGET: 'no-target',
   NO_HISTORY: 'no-history',
-  FLOW_TERMINAL: 'flow-terminal',
-  FLOW_NOT_STARTED: 'flow-not-started',
-  FLOW_COMPENSATING: 'flow-compensating',
+  RUN_TERMINAL: 'run-terminal',
+  RUN_HALTED: 'run-halted',
+  RUN_NOT_STARTED: 'run-not-started',
+  RUN_COMPENSATING: 'run-compensating',
   UNKNOWN_STEP: 'not-a-view',
 }
 
@@ -160,7 +161,7 @@ export function toNavResult(outcome: TxOutcome): NavResult {
         ok: false,
         reason: outcome.reason,
         code: NAV_CODE[outcome.reason],
-        message: `transition rejected: ${outcome.reason}`,
+        message: navMessage(outcome.reason, outcome.step, outcome.issues),
         ...(outcome.step !== undefined ? { step: outcome.step } : {}),
         ...(outcome.issues !== undefined ? { issues: outcome.issues } : {}),
       }
@@ -169,13 +170,16 @@ export function toNavResult(outcome: TxOutcome): NavResult {
         ok: false,
         reason: 'failed',
         // A recognized WizardError code on the hook error (SYNC_VIOLATION, UNKNOWN_STEP, ...) survives.
-        code: wizardCodeOf(outcome.error) ?? 'HOOK_FAILED',
+        code:
+          outcome.error.code === 'CANCELLED'
+            ? 'CANCELLED'
+            : (wizardCodeOf(outcome.error) ?? 'HOOK_FAILED'),
         message: outcome.error.message,
         ...(outcome.step.length > 0 ? { step: outcome.step } : {}),
         error: outcome.error,
       }
     case 'disposed':
-      return { ok: false, reason: 'failed', code: 'DISPOSED', message: 'wizard disposed' }
+      return DISPOSED_NAV
   }
 }
 
@@ -190,38 +194,65 @@ export function navToCommandResult(result: NavResult): CommandResult {
   }
 }
 
+const DISPOSED_MESSAGE = 'the run is disposed; create or resume a new run'
+
+export const DISPOSED_COMMAND: CommandResult = {
+  ok: false,
+  code: 'DISPOSED',
+  message: DISPOSED_MESSAGE,
+}
+
+export const DISPOSED_NAV: NavResult = {
+  ok: false,
+  reason: 'failed',
+  code: 'DISPOSED',
+  message: DISPOSED_MESSAGE,
+}
+
+/** `validate()` after `dispose()`: one issue explaining why nothing was checked. */
+export const DISPOSED_ISSUES: readonly Issue[] = [{ message: DISPOSED_MESSAGE }]
+
 export const DROPPED_DISPOSED: SendResult = {
   ok: false,
   reason: 'dropped',
   code: 'DISPOSED',
-  message: 'wizard disposed',
+  message: DISPOSED_MESSAGE,
 }
 
-/** The `SendResult` of a routed event: who handled it (steps, buffer, flow-level handler) or why not. */
-export function sendResult(event: string, processed: Processed): SendResult {
+/**
+ * The `SendResult` of a routed event: who handled it (steps, buffer, wizard-level handler), a
+ * duplicate delivery (the machine emits nothing for a remembered `eventId`), or why not.
+ */
+export function sendResult(
+  event: string,
+  processed: Processed,
+  eventId: string | undefined,
+): SendResult {
   if (processed.disposed) return DROPPED_DISPOSED
+  if (eventId !== undefined && processed.batch.length === 0)
+    return { ok: true, duplicate: true, delivered: [], buffered: false, seq: processed.seq }
   const rejected = findRejected(processed.batch)
   if (rejected !== undefined) {
     return { ok: false, reason: 'dropped', code: rejected.code, message: rejected.message }
   }
   const delivered: string[] = []
   let buffered = false
-  let flowHandled = false
+  let wizardHandled = false
   let dropped: string | undefined
   for (const ev of processed.batch) {
     if (ev.type === 'event.delivered' && ev.event === event) delivered.push(ev.to)
     else if (ev.type === 'event.buffered' && ev.event === event) buffered = true
-    else if (ev.type === 'event.flowDelivered' && ev.event === event) flowHandled = true
+    else if (ev.type === 'event.wizardDelivered' && ev.event === event) wizardHandled = true
     else if (ev.type === 'event.dropped' && ev.event === event) dropped = ev.reason
   }
-  // v0.2: a flow-level handler counts as handled (`delivered` lists step ids only).
-  if (delivered.length > 0 || buffered || flowHandled)
+  // A wizard-level handler counts as handled (`delivered` lists step ids only).
+  if (delivered.length > 0 || buffered || wizardHandled)
     return { ok: true, delivered, buffered, seq: processed.seq }
   return {
     ok: false,
     reason: 'dropped',
     code: 'NOT_ACTIVE',
-    message: dropped ?? 'event was not routed',
+    message: droppedMessage(event, dropped),
   }
 }
 

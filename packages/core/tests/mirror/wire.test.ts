@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { parseFrame, parseWireCommand } from '../../src/mirror/wire'
-import { checkout } from './fixture'
+import { checkoutFlow } from './fixture'
 
 describe('parseWireCommand', () => {
+  it('uses startStep and startReady and rejects their removed command names', () => {
+    for (const command of [{ type: 'startStep', step: 'reserve' }, { type: 'startReady' }]) {
+      const wire = { commandId: 'c', instanceId: 'w', command }
+      expect(parseWireCommand(checkoutFlow, wire)).toEqual({ ok: true, value: wire })
+    }
+    for (const command of [{ type: 'run', step: 'reserve' }, { type: 'runReady' }]) {
+      expect(parseWireCommand(checkoutFlow, { commandId: 'c', instanceId: 'w', command }).ok).toBe(
+        false,
+      )
+    }
+  })
   it('decodes a valid wire command (expectedSeq optional) and re-encodes the nested command through parseCommand', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: 'cmd-1',
       instanceId: 'wiz-1',
       expectedSeq: 3,
@@ -20,7 +31,7 @@ describe('parseWireCommand', () => {
       },
     })
     // `expectedSeq` is optional and absent (not `undefined`) when not sent.
-    const bare = parseWireCommand(checkout, {
+    const bare = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'next' },
@@ -34,14 +45,14 @@ describe('parseWireCommand', () => {
 
   it('rejects non-objects', () => {
     for (const bad of [null, undefined, 1, 'x', [], true]) {
-      const result = parseWireCommand(checkout, bad)
+      const result = parseWireCommand(checkoutFlow, bad)
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.issues[0]?.message).toMatch(/must be an object/)
     }
   })
 
   it('rejects unknown properties, empty ids and a bad expectedSeq (all issues reported)', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: '',
       instanceId: 1,
       expectedSeq: -1,
@@ -66,16 +77,16 @@ describe('parseWireCommand', () => {
       expectedSeq: 1.5,
       command: { type: 'next' },
     }
-    expect(parseWireCommand(checkout, fractional).ok).toBe(false)
+    expect(parseWireCommand(checkoutFlow, fractional).ok).toBe(false)
   })
 
   it('requires command and decodes it strictly (issues are prefixed with the command path)', () => {
-    const missing = parseWireCommand(checkout, { commandId: 'c', instanceId: 'w' })
+    const missing = parseWireCommand(checkoutFlow, { commandId: 'c', instanceId: 'w' })
     expect(missing).toMatchObject({ ok: false })
     if (!missing.ok)
       expect(missing.issues[0]).toEqual({ message: "'command' is required", path: ['command'] })
 
-    const bad = parseWireCommand(checkout, {
+    const bad = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'go', step: 'shipping', nope: 1 },
@@ -86,7 +97,7 @@ describe('parseWireCommand', () => {
       expect(bad.issues[0]?.message).toMatch(/unknown property 'nope'/)
     }
 
-    const internal = parseWireCommand(checkout, {
+    const internal = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'sendRejected', event: 'e', issues: [] },
@@ -96,7 +107,7 @@ describe('parseWireCommand', () => {
   })
 
   it('checks the nested command against the flow (unknown ids are issues, prefixed with the command path)', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'go', step: 'reserve' },
@@ -110,7 +121,7 @@ describe('parseWireCommand', () => {
   })
 
   it('rejects non-JSON payloads inside the nested command', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'setInput', step: 'shipping', patch: { fn: () => 1 } },
@@ -125,20 +136,20 @@ describe('parseWireCommand', () => {
       instanceId = 'w'
       command = { type: 'next' }
     }
-    expect(parseWireCommand(checkout, new Envelope()).ok).toBe(false)
+    expect(parseWireCommand(checkoutFlow, new Envelope()).ok).toBe(false)
     const inherited = Object.create({ commandId: 'c', instanceId: 'w', command: { type: 'next' } })
-    expect(parseWireCommand(checkout, inherited).ok).toBe(false)
+    expect(parseWireCommand(checkoutFlow, inherited).ok).toBe(false)
     // A null-prototype object (JSON-like) is fine.
     const bare = Object.assign(Object.create(null), {
       commandId: 'c',
       instanceId: 'w',
       command: { type: 'next' },
     })
-    expect(parseWireCommand(checkout, bare).ok).toBe(true)
+    expect(parseWireCommand(checkoutFlow, bare).ok).toBe(true)
   })
 
   it('caps ids at 64 KiB', () => {
-    const result = parseWireCommand(checkout, {
+    const result = parseWireCommand(checkoutFlow, {
       commandId: 'x'.repeat(65_537),
       instanceId: 'w',
       command: { type: 'next' },
@@ -155,7 +166,7 @@ describe('parseFrame', () => {
   it('accepts a well-formed frame and returns a fresh envelope', () => {
     const result = parseFrame(good)
     expect(result).toEqual({ ok: true, value: good })
-    if (result.ok) expect(result.value.state).toBe(state)
+    if (result.ok && result.value.kind === 'snapshot') expect(result.value.state).toBe(state)
   })
 
   it('rejects non-objects, unknown properties, a wrong kind and bad ids / counters', () => {
@@ -177,12 +188,34 @@ describe('parseFrame', () => {
     expect(result.issues.map((i) => i.message)).toEqual(
       expect.arrayContaining([
         "unknown property 'extra' on frame",
-        "'kind' must be 'snapshot'",
+        "'kind' must be 'snapshot' or 'progress'",
         "'instanceId' must be a non-empty string",
         "'epoch' must be a non-negative integer",
         "'seq' must be a non-negative integer",
       ]),
     )
+  })
+
+  it('a progress frame carries exactly one step.progress event', () => {
+    const event = { type: 'step.progress', step: 'send', value: 50, seq: 3, at: 1, path: [] }
+    const frame = { kind: 'progress', instanceId: 'wiz-1', epoch: 0, seq: 3, event }
+    expect(parseFrame(frame)).toEqual({ ok: true, value: frame })
+    const bad = parseFrame({
+      ...frame,
+      state,
+      event: { type: 'step.done', step: '', seq: 3, at: 'now', path: [1], extra: true },
+    })
+    expect(bad.ok).toBe(false)
+    if (bad.ok) return
+    expect(bad.issues.map((i) => i.path)).toEqual([
+      ['state'],
+      ['event', 'extra'],
+      ['event', 'type'],
+      ['event', 'step'],
+      ['event', 'at'],
+      ['event', 'path'],
+      ['event', 'value'],
+    ])
   })
 
   it('accepts any JSON state (a select projection may yield a primitive / array / null) but requires it; an object state whose own instanceId / epoch / seq differ from the envelope is rejected', () => {

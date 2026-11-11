@@ -1,0 +1,7 @@
+{
+  "server": "Run on a server",
+  "client": "Show a run to a client",
+  "http": "HTTP API and webhooks",
+  "tracing": "Tracing",
+  "index": "Production checklist"
+}

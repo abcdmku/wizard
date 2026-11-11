@@ -1,33 +1,14 @@
-# 05 — external events (webhooks through a boundary, inbox, TTL, timeout, correlation, flow-level `on`)
+# Example 05: receive events
 
-A checkout that waits for a payment provider's webhook. The flow declares its `events` as
-schemas; `wizard.send(event, unknownBody)` is the only door for them.
-
-What it shows
-
-- `events: { 'payment.captured': z.object(…) }` — `send()` parses the untrusted body first: a bad one is `event.rejected` + `{ ok: false, reason: 'rejected', issues }`; a good one is `event.received` → `event.delivered { to }` to every active `wait` step listening for it. Handlers see the parsed payload and `update()` the typed context; a handler may return `{ next }` to override the step's static `next`.
-- The early-webhook race: with `unmatchedEvents: { buffer: true, ttl: '10m' }` an event with no listener is buffered (`event.buffered { expiresAt }`, `state.inbox`) and delivered the moment a matching wait step enters — before its timeout is armed.
-- TTL expiry (`event.expired`) and the wait `timeout: { after: '30m', next: 'expired' }` (an absolute `deadline`; `timer.fired` routes to `timeout.next`), both driven by `createTestScheduler()`.
-- Correlation (v0.2): `defineFlow({ correlate: { 'payment.captured': (p) => p.orderId } })` + `createWizard(checkout, { correlationId: 'o-1' })` — a webhook whose extracted id differs is `event.dropped { reason: 'correlation' }` (never buffered, never delivered); payloads without an id are not filtered.
-- Flow-level `on` (v0.2): `defineFlow({ on: { 'order.cancelled': ({ payload }) => ({ cancel: payload.reason }) } })` runs for the event whatever step is active (after step-level handlers) — here it cancels the flow from the review view, where no wait step listens.
-- `dispatch({ type: 'send', … })` (the wire door, typed by the flow: an undeclared event name does not compile) runs the same boundary and answers a `CommandResult` (`BOUNDARY_REJECTED`); `send('typo', …)` from JS is a programmer error (`WizardError('UNKNOWN_EVENT')`).
-
-Run
+A checkout waits for payment events from another system.
 
 ```sh
-pnpm --filter example-05-external-events check
 pnpm --filter example-05-external-events start
+pnpm --filter example-05-external-events check
 ```
 
-Excerpt (`src/checkout.test.ts`)
+`src/checkout.ts` declares event schemas, a correlation rule, a buffer policy, and a wait step. `src/main.ts` creates a run with `checkout.create` and sends invalid data, another order's event, and an early event. Advancing the review view delivers the buffered event to the wait.
 
-```ts
-// nobody listens yet (the cursor is on the `review` view) → buffered
-expect(await wizard.send('payment.captured', goodBody)).toMatchObject({ ok: true, delivered: [], buffered: true })
-expect(wizard.getState().inbox).toHaveLength(1)
+The runtime checks every payload before a handler receives it. Each wait handler returns `{ done }` with a `status` field, so the wait's output is one union: a captured payment or a failed one. A wait that times out is skipped and has no output. `timeout.next` starts `expired` instead, and `expired` returns the third outcome. The last step, `result`, needs whichever of the two finished, written `{ any: [awaitPayment, expired] }`. It turns the outcome into the run's output with one `switch` over `status`, and the compiler checks that the `switch` covers every outcome.
 
-sched.advance(2 * MINUTE)
-await wizard.next() // the wait step enters and drains the inbox first
-expect(of('event.delivered')[0]).toMatchObject({ event: 'payment.captured', to: 'awaitPayment' })
-expect(wizard.getState().output).toBe('paid (pay_1)')
-```
+The tests also show wire-command validation, buffer expiry, late events, cancellation, and duplicate webhook deliveries with `eventId`.

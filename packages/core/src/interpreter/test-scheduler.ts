@@ -31,7 +31,7 @@ interface VirtualTimer {
 }
 
 /**
- * Deterministic scheduler + clock for tests: `createWizard(flow, { scheduler })` (it doubles as
+ * Deterministic scheduler + clock for tests: `wizard.create(input, { scheduler })` (it doubles as
  * the clock), then `advance(ms)` / `flush()` to fire retries, wait timeouts and inbox TTLs
  * without real waiting. Timers fire synchronously inside `advance`, so state is committed when
  * it returns (async hooks still need their promises to settle).

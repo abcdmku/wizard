@@ -10,7 +10,15 @@ import { join, relative } from 'node:path'
 import { collectExports, listPackages, ROOT } from './lib/exports.mjs'
 
 // `docs/design` holds the architecture plan + ADRs (design history, may cite superseded APIs).
-const IGNORE_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', '.changeset', 'design'])
+const IGNORE_DIRS = new Set([
+  'node_modules',
+  'dist',
+  '.git',
+  'coverage',
+  '.changeset',
+  'design',
+  'tmp',
+])
 
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir)) {
@@ -36,7 +44,7 @@ for (const pkg of listPackages()) {
 
 const importRe =
   /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"](@openwizard\/[a-z-]+(?:\/[a-z-]+)*)['"]/g
-// Info strings may carry attributes (```ts title="examples/…/flow.ts" — see check-readme-quickstart).
+// Info strings may carry attributes (```ts title="examples/…/checkout.ts" — see check-readme-quickstart).
 const fenceRe = /```[a-zA-Z]*[^\n]*\n([\s\S]*?)```/g
 
 let problems = 0

@@ -1,23 +1,33 @@
 /**
- * v0.2 §10.2 — `when` predicates and the `skip` command. Pure machine tests.
+ * `when` predicates and the `skip` command. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
 import { explain, phase, ready } from '../../src/machine/index'
-import { createHarness, decision, final, flow, of, replay, task, view } from '../helpers/fixtures'
+import {
+  createHarness,
+  flow,
+  needAll,
+  needOptional,
+  of,
+  replay,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const yes = () => true
 const on = () => undefined
 
 describe('when — evaluated at readiness', () => {
-  it('false skips the step: step.whenStarted → call when → step.whenEvaluated{ok:false} + step.skipped{when}; deps satisfied, next arrived (auto), cursor never lands on it', () => {
+  it('false skips the step: step.whenStarted → call when → step.whenEvaluated{ok:false} + step.skipped{when}; optional needs satisfied, next arrived (auto), cursor never lands on it', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
           a: view({ next: 'b' }),
           b: view({ when: yes, exit: on, next: 'c' }),
-          c: view({ dependsOn: ['b'], next: 'end' }),
-          end: final(),
+          c: view({ needs: needOptional('b'), next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
@@ -43,7 +53,7 @@ describe('when — evaluated at readiness', () => {
     expect(of(s, 'step.skipped')[0]).toMatchObject({ step: 'b', reason: 'when' })
     expect(of(s, 'transition.started')[0]).toMatchObject({ from: 'b', cause: 'auto' })
     expect(of(s, 'transition.started')[0]).not.toHaveProperty('to')
-    // b's exit hook never ran; c (dependsOn b) is satisfied and became current
+    // b's exit hook never ran; c (optional need on b) is satisfied and became current
     expect(h.pending('exit')).toHaveLength(0)
     expect(h.rec('b')).toMatchObject({ status: 'skipped', skipReason: 'when' })
     expect(h.rec('b').when).toBeUndefined()
@@ -57,7 +67,11 @@ describe('when — evaluated at readiness', () => {
     const h = createHarness(
       flow({
         start: 'a',
-        steps: { a: view({ next: 'b' }), b: view({ when: yes, next: 'end' }), end: final() },
+        steps: {
+          a: view({ next: 'b' }),
+          b: view({ when: yes, next: 'end' }),
+          end: routingStep(),
+        },
       }),
     )
     h.start()
@@ -89,22 +103,22 @@ describe('when — evaluated at readiness', () => {
     expect(replay(h)).toEqual(h.state)
   })
 
-  it('a task with when: false is skipped before it ever runs; its dependents proceed; the concurrency budget is untouched', () => {
+  it('a step with when: false is skipped before it ever runs; its dependents proceed; the concurrency budget is untouched', () => {
     let calls = 0
     const h = createHarness(
       flow({
         start: ['t1', 'opt'],
         steps: {
-          t1: task({ next: 'join' }),
-          opt: task({
+          t1: runStep({ next: 'join' }),
+          opt: runStep({
             when: () => {
               calls += 1
               return false
             },
             next: 'join',
           }),
-          join: task({ dependsOn: ['t1', 'opt'], next: 'end' }),
-          end: final(),
+          join: runStep({ needs: { ...needAll('t1'), ...needOptional('opt') }, next: 'end' }),
+          end: routingStep(),
         },
         policies: { concurrency: 1 },
       }),
@@ -119,28 +133,32 @@ describe('when — evaluated at readiness', () => {
     h.ok(h.call('run', 't1'), 1)
     expect(h.rec('join').status).toBe('active')
     h.ok(h.call('run', 'join'), 2)
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(calls).toBe(0) // the harness answers the call; the hook itself is data here
   })
 
   it('a throwing when predicate fails the step (kind hook) and the failure policy applies', () => {
     const h = createHarness(
-      flow({ start: 't', steps: { t: task({ when: yes, next: 'end' }), end: final() } }),
+      flow({
+        start: 't',
+        steps: { t: runStep({ when: yes, next: 'end' }), end: routingStep() },
+      }),
     )
     h.start()
     const r = h.err(h.call('when', 't'), 'predicate bug')
-    expect(r.types).toEqual(['step.failed', 'flow.failed'])
+    expect(r.types).toEqual(['step.failed', 'run.halted'])
     expect(h.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'hook' } })
   })
 
-  it('a skipped decision resolves its next hook (call next) to find where to go; a skipped step with next: none stops', () => {
+  it('a skipped routing step resolves its next hook; a skipped step with next: none stops', () => {
     const h = createHarness(
       flow({
         start: 'd',
         steps: {
-          d: decision({ when: yes, decide: () => 'x' }),
-          x: final(),
-          y: final(),
+          d: routingStep({ when: yes, decide: () => 'x', targets: ['x', 'y'] }),
+          x: routingStep(),
+          y: routingStep(),
         },
       }),
     )
@@ -156,13 +174,14 @@ describe('when — evaluated at readiness', () => {
     expect(next.token.txId).toBeDefined()
     h.ok(next, 'y')
     expect(h.rec('y').status).toBe('done')
-    expect(h.rec('x').status).toBe('idle')
+    expect(h.rec('x').status).toBe('skipped')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
 
     const stop = createHarness(
       flow({
         start: ['t', 'v'],
-        steps: { t: task({ when: yes }), v: view(), end: final({ dependsOn: ['t'] }) },
+        steps: { t: runStep({ when: yes }), v: view(), end: routingStep() },
       }),
     )
     stop.start()
@@ -179,8 +198,8 @@ describe('when — evaluated at readiness', () => {
           a: view({ next: ['b', 'c'] }),
           b: view({ when: yes, next: 'end' }),
           c: view({ next: 'end' }),
-          // fan-out branches join into the final (plan §8.3) — a skipped b counts as done
-          end: final({ dependsOn: ['b', 'c'] }),
+          // An optional need lets the join run after b is skipped.
+          end: routingStep({ needs: needOptional('b', 'c') }),
         },
       }),
     )
@@ -215,7 +234,7 @@ describe('when — evaluated at readiness', () => {
           a: view({ next: 'b' }),
           b: view({ when: yes, next: 'c' }),
           c: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -235,42 +254,46 @@ describe('when — evaluated at readiness', () => {
     expect(h.state.current).toBe('b')
   })
 
-  it('a late when result after done / cancel / compensation is stale (result.ignored, nothing skips or schedules); a terminal snapshot resumes without re-asking', () => {
-    // `opt` (pending, `when` in flight once `t` is done) outlives the flow's terminal transition.
+  it('pending predicates keep a run open; predicate results after skip / cancel / compensation are stale', () => {
     const make = (policies?: { onFailure: 'compensate' }) =>
       createHarness(
         flow({
           start: ['t', 'opt'],
           steps: {
-            t: task({ compensate: on, next: 'end' }),
-            opt: task({ when: yes, dependsOn: ['t'], next: 'end' }),
-            end: final({ dependsOn: ['t', 'opt'] }),
+            t: runStep({ compensate: on, next: 'end' }),
+            opt: runStep({ when: yes, needs: needAll('t'), next: 'end' }),
+            end: routingStep({ needs: { ...needAll('t'), ...needOptional('opt') } }),
           },
           ...(policies !== undefined ? { policies } : {}),
         }),
       )
-    // Done: `a` completes the flow while `opt`'s predicate is still in flight.
+    // A completed sink waits for opt's pending predicate. Skipping opt stales its token.
     const done = createHarness(
       flow({
         start: ['a', 'opt'],
         steps: {
-          a: task({ next: 'end' }),
-          opt: task({ when: yes, next: 'end' }),
-          end: final(),
+          a: runStep({ next: 'end' }),
+          opt: runStep({ when: yes, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
     done.start()
     const whenDone = done.call('when', 'opt')
     done.ok(done.call('run', 'a'), 1)
+    expect(done.step({ type: 'settle' }).types).toEqual([])
+    expect(done.state.status).toBe('waiting')
+    expect(done.rec('opt').when).toBe('pending')
+    done.cmd({ type: 'skip', step: 'opt' })
+    done.step({ type: 'settle' })
     expect(done.state.status).toBe('done')
-    expect(done.rec('opt').when).toBeUndefined() // token staled by flow.done
+    expect(done.rec('opt').when).toBeUndefined()
     expect(done.ok(whenDone, false).types).toEqual(['result.ignored'])
-    expect(done.rec('opt').status).toBe('idle')
+    expect(done.rec('opt').status).toBe('skipped')
     // Cancel.
     const cancelled = make()
     cancelled.start()
-    expect(cancelled.rec('opt').when).toBeUndefined() // not eligible yet (dependsOn t)
+    expect(cancelled.rec('opt').when).toBeUndefined() // not eligible yet (needs t)
     cancelled.ok(cancelled.call('run', 't'), 1) // opt eligible → when asked; end pending
     const whenCancelled = cancelled.call('when', 'opt')
     cancelled.cmd({ type: 'cancel', reason: 'stop' })
@@ -299,8 +322,8 @@ describe('when — evaluated at readiness', () => {
           a: view({ next: ['b', 'c'] }),
           b: view({ when: yes, next: 'end' }),
           c: view({ next: 'end' }),
-          t: task({ next: 'end' }),
-          end: final({ dependsOn: ['b', 'c', 't'] }),
+          t: runStep({ next: 'end' }),
+          end: routingStep({ needs: needAll('b', 'c', 't') }),
         },
       }),
     )
@@ -324,7 +347,7 @@ describe('when — evaluated at readiness', () => {
           a: view({ next: 'b' }),
           b: view({ when: yes, enter: on, next: 'c' }),
           c: view({ next: 'b' }),
-          t: task(),
+          t: runStep(),
         },
       }),
     )
@@ -359,12 +382,15 @@ describe('when — evaluated at readiness', () => {
 
   it('resume re-issues an in-flight when predicate', () => {
     const h = createHarness(
-      flow({ start: 't', steps: { t: task({ when: yes, next: 'end' }), end: final() } }),
+      flow({
+        start: 't',
+        steps: { t: runStep({ when: yes, next: 'end' }), end: routingStep() },
+      }),
     )
     h.start()
     expect(h.rec('t').when).toBe('pending')
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed'])
+    expect(r.types).toEqual(['run.resumed'])
     expect(r.effects.filter((e) => e.kind === 'call')).toMatchObject([{ hook: 'when', step: 't' }])
   })
 })

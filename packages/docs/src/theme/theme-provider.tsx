@@ -9,7 +9,7 @@ import {
 } from 'react'
 
 export type Theme = 'light' | 'dark' | 'system'
-export type ResolvedTheme = 'light' | 'dark'
+type ResolvedTheme = 'light' | 'dark'
 
 interface ThemeContextValue {
   /** The user's choice (`system` follows the OS). */

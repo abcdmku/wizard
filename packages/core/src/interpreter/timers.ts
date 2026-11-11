@@ -8,10 +8,16 @@
  */
 
 import type { Clock, Scheduler } from './env'
+import { isThenable } from './thenable'
 
 export interface TimerRegistry {
   /** Arm (or re-arm) `timerId` to fire at absolute time `at` (past → next tick). */
-  set(timerId: string, at: number, fire: () => void): void
+  set(
+    timerId: string,
+    at: number,
+    fire: () => void,
+    beforeFire?: () => boolean | Promise<boolean>,
+  ): void
   clear(timerId: string): void
   clearAll(): void
   has(timerId: string): boolean
@@ -33,14 +39,41 @@ export function createTimerRegistry(env: {
   }
 
   return {
-    set(timerId, at, fire) {
+    set(timerId, at, fire, beforeFire) {
       clear(timerId)
       const delay = Math.max(0, at - env.clock.now())
       const handle = env.scheduler.setTimeout(() => {
         // Only fire if this arm is still the current one for the id.
         if (handles.get(timerId) !== handle) return
-        handles.delete(timerId)
-        fire()
+        if (beforeFire === undefined) {
+          handles.delete(timerId)
+          fire()
+          return
+        }
+        let allowed: boolean | Promise<boolean>
+        try {
+          allowed = beforeFire()
+        } catch {
+          return
+        }
+        if (isThenable(allowed)) {
+          allowed.then(
+            (ok) => {
+              if (handles.get(timerId) !== handle) return
+              handles.delete(timerId)
+              if (ok) fire()
+            },
+            () => {
+              if (handles.get(timerId) === handle) handles.delete(timerId)
+            },
+          )
+        } else if (allowed) {
+          if (handles.get(timerId) !== handle) return
+          handles.delete(timerId)
+          fire()
+        } else {
+          handles.delete(timerId)
+        }
       }, delay)
       handles.set(timerId, handle)
     },

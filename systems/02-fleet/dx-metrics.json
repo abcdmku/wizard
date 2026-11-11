@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "system": "02-fleet",
+  "drill": "cold-chain",
+  "wizardLoc": 45,
+  "workaroundHelpers": 2,
+  "casts": 1,
+  "explicitGenerics": 1,
+  "typecheckMs": 11108,
+  "filesTouched": [
+    "packages/shared/src/operations.ts",
+    "apps/fleet-api/src/score-policy.ts",
+    "apps/fleet-api/src/delivery-flow.ts",
+    "apps/fleet-api/src/simulator.ts",
+    "apps/fleet-api/src/application.ts",
+    "apps/fleet-api/tests/delivery-flow.test.ts"
+  ]
+}

@@ -68,7 +68,7 @@
 .owd-log-row[data-child="true"] {
   color: var(--owd-subtle);
 }
-.owd-log-type[data-family="flow"] {
+.owd-log-type[data-family="run"] {
   color: var(--owd-accent-2);
 }
 .owd-log-type[data-family="step"] {

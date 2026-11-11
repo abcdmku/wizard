@@ -1,30 +1,31 @@
 /**
- * Structural checks of a persisted `WizardState` against its compiled flow (plan §8.8): step
+ * Structural checks of a persisted `WizardState` against its compiled wizard: step
  * set, statuses and their invariants, cursor / history, nav, saga, inbox, timers and the
  * envelope fields. Every problem is a human-readable reason; nothing here runs user code.
  *
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
-import type { NavPhase, SagaEntry, SagaEntryRef, StepStatus, TimerEntry } from '../machine/state'
-import { decodeCommand } from './parse-command'
+import type { CompiledWizard } from '../authoring/compiled'
+import type { NavPhase, RunStatus, SagaEntry, SagaEntryRef, StepStatus } from '../machine/state'
+import { describe, isNonNegativeInt, isRecord, isString, isStringArray } from './snapshot-checks'
+import { checkEach } from './snapshot-each'
 import {
-  describe,
-  isFiniteNumber,
-  isNonEmptyString,
-  isNonNegativeInt,
-  isRecord,
-  isString,
-  isStringArray,
-} from './snapshot-checks'
+  checkEventIds,
+  checkFailure,
+  checkIdentity,
+  checkInbox,
+  checkTerminal,
+  checkTimers,
+} from './snapshot-state-support'
 
 type Rec = Record<string, unknown>
 
-const WIZARD_STATUSES: ReadonlySet<string> = new Set<string>([
+const WIZARD_STATUSES: ReadonlySet<string> = new Set<RunStatus>([
   'idle',
   'running',
   'waiting',
+  'halted',
   'done',
   'failed',
   'compensating',
@@ -53,15 +54,8 @@ const NAV_PHASES: ReadonlySet<string> = new Set<NavPhase>([
   'entering',
 ])
 
-const TIMER_PURPOSES: ReadonlySet<string> = new Set<NonNullable<TimerEntry['purpose']>>([
-  'retry',
-  'waitTimeout',
-  'inboxTtl',
-  'compensationGrace',
-])
-
 /** Every check over `state` (an object); reasons are prefixed `state.…`. */
-export function checkState(def: CompiledFlow, state: Rec, reasons: string[]): void {
+export function checkState(def: CompiledWizard, state: Rec, reasons: string[]): void {
   if (!isString(state.status) || !WIZARD_STATUSES.has(state.status)) {
     reasons.push(`state.status: unknown status ${describe(state.status)}`)
   }
@@ -80,7 +74,10 @@ export function checkState(def: CompiledFlow, state: Rec, reasons: string[]): vo
   }
   if (!isRecord(state.saga)) reasons.push('state.saga: expected an object')
   else checkSaga(def, state.saga, reasons)
+  if (state.failure !== undefined) checkFailure(def, state.failure, 'state.failure', reasons)
+  if (state.terminal !== undefined) checkTerminal(def, state, state.terminal, reasons)
   checkInbox(def, state, reasons)
+  checkEventIds(state, reasons)
   checkTimers(def, state, reasons)
   checkIdentity(state, reasons)
 }
@@ -101,18 +98,23 @@ function checkActive(state: Rec, steps: Rec, reasons: string[]): ReadonlySet<str
   return active
 }
 
-/** Step-set equality with the definition. */
-function checkStepSet(def: CompiledFlow, steps: Rec, reasons: string[]): void {
-  const expected = new Set(def.order)
-  for (const id of def.order)
-    if (!Object.hasOwn(steps, id)) reasons.push(`state.steps: missing step '${id}'`)
-  for (const id of Object.keys(steps))
-    if (!expected.has(id)) reasons.push(`state.steps: unknown step '${id}'`)
+/**
+ * Every snapshot step must still exist. Steps the definition added since the snapshot was taken
+ * are fine: `prepareResume` gives them idle records.
+ */
+function checkStepSet(def: CompiledWizard, steps: Rec, reasons: string[]): void {
+  for (const id of Object.keys(steps)) {
+    if (Object.hasOwn(def.steps, id)) continue
+    reasons.push(
+      `state.steps: step '${id}' is no longer defined; if it was renamed, bump the wizard's version ` +
+        `and resume with { migrate: (snapshot) => renameSteps(snapshot, { '${id}': '<new id>' }) }`,
+    )
+  }
 }
 
 /** Every record's shape and its status ↔ `state.active` link. */
 function checkStepRecords(
-  def: CompiledFlow,
+  def: CompiledWizard,
   steps: Rec,
   active: ReadonlySet<string>,
   reasons: string[],
@@ -148,13 +150,24 @@ function checkStepRecords(
     if (!isRecord(rec.guards)) reasons.push(`${at}.guards: expected an object`)
     if (rec.when !== undefined && rec.when !== 'pending' && rec.when !== 'passed')
       reasons.push(`${at}.when: expected 'pending' | 'passed', got ${describe(rec.when)}`)
+    if (
+      rec.waitDone !== undefined &&
+      (rec.waitDone !== true || stepDef.hooks.waitFor === undefined)
+    )
+      reasons.push(`${at}.waitDone: expected true on a step with waitFor`)
+    if (rec.completedSeq !== undefined && !isNonNegativeInt(rec.completedSeq))
+      reasons.push(`${at}.completedSeq: expected a non-negative integer`)
+    if (rec.each !== undefined) {
+      if (stepDef.each === undefined) reasons.push(`${at}.each: step does not map over items`)
+      else checkEach(rec.each, `${at}.each`, reasons)
+    }
     if (rec.skipReason !== undefined && !isString(rec.skipReason))
       reasons.push(`${at}.skipReason: expected a string`)
   }
 }
 
 /** `state.current` is an active view (or null); `state.history` lists views only. */
-function checkCursor(def: CompiledFlow, state: Rec, steps: Rec, reasons: string[]): void {
+function checkCursor(def: CompiledWizard, state: Rec, steps: Rec, reasons: string[]): void {
   if (state.current !== null) {
     if (!isString(state.current)) reasons.push('state.current: expected a step id or null')
     else {
@@ -182,11 +195,11 @@ function checkCursor(def: CompiledFlow, state: Rec, steps: Rec, reasons: string[
 }
 
 /**
- * Derived-status invariants (§8.8 "status invariants"): the stored status must be consistent
+ * Derived-status invariants: the stored status must be consistent
  * with the active set the way `deriveStatus` would compute it.
  */
 function checkStatusInvariants(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: Rec,
   active: ReadonlySet<string>,
   reasons: string[],
@@ -206,18 +219,42 @@ function checkStatusInvariants(
       break
     case 'running':
       if (
-        !activeIds.some((id) =>
-          ['task', 'decision', 'final', 'flow'].includes(def.steps[id]?.kind ?? ''),
-        )
+        !activeIds.some((id) => {
+          const step = def.steps[id]
+          return (
+            step?.kind === 'child' ||
+            (step?.kind === 'step' &&
+              (step.hooks.waitFor === undefined ||
+                (isRecord(state.steps) &&
+                  isRecord(state.steps[id]) &&
+                  state.steps[id].waitDone === true)))
+          )
+        })
       )
-        reasons.push('state.status: running without an active task/decision/flow/final step')
+        reasons.push(
+          'state.status: running without an active runnable, routing, completing, or child step',
+        )
+      break
+    case 'halted':
+      if (!isHalt(state.steps, activeIds))
+        reasons.push('state.status: halted without a failed step or a halted child run')
       break
     default:
       break
   }
 }
 
-function checkNav(def: CompiledFlow, state: Rec, reasons: string[]): void {
+/** A halt needs a failed step record or an active child step whose child is halted. */
+function isHalt(steps: unknown, active: readonly string[]): boolean {
+  if (!isRecord(steps)) return false
+  if (Object.values(steps).some((rec) => isRecord(rec) && rec.status === 'failed')) return true
+  return active.some((id) => {
+    const rec = steps[id]
+    return isRecord(rec) && isRecord(rec.child) && rec.child.status === 'halted'
+  })
+}
+
+function checkNav(def: CompiledWizard, state: Rec, reasons: string[]): void {
   if (!isRecord(state.nav)) {
     reasons.push('state.nav: expected an object')
     return
@@ -234,7 +271,7 @@ function checkNav(def: CompiledFlow, state: Rec, reasons: string[]): void {
 }
 
 /** `SagaState`: `stack: SagaEntry[]`, `compensated`/`failures: SagaEntryRef[]`, optional bookkeeping. */
-function checkSaga(def: CompiledFlow, saga: Rec, reasons: string[]): void {
+function checkSaga(def: CompiledWizard, saga: Rec, reasons: string[]): void {
   const isRef = (value: unknown): value is SagaEntryRef =>
     isRecord(value) &&
     isString(value.step) &&
@@ -277,72 +314,4 @@ function checkSaga(def: CompiledFlow, saga: Rec, reasons: string[]): void {
   if (saga.reason !== undefined && !isString(saga.reason)) {
     reasons.push('state.saga.reason: expected a string')
   }
-}
-
-function checkInbox(def: CompiledFlow, state: Rec, reasons: string[]): void {
-  if (!Array.isArray(state.inbox)) {
-    reasons.push('state.inbox: expected an array')
-    return
-  }
-  state.inbox.forEach((entry, i) => {
-    const at = `state.inbox[${i}]`
-    if (!isRecord(entry)) {
-      reasons.push(`${at}: expected an object`)
-      return
-    }
-    if (!isNonEmptyString(entry.id)) reasons.push(`${at}.id: expected a string`)
-    if (!isString(entry.event)) reasons.push(`${at}.event: expected a string`)
-    else if (def.events[entry.event] === undefined) {
-      reasons.push(`${at}.event: unknown event '${entry.event}'`)
-    }
-    if (!isFiniteNumber(entry.at)) reasons.push(`${at}.at: expected a number`)
-    if (!isFiniteNumber(entry.expiresAt)) reasons.push(`${at}.expiresAt: expected a number`)
-  })
-}
-
-function checkTimers(def: CompiledFlow, state: Rec, reasons: string[]): void {
-  if (!isRecord(state.timers)) {
-    reasons.push('state.timers: expected an object')
-    return
-  }
-  for (const [id, timer] of Object.entries(state.timers)) {
-    const at = `state.timers.${id}`
-    if (!isRecord(timer) || !isFiniteNumber(timer.at)) {
-      reasons.push(`${at}: expected { at, fire }`)
-      continue
-    }
-    if (!isValidTimerFire(timer.fire, id)) {
-      reasons.push(`${at}.fire: expected { type: 'timer.fired', timerId } or a valid command`)
-    }
-    if (timer.purpose !== undefined && !TIMER_PURPOSES.has(String(timer.purpose))) {
-      reasons.push(`${at}.purpose: unknown purpose ${describe(timer.purpose)}`)
-    }
-    if (
-      timer.step !== undefined &&
-      (!isString(timer.step) || def.steps[timer.step] === undefined)
-    ) {
-      reasons.push(`${at}.step: unknown step ${describe(timer.step)}`)
-    }
-  }
-}
-
-/** `TimerEntry.fire` is either the internal `timer.fired` message for this id or a wire-valid command. */
-function isValidTimerFire(fire: unknown, timerId: string): boolean {
-  if (!isRecord(fire)) return false
-  if (fire.type === 'timer.fired') {
-    return fire.timerId === timerId && Object.keys(fire).length === 2
-  }
-  return decodeCommand(fire).ok
-}
-
-/** `seq` / `instanceId` / `epoch` / `flow` / `startedAt` / `updatedAt` of the state itself. */
-function checkIdentity(state: Rec, reasons: string[]): void {
-  if (!isNonNegativeInt(state.seq)) reasons.push('state.seq: expected a non-negative integer')
-  if (!isNonEmptyString(state.instanceId)) reasons.push('state.instanceId: expected a string')
-  if (!isNonNegativeInt(state.epoch)) reasons.push('state.epoch: expected a non-negative integer')
-  if (!isRecord(state.flow)) reasons.push('state.flow: expected { name, version }')
-  if (state.startedAt !== null && !isFiniteNumber(state.startedAt)) {
-    reasons.push('state.startedAt: expected a number or null')
-  }
-  if (!isFiniteNumber(state.updatedAt)) reasons.push('state.updatedAt: expected a number')
 }

@@ -1,4 +1,5 @@
-import { createWizard, isWizardError, type WizardEvent } from '@openwizard/core'
+import { parseCommand, type RunEvent } from '@openwizard/core'
+import { inspect } from '@openwizard/core/inspect'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { checkout } from './checkout'
@@ -7,18 +8,22 @@ const MINUTE = 60_000
 const T0 = 1_000_000
 
 function make() {
-  const sched = createTestScheduler({ now: T0 })
+  const scheduler = createTestScheduler({ now: T0 })
   // `correlationId` = the order id: correlated events for another order are dropped.
-  const wizard = createWizard(checkout, {
-    context: { orderId: 'o-1' },
-    correlationId: 'o-1',
-    scheduler: sched,
-  })
-  const events: WizardEvent<typeof checkout>[] = []
-  wizard.observe((e) => events.push(e))
-  const of = <T extends WizardEvent['type']>(type: T) =>
-    events.filter((e): e is Extract<WizardEvent<typeof checkout>, { type: T }> => e.type === type)
-  return { wizard, sched, events, of }
+  const run = checkout.create(
+    { orderId: 'o-1' },
+    {
+      correlationId: 'o-1',
+      scheduler: scheduler,
+    },
+  )
+  const events: RunEvent<typeof checkout>[] = []
+  run.observe((event) => events.push(event))
+  const eventsOfType = <T extends RunEvent['type']>(type: T) =>
+    events.filter(
+      (event): event is Extract<RunEvent<typeof checkout>, { type: T }> => event.type === type,
+    )
+  return { run, scheduler, events, eventsOfType }
 }
 
 // What a webhook endpoint receives: `unknown` bodies.
@@ -27,161 +32,210 @@ const badBody: unknown = { paymentId: 42, amount: -1 }
 
 describe('05 external events: send() through the event boundary, inbox, TTL, timeout', () => {
   it('rejects a bad payload as a value and delivers a good one to the active wait step', async () => {
-    const { wizard, of } = make()
-    await wizard.start()
-    expect(await wizard.next()).toMatchObject({ ok: true, from: 'review', to: 'awaitPayment' })
-    expect(wizard.getState().status).toBe('waiting')
+    const { run, eventsOfType } = make()
+    await run.start()
+    expect(await run.next()).toMatchObject({ ok: true, from: 'review', to: 'awaitPayment' })
+    expect(run.getState().status).toBe('waiting')
 
     // The boundary rejects the payload: `event.rejected` + a result with the schema's issues.
-    const rejected = await wizard.send('payment.captured', badBody)
+    const rejected = await run.send('payment.captured', badBody)
     expect(rejected).toMatchObject({ ok: false, reason: 'rejected' })
     if (rejected.ok || rejected.reason !== 'rejected') throw new Error('unreachable')
-    expect(rejected.issues.map((i) => i.path)).toEqual([['paymentId'], ['amount']])
-    expect(of('event.rejected')[0]).toMatchObject({ event: 'payment.captured' })
-    expect(wizard.getState().steps.awaitPayment.status).toBe('active') // nothing changed
-    expect(wizard.getState().context.paymentId).toBeUndefined()
+    expect(rejected.issues.map((issue) => issue.path)).toEqual([['paymentId'], ['amount']])
+    expect(eventsOfType('event.rejected')[0]).toMatchObject({ event: 'payment.captured' })
+    expect(run.getState().steps.awaitPayment.status).toBe('active') // nothing changed
+    expect(run.getState().steps.awaitPayment.output).toBeUndefined()
 
     // A good one is delivered to the listening wait step; the handler ran; the step completed.
-    const delivered = await wizard.send('payment.captured', goodBody, { correlationId: 'wh-77' })
+    const delivered = await run.send('payment.captured', goodBody, { correlationId: 'wh-77' })
     expect(delivered).toMatchObject({ ok: true, delivered: ['awaitPayment'], buffered: false })
-    expect(of('event.received')[0]).toMatchObject({
+    expect(eventsOfType('event.received')[0]).toMatchObject({
       event: 'payment.captured',
       correlationId: 'wh-77',
       payload: { paymentId: 'pay_1', amount: 42, orderId: 'o-1' },
     })
-    expect(of('event.delivered')[0]).toMatchObject({
+    expect(eventsOfType('event.delivered')[0]).toMatchObject({
       event: 'payment.captured',
       to: 'awaitPayment',
     })
-    expect(wizard.getState().context.paymentId).toBe('pay_1')
-    expect(wizard.getState().steps.awaitPayment).toMatchObject({
-      status: 'done',
-      output: {
-        event: 'payment.captured',
-        payload: { paymentId: 'pay_1', amount: 42, orderId: 'o-1' },
-      },
+    expect(run.getState().steps.result).toMatchObject({ status: 'done', output: 'paid (pay_1)' })
+    // The handler chose the output: the payment, not the raw payload.
+    expect(run.getState().steps.awaitPayment).toMatchObject({ status: 'done' })
+    expect(run.getState().steps.awaitPayment.output).toEqual({
+      status: 'captured',
+      paymentId: 'pay_1',
     })
-    expect(wizard.getState().status).toBe('done')
-    expect(wizard.getState().output).toBe('paid (pay_1)')
-    expect(wizard.getState().timers).toEqual({}) // the 30-minute timeout was cleared
+    expect(run.getState().steps.expired.status).toBe('idle') // the timeout path never started
+    expect(run.getState().status).toBe('done')
+    expect(run.getState().output).toBe('paid (pay_1)')
+    expect(run.getState().timers).toEqual({}) // the 30-minute timeout was cleared
 
     // Terminal: a late webhook is dropped (a value), never thrown.
-    expect(await wizard.send('payment.captured', goodBody)).toMatchObject({
+    expect(await run.send('payment.captured', goodBody)).toMatchObject({
       ok: false,
       reason: 'dropped',
     })
-    wizard.dispose()
+    run.dispose()
   })
 
-  it('buffers an EARLY event in the inbox and delivers it when the wait step enters', async () => {
-    const { wizard, sched, of } = make()
-    await wizard.start()
-    expect(wizard.getState().current).toBe('review') // nobody listens yet
+  it('buffers an early event and delivers it when the wait step starts', async () => {
+    const { run, scheduler, eventsOfType } = make()
+    await run.start()
+    expect(run.getState().current).toBe('review') // nobody listens yet
 
-    const early = await wizard.send('payment.captured', goodBody)
+    const early = await run.send('payment.captured', goodBody)
     expect(early).toMatchObject({ ok: true, delivered: [], buffered: true })
-    expect(of('event.buffered')[0]).toMatchObject({
+    expect(eventsOfType('event.buffered')[0]).toMatchObject({
       event: 'payment.captured',
       expiresAt: T0 + 10 * MINUTE,
     })
-    expect(wizard.getState().inbox).toHaveLength(1)
-    expect(sched.pending()).toBe(1) // one TTL timer per buffered entry
-    expect(wizard.getState().context.paymentId).toBeUndefined()
+    expect(run.getState().inbox).toHaveLength(1)
+    expect(scheduler.pending()).toBe(1) // one TTL timer per buffered entry
+    expect(run.getState().steps.awaitPayment.output).toBeUndefined()
 
     // The user finishes the review 2 minutes later: the wait enters and drains the inbox first.
-    sched.advance(2 * MINUTE)
-    expect(await wizard.next()).toMatchObject({ ok: true, to: 'awaitPayment' })
-    expect(of('event.delivered')[0]).toMatchObject({
+    scheduler.advance(2 * MINUTE)
+    expect(await run.next()).toMatchObject({ ok: true, to: 'awaitPayment' })
+    expect(eventsOfType('event.delivered')[0]).toMatchObject({
       event: 'payment.captured',
       to: 'awaitPayment',
     })
-    expect(wizard.getState().inbox).toEqual([])
-    expect(wizard.getState().steps.awaitPayment.status).toBe('done')
-    expect(wizard.getState().status).toBe('done')
-    expect(wizard.getState().output).toBe('paid (pay_1)')
-    expect(sched.pending()).toBe(0) // TTL timer cleared with the entry, timeout never armed
-    wizard.dispose()
+    expect(run.getState().inbox).toEqual([])
+    expect(run.getState().steps.awaitPayment.status).toBe('done')
+    expect(run.getState().status).toBe('done')
+    expect(run.getState().output).toBe('paid (pay_1)')
+    expect(scheduler.pending()).toBe(0) // TTL timer cleared with the entry, timeout never armed
+    run.dispose()
   })
 
-  it('expires a buffered event after its TTL; an idle wait then times out', async () => {
-    const { wizard, sched, of } = make()
-    await wizard.start()
-    await wizard.send('payment.captured', goodBody)
-    sched.advance(10 * MINUTE)
-    expect(of('event.expired')[0]).toMatchObject({ event: 'payment.captured' })
-    expect(wizard.getState().inbox).toEqual([])
+  it('dedupes a webhook id while buffered and after its payment completes the run', async () => {
+    const { run, eventsOfType } = make()
+    await run.start()
+    expect(await run.send('payment.captured', goodBody, { eventId: 'wh-77' })).toMatchObject({
+      ok: true,
+      buffered: true,
+    })
+    expect(await run.send('payment.captured', goodBody, { eventId: 'wh-77' })).toMatchObject({
+      ok: true,
+      duplicate: true,
+      delivered: [],
+      buffered: false,
+    })
+    expect(run.getState().inbox).toHaveLength(1)
 
-    await wizard.next() // the wait enters with an empty inbox → the 30-minute timeout is armed
-    expect(wizard.getState().steps.awaitPayment).toMatchObject({
+    await run.next()
+    expect(run.getState().output).toBe('paid (pay_1)')
+    expect(await run.send('payment.captured', goodBody, { eventId: 'wh-77' })).toMatchObject({
+      ok: true,
+      duplicate: true,
+      delivered: [],
+    })
+    expect(eventsOfType('event.received')).toHaveLength(1)
+    expect(eventsOfType('event.delivered')).toHaveLength(1)
+    run.dispose()
+  })
+
+  it('expires a buffered event after its TTL, then times out the idle wait step', async () => {
+    const { run, scheduler, eventsOfType } = make()
+    await run.start()
+    await run.send('payment.captured', goodBody)
+    scheduler.advance(10 * MINUTE)
+    expect(eventsOfType('event.expired')[0]).toMatchObject({ event: 'payment.captured' })
+    expect(run.getState().inbox).toEqual([])
+
+    await run.next() // the wait enters with an empty inbox → the 30-minute timeout is armed
+    expect(run.getState().steps.awaitPayment).toMatchObject({
       status: 'active',
       deadline: T0 + 40 * MINUTE,
     })
-    sched.advance(30 * MINUTE - 1)
-    expect(wizard.getState().status).toBe('waiting')
-    sched.advance(1)
-    expect(of('timer.fired').at(-1)).toMatchObject({ timerId: 'wait:awaitPayment' })
-    expect(wizard.getState().steps.awaitPayment.output).toEqual({ event: 'timeout' })
-    expect(wizard.getState().output).toBe('expired: no payment within 30 minutes')
-    wizard.dispose()
+    scheduler.advance(30 * MINUTE - 1)
+    expect(run.getState().status).toBe('waiting')
+    scheduler.advance(1)
+    expect(eventsOfType('timer.fired').at(-1)).toMatchObject({ timerId: 'wait:awaitPayment' })
+    // A wait that times out is skipped and has no output. `expired` supplies the outcome.
+    expect(run.getState().steps.awaitPayment).toMatchObject({
+      status: 'skipped',
+      skipReason: 'timeout',
+    })
+    expect(run.getState().steps.awaitPayment.output).toBeUndefined()
+    expect(run.getState().steps.expired).toMatchObject({
+      status: 'done',
+      output: { status: 'expired' },
+    })
+    expect(run.getState().output).toBe('expired: no payment within 30 minutes')
+    run.dispose()
   })
 
-  it('a handler may override the target; unknown event names are programmer errors; dispatch() is the wire door', async () => {
-    const { wizard } = make()
-    await wizard.start()
-    await wizard.next()
+  it('reports a failed payment as declined and rejects unknown wire events', async () => {
+    const { run } = make()
+    await run.start()
+    await run.next()
     // The wire door runs the same boundary and answers with a CommandResult.
     expect(
-      await wizard.dispatch({ type: 'send', event: 'payment.captured', payload: badBody }),
+      await run.dispatch({ type: 'send', event: 'payment.captured', payload: badBody }),
     ).toMatchObject({ ok: false, code: 'BOUNDARY_REJECTED' })
-    // Undeclared event → WizardError('UNKNOWN_EVENT') (the types already prevent this).
-    await expect(wizard.send('payment.refunded' as never, {})).rejects.toSatisfy(
-      (e: unknown) => isWizardError(e) && e.code === 'UNKNOWN_EVENT',
-    )
-    expect(await wizard.send('payment.failed', { reason: 'insufficient funds' })).toMatchObject({
+    // Typed send calls reject unknown names at compile time. Decode unknown wire data first.
+    expect(
+      parseCommand(checkout, {
+        type: 'send',
+        event: 'payment.refunded',
+        payload: {},
+      }),
+    ).toMatchObject({ ok: false, issues: [{ path: ['event'] }] })
+    expect(await run.send('payment.failed', { reason: 'insufficient funds' })).toMatchObject({
       ok: true,
       delivered: ['awaitPayment'],
     })
-    expect(wizard.getState().steps.awaitPayment.status).toBe('done')
-    expect(wizard.getState().steps.declined.status).toBe('done')
-    expect(wizard.getState().output).toBe('declined: insufficient funds')
-    wizard.dispose()
+    expect(run.getState().steps.awaitPayment.status).toBe('done')
+    expect(run.getState().steps.awaitPayment.output).toEqual({
+      status: 'failed',
+      reason: 'insufficient funds',
+    })
+    expect(run.getState().steps.result.status).toBe('done')
+    expect(run.getState().steps.expired.status).toBe('idle')
+    expect(run.getState().output).toBe('declined: insufficient funds')
+    run.dispose()
   })
 
-  it('correlation: a webhook for ANOTHER order is dropped, never buffered or delivered', async () => {
-    const { wizard, of } = make()
-    await wizard.start()
-    await wizard.next() // the wait step listens
-    // Same event name, valid body, but correlate('payment.captured') → 'o-2' ≠ this wizard's 'o-1'.
-    const foreign = await wizard.send('payment.captured', {
+  it('has one result step, so the definition has no warnings', () => {
+    expect(inspect(checkout).warnings).toEqual([])
+  })
+
+  it('drops an event whose correlation id belongs to another order', async () => {
+    const { run, eventsOfType } = make()
+    await run.start()
+    await run.next() // the wait step listens
+    // Same event name, valid body, but correlate('payment.captured') → 'o-2' ≠ this run's 'o-1'.
+    const foreign = await run.send('payment.captured', {
       paymentId: 'pay_9',
       amount: 1,
       orderId: 'o-2',
     })
     expect(foreign).toMatchObject({ ok: false, reason: 'dropped' })
-    expect(of('event.dropped').at(-1)).toMatchObject({
+    expect(eventsOfType('event.dropped').at(-1)).toMatchObject({
       event: 'payment.captured',
       reason: 'correlation',
     })
-    expect(wizard.getState().steps.awaitPayment.status).toBe('active')
-    expect(wizard.getState().inbox).toEqual([])
+    expect(run.getState().steps.awaitPayment.status).toBe('active')
+    expect(run.getState().inbox).toEqual([])
     // Ours goes through.
-    expect(await wizard.send('payment.captured', goodBody)).toMatchObject({ ok: true })
-    expect(wizard.getState().status).toBe('done')
-    wizard.dispose()
+    expect(await run.send('payment.captured', goodBody)).toMatchObject({ ok: true })
+    expect(run.getState().status).toBe('done')
+    run.dispose()
   })
 
-  it('flow-level on: an order.cancelled webhook cancels the flow from any step', async () => {
-    const { wizard, of } = make()
-    await wizard.start() // the cursor is on the review view — no wait step listens
-    expect(
-      await wizard.send('order.cancelled', { orderId: 'o-1', reason: 'customer' }),
-    ).toMatchObject({
-      ok: true,
-    })
-    expect(of('flow.cancelled').length).toBe(1)
-    expect(wizard.getState().status).toBe('cancelled')
-    // Later webhooks bounce off a terminal flow (a value, not a throw).
-    expect(await wizard.send('payment.captured', goodBody)).toMatchObject({ ok: false })
-    wizard.dispose()
+  it('lets a wizard-level order.cancelled handler cancel from any step', async () => {
+    const { run, eventsOfType } = make()
+    await run.start() // the cursor is on the review view, no wait step listens
+    expect(await run.send('order.cancelled', { orderId: 'o-1', reason: 'customer' })).toMatchObject(
+      {
+        ok: true,
+      },
+    )
+    expect(eventsOfType('run.cancelled').length).toBe(1)
+    expect(run.getState().status).toBe('cancelled')
+    // Later webhooks bounce off a terminal run (a value, not a throw).
+    expect(await run.send('payment.captured', goodBody)).toMatchObject({ ok: false })
+    run.dispose()
   })
 })

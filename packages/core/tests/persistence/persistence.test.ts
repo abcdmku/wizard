@@ -14,7 +14,7 @@ const twoViews = flow({
   steps: {
     a: { kind: 'view', next: { kind: 'static', targets: ['b'] } },
     b: { kind: 'view', next: { kind: 'static', targets: ['end'] } },
-    end: { kind: 'final' },
+    end: { kind: 'step' },
   },
 })
 
@@ -44,7 +44,7 @@ function recordingStore(
 
 function make(opts: Partial<WizardRuntimeOptions> & { store: Store }) {
   const sched = createTestScheduler({ now: 100 })
-  const wizard = createWizardRuntime(twoViews, {
+  const run = createWizardRuntime(twoViews, {
     context: { secret: 'hunter2', tenant: 't' },
     machine: createToyMachine(),
     initialState,
@@ -53,7 +53,7 @@ function make(opts: Partial<WizardRuntimeOptions> & { store: Store }) {
     instanceId: 'w1',
     ...opts,
   })
-  return { wizard, sched }
+  return { run, sched }
 }
 
 describe('createMemoryStore', () => {
@@ -72,28 +72,28 @@ describe('createMemoryStore', () => {
   })
 })
 
-describe('persistence via the wizard runtime', () => {
+describe('persistence via the run runtime', () => {
   it("autoSave 'change' writes one snapshot per drain that changed state (debounce 0)", async () => {
     const store = recordingStore()
-    const { wizard } = make({ store, key: 'k' })
-    await wizard.start()
-    await wizard.next()
+    const { run } = make({ store, key: 'k' })
+    await run.start()
+    await run.next()
     await settle()
     expect(store.writes).toHaveLength(2)
     expect((store.writes[1] as Snapshot).state.current).toBe('b')
-    expect(((await store.get('k')) as Snapshot).seq).toBe(wizard.getState().seq)
+    expect(((await store.get('k')) as Snapshot).seq).toBe(run.getState().seq)
     // A no-op command changes nothing → no write.
-    await wizard.runReady()
+    await run.startReady()
     await settle()
     expect(store.writes).toHaveLength(2)
   })
 
   it('debounceMs coalesces bursts into a single write with the latest state', async () => {
     const store = recordingStore()
-    const { wizard, sched } = make({ store, key: 'k', debounceMs: 100 })
-    await wizard.start()
-    await wizard.setInput('a', { x: 1 })
-    await wizard.setInput('a', { x: 2 })
+    const { run, sched } = make({ store, key: 'k', debounceMs: 100 })
+    await run.start()
+    await run.setInput('a', { x: 1 })
+    await run.setInput('a', { x: 2 })
     await settle()
     expect(store.writes).toHaveLength(0)
     sched.advance(99)
@@ -107,10 +107,10 @@ describe('persistence via the wizard runtime', () => {
 
   it('save() flushes a pending debounced write immediately and resolves after the store acknowledged', async () => {
     const store = recordingStore()
-    const { wizard, sched } = make({ store, key: 'k', debounceMs: 5_000 })
-    await wizard.start()
+    const { run, sched } = make({ store, key: 'k', debounceMs: 5_000 })
+    await run.start()
     expect(store.writes).toHaveLength(0)
-    await wizard.save()
+    await run.save()
     expect(store.writes).toHaveLength(1)
     sched.advance(10_000)
     await settle()
@@ -119,17 +119,17 @@ describe('persistence via the wizard runtime', () => {
 
   it("autoSave 'off' only writes on save(); key defaults to the instance id", async () => {
     const store = recordingStore()
-    const { wizard } = make({ store, autoSave: 'off' })
-    await wizard.start()
+    const { run } = make({ store, autoSave: 'off' })
+    await run.start()
     await settle()
     expect(store.writes).toHaveLength(0)
-    await wizard.save()
+    await run.save()
     expect(await store.get('w1')).toMatchObject({ instanceId: 'w1', seq: 3 })
   })
 
   it('redact() runs on the snapshot before it reaches the store', async () => {
     const store = recordingStore()
-    const { wizard } = make({
+    const { run } = make({
       store,
       key: 'k',
       redact: (s) => ({
@@ -137,24 +137,24 @@ describe('persistence via the wizard runtime', () => {
         state: { ...s.state, context: { ...(s.state.context as object), secret: '[redacted]' } },
       }),
     })
-    await wizard.start()
+    await run.start()
     await settle()
     expect((store.writes[0] as Snapshot).state.context).toEqual({
       secret: '[redacted]',
       tenant: 't',
     })
     // The live snapshot is untouched.
-    expect(wizard.getSnapshot().state.context).toEqual({ secret: 'hunter2', tenant: 't' })
+    expect(run.getSnapshot().state.context).toEqual({ secret: 'hunter2', tenant: 't' })
   })
 
   it('clearOnDone deletes the key once the flow is done', async () => {
     const store = recordingStore()
-    const { wizard } = make({ store, key: 'k', clearOnDone: true })
-    await wizard.start()
-    await wizard.next()
+    const { run } = make({ store, key: 'k', clearOnDone: true })
+    await run.start()
+    await run.next()
     await settle()
     expect(store.writes).toHaveLength(2)
-    await wizard.next() // b → end → done
+    await run.next() // b → end → done
     await settle()
     expect(store.deletes).toEqual(['k'])
     expect(await store.get('k')).toBeNull()
@@ -163,32 +163,32 @@ describe('persistence via the wizard runtime', () => {
   it('reports store failures on the auto-save path through onPersistError; save() rejects', async () => {
     const store = recordingStore({ failOn: 1 })
     const errors: unknown[] = []
-    const { wizard } = make({ store, key: 'k', onPersistError: (e) => errors.push(e) })
-    await wizard.start()
+    const { run } = make({ store, key: 'k', onPersistError: (e) => errors.push(e) })
+    await run.start()
     await settle()
     expect(errors).toHaveLength(1)
     expect((errors[0] as Error).message).toBe('store down')
     // Later writes still work.
-    await wizard.next()
+    await run.next()
     await settle()
     expect(store.writes).toHaveLength(1)
     const failing = recordingStore({ failOn: 1 })
     const w2 = make({ store: failing, key: 'z', autoSave: 'off' })
-    await expect(w2.wizard.save()).rejects.toThrow('store down')
+    await expect(w2.run.save()).rejects.toThrow('store down')
   })
 
   it('save() without a store is a no-op; dispose flushes a pending debounced write', async () => {
     const sched = createTestScheduler()
-    const wizard = createWizardRuntime(twoViews, {
+    const run = createWizardRuntime(twoViews, {
       context: {},
       machine: createToyMachine(),
       initialState,
       scheduler: sched,
     })
-    await expect(wizard.save()).resolves.toBeUndefined()
+    await expect(run.save()).resolves.toBeUndefined()
 
     const store = recordingStore()
-    const { wizard: w2 } = make({ store, key: 'k', debounceMs: 1_000 })
+    const { run: w2 } = make({ store, key: 'k', debounceMs: 1_000 })
     await w2.start()
     w2.dispose()
     await settle()
@@ -196,17 +196,17 @@ describe('persistence via the wizard runtime', () => {
   })
 
   it('a child never persists on its own; the root snapshot carries it', async () => {
-    const child = flow({ name: 'child', steps: { w: { kind: 'wait', hooks: { on: {} } } } })
+    const child = flow({ name: 'child', steps: { w: { kind: 'step', hooks: { waitFor: {} } } } })
     const parent = flow({
       name: 'parent',
       steps: {
-        f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'final' },
+        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
+        end: { kind: 'step' },
       },
     })
     const store = recordingStore()
     const sched = createTestScheduler()
-    const wizard = createWizardRuntime(parent, {
+    const run = createWizardRuntime(parent, {
       context: {},
       machine: createToyMachine(),
       initialState,
@@ -214,12 +214,12 @@ describe('persistence via the wizard runtime', () => {
       store,
       key: 'root',
     })
-    await wizard.start()
+    await run.start()
     await settle()
     expect(store.writes.length).toBeGreaterThan(0)
     const last = store.writes.at(-1) as Snapshot
     expect(last.children.f?.state.status).toBe('waiting')
-    expect(((await store.get('root')) as Snapshot).children.f?.flow.name).toBe('child')
+    expect(((await store.get('root')) as Snapshot).children.f?.wizard.name).toBe('child')
   })
 })
 

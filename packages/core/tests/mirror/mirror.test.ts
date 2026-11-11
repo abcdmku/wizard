@@ -1,14 +1,13 @@
 /**
- * `createMirror` — frame ordering rules (§8.9), structural sharing, command sugar → wire
- * commands, and the end-to-end loop `createWizard` → `createMirrorSource` →
+ * `createMirror` — frame ordering rules, structural sharing, command sugar → wire
+ * commands, and the end-to-end loop `createRun` → `createMirrorSource` →
  * `createLocalTransport` → `createMirror` (including deterministic latency + serialisation).
  */
 import { describe, expect, it } from 'vitest'
-import { WizardError } from '../../src/errors'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createMirror } from '../../src/mirror/create-mirror'
 import type { Transport } from '../../src/mirror/transport'
-import type { Frame, WireAck, WireCommand } from '../../src/mirror/wire'
+import type { Frame, SnapshotFrame, WireAck, WireCommand } from '../../src/mirror/wire'
 import type { ProjectionOutput } from '../../src/projection/define-projection'
 import type { checkoutClient } from './fixture'
 
@@ -54,7 +53,7 @@ const frame = (
   epoch = 0,
   patch: Partial<State> = {},
   instanceId = 'wiz-1',
-): Frame<State> =>
+): SnapshotFrame<State> =>
   ({
     kind: 'snapshot',
     instanceId,
@@ -75,12 +74,12 @@ const frame = (
           attempt: 0,
           input: { address: 'a' },
         },
-        reserve: { id: 'reserve', kind: 'task', status: 'idle', attempt: 0 },
-        receipt: { id: 'receipt', kind: 'final', status: 'idle', attempt: 0 },
+        reserve: { id: 'reserve', kind: 'step', status: 'idle', attempt: 0 },
+        receipt: { id: 'receipt', kind: 'step', status: 'idle', attempt: 0 },
       },
       ...patch,
     },
-  }) as Frame<State>
+  }) as SnapshotFrame<State>
 
 describe('createMirror: frames', () => {
   it('starts empty, applies the first frame, notifies subscribers, exposes ids', () => {
@@ -204,8 +203,8 @@ describe('createMirror: frames', () => {
             attempt: 0,
             input: { address: 'b' },
           },
-          reserve: { id: 'reserve', kind: 'task', status: 'idle', attempt: 0 },
-          receipt: { id: 'receipt', kind: 'final', status: 'idle', attempt: 0 },
+          reserve: { id: 'reserve', kind: 'step', status: 'idle', attempt: 0 },
+          receipt: { id: 'receipt', kind: 'step', status: 'idle', attempt: 0 },
         },
       } as Partial<State>),
     )
@@ -265,10 +264,10 @@ describe('createMirror: commands', () => {
     await mirror.retry('reserve')
     await mirror.cancel()
     await mirror.cancel('why')
-    await mirror.runReady()
+    await mirror.startReady()
     await mirror.dispatch({ type: 'compensate', from: 'reserve' })
     await mirror.start()
-    await mirror.run('reserve')
+    await mirror.startStep('reserve')
     await mirror.reset()
     await mirror.compensate()
     await mirror.compensate({ from: 'reserve', reason: 'ops' })
@@ -283,10 +282,10 @@ describe('createMirror: commands', () => {
       { type: 'retry', step: 'reserve' },
       { type: 'cancel' },
       { type: 'cancel', reason: 'why' },
-      { type: 'runReady' },
+      { type: 'startReady' },
       { type: 'compensate', from: 'reserve' },
       { type: 'start' },
-      { type: 'run', step: 'reserve' },
+      { type: 'startStep', step: 'reserve' },
       { type: 'reset' },
       { type: 'compensate' },
       { type: 'compensate', from: 'reserve', reason: 'ops' },
@@ -318,7 +317,7 @@ describe('createMirror: commands', () => {
     expect(t.sent).toHaveLength(0)
   })
 
-  it('returns the ack result as-is and propagates transport rejections', async () => {
+  it('returns the ack result as-is; a transport rejection resolves TRANSPORT_FAILED', async () => {
     const t = fakeTransport(frame(1))
     const mirror = createMirror<typeof checkoutClient>({ transport: t.transport })
     t.ack((cmd) => ({
@@ -330,23 +329,28 @@ describe('createMirror: commands', () => {
     t.ack(() => {
       throw new Error('network down')
     })
-    await expect(mirror.next()).rejects.toThrow('network down')
+    expect(await mirror.next()).toEqual({
+      ok: false,
+      code: 'TRANSPORT_FAILED',
+      message: 'transport failed: network down',
+    })
   })
 
-  it('rejects an ack for another command or a malformed ack (WizardError INVALID_COMMAND); state is untouched', async () => {
+  it('an ack for another command or a malformed ack resolves TRANSPORT_FAILED; state is untouched', async () => {
     const t = fakeTransport(frame(1))
-    const mirror = createMirror<typeof checkoutClient>({ transport: t.transport })
+    const mirror = createMirror<typeof checkoutClient>({
+      transport: t.transport,
+      ids: createSequentialIds(),
+    })
     const before = mirror.getSnapshot()
     t.ack(() => ({ commandId: 'someone-else', result: { ok: true, seq: 5 }, seq: 5 }))
-    await expect(mirror.next()).rejects.toMatchObject({
-      name: 'WizardError',
-      code: 'INVALID_COMMAND',
-      message: expect.stringMatching(/ack for command 'someone-else'/),
+    expect(await mirror.next()).toEqual({
+      ok: false,
+      code: 'TRANSPORT_FAILED',
+      message: "transport answered command 'cmd_1' with an ack for command 'someone-else'",
     })
-    t.ack(() => ({}) as WireAck)
-    await expect(mirror.next()).rejects.toBeInstanceOf(WizardError)
     t.ack((cmd) => ({ commandId: cmd.commandId, result: 'ok', seq: 1 }) as unknown as WireAck)
-    await expect(mirror.next()).rejects.toMatchObject({ code: 'INVALID_COMMAND' })
+    expect(await mirror.next()).toMatchObject({ ok: false, code: 'TRANSPORT_FAILED' })
     expect(mirror.getSnapshot()).toBe(before)
     expect(mirror.seq).toBe(1)
   })

@@ -1,9 +1,10 @@
 /**
- * Reducers for task execution (`step.runStarted` … `step.retryScheduled`) and compensation
+ * Reducers for run execution (`step.runStarted` … `step.retryScheduled`) and compensation
  * (`step.compensation*`) events.
  * @internal
  */
 
+import { applyEach } from '../each-apply'
 import type { DomainEvent } from '../events'
 import { sameEntry } from '../selectors'
 import type { WizardState } from '../state'
@@ -12,10 +13,16 @@ import { omit } from '../util'
 import { patchStep, toStepError, withSaga, withStep, withTimer } from './patch'
 
 export function applyRun(_env: MachineEnv, state: WizardState, ev: DomainEvent): WizardState {
+  if (ev.type.startsWith('step.each')) return applyEach(state, ev)
   switch (ev.type) {
     case 'step.runStarted':
       return withStep(state, ev.step, (rec) => ({
-        ...omit(rec, ['retryAt', 'entering', ...(ev.attempt === 1 ? (['error'] as const) : [])]),
+        ...omit(rec, [
+          'retryAt',
+          'entering',
+          'endedAt',
+          ...(ev.attempt === 1 ? (['error'] as const) : []),
+        ]),
         status: 'active',
         attempt: ev.attempt,
         runId: ev.runId,
@@ -29,7 +36,7 @@ export function applyRun(_env: MachineEnv, state: WizardState, ev: DomainEvent):
           ...rec,
           error: toStepError(
             ev.error,
-            ev.timedOut === true ? 'timeout' : 'run',
+            ev.timedOut === true ? 'timeout' : (ev.failureKind ?? 'run'),
             ev.at,
             ev.attempt,
             ev.data,

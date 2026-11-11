@@ -1,0 +1,12 @@
+{
+  "index": "Steps",
+  "needs": "Pass data between steps",
+  "forms": "Forms",
+  "branch": "Branch",
+  "wait": "Wait for events and time",
+  "failures": "Handle failures",
+  "save-resume": "Save and resume",
+  "children": "Child wizards",
+  "test": "Test",
+  "inspect": "Inspect and debug"
+}

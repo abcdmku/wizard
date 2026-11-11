@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { type ReactNode, useRef, useState } from 'react'
-import { type DocsPage, prefetchPage, siblingPage } from '../lib/docs'
+import { ArrowLeft, ArrowRight, ChevronRight, X } from 'lucide-react'
+import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react'
+import { type DocsPage, docsSections, prefetchPage, siblingPage } from '../lib/docs'
 import { site } from '../lib/site'
 import { DocsNav } from './docs-nav'
 import { SiteHeader } from './site-header'
@@ -15,6 +15,8 @@ function PagerLink({
   readonly direction: 'prev' | 'next'
 }) {
   const prefetch = () => prefetchPage(page.slug)
+  const section = docsSections.find((candidate) => candidate.id === page.section)
+  const title = section ? `${section.title} / ${page.title}` : page.title
   return (
     <Link
       to="/$"
@@ -22,21 +24,47 @@ function PagerLink({
       preload="intent"
       onMouseEnter={prefetch}
       onFocus={prefetch}
-      className={`group flex flex-col gap-1 rounded-lg border border-neutral-200 px-4 py-3 text-sm transition-colors hover:border-neutral-400 dark:border-neutral-800 dark:hover:border-neutral-600 ${
-        direction === 'next' ? 'items-end text-right' : 'items-start'
-      }`}
+      className={`docs-pager-link ${direction === 'next' ? 'docs-pager-link-next' : ''}`}
     >
-      <span className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-neutral-500">
-        {direction === 'prev' && <ArrowLeft className="h-3 w-3" />}
+      <span className="docs-pager-direction">
+        {direction === 'prev' && <ArrowLeft aria-hidden="true" />}
         {direction === 'prev' ? 'Previous' : 'Next'}
-        {direction === 'next' && <ArrowRight className="h-3 w-3" />}
+        {direction === 'next' && <ArrowRight aria-hidden="true" />}
       </span>
-      <span className="font-medium text-neutral-900 dark:text-neutral-100">{page.title}</span>
+      <strong>{title}</strong>
     </Link>
   )
 }
 
-/** Header + left nav + article + right ToC + prev/next pager, for every MDX page. */
+function useReadingProgress(articleRef: RefObject<HTMLElement | null>) {
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    let frame = 0
+    const update = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const article = articleRef.current
+        if (!article) return
+        const top = article.getBoundingClientRect().top + window.scrollY - 96
+        const distance = Math.max(article.offsetHeight - window.innerHeight + 180, 1)
+        const next = Math.min(1, Math.max(0, (window.scrollY - top) / distance))
+        setProgress(next)
+      })
+    }
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [articleRef])
+
+  return progress
+}
+
 export function DocsLayout({
   page,
   children,
@@ -47,46 +75,102 @@ export function DocsLayout({
   const articleRef = useRef<HTMLElement | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const { items, activeId } = useToc(articleRef)
+  const progress = useReadingProgress(articleRef)
   const previous = siblingPage(page.slug, -1)
   const next = siblingPage(page.slug, 1)
+  const section = docsSections.find((candidate) => candidate.id === page.section)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuOpen])
 
   return (
-    <div className="min-h-screen">
+    <div className="docs-page-shell">
       <SiteHeader menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((open) => !open)} />
+      <div className="docs-reading-progress" aria-hidden="true">
+        <span style={{ width: `${progress * 100}%` }} />
+      </div>
 
       {menuOpen && (
-        <div className="border-b border-neutral-200 px-4 py-4 lg:hidden dark:border-neutral-800">
-          <DocsNav currentSlug={page.slug} onNavigate={() => setMenuOpen(false)} />
+        <div className="docs-mobile-nav-layer">
+          <button
+            type="button"
+            className="docs-mobile-nav-backdrop"
+            aria-label="Close navigation"
+            onClick={() => setMenuOpen(false)}
+          />
+          <aside className="docs-mobile-nav-panel">
+            <div className="docs-mobile-nav-header">
+              <span>Documentation</span>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Close navigation"
+              >
+                <X aria-hidden="true" />
+              </button>
+            </div>
+            <DocsNav currentSlug={page.slug} onNavigate={() => setMenuOpen(false)} />
+          </aside>
         </div>
       )}
 
-      <div className="mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-10 px-4 py-8 lg:grid-cols-[240px_minmax(0,1fr)_200px] lg:px-6">
-        <aside className="hidden lg:block">
-          <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-2">
+      <div className="docs-layout-grid">
+        <aside className="docs-sidebar">
+          <div className="docs-sidebar-sticky">
             <DocsNav currentSlug={page.slug} />
           </div>
         </aside>
 
-        <main className="min-w-0">
-          <article ref={articleRef} className="docs-article mx-auto max-w-3xl" data-pagefind-body>
+        <main className="docs-main">
+          <nav className="docs-breadcrumb" aria-label="Breadcrumb">
+            {section ? (
+              <Link to="/$" params={{ _splat: section.id }}>
+                {section.title}
+              </Link>
+            ) : (
+              <span>Documentation</span>
+            )}
+            <ChevronRight aria-hidden="true" />
+            <span>{page.title}</span>
+          </nav>
+
+          {items.length > 0 && (
+            <details className="docs-mobile-toc">
+              <summary>
+                On this page
+                <span>{items.length}</span>
+              </summary>
+              <Toc items={items} activeId={activeId} showTitle={false} />
+            </details>
+          )}
+
+          <article ref={articleRef} className="docs-article" data-pagefind-body>
             {children}
           </article>
-          <div className="mx-auto mt-14 grid max-w-3xl grid-cols-1 gap-3 border-t border-neutral-200 pt-6 sm:grid-cols-2 dark:border-neutral-800">
+
+          <div className="docs-pager">
             <div>{previous && <PagerLink page={previous} direction="prev" />}</div>
             <div>{next && <PagerLink page={next} direction="next" />}</div>
           </div>
-          <p className="mx-auto mt-6 max-w-3xl text-xs text-neutral-500">
-            <a
-              href={`${site.editBase}/${page.sourcePath}`}
-              className="hover:text-neutral-900 dark:hover:text-neutral-200"
-            >
-              Edit this page on GitHub
-            </a>
-          </p>
+          <div className="docs-page-footer">
+            <span>Found a gap?</span>
+            <a href={`${site.editBase}/${page.sourcePath}`}>Edit this page on GitHub</a>
+          </div>
         </main>
 
-        <aside className="hidden lg:block">
-          <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto">
+        <aside className="docs-toc-sidebar">
+          <div className="docs-toc-sticky">
             <Toc items={items} activeId={activeId} />
           </div>
         </aside>

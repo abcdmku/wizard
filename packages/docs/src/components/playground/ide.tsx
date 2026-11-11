@@ -11,7 +11,7 @@ interface IdeProps {
   /** When given, a picker in the title bar loads one of these samples. */
   readonly samples?: readonly PlaygroundSample[]
   readonly currentSampleId?: string
-  /** Tailwind width classes of the preview column on `lg+` screens. */
+  /** Tailwind width classes of the preview column once the IDE is wide enough to split. */
   readonly previewClassName?: string
 }
 
@@ -23,13 +23,13 @@ export function Ide({
   title,
   samples,
   currentSampleId,
-  previewClassName = 'lg:w-[300px] xl:w-[360px]',
+  previewClassName = '@2xl:w-[240px] @4xl:w-[300px] @6xl:w-[350px]',
 }: IdeProps) {
   const [mobileView, setMobileView] = useState<'code' | 'preview'>('code')
   const active = state.files.find((file) => file.name === state.activeFile)
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-paper-2 shadow-[0_4px_40px_rgba(0,0,0,0.07)] dark:border-neutral-800 dark:bg-ink-2 dark:shadow-[0_4px_40px_rgba(0,0,0,0.5)]">
+    <div className="@container flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-paper-2 shadow-[0_4px_40px_rgba(0,0,0,0.07)] dark:border-neutral-800 dark:bg-ink-2 dark:shadow-[0_4px_40px_rgba(0,0,0,0.5)]">
       {/* Title bar */}
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
         <div className="flex min-w-0 items-center gap-2">
@@ -66,7 +66,7 @@ export function Ide({
       </div>
 
       {/* Mobile: Code / Preview */}
-      <div className="flex shrink-0 border-b border-neutral-200 lg:hidden dark:border-neutral-800">
+      <div className="@2xl:hidden flex shrink-0 border-b border-neutral-200 dark:border-neutral-800">
         {(['code', 'preview'] as const).map((view) => (
           <button
             key={view}
@@ -86,7 +86,7 @@ export function Ide({
       {/* File tabs */}
       <div
         className={`shrink-0 gap-0.5 overflow-x-auto border-b border-neutral-200 px-2 dark:border-neutral-800 ${
-          mobileView === 'preview' ? 'hidden lg:flex' : 'flex'
+          mobileView === 'preview' ? '@2xl:flex hidden' : 'flex'
         }`}
       >
         {state.files.map((file) => {
@@ -111,8 +111,8 @@ export function Ide({
       {/* Editor + preview */}
       <div className="flex min-h-0 flex-1">
         <div
-          className={`relative min-h-0 min-w-0 flex-1 border-neutral-200 lg:border-r dark:border-neutral-800 ${
-            mobileView === 'preview' ? 'hidden lg:block' : 'block'
+          className={`@2xl:border-r relative min-h-0 min-w-0 flex-1 border-neutral-200 dark:border-neutral-800 ${
+            mobileView === 'preview' ? '@2xl:block hidden' : 'block'
           }`}
         >
           <div className="absolute inset-0">
@@ -126,7 +126,7 @@ export function Ide({
         </div>
         <div
           className={`min-h-0 shrink-0 ${previewClassName} ${
-            mobileView === 'code' ? 'hidden lg:block' : 'block w-full'
+            mobileView === 'code' ? '@2xl:block hidden' : 'block w-full'
           }`}
         >
           <PreviewPane snapshot={state.snapshot} onRun={state.run} canRun={state.editorReady} />

@@ -182,11 +182,12 @@
   font-size: 10px;
   white-space: nowrap;
 }
-.owd-edge-label[data-kind="dependsOn"] {
-  color: var(--owd-warn);
-  border-color: var(--owd-warn);
+.owd-edge-label[data-kind="needs"] {
+  color: var(--owd-success);
+  border-color: var(--owd-success);
 }
-.owd-edge-label[data-kind="timeout"] {
+.owd-edge-label[data-kind="timeout"],
+.owd-edge-label[data-kind="fallback"] {
   color: var(--owd-accent-2);
   border-color: var(--owd-accent-2);
 }

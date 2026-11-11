@@ -1,88 +1,100 @@
-import { boundary, defineFlow } from '@openwizard/core'
+﻿import { boundary, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-/** The notification service that asks a manager for a decision. */
 export interface Deps {
   notifier: { requestApproval(requestId: string, amount: number): Promise<{ ticket: string }> }
 }
 
 const Decision = z.object({ approved: z.boolean(), by: z.string() })
 
-const s = defineFlow({
-  name: 'expense-approval',
-  version: 1, // part of the persistence identity together with `name`
-  context: z.object({
-    requestId: z.string(),
-    amount: z.number().positive(),
-    decision: Decision.optional(), // filled by the `approval.decided` handler
-  }),
-  events: { 'approval.decided': Decision }, // the webhook body goes through this boundary
-  deps: boundary.trusted<Deps>(), // built by the host, no runtime check
-})
-
-export const approval = s.steps(
+export const approval = defineWizard(
   {
-    // An async task: if the process dies while it runs, the snapshot says "active" and resume
-    // turns that into `step.failed { kind: 'interrupted' }` (re-run explicitly with `retry()`).
-    notify: s.task(
-      ({ context, deps }) => deps.notifier.requestApproval(context.requestId, context.amount),
-      {
-        next: 'awaitDecision',
-      },
-    ),
-    // A wait step: the deadline is absolute state, so a resumed instance re-arms it — or fires
-    // it immediately when it is already overdue.
-    awaitDecision: s.wait({
-      on: { 'approval.decided': ({ payload, update }) => update({ decision: payload }) },
-      timeout: { after: '48h', next: 'expired' },
-      next: 'route',
-    }),
-    route: s.decision({
-      next: ({ context }) => (context.decision?.approved ? 'approved' : 'rejected'),
-    }),
-    approved: s.final({ output: ({ context }) => `approved by ${context.decision?.by}` }),
-    rejected: s.final({ output: ({ context }) => `rejected by ${context.decision?.by}` }),
-    expired: s.final({ output: () => 'expired: nobody decided within 48h' }),
+    name: 'expense-approval',
+    description: 'Asks an approver to decide on an expense and gives up after 48 hours.',
+    version: 1, // part of the persistence identity together with `name`
+    context: z.object({ requestId: z.string(), amount: z.number().positive() }),
+    events: { 'approval.decided': Decision },
+    deps: boundary.trusted<Deps>(),
   },
-  { start: 'notify' },
+  ({ step, steps }) => {
+    // Resume fails interrupted non-idempotent work so the host can decide whether to retry.
+    const notify = step({
+      description: 'Sends the approval request to the approver.',
+      run: ({ context, deps }) => deps.notifier.requestApproval(context.requestId, context.amount),
+      next: 'awaitDecision',
+    })
+    // The absolute deadline survives a snapshot and resume.
+    const awaitDecision = step({
+      description: 'Waits for the decision. Its output is the decision event.',
+      waitFor: { 'approval.decided': ({ payload }) => ({ done: payload }) },
+      timeout: { after: '48h', next: 'expired' },
+    })
+    // A timed-out wait is skipped, so the steps that need the decision are skipped with it.
+    const route = step({
+      description: 'Picks the approved or the rejected ending.',
+      needs: { decision: awaitDecision },
+      targets: ['approved', 'rejected'],
+      next: ({ needs }) => (needs.decision.approved ? 'approved' : 'rejected'),
+    })
+    const approved = step({
+      needs: { decision: awaitDecision },
+      run: ({ needs }) => `approved by ${needs.decision.by}`,
+    })
+    const rejected = step({
+      needs: { decision: awaitDecision },
+      run: ({ needs }) => `rejected by ${needs.decision.by}`,
+    })
+    const expired = step({
+      description: 'Ends the run when nobody decided in time.',
+      run: () => 'expired: nobody decided within 48h',
+    })
+    return steps({ notify, awaitDecision, route, approved, rejected, expired }, { start: 'notify' })
+  },
 )
 
-// ── the next version of the flow ────────────────────────────────────────────────────────
-// v2 adds `currency` to the context. Snapshots persisted by v1 carry `flow.version: 1`, so
-// `resumeWizard(approvalV2, saved, { migrate })` (v0.2) rewrites them first — see the tests.
-
-const s2 = defineFlow({
-  name: 'expense-approval', // the same identity …
-  version: 2, // … one version up: a v1 snapshot is incompatible without `migrate`
-  context: z.object({
-    requestId: z.string(),
-    amount: z.number().positive(),
-    currency: z.enum(['EUR', 'USD']), // new, required → the migration has to supply it
-    decision: Decision.optional(),
-  }),
-  events: { 'approval.decided': Decision },
-  deps: boundary.trusted<Deps>(),
-})
-
-export const approvalV2 = s2.steps(
+// V2 adds currency. approvalV2.resume(saved, { migrate }) converts V1 snapshots before use.
+export const approvalV2 = defineWizard(
   {
-    notify: s2.task(
-      ({ context, deps }) => deps.notifier.requestApproval(context.requestId, context.amount),
-      { next: 'awaitDecision' },
-    ),
-    awaitDecision: s2.wait({
-      on: { 'approval.decided': ({ payload, update }) => update({ decision: payload }) },
-      timeout: { after: '48h', next: 'expired' },
-      next: 'route',
+    name: 'expense-approval',
+    description: 'The expense approval with a currency, which the approved ending reports.',
+    version: 2,
+    context: z.object({
+      requestId: z.string(),
+      amount: z.number().positive(),
+      currency: z.enum(['EUR', 'USD']),
     }),
-    route: s2.decision({
-      next: ({ context }) => (context.decision?.approved ? 'approved' : 'rejected'),
-    }),
-    approved: s2.final({
-      output: ({ context }) => `approved by ${context.decision?.by} (${context.currency})`,
-    }),
-    rejected: s2.final({ output: ({ context }) => `rejected by ${context.decision?.by}` }),
-    expired: s2.final({ output: () => 'expired: nobody decided within 48h' }),
+    events: { 'approval.decided': Decision },
+    deps: boundary.trusted<Deps>(),
   },
-  { start: 'notify' },
+  ({ step, steps }) => {
+    const notify = step({
+      description: 'Sends the approval request to the approver.',
+      run: ({ context, deps }) => deps.notifier.requestApproval(context.requestId, context.amount),
+      next: 'awaitDecision',
+    })
+    const awaitDecision = step({
+      description: 'Waits for the decision. Its output is the decision event.',
+      waitFor: { 'approval.decided': ({ payload }) => ({ done: payload }) },
+      timeout: { after: '48h', next: 'expired' },
+    })
+    const route = step({
+      description: 'Picks the approved or the rejected ending.',
+      needs: { decision: awaitDecision },
+      targets: ['approved', 'rejected'],
+      next: ({ needs }) => (needs.decision.approved ? 'approved' : 'rejected'),
+    })
+    const approved = step({
+      needs: { decision: awaitDecision },
+      run: ({ context, needs }) => `approved by ${needs.decision.by} (${context.currency})`,
+    })
+    const rejected = step({
+      needs: { decision: awaitDecision },
+      run: ({ needs }) => `rejected by ${needs.decision.by}`,
+    })
+    const expired = step({
+      description: 'Ends the run when nobody decided in time.',
+      run: () => 'expired: nobody decided within 48h',
+    })
+    return steps({ notify, awaitDecision, route, approved, rejected, expired }, { start: 'notify' })
+  },
 )

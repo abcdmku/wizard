@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "OpenWizard example 08 — a Vite + React checkout driven only through a Mirror (loopback transport in-page; swap for SSE/WS in production).",
+  "description": "Drive a React checkout through a projected Mirror and serialized loopback transport.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

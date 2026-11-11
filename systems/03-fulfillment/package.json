@@ -1,0 +1,32 @@
+{
+  "name": "@openwizard/system-03-fulfillment",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter @openwizard/core build && pnpm --filter @openwizard/durable build && pnpm --filter @openwizard/drizzle build && pnpm --filter @openwizard/fulfillment-lambdas build && pnpm --filter @openwizard/fulfillment-web build",
+    "typecheck": "pnpm --filter @fulfillment/contracts typecheck && pnpm --filter @fulfillment/domain typecheck && pnpm --filter @fulfillment/orchestrator typecheck && pnpm --filter @fulfillment/partner-api typecheck && pnpm --filter @openwizard/fulfillment-web typecheck && pnpm --filter @openwizard/fulfillment-lambdas typecheck && pnpm --filter @openwizard/fulfillment-infra typecheck && tsc --noEmit -p tsconfig.json",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test --config tests/playwright.config.ts",
+    "seed": "pnpm --filter @fulfillment/orchestrator seed",
+    "reset": "docker compose down --volumes --remove-orphans",
+    "infra:up": "pnpm --filter @openwizard/fulfillment-infra local:up",
+    "infra:preview": "pnpm --filter @openwizard/fulfillment-infra local:preview",
+    "dx:audit": "node scripts/dx-audit.mjs"
+  },
+  "dependencies": {
+    "@fulfillment/contracts": "workspace:*",
+    "@fulfillment/domain": "workspace:*",
+    "@openwizard/core": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.13.3",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

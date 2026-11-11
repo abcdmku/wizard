@@ -1,0 +1,218 @@
+import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { inspect, toMarkdown } from '../../src/inspect'
+import { defineWizard } from '../../src/wizard/define-wizard'
+
+describe('toMarkdown', () => {
+  const fulfilment = defineWizard(
+    { name: 'fulfilment', context: z.object({ orderId: z.string() }) },
+    ({ step, steps }) =>
+      steps({
+        label: step({ run: async () => ({ trackingId: 'x' }), next: 'done' }),
+        done: step({ next: null }),
+      }),
+  )
+  const checkout = defineWizard(
+    {
+      name: 'checkout',
+      description: 'Takes a cart from a shipping address to a shipped order.',
+      context: z.object({
+        cartId: z.string().describe('The cart being bought'),
+        paymentId: z.string().optional(),
+      }),
+      events: { 'payment.captured': z.object({ paymentId: z.string() }) },
+    },
+    ({ step, view, child, steps }) => {
+      const shipping = view({
+        label: 'Shipping address',
+        input: z.object({ address: z.string(), express: z.boolean().optional() }),
+        next: 'reserve',
+      })
+      const reserve = step({
+        description: 'Holds stock for the cart.',
+        run: async () => ({ reservationId: 'r' }),
+        output: z.object({ reservationId: z.string() }),
+        retry: { retries: 3, backoff: 'exponential' },
+        timeout: '30s',
+        compensate: () => {},
+        next: 'awaitPayment',
+      })
+      const awaitPayment = step({
+        waitFor: { 'payment.captured': ({ payload }) => ({ done: payload }) },
+        timeout: { after: '15m', next: 'expired' },
+      })
+      const fulfil = child(fulfilment, {
+        needs: { reserve, payment: { optional: awaitPayment } },
+        when: ({ needs }) => needs.payment !== undefined,
+        context: ({ context }) => ({ orderId: context.cartId }),
+      })
+      const expired = step({ sleep: '1h' })
+      return steps({ shipping, reserve, awaitPayment, fulfil, expired }, { start: 'shipping' })
+    },
+  )
+
+  it('writes the diagram, a step table, per-step facts, schemas, events and warnings', () => {
+    expect(toMarkdown(inspect(checkout))).toBe(
+      [
+        '# checkout',
+        '',
+        'Takes a cart from a shipping address to a shipped order.',
+        '',
+        'Wizard `checkout`, version 1, fingerprint `81d4b1f4533f8427`.',
+        '',
+        '## Diagram',
+        '',
+        '```mermaid',
+        '---',
+        'title: "checkout"',
+        '---',
+        'flowchart TD',
+        '  shipping["Shipping address"]',
+        '  reserve[["reserve<br/>3 retries · timeout 30s · compensable"]]',
+        '  awaitPayment[["awaitPayment"]]',
+        '  fulfil[/"fulfil<br/>may skip"/]',
+        '  expired[["expired<br/>sleep 1h"]]',
+        '  _start((" "))',
+        '  _start --> shipping',
+        '  shipping --> reserve',
+        '  reserve --> awaitPayment',
+        '  reserve -->|"needs: reserve"| fulfil',
+        '  awaitPayment -->|"needs: payment (optional)"| fulfil',
+        '  awaitPayment -.->|"timeout 15m"| expired',
+        '  _event__payment_captured>"payment.captured"] -.-> awaitPayment',
+        '  subgraph fulfil___child ["fulfilment"]',
+        '    fulfil__label[["label"]]',
+        '    fulfil__done[["done"]]',
+        '    fulfil___start((" "))',
+        '    fulfil___start --> fulfil__label',
+        '    fulfil__label --> fulfil__done',
+        '  end',
+        '  fulfil -.->|"child"| fulfil___child',
+        '```',
+        '',
+        '## Steps',
+        '',
+        '| Step | Kind | Starts when | Does | Then |',
+        '| --- | --- | --- | --- | --- |',
+        '| `shipping` | view | its wizard starts | Collects input from a person | `reserve` |',
+        '| `reserve` | step | `shipping` finishes | Runs work | `awaitPayment`; feeds `fulfil` |',
+        '| `awaitPayment` | step | `reserve` finishes | Waits for `payment.captured` | feeds `fulfil`; `expired` after 15m without an event |',
+        '| `fulfil` | child | `reserve` finishes; `awaitPayment` settles | Runs child wizard `fulfilment` version 1 | ends its branch, and its output can be the result |',
+        '| `expired` | step | `awaitPayment` times out | Sleeps 1h | ends its branch, and its output can be the result |',
+        '',
+        '### shipping',
+        '',
+        'Shipping address.',
+        '',
+        '- Starts when: its wizard starts.',
+        '- Then: `reserve`.',
+        '',
+        'Input:',
+        '',
+        '| Field | Type | Required |',
+        '| --- | --- | --- |',
+        '| `address` | `string` | yes |',
+        '| `express` | `boolean` | no |',
+        '',
+        '### reserve',
+        '',
+        'Holds stock for the cart.',
+        '',
+        '- Starts when: `shipping` finishes.',
+        '- Then: `awaitPayment`; feeds `fulfil`.',
+        '- Retry: up to 3 retries after the first run, with exponential backoff from 200ms.',
+        '- Each run times out after 30s.',
+        '- Has a `compensate` hook that undoes it when the run compensates.',
+        '- Hooks: `run`, `compensate`.',
+        '',
+        'Output:',
+        '',
+        '| Field | Type | Required |',
+        '| --- | --- | --- |',
+        '| `reservationId` | `string` | yes |',
+        '',
+        '### awaitPayment',
+        '',
+        '- Starts when: `reserve` finishes.',
+        '- Then: feeds `fulfil`; `expired` after 15m without an event.',
+        '- Hooks: `waitFor:payment.captured`.',
+        '',
+        '### fulfil',
+        '',
+        '- Starts when: `reserve` finishes; `awaitPayment` settles.',
+        '- Then: ends its branch, and its output can be the result.',
+        '- `needs.reserve` is the output of `reserve`.',
+        '- `needs.payment` is the output of `awaitPayment`, or `undefined`.',
+        '- Skipped when its `when` guard returns false.',
+        '- Hooks: `when`, `context`.',
+        '',
+        '### expired',
+        '',
+        '- Starts when: `awaitPayment` times out.',
+        '- Then: ends its branch, and its output can be the result.',
+        '',
+        '## Steps of `fulfilment`, the child wizard of step `fulfil`',
+        '',
+        '| Step | Kind | Starts when | Does | Then |',
+        '| --- | --- | --- | --- | --- |',
+        '| `label` | step | its wizard starts | Runs work | `done` |',
+        '| `done` | step | `label` finishes | Routes | ends its branch, and its output can be the result |',
+        '',
+        '### fulfil / label',
+        '',
+        '- Starts when: its wizard starts.',
+        '- Then: `done`.',
+        '- Hooks: `run`.',
+        '',
+        '### fulfil / done',
+        '',
+        '- Starts when: `label` finishes.',
+        '- Then: ends its branch, and its output can be the result.',
+        '',
+        '## Context',
+        '',
+        '| Field | Type | Required | Description |',
+        '| --- | --- | --- | --- |',
+        '| `cartId` | `string` | yes | The cart being bought |',
+        '| `paymentId` | `string` | no |  |',
+        '',
+        '## Events',
+        '',
+        '| Event | Payload | Completes | Also handled by |',
+        '| --- | --- | --- | --- |',
+        '| `payment.captured` | `{ paymentId }` | `awaitPayment` |  |',
+        '',
+        '## Warnings',
+        '',
+        '| Code | Step | Message |',
+        '| --- | --- | --- |',
+        '| `MULTIPLE_SINKS` |  | wizard has multiple sinks (fulfil, expired); its output is the last completed sink, so provide an output selector for a stable result |',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  it('says that a routed step starts from its router and is only held by its needs', () => {
+    const dispatch = defineWizard(
+      { name: 'dispatch', context: z.object({ urgent: z.boolean() }), output: () => 'sent' },
+      ({ step, steps }) => {
+        const audit = step({ run: () => 'clean' })
+        const route = step({
+          targets: ['ship', 'hold'],
+          next: ({ context }) => (context.urgent ? 'ship' : 'hold'),
+        })
+        const ship = step({ needs: { audit }, run: ({ needs }) => needs.audit })
+        const hold = step({ run: () => 'held' })
+        const report = step({ needs: { audit }, run: ({ needs }) => needs.audit })
+        return steps({ audit, route, ship, hold, report }, { start: ['audit', 'route'] })
+      },
+    )
+    const page = toMarkdown(inspect(dispatch))
+    expect(page).toContain(
+      '| `ship` | step | `route` routes here; only after `audit` finishes | Runs work |',
+    )
+    expect(page).toContain('| `report` | step | `audit` finishes | Runs work |')
+    expect(page).toContain('  route -.->|"route"| ship')
+    expect(page).toContain('  audit -->|"needs: audit"| ship')
+  })
+})

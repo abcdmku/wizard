@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 230" role="img" aria-labelledby="parallel-title parallel-desc">
+  <title id="parallel-title">Two parallel tasks join before done</title>
+  <desc id="parallel-desc">Load profile and load orders run independently. Both must complete before join moves to done.</desc>
+  <style>
+    text { font-family: "Geist Mono Variable", ui-monospace, monospace; fill: var(--d-ink); font-size: 15px; }
+    .node { fill: var(--d-surface); stroke: var(--d-line); stroke-width: 1.5; }
+    .wire { fill: none; stroke: var(--d-muted); stroke-width: 1.5; marker-end: url(#parallel-arrow); }
+  </style>
+  <defs>
+    <marker id="parallel-arrow" viewBox="0 0 8 8" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0l8 4-8 4z" fill="var(--d-muted)"/>
+    </marker>
+  </defs>
+  <rect class="node" x="42" y="34" width="190" height="54" rx="8"/>
+  <text x="137" y="67" text-anchor="middle">loadProfile</text>
+  <rect class="node" x="42" y="142" width="190" height="54" rx="8"/>
+  <text x="137" y="175" text-anchor="middle">loadOrders</text>
+  <path class="wire" d="M232 61h92c30 0 38 54 68 54h34"/>
+  <path class="wire" d="M232 169h92c30 0 38-54 68-54h34"/>
+  <rect class="node" x="434" y="88" width="120" height="54" rx="8"/>
+  <text x="494" y="121" text-anchor="middle">join</text>
+  <path class="wire" d="M554 115h62"/>
+  <rect class="node" x="624" y="88" width="94" height="54" rx="8"/>
+  <text x="671" y="121" text-anchor="middle">done</text>
+</svg>

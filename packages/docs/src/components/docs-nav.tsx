@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { ChevronRight, FlaskConical } from 'lucide-react'
 import { docsNavItems, docsPageMap, docsPages, docsSections, prefetchPage } from '../lib/docs'
 
 function NavLink({
@@ -21,18 +22,15 @@ function NavLink({
       onMouseEnter={prefetch}
       onFocus={prefetch}
       onClick={onNavigate}
-      className={`block rounded-md px-2 py-1 text-[13px] leading-6 transition-colors ${
-        active
-          ? 'bg-neutral-100 font-medium text-neutral-900 dark:bg-neutral-900 dark:text-neutral-50'
-          : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-100'
-      }`}
+      aria-current={active ? 'page' : undefined}
+      className={`docs-nav-link ${active ? 'docs-nav-link-active' : ''}`}
     >
-      {title}
+      <span>{title}</span>
+      {active && <span className="docs-nav-active-dot" aria-hidden="true" />}
     </Link>
   )
 }
 
-/** Left navigation built from the manifest: top-level pages and titled sections. */
 export function DocsNav({
   currentSlug,
   onNavigate,
@@ -41,70 +39,68 @@ export function DocsNav({
   readonly onNavigate?: (() => void) | undefined
 }) {
   return (
-    <nav className="space-y-6" aria-label="Documentation">
+    <nav className="docs-nav" aria-label="Documentation">
+      <p className="docs-nav-eyebrow">Browse</p>
       {docsNavItems.map((item) => {
         if (item.type === 'page') {
           const page = docsPageMap.get(item.slug)
           if (!page) return null
           const children = docsPages.filter((candidate) => candidate.section === page.slug)
           return (
-            <div key={`page-${page.slug}`} className="space-y-0.5">
+            <div key={`page-${page.slug}`} className="docs-nav-start">
               <NavLink
                 slug={page.slug}
                 title={page.title}
                 active={page.slug === currentSlug}
                 onNavigate={onNavigate}
               />
-              {children.length > 0 && (
-                <div className="ml-2 space-y-0.5 border-l border-neutral-200 pl-2 dark:border-neutral-800">
-                  {children.map((child) => (
-                    <NavLink
-                      key={child.slug}
-                      slug={child.slug}
-                      title={child.title}
-                      active={child.slug === currentSlug}
-                      onNavigate={onNavigate}
-                    />
-                  ))}
-                </div>
-              )}
+              {children.map((child) => (
+                <NavLink
+                  key={child.slug}
+                  slug={child.slug}
+                  title={child.title}
+                  active={child.slug === currentSlug}
+                  onNavigate={onNavigate}
+                />
+              ))}
             </div>
           )
         }
+
         const section = docsSections.find((candidate) => candidate.id === item.id)
         if (!section) return null
         return (
-          <section key={`section-${section.id}`} className="space-y-0.5">
-            <h2 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-              {section.title}
-            </h2>
-            {section.slugs.map((slug) => {
-              const page = docsPageMap.get(slug)
-              return page ? (
-                <NavLink
-                  key={slug}
-                  slug={slug}
-                  title={page.title}
-                  active={slug === currentSlug}
-                  onNavigate={onNavigate}
-                />
-              ) : null
-            })}
-          </section>
+          <details key={section.id} className="docs-nav-section" open>
+            <summary>
+              <span>{section.title}</span>
+              <ChevronRight aria-hidden="true" />
+            </summary>
+            <div className="docs-nav-section-links">
+              {section.slugs.map((slug) => {
+                const page = docsPageMap.get(slug)
+                return page ? (
+                  <NavLink
+                    key={slug}
+                    slug={slug}
+                    title={page.title}
+                    active={slug === currentSlug}
+                    onNavigate={onNavigate}
+                  />
+                ) : null
+              })}
+            </div>
+          </details>
         )
       })}
-      <section className="space-y-0.5">
-        <h2 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-          Try it
-        </h2>
-        <Link
-          to="/playground"
-          onClick={onNavigate}
-          className="block rounded-md px-2 py-1 text-[13px] leading-6 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-100"
-        >
-          Playground
-        </Link>
-      </section>
+
+      <Link to="/playground" onClick={onNavigate} className="docs-nav-playground">
+        <FlaskConical aria-hidden="true" />
+        <span>
+          Try it in the browser
+          <small className="docs-nav-playground-detail">Edit and run a wizard</small>
+        </span>
+        <ChevronRight aria-hidden="true" />
+      </Link>
     </nav>
   )
 }

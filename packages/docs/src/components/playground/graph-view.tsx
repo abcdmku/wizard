@@ -1,67 +1,67 @@
-import { type AnyFlow, type FlowGraph, inspect, type Snapshot, type Wizard } from '@openwizard/core'
+import type { AnyWizardDefinition, Run, Snapshot } from '@openwizard/core'
+import { inspect, type Manifest } from '@openwizard/core/inspect'
 import { useMemo } from 'react'
-import { FlowGraphView, type NodeStateLookup } from './flow-graph'
+import { runAt } from './child-path'
+import { type NodeStateLookup, WizardGraphView } from './wizard-graph'
 
 export interface StepRef {
   readonly path: readonly string[]
   readonly id: string
 }
 
-/** The snapshot of the (child) wizard at `path`, walking `Snapshot.children`. */
+/** The selected child's snapshot, using public owner/index paths rather than storage keys. */
 export function snapshotAt(
-  wizard: Wizard<AnyFlow>,
+  run: Run<AnyWizardDefinition>,
   path: readonly string[],
-): Snapshot<AnyFlow> | undefined {
-  let snapshot: Snapshot<AnyFlow> | undefined = wizard.getSnapshot()
-  for (const step of path) {
-    const children: Readonly<Record<string, Snapshot<AnyFlow> | undefined>> =
-      snapshot?.children ?? {}
-    snapshot = children[step]
+): Snapshot<AnyWizardDefinition> | undefined {
+  try {
+    return runAt(run, path).getSnapshot()
+  } catch {
+    return undefined
   }
-  return snapshot
 }
 
 /** Live status / phase per node: the root from `getState()` + `explain()`, children from their snapshots. */
-export function liveStateLookup(wizard: Wizard<AnyFlow>): NodeStateLookup {
+function liveStateLookup(run: Run<AnyWizardDefinition>): NodeStateLookup {
   return (path, id) => {
     if (path.length === 0) {
-      const record = wizard.getState().steps[id]
+      const record = run.getState().steps[id]
       if (!record) return undefined
-      const explanation = wizard.explain(id)
+      const explanation = run.explain(id)
       return explanation.phase === undefined
         ? { status: record.status }
         : { status: record.status, phase: explanation.phase }
     }
-    const record = snapshotAt(wizard, path)?.state.steps[id]
+    const record = snapshotAt(run, path)?.state.steps[id]
     return record ? { status: record.status } : undefined
   }
 }
 
-export function safeInspect(flow: AnyFlow): FlowGraph | { readonly error: string } {
+export function safeInspect(wizard: AnyWizardDefinition): Manifest | { readonly error: string } {
   try {
-    return inspect(flow)
+    return inspect(wizard)
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
 }
 
 interface GraphViewProps {
-  readonly flow: AnyFlow | undefined
-  readonly wizard: Wizard<AnyFlow> | undefined
+  readonly wizard: AnyWizardDefinition | undefined
+  readonly run: Run<AnyWizardDefinition> | undefined
   readonly selected: StepRef | null
   readonly onSelect: (ref: StepRef) => void
 }
 
-/** The Graph tab: `inspect(flow)` as a DAG, nodes coloured by the live wizard state. */
-export function GraphView({ flow, wizard, selected, onSelect }: GraphViewProps) {
-  const graph = useMemo(() => (flow ? safeInspect(flow) : null), [flow])
+/** The Graph tab: `inspect(wizard)` as a wizard graph, nodes coloured by the live run state. */
+export function GraphView({ wizard, run, selected, onSelect }: GraphViewProps) {
+  const graph = useMemo(() => (wizard ? safeInspect(wizard) : null), [wizard])
   // The parent re-renders on every batch of events, so the lookup reads fresh statuses each time.
-  const liveState = wizard ? liveStateLookup(wizard) : undefined
+  const liveState = run ? liveStateLookup(run) : undefined
   if (!graph) {
     return (
       <p className="p-4 font-mono text-xs text-neutral-500">
-        Run the code — the graph is <code>inspect(flow)</code> of the wizard it creates (or of an
-        exported flow).
+        Run code that creates a run or exports a wizard. Its <code>inspect(wizard)</code> graph
+        appears here.
       </p>
     )
   }
@@ -70,7 +70,7 @@ export function GraphView({ flow, wizard, selected, onSelect }: GraphViewProps) 
   }
   return (
     <div className="p-4">
-      <FlowGraphView
+      <WizardGraphView
         graph={graph}
         liveState={liveState}
         selected={selected}

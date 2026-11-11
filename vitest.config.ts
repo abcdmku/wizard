@@ -1,38 +1,39 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
+import sourceConfig from './tsconfig.source.json'
 
 /**
  * Root Vitest config.
  *
  * - `projects` keeps core/react/examples isolated (different environments).
- * - `typecheck` runs `*.test-d.ts` files through tsc so type assertions
- *   (`expectTypeOf`, `@ts-expect-error`) are actually verified in CI.
- *   The v1 codebase shipped type tests that never ran — this is the fix.
- * - The `examples` / `examples-react` projects alias `@openwizard/core` (+ `/testing`) and
- *   `@openwizard/react` to the SOURCES so the example tests run without a build here; each
- *   example's own `check` script (`pnpm examples`) resolves the built `dist` through the
- *   workspace link instead. `examples-react` runs the `.test.tsx` files under jsdom.
+ * - Every `@openwizard/*` import resolves to package SOURCE, at runtime and in type tests, from
+ *   one table: the `paths` of `tsconfig.source.json`. The aliases below are derived from it and
+ *   each package's `tsconfig.test.json` (its `typecheck` tsconfig) extends it, so a stale or
+ *   missing `dist` never fails a test. Each example's own `check` script (`pnpm examples`) still
+ *   resolves the built `dist` through the workspace link.
+ * - `typecheck` runs `*.test-d.ts` files through tsc so type assertions (`expectTypeOf`,
+ *   `@ts-expect-error`) are verified; `ignoreSourceErrors: false` also fails on errors in the
+ *   sources those tests compile.
  */
-const coreSource = fileURLToPath(new URL('./packages/core/src/index.ts', import.meta.url))
-const coreTestingSource = fileURLToPath(new URL('./packages/core/src/testing.ts', import.meta.url))
-const reactSource = fileURLToPath(new URL('./packages/react/src/index.ts', import.meta.url))
-const devtoolsSource = fileURLToPath(new URL('./packages/devtools/src/index.ts', import.meta.url))
-const devtoolsStyle = fileURLToPath(
-  new URL('./packages/devtools/src/styles/theme.css', import.meta.url),
-)
+const root = new URL('./', import.meta.url)
 // Most specific first: a plain `'@openwizard/core'` alias would also swallow `…/core/testing`.
 const sourceAliases = [
-  { find: '@openwizard/core/testing', replacement: coreTestingSource },
-  { find: '@openwizard/core', replacement: coreSource },
-  { find: '@openwizard/react', replacement: reactSource },
-  { find: '@openwizard/devtools/style.css', replacement: devtoolsStyle },
-  { find: '@openwizard/devtools', replacement: devtoolsSource },
+  {
+    find: '@openwizard/devtools/style.css',
+    replacement: fileURLToPath(new URL('packages/devtools/src/styles/theme.css', root)),
+  },
+  ...Object.entries(sourceConfig.compilerOptions.paths)
+    .sort(([a], [b]) => b.length - a.length)
+    .flatMap(([find, targets]) =>
+      targets.map((target) => ({ find, replacement: fileURLToPath(new URL(target, root)) })),
+    ),
 ]
 
 export default defineConfig({
   test: {
     projects: [
       {
+        resolve: { alias: sourceAliases },
         test: {
           name: 'core',
           root: './packages/core',
@@ -42,12 +43,43 @@ export default defineConfig({
             enabled: true,
             include: ['tests/**/*.test-d.ts'],
             exclude: ['tests/__canary__/**'],
-            tsconfig: './tsconfig.json',
+            tsconfig: './tsconfig.test.json',
             ignoreSourceErrors: false,
           },
         },
       },
       {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'durable',
+          root: './packages/durable',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.test.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'drizzle',
+          root: './packages/drizzle',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.test.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
         test: {
           name: 'react',
           root: './packages/react',
@@ -56,12 +88,13 @@ export default defineConfig({
           typecheck: {
             enabled: true,
             include: ['tests/**/*.test-d.{ts,tsx}'],
-            tsconfig: './tsconfig.json',
+            tsconfig: './tsconfig.test.json',
             ignoreSourceErrors: false,
           },
         },
       },
       {
+        resolve: { alias: sourceAliases },
         test: {
           name: 'devtools',
           root: './packages/devtools',
@@ -71,7 +104,52 @@ export default defineConfig({
           typecheck: {
             enabled: true,
             include: ['tests/**/*.test-d.{ts,tsx}'],
-            tsconfig: './tsconfig.json',
+            tsconfig: './tsconfig.test.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'opentelemetry',
+          root: './packages/opentelemetry',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.test.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'effect',
+          root: './packages/effect',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.test.json',
+            ignoreSourceErrors: false,
+          },
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
+          name: 'http',
+          root: './packages/http',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+          typecheck: {
+            enabled: true,
+            include: ['tests/**/*.test-d.ts'],
+            tsconfig: './tsconfig.test.json',
             ignoreSourceErrors: false,
           },
         },

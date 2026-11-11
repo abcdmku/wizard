@@ -1,0 +1,141 @@
+.button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.62rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+.button-primary {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+.button-primary:hover {
+  background: #293630;
+}
+.button-quiet {
+  border-color: var(--line);
+  background: var(--paper);
+}
+.button-quiet:hover {
+  border-color: var(--line-strong);
+  background: #f5f6f1;
+}
+.button-danger {
+  border-color: var(--red);
+  background: var(--red);
+  color: white;
+}
+.button-danger-soft {
+  border-color: #f0b9ad;
+  background: #fff5f2;
+  color: #9c3d2e;
+}
+.button-success {
+  border-color: #28633a;
+  background: #28633a;
+  color: white;
+}
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #6a4036;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.status-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  white-space: nowrap;
+  padding: 0.28rem 0.48rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.63rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.status-success {
+  border-color: #bad9b5;
+  background: #edf7e9;
+  color: #2f6836;
+}
+.status-danger {
+  border-color: #edbeb4;
+  background: #fff0ed;
+  color: #9f382d;
+}
+.status-warning {
+  border-color: #e7d2a2;
+  background: #fff8dd;
+  color: #7d5a19;
+}
+.status-active {
+  border-color: #b9d8e0;
+  background: #eaf5f7;
+  color: #376878;
+}
+.status-neutral {
+  border-color: var(--line);
+  background: #f3f4f0;
+  color: #626d68;
+}
+.count-chip,
+.parallel-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.48rem;
+  border-radius: 999px;
+  background: #edf0e9;
+  color: #5a655f;
+  font-size: 0.63rem;
+  font-weight: 800;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+.field > span {
+  color: var(--ink-soft);
+  font-size: 0.71rem;
+  font-weight: 700;
+}
+.field small {
+  color: var(--muted);
+  font-weight: 500;
+}
+.field input,
+.field textarea,
+select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.68rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
+}
+.field textarea {
+  min-height: 74px;
+  resize: vertical;
+}
+.inline-error {
+  margin: 0.5rem 0 0;
+  color: #a1362e;
+  font-size: 0.73rem;
+  line-height: 1.45;
+}

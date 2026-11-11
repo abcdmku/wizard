@@ -1,20 +1,16 @@
-/**
- * The page: a few buttons that drive the wizard (start, send the approval, retry a failed task,
- * reset) and a status line — the interesting part is the `<Devtools>` panel docked underneath,
- * fed with the same wizard object (and the context input, so the timeline covers the whole run).
- */
-import type { Wizard } from '@openwizard/core'
+/** Drive the run and inspect the same instance in a docked Devtools panel. */
+import type { Run } from '@openwizard/core'
 import { Devtools } from '@openwizard/devtools'
 import { useSyncExternalStore } from 'react'
 import { context, type pipeline } from './wizard'
 
 const TASKS = ['ingest', 'normalize', 'enrich', 'persist'] as const
 
-export function App({ wizard }: { wizard: Wizard<typeof pipeline> }) {
+export function App({ run }: { run: Run<typeof pipeline> }) {
   const state = useSyncExternalStore(
-    (listener) => wizard.subscribe(listener),
-    () => wizard.getState(),
-    () => wizard.getState(),
+    (listener) => run.subscribe(listener),
+    () => run.getState(),
+    () => run.getState(),
   )
   const failed = TASKS.find((id) => state.steps[id].status === 'failed')
   return (
@@ -29,16 +25,12 @@ export function App({ wizard }: { wizard: Wizard<typeof pipeline> }) {
         </p>
       </header>
       <section className="controls">
-        <button
-          type="button"
-          onClick={() => void wizard.start()}
-          disabled={state.status !== 'idle'}
-        >
+        <button type="button" onClick={() => void run.start()} disabled={state.status !== 'idle'}>
           Start
         </button>
         <button
           type="button"
-          onClick={() => void wizard.send('review.approved', { by: 'ada' })}
+          onClick={() => void run.send('review.approved', { by: 'ada' })}
           disabled={state.steps.approve.status !== 'active'}
         >
           Send review.approved
@@ -46,33 +38,29 @@ export function App({ wizard }: { wizard: Wizard<typeof pipeline> }) {
         <button
           type="button"
           onClick={() => {
-            if (failed !== undefined) void wizard.retry(failed)
+            if (failed !== undefined) void run.retry(failed)
           }}
           disabled={failed === undefined}
         >
           Retry {failed ?? 'failed task'}
         </button>
-        <button
-          type="button"
-          onClick={() => void wizard.reset()}
-          disabled={state.status === 'idle'}
-        >
+        <button type="button" onClick={() => void run.reset()} disabled={state.status === 'idle'}>
           Reset
         </button>
       </section>
       <section className="status" data-status={state.status}>
         <span className="dot" /> status <code>{state.status}</code> · seq <code>{state.seq}</code>
         {state.status === 'waiting' && state.steps.approve.status === 'active' && (
-          <span className="hint"> — waiting for the approval event</span>
+          <span className="hint"> · waiting for the approval event</span>
         )}
         {state.output !== undefined && (
           <span className="hint">
             {' '}
-            — output <code>{String(state.output)}</code>
+            · output <code>{String(state.output)}</code>
           </span>
         )}
       </section>
-      <Devtools source={wizard} context={context} defaultOpen theme="system" />
+      <Devtools source={run} context={context} defaultOpen theme="system" />
     </main>
   )
 }

@@ -1,0 +1,159 @@
+name: openwizard-fulfillment
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${FULFILLMENT_DB_NAME:-fulfillment}
+      POSTGRES_USER: ${FULFILLMENT_DB_USER:-fulfillment}
+      POSTGRES_PASSWORD: ${FULFILLMENT_DB_PASSWORD:-local-only}
+    ports:
+      - "${FULFILLMENT_POSTGRES_PORT:-5435}:5432"
+    volumes:
+      - fulfillment-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  localstack:
+    # 4.4.0 is the last account-free community image. Newer 2026 images require activation.
+    image: localstack/localstack:4.4.0
+    environment:
+      SERVICES: sns,sqs,lambda,iam,logs,sts
+      AWS_DEFAULT_REGION: us-east-1
+      DEBUG: ${FULFILLMENT_LOCALSTACK_DEBUG:-0}
+      LAMBDA_DOCKER_NETWORK: openwizard-fulfillment
+      LAMBDA_REMOVE_CONTAINERS: ${FULFILLMENT_LAMBDA_REMOVE_CONTAINERS:-1}
+    ports:
+      - "${FULFILLMENT_LOCALSTACK_PORT:-4566}:4566"
+    volumes:
+      - fulfillment-localstack:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS http://127.0.0.1:4566/_localstack/health >/dev/null
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 10s
+
+  pulumi:
+    build:
+      context: ../..
+      dockerfile: systems/03-fulfillment/infra/Dockerfile
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      LOCALSTACK_HOSTNAME: localstack
+      PULUMI_BACKEND_URL: file:///state
+      PULUMI_CONFIG_PASSPHRASE: fulfillment-local-only
+      PULUMI_SKIP_UPDATE_CHECK: "true"
+    volumes:
+      - fulfillment-pulumi:/state
+    depends_on:
+      localstack:
+        condition: service_healthy
+    restart: "no"
+
+  partner-api:
+    build:
+      context: ../..
+      dockerfile: systems/03-fulfillment/apps/partner-api/Dockerfile
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3002
+      PARTNER_WEBHOOK_SECRET: ${FULFILLMENT_WEBHOOK_SECRET:-local-partner-webhook-secret}
+      CALLBACK_DELAY_MS: ${FULFILLMENT_CALLBACK_DELAY_MS:-350}
+    ports:
+      - "${FULFILLMENT_PARTNER_PORT:-4520}:3002"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  orchestrator:
+    build:
+      context: ../..
+      dockerfile: systems/03-fulfillment/apps/orchestrator/Dockerfile
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      DATABASE_URL: postgres://${FULFILLMENT_DB_USER:-fulfillment}:${FULFILLMENT_DB_PASSWORD:-local-only}@postgres:5432/${FULFILLMENT_DB_NAME:-fulfillment}
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      ORDER_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:fulfillment-order
+      PAYMENT_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:fulfillment-payment
+      INVENTORY_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:fulfillment-inventory
+      SHIPPING_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:fulfillment-shipping
+      PUBLIC_ORCHESTRATOR_URL: http://orchestrator:3001
+      PAYMENT_WEBHOOK_SECRET: ${FULFILLMENT_WEBHOOK_SECRET:-local-partner-webhook-secret}
+      INVENTORY_WEBHOOK_SECRET: ${FULFILLMENT_WEBHOOK_SECRET:-local-partner-webhook-secret}
+      SHIPPING_WEBHOOK_SECRET: ${FULFILLMENT_WEBHOOK_SECRET:-local-partner-webhook-secret}
+      AUTH_TOKENS_JSON: '{"customer-acme":{"role":"customer","tenantId":"tenant-acme","subjectId":"customer-alice"},"operator-acme":{"role":"operator","tenantId":"tenant-acme","subjectId":"operator-olivia"},"customer-globex":{"role":"customer","tenantId":"tenant-globex","subjectId":"customer-gary"},"operator-globex":{"role":"operator","tenantId":"tenant-globex","subjectId":"operator-gabriel"}}'
+      SEED_ON_START: "true"
+      SEED_KEY: ${FULFILLMENT_SEED_KEY:-local-seed-key}
+      LEASE_TTL_MS: 5000
+      LEASE_RENEW_MS: 1500
+    ports:
+      - "${FULFILLMENT_ORCHESTRATOR_PORT:-4510}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pulumi:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 10s
+
+  web:
+    build:
+      context: ../..
+      dockerfile: systems/03-fulfillment/apps/web/Dockerfile
+      args:
+        VITE_API_MODE: live
+        VITE_API_BASE_URL: /api
+    ports:
+      - "${FULFILLMENT_WEB_PORT:-4500}:3000"
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  fulfillment-localstack:
+  fulfillment-postgres:
+  fulfillment-pulumi:
+
+networks:
+  default:
+    name: openwizard-fulfillment

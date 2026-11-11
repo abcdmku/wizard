@@ -4,7 +4,7 @@
  * and sequential ids. Flows come from `tests/helpers/fixtures.ts`.
  */
 
-import type { CompiledFlow } from '../../../src/authoring/compiled'
+import type { CompiledWizard } from '../../../src/authoring/compiled'
 import { createSequentialIds } from '../../../src/interpreter/env'
 import { createTestScheduler, type TestScheduler } from '../../../src/interpreter/test-scheduler'
 import type { DomainEvent, DomainEventType } from '../../../src/machine/events'
@@ -19,7 +19,7 @@ import {
 } from '../../../src/wizard/runtime'
 
 export interface E2E {
-  readonly wizard: WizardRuntime
+  readonly run: WizardRuntime
   readonly sched: TestScheduler
   /** Every event observed (own + children), in arrival order. */
   readonly events: DomainEvent[]
@@ -35,12 +35,12 @@ export interface E2E {
 }
 
 export function e2e(
-  def: CompiledFlow,
+  def: CompiledWizard,
   opts: Partial<WizardRuntimeOptions> & { readonly now?: number } = {},
 ): E2E {
   const sched = createTestScheduler({ now: opts.now ?? 10_000 })
   const { now: _now, ...rest } = opts
-  const wizard = createWizardRuntime(def, {
+  const run = createWizardRuntime(def, {
     context: {},
     machine,
     initialState,
@@ -49,47 +49,47 @@ export function e2e(
     instanceId: 'e2e',
     ...rest,
   })
-  return attach(wizard, sched)
+  return attach(run, sched)
 }
 
 export function e2eResume(
-  def: CompiledFlow,
+  def: CompiledWizard,
   snapshot: unknown,
   opts: Partial<ResumeWizardRuntimeOptions> & { readonly now?: number } = {},
 ): E2E {
   const sched = createTestScheduler({ now: opts.now ?? 10_000 })
   const { now: _now, ...rest } = opts
-  const wizard = resumeWizardRuntime(def, snapshot, {
+  const run = resumeWizardRuntime(def, snapshot, {
     machine,
     initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     ...rest,
   })
-  return attach(wizard, sched)
+  return attach(run, sched)
 }
 
-function attach(wizard: WizardRuntime, sched: TestScheduler): E2E {
+function attach(run: WizardRuntime, sched: TestScheduler): E2E {
   // Events committed before we could observe (the `resume` batch of a resumed runtime) are
   // recovered from the log ring so assertions can see them.
-  const events: DomainEvent[] = [...wizard.log()]
+  const events: DomainEvent[] = [...run.log()]
   const states: WizardState[] = []
-  wizard.observe((e) => events.push(e))
-  wizard.subscribe((s) => states.push(s))
+  run.observe((e) => events.push(e))
+  run.subscribe((s) => states.push(s))
   return {
-    wizard,
+    run,
     sched,
     events,
     states,
     types: (all = false) =>
-      events.filter((e) => all || e.path.length === wizard.path.length).map((e) => e.type),
+      events.filter((e) => all || e.path.length === run.path.length).map((e) => e.type),
     of: (type) => events.filter((e): e is never => e.type === type),
     clear: () => {
       events.length = 0
       states.length = 0
     },
     rec: (step) => {
-      const r = wizard.getState().steps[step]
+      const r = run.getState().steps[step]
       if (r === undefined) throw new Error(`unknown step '${step}'`)
       return r
     },

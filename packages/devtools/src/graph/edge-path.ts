@@ -8,7 +8,7 @@
 
 import { getBezierPath, Position } from '@xyflow/react'
 
-export interface EdgeGeometry {
+interface EdgeGeometry {
   readonly sourceX: number
   readonly sourceY: number
   readonly targetX: number
@@ -18,11 +18,11 @@ export interface EdgeGeometry {
   readonly selfLoop: boolean
   /** Different curvature for the two directions of a bidirectional pair. */
   readonly forward: boolean
-  /** Bulge more (a `dependsOn` edge next to the `next` edge of the same pair stays visible). */
+  /** Bulge more (a `needs` edge next to the `next` edge of the same pair stays visible). */
   readonly bulge?: boolean
 }
 
-export interface EdgePath {
+interface EdgePath {
   readonly path: string
   readonly labelX: number
   readonly labelY: number

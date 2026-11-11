@@ -8,7 +8,7 @@
  *   store acknowledged; `flush()` waits for whatever is pending.
  * - Writes are serialized (a slow store can never let an older snapshot win).
  * - `redact(snapshot)` runs right before `store.set`; `clearOnDone` deletes
- *   the key instead of writing once the flow is `done`.
+ *   the key instead of writing once the run is `done`.
  * - The value is JSON-checked BEFORE `store.set` (`firstNonJson`): a `Map`, class instance,
  *   function, `bigint`, `NaN` or `undefined` array slot anywhere in it — and a `Date` (any
  *   `toJSON()` object) anywhere but where `reviveAt` says a boundary re-parses it on resume —
@@ -20,13 +20,13 @@
 
 import { WizardError } from '../errors'
 import type { Scheduler } from '../interpreter/env'
+import { noop } from '../interpreter/executor-invoke'
+import type { PersistReason } from '../machine/effects'
 import { firstNonJson } from '../wizard/json'
 import type { Snapshot } from '../wizard/snapshot'
 import type { Store } from './store'
 
-export type PersistReason = 'change' | 'final' | 'manual'
-
-export interface PersistenceDriverOptions {
+interface PersistenceDriverOptions {
   readonly store: Store
   readonly key: string
   readonly autoSave: 'change' | 'off'
@@ -86,7 +86,7 @@ export function createPersistenceDriver(opts: PersistenceDriverOptions): Persist
         'SNAPSHOT_NOT_SERIALIZABLE',
         `snapshot '${opts.key}' is not JSON-serializable: ${location} ${bad.problem}. ` +
           'Only JSON values survive persistence; a Date (any toJSON() object) only under a schema/parse ' +
-          'boundary that re-parses it on resume (task output, view input, context, event — e.g. z.coerce.date()). ' +
+          'boundary that re-parses it on resume (run output, view input, context, event — e.g. z.coerce.date()). ' +
           'Otherwise store its JSON form, or keep it out of the state (deps).',
         {
           ...(step === undefined ? {} : { step }),
@@ -150,8 +150,6 @@ export function createPersistenceDriver(opts: PersistenceDriverOptions): Persist
     hasPending: () => timer !== undefined,
   }
 }
-
-function noop(): void {}
 
 /** `state.steps.<id>.…` → `<id>` (the step whose record holds the offending value), else undefined. */
 function stepOf(location: string): string | undefined {

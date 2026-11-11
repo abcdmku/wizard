@@ -1,7 +1,7 @@
 /** The toy machine's `apply` fold and status derivation. */
 
 import type { DomainEvent } from '../../../src/machine/events'
-import type { StepRecord, WizardState, WizardStatus } from '../../../src/machine/state'
+import type { RunStatus, StepRecord, WizardState } from '../../../src/machine/state'
 import type { MachineEnv } from '../../../src/machine/types'
 import { initialState } from './index'
 import { TERMINAL } from './toy-shared'
@@ -12,9 +12,9 @@ export function toyApply(env: MachineEnv, S: WizardState, ev: DomainEvent): Wiza
     [id]: { ...S.steps[id]!, ...patch },
   })
   let next: WizardState = S
-  let terminal: WizardStatus | undefined
+  let terminal: RunStatus | undefined
   switch (ev.type) {
-    case 'flow.started':
+    case 'run.started':
       next = { ...S, startedAt: ev.at }
       break
     case 'step.arrived':
@@ -106,17 +106,17 @@ export function toyApply(env: MachineEnv, S: WizardState, ev: DomainEvent): Wiza
     case 'transition.failed':
       next = { ...S, nav: { phase: 'idle' } }
       break
-    case 'flow.done':
+    case 'run.done':
       terminal = 'done'
       next = { ...S, ...(ev.output !== undefined ? { output: ev.output } : {}) }
       break
-    case 'flow.failed':
+    case 'run.failed':
       terminal = 'failed'
       break
-    case 'flow.cancelled':
+    case 'run.cancelled':
       terminal = 'cancelled'
       break
-    case 'flow.reset':
+    case 'run.reset':
       return {
         ...initialState(env, {
           instanceId: S.instanceId,
@@ -192,12 +192,17 @@ export function toyApply(env: MachineEnv, S: WizardState, ev: DomainEvent): Wiza
   const active = Object.values(next.steps)
     .filter((r) => r.status === 'active')
     .map((r) => r.id)
-  const status = terminal ?? (TERMINAL.has(S.status) ? S.status : deriveStatus(next, active))
+  const status = terminal ?? (TERMINAL.has(S.status) ? S.status : deriveStatus(env, next, active))
   return { ...next, active, status, seq: ev.seq, updatedAt: ev.at }
 }
 
-function deriveStatus(S: WizardState, active: readonly string[]): WizardStatus {
-  if (active.some((id) => ['task', 'decision', 'flow'].includes(S.steps[id]!.kind)))
+function deriveStatus(env: MachineEnv, S: WizardState, active: readonly string[]): RunStatus {
+  if (
+    active.some((id) => {
+      const step = env.def.steps[id]
+      return step?.kind === 'child' || (step?.kind === 'step' && step.hooks.waitFor === undefined)
+    })
+  )
     return 'running'
   if (active.length > 0) return 'waiting'
   return S.startedAt === null ? 'idle' : 'waiting'

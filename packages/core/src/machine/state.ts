@@ -1,5 +1,5 @@
 /**
- * Runtime state of a wizard instance.
+ * Runtime state of a run instance.
  *
  * This is the *stored* state: the fold of the event log (see `apply.ts`).
  * Everything derivable (readiness, availability, phase, progress, explain
@@ -16,11 +16,32 @@
  */
 
 import type { StepKind } from '../authoring/compiled'
-import type { Command, TimerFired } from './commands'
+import type { EachState } from './each-state'
+import type {
+  InboxEntry,
+  Issue,
+  RunFailureState,
+  SerializedError,
+  StepErrorKind,
+  TerminalState,
+  TimerEntry,
+} from './state-support'
+
+export type {
+  CompensationFailureState,
+  CompensationOutcome,
+  InboxEntry,
+  Issue,
+  RunFailureState,
+  SerializedError,
+  StepErrorKind,
+  TerminalState,
+  TimerEntry,
+} from './state-support'
 
 // ---------------------------------------------------------------------------
 // Statuses (stored). Kind + sub-fields explain what "active" means:
-// view=shown, task=running/retrying, wait=waiting, flow=child running.
+// view=shown, runnable step=running/retrying, event-driven step=waiting, child=child running.
 // ---------------------------------------------------------------------------
 
 export type StepStatus =
@@ -33,12 +54,13 @@ export type StepStatus =
   | 'compensating'
   | 'compensated'
 
-export type WizardStatus =
+export type RunStatus =
   | 'idle' // created, not started
-  | 'running' // at least one task/decision/flow step is executing
-  | 'waiting' // nothing executing; waiting for a user (view) or an external event / timer (wait)
+  | 'running' // at least one plain or child step is executing
+  | 'waiting' // nothing executing; waiting for a user (view) or an external event / timer
+  | 'halted' // a step failed under `onFailure: 'halt'`; retry / skip / run / compensate / cancel recover it
   | 'done'
-  | 'failed'
+  | 'failed' // terminal
   | 'compensating'
   | 'cancelled'
 
@@ -54,49 +76,30 @@ export type NavPhase =
 
 export type NavCause = 'start' | 'next' | 'go' | 'back' | 'auto' | 'resume' | 'event'
 
-export type StepErrorKind =
-  | 'validation'
-  | 'guard'
-  | 'run'
-  | 'timeout'
-  | 'compensate'
-  | 'interrupted'
-  | 'child'
-  | 'hook'
-  | 'sync-violation'
-
-/** Serializable error. Never carries a stack. */
-export interface SerializedError {
-  readonly name: string
-  readonly message: string
-  readonly code?: string
-}
-
 export interface StepError extends SerializedError {
   readonly kind: StepErrorKind
   readonly at: number
   readonly attempt?: number
   /** Standard-Schema issues when kind === 'validation'. */
   readonly issues?: readonly Issue[]
-  /** v0.2: JSON-safe value produced by the task's `mapError` (typed for users via `ErrorOf<F, K>`). */
+  /** JSON-safe value produced by a runnable step's `mapError` (typed via `ErrorOf<F, K>`). */
   readonly data?: unknown
 }
 
-/** Standard Schema v1 issue (kept structural so core has zero runtime deps). */
-export interface Issue {
-  readonly message: string
-  readonly path?: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }>
-}
-
-export interface GuardResult {
+interface GuardResult {
   readonly ok: boolean
   /** seq of the event that recorded this result. */
   readonly seq: number
   readonly reason?: string
 }
 
+/**
+ * Compact status of a child run as stored on the parent's child step (`status`, `current`,
+ * `progress` 0..1, `seq`). It is what `child: true` exposes in a projection.
+ * @public
+ */
 export interface ChildSummary {
-  readonly status: WizardStatus
+  readonly status: RunStatus
   readonly current: string | null
   readonly progress: number
   readonly seq: number
@@ -113,60 +116,78 @@ export interface StepRecord {
   /** Draft input (view steps): raw, shallow-merged by `setInput`, parsed on next/go. */
   readonly input?: unknown
   /**
-   * Result of the step: parsed input (view), run result (task), resolving event
-   * `{ event, payload }` (wait), chosen target (decision), child output (flow),
-   * `output()` result (final).
+   * Result of the step: parsed input (view), a `run` result, a resolving event, normalized
+   * routing output, or child output (child step). Map outputs retain the input order.
    */
   readonly output?: unknown
   /** Last validation issues (view). Cleared on the next input change. */
   readonly issues?: readonly Issue[]
   readonly error?: StepError
-  /** v0.2: output before the last explicit invalidation. */
+  /** Output before the last explicit invalidation. */
   readonly previousOutput?: unknown
-  /** v0.2: why the step was skipped (`'when'` | `'command'`). */
+  /** An explicit invalidation remains pending until the step is activated again. */
+  readonly invalidated?: true
+  /**
+   * Why the step was skipped: `'when'`, `'command'`, `'not-taken'`, `'needs-skipped'`,
+   * `'fallback'` or `'timeout'`.
+   */
   readonly skipReason?: string
   /** Attempt counter for the current run (1-based while running; 0 when idle). */
   readonly attempt: number
   /** Increments each time the step (re)starts after completion or invalidation. Used for stale-result tokens. */
   readonly runId: number
-  /** Scheduled retry time (task). */
+  /** Scheduled retry time for a run. */
   readonly retryAt?: number
-  /** Absolute wait timeout (wait). Re-armed on resume. */
+  /** Absolute event timeout. Re-armed on resume. */
   readonly deadline?: number
-  /** Idempotency key for the current run (task). */
+  /** Idempotency key for the current run. */
   readonly idempotencyKey?: string
   readonly guards: {
     readonly canEnter?: GuardResult
     readonly canExit?: GuardResult
   }
   /**
-   * v0.2: state of the step's `when` predicate for the current activation — `'pending'` while the
+   * State of the step's `when` predicate for the current activation — `'pending'` while the
    * call is in flight, `'passed'` once it returned true (the step may enter). Absent when the step
    * has no `when` hook or has not been evaluated yet; cleared on entry, skip and invalidation.
    */
   readonly when?: 'pending' | 'passed'
+  /** Event sequence that identifies the current dynamic draft initializer call. */
+  readonly initializing?: number
   /** True while the step's `enter` hook is in flight (kind-specific work starts after it resolves). */
   readonly entering?: boolean
   /** The `enter` hook already ran for the pending activation (transition `entering` phase); cleared when the step enters. */
   readonly enterDone?: boolean
+  /** Sequence of the most recent completion, used to select natural wizard output. */
+  readonly completedSeq?: number
   readonly enteredAt?: number
   readonly exitedAt?: number
+  /** When the step last settled (done, failed, skipped or cancelled). */
+  readonly endedAt?: number
   readonly visitedCount: number
   /**
-   * Set when `start` or a completed predecessor's `next` arrives here while the
-   * step is not active; cleared when the step enters. Together with `dependsOn`
+   * Set when `start`, a completed predecessor's `next` or a finished `needs` producer arrives
+   * here while the step is not active; cleared when the step enters. Together with `needs`
    * gating this is the readiness rule: `ready = pendingActivation && depsSatisfied`.
    */
   readonly pendingActivation: boolean
-  /** seq of the arrival that set `pendingActivation` (scheduler picks ready tasks in arrival order). */
+  /** seq of the arrival that set `pendingActivation` (scheduler picks ready steps in arrival order). */
   readonly arrivedSeq?: number
-  /** Child flow summary (flow steps). The full child snapshot lives in `Snapshot.children`. */
+  /** Child run summary (child steps). The full child snapshot lives in `Snapshot.children`. */
   readonly child?: ChildSummary
+  /** Snapshotted map items and their durable results. */
+  readonly each?: EachState
 }
 
 // ---------------------------------------------------------------------------
-// Whole-wizard state
+// Whole-run state
 // ---------------------------------------------------------------------------
+
+/** A delivered `send` event id and when it was delivered (ms). */
+export interface SeenEventId {
+  readonly id: string
+  readonly at: number
+}
 
 export interface NavState {
   readonly phase: NavPhase
@@ -176,18 +197,23 @@ export interface NavState {
   readonly targets?: readonly string[]
   readonly cause?: NavCause
   readonly direction?: 'forward' | 'back'
-  /** Targets still awaiting a `canEnter` / `enter` result in the current phase. */
+  /** Targets still awaiting an initializer, `canEnter`, or `enter` result in the current phase. */
   readonly pendingSteps?: readonly string[]
   /** Auto-advance hop counter for the current command (guard against `next` loops). */
   readonly hops?: number
+  /** Sources of the latest auto-advances since the last async boundary (newest last, at most 4). */
+  readonly trail?: readonly string[]
   /**
    * Non-view steps that completed while a transition was in flight; their
    * auto-advance starts (in order) as soon as `nav` returns to idle.
    * `to` = target override carried by `step.done.next`.
    */
-  readonly deferred?: ReadonlyArray<{ readonly step: string; readonly to?: string }>
+  readonly deferred?: ReadonlyArray<{
+    readonly step: string
+    readonly to?: string | readonly string[]
+  }>
   /**
-   * v0.2: the view a committed transition wanted as cursor but could not enter because its `when`
+   * The view a committed transition wanted as cursor but could not enter because its `when`
    * predicate was still unevaluated. Once the predicate passes, the cursor rule prefers this view
    * when several views are ready. Cleared when a cursor is set or the view enters/skips/invalidates.
    */
@@ -215,30 +241,14 @@ export interface SagaState {
   readonly settling?: readonly string[]
   /** The entry whose `compensate` call is in flight (one at a time). */
   readonly inFlight?: SagaEntryRef
-  /** Set while compensating; decides `flow.compensated.outcome`. */
+  /** Set while compensating: the run status `run.compensated` ends in. */
   readonly outcome?: 'failed' | 'cancelled'
   readonly reason?: string
 }
 
-export interface InboxEntry {
-  readonly id: string
-  readonly event: string
-  readonly payload: unknown
-  readonly at: number
-  readonly expiresAt: number
-}
-
-export interface TimerEntry {
-  readonly at: number
-  readonly fire: Command | TimerFired
-  /** What the timer is for (set by `apply` from `timer.scheduled` / `step.retryScheduled`). */
-  readonly purpose?: 'retry' | 'waitTimeout' | 'inboxTtl' | 'compensationGrace'
-  /** Owner step for `retry` / `waitTimeout` timers. */
-  readonly step?: string
-}
-
+/** The stored state of a run. `Snapshot<F>['state']` types it by the wizard. @public */
 export interface WizardState {
-  readonly status: WizardStatus
+  readonly status: RunStatus
   /** UI cursor: the active view step, or null. */
   readonly current: string | null
   /** Every step whose status is `active`, in activation order. */
@@ -251,15 +261,21 @@ export interface WizardState {
   readonly saga: SagaState
   readonly inbox: readonly InboxEntry[]
   readonly timers: Readonly<Record<string, TimerEntry>>
-  /** Flow output once a `final` step ran (from its `output` hook). */
+  /** Wizard output once a completing step ran. */
   readonly output?: unknown
+  /** Primary failure retained for a recoverable halt and for compensation results. */
+  readonly failure?: RunFailureState
+  /** Persisted exact terminal facts; absent in pre-result snapshots. */
+  readonly terminal?: TerminalState
   readonly seq: number
   readonly instanceId: string
-  /** v0.2: correlation id used to filter external events (`defineFlow({ correlate })`). */
+  /** Correlation id used to filter external events (`defineWizard({ correlate })`). */
   readonly correlationId?: string
+  /** Delivered `send` event ids still inside the dedupe window, oldest first. */
+  readonly eventIds?: readonly SeenEventId[]
   /** Increments on every resume so a restarted instance is distinguishable (Mirror frames carry `epoch` + `seq`). */
   readonly epoch: number
-  readonly flow: { readonly name: string; readonly version: number }
+  readonly wizard: { readonly name: string; readonly version: number }
   readonly startedAt: number | null
   readonly updatedAt: number
 }

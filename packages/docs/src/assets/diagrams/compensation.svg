@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 230" role="img" aria-labelledby="compensation-title compensation-desc">
+  <title id="compensation-title">Compensation reverses completion order</title>
+  <desc id="compensation-desc">Flight, hotel, and car reservations complete from left to right. Compensation cancels car, hotel, and flight from right to left.</desc>
+  <style>
+    text { font-family: "Geist Mono Variable", ui-monospace, monospace; fill: var(--d-ink); font-size: 14px; }
+    .cap { font-size: 11px; fill: var(--d-muted); letter-spacing: .08em; }
+    .node { fill: var(--d-surface); stroke: var(--d-line); stroke-width: 1.5; }
+    .wire { fill: none; stroke: var(--d-muted); stroke-width: 1.5; marker-end: url(#comp-arrow); }
+  </style>
+  <defs>
+    <marker id="comp-arrow" viewBox="0 0 8 8" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0l8 4-8 4z" fill="var(--d-muted)"/>
+    </marker>
+  </defs>
+  <text class="cap" x="34" y="35">COMPLETION ORDER</text>
+  <rect class="node" x="34" y="52" width="176" height="50" rx="8"/>
+  <text x="122" y="83" text-anchor="middle">reserveFlight</text>
+  <path class="wire" d="M210 77h70"/>
+  <rect class="node" x="288" y="52" width="176" height="50" rx="8"/>
+  <text x="376" y="83" text-anchor="middle">reserveHotel</text>
+  <path class="wire" d="M464 77h70"/>
+  <rect class="node" x="542" y="52" width="176" height="50" rx="8"/>
+  <text x="630" y="83" text-anchor="middle">reserveCar</text>
+  <text class="cap" x="34" y="142">COMPENSATION ORDER</text>
+  <rect class="node" x="34" y="158" width="176" height="50" rx="8"/>
+  <text x="122" y="189" text-anchor="middle">cancelFlight</text>
+  <path class="wire" d="M288 183h-70"/>
+  <rect class="node" x="288" y="158" width="176" height="50" rx="8"/>
+  <text x="376" y="189" text-anchor="middle">cancelHotel</text>
+  <path class="wire" d="M542 183h-70"/>
+  <rect class="node" x="542" y="158" width="176" height="50" rx="8"/>
+  <text x="630" y="189" text-anchor="middle">cancelCar</text>
+</svg>

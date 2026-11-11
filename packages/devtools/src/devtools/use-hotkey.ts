@@ -12,7 +12,7 @@ interface Chord {
   readonly alt: boolean
 }
 
-export function parseChord(hotkey: string): Chord {
+function parseChord(hotkey: string): Chord {
   const parts = hotkey
     .toLowerCase()
     .split('+')
@@ -26,7 +26,7 @@ export function parseChord(hotkey: string): Chord {
   }
 }
 
-export function matchesChord(event: KeyboardEvent, chord: Chord): boolean {
+function matchesChord(event: KeyboardEvent, chord: Chord): boolean {
   return (
     event.key.toLowerCase() === chord.key &&
     (event.ctrlKey || event.metaKey) === chord.ctrl &&

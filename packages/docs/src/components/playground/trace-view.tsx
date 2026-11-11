@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { ConsoleEntry, TraceEntry } from './runner'
 
 const TYPE_TONE: Readonly<Record<string, string>> = {
-  'flow.': 'text-neutral-900 dark:text-neutral-100 font-semibold',
+  'run.': 'text-neutral-900 dark:text-neutral-100 font-semibold',
   'transition.rejected': 'text-neutral-900 dark:text-neutral-100',
   'step.failed': 'text-neutral-900 dark:text-neutral-100',
   'step.runFailed': 'text-neutral-900 dark:text-neutral-100',
@@ -29,22 +29,26 @@ function useAutoScroll(dependency: number) {
   return ref
 }
 
-/** The Trace tab: every domain event from `observe()` — seq, type, step, path and the payload. */
+/** Every domain event from `observe()`, including its sequence, type, step, path, and payload. */
 export function TraceView({
   trace,
-  multiWizard,
+  multiRun,
 }: {
   readonly trace: readonly TraceEntry[]
-  readonly multiWizard: boolean
+  readonly multiRun: boolean
 }) {
   const ref = useAutoScroll(trace.length)
   if (trace.length === 0) {
-    return <p className="p-4 font-mono text-xs text-neutral-500">No events yet — press Run.</p>
+    return (
+      <p className="p-4 font-mono text-xs text-neutral-500">
+        No events yet. Use <code>wizard.create(...)</code> to inspect a live run.
+      </p>
+    )
   }
   return (
     <div ref={ref} className="h-full overflow-auto">
       <table className="w-full border-collapse font-mono text-[11px] leading-5">
-        <thead className="sticky top-0 bg-white text-left text-neutral-500 dark:bg-ink">
+        <thead className="sticky top-0 bg-paper text-left text-neutral-500 dark:bg-ink">
           <tr>
             <th className="px-3 py-1 font-normal">seq</th>
             <th className="px-2 py-1 font-normal">type</th>
@@ -59,7 +63,7 @@ export function TraceView({
               className="border-t border-neutral-100 align-top dark:border-neutral-800/70"
             >
               <td className="whitespace-nowrap px-3 py-0.5 text-neutral-400">
-                {multiWizard && <span className="mr-1 text-neutral-500">{entry.wizard}</span>}
+                {multiRun && <span className="mr-1 text-neutral-500">{entry.run}</span>}
                 {entry.path.length > 0 && (
                   <span className="mr-1 text-neutral-500">{entry.path.join('/')}</span>
                 )}

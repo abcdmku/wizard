@@ -1,10 +1,10 @@
 /**
- * `replay(flow, events, options)` — rebuild the state of a wizard at any point of its event log
+ * `replay(wizard, events, options)` — rebuild the state of a run at any point of its event log
  * by folding the events with the machine's own `apply`. Time travel for devtools, audits and
- * tests: `replay(flow, wizard.log(), { context })` deep-equals `wizard.getState()` for a fresh
- * wizard whose log has not been truncated (`logSize`).
+ * tests: `replay(wizard, run.log(), { context })` deep-equals `run.getState()` for a fresh
+ * run whose log has not been truncated (`logSize`).
  *
- * Only the wizard's OWN events are folded (`path: []`); a child flow's events (`path: [step,…]`)
+ * Only the run's OWN events are folded (`path: []`); a child run's events (`path: [step,…]`)
  * are skipped — the child's summary rides on the parent's `child.summary` events. `persist.failed`
  * (recorded by the runtime, never applied) is skipped as well.
  *
@@ -12,25 +12,25 @@
  */
 
 import { compile } from './authoring/compile'
-import type { AnyFlow, ContextInput } from './authoring/types'
+import type { AnyWizardDefinition, ContextInput } from './authoring/types'
 import { WizardError } from './errors'
 import { isThenable } from './interpreter/thenable'
 import { apply, initialState } from './machine'
 import type { DomainEvent } from './machine/events'
 import type { WizardState } from './machine/state'
 import type { MachineEnv } from './machine/types'
-import type { Snapshot, WizardEvent } from './wizard/create-wizard'
+import type { RunEvent, Snapshot } from './wizard/create-wizard'
 
 /**
- * `replay` options. Either `context` (the context INPUT the wizard was created with, parsed
- * through the flow's context boundary — the fold starts from the initial state, so the events
+ * `replay` options. Either `context` (the context INPUT the run was created with, parsed
+ * through the wizard's context boundary — the fold starts from the initial state, so the events
  * must begin at `seq` 1) or `from` (a base state — `getState()` captured earlier — the fold
  * starts there and events with `seq <= from.seq` are skipped; a truncated log or a resumed
- * wizard need it). `upTo` stops the fold after that `seq` (inclusive); `instanceId` /
+ * run need it). `upTo` stops the fold after that `seq` (inclusive); `instanceId` /
  * `correlationId` seed the initial state (`from` carries its own).
  * @public
  */
-export type ReplayOptions<F extends AnyFlow> = {
+export type ReplayOptions<F extends AnyWizardDefinition> = {
   readonly upTo?: number
   readonly instanceId?: string
   readonly correlationId?: string
@@ -42,20 +42,20 @@ export type ReplayOptions<F extends AnyFlow> = {
 /**
  * Fold `events` (a `log()` slice or anything captured with `observe()`, in `seq` order) with the
  * machine's `apply`, from the initial state built from `options.context` (parsed through the
- * flow's context boundary; async boundary → `DEFINITION_INVALID`, rejection →
+ * wizard's context boundary; async boundary → `DEFINITION_INVALID`, rejection →
  * `BOUNDARY_REJECTED`) or from `options.from`, up to `options.upTo` (inclusive). Returns the
  * state at that point — read-only, no hook runs, no effect. Child events (`path` non-empty) and
- * `persist.failed` are skipped. Pure and deterministic: for a fresh wizard whose log was not
- * truncated by `logSize`, `replay(flow, wizard.log(), { context, instanceId: wizard.id })` deep-equals
- * `wizard.getState()`.
+ * `persist.failed` are skipped. Pure and deterministic: for a fresh run whose log was not
+ * truncated by `logSize`, `replay(wizard, run.log(), { context, instanceId: run.id })` deep-equals
+ * `run.getState()`.
  * @public
  */
-export function replay<F extends AnyFlow>(
-  flow: F,
-  events: readonly WizardEvent<F>[],
+export function replay<F extends AnyWizardDefinition>(
+  wizard: F,
+  events: readonly RunEvent<F>[],
   options: ReplayOptions<F>,
 ): Snapshot<F>['state'] {
-  const def = compile(flow)
+  const def = compile(wizard)
   const env: MachineEnv = {
     def,
     path: [],

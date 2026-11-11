@@ -1,0 +1,43 @@
+{
+  "name": "@openwizard/system-01-intake",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenWizard system 01: tenant-safe application intake and review.",
+  "type": "module",
+  "packageManager": "pnpm@10.19.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm typecheck && pnpm --dir web build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --dir web exec tsc --noEmit -p tsconfig.json && pnpm --dir review-worker exec tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "test:unit": "vitest run --config vitest.unit.config.ts && pnpm --dir web exec vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test --config playwright.config.ts",
+    "test:all": "pnpm typecheck && pnpm test:unit && pnpm test:integration && pnpm test:e2e",
+    "compose:up": "docker compose up --build",
+    "compose:down": "docker compose down",
+    "compose:reset": "docker compose down -v",
+    "seed": "tsx scripts/seed.ts",
+    "dx:check": "node scripts/check-dx-metrics.mjs"
+  },
+  "dependencies": {
+    "@openwizard/core": "workspace:*",
+    "@openwizard/durable": "workspace:*",
+    "@openwizard/drizzle": "workspace:*",
+    "@fastify/cors": "11.0.1",
+    "drizzle-orm": "0.45.2",
+    "fastify": "5.3.3",
+    "postgres": "3.4.7",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.13.3",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

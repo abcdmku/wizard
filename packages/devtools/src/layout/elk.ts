@@ -1,6 +1,6 @@
 /**
  * ELK layered layout of a `GraphModel`: left-to-right layers, spline routing, network-simplex
- * placement, 150 px between layers; groups (child flows) are compound ELK nodes laid out on
+ * placement, 150 px between layers; groups (child wizards) are compound ELK nodes laid out on
  * their own with room for a header. Back edges (`findBackEdges`) are left out so the algorithm
  * sees a DAG; root nodes no edge touches (`findIsolated`) are parked in a right-hand column.
  * The engine is injectable (tests / a worker-backed ELK); the default is the bundled elkjs.
@@ -13,7 +13,7 @@ import { findBackEdges, findIsolated } from './cycles'
 import { GROUP_PADDING, type GraphModel, STEP_HEIGHT } from './model'
 
 /**
- * Box of a laid-out node: absolute at the root, relative to its group inside a child flow.
+ * Box of a laid-out node: absolute at the root, relative to its group inside a child wizard.
  * @public
  */
 export interface Placement {

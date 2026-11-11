@@ -1,0 +1,10 @@
+.git
+**/.pulumi
+**/.turbo
+**/coverage
+**/dist
+**/node_modules
+**/playwright-report
+**/test-results
+tmp
+

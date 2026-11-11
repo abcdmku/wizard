@@ -1,8 +1,8 @@
 /**
- * @openwizard/devtools — React devtools for OpenWizard: `<FlowGraph>` (React Flow + ELK graph
- * of `inspect(flow)` with a live status overlay), `<EventLog>`, `<StepInspector>`, `<Timeline>`
+ * @openwizard/devtools — React devtools for OpenWizard: `<WizardGraph>` (React Flow + ELK graph
+ * of `inspect(wizard)` with a live status overlay), `<EventLog>`, `<StepInspector>`, `<Timeline>`
  * (time travel with `replay`) and the dockable `<Devtools>` panel that composes them over a
- * `Wizard` or a `Mirror`. Import `@openwizard/devtools/style.css` once for the styles.
+ * `Run` or a `Mirror`. Import `@openwizard/devtools/style.css` once for the styles.
  *
  * @packageDocumentation
  */
@@ -10,7 +10,7 @@
 // biome-ignore assist/source/organizeImports: hand-grouped by concept
 export { Devtools, type DevtoolsProps } from './devtools/Devtools'
 export type { DockPosition } from './devtools/use-resize'
-export { FlowGraph, type FlowGraphProps } from './graph/FlowGraph'
+export { WizardGraph, type WizardGraphProps } from './graph/WizardGraph'
 export { EventLog, type EventLogProps } from './events/EventLog'
 export { StepInspector, type StepInspectorProps } from './inspector/StepInspector'
 export { Timeline, type TimelineProps } from './timeline/Timeline'
@@ -38,17 +38,15 @@ export {
   type ModelNodeKind,
 } from './layout/model'
 // ---- live overlay ---------------------------------------------------------------------------
-export { collectStatuses, overlayOf, wizardPhaseReader } from './status'
+export { collectStatuses, overlayOf, runPhaseReader } from './status'
 // ---- types ----------------------------------------------------------------------------------
 export {
   type DevtoolsSource,
   type DevtoolsTheme,
-  type FlowGraphEdge,
-  type FlowGraphNode,
   type GraphInput,
   type GraphSelection,
   isProjectedState,
-  isWizardSource,
+  isRunSource,
   type MirrorSource,
   type ProjectedState,
   type ProjectedStep,
@@ -57,5 +55,5 @@ export {
   type StepStatusInfo,
   type StepStatusMap,
   stepKey,
-  type WizardSource,
+  type RunSource,
 } from './types'

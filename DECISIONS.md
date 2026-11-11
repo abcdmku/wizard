@@ -1,15 +1,14 @@
 # Decisions
 
-Lightweight architecture decision records. One file per decision under `docs/design/adr/`; this index lists them newest-first. The full design lives in `docs/design/architecture-plan.md`.
+Accepted architecture decisions live under `docs/design/adr/`. They record why a choice was made.
+The current source, tests, generated declarations, and API documentation define present behavior.
+The longer design documents are historical notes and may describe superseded plans.
 
-| ADR | Title | Status |
+| ADR | Decision | Status |
 |---|---|---|
-| [ADR-001](docs/design/adr/ADR-001-type-strategy.md) | Step-id safety and flow-bound inference strategy (result of the M0 type spike; builder shape B, amended 2026-08-18) | accepted |
-| [ADR-000](docs/design/adr/ADR-000-engine-and-no-modes.md) | Pure event-sourced machine + interpreter; step kinds + policies instead of `mode` | accepted |
+| [ADR-003](docs/design/adr/ADR-003-dynamic-input-and-scoped-projections.md) | Initialize drafts from durable state and scope projections at the host | accepted |
+| [ADR-002](docs/design/adr/ADR-002-deployment-artifacts.md) | Nitro builds deployment artifacts; infrastructure stays outside the runtime | accepted |
+| [ADR-001](docs/design/adr/ADR-001-type-strategy.md) | Wizard-bound inference and checked step assembly | accepted |
+| [ADR-000](docs/design/adr/ADR-000-engine-and-no-modes.md) | Pure machine plus interpreter, with three structural kinds and property-driven behavior | accepted |
 
-## Rules that are not ADRs (see CONTRIBUTING.md)
-
-- One canonical way to do each thing; no aliases, no arg-shape overloads.
-- No field in a type without a runtime consumer and a test.
-- Exactly one type extractor per concept.
-- Every exported symbol has a test, a `.test-d.ts` assertion if generic, TSDoc `@public`, and a row in the generated export table.
+Repository rules that do not need an ADR live in [CONTRIBUTING.md](./CONTRIBUTING.md).

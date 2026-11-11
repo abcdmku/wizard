@@ -13,7 +13,7 @@
 
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { describeError, WizardError } from '../errors'
-import { getThen } from '../interpreter/thenable'
+import { isThenable } from '../interpreter/thenable'
 import type { BoundaryResult, RuntimeBoundary } from './compiled'
 import { type Boundary, CHECKER, type Checker, type CheckerKind, type Issue } from './types'
 
@@ -65,7 +65,7 @@ function requireFn(fn: unknown, what: string): (value: unknown) => unknown {
 /**
  * True when `value` is a boundary: a Standard Schema (`'~standard'`) or a checker minted by
  * `boundary.*` (the private brand, a known kind, and a function for `parse` / `guard` / `assert`).
- * @public
+ * @internal
  */
 export function isBoundary(value: unknown): value is Boundary<unknown, unknown> {
   return isStandardSchema(value) || isChecker(value)
@@ -100,7 +100,7 @@ function isChecker(value: unknown): value is CheckerImpl<unknown> {
  * `'~standard'.validate` (sync or async, both supported; issues are mapped to `Issue`s);
  * checkers run their function (`parse`/`assert` throw → issues; `guard` false → issue).
  * Anything else — including a forged checker — throws `WizardError('DEFINITION_INVALID')`.
- * @public
+ * @internal
  */
 export function toRuntimeBoundary(boundary: Boundary<unknown, unknown>): RuntimeBoundary {
   if (isStandardSchema(boundary)) {
@@ -109,7 +109,9 @@ export function toRuntimeBoundary(boundary: Boundary<unknown, unknown>): Runtime
       kind: 'standard',
       parse: (value) => {
         const result = props.validate(value)
-        return isThenable(result) ? result.then(fromStandardResult) : fromStandardResult(result)
+        return isThenable(result)
+          ? (result as Promise<StandardSchemaV1.Result<unknown>>).then(fromStandardResult)
+          : fromStandardResult(result)
       },
     }
   }
@@ -170,11 +172,22 @@ function fromStandardResult(result: StandardSchemaV1.Result<unknown>): BoundaryR
   return { ok: false, issues: result.issues.map(toIssue) }
 }
 
-/** Standard Schema issue → `Issue` (drop an explicit `undefined` path; keep segments as they are). */
-function toIssue(issue: StandardSchemaV1.Issue): Issue {
-  return issue.path === undefined
-    ? { message: issue.message }
-    : { message: issue.message, path: issue.path }
+/**
+ * A reported issue → `Issue`. The path is kept only when it is an array, with its segments as
+ * they are. A value that is not an issue object becomes a message, so a boundary that returns
+ * malformed issues still produces a readable rejection.
+ */
+export function toIssue(raw: unknown): Issue {
+  if (
+    typeof raw === 'object' &&
+    raw !== null &&
+    'message' in raw &&
+    typeof raw.message === 'string'
+  ) {
+    const path = 'path' in raw && Array.isArray(raw.path) ? raw.path : undefined
+    return path === undefined ? { message: raw.message } : { message: raw.message, path }
+  }
+  return { message: String(raw) }
 }
 
 /** A thrown value → issues; objects carrying an `issues` array (schema errors) contribute theirs. */
@@ -194,9 +207,4 @@ function issuesFromError(error: unknown): readonly Issue[] {
     if (mapped.length > 0) return mapped
   }
   return [{ message: describeError(error) }]
-}
-
-/** A Standard Schema `validate` may return its result synchronously or as a thenable. */
-function isThenable(value: unknown): value is PromiseLike<StandardSchemaV1.Result<unknown>> {
-  return getThen(value) !== undefined
 }

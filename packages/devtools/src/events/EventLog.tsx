@@ -1,10 +1,11 @@
 /**
- * `<EventLog>` — the domain events of a wizard as a table (seq / at / type / step / path /
+ * `<EventLog>` — the domain events of a run as a table (seq / at / type / step / path /
  * detail), live through `observe()` (seeded with `log()`) or from a static array; filterable,
  * windowed (only the visible rows are in the DOM), following the newest row until you scroll up.
  */
 
-import type { WizardEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
+import { traceLine } from '@openwizard/core/inspect'
 import {
   type ChangeEvent,
   type CSSProperties,
@@ -16,21 +17,20 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { DevtoolsTheme, WizardSource } from '../types'
+import type { DevtoolsTheme, RunSource } from '../types'
 import { useBufferedEvents, useEventBuffer } from './event-buffer'
-import { eventDetail, eventStep, formatAt, matchesFilter } from './format'
 
 /**
- * `<EventLog>` props: a live `source` (wizard) or a static `events` array; an optional `filter`
+ * `<EventLog>` props: a live `source` (run) or a static `events` array; an optional `filter`
  * (substring over type / step / event / path, or a predicate); `onSelect` + `selectedSeq` for
  * the row selection; `maxRows` bounds the live buffer (default 2000).
  * @public
  */
 export interface EventLogProps {
-  readonly source?: WizardSource
-  readonly events?: readonly WizardEvent[]
-  readonly filter?: string | ((event: WizardEvent) => boolean)
-  readonly onSelect?: (event: WizardEvent) => void
+  readonly source?: RunSource
+  readonly events?: readonly RunEvent[]
+  readonly filter?: string | ((event: RunEvent) => boolean)
+  readonly onSelect?: (event: RunEvent) => void
   readonly selectedSeq?: number | null
   readonly maxRows?: number
   /** Show the filter box (default `true`). */
@@ -45,7 +45,7 @@ const OVERSCAN = 8
 const FALLBACK_HEIGHT = 240
 
 /**
- * The event log of a wizard: `seq`, `at`, `type`, `step`, `path` and a one-line detail per event.
+ * The event log of a run: `seq`, `at`, `type`, `step`, `path` and a one-line detail per event.
  * Live over `source.observe()` (starting from `source.log()`), or the given `events`. Click a
  * row to select it (`onSelect(event)`).
  * @public
@@ -97,18 +97,28 @@ export function EventLog(props: EventLogProps): ReactElement {
   )
 }
 
+/** Case-insensitive substring filter over type / step / event name / path. */
+function matchesFilter(event: RunEvent, filter: string): boolean {
+  const needle = filter.trim().toLowerCase()
+  if (needle === '') return true
+  const line = traceLine(event)
+  return `${line.type} ${line.step} ${line.event} ${line.path.join('/')}`
+    .toLowerCase()
+    .includes(needle)
+}
+
 /** Static `events` win; otherwise the live buffer of `source` (empty without either). */
-function useLogRows(props: EventLogProps): readonly WizardEvent[] {
+function useLogRows(props: EventLogProps): readonly RunEvent[] {
   const live = useEventBuffer(props.events === undefined ? props.source : undefined, props.maxRows)
   const buffered = useBufferedEvents(live)
   return props.events ?? buffered
 }
 
 interface RowsProps {
-  readonly events: readonly WizardEvent[]
+  readonly events: readonly RunEvent[]
   readonly origin: number | undefined
   readonly selectedSeq: number | null
-  readonly onSelect: ((event: WizardEvent) => void) | undefined
+  readonly onSelect: ((event: RunEvent) => void) | undefined
 }
 
 /** The windowed table: fixed row height, only the visible slice (+ overscan) is rendered. */
@@ -143,29 +153,49 @@ function Rows({ events, origin, selectedSeq, onSelect }: RowsProps): ReactElemen
       </div>
       <div style={{ height: start * ROW_HEIGHT }} />
       {visible.map((event) => (
-        <button
-          type="button"
+        <Row
           key={`${event.path.join('/')}:${event.seq}:${event.type}`}
-          className="owd-log-row"
-          data-selected={event.seq === selectedSeq && event.path.length === 0 ? 'true' : undefined}
-          data-child={event.path.length > 0 ? 'true' : undefined}
-          onClick={() => onSelect?.(event)}
-          style={{ height: ROW_HEIGHT }}
-        >
-          <span className="owd-mono">{event.seq}</span>
-          <span className="owd-mono owd-subtle">{formatAt(event.at, origin)}</span>
-          <span className="owd-log-type" data-family={event.type.split('.')[0]}>
-            {event.type}
-          </span>
-          <span className="owd-mono">{eventStep(event)}</span>
-          <span className="owd-mono owd-subtle">{event.path.join('/')}</span>
-          <span className="owd-log-detail owd-subtle" title={eventDetail(event)}>
-            {eventDetail(event)}
-          </span>
-        </button>
+          event={event}
+          origin={origin}
+          selected={event.seq === selectedSeq && event.path.length === 0}
+          onSelect={onSelect}
+        />
       ))}
       <div style={{ height: Math.max(0, events.length - end) * ROW_HEIGHT }} />
       {events.length === 0 && <div className="owd-empty">no events yet</div>}
     </div>
+  )
+}
+
+interface RowProps {
+  readonly event: RunEvent
+  readonly origin: number | undefined
+  readonly selected: boolean
+  readonly onSelect: ((event: RunEvent) => void) | undefined
+}
+
+/** One event: seq, time (relative to the first row), type, step, path and the body fields. */
+function Row({ event, origin, selected, onSelect }: RowProps): ReactElement {
+  const line = traceLine(event, origin)
+  return (
+    <button
+      type="button"
+      className="owd-log-row"
+      data-selected={selected ? 'true' : undefined}
+      data-child={event.path.length > 0 ? 'true' : undefined}
+      onClick={() => onSelect?.(event)}
+      style={{ height: ROW_HEIGHT }}
+    >
+      <span className="owd-mono">{event.seq}</span>
+      <span className="owd-mono owd-subtle">{line.at}</span>
+      <span className="owd-log-type" data-family={event.type.split('.')[0]}>
+        {event.type}
+      </span>
+      <span className="owd-mono">{line.step}</span>
+      <span className="owd-mono owd-subtle">{event.path.join('/')}</span>
+      <span className="owd-log-detail owd-subtle" title={line.detail}>
+        {line.detail}
+      </span>
+    </button>
   )
 }

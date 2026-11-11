@@ -47,8 +47,8 @@ function setup(
 const taskThenFinal = (run: (args: any) => unknown, extra: Record<string, unknown> = {}) =>
   flow({
     steps: {
-      t: { kind: 'task', hooks: { run }, next: { kind: 'static', targets: ['end'] }, ...extra },
-      end: { kind: 'final' },
+      t: { kind: 'step', hooks: { run }, next: { kind: 'static', targets: ['end'] }, ...extra },
+      end: { kind: 'step', hooks: { run: () => undefined } },
     },
   })
 
@@ -69,7 +69,7 @@ describe('interpreter: batch atomicity', () => {
     interp.send({ type: 'start' })
     // The very first event of the first batch already sees the whole batch applied
     // (task active with attempt 1, set by the last event of that batch).
-    expect(seen[0]).toEqual({ type: 'flow.started', status: 'active', attempt: 1 })
+    expect(seen[0]).toEqual({ type: 'run.started', status: 'active', attempt: 1 })
     expect(seen.map((s) => s.type)).toContain('step.runSucceeded')
     // Events from the second batch (run result) see the task done.
     const done = seen.find((s) => s.type === 'step.runSucceeded')
@@ -81,9 +81,9 @@ describe('interpreter: batch atomicity', () => {
     const { interp, commits, processed } = setup(def)
     interp.send({ type: 'start' })
     expect(commits).toHaveLength(1)
-    interp.send({ type: 'runReady' }) // toy machine: [] for this command
+    interp.send({ type: 'startReady' }) // toy machine: [] for this command
     expect(commits).toHaveLength(1)
-    expect(processed.at(-1)?.msg).toEqual({ type: 'runReady' })
+    expect(processed.at(-1)?.msg).toEqual({ type: 'startReady' })
     expect(processed.at(-1)?.batch).toEqual([])
   })
 
@@ -124,7 +124,7 @@ describe('interpreter: sync-commit guarantee', () => {
     expect(interp.getState().steps.t!.status).toBe('done')
     expect(interp.getState().steps.t!.output).toBe('later')
     expect(interp.getState().status).toBe('done')
-    expect(commits).toHaveLength(2)
+    expect(commits).toHaveLength(3)
   })
 
   it("strict: 'sync' turns a thenable into res.err { syncViolation } in the same drain", () => {
@@ -146,7 +146,7 @@ describe('interpreter: sync-commit guarantee', () => {
     expect(err && err.type === 'res.err' ? err.error.code : undefined).toBe('SYNC_VIOLATION')
     expect(interp.getState().steps.t!.status).toBe('failed')
     expect(interp.getState().steps.t!.error?.kind).toBe('sync-violation')
-    expect(types(events)).toContain('flow.failed')
+    expect(types(events)).toContain('run.failed')
   })
 })
 
@@ -155,7 +155,7 @@ describe('interpreter: re-entrancy', () => {
     const def = flow({
       steps: {
         v: { kind: 'view', next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'final' },
+        end: { kind: 'step', hooks: { run: () => undefined } },
       },
     })
     let inputSeenInsideListener: unknown = 'unset'
@@ -176,7 +176,7 @@ describe('interpreter: re-entrancy', () => {
     interp.send({ type: 'start' })
     expect(inputSeenInsideListener).toBeUndefined()
     expect(interp.getState().steps.v!.input).toEqual({ name: 'x' })
-    expect(types(events)).toEqual(['flow.started', 'step.arrived', 'step.entered', 'input.changed'])
+    expect(types(events)).toEqual(['run.started', 'step.arrived', 'step.entered', 'input.changed'])
   })
 
   it('a hook calling update() enqueues context.patch, applied before the hook result', () => {
@@ -212,11 +212,11 @@ describe('interpreter: causality', () => {
     const def = flow({
       steps: {
         w: {
-          kind: 'wait',
-          hooks: { on: { ping: () => undefined } },
+          kind: 'step',
+          hooks: { waitFor: { ping: () => undefined } },
           waitTimeout: { afterMs: 50, next: 'end' },
         },
-        end: { kind: 'final' },
+        end: { kind: 'step', hooks: { run: () => undefined } },
       },
     })
     const { interp, events, sched } = setup(def)

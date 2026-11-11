@@ -1,8 +1,8 @@
 /**
- * Navigation pipeline (§1.4 / plan §8.3) — fan-out atomicity, cursor rules, auto-advance and the multi-target entry follow-ups.
+ * Navigation pipeline — fan-out atomicity, cursor rules, auto-advance and the multi-target entry follow-ups.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, decision, final, flow, of, task, view, wait } from '../helpers/fixtures'
+import { createHarness, eventStep, flow, of, routingStep, runStep, view } from '../helpers/fixtures'
 
 const linear = () =>
   flow({
@@ -11,7 +11,7 @@ const linear = () =>
       a: view({ next: 'b' }),
       b: view({ next: 'c' }),
       c: view({ next: 'end' }),
-      end: final(),
+      end: routingStep(),
     },
   })
 
@@ -22,10 +22,10 @@ describe('fan-out atomicity and cursor rules', () => {
         start: 'a',
         steps: {
           a: view({ next: ['b', 'c', 'd'] }),
-          b: task({ canEnter: () => true }),
+          b: runStep({ canEnter: () => true }),
           c: view({ canEnter: () => true, next: 'end' }),
           d: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -43,17 +43,17 @@ describe('fan-out atomicity and cursor rules', () => {
     expect(h.state.active).toEqual(['a'])
   })
 
-  it('all canEnter ok → every target arrives; tasks run in parallel; the first view becomes current', () => {
+  it('all canEnter ok → every target arrives; steps run in parallel; the first view becomes current', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
           a: view({ next: ['t1', 'v1', 't2', 'v2'] }),
-          t1: task({ canEnter: () => true }),
-          t2: task(),
+          t1: runStep({ canEnter: () => true }),
+          t2: runStep(),
           v1: view({ next: 'end' }),
           v2: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -73,10 +73,10 @@ describe('fan-out atomicity and cursor rules', () => {
       flow({
         start: ['t'],
         steps: {
-          t: task({ next: ['v1', 'v2'] }),
+          t: runStep({ next: ['v1', 'v2'] }),
           v1: view({ next: 'end' }),
           v2: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -95,10 +95,10 @@ describe('fan-out atomicity and cursor rules', () => {
         start: 'a',
         steps: {
           a: view({ next: 't1' }),
-          t1: task({ next: 't2' }),
-          t2: task({ next: 'v' }),
+          t1: runStep({ next: 't2' }),
+          t2: runStep({ next: 'v' }),
           v: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -115,16 +115,17 @@ describe('fan-out atomicity and cursor rules', () => {
     expect(h.state.current).toBe('v')
     expect(h.state.history).toEqual(['a', 'v'])
     h.cmd('next')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
   })
 
-  it('AUTO_ADVANCE_LOOP: a decision cycle fails the flow after 1000 hops', () => {
+  it('AUTO_ADVANCE_LOOP: a routing cycle fails the flow after 1000 hops', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
-          a: decision({ decide: () => 'b' }),
-          b: decision({ decide: () => 'a' }),
+          a: routingStep({ decide: () => 'b', targets: ['b'] }),
+          b: routingStep({ decide: () => 'a', targets: ['a'] }),
         },
       }),
     )
@@ -139,21 +140,21 @@ describe('fan-out atomicity and cursor rules', () => {
       const r = h.ok(call, target)
       last = r.state
       hops++
-      if (r.types.includes('flow.failed')) break
+      if (r.types.includes('run.failed')) break
     }
     expect(last.status).toBe('failed')
-    expect(of(h.log, 'flow.failed')[0]?.code).toBe('AUTO_ADVANCE_LOOP')
+    expect(of(h.log, 'run.failed')[0]?.code).toBe('AUTO_ADVANCE_LOOP')
     expect(hops).toBeGreaterThan(999)
     expect(hops).toBeLessThan(1010)
   })
 
-  it('hops restart at every external message: a send-driven wait/task loop never trips the guard', () => {
+  it('hops restart at every external message: a send-driven wait/step loop never trips the guard', () => {
     const h = createHarness(
       flow({
         start: 'w',
         steps: {
-          w: wait({ on: { tick: () => undefined }, next: 't' }),
-          t: task({ next: 'w' }),
+          w: eventStep({ on: { tick: () => undefined }, next: 't' }),
+          t: runStep({ next: 'w' }),
         },
       }),
     )
@@ -165,7 +166,7 @@ describe('fan-out atomicity and cursor rules', () => {
     }
     expect(h.state.status).toBe('waiting')
     expect(h.state.nav.hops).toBe(2) // w → t → w since the last send
-    expect(h.log.some((e) => e.type === 'flow.failed')).toBe(false)
+    expect(h.log.some((e) => e.type === 'run.failed')).toBe(false)
   })
 
   it('a non-view completion while a transition is in flight is deferred until nav idles', () => {
@@ -174,11 +175,11 @@ describe('fan-out atomicity and cursor rules', () => {
         start: 'a',
         steps: {
           a: view({ next: ['t', 'v'] }),
-          t: task({ next: 'joined' }),
+          t: runStep({ next: 'joined' }),
           v: view({ canExit: () => true, next: 'w' }),
           w: view({ next: 'end' }),
           joined: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -201,14 +202,14 @@ describe('fan-out atomicity and cursor rules', () => {
 })
 
 describe('review follow-ups — atomic multi-target entry, go after back', () => {
-  it('next() to a task whose enter hook fails: no commit, no successful settle, from stays current', () => {
+  it('next() to a step whose enter hook fails: no commit, no successful settle, from stays current', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
           a: view({ next: 't' }),
-          t: task({ enter: () => undefined, next: 'end' }),
-          end: final(),
+          t: runStep({ enter: () => undefined, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
@@ -237,14 +238,14 @@ describe('review follow-ups — atomic multi-target entry, go after back', () =>
     expect(h.pending('run')).toHaveLength(0)
   })
 
-  it('next() to a task whose enter succeeds: commit, then the run starts without a second enter call', () => {
+  it('next() to a step whose enter succeeds: commit, then the run starts without a second enter call', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
           a: view({ next: 't' }),
-          t: task({ enter: () => undefined, next: 'end' }),
-          end: final(),
+          t: runStep({ enter: () => undefined, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
@@ -273,10 +274,10 @@ describe('review follow-ups — atomic multi-target entry, go after back', () =>
           start: 'a',
           steps: {
             a: view({ next: ['t', 'v', 'w'] }),
-            t: task({ enter: () => undefined }),
+            t: runStep({ enter: () => undefined }),
             v: view({ enter: () => undefined, next: 'end' }),
             w: view({ next: 'end' }),
-            end: final(),
+            end: routingStep(),
           },
         }),
       )
@@ -313,14 +314,14 @@ describe('review follow-ups — atomic multi-target entry, go after back', () =>
     expect(late.state.active).toEqual(['a'])
   })
 
-  it('auto-advance targets (from a completed task) still enter through the scheduler sub-phase', () => {
+  it('auto-advance targets (from a completed step) still enter through the scheduler sub-phase', () => {
     const h = createHarness(
       flow({
         start: 't',
         steps: {
-          t: task({ next: 'u' }),
-          u: task({ enter: () => undefined, next: 'end' }),
-          end: final(),
+          t: runStep({ next: 'u' }),
+          u: runStep({ enter: () => undefined, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
@@ -335,15 +336,15 @@ describe('review follow-ups — atomic multi-target entry, go after back', () =>
       flow({
         start: 't',
         steps: {
-          t: task({ next: 'u' }),
-          u: task({ enter: () => undefined, next: 'end' }),
-          end: final(),
+          t: runStep({ next: 'u' }),
+          u: runStep({ enter: () => undefined, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
     h2.start()
     h2.ok(h2.call('run', 't'), 1)
-    expect(h2.err(h2.call('enter'), 'no').types).toEqual(['step.failed', 'flow.failed'])
+    expect(h2.err(h2.call('enter'), 'no').types).toEqual(['step.failed', 'run.halted'])
   })
 
   it('A → B → C → back to B → go(C): C is reachable because it was visited (history is only the back-stack)', () => {

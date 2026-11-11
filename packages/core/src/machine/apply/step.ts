@@ -3,7 +3,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import type { DomainEvent } from '../events'
 import { isTerminal } from '../selectors'
 import type { WizardState } from '../state'
@@ -29,21 +29,18 @@ function withoutDeferred(state: WizardState, step: string): WizardState {
 }
 
 /**
- * v0.2: a non-view step that completed (`step.done`) or was skipped while a transition was in
+ * A non-view step that completed (`step.done`) or was skipped while a transition was in
  * flight continues (auto-advance) once `nav` is idle again: queue it in `nav.deferred`.
  */
 function deferContinuation(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   step: string,
-  override: string | undefined,
+  override: string | readonly string[] | undefined,
 ): WizardState {
   const stepDef = def.steps[step]
   const busy = state.nav.phase !== 'idle' && state.status !== 'compensating' && !isTerminal(state)
-  const advances =
-    stepDef !== undefined &&
-    stepDef.kind !== 'final' &&
-    (override !== undefined || stepDef.next.kind !== 'none')
+  const advances = stepDef !== undefined && (override !== undefined || stepDef.next.kind !== 'none')
   if (!busy || !advances) return state
   const entry = override !== undefined ? { step, to: override } : { step }
   return withNav(state, { ...state.nav, deferred: [...(state.nav.deferred ?? []), entry] })
@@ -64,6 +61,10 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           rec.kind === 'view' && rec.input === undefined && def?.initial !== undefined
             ? { input: def.initial }
             : {}
+        const initialSeq =
+          rec.kind === 'view' && rec.input === undefined && def?.hooks.initial !== undefined
+            ? (rec.initializing ?? ev.seq)
+            : undefined
         const base = omit(rec, [
           'error',
           'issues',
@@ -73,15 +74,20 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           'idempotencyKey',
           'arrivedSeq',
           'exitedAt',
+          'endedAt',
           'child',
           'entering',
           'enterDone',
+          'completedSeq',
           'when',
           'skipReason',
+          'invalidated',
+          'each',
         ])
         return {
           ...base,
           ...seedInput,
+          ...(initialSeq !== undefined ? { initializing: initialSeq } : {}),
           status: 'active',
           runId: ev.runId,
           attempt: 0,
@@ -111,12 +117,16 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
         status: ev.direction === 'back' ? 'idle' : 'done',
         pendingActivation: false,
         exitedAt: ev.at,
+        ...(ev.direction === 'back' ? {} : { endedAt: ev.at }),
+        completedSeq: ev.seq,
       }))
     case 'step.done': {
       const def = env.def.steps[ev.step]
       let next = withStep(state, ev.step, (rec) => ({
-        ...omit(rec, ['error', 'retryAt', 'deadline', 'entering', 'output']),
+        ...omit(rec, ['error', 'retryAt', 'deadline', 'entering', 'output', 'invalidated']),
         status: 'done',
+        completedSeq: ev.seq,
+        endedAt: ev.at,
         pendingActivation: false,
         ...(ev.output !== undefined ? { output: ev.output } : {}),
       }))
@@ -132,11 +142,12 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
       }
       return def?.kind === 'view' ? next : deferContinuation(env.def, next, ev.step, ev.next)
     }
-    case 'step.failed':
-      return withStep(dropHint(state, ev.step), ev.step, (rec) => ({
-        ...omit(rec, ['retryAt', 'deadline', 'entering', 'when']),
+    case 'step.failed': {
+      const next = withStep(dropHint(state, ev.step), ev.step, (rec) => ({
+        ...omit(rec, ['retryAt', 'deadline', 'entering', 'initializing', 'when']),
         status: 'failed',
         pendingActivation: false,
+        endedAt: ev.at,
         error: toStepError(
           ev.error,
           ev.kind,
@@ -145,12 +156,33 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           ev.data,
         ),
       }))
+      const error = next.steps[ev.step]?.error
+      return error === undefined
+        ? next
+        : {
+            ...next,
+            failure: {
+              step: ev.step,
+              error: {
+                name: error.name,
+                message: error.message,
+                ...(error.code !== undefined ? { code: error.code } : {}),
+              },
+              kind: error.kind,
+              at: error.at,
+              ...(error.attempt !== undefined ? { attempt: error.attempt } : {}),
+              ...(error.issues !== undefined ? { issues: error.issues } : {}),
+              ...(error.data !== undefined ? { data: error.data } : {}),
+            },
+          }
+    }
     case 'step.skipped': {
-      // v0.2 (§9.2): done-without-running — no output, no error; the draft `input` and
+      // Done-without-running — no output, no error; the draft `input` and
       // `previousOutput` survive. Continues (auto-advance) once `nav` is idle when busy.
       const next = withStep(dropHint(state, ev.step), ev.step, (rec) => ({
         ...omit(rec, [
           'entering',
+          'initializing',
           'when',
           'error',
           'issues',
@@ -159,12 +191,26 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           'deadline',
           'idempotencyKey',
           'arrivedSeq',
+          'invalidated',
         ]),
         status: 'skipped',
         pendingActivation: false,
+        endedAt: ev.at,
         ...(ev.reason !== undefined ? { skipReason: ev.reason } : {}),
+        ...(ev.error !== undefined
+          ? {
+              error: toStepError(
+                ev.error,
+                ev.kind ?? 'run',
+                ev.at,
+                rec.attempt > 0 ? rec.attempt : undefined,
+                ev.data,
+              ),
+            }
+          : {}),
       }))
-      return deferContinuation(env.def, next, ev.step, undefined)
+      if (ev.reason === 'not-taken' || ev.reason === 'needs-skipped') return next
+      return deferContinuation(env.def, next, ev.step, ev.next)
     }
     case 'step.whenStarted':
       return patchStep(state, ev.step, { when: 'pending' })
@@ -173,7 +219,7 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
         ? patchStep(state, ev.step, { when: 'passed' })
         : patchStep(state, ev.step, {}, ['when'])
     case 'step.invalidated':
-      // v0.2 (§9.3): back to idle; the output moves to `previousOutput`, a view keeps its draft.
+      // Back to idle; the output moves to `previousOutput`, a view keeps its draft.
       return withStep(dropHint(state, ev.step), ev.step, (rec) => ({
         ...omit(rec, [
           'output',
@@ -186,21 +232,26 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           'idempotencyKey',
           'arrivedSeq',
           'entering',
+          'initializing',
           'enterDone',
+          'completedSeq',
+          'endedAt',
           'when',
           'child',
+          'each',
         ]),
         status: 'idle',
+        invalidated: true,
         pendingActivation: false,
         ...(rec.output !== undefined ? { previousOutput: rec.output } : {}),
       }))
     case 'step.cancelled':
-      return patchStep(state, ev.step, { status: 'cancelled', pendingActivation: false }, [
-        'entering',
-        'retryAt',
-        'deadline',
-        'when',
-      ])
+      return patchStep(
+        state,
+        ev.step,
+        { status: 'cancelled', pendingActivation: false, endedAt: ev.at },
+        ['entering', 'initializing', 'retryAt', 'deadline', 'when'],
+      )
     case 'step.validated':
       return withStep(state, ev.step, (rec) => ({
         ...omit(rec, ['issues']),

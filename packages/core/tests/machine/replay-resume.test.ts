@@ -1,30 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import {
   createHarness,
-  decision,
-  final,
+  eventStep,
   flow,
+  needAll,
+  needOptional,
   of,
   replay,
-  task,
+  routingStep,
+  runStep,
   view,
-  wait,
 } from '../helpers/fixtures'
 
 const on = () => undefined
 
 describe('replay(log) == state', () => {
-  it('fixture 1: linear wizard with a retried task and a back()', () => {
+  it('fixture 1: linear run with a retried step and a back()', () => {
     const h = createHarness(
       flow({
-        name: 'wizard',
+        name: 'run',
         start: 'a',
         steps: {
           a: view({ initial: { n: 0 }, next: 'b' }),
           b: view({ canExit: () => true, next: 't' }),
-          t: task({ retry: { attempts: 1, backoff: 100 }, next: 'c' }),
+          t: runStep({ retry: { retries: 1, backoff: 100 }, next: 'c' }),
           c: view({ next: 'end' }),
-          end: final({ output: () => 'bye' }),
+          end: runStep({ run: () => 'bye' }),
         },
       }),
     )
@@ -40,7 +41,8 @@ describe('replay(log) == state', () => {
     h.fire('retry:t')
     h.ok(h.call('run'), { ok: true })
     h.cmd('next')
-    h.ok(h.call('finalOutput'), 'bye')
+    h.ok(h.call('run', 'end'), 'bye')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(replay(h)).toEqual(h.state)
     expect(h.log.map((e) => e.seq)).toEqual(h.log.map((_, i) => i + 1))
@@ -53,10 +55,10 @@ describe('replay(log) == state', () => {
         name: 'saga',
         start: ['t1', 't2'],
         steps: {
-          t1: task({ compensate: c, next: 't3' }),
-          t2: task({ compensate: c, next: 't3' }),
-          t3: task({ compensate: c, dependsOn: ['t1', 't2'], next: 'end' }),
-          end: final(),
+          t1: runStep({ compensate: c, next: 't3' }),
+          t2: runStep({ compensate: c, next: 't3' }),
+          t3: runStep({ compensate: c, needs: needAll('t1', 't2'), next: 'end' }),
+          end: routingStep(),
         },
         policies: { onFailure: 'compensate', concurrency: 2 },
       }),
@@ -82,10 +84,14 @@ describe('replay(log) == state', () => {
         start: 'v',
         steps: {
           v: view({ next: ['w', 'x'] }),
-          w: wait({ on: { a: on, b: on }, timeout: { afterMs: 500, next: 'late' }, next: 'x' }),
-          x: wait({ on: { z: on }, next: 'end' }),
-          late: final(),
-          end: final({ dependsOn: ['w', 'x'] }),
+          w: eventStep({
+            on: { a: on, b: on },
+            timeout: { afterMs: 500, next: 'late' },
+            next: 'x',
+          }),
+          x: eventStep({ on: { z: on }, next: 'end' }),
+          late: routingStep(),
+          end: routingStep({ needs: { ...needOptional('w'), ...needAll('x') } }),
         },
         policies: { unmatchedEvents: { buffer: true, ttlMs: 1_000 } },
       }),
@@ -104,11 +110,16 @@ describe('replay(log) == state', () => {
     expect(replay(h)).toEqual(h.state)
     // sanity: the flow reached the timeout branch
     expect(h.rec('late').status).toBe('done')
+    expect(h.rec('x').status).toBe('active')
+    h.cmd({ type: 'send', event: 'z', payload: 'finished' })
+    h.ok(h.call('on', 'x'))
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
+    expect(replay(h)).toEqual(h.state)
   })
 })
 
-describe('resume matrix (§8.8)', () => {
+describe('resume matrix', () => {
   it('nav in flight → transition.rejected{resumed}; from stays active; the promise is settled', () => {
     const h = createHarness(
       flow({
@@ -116,7 +127,7 @@ describe('resume matrix (§8.8)', () => {
         steps: {
           a: view({ canExit: () => true, next: 'b' }),
           b: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -124,34 +135,36 @@ describe('resume matrix (§8.8)', () => {
     h.cmd('next')
     const tx = h.state.nav.txId
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'transition.rejected'])
-    expect(of(r, 'flow.resumed')[0]).toMatchObject({ fromSeq: h.state.seq - 2, interrupted: [] })
+    expect(r.types).toEqual(['run.resumed', 'transition.rejected'])
+    expect(of(r, 'run.resumed')[0]).toMatchObject({ fromSeq: h.state.seq - 2, interrupted: [] })
     expect(of(r, 'transition.rejected')[0]).toMatchObject({ txId: tx, reason: 'resumed' })
     expect(h.state.nav.phase).toBe('idle')
     expect(h.state.current).toBe('a')
     expect(r.effects.map((e) => e.kind)).toEqual(['settle', 'persist'])
   })
 
-  it('running task → step.failed{interrupted} + flow.failed; retry re-runs it', () => {
-    const h = createHarness(flow({ start: 't', steps: { t: task({ next: 'end' }), end: final() } }))
+  it('running step → step.failed{interrupted} + run.failed; retry re-runs it', () => {
+    const h = createHarness(
+      flow({ start: 't', steps: { t: runStep({ next: 'end' }), end: routingStep() } }),
+    )
     h.start()
     const r = h.step({ type: 'resume', fromSeq: 3 })
-    expect(r.types).toEqual(['flow.resumed', 'step.failed', 'flow.failed'])
-    expect(of(r, 'flow.resumed')[0]?.interrupted).toEqual(['t'])
+    expect(r.types).toEqual(['run.resumed', 'step.failed', 'run.halted'])
+    expect(of(r, 'run.resumed')[0]?.interrupted).toEqual(['t'])
     expect(h.rec('t').error).toMatchObject({ kind: 'interrupted', code: 'INTERRUPTED' })
-    expect(h.state.status).toBe('failed')
+    expect(h.state.status).toBe('halted')
     expect(h.cmd({ type: 'retry', step: 't' }).types).toEqual(['step.runStarted'])
     expect(h.call('run').token).toEqual({ step: 't', runId: 1, attempt: 1 })
   })
 
-  it('an interrupted task never triggers compensation (even with onFailure: compensate)', () => {
+  it('an interrupted step never triggers compensation (even with onFailure: compensate)', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
-          a: task({ compensate: () => undefined, next: 'b' }),
-          b: task({ next: 'end' }),
-          end: final(),
+          a: runStep({ compensate: () => undefined, next: 'b' }),
+          b: runStep({ next: 'end' }),
+          end: routingStep(),
         },
         policies: { onFailure: 'compensate' },
       }),
@@ -159,19 +172,19 @@ describe('resume matrix (§8.8)', () => {
     h.start()
     h.ok(h.call('run', 'a'), 1)
     const r = h.step({ type: 'resume', fromSeq: 1 })
-    expect(r.types).toEqual(['flow.resumed', 'step.failed', 'flow.failed'])
-    expect(h.state.status).toBe('failed')
+    expect(r.types).toEqual(['run.resumed', 'step.failed', 'run.halted'])
+    expect(h.state.status).toBe('halted')
     expect(h.state.saga.stack.map((e) => e.step)).toEqual(['a'])
   })
 
-  it('task with retryAt → its timer is re-armed (overdue fires at now); wait deadline: inbox drained first, then timer re-armed', () => {
+  it('step with an overdue retryAt → the retry fires in the resume batch; wait deadline not due: inbox drained, timer re-armed', () => {
     const h = createHarness(
       flow({
         start: ['t', 'w'],
         steps: {
-          t: task({ retry: { attempts: 1, backoff: 1_000 } }),
-          w: wait({ on: { e: on }, timeout: { afterMs: 5_000, next: 'end' } }),
-          end: final(),
+          t: runStep({ retry: { retries: 1, backoff: 1_000 } }),
+          w: eventStep({ on: { e: on }, timeout: { afterMs: 5_000, next: 'end' } }),
+          end: routingStep(),
         },
       }),
     )
@@ -185,17 +198,12 @@ describe('resume matrix (§8.8)', () => {
       inbox: [{ id: 'evt-9', event: 'e', payload: 'p', at: 0, expiresAt: h.clock.now + 60_000 }],
     }
     h.clock.advance(2_000) // retry overdue, deadline not yet
+    expect(retryAt).toBeLessThan(h.clock.now)
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'event.delivered'])
+    expect(r.types).toEqual(['run.resumed', 'timer.fired', 'step.runStarted', 'event.delivered'])
+    expect(of(r, 'step.runStarted')[0]).toMatchObject({ step: 't', attempt: 2 })
     expect(of(r, 'event.delivered')[0]).toMatchObject({ to: 'w', inboxId: 'evt-9' })
-    const timerSets = r.effects.filter((e) => e.kind === 'timer.set')
-    expect(timerSets).toEqual([
-      {
-        kind: 'timer.set',
-        timerId: 'retry:t',
-        at: h.clock.now,
-        fire: { type: 'timer.fired', timerId: 'retry:t' },
-      },
+    expect(r.effects.filter((e) => e.kind === 'timer.set')).toEqual([
       {
         kind: 'timer.set',
         timerId: 'wait:w',
@@ -203,18 +211,19 @@ describe('resume matrix (§8.8)', () => {
         fire: { type: 'timer.fired', timerId: 'wait:w' },
       },
     ])
-    expect(retryAt).toBeLessThan(h.clock.now)
-    // the delivery is re-planned as a call
-    expect(r.effects.some((e) => e.kind === 'call' && e.hook === 'on')).toBe(true)
+    // the retry and the delivery are planned as calls
+    expect(r.effects.flatMap((e) => (e.kind === 'call' ? [e.hook] : []))).toEqual(['run', 'on'])
   })
 
   it('expired inbox entries are dropped on resume', () => {
-    const h = createHarness(flow({ start: 'v', steps: { v: view({ next: 'end' }), end: final() } }))
+    const h = createHarness(
+      flow({ start: 'v', steps: { v: view({ next: 'end' }), end: routingStep() } }),
+    )
     h.start()
     h.cmd({ type: 'send', event: 'x', payload: 1 })
     h.clock.advance(60_000)
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'timer.cleared', 'event.expired'])
+    expect(r.types).toEqual(['run.resumed', 'timer.cleared', 'event.expired'])
     expect(h.state.inbox).toEqual([])
   })
 
@@ -222,7 +231,11 @@ describe('resume matrix (§8.8)', () => {
     const h = createHarness(
       flow({
         start: 't',
-        steps: { t: task({ compensate: () => undefined, next: 'u' }), u: task(), end: final() },
+        steps: {
+          t: runStep({ compensate: () => undefined, next: 'u' }),
+          u: runStep(),
+          end: routingStep(),
+        },
         policies: { onFailure: 'compensate' },
       }),
     )
@@ -231,7 +244,7 @@ describe('resume matrix (§8.8)', () => {
     h.err(h.call('run', 'u'), 'x')
     expect(h.rec('t').status).toBe('compensating')
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed'])
+    expect(r.types).toEqual(['run.resumed'])
     expect(r.effects.filter((e) => e.kind === 'call')).toMatchObject([
       { hook: 'compensate', step: 't' },
     ])
@@ -239,61 +252,43 @@ describe('resume matrix (§8.8)', () => {
     expect(h.state.status).toBe('failed')
   })
 
-  it('in-flight enter / decision next hooks are re-issued; terminal flows only record flow.resumed', () => {
+  it('in-flight enter / routing next hooks are re-issued; terminal flows only record run.resumed', () => {
     const h = createHarness(
       flow({
         start: ['e', 'd'],
         steps: {
-          e: task({ enter: () => undefined }),
-          d: decision({ decide: () => 'end' }),
-          end: final(),
+          e: runStep({ enter: () => undefined }),
+          d: routingStep({ decide: () => 'end', targets: ['end'] }),
+          end: routingStep(),
         },
       }),
     )
     h.start()
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed'])
+    expect(r.types).toEqual(['run.resumed'])
     expect(r.effects.filter((e) => e.kind === 'call').map((e) => [e.hook, e.step])).toEqual([
       ['enter', 'e'],
       ['next', 'd'],
     ])
     // finish and resume again
     h.ok(h.call('next'), 'end')
+    expect(h.rec('e').entering).toBe(true)
+    h.ok(h.call('enter', 'e'))
+    h.ok(h.call('run', 'e'))
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     const t = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(t.types).toEqual(['flow.resumed'])
+    expect(t.types).toEqual(['run.resumed'])
     expect(t.effects.filter((e) => e.kind === 'call')).toEqual([])
-    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('flow-terminal')
+    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('run-terminal')
   })
 })
 
 describe('review follow-ups — resume effect ordering, persistence of no-op batches', () => {
-  it('a buffered wait event and an overdue wait timeout on resume: the delivery call is planned before timer.set', () => {
-    const h = createHarness(
-      flow({
-        start: 'w',
-        steps: {
-          w: wait({ on: { e: on }, timeout: { afterMs: 100, next: 'end' }, next: 'end' }),
-          end: final(),
-        },
-      }),
-    )
-    h.start()
-    h.state = {
-      ...h.state,
-      inbox: [{ id: 'evt-9', event: 'e', payload: 'p', at: 0, expiresAt: h.clock.now + 60_000 }],
-    }
-    h.clock.advance(1_000) // the wait timeout is overdue
-    const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'event.delivered'])
-    const kinds = r.effects.map((e) => e.kind)
-    expect(kinds).toEqual(['call', 'timer.set', 'persist'])
-    expect(r.effects[0]).toMatchObject({ kind: 'call', hook: 'on', step: 'w' })
-    expect(r.effects[1]).toMatchObject({ kind: 'timer.set', timerId: 'wait:w', at: h.clock.now })
-  })
-
   it('every non-empty batch is persisted, including rejected commands and ignored results', () => {
-    const h = createHarness(flow({ start: 'v', steps: { v: view({ next: 'end' }), end: final() } }))
+    const h = createHarness(
+      flow({ start: 'v', steps: { v: view({ next: 'end' }), end: routingStep() } }),
+    )
     const rejected = h.cmd('next') // not started
     expect(rejected.types).toEqual(['transition.rejected'])
     expect(rejected.effects.map((e) => e.kind)).toEqual(['settle', 'persist'])

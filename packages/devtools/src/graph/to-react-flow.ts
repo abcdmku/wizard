@@ -1,17 +1,18 @@
 /**
  * From the laid-out model to React Flow nodes and edges: step cards, group containers (child
- * flows) with `parentId` + relative positions, entry / `?` markers, and typed edges with the
+ * wizards) with `parentId` + relative positions, entry / `?` markers, and typed edges with the
  * handles `pickHandles` chose. The live overlay (statuses, current view, selection) only touches
  * `data`, so `applyOverlay` can refresh it without resetting positions the user dragged.
  *
  * @packageDocumentation
  */
 
+import type { ManifestStep } from '@openwizard/core/inspect'
 import type { Edge, Node } from '@xyflow/react'
 import type { LayoutResult, Placement } from '../layout/elk'
 import { pickHandles } from '../layout/handles'
 import type { GraphModel, ModelEdge, ModelEdgeKind, ModelNode } from '../layout/model'
-import type { FlowGraphNode, StepStatusInfo, StepStatusMap } from '../types'
+import type { StepStatusInfo, StepStatusMap } from '../types'
 
 /** What the graph overlays on the static model right now. */
 export interface GraphOverlay {
@@ -24,7 +25,7 @@ export interface GraphOverlay {
 
 export type StepNodeData = {
   readonly nodeKey: string
-  readonly step: FlowGraphNode
+  readonly step: ManifestStep
   readonly path: readonly string[]
   readonly warnings: readonly string[]
   readonly live: StepStatusInfo | undefined
@@ -32,12 +33,12 @@ export type StepNodeData = {
   readonly selected: boolean
 }
 
-export type MarkerNodeData = {
+type MarkerNodeData = {
   readonly variant: 'entry' | 'dynamic'
   readonly path: readonly string[]
 }
 
-export type FlowEdgeData = {
+type GraphEdgeData = {
   readonly kind: ModelEdgeKind
   readonly label?: string
   /** Left out of the layered layout (drawn as a U-turn / self-loop). */
@@ -48,13 +49,11 @@ export type StepNode = Node<StepNodeData, 'step'>
 export type GroupNode = Node<StepNodeData, 'group'>
 export type MarkerNode = Node<MarkerNodeData, 'marker'>
 export type DevtoolsNode = StepNode | GroupNode | MarkerNode
-export type DevtoolsEdge = Edge<FlowEdgeData, 'flow'>
-
-export const EMPTY_OVERLAY: GraphOverlay = { statuses: {}, current: null, selected: null }
+export type DevtoolsEdge = Edge<GraphEdgeData, 'graph'>
 
 function stepData(
   node: ModelNode,
-  step: FlowGraphNode,
+  step: ManifestStep,
   model: GraphModel,
   overlay: GraphOverlay,
 ): StepNodeData {
@@ -122,7 +121,7 @@ function toEdge(edge: ModelEdge, layout: LayoutResult): DevtoolsEdge | undefined
     target: edge.target,
     sourceHandle: handles.sourceHandle,
     targetHandle: handles.targetHandle,
-    type: 'flow',
+    type: 'graph',
     data: {
       kind: edge.kind,
       ...(edge.label === undefined ? {} : { label: edge.label }),

@@ -9,7 +9,7 @@ import type { Message } from '../machine/commands'
 import type { Effect } from '../machine/effects'
 import type { DomainEvent, DomainEventBody } from '../machine/events'
 
-export interface EnvelopeInput {
+interface EnvelopeInput {
   /** The state's seq BEFORE the batch (the first event gets `seq + 1`). */
   readonly seq: number
   readonly at: number

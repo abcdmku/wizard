@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 150" role="img" aria-labelledby="simple-wizard-title simple-wizard-desc">
+  <title id="simple-wizard-title">A three-step signup wizard</title>
+  <desc id="simple-wizard-desc">Collect email moves to send email, which moves to done.</desc>
+  <style>
+    text { font-family: "Geist Mono Variable", ui-monospace, monospace; fill: var(--d-ink); font-size: 15px; }
+    .node { fill: var(--d-surface); stroke: var(--d-line); stroke-width: 1.5; }
+    .wire { fill: none; stroke: var(--d-muted); stroke-width: 1.5; marker-end: url(#simple-arrow); }
+  </style>
+  <defs>
+    <marker id="simple-arrow" viewBox="0 0 8 8" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0l8 4-8 4z" fill="var(--d-muted)"/>
+    </marker>
+  </defs>
+  <rect class="node" x="42" y="48" width="190" height="54" rx="8"/>
+  <text x="137" y="80" text-anchor="middle">collectEmail</text>
+  <path class="wire" d="M232 75h66"/>
+  <rect class="node" x="305" y="48" width="190" height="54" rx="8"/>
+  <text x="400" y="80" text-anchor="middle">sendEmail</text>
+  <path class="wire" d="M495 75h66"/>
+  <rect class="node" x="568" y="48" width="150" height="54" rx="8"/>
+  <text x="643" y="80" text-anchor="middle">done</text>
+</svg>

@@ -1,0 +1,38 @@
+{
+  "name": "@wizard/dungeon",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The local reference stack for the Dungeon workflow system.",
+  "scripts": {
+    "build": "pnpm --dir shared build && pnpm typecheck && pnpm --dir web build",
+    "dev": "docker compose up --build",
+    "typecheck": "pnpm --dir shared typecheck && pnpm --dir server typecheck && pnpm --dir web typecheck && tsc --noEmit -p tests/tsconfig.json",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "bash scripts/integration.sh",
+    "ci:integration": "node scripts/with-env.mjs node scripts/assert-integration-files.mjs && node scripts/with-env.mjs vitest run --config vitest.config.ts --project integration",
+    "test:e2e": "node scripts/with-env.mjs playwright test --config playwright.config.ts",
+    "ci:browser": "node scripts/run-browser-tests.mjs",
+    "test:load": "node scripts/with-env.mjs k6 run load/dungeon.k6.js",
+    "test:load:soak": "node scripts/with-env.mjs k6 run -e DUNGEON_LOAD_PROFILE=5m load/dungeon.k6.js",
+    "seed": "node scripts/seed.mjs",
+    "reset": "node scripts/reset.mjs",
+    "reset:integration": "node scripts/reset-integration.mjs",
+    "health": "node scripts/wait-for-health.mjs",
+    "check:dx": "node scripts/check-dx-metrics.mjs",
+    "test:ops": "node --test scripts/load-env.test.mjs"
+  },
+  "devDependencies": {
+    "@openwizard/core": "workspace:*",
+    "@openwizard/durable": "workspace:*",
+    "@types/node": "24.13.3",
+    "@wizard/dungeon-server": "workspace:*",
+    "@wizard/dungeon-shared": "workspace:*",
+    "@playwright/test": "1.62.1",
+    "@types/ws": "8.18.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10",
+    "ws": "8.21.3"
+  }
+}

@@ -1,9 +1,11 @@
 # Changesets
 
-Every user-facing change to `@openwizard/core` or `@openwizard/react` needs a changeset:
+Every user-facing change to a publishable package under `packages/*` needs a changeset:
 
 ```bash
 pnpm changeset
 ```
 
-Pick the packages, the bump type (`patch` while pre-1.0 unless the API changes shape), and write one or two sentences a user of the library would want to read in the changelog. `core` and `react` are versioned together (fixed group).
+Pick every affected package and the correct bump type. Write one or two concrete sentences for
+the changelog. `core` and `react` share a fixed version group. Other packages can release
+independently.

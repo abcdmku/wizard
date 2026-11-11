@@ -1,8 +1,8 @@
 /**
  * A stand-in for the payment provider's BROWSER SDK (think Stripe.js / Braintree): the card
  * number goes from the form straight to the provider and comes back as an opaque token. The
- * wizard, the server, the snapshots and every Mirror frame only ever see that token — the PAN
- * never crosses the wire door (`setInput`) at all.
+ * run, the server, the snapshots and every Mirror frame only ever see that token and the
+ * last four digits; the card number never crosses the wire door (`setInput`) at all.
  *
  * Client code. In production replace `tokenizeCard` with the real SDK call.
  */
@@ -24,13 +24,13 @@ export async function tokenizeCard(cardNumber: string): Promise<CardToken> {
 function luhn(digits: string): boolean {
   let sum = 0
   let double = false
-  for (let i = digits.length - 1; i >= 0; i -= 1) {
-    let d = Number(digits[i])
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index])
     if (double) {
-      d *= 2
-      if (d > 9) d -= 9
+      digit *= 2
+      if (digit > 9) digit -= 9
     }
-    sum += d
+    sum += digit
     double = !double
   }
   return sum % 10 === 0

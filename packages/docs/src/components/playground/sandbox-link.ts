@@ -7,7 +7,7 @@
 
 export type HostModules = Readonly<Record<string, Readonly<Record<string, unknown>>>>
 
-export interface LinkedModules {
+interface LinkedModules {
   /** File name → the module namespace after evaluation (the entry's top-level code has run). */
   readonly namespaces: ReadonlyMap<string, Readonly<Record<string, unknown>>>
 }
@@ -29,7 +29,7 @@ function specifiersOf(source: string): string[] {
   return [...found]
 }
 
-/** `./flow`, `./flow.js`, `./flow.ts` (from any file) → `flow.ts` when that file exists. */
+/** `./order`, `./order.js`, `./order.ts` (from any file) → `order.ts` when that file exists. */
 function resolveRelative(specifier: string, files: ReadonlySet<string>): string | null {
   const stem = specifier.replace(/^\.\//, '').replace(/\.(js|ts|tsx|mjs)$/, '')
   for (const candidate of [`${stem}.ts`, `${stem}.tsx`]) if (files.has(candidate)) return candidate

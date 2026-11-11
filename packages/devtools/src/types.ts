@@ -1,21 +1,21 @@
 /**
- * Public types of `@openwizard/devtools`. The components accept a live `Wizard` or a `Mirror`
- * through STRUCTURAL source types (`WizardSource` / `MirrorSource`) so any typed
- * `Wizard<F>` / `Mirror<P>` fits without a cast, and read the flow's static graph as the
- * `FlowGraph` `inspect(flow)` returns.
+ * Public types of `@openwizard/devtools`. The components accept a live `Run` or a `Mirror`
+ * through STRUCTURAL source types (`RunSource` / `MirrorSource`) so any typed
+ * `Run<F>` / `Mirror<P>` fits without a cast, and read the wizard's static graph as the
+ * `Manifest` `inspect(wizard)` returns.
  *
  * @packageDocumentation
  */
 
 import type {
-  AnyFlow,
+  AnyWizardDefinition,
   Explanation,
-  FlowGraph,
+  RunEvent,
   Snapshot,
   StepKind,
   StepStatus,
-  WizardEvent,
 } from '@openwizard/core'
+import type { Manifest } from '@openwizard/core/inspect'
 
 /**
  * Colour scheme of the devtools: `'system'` follows `prefers-color-scheme`, the others force it
@@ -25,7 +25,7 @@ import type {
 export type DevtoolsTheme = 'light' | 'dark' | 'system'
 
 /**
- * Live phase of a step as `wizard.explain(step).phase` / `ClientStepState.phase` report it
+ * Live phase of a step as `run.explain(step).phase` / `ClientStepState.phase` report it
  * (`ready`, `running`, `retrying`, `waiting`, …).
  * @public
  */
@@ -41,16 +41,17 @@ export interface StepStatusInfo {
 }
 
 /**
- * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root flow,
- * `'fulfil/pick'` for step `pick` of the child flow of `fulfil`). Built with
- * `collectStatuses()` from a wizard snapshot or a projected (`ClientState`) state, or by hand.
+ * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root wizard,
+ * `'fulfil/pick'` for an ordinary child or `'batch/0/pick'` for a mapped child). Built with
+ * `collectStatuses()` from a run snapshot or a projected (`ClientState`) state, or by hand.
  * @public
  */
 export type StepStatusMap = Readonly<Record<string, StepStatusInfo>>
 
 /**
- * What a graph click reports: the step `id`, the wizard `path` of its flow and the combined
+ * What a graph click reports: the step `id`, the run `path` of its wizard and the combined
  * `key` (`stepKey(path, id)`).
+ * Mapped children carry their input index after the owning step, e.g. `['batch', '0']`.
  * @public
  */
 export interface GraphSelection {
@@ -69,39 +70,39 @@ export function stepKey(path: readonly string[], id: string): string {
 }
 
 /**
- * A wizard snapshot as the devtools walk it: the (typed-erased) state plus the live children by
- * flow-step id. `Wizard.getSnapshot()` of any flow returns one.
+ * A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by
+ * child step id. `Run.getSnapshot()` of any wizard returns one.
  * @public
  */
 export interface SnapshotLike {
-  readonly state: Snapshot<AnyFlow>['state']
+  readonly state: Snapshot<AnyWizardDefinition>['state']
   readonly children: Readonly<Record<string, SnapshotLike | undefined>>
 }
 
 /**
- * The structural view of a `Wizard` the devtools read (`Wizard<F>` of any flow satisfies it):
- * identity, the flow, state / snapshot, the two subscriptions, the bounded log, `explain` and
+ * The structural view of a `Run` the devtools read (`Run<F>` of any wizard satisfies it):
+ * identity, the wizard, state / snapshot, the two subscriptions, the bounded log, `explain` and
  * the live child handles.
  * @public
  */
-export interface WizardSource {
+export interface RunSource {
   readonly id: string
-  readonly flow: AnyFlow
-  getState(): Snapshot<AnyFlow>['state']
+  readonly wizard: AnyWizardDefinition
+  getState(): Snapshot<AnyWizardDefinition>['state']
   getSnapshot(): SnapshotLike
   subscribe(listener: () => void): () => void
-  observe(listener: (event: WizardEvent) => void): () => void
-  log(): readonly WizardEvent[]
+  observe(listener: (event: RunEvent) => void): () => void
+  log(): readonly RunEvent[]
   explain(step: string): Explanation
-  /** Live child of an active flow step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE` otherwise). */
-  child(step: string): WizardSource
+  /** Live child, optionally selected by mapped item key or index. Throws when it is not live. */
+  child(step: string, keyOrIndex?: number | string): Pick<RunSource, 'explain' | 'child'>
 }
 
 /**
  * The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies
  * it): the projected state (`null` before the first frame), its subscription and the frame
- * identity. Events, `explain` and the timeline need a wizard; a Mirror source shows the graph
- * (with `flow` / `graph`) and the projected step facts.
+ * identity. Events, `explain` and the timeline need a run; a Mirror source shows the graph
+ * (with `wizard` / `graph`) and the projected step facts.
  * @public
  */
 export interface MirrorSource {
@@ -114,17 +115,18 @@ export interface MirrorSource {
 }
 
 /**
- * What the components accept as `source`: a live `Wizard` or a `Mirror`.
+ * What the components accept as `source`: a live `Run` or a `Mirror`.
  * @public
  */
-export type DevtoolsSource = WizardSource | MirrorSource
+export type DevtoolsSource = RunSource | MirrorSource
 
 /**
- * True for a `WizardSource` (it has `observe` / `log` / `explain`); false for a Mirror.
+ * True for a `RunSource` (it has `getState` / `log` / `explain`); false for a Mirror (which
+ * also has `observe`).
  * @public
  */
-export function isWizardSource(source: DevtoolsSource): source is WizardSource {
-  return 'observe' in source && typeof source.observe === 'function'
+export function isRunSource(source: DevtoolsSource): source is RunSource {
+  return 'getState' in source && typeof source.getState === 'function'
 }
 
 /**
@@ -174,25 +176,12 @@ export function isProjectedState(value: unknown): value is ProjectedState {
 }
 
 /**
- * The static graph the components draw: a ready `FlowGraph` (`inspect(flow)`, plain JSON — a
- * client can receive it from the server) or the flow itself (`inspect` is called for you);
+ * The static graph the components draw: a ready `Manifest` (`inspect(wizard)`, plain JSON — a
+ * client can receive it from the server) or the wizard itself (`inspect` is called for you);
  * `graph` wins when both are given.
  * @public
  */
 export interface GraphInput {
-  readonly graph?: FlowGraph
-  readonly flow?: AnyFlow
+  readonly graph?: Manifest
+  readonly wizard?: AnyWizardDefinition
 }
-
-/**
- * One node of a `FlowGraph` (`inspect(flow).nodes[i]`): id, kind, path, hooks, `dependsOn`,
- * `timeout`, `dynamicNext`, `start`.
- * @public
- */
-export type FlowGraphNode = FlowGraph['nodes'][number]
-
-/**
- * One edge of a `FlowGraph` (`inspect(flow).edges[i]`): `from` (`null` for `start`), `to`, kind, path.
- * @public
- */
-export type FlowGraphEdge = FlowGraph['edges'][number]

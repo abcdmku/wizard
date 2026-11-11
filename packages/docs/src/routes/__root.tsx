@@ -12,8 +12,8 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: `${site.name} — type-safe workflow orchestrator for TypeScript` },
-      { name: 'description', content: site.tagline },
+      { title: `${site.name} | TypeScript workflows` },
+      { name: 'description', content: site.description },
     ],
     links: [
       { rel: 'stylesheet', href: globalCss },

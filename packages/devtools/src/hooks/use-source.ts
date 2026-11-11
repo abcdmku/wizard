@@ -1,5 +1,5 @@
 /**
- * Subscriptions over a `DevtoolsSource`: the latest snapshot (`getSnapshot()` — a wizard's is
+ * Subscriptions over a `DevtoolsSource`: the latest snapshot (`getSnapshot()` — a run's is
  * cached per commit, a Mirror's per frame, so identities are stable) and the live overlay
  * derived from it.
  */
@@ -21,6 +21,7 @@ export function useSourceSnapshot(source: DevtoolsSource): unknown {
 export function useSourceOverlay(source: DevtoolsSource): {
   readonly statuses: StepStatusMap
   readonly current: string | null
+  readonly childPaths: readonly (readonly string[])[]
 } {
   const snapshot = useSourceSnapshot(source)
   return useMemo(() => overlayOf(source, snapshot), [source, snapshot])

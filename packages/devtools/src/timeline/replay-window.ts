@@ -1,21 +1,21 @@
 /**
- * The replay window of a wizard: a base state plus the root events since it, kept in sync
- * through `observe()`, so `stateAt(seq)` can rebuild any point with `replay(flow, events, {
+ * The replay window of a run: a base state plus the root events since it, kept in sync
+ * through `observe()`, so `stateAt(seq)` can rebuild any point with `replay(wizard, events, {
  * from: base, upTo: seq })`. The base is the state when the window attached (`getState()`), or
  * the initial state when the log still starts at seq 1 and the context input is known — then
  * the whole history is scrubbable. When the window overflows `maxEvents`, the oldest half is
  * folded into the base (the range shrinks, the memory does not grow).
  */
 
-import { type AnyFlow, replay, type Snapshot, type WizardEvent } from '@openwizard/core'
+import { type AnyWizardDefinition, type RunEvent, replay, type Snapshot } from '@openwizard/core'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
-import type { WizardSource } from '../types'
+import type { RunSource } from '../types'
 
 /**
- * A (typed-erased) wizard state as `replay` returns it.
+ * A (typed-erased) run state as `replay` returns it.
  * @public
  */
-export type ReplayState = Snapshot<AnyFlow>['state']
+export type ReplayState = Snapshot<AnyWizardDefinition>['state']
 
 /**
  * The replay window: a base state and the root events since it (`latest` = the newest seq).
@@ -25,33 +25,37 @@ export interface ReplayWindow {
   /** The state every replay starts from (its `seq` is the earliest scrubbable point). */
   readonly base: ReplayState
   /** Root events with `seq > base.seq`, ascending. */
-  readonly events: readonly WizardEvent[]
+  readonly events: readonly RunEvent[]
   /** The latest seq (`events` last, else `base.seq`). */
   readonly latest: number
 }
 
 /**
- * A live replay window over a wizard (`createReplayWindow`): subscribe to it, `attach()` it to
- * start following the wizard, read `window`.
+ * A live replay window over a run (`createReplayWindow`): subscribe to it, `attach()` it to
+ * start following the run, read `window`.
  * @public
  */
 export interface ReplayWindowStore {
   readonly window: ReplayWindow
   subscribe(listener: () => void): () => void
-  /** Seed from the wizard now and start following it; returns the teardown. */
+  /** Seed from the run now and start following it; returns the teardown. */
   attach(): () => void
 }
 
 /** The state at `seq` within a window (its base for anything at or before `base.seq`). */
-export function stateAt(window: ReplayWindow, flow: AnyFlow, seq: number): ReplayState {
+export function stateAt(
+  window: ReplayWindow,
+  wizard: AnyWizardDefinition,
+  seq: number,
+): ReplayState {
   if (seq <= window.base.seq) return window.base
-  return replay(flow, window.events, { from: window.base, upTo: seq })
+  return replay(wizard, window.events, { from: window.base, upTo: seq })
 }
 
-export const DEFAULT_REPLAY_EVENTS = 5_000
+const DEFAULT_REPLAY_EVENTS = 5_000
 
 /**
- * Create the replay window of a wizard: the base is the wizard's state when `attach()` runs (or
+ * Create the replay window of a run: the base is the run's state when `attach()` runs (or
  * the initial state built from `options.context` when the log still starts at seq 1); root
  * events are appended from `observe()`; past `maxEvents` (default 5000) the oldest half is
  * folded into the base. `<Timeline>` creates one itself; `<Devtools>` owns one so the range
@@ -59,19 +63,19 @@ export const DEFAULT_REPLAY_EVENTS = 5_000
  * @public
  */
 export function createReplayWindow(
-  wizard: WizardSource,
+  run: RunSource,
   options: { readonly maxEvents?: number; readonly context?: unknown } = {},
 ): ReplayWindowStore {
   const max = options.maxEvents ?? DEFAULT_REPLAY_EVENTS
-  const flow: AnyFlow = wizard.flow
-  let window: ReplayWindow = { base: wizard.getState(), events: [], latest: wizard.getState().seq }
-  let pending: WizardEvent[] = []
+  const wizard: AnyWizardDefinition = run.wizard
+  let window: ReplayWindow = { base: run.getState(), events: [], latest: run.getState().seq }
+  let pending: RunEvent[] = []
   let scheduled = false
   const listeners = new Set<() => void>()
   const notify = (): void => {
     for (const listener of listeners) listener()
   }
-  const set = (base: ReplayState, events: readonly WizardEvent[]): void => {
+  const set = (base: ReplayState, events: readonly RunEvent[]): void => {
     const last = events[events.length - 1]
     window = { base, events, latest: last === undefined ? base.seq : last.seq }
   }
@@ -84,7 +88,7 @@ export function createReplayWindow(
     if (events.length > max) {
       // Fold the oldest half into the base: the range shrinks, the memory does not grow.
       const cut = Math.ceil(events.length / 2)
-      base = replay(flow, events.slice(0, cut), { from: base })
+      base = replay(wizard, events.slice(0, cut), { from: base })
       events = events.slice(cut)
     }
     set(base, events)
@@ -101,22 +105,22 @@ export function createReplayWindow(
       }
     },
     attach() {
-      const current = wizard.getState()
-      const log = wizard.log().filter((e) => e.path.length === 0)
+      const current = run.getState()
+      const log = run.log().filter((e) => e.path.length === 0)
       const first = log[0]
       if (current.seq === 0) set(current, [])
       else if (options.context !== undefined && first !== undefined && first.seq === 1) {
         // The whole history is in the log and the context is known: start from the initial state.
-        const initial = replay(flow, [], {
+        const initial = replay(wizard, [], {
           context: options.context,
-          instanceId: wizard.id,
+          instanceId: run.id,
           ...(current.correlationId === undefined ? {} : { correlationId: current.correlationId }),
         })
         set(initial, log.slice(-max))
       } else set(current, [])
       pending = []
       notify()
-      return wizard.observe((event) => {
+      return run.observe((event) => {
         if (event.path.length > 0) return
         pending.push(event)
         if (!scheduled) {
@@ -128,7 +132,7 @@ export function createReplayWindow(
   }
 }
 
-export interface UseReplayWindowOptions {
+interface UseReplayWindowOptions {
   readonly maxEvents?: number
   readonly context?: unknown
   /** A window created (and attached) by an owner higher up: reused, not attached again. */
@@ -136,31 +140,28 @@ export interface UseReplayWindowOptions {
 }
 
 /**
- * The replay window of a wizard, attached for as long as the component lives — or the shared
+ * The replay window of a run, attached for as long as the component lives — or the shared
  * `options.store` of an owner higher up (so the range survives this component). `undefined`
- * without a wizard (a Mirror source).
+ * without a run (a Mirror source).
  */
+export function useReplayWindow(run: RunSource, options?: UseReplayWindowOptions): ReplayWindowStore
 export function useReplayWindow(
-  wizard: WizardSource,
-  options?: UseReplayWindowOptions,
-): ReplayWindowStore
-export function useReplayWindow(
-  wizard: WizardSource | undefined,
+  run: RunSource | undefined,
   options?: UseReplayWindowOptions,
 ): ReplayWindowStore | undefined
 export function useReplayWindow(
-  wizard: WizardSource | undefined,
+  run: RunSource | undefined,
   options: UseReplayWindowOptions = {},
 ): ReplayWindowStore | undefined {
   const { maxEvents, context, store: shared } = options
   const store = useMemo(() => {
     if (shared !== undefined) return shared
-    if (wizard === undefined) return undefined
-    return createReplayWindow(wizard, {
+    if (run === undefined) return undefined
+    return createReplayWindow(run, {
       ...(maxEvents === undefined ? {} : { maxEvents }),
       context,
     })
-  }, [wizard, maxEvents, context, shared])
+  }, [run, maxEvents, context, shared])
   useEffect(() => (shared === undefined ? store?.attach() : undefined), [store, shared])
   return store
 }

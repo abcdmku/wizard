@@ -2,7 +2,7 @@
   "name": "openwizard-monorepo",
   "private": true,
   "version": "0.0.0",
-  "description": "OpenWizard — a TypeScript-first, type-safe orchestrator for sync and async workflows (backend + frontend).",
+  "description": "TypeScript workflows that wait, retry, and resume.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -19,23 +19,28 @@
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:scripts": "node --test scripts/dx-audit/dx-audit.test.mjs",
     "test:canary": "node ./scripts/check-type-canary.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "check:api": "node ./scripts/check-api.mjs",
     "check:api:update": "node ./scripts/check-api.mjs --update",
-    "check:docs": "node ./scripts/gen-export-tables.mjs --check && node ./scripts/check-doc-imports.mjs && node ./scripts/check-readme-quickstart.mjs",
+    "check:docs": "node ./scripts/gen-export-tables.mjs --check && node ./scripts/check-doc-imports.mjs && node ./scripts/check-readme-quickstart.mjs README.md packages/core/AGENTS.md",
     "check:public-tags": "node ./scripts/check-public-tags.mjs",
+    "check:pack": "node ./scripts/check-pack.mjs",
     "docs:gen": "node ./scripts/gen-export-tables.mjs",
     "docs:dev": "pnpm --filter @openwizard/docs dev",
     "docs:build": "pnpm --filter @openwizard/docs build",
+    "dx:audit": "node ./scripts/dx-audit.mjs",
     "examples": "pnpm -r --filter \"./examples/*\" run check",
     "size": "size-limit",
     "publint": "pnpm -r --filter \"./packages/*\" --filter \"!@openwizard/docs\" exec publint",
     "attw": "pnpm -r --filter \"./packages/*\" --filter \"!@openwizard/docs\" exec attw --pack",
     "changeset": "changeset",
-    "release": "pnpm build && changeset publish"
+    "release:check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm test:scripts && pnpm test:canary && pnpm publint && pnpm attw && pnpm size && pnpm check:api && pnpm check:docs && pnpm check:public-tags && pnpm examples && pnpm --filter @openwizard/docs check && pnpm check:pack",
+    "release:publish": "changeset publish",
+    "release": "pnpm release:check && pnpm release:publish"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
@@ -43,6 +48,7 @@
     "@changesets/cli": "^3.0.0",
     "@size-limit/preset-small-lib": "^13.0.3",
     "@standard-schema/spec": "^1.1.0",
+    "@types/node": "^24.13.3",
     "arktype": "^2.2.3",
     "publint": "^0.3.23",
     "size-limit": "^13.0.3",
@@ -58,8 +64,56 @@
     {
       "name": "@openwizard/core (esm, brotli)",
       "path": "packages/core/dist/index.js",
-      "limit": "37 kB",
+      "limit": "55 kB",
       "brotli": true
+    },
+    {
+      "name": "@openwizard/core/inspect (esm, brotli)",
+      "path": "packages/core/dist/inspect.js",
+      "limit": "14 kB",
+      "brotli": true
+    },
+    {
+      "name": "@openwizard/durable",
+      "path": "packages/durable/dist/index.js",
+      "limit": "7 kB",
+      "brotli": true,
+      "ignore": [
+        "@openwizard/core"
+      ]
+    },
+    {
+      "name": "@openwizard/drizzle/pg",
+      "path": "packages/drizzle/dist/pg.js",
+      "limit": "10 kB",
+      "brotli": true,
+      "ignore": [
+        "@openwizard/durable",
+        "drizzle-orm",
+        "drizzle-orm/*"
+      ]
+    },
+    {
+      "name": "@openwizard/drizzle/sqlite",
+      "path": "packages/drizzle/dist/sqlite.js",
+      "limit": "10 kB",
+      "brotli": true,
+      "ignore": [
+        "@openwizard/durable",
+        "drizzle-orm",
+        "drizzle-orm/*"
+      ]
+    },
+    {
+      "name": "@openwizard/effect",
+      "path": "packages/effect/dist/index.js",
+      "limit": "2 kB",
+      "brotli": true,
+      "ignore": [
+        "@openwizard/core",
+        "@standard-schema/spec",
+        "effect"
+      ]
     },
     {
       "name": "@openwizard/react",
@@ -84,6 +138,44 @@
         "@xyflow/react",
         "elkjs",
         "elkjs/*"
+      ]
+    },
+    {
+      "name": "@openwizard/opentelemetry",
+      "path": "packages/opentelemetry/dist/index.js",
+      "limit": "5 kB",
+      "brotli": true,
+      "ignore": [
+        "@openwizard/core",
+        "@opentelemetry/api"
+      ]
+    },
+    {
+      "name": "@openwizard/http",
+      "path": "packages/http/dist/index.js",
+      "limit": "22 kB",
+      "brotli": true,
+      "ignore": [
+        "@openwizard/core",
+        "@openwizard/core/inspect"
+      ]
+    },
+    {
+      "name": "@openwizard/http/client",
+      "path": "packages/http/dist/client.js",
+      "limit": "2 kB",
+      "brotli": true
+    },
+    {
+      "name": "@openwizard/http/nitro",
+      "path": "packages/http/dist/nitro.js",
+      "limit": "2.5 kB",
+      "brotli": true,
+      "ignore": [
+        "nitro",
+        "node:fs",
+        "node:path",
+        "node:url"
       ]
     }
   ]

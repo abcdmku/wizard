@@ -1,0 +1,22 @@
+{
+  "name": "example-13-deployment-artifacts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Build one provider-neutral OpenWizard host into deployable artifacts for Node, AWS Lambda, Azure, Firebase, Cloudflare Workers, Vercel, and Netlify.",
+  "scripts": {
+    "build": "nitro build",
+    "build:artifacts": "node scripts/build-artifacts.mjs",
+    "check": "tsc --noEmit -p tsconfig.json && vitest run --root . && pnpm build:artifacts",
+    "dev": "nitro dev",
+    "start": "nitro dev"
+  },
+  "devDependencies": {
+    "@openwizard/core": "workspace:*",
+    "@types/node": "^24.13.3",
+    "nitro": "3.0.260610-beta",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10",
+    "zod": "^4.4.3"
+  }
+}

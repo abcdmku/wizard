@@ -1,24 +1,29 @@
 /**
- * Types of the untyped wizard runtime: creation / resume options, the `WizardRuntime` surface
- * (what the typed `Wizard<F>` façade wraps) and the internal config / plan shapes shared by a
+ * Types of the untyped run runtime: creation / resume options, the `WizardRuntime` surface
+ * (what the typed `Run<F>` façade wraps) and the internal config / plan shapes shared by a
  * root, its resume path and its children.
  *
- * @internal Public users see the typed `Wizard<F>`.
+ * @internal Public users see the typed `Run<F>`.
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
+import type { Duration } from '../../authoring/types'
+import type { ParentLink } from '../../interpreter/child'
 import type { Clock, IdGenerator, RuntimeEnv, Scheduler } from '../../interpreter/env'
 import type { Explanation, Progress } from '../../machine'
 import type { Command } from '../../machine/commands'
 import type { DomainEvent } from '../../machine/events'
+import type { RuntimeResult } from '../../machine/run-result'
 import type { Issue, WizardState } from '../../machine/state'
-import type { InitialState, Machine } from '../../machine/types'
+import type { EventIdPolicy, InitialState, Machine } from '../../machine/types'
+import type { WaitingFor } from '../../machine/waiting-for'
 import type { Store } from '../../persistence/store'
 import type { CommandResult, NavResult, SendResult } from '../results'
 import type { Snapshot } from '../snapshot'
+import type { RuntimeOutcome } from './outcome'
 
 export interface WizardRuntimeOptions {
-  /** Context value that already passed the flow's context boundary. */
+  /** Context value that already passed the wizard's context boundary. */
   readonly context: unknown
   /** Injected dependencies (already through `def.deps`, if declared); `args.deps` in hooks. */
   readonly deps?: unknown
@@ -35,7 +40,7 @@ export interface WizardRuntimeOptions {
   readonly debounceMs?: number
   /** Applied to the snapshot right before `store.set`. */
   readonly redact?: (snapshot: Snapshot) => unknown
-  /** Delete the key instead of writing once the flow is `done`. */
+  /** Delete the key instead of writing once the run is `done`. */
   readonly clearOnDone?: boolean
   /** Store failures on the auto-save path. Default: rethrown asynchronously. */
   readonly onPersistError?: (error: unknown) => void
@@ -49,21 +54,43 @@ export interface WizardRuntimeOptions {
   readonly logSize?: number
   /** Grace period before an aborted, unsettled hook is reported (ms). Default 30 s. */
   readonly abortGraceMs?: number
+  /** Gate planned effects after the next snapshot has been committed by a host. */
+  readonly beforeEffects?: (input: {
+    readonly snapshot: Snapshot
+    readonly events: readonly DomainEvent[]
+    /** Exact dispatch inputs associated with this batch, with their result when final. */
+    readonly commands: readonly import('./command-commits').CommandCommit[]
+  }) => void | Promise<void>
+  /** Gate a timer callback before it enqueues its fire message. */
+  readonly beforeTimer?: (timer: {
+    readonly timerId: string
+    readonly dueAt: number
+    readonly expected: { readonly epoch: number; readonly seq: number }
+  }) => boolean | Promise<boolean>
   /** Listener exceptions are isolated; default rethrows asynchronously. */
   readonly onListenerError?: (error: unknown) => void
   /**
-   * v0.2 (§9.1): correlation id of this instance. An event whose `correlate[event](payload)`
+   * Correlation id of this instance. An event whose `correlate[event](payload)`
    * differs from it is dropped (`event.dropped { reason: 'correlation' }`). Stored in the state
    * (persisted with the snapshot); children created by this instance inherit it.
    */
   readonly correlationId?: string
+  /** How long and how many delivered `eventId`s are remembered for dedupe. Default `'24h'` / 1000. */
+  readonly eventIds?: EventIdOptions
+}
+
+/** `RunOptions.eventIds`: the dedupe window of `send(…, { eventId })`. */
+export interface EventIdOptions {
+  readonly ttl?: Duration
+  readonly limit?: number
 }
 
 /**
- * v0.2 (§9.5): rewrite a snapshot persisted by an older flow version. Called only when the
- * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
- * incompatible); the result is validated like any snapshot and must carry the flow's version.
- * May return a promise — then only `resumeWizardAsync` accepts it.
+ * Rewrite a snapshot persisted by an older wizard version. Called only when the
+ * snapshot's `wizard.version` differs from the wizard's (a `wizard.name` mismatch is always
+ * incompatible); the result is stamped with the wizard's current version and validated like any
+ * snapshot (`renameSteps` rewrites renamed step ids). May return a promise — then only
+ * `wizard.resumeAsync` accepts it.
  */
 export type SnapshotMigration = (
   snapshot: unknown,
@@ -90,56 +117,84 @@ export interface WizardRuntime {
   resetInput(step: string): Promise<CommandResult>
   /** Pure query: the view's `input` boundary + `validate` hook over the current draft; no events. */
   validate(step: string): Promise<readonly Issue[]>
-  /** External event through the flow's event boundary. Unknown event name → `WizardError('UNKNOWN_EVENT')`. */
-  send(
-    event: string,
-    payload: unknown,
-    options?: { readonly correlationId?: string },
-  ): Promise<SendResult>
-  run(step: string): Promise<CommandResult>
-  retry(step: string): Promise<CommandResult>
+  /**
+   * External event through the wizard's event boundary. Unknown event name → `WizardError('UNKNOWN_EVENT')`.
+   * A remembered `eventId` is a duplicate: `{ ok: true, duplicate: true, delivered: [] }`, nothing changes.
+   */
+  send(event: string, payload: unknown, options?: SendOptions): Promise<SendResult>
+  startStep(step: string): Promise<CommandResult>
+  /** Re-run a failed runnable step; `patch` is merged into the context first. */
+  retry(step: string, options?: RetryOptions): Promise<CommandResult>
   cancel(reason?: string): Promise<CommandResult>
-  runReady(): Promise<CommandResult>
+  startReady(): Promise<CommandResult>
   compensate(options?: { readonly from?: string; readonly reason?: string }): Promise<CommandResult>
   reset(): Promise<CommandResult>
-  /** v0.2 (§9.2): skip a ready-or-active non-final step (`step.skipped { reason: 'command' }`). */
+  /** Skip a ready or active step that does not complete the run. */
   skip(step: string, reason?: string): Promise<CommandResult>
-  /** v0.2 (§9.3): a done/failed/skipped step returns to idle; `cascade` (default true) follows `dependsOn` dependents. */
+  /** A done/failed/skipped step returns to idle; `cascade` (default true) follows `needs` dependents. */
   invalidate(step: string, options?: { readonly cascade?: boolean }): Promise<CommandResult>
   /**
-   * v0.2 (§9.1): connect an external event source: `source(send)` subscribes and returns a
-   * disposer, which runs on `dispose()` (or when the returned function is called). Throws `DISPOSED`.
+   * Connect an external event source: `source(send)` subscribes and returns a
+   * disposer, which runs on `dispose()` (or when the returned function is called). After
+   * `dispose()` the source is never called and the returned function is a no-op.
    */
   attach(source: (send: WizardRuntime['send']) => () => void): () => void
-  /** v0.2 (§9.6): `{ done, total, ratio }` over the non-final steps (skipped counts as done). */
+  /** `{ done, total, ratio }` over steps that do not complete the run. */
   progress(): Progress
-  /** v0.2 (§9.6): the current view plus every ready view, in declaration order. */
+  /** The current view plus every ready view, in declaration order. */
   readyViews(): readonly string[]
   /** The one wire door: validates the shape (`decodeCommand`) and never throws for data problems. */
-  dispatch(command: Command): Promise<CommandResult>
+  dispatch(command: Command, options?: DispatchOptions): Promise<CommandResult>
   getState(): WizardState
+  /** Terminal result, or `undefined` while idle/running/waiting/halted. */
+  result(): RuntimeResult | undefined
+  /** Wait for a terminal result; reset/dispose rejects with a lifecycle error. */
+  awaitResult(): Promise<RuntimeResult>
+  /** Terminal, halted or parked outcome now (parked on sleeps included); `undefined` while busy. */
+  outcome(): RuntimeOutcome | undefined
+  /** The next outcome that needs the outside world (`runtime/outcome`); does not dispose. */
+  awaitOutcome(): Promise<RuntimeOutcome>
+  /** What the run and its live children wait on from the outside (flat, by `path`). */
+  waitingFor(): readonly WaitingFor[]
+  /** Wait until the current FIFO drain and its host barriers have completed. */
+  whenIdle(): Promise<void>
+  /** Notify once per terminal transition; a reset starts a new transition cycle. */
+  subscribeResult(listener: (result: RuntimeResult) => void): () => void
   /** Versioned, JSON-safe snapshot including live children; cached per state. */
   getSnapshot(): Snapshot
-  /** Pure query: why a step is (not) where the caller expects (`machine/explain`); never throws. */
-  explain(step: string): Explanation
+  /** Pure query: why a step is (not) where the caller expects (`machine/explain`) and what the run waits on; never throws. */
+  explain(step: string): Explanation & { readonly waitingFor: readonly WaitingFor[] }
   /** State listeners: once per committed batch. */
   subscribe(listener: (state: WizardState) => void): () => void
-  /** Event listeners: every event of this wizard and its children (`event.path`). */
+  /** Event listeners: every event of this run and its children (`event.path`). */
   observe(listener: (event: DomainEvent) => void): () => void
   log(): readonly DomainEvent[]
-  /** Live nested runtime of a `flow` step. Throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE`. */
-  child(step: string): WizardRuntime
+  /** Live nested runtime of a `child` step. Throws `NOT_A_CHILD_STEP` / `NOT_ACTIVE` (also after `dispose()`). */
+  child(step: string, keyOrIndex?: number | string): WizardRuntime
   /** Write a snapshot now (no-op without a store). */
   save(): Promise<void>
   dispose(): void
   isDisposed(): boolean
 }
 
+/** `send()` options: correlation and event deduplication. @public */
+export interface SendOptions {
+  readonly correlationId?: string
+  readonly eventId?: string
+}
+
+/** `retry()` options: a context patch applied atomically before the step re-runs. */
+interface RetryOptions {
+  readonly patch?: Readonly<Record<string, unknown>>
+}
+
 /**
- * Normalized options; shared by a root and all its children except `deps`, which each child
- * runtime receives for itself (`{ ...cfg, deps }` in the child factory).
+ * Normalized options; shared by a root and all its children except `deps` and `parent`, which
+ * each child runtime receives for itself (`{ ...cfg, deps, parent }` in the child factory).
  */
 export interface RuntimeConfig {
+  /** A child's link to the run that embeds it; absent on a root. */
+  readonly parent?: ParentLink
   readonly machine: Machine
   readonly initialState: InitialState
   readonly env: RuntimeEnv
@@ -148,7 +203,10 @@ export interface RuntimeConfig {
   readonly strict: 'sync' | undefined
   readonly logSize: number | undefined
   readonly abortGraceMs: number | undefined
+  readonly beforeEffects: WizardRuntimeOptions['beforeEffects'] | undefined
+  readonly beforeTimer: WizardRuntimeOptions['beforeTimer'] | undefined
   readonly onListenerError: ((error: unknown) => void) | undefined
+  readonly eventIds: EventIdPolicy | undefined
   readonly persistence:
     | {
         readonly store: Store
@@ -180,7 +238,7 @@ export interface ResumePlan {
 }
 
 export type RestoreChild = (
-  def: CompiledFlow,
+  def: CompiledWizard,
   plan: ResumePlan,
   cfg: RuntimeConfig,
   path: readonly string[],
@@ -197,6 +255,15 @@ export interface BuildInit {
 
 /** `WizardRuntime` plus the resume trigger used by `resume.ts`. */
 export interface InternalRuntime extends WizardRuntime {
-  /** Send the `resume` message and re-attach the prepared children (resume path only). */
+  /** Attach the whole prepared tree without running recovery effects. */
+  prepareResume(plan: ResumePlan): void
+  /** Resume the attached tree after the parent's resume batch commits. */
+  resumePrepared(): void
+  /** Prepare the tree and start this run's recovery. */
   resumeFrom(plan: ResumePlan): void
+}
+
+/** Optimistic concurrency checked atomically when dispatch reaches the machine. @public */
+export interface DispatchOptions {
+  readonly expectedVersion?: { readonly epoch: number; readonly seq: number }
 }

@@ -1,64 +1,71 @@
-import { boundary, defineFlow } from '@openwizard/core'
+import { boundary, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-/** Out-of-domain services the flow calls (injected through `deps`). */
+/** Services outside the wizard that tasks call through deps. */
 export interface Deps {
   inventory: { reserve(cartId: string): Promise<{ reservationId: string }> }
   shipping: { createLabel(orderId: string): Promise<{ trackingId: string }> }
 }
 
-// ── child flow: fulfilment ────────────────────────────────────────────────────────────────
-
-const f = defineFlow({
-  name: 'fulfilment',
-  context: z.object({ orderId: z.string(), trackingId: z.string().optional() }),
-  deps: boundary.trusted<Deps>(),
-})
-export const fulfilment = f.steps({
-  label: f.task(({ context, deps }) => deps.shipping.createLabel(context.orderId), {
-    exit: ({ output, update }) => update({ trackingId: output.trackingId }),
-    next: 'done',
-  }),
-  done: f.final({ output: ({ context }) => ({ trackingId: context.trackingId }) }),
-})
-
-// ── root flow: checkout ───────────────────────────────────────────────────────────────────
-
-const s = defineFlow({
-  name: 'checkout',
-  context: z.object({ cartId: z.string(), paymentId: z.string().optional() }),
-  events: { 'payment.captured': z.object({ paymentId: z.string() }) },
-  deps: boundary.trusted<Deps>(),
-})
-
-/**
- * Every static feature of a graph in one flow: a view, a fan-out `next`, a wait with a timeout
- * edge, a decision with a dynamic `next` (the graph cannot know its targets), an AND-join
- * (`dependsOn`), a nested flow and three finals.
- */
-export const checkout = s.steps(
+export const fulfilment = defineWizard(
   {
-    shipping: s.view({ input: z.object({ address: z.string().min(1) }), next: 'reserve' }),
-    reserve: s.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
-      next: ['awaitPayment', 'audit'],
-    }),
-    audit: s.task(async () => ({ audited: true }), { next: 'route' }),
-    awaitPayment: s.wait({
-      on: { 'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }) },
-      timeout: { after: '15m', next: 'expired' },
-      next: 'route',
-    }),
-    route: s.decision({
-      dependsOn: ['awaitPayment', 'audit'],
-      next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined'),
-    }),
-    fulfil: s.flow(fulfilment, {
-      context: ({ context }) => ({ orderId: context.cartId }),
-      next: 'receipt',
-    }),
-    receipt: s.final(),
-    declined: s.final(),
-    expired: s.final(),
+    name: 'fulfilment',
+    description: 'Creates a shipping label and returns its tracking id.',
+    context: z.object({ orderId: z.string() }),
+    deps: boundary.trusted<Deps>(),
   },
-  { start: 'shipping' },
+  ({ step, steps }) => {
+    const label = step({
+      run: ({ context, deps }) => deps.shipping.createLabel(context.orderId),
+    })
+    const done = step({
+      needs: { label },
+      run: ({ needs }) => ({ trackingId: needs.label.trackingId }),
+    })
+    return steps({ label, done })
+  },
+)
+
+/** Views, fan-out, a timeout, a join, declared routing and a nested wizard. */
+export const checkout = defineWizard(
+  {
+    name: 'checkout',
+    description: 'Reserves stock, waits for payment while an audit runs, then fulfils or declines.',
+    context: z.object({ cartId: z.string() }),
+    events: { 'payment.captured': z.object({ paymentId: z.string() }) },
+    deps: boundary.trusted<Deps>(),
+  },
+  ({ step, view, child, steps }) => {
+    const audit = step({ run: async () => ({ audited: true }) })
+    const awaitPayment = step({
+      waitFor: { 'payment.captured': ({ payload }) => ({ done: payload }) },
+      timeout: { after: '15m', next: 'expired' },
+    })
+    return steps(
+      {
+        shipping: view({ input: z.object({ address: z.string().min(1) }), next: 'reserve' }),
+        reserve: step({
+          run: ({ context, deps }) => deps.inventory.reserve(context.cartId),
+          next: ['awaitPayment', 'audit'],
+        }),
+        audit,
+        awaitPayment,
+        route: step({
+          // The route waits for both branches. The optional need lets it run after the payment
+          // wait times out, when there is no payment to read.
+          needs: { audit, payment: { optional: awaitPayment } },
+          targets: ['fulfil', 'declined'],
+          next: ({ needs }) => (needs.payment ? 'fulfil' : 'declined'),
+        }),
+        fulfil: child(fulfilment, {
+          context: ({ context }) => ({ orderId: context.cartId }),
+          next: 'receipt',
+        }),
+        receipt: step({ run: () => undefined }),
+        declined: step({ run: () => undefined }),
+        expired: step({ run: () => undefined }),
+      },
+      { start: 'shipping' },
+    )
+  },
 )

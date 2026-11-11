@@ -1,0 +1,40 @@
+# OpenTelemetry
+
+`@openwizard/opentelemetry` records a run as OpenTelemetry spans.
+
+```sh
+npm install @openwizard/opentelemetry @opentelemetry/api
+```
+
+```ts
+import { instrumentRun } from '@openwizard/opentelemetry'
+
+const telemetry = instrumentRun(run)
+await run.start()
+await run.awaitResult()
+telemetry.stop()
+```
+
+[Tracing](/advanced/tracing) explains what the spans hold.
+
+| Option of `instrumentRun(run, options?)` | Meaning | Default |
+|---|---|---|
+| `tracer` | The tracer to use | `trace.getTracer('@openwizard/opentelemetry')` |
+| `parentContext` | The parent of the run's span | None |
+| `resumeContext` | The context of an earlier process. Added as a span link | None |
+| `children` | Trace child runs | `true` |
+| `recordEvents` | Run events added to spans: `'none'`, `'lifecycle'` or `'all'` | `'lifecycle'` |
+| `instanceId` | The run id on spans: `'raw'`, `'none'`, or a function that maps it | `'raw'` |
+| `successStatus` | Set the status of a successful span to `OK` | `false` |
+| `onError` | Called when the tracer throws. Never called for a failure of the run | None |
+
+| Method of the handle | Meaning |
+|---|---|
+| `stop()` | Ends open spans and stops observing |
+| `span(path?)`, `context(path?)` | The span of the run, or of the child at `path`, and a context that holds it |
+| `inject(carrier, path?)` | Writes the trace headers into `carrier` |
+| `extract(carrier, base?)` | Reads a context from trace headers |
+| `send(event, payload, { context?, eventId?, correlationId? })` | Calls `run.send` and links the event to `context` |
+| `withExternalContext(context, fn)` | Runs `fn` with `context` as the source of the events it sends |
+
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_opentelemetry.html).

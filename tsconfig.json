@@ -1,13 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "./tsconfig.base.json",
+  "extends": ["./tsconfig.base.json", "./tsconfig.source.json"],
   "compilerOptions": {
-    "noEmit": true,
-    "paths": {
-      "@openwizard/core": ["./packages/core/src/index.ts"],
-      "@openwizard/core/testing": ["./packages/core/src/testing.ts"],
-      "@openwizard/react": ["./packages/react/src/index.ts"]
-    }
+    "noEmit": true
   },
   "include": [
     "packages/*/src/**/*.ts",

@@ -1,0 +1,22 @@
+# Child wizards
+
+Run a wizard as one step of another wizard.
+
+```ts file="packages/docs/snippets/learn/children.ts"
+```
+
+- `child(wizard, { context })` starts a run of the child when the step starts. `context` builds the child's input. It is the only parent data the child sees.
+- The child's output is the step's output, so `confirm` reads it through `needs`.
+- `run.child('shipping')` returns the live child run. Use it to fill the child's views and send its events. It throws `NOT_ACTIVE` before the step starts.
+- The parent's snapshot includes the child. Disposing the parent disposes the child.
+- When the child halts, the parent halts. Recover it with `run.child('shipping').retry(step)`, or give the child step a `fallback`.
+- The child uses the parent's `deps` when their types match. Otherwise add a `deps` function next to `context`.
+
+## Run one child for each item
+
+Add `each` to the child step. `context` then receives `item` and `index`, and the step's output is an array in item order. Reach one child with `run.child('batch', 0)`. After a failure, `run.retry('batch')` reruns only the items that failed.
+
+## Next
+
+- [Test](/learn/test)
+- [Child options](/packages/core#declare-a-child)

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "OpenWizard example 10 — example 07's DAG pipeline (plus an approval wait) running in a Vite + React page under the <Devtools> panel: graph with live status, event log, inspector, timeline.",
+  "description": "Inspect a live DAG with the OpenWizard graph, event log, inspector, and timeline.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

@@ -1,17 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import { available, explain, phase, progress, ready } from '../../src/machine/index'
-import { createHarness, decision, final, flow, of, task, view, wait } from '../helpers/fixtures'
+import {
+  createHarness,
+  eventStep,
+  flow,
+  needAll,
+  of,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 describe('deriveStatus table', () => {
-  it('idle → waiting (view) → running (task) → waiting (wait) → done', () => {
+  it('idle → waiting (view) → running (step) → waiting (wait) → done', () => {
     const h = createHarness(
       flow({
         start: 'v',
         steps: {
           v: view({ next: 't' }),
-          t: task({ next: 'w' }),
-          w: wait({ on: { go: () => undefined }, next: 'end' }),
-          end: final(),
+          t: runStep({ next: 'w' }),
+          w: eventStep({ on: { go: () => undefined }, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
@@ -24,57 +33,69 @@ describe('deriveStatus table', () => {
     expect(h.state.status).toBe('waiting')
     h.cmd({ type: 'send', event: 'go', payload: 1 })
     h.ok(h.call('on'), undefined)
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
   })
 
-  it('started with nothing active (dead end) → waiting; a decision alone → running', () => {
+  it('routing stays running until its hook resolves and finishes when no work remains', () => {
     const h = createHarness(
-      flow({ start: 'd', steps: { d: decision({ decide: () => null }), x: final() } }),
+      flow({
+        start: 'd',
+        steps: { d: routingStep({ decide: () => null, targets: ['x'] }), x: routingStep() },
+      }),
     )
     h.start()
     expect(h.state.status).toBe('running')
     h.ok(h.call('next'), null)
     expect(h.state.status).toBe('waiting')
     expect(h.state.active).toEqual([])
-    expect(explain(h.def, h.state, 'x').reasons).toEqual(['not-activated'])
+    expect(explain(h.def, h.state, 'x').reasons).toEqual(['not-activated', 'skipped:not-taken'])
+    h.step({ type: 'settle' })
+    expect(h.state.status).toBe('done')
   })
 })
 
 describe('gates: not-started / terminal / compensating', () => {
-  const simple = () => flow({ start: 'v', steps: { v: view({ next: 'end' }), end: final() } })
+  const simple = () => flow({ start: 'v', steps: { v: view({ next: 'end' }), end: routingStep() } })
 
-  it('before start: only start/reset/setInput/resetInput are accepted', () => {
+  it('before start: only start/cancel/reset/setInput/resetInput are accepted', () => {
     const h = createHarness(simple())
-    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('flow-not-started')
+    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('run-not-started')
     expect(of(h.cmd({ type: 'send', event: 'x', payload: 1 }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_NOT_STARTED',
+      'RUN_NOT_STARTED',
     )
-    expect(of(h.cmd('cancel'), 'command.rejected')[0]?.code).toBe('FLOW_NOT_STARTED')
-    expect(of(h.cmd('runReady'), 'command.rejected')[0]?.code).toBe('FLOW_NOT_STARTED')
+    expect(of(h.cmd('startReady'), 'command.rejected')[0]?.code).toBe('RUN_NOT_STARTED')
     expect(h.cmd({ type: 'setInput', step: 'v', patch: { a: 1 } }).types).toEqual(['input.changed'])
     expect(h.rec('v').input).toEqual({ a: 1 })
-    expect(h.cmd('reset').types).toEqual(['flow.reset'])
+    expect(h.cmd('reset').types).toEqual(['run.reset'])
     h.start()
     expect(of(h.cmd('start'), 'command.rejected')[0]?.code).toBe('INVALID_COMMAND')
   })
 
-  it('terminal: everything but reset is rejected FLOW_TERMINAL (nav → transition.rejected{flow-terminal})', () => {
+  it('cancel before start ends the run cancelled', () => {
+    const h = createHarness(simple())
+    expect(h.cmd('cancel').types).toEqual(['run.cancelled'])
+    expect(h.state.status).toBe('cancelled')
+  })
+
+  it('terminal: everything but reset is rejected RUN_TERMINAL (nav → transition.rejected{run-terminal})', () => {
     const h = createHarness(simple())
     h.start()
     h.cmd('next')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
-    for (const c of ['next', 'back', 'runReady', 'cancel', 'compensate'] as const) {
+    for (const c of ['next', 'back', 'startReady', 'cancel', 'compensate'] as const) {
       const r = h.cmd(c)
       const rejected =
         r.types[0] === 'transition.rejected'
           ? of(r, 'transition.rejected')[0]?.reason
           : of(r, 'command.rejected')[0]?.code
-      expect(rejected, c).toMatch(/flow-terminal|FLOW_TERMINAL/)
+      expect(rejected, c).toMatch(/run-terminal|RUN_TERMINAL/)
     }
     expect(of(h.cmd({ type: 'setInput', step: 'v', patch: {} }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_TERMINAL',
+      'RUN_TERMINAL',
     )
-    expect(h.cmd('reset').types).toEqual(['flow.reset'])
+    expect(h.cmd('reset').types).toEqual(['run.reset'])
     expect(h.state.status).toBe('idle')
   })
 
@@ -101,8 +122,8 @@ describe('token staleness', () => {
         start: 'v',
         steps: {
           v: view({ canExit: () => true, next: 't' }),
-          t: task({ retry: { attempts: 1 }, next: 'end' }),
-          end: final(),
+          t: runStep({ retry: { retries: 1 }, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
@@ -165,7 +186,7 @@ describe('token staleness', () => {
         steps: {
           a: view({ enter: () => undefined, next: 'b' }),
           b: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -189,7 +210,7 @@ describe('data commands', () => {
     const h = createHarness(
       flow({
         start: 'v',
-        steps: { v: view({ initial: { name: '', qty: 1 }, next: 'end' }), end: final() },
+        steps: { v: view({ initial: { name: '', qty: 1 }, next: 'end' }), end: routingStep() },
       }),
     )
     h.start()
@@ -207,7 +228,7 @@ describe('data commands', () => {
 
   it('context.patch (from update()) → context.changed shallow merge; ignored once terminal', () => {
     const h = createHarness(
-      flow({ start: 'v', steps: { v: view({ next: 'end' }), end: final() } }),
+      flow({ start: 'v', steps: { v: view({ next: 'end' }), end: routingStep() } }),
       { context: { a: 1 } },
     )
     h.start()
@@ -216,6 +237,7 @@ describe('data commands', () => {
     expect(of(r, 'context.changed')[0]).toMatchObject({ patch: { b: 2 }, by: 'v' })
     expect(h.state.context).toEqual({ a: 1, b: 2 })
     h.cmd('next')
+    h.step({ type: 'settle' })
     expect(h.step({ type: 'context.patch', patch: { c: 3 } }).types).toEqual([])
   })
 })
@@ -225,7 +247,7 @@ describe('plan sees the post-batch state', () => {
     const h = createHarness(
       flow({
         start: 'v',
-        steps: { v: view({ next: 't' }), t: task({ next: 'end' }), end: final() },
+        steps: { v: view({ next: 't' }), t: runStep({ next: 'end' }), end: routingStep() },
       }),
     )
     h.start()
@@ -245,7 +267,11 @@ describe('plan sees the post-batch state', () => {
     const h = createHarness(
       flow({
         start: 't',
-        steps: { t: task({ compensate: () => undefined, next: 'u' }), u: task(), end: final() },
+        steps: {
+          t: runStep({ compensate: () => undefined, next: 'u' }),
+          u: runStep(),
+          end: routingStep(),
+        },
         policies: { onFailure: 'compensate' },
       }),
     )
@@ -255,10 +281,10 @@ describe('plan sees the post-batch state', () => {
     expect(explain(h.def, h.state, 't')).toMatchObject({
       status: 'compensating',
       phase: 'compensating',
-      reasons: ['flow-compensating'],
+      reasons: ['run-compensating'],
     })
     h.ok(h.call('compensate'))
-    expect(explain(h.def, h.state, 'u').reasons).toEqual(['flow-terminal', 'failed:run'])
+    expect(explain(h.def, h.state, 'u').reasons).toEqual(['run-terminal', 'failed:run'])
   })
 })
 
@@ -269,15 +295,15 @@ describe('selectors and explain', () => {
         start: 'a',
         steps: {
           a: view({ next: ['t', 'b', 'c'] }),
-          t: task({ retry: { attempts: 1, backoff: 10 } }),
-          b: view({ dependsOn: ['t'], canEnter: () => true, next: 'end' }),
+          t: runStep({ retry: { retries: 1, backoff: 10 } }),
+          b: view({ needs: needAll('t'), canEnter: () => true, next: 'end' }),
           c: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
     const d = h.def
-    expect(explain(d, h.state, 'a').reasons).toEqual(['flow-not-started', 'not-activated'])
+    expect(explain(d, h.state, 'a').reasons).toEqual(['run-not-started', 'not-activated'])
     expect(explain(d, h.state, 'zzz')).toMatchObject({
       status: 'unknown',
       reasons: ['unknown-step'],
@@ -303,8 +329,8 @@ describe('selectors and explain', () => {
     expect(phase(d, h.state, 'b')).toBe('ready')
     expect(available(d, h.state, 'b')).toBe(true)
     expect(explain(d, h.state, 'b').candidates).toEqual(['b'])
-    // v0.2: finals excluded from `total` (a, t, b, c), a + t done
-    expect(progress(h.state, d)).toEqual({ done: 2, total: 4, ratio: 0.5 })
+    // Every declared step counts, including the hookless terminal step.
+    expect(progress(h.state, d)).toEqual({ done: 2, total: 5, ratio: 0.4 })
     // go to b: canEnter false → guard reason
     h.cmd({ type: 'go', step: 'b' })
     expect(phase(d, h.state, 'c')).toBe('exiting')
@@ -322,9 +348,9 @@ describe("strict: 'sync' violations", () => {
       flow({
         start: 't',
         steps: {
-          t: task({ retry: { attempts: 3 }, next: 'd' }),
-          d: decision({ decide: () => 'end' }),
-          end: final(),
+          t: runStep({ retry: { retries: 3 }, next: 'd' }),
+          d: routingStep({ decide: () => 'end', targets: ['end'] }),
+          end: routingStep(),
         },
       }),
     )
@@ -339,13 +365,16 @@ describe("strict: 'sync' violations", () => {
       durationMs: 0,
       syncViolation: true,
     })
-    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'flow.failed'])
+    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'run.halted'])
     expect(of(r, 'step.runFailed')[0]?.willRetry).toBe(false)
     expect(h.rec('t').error).toMatchObject({ kind: 'sync-violation', code: 'SYNC_VIOLATION' })
     expect(h.state.timers).toEqual({})
-    // a decision's next hook
+    // A routing step's next hook follows the same failure rule.
     const h2 = createHarness(
-      flow({ start: 'd', steps: { d: decision({ decide: () => 'end' }), end: final() } }),
+      flow({
+        start: 'd',
+        steps: { d: routingStep({ decide: () => 'end', targets: ['end'] }), end: routingStep() },
+      }),
     )
     h2.start()
     const next = h2.call('next')

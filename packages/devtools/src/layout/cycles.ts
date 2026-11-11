@@ -11,7 +11,7 @@ import type { ModelEdge, ModelNode } from './model'
 
 /**
  * Back edges by DFS from the entry markers (an edge to a node still on the DFS stack closes a
- * cycle; a self-loop always does). Every flow (root and each group) is searched from its own
+ * cycle; a self-loop always does). Every wizard (root and each group) is searched from its own
  * entry marker; nodes unreachable from an entry are searched afterwards so a cycle among them
  * is broken too. Returns the keys of the back edges.
  */

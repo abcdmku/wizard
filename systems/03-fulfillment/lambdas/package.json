@@ -1,0 +1,21 @@
+{
+  "name": "@openwizard/fulfillment-lambdas",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/payment.ts src/inventory.ts src/shipping.ts --bundle --platform=node --target=node22 --format=cjs --outdir=dist --sourcemap --sources-content=false",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check": "pnpm typecheck && pnpm build"
+  },
+  "dependencies": {
+    "@fulfillment/contracts": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "8.10.162",
+    "@types/node": "24.13.3",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}

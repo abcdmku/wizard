@@ -1,12 +1,12 @@
 /**
  * Test doubles for the interpreter / façade / persistence suites.
  *
- * - `flow()` / `step()` build `CompiledFlow` literals with sensible defaults.
+ * - `flow()` / `step()` build `CompiledWizard` literals with sensible defaults.
  * - `initialState` mirrors what the real machine's builder must produce.
  * - `createToyMachine()` is a small but real `Machine` (decide/apply/plan)
  *   covering start, next (with `canExit`), tasks (`run` + timeout), waits
  *   (`on` + timeout timers), inbox buffering, decisions-as-static-next,
- *   flow steps (child bridge), final, cancel, retry, reset, resume and
+ *   flow steps (child bridge), sinks, cancel, retry, reset, resume and
  *   `context.patch`. Every hook result goes through the real token check.
  *   Tests can override `decide` / `plan` per case to script edge cases.
  *
@@ -16,8 +16,8 @@
 
 import type {
   BoundaryResult,
-  CompiledFlow,
   CompiledStep,
+  CompiledWizard,
   RuntimeBoundary,
   StepKind,
 } from '../../../src/authoring/compiled'
@@ -26,6 +26,7 @@ import type { Effect } from '../../../src/machine/effects'
 import type { DomainEvent, DomainEventBody } from '../../../src/machine/events'
 import type { StepRecord, WizardState } from '../../../src/machine/state'
 import type { InitialState, Machine, MachineEnv } from '../../../src/machine/types'
+import { trusted } from '../fixture-definitions'
 import { toyApply } from './toy-apply'
 import { toyDecide } from './toy-decide'
 import { toyPlan } from './toy-plan'
@@ -33,8 +34,6 @@ import { toyPlan } from './toy-plan'
 // ---------------------------------------------------------------------------
 // Boundaries
 // ---------------------------------------------------------------------------
-
-export const trusted: RuntimeBoundary = { kind: 'trusted', parse: (value) => ({ ok: true, value }) }
 
 export function boundary(fn: (value: unknown) => BoundaryResult): RuntimeBoundary {
   return { kind: 'parse', parse: fn }
@@ -78,21 +77,38 @@ export interface FlowSpec {
   readonly start?: readonly string[]
   readonly events?: Readonly<Record<string, RuntimeBoundary>>
   readonly context?: RuntimeBoundary
-  readonly policies?: Partial<CompiledFlow['policies']>
+  readonly policies?: Partial<CompiledWizard['policies']>
 }
 
-export function flow(spec: FlowSpec): CompiledFlow {
+export function flow(spec: FlowSpec): CompiledWizard {
   const order = Object.keys(spec.steps)
   const steps: Record<string, CompiledStep> = {}
   for (const id of order) steps[id] = step(id, spec.steps[id]!)
+  const feeds: Record<string, string[]> = {}
+  for (const id of order) {
+    for (const need of Object.values(steps[id]!.needs ?? {})) {
+      for (const producer of need.steps) {
+        feeds[producer] ??= []
+        const consumers = feeds[producer]
+        if (!consumers.includes(id)) consumers.push(id)
+      }
+    }
+  }
+  const sinks = order.filter((id) => {
+    const next = steps[id]!.next
+    const successors = next.kind === 'none' ? [] : (next.targets ?? [])
+    return successors.length === 0 && (feeds[id]?.length ?? 0) === 0
+  })
   return {
     name: spec.name ?? 'test-flow',
     version: spec.version ?? 1,
-    context: spec.context ?? trusted,
+    context: spec.context ?? trusted(),
     events: spec.events ?? {},
     steps,
     order,
     start: spec.start ?? [order[0]!],
+    feeds,
+    sinks,
     policies: {
       onFailure: 'halt',
       autoRun: 'ready',
@@ -136,7 +152,7 @@ export const initialState: InitialState = (env, opts) => {
     seq: 0,
     instanceId: opts.instanceId,
     epoch: opts.epoch ?? 0,
-    flow: { name: env.def.name, version: env.def.version },
+    wizard: { name: env.def.name, version: env.def.version },
     startedAt: null,
     updatedAt: opts.now,
   }
@@ -165,23 +181,32 @@ export interface ToyOverrides {
 }
 
 export function createToyMachine(overrides: ToyOverrides = {}): Machine {
-  const base: Machine = { decide: toyDecide, apply: toyApply, plan: toyPlan }
+  const apply: Machine['apply'] = (env, state, event) =>
+    overrides.apply?.(env, state, event, () => toyApply(env, state, event)) ??
+    toyApply(env, state, event)
   return {
-    decide: (env, state, msg) =>
-      overrides.decide?.(env, state, msg, () => base.decide(env, state, msg)) ??
-      base.decide(env, state, msg),
-    apply: (env, state, event) =>
-      overrides.apply?.(env, state, event, () => base.apply(env, state, event)) ??
-      base.apply(env, state, event),
+    // The toy decides bodies; the decision folds them like the real machine's batch does.
+    decide: (env, state, msg) => {
+      const events =
+        overrides.decide?.(env, state, msg, () => toyDecide(env, state, msg)) ??
+        toyDecide(env, state, msg)
+      const at = env.now()
+      let next = state
+      events.forEach((body, i) => {
+        next = apply(env, next, { ...body, seq: state.seq + i + 1, at, path: env.path })
+      })
+      return { events, state: next, at }
+    },
+    apply,
     plan: (env, state, batch) =>
-      overrides.plan?.(env, state, batch, () => base.plan(env, state, batch)) ??
-      base.plan(env, state, batch),
+      overrides.plan?.(env, state, batch, () => toyPlan(env, state, batch)) ??
+      toyPlan(env, state, batch),
   }
 }
 
 /** A ready-to-use env for direct machine calls in tests. */
 export function testEnv(
-  def: CompiledFlow,
+  def: CompiledWizard,
   now = 0,
 ): MachineEnv & { readonly tick: (ms: number) => void } {
   let t = now
@@ -190,6 +215,7 @@ export function testEnv(
     def,
     path: [],
     now: () => t,
+    random: () => 0.5,
     id: (prefix) => {
       const n = (counters.get(prefix) ?? 0) + 1
       counters.set(prefix, n)

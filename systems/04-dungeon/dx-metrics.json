@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "system": "04-dungeon",
+  "drill": "player-bound-key",
+  "wizardLoc": 165,
+  "workaroundHelpers": 0,
+  "casts": 0,
+  "explicitGenerics": 0,
+  "typecheckMs": 6199,
+  "filesTouched": [
+    "shared/src/entities.ts",
+    "server/src/server.ts",
+    "server/src/projection.ts",
+    "web/src/ui/Hud.tsx",
+    "tests/unit/simulation.test.ts"
+  ]
+}

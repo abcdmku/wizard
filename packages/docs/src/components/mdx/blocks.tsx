@@ -14,6 +14,30 @@ const CALLOUT_ICON: Record<CalloutType, typeof Info> = {
   danger: OctagonAlert,
 }
 
+/** Frame + icon tint per type: quiet monochrome for info / tip, amber / red alerts. */
+const CALLOUT_STYLE: Record<CalloutType, { frame: string; icon: string }> = {
+  info: {
+    frame:
+      'border-neutral-200 border-l-neutral-400 bg-neutral-50 dark:border-neutral-800 dark:border-l-neutral-600 dark:bg-neutral-900/60',
+    icon: 'text-neutral-500',
+  },
+  tip: {
+    frame:
+      'border-neutral-200 border-l-neutral-900 bg-neutral-50 dark:border-neutral-800 dark:border-l-neutral-100 dark:bg-neutral-900/60',
+    icon: 'text-neutral-900 dark:text-neutral-100',
+  },
+  warning: {
+    frame:
+      'border-amber-600/25 border-l-amber-600 bg-amber-600/[0.06] dark:border-amber-400/25 dark:border-l-amber-400 dark:bg-amber-400/[0.07]',
+    icon: 'text-amber-700 dark:text-amber-400',
+  },
+  danger: {
+    frame:
+      'border-red-700/25 border-l-red-700 bg-red-700/[0.05] dark:border-red-400/25 dark:border-l-red-400 dark:bg-red-400/[0.07]',
+    icon: 'text-red-700 dark:text-red-400',
+  },
+}
+
 export function Callout({
   type = 'info',
   title,
@@ -24,15 +48,12 @@ export function Callout({
   readonly children: ReactNode
 }) {
   const Icon = CALLOUT_ICON[type]
+  const style = CALLOUT_STYLE[type]
   return (
     <aside
-      className={`callout my-6 flex gap-3 rounded-lg border px-4 py-3 text-[14px] leading-6 ${
-        type === 'warning' || type === 'danger'
-          ? 'border-neutral-400 bg-neutral-100 dark:border-neutral-600 dark:bg-neutral-900'
-          : 'border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/60'
-      }`}
+      className={`callout my-6 flex gap-3 rounded-lg rounded-l-[3px] border border-l-2 px-4 py-3 text-[14px] leading-6 ${style.frame}`}
     >
-      <Icon className="mt-1 h-4 w-4 shrink-0 text-neutral-500" aria-hidden="true" />
+      <Icon className={`mt-1 h-4 w-4 shrink-0 ${style.icon}`} aria-hidden="true" />
       <div className="min-w-0 flex-1 [&>p]:my-1">
         {title && <p className="font-semibold text-neutral-900 dark:text-neutral-100">{title}</p>}
         {children}
@@ -50,7 +71,7 @@ export function Steps({ children }: { readonly children: ReactNode }) {
     <ol className="steps my-8 list-none space-y-0 border-l border-neutral-200 pl-0 dark:border-neutral-800">
       {Children.toArray(children).map((child, index) => (
         <li key={index.toString()} className="relative my-0 pb-8 pl-8 last:pb-0">
-          <span className="absolute -left-3.5 top-0 flex h-7 w-7 items-center justify-center rounded-full border border-neutral-300 bg-white font-mono text-xs text-neutral-700 dark:border-neutral-700 dark:bg-ink dark:text-neutral-200">
+          <span className="absolute top-0 -left-3.5 flex h-7 w-7 items-center justify-center rounded-full border border-neutral-300 bg-white font-mono text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-ink dark:text-neutral-200">
             {index + 1}
           </span>
           {child}
@@ -111,7 +132,7 @@ export function Tabs({
           </button>
         ))}
       </div>
-      <div className="px-4 [&_figure]:my-3 [&>p]:my-3">{panels[active]}</div>
+      <div className="px-4 [&>p]:my-3 [&_figure]:my-3">{panels[active]}</div>
     </div>
   )
 }

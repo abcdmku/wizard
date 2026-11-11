@@ -1,130 +1,86 @@
 /**
- * The interpreter: one FIFO queue per wizard instance, batch-atomic
- * processing (plan §8.1).
- *
- * ```
- * loop: msg = queue.shift()
- *   events    = machine.decide(env, state, msg)          // pure; [] = no-op
- *   envelopes = seq/at/path/causedBy assigned here
- *   next      = events.reduce(machine.apply, state)      // fold the whole batch
- *   effects   = machine.plan(env, next, events)          // sees POST-batch state
- *   commit    = swap state, append to the log ring, onEvent per event, onCommit once
- *   execute effects (call / timer / child here; settle + persist via onEffect)
- * ```
- *
- * `send()` while a drain is running only enqueues; the outer drain processes
- * the message before the public call returns. Sync hook results are enqueued
- * as `res.ok` and processed in the same drain — that is the sync-commit
- * guarantee. `persist` effects are coalesced to one `onEffect` per drain.
- *
+ * Batch-atomic FIFO interpreter. Published state and child snapshots advance only after their
+ * host barrier commits. Step versions copy records lazily (versions.ts).
+ * Hook calls run in plan order after preceding messages, so they see context when they start.
+ * Superseded calls never run. A child yields while an ancestor has queued messages.
+ * Synchronous results stay in the current drain. Any drain failure aborts the runtime.
  * @internal
  */
-
-import type { CompiledFlow } from '../authoring/compiled'
 import type { Message } from '../machine/commands'
-import type { Effect } from '../machine/effects'
-import type { DomainEvent, DomainEventBody } from '../machine/events'
-import type { WizardState } from '../machine/state'
-import type { Machine, MachineEnv } from '../machine/types'
+import type { CallEffect, PersistReason } from '../machine/effects'
+import type { DomainEvent } from '../machine/events'
+import { settles } from '../machine/quiescence'
+import type { MachineEnv } from '../machine/types'
+import { RunLifecycleError } from '../wizard/results'
 import type { Snapshot } from '../wizard/snapshot'
-import { type ChildBridge, type ChildFactory, type ChildHandle, createChildBridge } from './child'
-import type { RuntimeEnv } from './env'
+import { runBarrier } from './barrier'
+import type { ChildBridge, ChildHandle } from './child'
+import { hasChildDisposals, stageChildSnapshots } from './child-snapshots'
+import { abortCommittedWork } from './committed-effects'
+import { emitCommittedEvents } from './committed-events'
+import { createEachChildBridge } from './each-child'
 import { causeOf, envelope } from './envelope'
-import { createExecutor, type Executor, type ExecutorOptions } from './executor'
+import { createExecutor, type ExecutorOptions } from './executor'
 import { buildHookArgs } from './hook-args'
+import { createEffectDispatcher } from './interpreter-effects'
+import type { Interpreter, InterpreterOptions } from './interpreter-types'
+import { isStaleCall } from './stale-call'
 import { createTimerRegistry } from './timers'
+import { type ExpectedVersion, rejectStaleVersion } from './version-guard'
+import { createStepVersions } from './versions'
 
-export interface InterpreterOptions<H extends ChildHandle = ChildHandle, P = Snapshot> {
-  readonly def: CompiledFlow
-  readonly machine: Machine
-  readonly path: readonly string[]
-  readonly env: RuntimeEnv
-  readonly initialState: WizardState
-  /** Injected dependencies handed to every hook (`args.deps`). */
-  readonly deps?: unknown
-  readonly strict?: 'sync'
-  /** Bounded event ring for `log()`. Default 200. */
-  readonly logSize?: number
-  /** See `ExecutorOptions.abortGraceMs`. */
-  readonly abortGraceMs?: number
-  /** Replace the hook executor (tests): receives the same context the default one gets. */
-  readonly hooksExecutor?: (ctx: ExecutorOptions) => Executor
-  /** Nested-flow support. Without a factory, `child.create` fails the flow step. */
-  readonly children?: {
-    readonly factory: ChildFactory<H, P>
-    readonly ancestors?: readonly object[]
-    readonly maxDepth?: number
-  }
-  /** Every committed event, own and forwarded from children (`event.path` tells them apart). */
-  readonly onEvent?: (event: DomainEvent) => void
-  /** Once per non-empty batch, after the state swap. */
-  readonly onCommit?: (state: WizardState, batch: readonly DomainEvent[]) => void
-  /** Once per processed message, after commit (batch may be empty). */
-  readonly onProcessed?: (msg: Message, batch: readonly DomainEvent[], state: WizardState) => void
-  /** Effects the interpreter does not execute itself: `settle` (immediately) and `persist` (coalesced per drain). */
-  readonly onEffect?: (effect: Effect) => void
-  /** Listener exceptions are isolated; default rethrows asynchronously. */
-  readonly onListenerError?: (error: unknown) => void
-}
-
-export interface Interpreter<H extends ChildHandle = ChildHandle, P = Snapshot> {
-  /** Enqueue; drains synchronously unless a drain is already running. */
-  send(msg: Message, causedBy?: number): void
-  getState(): WizardState
-  /** Bounded ring of this instance's own events (children have their own logs). */
-  log(): readonly DomainEvent[]
-  /**
-   * Record an out-of-band fact the machine did not decide (`persist.failed`): appended to the
-   * log and forwarded to `onEvent` with an envelope at the CURRENT seq — no state change, no
-   * seq increment, no effects.
-   */
-  record(body: DomainEventBody): void
-  /** Clear timers, abort in-flight hooks (silently), dispose children. Idempotent. */
-  dispose(): void
-  isDisposed(): boolean
-  /** Live child runtime for a `flow` step, if created. */
-  child(step: string): H | undefined
-  /** Snapshots of every live child (for `Snapshot.children`). */
-  childSnapshots(): Record<string, Snapshot>
-  /** Re-attach a child from what was prepared for it (resume; the façade passes a `ResumePlan`). */
-  restoreChild(step: string, plan: P): void
-  /** Number of unsettled hook calls (tests / diagnostics). */
-  inflight(): number
-}
+export type { Interpreter, InterpreterOptions } from './interpreter-types'
 
 const DEFAULT_LOG_SIZE = 200
-
 interface Queued {
   readonly msg: Message
   readonly causedBy: number | undefined
+  readonly expectedVersion?: ExpectedVersion | undefined
 }
-
-type PersistReason = 'change' | 'final' | 'manual'
-const PERSIST_RANK: Readonly<Record<PersistReason, number>> = { change: 0, manual: 1, final: 2 }
-
+/** A planned hook call waiting for its turn; `seq` = the last event of the batch that planned it. */
+interface QueuedCall {
+  readonly effect: CallEffect
+  readonly causedBy: number | undefined
+  readonly seq: number
+}
 export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snapshot>(
   opts: InterpreterOptions<H, P>,
 ): Interpreter<H, P> {
   const { def, machine, path, env } = opts
   const logSize = Math.max(0, opts.logSize ?? DEFAULT_LOG_SIZE)
-
+  const versions = createStepVersions()
+  /** The machine's live state; `published` is the immutable view of its last committed batch. */
   let state = opts.initialState
+  let published = versions.publish(state)
+  /**
+   * Child snapshots paired with `published` where they can differ from the live ones: staged with
+   * each batch a host barrier gates, frozen at stop. `childSnapshots()` answers them while a
+   * barrier is pending and after stop; otherwise the live children (nothing is staged then).
+   */
+  let children: Record<string, Snapshot> = {}
+  let committingChildren: Record<string, Snapshot> | undefined
+  let gated = false
   let disposed = false
   let draining = false
   const queue: Queued[] = []
+  const calls: QueuedCall[] = []
+  /** Drains of children that yielded their call turn until this run's queue is processed. */
+  const yielded: Array<() => void> = []
+  const parent = opts.parent
+  /** step → its latest `step.cancelled`: a call planned before it is aborted as soon as it starts. */
+  const cancelled = new Map<string, { readonly seq: number; readonly reason: string | undefined }>()
   const ring: DomainEvent[] = []
-
-  // Persist coalescing (per drain).
+  const idleWaiters = new Set<(error?: RunLifecycleError) => void>()
   let dirty = false
   let persistReason: PersistReason | undefined
-
   const menv: MachineEnv = {
     def,
     path,
     now: () => env.clock.now(),
     id: (prefix) => env.ids.id(prefix),
+    ledger: versions.ledger,
+    ...(opts.eventIds !== undefined ? { eventIds: opts.eventIds } : {}),
   }
-
   const onListenerError =
     opts.onListenerError ??
     ((error: unknown) => {
@@ -132,7 +88,6 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
         throw error
       })
     })
-
   const safely = (fn: () => void): void => {
     try {
       fn()
@@ -140,13 +95,30 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
       onListenerError(error)
     }
   }
-
-  const send = (msg: Message, causedBy?: number): void => {
+  const isIdle = (): boolean => !draining && queue.length === 0
+  let hydrating = 0
+  let restorationPending = false
+  const send = (msg: Message, causedBy?: number, expectedVersion?: ExpectedVersion): void => {
     if (disposed) return
-    queue.push({ msg, causedBy })
-    if (!draining) drain()
+    if (msg.type === 'resume' && restorationPending) {
+      queue.unshift({ msg, causedBy, expectedVersion })
+      restorationPending = false
+    } else queue.push({ msg, causedBy, expectedVersion })
+    if (!draining && hydrating === 0 && !restorationPending) drain()
   }
-
+  /** A hook's `progress(value)`: observers see it; it never enters the state or the log. */
+  const progress = (step: string, value: unknown): void => {
+    if (disposed) return
+    const event: DomainEvent = {
+      type: 'step.progress',
+      step,
+      value,
+      seq: published.seq,
+      at: env.clock.now(),
+      path,
+    }
+    safely(() => opts.onEvent?.(event))
+  }
   const executorCtx: ExecutorOptions = {
     def,
     path,
@@ -158,25 +130,25 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
     ...(opts.abortGraceMs !== undefined ? { abortGraceMs: opts.abortGraceMs } : {}),
     getState: () => state,
     send,
+    progress,
   }
   const executor =
     opts.hooksExecutor === undefined ? createExecutor(executorCtx) : opts.hooksExecutor(executorCtx)
   const timers = createTimerRegistry({ clock: env.clock, scheduler: env.scheduler })
-
   const bridge: ChildBridge<H, P> | undefined =
     opts.children === undefined
       ? undefined
-      : createChildBridge<H, P>({
+      : createEachChildBridge<H, P>({
           def,
           path,
           ancestors: opts.children.ancestors ?? [],
           factory: opts.children.factory,
           ...(opts.children.maxDepth !== undefined ? { maxDepth: opts.children.maxDepth } : {}),
           deps: opts.deps,
-          // A flow step's `deps` mapper sees the same args as any hook (context, parent deps,
+          // A child step's `deps` mapper sees the same args as any hook (context, parent deps,
           // `update` → `context.patch`, a fresh signal).
-          hookArgs: (step, causedBy) =>
-            buildHookArgs({
+          hookArgs: (step, causedBy) => {
+            return buildHookArgs({
               def,
               path,
               instanceId: opts.initialState.instanceId,
@@ -185,30 +157,126 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
               step,
               signal: new AbortController().signal,
               update: (patch) => send({ type: 'context.patch', patch, by: step }, causedBy),
-            }),
+              progress: (value) => progress(step, value),
+            })
+          },
           getState: () => state,
           send,
           forward: (event) => safely(() => opts.onEvent?.(event)),
+          turn: {
+            busy: () => queue.length > 0 || parent?.busy() === true,
+            defer(resume) {
+              if (disposed) return
+              yielded.push(resume)
+              if (!draining) drain()
+            },
+          },
         })
-
-  // -------------------------------------------------------------------------
-  // Drain loop
-  // -------------------------------------------------------------------------
-
+  const dispatch = createEffectDispatcher<H, P>({
+    timers,
+    bridge,
+    beforeTimer: opts.beforeTimer,
+    getState: () => state,
+    send,
+    settle: (effect) => safely(() => opts.onEffect?.(effect)),
+    persist: (reason) => {
+      if (
+        reason === 'final' ||
+        persistReason === undefined ||
+        (persistReason === 'change' && reason === 'manual')
+      ) {
+        persistReason = reason
+      }
+    },
+  })
+  const runCall = ({ effect, causedBy, seq }: QueuedCall): void => {
+    const cancel = cancelled.get(effect.step)
+    if (cancel !== undefined && cancel.seq > seq) {
+      executor.abortUnstarted(effect, causedBy, cancel.reason ?? `step '${effect.step}' cancelled`)
+    } else if (isStaleCall(state, effect)) {
+      executor.abortUnstarted(
+        effect,
+        causedBy,
+        `hook '${effect.hook}' superseded before it started`,
+      )
+    } else executor.execute(effect, causedBy)
+  }
+  const stop = (reason: string): void => {
+    if (!gated && bridge !== undefined) children = committingChildren ?? bridge.snapshots()
+    disposed = true
+    queue.length = 0
+    calls.length = 0
+    yielded.length = 0
+    const error = new RunLifecycleError('RUN_DISPOSED')
+    for (const settle of idleWaiters) settle(error)
+    idleWaiters.clear()
+    executor.abortAll(reason)
+    timers.clearAll()
+    bridge?.disposeAll()
+  }
+  /** Owners tear down first: a parent fails its child step, a host records the live children. */
+  const abortRuntime = (error: unknown): void => {
+    if (disposed) return
+    safely(() => parent?.stopped(error))
+    safely(() => opts.onFatal?.(error))
+    if (!disposed) stop('run aborted')
+  }
+  /** A failed barrier or a throw inside the drain: the runtime is aborted and the error reported. */
+  const fail = (error: unknown): void => {
+    abortRuntime(error)
+    draining = false
+    safely(() => {
+      throw error
+    })
+  }
   const drain = (): void => {
     draining = true
-    try {
-      for (;;) {
-        const item = queue.shift()
-        if (item === undefined) break
-        processOne(item.msg, item.causedBy)
+    const continueDrain = (): void => {
+      try {
+        for (;;) {
+          const item = queue.shift()
+          if (item !== undefined) {
+            const pending = processOne(item.msg, item.causedBy, item.expectedVersion)
+            if (pending === undefined) continue
+            pending.then(continueDrain, fail)
+            return
+          }
+          if ((yielded.length > 0 || calls.length > 0) && parent?.busy() === true) {
+            parent.defer(continueDrain)
+            return
+          }
+          const resume = yielded.shift()
+          if (resume !== undefined) {
+            resume()
+            continue
+          }
+          const call = calls.shift()
+          if (call !== undefined) {
+            runCall(call)
+            continue
+          }
+          if (!disposed && executor.pending() === 0 && settles(def, state)) {
+            const pending = processOne({ type: 'settle' }, undefined)
+            if (pending !== undefined) {
+              pending.then(continueDrain, fail)
+              return
+            }
+            if (queue.length > 0 || calls.length > 0) continue
+          }
+          flushPersist()
+          if (queue.length > 0) continue
+          draining = false
+          for (const settle of idleWaiters) settle()
+          idleWaiters.clear()
+          if (!disposed) safely(() => opts.onIdle?.())
+          return
+        }
+      } catch (error) {
+        fail(error)
       }
-    } finally {
-      draining = false
-      flushPersist()
     }
+    continueDrain()
   }
-
   const flushPersist = (): void => {
     if (!dirty && persistReason === undefined) return
     const reason: PersistReason = persistReason ?? 'change'
@@ -216,138 +284,115 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
     persistReason = undefined
     if (!disposed) safely(() => opts.onEffect?.({ kind: 'persist', reason }))
   }
-
-  const processOne = (msg: Message, causedBy: number | undefined): void => {
-    const bodies = machine.decide(menv, state, msg)
-    if (bodies.length === 0) {
-      safely(() => opts.onProcessed?.(msg, [], state))
-      return
+  const processOne = (
+    msg: Message,
+    causedBy: number | undefined,
+    expectedVersion?: ExpectedVersion,
+  ): Promise<void> | undefined => {
+    const decision =
+      rejectStaleVersion(machine, menv, state, msg, expectedVersion) ??
+      machine.decide(menv, state, msg)
+    if (decision.events.length === 0) {
+      safely(() => opts.onProcessed?.(msg, [], published))
+      return undefined
     }
-    const batch = envelope(bodies, { seq: state.seq, at: env.clock.now(), path, msg, causedBy })
-    let next = state
-    for (const event of batch) next = machine.apply(menv, next, event)
-    const effects = machine.plan(menv, next, batch)
-
-    // Commit: swap, log, notify (event listeners per event, state listeners once).
-    state = next
+    const batch = envelope(decision.events, {
+      seq: state.seq,
+      at: decision.at,
+      path,
+      msg,
+      causedBy,
+    })
+    const effects = machine.plan(menv, decision.state, batch)
+    const staged =
+      opts.beforeEffects !== undefined || hasChildDisposals(effects)
+        ? stageChildSnapshots(def, bridge?.snapshots() ?? {}, effects)
+        : undefined
+    state = decision.state
+    const view = versions.publish(state)
     dirty = true
-    appendLog(batch)
-    for (const event of batch) safely(() => opts.onEvent?.(event))
-    safely(() => opts.onCommit?.(state, batch))
-    safely(() => opts.onProcessed?.(msg, batch, state))
-
-    // Interpreter-level reactions to committed facts.
-    for (const event of batch) {
-      if (event.type === 'step.cancelled') executor.abort(event.step, event.reason)
-      else if (event.type === 'flow.reset') {
-        executor.abortAll('flow reset')
-        timers.clearAll()
-        bridge?.disposeAll()
+    const publish = (): void => {
+      published = view
+      committingChildren = staged
+      if (staged !== undefined) children = staged
+      appendLog(batch)
+      emitCommittedEvents(batch, view, (event) => safely(() => opts.onEvent?.(event)), progress)
+      safely(() => opts.onCommit?.(view, batch))
+      safely(() => opts.onProcessed?.(msg, batch, view))
+      abortCommittedWork(batch, { executor, timers, bridge, cancelled, calls, yielded })
+      const seq = state.seq
+      for (const effect of effects) {
+        if (effect.kind === 'call') calls.push({ effect, causedBy: causeOf(effect, batch), seq })
+        else dispatch(effect, batch)
       }
+      if (msg.type === 'resume') bridge?.resumeRestored()
+      committingChildren = undefined
     }
-
-    for (const effect of effects) execute(effect, batch)
+    const beforeEffects = opts.beforeEffects
+    if (beforeEffects === undefined) {
+      publish()
+      return undefined
+    }
+    gated = true
+    const commit = (): void => {
+      gated = false
+      if (disposed) return
+      publish()
+    }
+    return runBarrier(
+      () => beforeEffects(view, batch, effects, staged ?? {}, msg),
+      commit,
+      abortRuntime,
+    )
   }
-
   const appendLog = (batch: readonly DomainEvent[]): void => {
     if (logSize === 0) return
     for (const event of batch) ring.push(event)
     if (ring.length > logSize) ring.splice(0, ring.length - logSize)
   }
-
-  // -------------------------------------------------------------------------
-  // Effects
-  // -------------------------------------------------------------------------
-
-  const execute = (effect: Effect, batch: readonly DomainEvent[]): void => {
-    if (disposed) return
-    const cause = causeOf(effect, batch)
-    switch (effect.kind) {
-      case 'call':
-        executor.execute(effect, cause)
-        return
-      case 'timer.set': {
-        const fire = effect.fire
-        timers.set(effect.timerId, effect.at, () => send(fire, cause))
-        return
-      }
-      case 'timer.clear':
-        timers.clear(effect.timerId)
-        return
-      case 'child.create':
-        if (bridge === undefined) {
-          send(
-            {
-              type: 'res.child',
-              step: effect.step,
-              token: { step: effect.step, runId: state.steps[effect.step]?.runId ?? 0 },
-              summary: {
-                status: 'failed',
-                current: null,
-                progress: 0,
-                seq: (state.steps[effect.step]?.child?.seq ?? 0) + 1,
-              },
-              failed: {
-                error: {
-                  name: 'WizardError',
-                  code: 'CHILD_UNSUPPORTED',
-                  message: 'nested flows are not enabled on this interpreter',
-                },
-              },
-            },
-            cause,
-          )
-        } else bridge.create(effect.step, effect.context, cause)
-        return
-      case 'child.send':
-        bridge?.send(effect.step, effect.command)
-        return
-      case 'child.dispose':
-        bridge?.dispose(effect.step)
-        return
-      case 'persist':
-        if (
-          persistReason === undefined ||
-          PERSIST_RANK[effect.reason] > PERSIST_RANK[persistReason]
-        ) {
-          persistReason = effect.reason
-        }
-        return
-      case 'settle':
-        safely(() => opts.onEffect?.(effect))
-        return
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Public surface
-  // -------------------------------------------------------------------------
-
   return {
     send,
-    getState: () => state,
+    getState: () => published,
+    isIdle,
+    whenIdle() {
+      if (disposed) return Promise.reject(new RunLifecycleError('RUN_DISPOSED'))
+      if (isIdle()) return Promise.resolve()
+      return new Promise<void>((resolve, reject) => {
+        idleWaiters.add((error) => (error ? reject(error) : resolve()))
+      })
+    },
     log: () => ring.slice(),
     record(body) {
       if (disposed) return
-      const event: DomainEvent = { seq: state.seq, at: env.clock.now(), ...body, path }
+      const event: DomainEvent = { seq: published.seq, at: env.clock.now(), ...body, path }
       appendLog([event])
       safely(() => opts.onEvent?.(event))
     },
     dispose() {
       if (disposed) return
-      disposed = true
-      queue.length = 0
-      executor.abortAll('interpreter disposed')
-      timers.clearAll()
-      bridge?.disposeAll()
+      stop('interpreter disposed')
+      safely(() => parent?.stopped(undefined))
     },
     isDisposed: () => disposed,
     child: (step) => bridge?.get(step),
-    childSnapshots: () => bridge?.snapshots() ?? {},
+    childSnapshots: () =>
+      committingChildren ??
+      (gated || disposed || bridge === undefined ? children : bridge.snapshots()),
     restoreChild(step, plan) {
-      if (bridge === undefined) return
+      if (disposed || bridge === undefined) return
       bridge.restore(step, plan)
     },
+    restoreChildren(plans) {
+      if (disposed || bridge === undefined) return
+      hydrating++
+      restorationPending = true
+      try {
+        for (const [step, plan] of Object.entries(plans)) bridge.restore(step, plan)
+      } finally {
+        hydrating--
+      }
+    },
     inflight: () => executor.inflight(),
+    pending: () => executor.pending(),
   }
 }

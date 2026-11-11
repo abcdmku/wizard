@@ -1,31 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import { defineFlow } from '../../src/authoring/define-flow'
+import { defineWizard } from '../../src/wizard/define-wizard'
 import { decodeCommand, parseCommand } from '../../src/wizard/parse-command'
 
 // A flow with every id kind the decoder checks: views (a, v), tasks (t), a declared event (e),
 // a flow step (f) whose child has its own view (g) and grandchild flow step (h) with view (v).
-const leaf = defineFlow({ name: 'leaf', context: boundary.trusted() })
-const leafFlow = leaf.steps({ v: leaf.view({ next: 'end' }), end: leaf.final() })
-const mid = defineFlow({ name: 'mid', context: boundary.trusted() })
-const midFlow = mid.steps({
-  g: mid.view({ next: 'h' }),
-  h: mid.flow(leafFlow, { context: () => ({}), next: 'end' }),
-  end: mid.final(),
-})
-const s = defineFlow({
-  name: 'root',
-  context: boundary.trusted<{ n: number }>(),
-  events: { e: z.object({ id: z.number() }) },
-})
-const flow = s.steps({
-  a: s.view({ input: z.object({ x: z.number(), list: z.array(z.unknown()) }), next: 't' }),
-  t: s.task(async () => 1, { next: 'f' }),
-  f: s.flow(midFlow, { context: () => ({}), next: 'v' }),
-  v: s.view({ next: 'x' }),
-  x: s.final(),
-})
+const leafFlow = defineWizard(
+  { name: 'leaf', context: boundary.trusted() },
+  ({ view, step, steps }) =>
+    steps({ v: view({ input: z.object({}), next: 'end' }), end: step({ run: () => undefined }) }),
+)
+const midFlow = defineWizard(
+  { name: 'mid', context: boundary.trusted() },
+  ({ view, child, step, steps }) =>
+    steps({
+      g: view({ input: z.object({}), next: 'h' }),
+      h: child(leafFlow, { context: () => ({}), next: 'end' }),
+      end: step({ run: () => undefined }),
+    }),
+)
+const flow = defineWizard(
+  {
+    name: 'root',
+    context: boundary.trusted<{ n: number }>(),
+    events: { e: z.object({ id: z.number() }) },
+  },
+  ({ view, step, child, steps }) =>
+    steps({
+      a: view({ input: z.object({ x: z.number(), list: z.array(z.unknown()) }), next: 't' }),
+      t: step({ run: async () => 1, next: 'f' }),
+      f: child(midFlow, { context: () => ({}), next: 'v' }),
+      v: view({ input: z.object({}), next: 'x' }),
+      x: step({ run: () => undefined }),
+    }),
+)
 
 describe('parseCommand(flow, input)', () => {
   it('accepts every wire command shape (ids checked against the flow) and returns a fresh copy', () => {
@@ -33,14 +42,14 @@ describe('parseCommand(flow, input)', () => {
       { type: 'start' },
       { type: 'next' },
       { type: 'back' },
-      { type: 'runReady' },
+      { type: 'startReady' },
       { type: 'reset' },
       { type: 'go', step: 'a' },
       { type: 'go', step: 'a', reason: 'why' },
       { type: 'setInput', step: 'a', patch: { x: 1, list: [1, 'a', null, { y: true }] } },
       { type: 'setInput', step: 'a', patch: null },
       { type: 'resetInput', step: 'a' },
-      { type: 'run', step: 't' },
+      { type: 'startStep', step: 't' },
       { type: 'retry', step: 't' },
       { type: 'send', event: 'e', payload: { id: 1 } },
       { type: 'send', event: 'e', payload: 'raw', correlationId: 'c' },
@@ -68,7 +77,7 @@ describe('parseCommand(flow, input)', () => {
     }
   })
 
-  it('rejects ids the flow does not know: views, tasks, events, compensate.from, child paths', () => {
+  it('rejects ids the flow does not know: views, steps, events, compensate.from, child paths', () => {
     expect(parseCommand(flow, { type: 'go', step: 'nope' })).toMatchObject({
       ok: false,
       issues: [{ message: "unknown step 'nope'", path: ['step'] }],
@@ -84,9 +93,9 @@ describe('parseCommand(flow, input)', () => {
     expect(parseCommand(flow, { type: 'resetInput', step: 'f' })).toMatchObject({ ok: false })
     expect(parseCommand(flow, { type: 'retry', step: 'a' })).toMatchObject({
       ok: false,
-      issues: [{ message: "'a' is not a task step" }],
+      issues: [{ message: "'a' is not a retryable step" }],
     })
-    expect(parseCommand(flow, { type: 'run', step: 'ghost' })).toMatchObject({ ok: false })
+    expect(parseCommand(flow, { type: 'startStep', step: 'ghost' })).toMatchObject({ ok: false })
     expect(parseCommand(flow, { type: 'send', event: 'zzz', payload: {} })).toMatchObject({
       ok: false,
       issues: [{ message: "unknown event 'zzz'", path: ['event'] }],
@@ -103,13 +112,13 @@ describe('parseCommand(flow, input)', () => {
       parseCommand(flow, { type: 'child', path: ['a'], command: { type: 'next' } }),
     ).toMatchObject({
       ok: false,
-      issues: [{ message: "'a' is not a flow step", path: ['path', 0] }],
+      issues: [{ message: "'a' is not a child step", path: ['path', 0] }],
     })
     expect(
       parseCommand(flow, { type: 'child', path: ['f', 'g'], command: { type: 'next' } }),
     ).toMatchObject({
       ok: false,
-      issues: [{ message: "'g' is not a flow step", path: ['path', 1] }],
+      issues: [{ message: "'g' is not a child step", path: ['path', 1] }],
     })
     expect(
       parseCommand(flow, { type: 'child', path: ['f'], command: { type: 'go', step: 'a' } }),
@@ -328,5 +337,64 @@ describe('parseCommand(flow, input)', () => {
     const cycle = parseCommand(flow, { type: 'setInput', step: 'a', patch: cyclic })
     expect(cycle.ok).toBe(false)
     if (!cycle.ok) expect(cycle.issues[0]?.message).toMatch(/is circular/)
+  })
+})
+
+describe('parseCommand — skip / invalidate', () => {
+  it('accepts the shapes (with and without optional fields) and checks the step id when a flow is given', () => {
+    expect(parseCommand(flow, { type: 'skip', step: 't' })).toEqual({
+      ok: true,
+      value: { type: 'skip', step: 't' },
+    })
+    expect(parseCommand(flow, { type: 'skip', step: 't', reason: 'why' })).toEqual({
+      ok: true,
+      value: { type: 'skip', step: 't', reason: 'why' },
+    })
+    expect(parseCommand(flow, { type: 'invalidate', step: 't' })).toEqual({
+      ok: true,
+      value: { type: 'invalidate', step: 't' },
+    })
+    expect(parseCommand(flow, { type: 'invalidate', step: 't', cascade: false })).toEqual({
+      ok: true,
+      value: { type: 'invalidate', step: 't', cascade: false },
+    })
+    // shape-only decoding (no flow) does not check ids
+    expect(decodeCommand({ type: 'skip', step: 'zzz' })).toMatchObject({ ok: true })
+  })
+
+  it('rejects unknown ids, missing/empty step, non-boolean cascade and unknown properties', () => {
+    const msg = (input: unknown) => {
+      const r = parseCommand(flow, input)
+      return r.ok ? [] : r.issues.map((i) => i.message)
+    }
+    expect(msg({ type: 'skip', step: 'zzz' })).toEqual(["unknown step 'zzz'"])
+    expect(msg({ type: 'skip' })).toEqual(["'step' is required"])
+    expect(msg({ type: 'skip', step: '' })).toEqual(["'step' must be a non-empty string"])
+    expect(msg({ type: 'invalidate', step: 't', cascade: 'yes' })).toEqual([
+      "'cascade' must be a boolean",
+    ])
+    expect(msg({ type: 'invalidate', step: 't', reason: 'x' })).toEqual([
+      "unknown property 'reason' on 'invalidate'",
+    ])
+    expect(msg({ type: 'skip', step: 't', cascade: true })).toEqual([
+      "unknown property 'cascade' on 'skip'",
+    ])
+  })
+})
+
+describe('parseCommand — retry.patch and send.eventId', () => {
+  it('carries a JSON object patch and an event id; rejects a non-object patch', () => {
+    expect(parseCommand(flow, { type: 'retry', step: 't', patch: { attempts: 2 } })).toEqual({
+      ok: true,
+      value: { type: 'retry', step: 't', patch: { attempts: 2 } },
+    })
+    expect(decodeCommand({ type: 'send', event: 'ping', payload: {}, eventId: 'evt_1' })).toEqual({
+      ok: true,
+      value: { type: 'send', event: 'ping', payload: {}, eventId: 'evt_1' },
+    })
+    expect(parseCommand(flow, { type: 'retry', step: 't', patch: 3 })).toEqual({
+      ok: false,
+      issues: [{ message: "'patch' must be an object", path: ['patch'] }],
+    })
   })
 })

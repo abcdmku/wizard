@@ -7,82 +7,47 @@
  *   `res.err { syncViolation: true }`.
  * - `parseInput` runs the view's `input` boundary over the draft; `run` pipes
  *   the hook value through the optional `output` boundary; `childContext`
- *   pipes the mapped context through the child flow's `context` boundary;
- *   `on` resolves `hooks.on[extra.event]`; `flowOn` (v0.2) resolves the
- *   flow-level `def.on[extra.event]` (no step: the effect's `step` is `''`);
- *   `mapError` (v0.2) receives the RAW value the failed `run` threw as
+ *   pipes the mapped context through the child wizard's `context` boundary;
+ *   `on` resolves `hooks.on[extra.event]`; `wizardOn` resolves the
+ *   wizard-level `def.on[extra.event]` (no step: the effect's `step` is `''`);
+ *   `mapError` receives the RAW value the failed `run` threw as
  *   `args.error` when it is still known (same step/runId/attempt), else the
  *   serialized form the machine put in `extra`. Every result echoes the effect's
  *   `extra` (`res.ok/res.err.extra`) so the machine gets its routing data back.
  * - `timeoutMs` arms a scheduler timer → abort + `res.err { timedOut: true }`.
  *   A `settled` flag guarantees one report per effect (late results after a
  *   timeout are dropped; the machine's token check covers everything else).
- * - `abort(step)` (cancel/compensate/flow-done) aborts the signal but lets the
+ * - `abort(step)` (cancel/compensate/run done) aborts the signal but lets the
  *   hook settle cooperatively — bounded by a grace timer when no `timeoutMs`
- *   is set (plan §8.5).
+ *   is set.
  *
  * @internal
  */
 
-import type { CompiledFlow, CompiledStep, HookArgs } from '../authoring/compiled'
+import type { CompiledStep } from '../authoring/compiled'
 import { WizardError } from '../errors'
-import type { EffectResult, HookName, Message } from '../machine/commands'
+import type { ContextUpdater, EffectResult, ResultToken } from '../machine/commands'
 import type { CallEffect } from '../machine/effects'
-import type { StepRecord, WizardState } from '../machine/state'
-import type { Clock, Scheduler } from './env'
-import { BoundaryRejection, codedError, toSerializedError, unwrapBoundary } from './errors'
+import {
+  BoundaryRejection,
+  codedError,
+  invalidErrorData,
+  normalizeRunFailure,
+  toSerializedError,
+} from './errors'
+import { abortCalls } from './executor-abort'
+import { invoke, invokeWizardOn, noop, retryRejected } from './executor-invoke'
+import {
+  DEFAULT_ABORT_GRACE_MS,
+  type Executor,
+  type ExecutorOptions,
+  type InFlight,
+  type RawFailure,
+} from './executor-types'
 import { buildHookArgs } from './hook-args'
-import { chain, getThen, type Then } from './thenable'
+import { getThen, type Then } from './thenable'
 
-export interface ExecutorOptions {
-  readonly def: CompiledFlow
-  readonly path: readonly string[]
-  readonly instanceId: string
-  readonly clock: Clock
-  readonly scheduler: Scheduler
-  readonly deps?: unknown
-  readonly strict?: 'sync'
-  /**
-   * After `abort()`, an unsettled call is reported as
-   * `res.err { cancelled: true, timedOut: true }` once this many ms elapse
-   * (only when the effect has no `timeoutMs` of its own). Default 30 s.
-   */
-  readonly abortGraceMs?: number
-  getState(): WizardState
-  send(msg: Message, causedBy?: number): void
-}
-
-export interface Executor {
-  /** Run a `call` effect; results come back through `send()` as `res.ok` / `res.err`. */
-  execute(effect: CallEffect, causedBy?: number): void
-  /** Abort every in-flight call of `step` (cooperative: the hook still settles). */
-  abort(step: string, reason?: string): void
-  /** Abort everything and silence late results (dispose). */
-  abortAll(reason?: string): void
-  /** Number of unsettled calls. */
-  inflight(): number
-}
-
-const DEFAULT_ABORT_GRACE_MS = 30_000
-
-interface InFlight {
-  readonly effect: CallEffect
-  readonly controller: AbortController
-  readonly startedAt: number
-  readonly causedBy: number | undefined
-  settled: boolean
-  aborted: boolean
-  timeout: unknown
-  grace: unknown
-}
-
-/** The raw value a failed `run` threw, kept for the task's `mapError` call (v0.2). */
-interface RawFailure {
-  readonly step: string
-  readonly runId: number
-  readonly attempt: number | undefined
-  readonly error: unknown
-}
+export type { Executor, ExecutorOptions } from './executor-types'
 
 export function createExecutor(opts: ExecutorOptions): Executor {
   const byId = new Map<string, InFlight>()
@@ -124,12 +89,28 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     opts.send(msg, inf.causedBy)
   }
 
-  /** `extra` is echoed on every result: `on` handling needs `event/payload/inboxId` back. */
-  const echo = (inf: InFlight): { extra?: Readonly<Record<string, unknown>> } =>
-    inf.effect.extra !== undefined ? { extra: inf.effect.extra } : {}
+  /** Event identity and buffered wait updates travel back with their settled result. */
+  const echo = (
+    inf: InFlight,
+  ): {
+    extra?: Readonly<Record<string, unknown>>
+    updates?: readonly (Readonly<Record<string, unknown>> | ContextUpdater)[]
+  } => ({
+    ...(inf.effect.extra !== undefined ? { extra: inf.effect.extra } : {}),
+    ...(inf.updates?.length ? { updates: inf.updates.slice() } : {}),
+  })
 
-  const okResult = (inf: InFlight, value: unknown): void => {
+  const okResult = (inf: InFlight, value: unknown, async?: true): void => {
+    if (inf.settled) return
     const { effectId, hook, token } = inf.effect
+    if (hook === 'mapError') {
+      const invalid = invalidErrorData(token.step, 'mapError', value)
+      if (invalid !== undefined) {
+        errResult(inf, invalid, { retryable: false, ...(async ? { async } : {}) })
+        return
+      }
+    }
+    const rejected = hook === 'mapError' && retryRejected(opts.def, token.step, value)
     settle(inf, {
       type: 'res.ok',
       effectId,
@@ -137,6 +118,8 @@ export function createExecutor(opts: ExecutorOptions): Executor {
       token,
       value,
       durationMs: opts.clock.now() - inf.startedAt,
+      ...(async ? { async } : {}),
+      ...(rejected ? { retryable: false as const } : {}),
       ...echo(inf),
     })
   }
@@ -144,16 +127,36 @@ export function createExecutor(opts: ExecutorOptions): Executor {
   const errResult = (
     inf: InFlight,
     error: unknown,
-    flags: { timedOut?: true; cancelled?: true; syncViolation?: true } = {},
+    flags: {
+      timedOut?: true
+      cancelled?: true
+      syncViolation?: true
+      async?: true
+      retryable?: false
+    } = {},
   ): void => {
+    if (inf.settled) return
     const { effectId, hook, token } = inf.effect
-    const issues = error instanceof BoundaryRejection ? error.issues : undefined
-    if (hook === 'run' && opts.def.steps[token.step]?.hooks.mapError !== undefined) {
-      rawFailures.set(token.step, {
+    const runFailure = hook === 'run' ? normalizeRunFailure(token.step, error) : undefined
+    const invalid = runFailure?.invalid === true
+    const reportedError = runFailure === undefined ? error : runFailure.error
+    const issues = reportedError instanceof BoundaryRejection ? reportedError.issues : undefined
+    const mapsErrors = opts.def.steps[token.step]?.hooks.mapError !== undefined
+    const rejected =
+      hook === 'run' &&
+      !invalid &&
+      !mapsErrors &&
+      retryRejected(
+        opts.def,
+        token.step,
+        runFailure?.data !== undefined ? runFailure.data : reportedError,
+      )
+    if (hook === 'run' && mapsErrors && !invalid) {
+      rawFailures.set(failureKey(token), {
         step: token.step,
         runId: token.runId,
         attempt: token.attempt,
-        error,
+        error: reportedError,
       })
     }
     settle(inf, {
@@ -161,10 +164,22 @@ export function createExecutor(opts: ExecutorOptions): Executor {
       effectId,
       hook,
       token,
-      error: toSerializedError(error),
+      error: {
+        ...toSerializedError(reportedError),
+        ...(runFailure?.data !== undefined ? { data: runFailure.data } : {}),
+      },
       ...(issues !== undefined ? { issues } : {}),
       durationMs: opts.clock.now() - inf.startedAt,
       ...flags,
+      ...(rejected || invalid ? { retryable: false as const } : {}),
+      ...(runFailure !== undefined
+        ? {
+            failure: {
+              kind: runFailure.kind,
+              ...(runFailure.data !== undefined ? { data: runFailure.data } : {}),
+            },
+          }
+        : {}),
       ...echo(inf),
     })
   }
@@ -213,25 +228,34 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     }
     track(inf)
 
-    // v0.2: the flow-level handler is routed on the hook name alone (`step` is `''`, not a step id).
-    const flowLevel = effect.hook === 'flowOn'
-    if (stepDef === undefined && !flowLevel) {
+    // The wizard-level handler is routed on the hook name alone (`step` is `''`, not a step id).
+    const wizardLevel = effect.hook === 'wizardOn'
+    if (stepDef === undefined && !wizardLevel) {
       errResult(
         inf,
         new WizardError('UNKNOWN_STEP', `unknown step '${effect.step}'`, { step: effect.step }),
       )
       return
     }
+    const event = effect.extra?.event
+    if (
+      effect.hook === 'on' &&
+      typeof event === 'string' &&
+      stepDef?.hooks.waitFor?.[event] !== undefined
+    ) {
+      inf.updates = []
+    }
 
-    // `mapError` (v0.2) sees the raw thrown value of the failed attempt when it is still known.
-    const raw = effect.hook === 'mapError' ? rawFailures.get(effect.step) : undefined
+    // `mapError` sees the raw thrown value of the failed attempt when it is still known.
+    const key = failureKey(effect.token)
+    const raw = effect.hook === 'mapError' ? rawFailures.get(key) : undefined
     const rawError =
       raw !== undefined &&
       raw.runId === effect.token.runId &&
       (raw.attempt === undefined || raw.attempt === effect.token.attempt)
         ? { error: raw.error }
         : {}
-    if (raw !== undefined) rawFailures.delete(effect.step)
+    if (raw !== undefined) rawFailures.delete(key)
 
     const args = buildHookArgs({
       def: opts.def,
@@ -241,11 +265,17 @@ export function createExecutor(opts: ExecutorOptions): Executor {
       state,
       step: effect.step,
       signal: controller.signal,
-      update: (patch) =>
-        opts.send(
-          { type: 'context.patch', patch, ...(flowLevel ? {} : { by: effect.step }) },
-          causedBy,
-        ),
+      update: (patch) => {
+        if (inf.updates !== undefined) inf.updates.push(patch)
+        else
+          opts.send(
+            { type: 'context.patch', patch, ...(wizardLevel ? {} : { by: effect.step }) },
+            causedBy,
+          )
+      },
+      progress: (value) => {
+        if (!inf.settled && !wizardLevel) opts.progress(effect.step, value)
+      },
       extra: { ...effect.extra, ...rawError },
     })
 
@@ -254,8 +284,8 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     let outcome: unknown
     let then: Then | undefined
     try {
-      outcome = flowLevel
-        ? invokeFlowOn(opts.def, args)
+      outcome = wizardLevel
+        ? invokeWizardOn(opts.def, args)
         : invoke(effect.hook, stepDef as CompiledStep, rec, args)
       then = getThen(outcome)
     } catch (error) {
@@ -268,19 +298,25 @@ export function createExecutor(opts: ExecutorOptions): Executor {
       return
     }
 
+    const pendingUpdates = inf.updates
+    inf.updates = undefined
+    for (const patch of pendingUpdates ?? []) {
+      opts.send({ type: 'context.patch', patch, by: effect.step }, causedBy)
+    }
+
     if (opts.strict === 'sync') {
-      // Swallow the promise so a later rejection is not "unhandled".
-      try {
-        then.call(outcome, noop, noop)
-      } catch {
-        // ignore: the violation below is the only report for this effect
-      }
       const violation = new WizardError(
         'SYNC_VIOLATION',
         `hook '${effect.hook}' of step '${effect.step}' returned a thenable under strict: 'sync'`,
         { step: effect.step },
       )
       controller.abort(violation)
+      // Swallow the promise so a later rejection is not "unhandled".
+      try {
+        then.call(outcome, noop, noop)
+      } catch {
+        // ignore: the violation below is the only report for this effect
+      }
       errResult(inf, violation, { syncViolation: true })
       return
     }
@@ -290,8 +326,9 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     try {
       then.call(
         outcome,
-        (value: unknown) => okResult(inf, value),
-        (error: unknown) => errResult(inf, error, inf.aborted ? { cancelled: true } : {}),
+        (value: unknown) => okResult(inf, value, true),
+        (error: unknown) =>
+          errResult(inf, error, inf.aborted ? { cancelled: true, async: true } : { async: true }),
       )
     } catch (error) {
       errResult(inf, error)
@@ -299,16 +336,33 @@ export function createExecutor(opts: ExecutorOptions): Executor {
   }
 
   const abort = (step: string, reason?: string): void => {
-    const set = byStep.get(step)
-    if (set === undefined) return
-    for (const inf of Array.from(set)) {
-      if (inf.settled) continue
-      inf.aborted = true
-      inf.controller.abort(
-        codedError('AbortError', 'ABORTED', reason ?? `step '${step}' cancelled`),
-      )
-      armGrace(inf, reason)
+    abortCalls(byStep.get(step) ?? [], reason, armGrace)
+  }
+
+  const abortTransaction = (txId: string, reason?: string): void => {
+    abortCalls(
+      [...byId.values()].filter((inf) => inf.effect.token.txId === txId),
+      reason,
+      armGrace,
+    )
+  }
+
+  const abortUnstarted = (
+    effect: CallEffect,
+    causedBy: number | undefined,
+    reason: string,
+  ): void => {
+    const inf: InFlight = {
+      effect,
+      controller: new AbortController(),
+      startedAt: opts.clock.now(),
+      causedBy,
+      settled: false,
+      aborted: true,
+      timeout: undefined,
+      grace: undefined,
     }
+    errResult(inf, codedError('AbortError', 'ABORTED', reason), { cancelled: true })
   }
 
   const abortAll = (reason?: string): void => {
@@ -321,79 +375,23 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     }
   }
 
-  return { execute, abort, abortAll, inflight: () => byId.size }
-}
-
-// ---------------------------------------------------------------------------
-// Hook invocation
-// ---------------------------------------------------------------------------
-
-function invoke(
-  hookName: HookName,
-  stepDef: CompiledStep,
-  rec: StepRecord | undefined,
-  args: HookArgs,
-): unknown {
-  switch (hookName) {
-    case 'parseInput': {
-      const boundary = stepDef.input
-      if (boundary === undefined) return rec?.input
-      return chain(boundary.parse(rec?.input), (result) => unwrapBoundary(result, 'input'))
-    }
-    case 'run': {
-      const hook = stepDef.hooks.run
-      if (hook === undefined) throw missingHook(stepDef.id, 'run')
-      const value = hook(args)
-      const boundary = stepDef.output
-      if (boundary === undefined) return value
-      return chain(value, (v) =>
-        chain(boundary.parse(v), (result) => unwrapBoundary(result, 'output')),
-      )
-    }
-    case 'on': {
-      const event = typeof args.event === 'string' ? args.event : undefined
-      const hook = event === undefined ? undefined : stepDef.hooks.on?.[event]
-      if (hook === undefined) throw missingHook(stepDef.id, `on[${String(event)}]`)
-      return hook(args)
-    }
-    case 'flowOn':
-      throw missingHook(stepDef.id, 'flowOn')
-    case 'childContext': {
-      // The child's context is a data door (plan §1.3): the mapped value goes through the
-      // child flow's context boundary before `child.create` can see it.
-      const hook = stepDef.hooks.childContext
-      if (hook === undefined) throw missingHook(stepDef.id, 'childContext')
-      const value = hook(args)
-      const boundary = stepDef.child?.context
-      if (boundary === undefined) return value
-      return chain(value, (v) =>
-        chain(boundary.parse(v), (result) => unwrapBoundary(result, 'child context')),
-      )
-    }
-    default: {
-      const hook = stepDef.hooks[hookName]
-      if (hook === undefined) throw missingHook(stepDef.id, hookName)
-      return hook(args)
-    }
+  return {
+    execute,
+    abortUnstarted,
+    abort,
+    abortTransaction,
+    abortAll,
+    inflight: () => byId.size,
+    pending: () => [...byId.values()].filter((call) => !call.controller.signal.aborted).length,
   }
 }
 
-/** v0.2: the flow-level `on[extra.event]` handler (`CompiledFlow.on`). */
-function invokeFlowOn(def: CompiledFlow, args: HookArgs): unknown {
-  const event = typeof args.event === 'string' ? args.event : undefined
-  const hook = event === undefined ? undefined : def.on?.[event]
-  if (hook === undefined) {
-    throw codedError(
-      'HookMissingError',
-      'HOOK_MISSING',
-      `flow '${def.name}' has no 'on[${String(event)}]' handler`,
-    )
-  }
-  return hook(args)
+function failureKey(token: ResultToken): string {
+  return JSON.stringify([
+    token.step,
+    token.runId,
+    token.itemIndex,
+    token.itemGeneration,
+    token.attempt,
+  ])
 }
-
-function missingHook(step: string, hook: string): Error {
-  return codedError('HookMissingError', 'HOOK_MISSING', `step '${step}' has no '${hook}' hook`)
-}
-
-function noop(): void {}

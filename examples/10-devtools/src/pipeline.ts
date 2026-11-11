@@ -1,9 +1,9 @@
 /**
- * Example 07's ingest pipeline — `ingest → (normalize ∥ enrich) → gate → persist → done`, with
- * `when` on the enrichment branch and an AND-join decision — plus one addition so the page has
+ * Example 07's ingest pipeline (`ingest → (normalize ∥ enrich) → gate → persist → done`, with
+ * `when` on the enrichment branch and an AND-join decision) plus one addition so the page has
  * an external event to send: an `approve` wait step (with a timeout) before `persist`.
  */
-import { boundary, defineFlow } from '@openwizard/core'
+import { boundary, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
 export interface Deps {
@@ -13,84 +13,81 @@ export interface Deps {
   warehouse: { write(batch: { normalized: number; enriched: number }): { batchId: string } }
 }
 
-const s = defineFlow({
-  name: 'ingest-pipeline',
-  version: 2,
-  context: z.object({
-    source: z.string(),
-    rows: z.number().int().nonnegative().default(0),
-    normalized: z.number().int().nonnegative().optional(),
-    enriched: z.number().int().nonnegative().optional(),
-    quality: z.number().min(0).max(1).default(0),
-    enrichment: z.enum(['on', 'off']).default('on'),
-    approvedBy: z.string().optional(),
-  }),
-  events: { 'review.approved': z.object({ by: z.string().min(1) }) },
-  deps: boundary.trusted<Deps>(),
-  concurrency: 2,
-})
-
-export const pipeline = s.steps(
+export const pipeline = defineWizard(
   {
-    ingest: s.task(
-      ({ context, deps, update }) => {
-        const { rows } = deps.source.fetch(context.source)
-        update({ rows })
-        return { rows }
-      },
-      { retry: { attempts: 2, backoff: 800 }, next: ['normalize', 'enrich'] },
-    ),
-    normalize: s.task(
-      async ({ context, deps, update }) => {
-        const { normalized } = await deps.normalizer.run(context.rows)
-        update({ normalized })
-        return { normalized }
-      },
-      { next: 'gate' },
-    ),
-    enrich: s.task(
-      async ({ context, deps, update }) => {
-        const { enriched, quality } = await deps.enricher.run(context.rows)
-        update({ enriched, quality })
-        return { enriched, quality }
-      },
-      {
-        when: ({ context }) => context.enrichment === 'on',
-        retry: { attempts: 1, backoff: 1_200 }, // the fake enricher fails once → `retrying` in the graph
-        next: 'gate',
-      },
-    ),
-    gate: s.decision({
-      dependsOn: ['normalize', 'enrich'],
-      next: ({ context }) =>
-        context.enrichment === 'off' || context.quality >= 0.8 ? 'approve' : 'quarantine',
+    name: 'ingest-pipeline',
+    description:
+      'Ingests rows, normalizes and enriches them, then stores them once a person approves.',
+    version: 2,
+    context: z.object({
+      source: z.string(),
+      enrichment: z.enum(['on', 'off']).default('on'),
     }),
-    approve: s.wait({
-      on: { 'review.approved': ({ payload, update }) => update({ approvedBy: payload.by }) },
-      timeout: { after: '2m', next: 'quarantine' },
-      next: 'persist',
-    }),
-    persist: s.task(
-      ({ context, deps }) =>
-        deps.warehouse.write({
-          normalized: context.normalized ?? 0,
-          enriched: context.enriched ?? 0,
-        }),
-      { next: 'done' },
-    ),
-    quarantine: s.final({ output: ({ context }) => `quarantined (quality ${context.quality})` }),
-    done: s.final({
-      output: ({ context }) =>
-        `stored ${context.rows} rows, approved by ${context.approvedBy ?? '?'}`,
-    }),
+    events: { 'review.approved': z.object({ by: z.string().min(1) }) },
+    deps: boundary.trusted<Deps>(),
+    concurrency: 2,
   },
-  { start: 'ingest' },
+  ({ step, steps }) => {
+    const ingest = step({
+      description: 'Fetches the source and reports how many rows it holds.',
+      run: ({ context, deps }) => deps.source.fetch(context.source),
+      retry: { retries: 2, backoff: 800 },
+    })
+    const normalize = step({
+      needs: { ingest },
+      run: ({ needs, deps }) => deps.normalizer.run(needs.ingest.rows),
+    })
+    const enrich = step({
+      needs: { ingest },
+      run: ({ needs, deps }) => deps.enricher.run(needs.ingest.rows),
+      when: ({ context }) => context.enrichment === 'on',
+      retry: { retries: 1, backoff: 1_200 }, // the fake enricher fails once → `retrying` in the graph
+    })
+    const gate = step({
+      description: 'Asks for approval unless enrichment ran and scored below 0.8.',
+      // The optional need lets the gate run when enrichment is switched off and skipped.
+      needs: { normalize, enrich: { optional: enrich } },
+      targets: ['approve', 'quarantine'],
+      next: ({ context, needs }) =>
+        context.enrichment === 'off' || (needs.enrich?.quality ?? 0) >= 0.8
+          ? 'approve'
+          : 'quarantine',
+    })
+    const approve = step({
+      description: 'Waits two minutes for a reviewer. Its output names who approved.',
+      waitFor: { 'review.approved': ({ payload }) => ({ done: payload }) },
+      timeout: { after: '2m', next: 'quarantine' },
+    })
+    // A timed-out approval is skipped, so persist and done, which need it, are skipped too.
+    const persist = step({
+      needs: { approve, normalize, enrich: { optional: enrich } },
+      run: ({ needs, deps }) =>
+        deps.warehouse.write({
+          normalized: needs.normalize.normalized,
+          enriched: needs.enrich?.enriched ?? 0,
+        }),
+    })
+    const quarantine = step({
+      description: 'Reports the quality score of a batch that was not stored.',
+      needs: { enrich: { optional: enrich } },
+      run: ({ needs }) => `quarantined (quality ${needs.enrich?.quality ?? 0})`,
+    })
+    const done = step({
+      needs: { ingest, approve, persist },
+      run: ({ needs }) => `stored ${needs.ingest.rows} rows, approved by ${needs.approve.by}`,
+    })
+    return steps(
+      { ingest, normalize, enrich, gate, approve, persist, quarantine, done },
+      { start: 'ingest' },
+    )
+  },
 )
 
 /** Fake services that take real time (so the graph animates); `enricher` fails the first call. */
 export function makeDeps(delayMs = 900): Deps {
   let enrichCalls = 0
-  const after = <T>(value: T): Promise<T> => new Promise((r) => setTimeout(() => r(value), delayMs))
+  const after = <T>(value: T): Promise<T> =>
+    new Promise((resolve) => setTimeout(() => resolve(value), delayMs))
   return {
     source: { fetch: () => ({ rows: 100 }) },
     normalizer: { run: (rows) => after({ normalized: rows }) },

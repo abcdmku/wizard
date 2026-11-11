@@ -1,39 +1,14 @@
-# 02 — recoverable failure (retry policy, `idempotent`, `mapError`)
+# Example 02: retry failed work
 
-A task that posts to a flaky ledger with `retry: { attempts: 3, backoff: 'exponential' }`.
-The retry policy is plain data (it persists with the snapshot and appears in `inspect()`); the
-runtime schedules retries through its injectable `scheduler`, so a test drives time
-deterministically with `createTestScheduler()`.
-
-What it shows
-
-- `retry: { attempts, backoff }` — a number is a fixed delay in ms; `'exponential'` waits `min(baseMs × factor^(attempt-1), maxBackoffMs)` (defaults 200 ms / 2 / 30 s).
-- The retry deadline is state (`steps.post.retryAt`) and an event (`step.retryScheduled { dueAt, timerId }`); `explain('post')` reports `retrying` meanwhile.
-- `createTestScheduler()` passed as `scheduler` (it doubles as the clock): `advance(ms)` fires due timers synchronously; only the async `run` promises still need a microtask tick.
-- `idempotent: ({ context }) => 'invoice:…'` (v0.2): the run receives `args.idempotencyKey` (here the mapper's value; default `instanceId:step:runId`) to hand to the ledger, and an idempotent task found `running` on resume is re-run with the same key instead of failing `interrupted`.
-- `mapError: (error, { attempt }) => LedgerFailure` (v0.2): the raw failure becomes typed, JSON-safe data on `steps.post.error.data` — `ErrorOf<typeof syncInvoice, 'post'>` — which a projection exposes with `error: true`.
-- Exhausted retries → `step.failed { kind: 'run' }` → `flow.failed { code: 'STEP_FAILED' }`; the flow halts but stays recoverable: `next()` is rejected as a value (`FLOW_TERMINAL`), `retry('post')` re-runs the task and the flow completes.
-
-Run
+A ledger call fails twice, waits between attempts, then succeeds.
 
 ```sh
-pnpm --filter example-02-recoverable-failure check
 pnpm --filter example-02-recoverable-failure start
+pnpm --filter example-02-recoverable-failure check
 ```
 
-Excerpt (`src/sync-invoice.test.ts`)
+Read `src/sync-invoice.ts` for the wizard, then `src/main.ts` for the fake ledger and virtual clock. `syncInvoice.create(context, { deps, scheduler })` creates the live run. The test shows automatic retries, exhausted retries, and `run.retry('post')`.
 
-```ts
-await wizard.start()
-await settle() // attempt 1 fails → retry scheduled at now + 200 ms
-expect(of('step.retryScheduled')[0]).toMatchObject({ attempt: 2, dueAt: 1_200, timerId: 'retry:post' })
-expect(wizard.explain('post')).toMatchObject({ phase: 'retrying', reasons: ['retrying'] })
+`retry.retries: 3` permits three retries after the initial call. With `baseMs: 200` and exponential backoff, those retries wait 200, 400, and 800 ms. Exhaustion halts the run. A caller can repair the dependency and retry the failed step.
 
-sched.advance(200) // attempt 2 starts (and fails) exactly at the deadline
-await settle()
-expect(of('step.retryScheduled')[1]).toMatchObject({ attempt: 3, dueAt: 1_600 }) // +400 ms
-
-sched.advance(400) // attempt 3 succeeds
-await settle()
-expect(wizard.getState().status).toBe('done')
-```
+The example passes the task's `idempotencyKey` to the ledger. A real ledger should reject duplicate requests with the same key.

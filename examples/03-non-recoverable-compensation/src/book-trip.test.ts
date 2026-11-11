@@ -1,11 +1,11 @@
-import { createWizard, type WizardEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
 import { describe, expect, it } from 'vitest'
 import { bookTrip, type Deps } from './book-trip'
 
 /** Synchronous in-memory suppliers that record every call in order. */
-function fakeSuppliers(opts: { hotelCancelFailures?: number } = {}) {
+function fakeSuppliers(options: { hotelCancelFailures?: number } = {}) {
   const log: string[] = []
-  const state = { hotelCancelFailures: opts.hotelCancelFailures ?? 0 }
+  const state = { hotelCancelFailures: options.hotelCancelFailures ?? 0 }
   const deps: Deps = {
     flights: {
       reserve: (trip) => {
@@ -46,21 +46,23 @@ function fakeSuppliers(opts: { hotelCancelFailures?: number } = {}) {
 }
 
 function make(deps: Deps) {
-  const wizard = createWizard(bookTrip, { context: { tripId: 'T1', total: 900 }, deps })
-  const events: WizardEvent<typeof bookTrip>[] = []
-  wizard.observe((e) => events.push(e))
-  const of = <T extends WizardEvent['type']>(type: T) =>
-    events.filter((e): e is Extract<WizardEvent<typeof bookTrip>, { type: T }> => e.type === type)
-  return { wizard, events, of }
+  const run = bookTrip.create({ tripId: 'T1', total: 900 }, { deps })
+  const events: RunEvent<typeof bookTrip>[] = []
+  run.observe((event) => events.push(event))
+  const eventsOfType = <T extends RunEvent['type']>(type: T) =>
+    events.filter(
+      (event): event is Extract<RunEvent<typeof bookTrip>, { type: T }> => event.type === type,
+    )
+  return { run, events, eventsOfType }
 }
 
 describe('03 compensation: onFailure "compensate"', () => {
   it('unwinds the three reservations in reverse completion order when the charge fails', async () => {
     const { deps, log } = fakeSuppliers()
-    const { wizard, events, of } = make(deps)
+    const { run, events, eventsOfType } = make(deps)
 
     // Everything is synchronous here: by the time start() resolves the saga has fully unwound.
-    await wizard.start()
+    await run.start()
     expect(log).toEqual([
       'flights.reserve',
       'hotels.reserve',
@@ -71,7 +73,7 @@ describe('03 compensation: onFailure "compensate"', () => {
       'flights.cancel PNR-T1',
     ])
 
-    const state = wizard.getState()
+    const state = run.getState()
     expect(state.status).toBe('failed')
     expect(state.steps.charge).toMatchObject({
       status: 'failed',
@@ -80,13 +82,13 @@ describe('03 compensation: onFailure "compensate"', () => {
     for (const id of ['reserveFlight', 'reserveHotel', 'reserveCar'] as const)
       expect(state.steps[id].status).toBe('compensated')
     // The saga bookkeeping: what completed (with the output its compensate hook received) …
-    expect(state.saga.stack.map((e) => [e.step, e.output])).toEqual([
+    expect(state.saga.stack.map((entry) => [entry.step, entry.output])).toEqual([
       ['reserveFlight', { pnr: 'PNR-T1' }],
       ['reserveHotel', { booking: 'H-T1' }],
       ['reserveCar', { rental: 'CAR-T1' }],
     ])
     // … and what was undone, in reverse completion order.
-    expect(state.saga.compensated.map((e) => e.step)).toEqual([
+    expect(state.saga.compensated.map((entry) => entry.step)).toEqual([
       'reserveCar',
       'reserveHotel',
       'reserveFlight',
@@ -94,42 +96,42 @@ describe('03 compensation: onFailure "compensate"', () => {
     expect(state.saga.failures).toEqual([])
 
     // The events: the plan is announced first, then one started/compensated pair per entry.
-    expect(of('flow.compensating')[0]).toMatchObject({
+    expect(eventsOfType('run.compensating')[0]).toMatchObject({
       plan: ['reserveCar', 'reserveHotel', 'reserveFlight'],
-      outcome: 'failed',
+      status: 'failed',
     })
-    expect(of('step.compensationStarted').map((e) => e.step)).toEqual([
+    expect(eventsOfType('step.compensationStarted').map((event) => event.step)).toEqual([
       'reserveCar',
       'reserveHotel',
       'reserveFlight',
     ])
-    expect(of('step.compensated').map((e) => e.step)).toEqual([
+    expect(eventsOfType('step.compensated').map((event) => event.step)).toEqual([
       'reserveCar',
       'reserveHotel',
       'reserveFlight',
     ])
-    expect(of('flow.compensated')[0]).toMatchObject({ failures: [], outcome: 'failed' })
-    const types = events.map((e) => e.type)
-    expect(types.indexOf('step.failed')).toBeLessThan(types.indexOf('flow.compensating'))
-    expect(types.indexOf('flow.compensating')).toBeLessThan(
+    expect(eventsOfType('run.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
+    const types = events.map((event) => event.type)
+    expect(types.indexOf('step.failed')).toBeLessThan(types.indexOf('run.compensating'))
+    expect(types.indexOf('run.compensating')).toBeLessThan(
       types.indexOf('step.compensationStarted'),
     )
-    expect(types.at(-1)).toBe('flow.compensated')
+    expect(types.at(-1)).toBe('run.compensated')
 
-    // A compensated flow is terminal: every further command is rejected as a value.
-    expect(wizard.explain('charge')).toMatchObject({
+    // A compensated run is terminal: every further command is rejected as a value.
+    expect(run.explain('charge')).toMatchObject({
       status: 'failed',
-      reasons: ['flow-terminal', 'failed:run'],
+      reasons: ['run-terminal', 'failed:run'],
     })
-    expect(await wizard.retry('charge')).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
-    expect(await wizard.next()).toMatchObject({ ok: false })
-    wizard.dispose()
+    expect(await run.retry('charge')).toMatchObject({ ok: false, code: 'RUN_TERMINAL' })
+    expect(await run.next()).toMatchObject({ ok: false })
+    run.dispose()
   })
 
-  it('records a throwing compensate hook in saga.failures, keeps unwinding, and compensate({ from }) re-attempts only it', async () => {
+  it('records a compensation failure, continues unwinding, and retries only the selected hook', async () => {
     const { deps, log } = fakeSuppliers({ hotelCancelFailures: 1 })
-    const { wizard, events, of } = make(deps)
-    await wizard.start()
+    const { run, events, eventsOfType } = make(deps)
+    await run.start()
 
     // The hotel cancellation threw; the unwind continued with the flight.
     expect(log.slice(4)).toEqual([
@@ -137,34 +139,36 @@ describe('03 compensation: onFailure "compensate"', () => {
       'hotels.cancel H-T1 FAILED',
       'flights.cancel PNR-T1',
     ])
-    expect(wizard.getState().steps.reserveHotel).toMatchObject({
+    expect(run.getState().steps.reserveHotel).toMatchObject({
       status: 'failed',
       error: { kind: 'compensate', message: 'hotel desk offline' },
     })
-    expect(wizard.getState().saga.failures).toEqual([{ step: 'reserveHotel', runId: 1 }])
-    expect(of('step.compensationFailed')[0]).toMatchObject({
+    expect(run.getState().saga.failures).toEqual([{ step: 'reserveHotel', runId: 1 }])
+    expect(eventsOfType('step.compensationFailed')[0]).toMatchObject({
       step: 'reserveHotel',
       error: { message: 'hotel desk offline' },
     })
-    expect(of('flow.compensated')[0]).toMatchObject({
+    expect(eventsOfType('run.compensated')[0]).toMatchObject({
       failures: ['reserveHotel'],
-      outcome: 'failed',
+      status: 'failed',
     })
-    expect(wizard.getState().status).toBe('failed')
+    expect(run.getState().status).toBe('failed')
 
     // The hotel desk is back: re-attempt only the failed entry.
     events.length = 0
-    expect(await wizard.compensate({ from: 'reserveHotel' })).toMatchObject({ ok: true })
+    expect(await run.compensate({ from: 'reserveHotel' })).toMatchObject({ ok: true })
     expect(log.at(-1)).toBe('hotels.cancel H-T1')
-    expect(of('step.compensationStarted').map((e) => e.step)).toEqual(['reserveHotel'])
-    expect(wizard.getState().steps.reserveHotel.status).toBe('compensated')
-    expect(wizard.getState().saga.failures).toEqual([])
-    expect(of('flow.compensated')[0]).toMatchObject({ failures: [] })
+    expect(eventsOfType('step.compensationStarted').map((event) => event.step)).toEqual([
+      'reserveHotel',
+    ])
+    expect(run.getState().steps.reserveHotel.status).toBe('compensated')
+    expect(run.getState().saga.failures).toEqual([])
+    expect(eventsOfType('run.compensated')[0]).toMatchObject({ failures: [] })
     // Nothing left to compensate → terminal for further compensate commands too.
-    expect(await wizard.compensate({ from: 'reserveCar' })).toMatchObject({
+    expect(await run.compensate({ from: 'reserveCar' })).toMatchObject({
       ok: false,
-      code: 'FLOW_TERMINAL',
+      code: 'RUN_TERMINAL',
     })
-    wizard.dispose()
+    run.dispose()
   })
 })
