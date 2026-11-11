@@ -2,8 +2,12 @@
 import type { StepKind } from './primitives'
 import type { StepRecordConfig } from './step-record'
 
-/** Anything a constructor returned (refs, needs). */
-export interface StepLike {
+/**
+ * A structural constraint for generic step modules and references.
+ * It matches anything `step`, `view` or `child` returned.
+ * @public
+ */
+export interface AnyStep {
   readonly config: StepRecordConfig
   readonly kind: StepKind
   readonly '~types': unknown
@@ -11,20 +15,20 @@ export interface StepLike {
   readonly '~bound': unknown
 }
 /** A reference to a step: its id, or the step object itself. */
-export type Ref = string | StepLike
+export type Ref = string | AnyStep
 /**
  * What a function `next` may return. Id targets keep id returns checked here (the error stays on the
  * `next` line); step objects in either list are checked by `steps()` (`Route`), which can resolve them.
  */
 export type RefWithin<Tg> = [Tg] extends [never]
   ? Ref
-  : [Extract<Tg, StepLike>] extends [never]
-    ? Tg | StepLike
+  : [Extract<Tg, AnyStep>] extends [never]
+    ? Tg | AnyStep
     : Ref
 /** What a function `next` returns; a bare fallback to the constraint (it returns only `null`) is nothing. */
 export type Returned<Nr, Tg> = [RefWithin<Tg>] extends [Nr] ? never : Nr
 /** Recorded when a step object is involved, so `steps()` checks the returns against `targets`. */
-export type Route<Nr, Tg> = [Extract<Nr | Tg, StepLike>] extends [never]
+export type Route<Nr, Tg> = [Extract<Nr | Tg, AnyStep>] extends [never]
   ? never
   : { readonly ret: Nr; readonly tg: Tg }
 /**
@@ -43,10 +47,11 @@ export interface StepFacts {
   readonly each?: boolean
 }
 /**
- * Facts only `steps()` reads: references, needs, successors and constructor-level problems.
+ * The references, needs and successors of one step, which `steps()` checks against the step map.
  * `cond`: the step has its own `when`, so it may be skipped.
+ * @public
  */
-export interface Links<
+export interface StepLinks<
   Refs extends string,
   Objs,
   Needs,
@@ -65,13 +70,14 @@ export interface Links<
   readonly succ: Succ
   readonly problem: Problem
 }
-interface Binding<C, Ev, D> {
+/** The context, events and dependencies of the wizard a step was built for. @public */
+export interface StepBinding<C, Ev, D> {
   readonly context: C
   readonly events: Ev
   readonly deps: D
 }
 /** Invariant probe for the definition facts the step was built with. */
-export type BoundTo<C, Ev, D> = (facts: Binding<C, Ev, D>) => Binding<C, Ev, D>
+export type BoundTo<C, Ev, D> = (facts: StepBinding<C, Ev, D>) => StepBinding<C, Ev, D>
 
 /**
  * A constructor record with authored config and inference facts.
@@ -97,6 +103,3 @@ export interface WizardStep<K extends StepKind, X extends StepFacts, Role extend
   readonly '~types': X | undefined
   readonly '~role': Role | undefined
 }
-
-/** A structural constraint for generic step modules and references. @public */
-export type AnyStep = StepLike

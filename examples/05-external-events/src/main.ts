@@ -46,5 +46,7 @@ console.log('inbox size:', run.getState().inbox.length)
 
 scheduler.advance(2 * 60_000)
 await run.next() // the wait step enters and drains the inbox
+// The handler turned the payload into the wait's output, and `result` turned that into a message.
+console.log('wait output:', JSON.stringify(run.getState().steps.awaitPayment.output))
 console.log('status:', run.getState().status, '| output:', run.getState().output)
 run.dispose()

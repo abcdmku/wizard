@@ -4,11 +4,15 @@
  * `targets` (each target is an alternative) and an event wait with `timeout` (its `next` vs its
  * `timeout.next`). A dynamic `next` without declared targets may reach any step, which keeps the
  * analysis silent (no false positives).
+ *
+ * `SKIPPED_NEED`: the `timeout.next` or `fallback` target of a step has a plain need on that
+ * step. A step that times out or falls back is skipped and has no output, so the target is
+ * skipped too on the only path where that edge starts it.
  * @internal
  */
 
 import type { ManifestWarning } from '../authoring/compile'
-import type { CompiledStep, CompiledWizard } from '../authoring/compiled'
+import type { CompiledStep, CompiledWizard, NeedSpec } from '../authoring/compiled'
 import { declaredTargets } from './node'
 
 const ANY = Symbol('any step')
@@ -56,6 +60,39 @@ export function exclusiveJoinWarnings(
     }
   }
   return warnings
+}
+
+export function skippedNeedWarnings(
+  def: CompiledWizard,
+  path: readonly string[],
+): readonly ManifestWarning[] {
+  return def.order.flatMap((source) => {
+    const step = def.steps[source]
+    if (step === undefined) return []
+    const edges = [
+      { target: step.waitTimeout?.next, role: 'timeout target', cause: 'times out' },
+      { target: step.fallback, role: 'fallback', cause: 'falls back' },
+    ]
+    return edges.flatMap(({ target, role, cause }): ManifestWarning[] => {
+      if (target === undefined || target === source) return []
+      const needs = Object.values(def.steps[target]?.needs ?? {})
+      if (!needs.some((need) => requires(need, source))) return []
+      return [
+        {
+          code: 'SKIPPED_NEED',
+          message: `step '${target}' is the ${role} of '${source}' and needs its output, but '${source}' is skipped when it ${cause}, so '${target}' is skipped too; declare the need as { optional: ${source} } and handle undefined, or remove it`,
+          step: target,
+          path,
+        },
+      ]
+    })
+  })
+}
+
+/** Whether the need is unmet whenever `producer` is skipped. */
+function requires(need: NeedSpec, producer: string): boolean {
+  if (need.kind === 'all') return need.steps.includes(producer)
+  return need.kind === 'any' && need.steps.every((id) => id === producer)
 }
 
 /** Entry sets of the alternative branches of a choice step (none for other steps). */

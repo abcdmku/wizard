@@ -15,7 +15,7 @@ import type {
   RunArgs,
 } from './hook-args'
 import type { Duration, Issue, IsUnset, JsonValue, MaybePromise, RetryPolicy } from './primitives'
-import type { StepLike } from './step'
+import type { AnyStep } from './step'
 import type {
   EachOf,
   NeedRef,
@@ -27,8 +27,8 @@ import type {
 import type { AnyWizardDefinition } from './wizard'
 
 type CheckedNeed = NeedRef & {
-  readonly any?: readonly StepLike[]
-  readonly optional?: StepLike
+  readonly any?: readonly AnyStep[]
+  readonly optional?: AnyStep
 }
 
 export interface Common<C, D, Nd> {

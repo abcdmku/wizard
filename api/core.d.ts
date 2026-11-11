@@ -7,7 +7,7 @@ interface EachItem {
   readonly output?: unknown;
   readonly error?: StepError$1;
   readonly retryAt?: number;
-  readonly child?: ChildSummary$1;
+  readonly child?: ChildSummary;
 }
 type ItemNode = {
   readonly items: readonly (EachItem | null)[];
@@ -66,7 +66,7 @@ type Command$1 = {
 {
   readonly type: 'sendRejected';
   readonly event: string;
-  readonly issues: readonly Issue$2[];
+  readonly issues: readonly Issue$1[];
 } | {
   readonly type: 'startStep';
   readonly step: string;
@@ -115,14 +115,20 @@ interface TimerFired {
 //#endregion
 //#region src/machine/state-support.d.ts
 type StepErrorKind = 'validation' | 'guard' | 'run' | 'typed' | 'defect' | 'timeout' | 'compensate' | 'interrupted' | 'child' | 'hook' | 'sync-violation';
-/** Serializable error. Never carries a stack. */
-interface SerializedError$1 {
+/**
+ * A serializable error (`name`, `message`, optional `code`). It never carries a stack.
+ * @public
+ */
+interface SerializedError {
   readonly name: string;
   readonly message: string;
   readonly code?: string;
 }
-/** Standard Schema v1 issue, kept structural so core has zero runtime deps. */
-interface Issue$2 {
+/**
+ * A validation problem (Standard Schema issue shape): a message and an optional path.
+ * @public
+ */
+interface Issue$1 {
   readonly message: string;
   readonly path?: ReadonlyArray<PropertyKey | {
     readonly key: PropertyKey;
@@ -131,17 +137,17 @@ interface Issue$2 {
 /** Primary failure retained while a run is halted or compensating. */
 interface RunFailureState {
   readonly step?: string;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
   readonly kind?: StepErrorKind | 'runtime';
   readonly at?: number;
   readonly attempt?: number;
-  readonly issues?: readonly Issue$2[];
+  readonly issues?: readonly Issue$1[];
   readonly data?: unknown;
 }
 interface CompensationFailureState {
   readonly step: string;
   readonly runId: number;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
 }
 /** `completed` = every compensation hook succeeded; `partial` = at least one failed (see `failures`). */
 type CompensationOutcome = 'completed' | 'partial';
@@ -175,12 +181,12 @@ type StepStatus$1 = 'idle' | 'active' | 'done' | 'failed' | 'skipped' | 'cancell
 type RunStatus$1 = 'idle' | 'running' | 'waiting' | 'halted' | 'done' | 'failed' | 'compensating' | 'cancelled';
 type NavPhase = 'idle' | 'parsingInput' | 'validating' | 'canExit' | 'resolvingTarget' | 'canEnter' | 'exiting' | 'entering';
 type NavCause = 'start' | 'next' | 'go' | 'back' | 'auto' | 'resume' | 'event';
-interface StepError$1 extends SerializedError$1 {
+interface StepError$1 extends SerializedError {
   readonly kind: StepErrorKind;
   readonly at: number;
   readonly attempt?: number;
   /** Standard-Schema issues when kind === 'validation'. */
-  readonly issues?: readonly Issue$2[];
+  readonly issues?: readonly Issue$1[];
   /** JSON-safe value produced by a runnable step's `mapError` (typed via `ErrorOf<F, K>`). */
   readonly data?: unknown;
 }
@@ -190,7 +196,12 @@ interface GuardResult {
   readonly seq: number;
   readonly reason?: string;
 }
-interface ChildSummary$1 {
+/**
+ * Compact status of a child run as stored on the parent's child step (`status`, `current`,
+ * `progress` 0..1, `seq`). It is what `child: true` exposes in a projection.
+ * @public
+ */
+interface ChildSummary {
   readonly status: RunStatus$1;
   readonly current: string | null;
   readonly progress: number;
@@ -208,7 +219,7 @@ interface StepRecord {
    */
   readonly output?: unknown;
   /** Last validation issues (view). Cleared on the next input change. */
-  readonly issues?: readonly Issue$2[];
+  readonly issues?: readonly Issue$1[];
   readonly error?: StepError$1;
   /** Output before the last explicit invalidation. */
   readonly previousOutput?: unknown;
@@ -261,7 +272,7 @@ interface StepRecord {
   /** seq of the arrival that set `pendingActivation` (scheduler picks ready steps in arrival order). */
   readonly arrivedSeq?: number;
   /** Child run summary (child steps). The full child snapshot lives in `Snapshot.children`. */
-  readonly child?: ChildSummary$1;
+  readonly child?: ChildSummary;
   /** Snapshotted map items and their durable results. */
   readonly each?: EachState;
 }
@@ -323,6 +334,7 @@ interface SagaState {
   readonly outcome?: 'failed' | 'cancelled';
   readonly reason?: string;
 }
+/** The stored state of a run. `Snapshot<F>['state']` types it by the wizard. @public */
 interface WizardState {
   readonly status: RunStatus$1;
   /** UI cursor: the active view step, or null. */
@@ -362,8 +374,12 @@ interface WizardState {
 //#region src/machine/selectors.d.ts
 /** UI-facing live phase of a step (undefined when the step has no live phase: idle/done/failed/…). */
 type StepPhase$1 = 'blocked' | 'ready' | 'entering' | 'validating' | 'running' | 'retrying' | 'waiting' | 'exiting' | 'compensating';
-/** Completion counters over all steps; `skipped` counts as done. */
-interface Progress$1 {
+/**
+ * Progress of a run (`run.progress()`, `ClientState.progress` with `expose.progress: true`).
+ * It counts completed or skipped steps and reports their fraction of the total.
+ * @public
+ */
+interface Progress {
   readonly done: number;
   readonly total: number;
   /** `done / total` (0 when there is nothing to count); 1 once the run is `done`. */
@@ -388,16 +404,6 @@ type Duration = number | `${number}${'ms' | 's' | 'm' | 'h' | 'd'}`;
 type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
   readonly [key: string]: JsonValue;
 };
-/**
- * A validation problem (Standard Schema issue shape): a message and an optional path.
- * @public
- */
-type Issue$1 = Issue$2;
-/**
- * A serializable error (`name`, `message`, optional `code`) ; never carries a stack.
- * @public
- */
-type SerializedError = SerializedError$1;
 /**
  * The three step kinds: `step | view | child`. A plain step runs a hook, waits for an event,
  * sleeps until a deadline, or chooses its next steps.
@@ -433,12 +439,6 @@ interface RetryPolicy<E = unknown> {
   /** Retry only when this returns true; receives the mapped error when `mapError` exists. */
   readonly when?: (error: E) => boolean;
 }
-/**
- * Progress of a run (`run.progress()`, `ClientState.progress` with `expose.progress: true`):
- * Counts completed or skipped steps and reports their fraction of the total.
- * @public
- */
-type Progress = Progress$1;
 /** Default of an inference site that was not given (distinct from `never`, which a value can have). */
 declare const UNSET: unique symbol;
 interface Unset {
@@ -454,7 +454,7 @@ type BoundaryResult<T = unknown> = {
   readonly value: T;
 } | {
   readonly ok: false;
-  readonly issues: readonly Issue$2[];
+  readonly issues: readonly Issue$1[];
 };
 //#endregion
 //#region ../../node_modules/.pnpm/@standard-schema+spec@1.1.0/node_modules/@standard-schema/spec/dist/index.d.ts
@@ -641,8 +641,12 @@ interface StepRecordConfig {
 }
 //#endregion
 //#region src/authoring/types/step.d.ts
-/** Anything a constructor returned (refs, needs). */
-interface StepLike {
+/**
+ * A structural constraint for generic step modules and references.
+ * It matches anything `step`, `view` or `child` returned.
+ * @public
+ */
+interface AnyStep {
   readonly config: StepRecordConfig;
   readonly kind: StepKind;
   readonly '~types': unknown;
@@ -650,16 +654,16 @@ interface StepLike {
   readonly '~bound': unknown;
 }
 /** A reference to a step: its id, or the step object itself. */
-type Ref = string | StepLike;
+type Ref = string | AnyStep;
 /**
  * What a function `next` may return. Id targets keep id returns checked here (the error stays on the
  * `next` line); step objects in either list are checked by `steps()` (`Route`), which can resolve them.
  */
-type RefWithin<Tg> = [Tg] extends [never] ? Ref : [Extract<Tg, StepLike>] extends [never] ? Tg | StepLike : Ref;
+type RefWithin<Tg> = [Tg] extends [never] ? Ref : [Extract<Tg, AnyStep>] extends [never] ? Tg | AnyStep : Ref;
 /** What a function `next` returns; a bare fallback to the constraint (it returns only `null`) is nothing. */
 type Returned<Nr, Tg> = [RefWithin<Tg>] extends [Nr] ? never : Nr;
 /** Recorded when a step object is involved, so `steps()` checks the returns against `targets`. */
-type Route<Nr, Tg> = [Extract<Nr | Tg, StepLike>] extends [never] ? never : {
+type Route<Nr, Tg> = [Extract<Nr | Tg, AnyStep>] extends [never] ? never : {
   readonly ret: Nr;
   readonly tg: Tg;
 };
@@ -678,10 +682,11 @@ interface StepFacts {
   readonly each?: boolean;
 }
 /**
- * Facts only `steps()` reads: references, needs, successors and constructor-level problems.
+ * The references, needs and successors of one step, which `steps()` checks against the step map.
  * `cond`: the step has its own `when`, so it may be skipped.
+ * @public
  */
-interface Links<Refs extends string, Objs, Needs, Alt, Succ extends boolean, Problem extends string, Cond extends boolean = false, Rt = never> {
+interface StepLinks<Refs extends string, Objs, Needs, Alt, Succ extends boolean, Problem extends string, Cond extends boolean = false, Rt = never> {
   readonly cond: Cond;
   readonly route: Rt;
   readonly refs: Refs;
@@ -691,13 +696,14 @@ interface Links<Refs extends string, Objs, Needs, Alt, Succ extends boolean, Pro
   readonly succ: Succ;
   readonly problem: Problem;
 }
-interface Binding<C, Ev, D> {
+/** The context, events and dependencies of the wizard a step was built for. @public */
+interface StepBinding<C, Ev, D> {
   readonly context: C;
   readonly events: Ev;
   readonly deps: D;
 }
 /** Invariant probe for the definition facts the step was built with. */
-type BoundTo<C, Ev, D> = (facts: Binding<C, Ev, D>) => Binding<C, Ev, D>;
+type BoundTo<C, Ev, D> = (facts: StepBinding<C, Ev, D>) => StepBinding<C, Ev, D>;
 /**
  * A constructor record with authored config and inference facts.
  * It is what `step`, `view` or `child` returns (every field present; values are phantom).
@@ -724,8 +730,6 @@ interface WizardStep<K extends StepKind, X extends StepFacts, Role extends SinkR
   readonly '~types': X | undefined;
   readonly '~role': Role | undefined;
 }
-/** A structural constraint for generic step modules and references. @public */
-type AnyStep = StepLike;
 //#endregion
 //#region src/authoring/types/hook-args.d.ts
 /**
@@ -811,10 +815,10 @@ type OutputOfStep<S> = S extends {
  * first of several steps to finish, and `optional` allows the step to be skipped.
  * @public
  */
-type NeedRef = StepLike | {
-  readonly any: readonly StepLike[];
+type NeedRef = AnyStep | {
+  readonly any: readonly AnyStep[];
 } | {
-  readonly optional: StepLike;
+  readonly optional: AnyStep;
 };
 /** Named data requirements referencing earlier step objects. @public */
 type NeedsSpec = {
@@ -883,7 +887,7 @@ type ReturnedAdapterProblem<R, C, D, Nd, Item, Xk> = 0 extends 1 & Awaited<R> ? 
 type NextProblem<Nr, Tg> = [Nr] extends [never] ? never : [Tg] extends [never] ? 'a function `next` must declare `targets` (the ids or steps it may return)' : never;
 type RoutingProblem<Xk, Nx, Nr, Tg> = 'next' extends Xk ? [StaticNext<Nx>] extends [never] ? [Tg] extends [never] ? 'a function `next` must declare `targets` (the ids or steps it may return)' : NextProblem<Nr, Tg> : 'targets' extends Xk ? '`targets` requires a function `next`' : never : 'targets' extends Xk ? '`targets` requires a function `next`' : never;
 type IdRefs<X> = Extract<X, string>;
-type ObjRefs<X> = Extract<X, StepLike>;
+type ObjRefs<X> = Extract<X, AnyStep>;
 type HasSuccessor<Nx, Tg> = [Extract<StaticNext<Nx>, Ref> | Tg] extends [never] ? false : true;
 type Behaviors<Xk> = Extract<Xk, 'run' | 'waitFor' | 'sleep'>;
 type RunOnly<Xk> = Extract<Xk, 'retry' | 'compensate' | 'mapError' | 'idempotencyKey' | 'output' | 'fallback' | 'each'>;
@@ -909,13 +913,13 @@ type KeysOf<T, O> = { [K in keyof T]: [T[K]] extends [O] ? K : never; }[keyof T]
 type EscapedIds<T, Rt> = Rt extends {
   readonly ret: infer R;
   readonly tg: infer G;
-} ? [Extract<R, string>] extends [never] ? never : Exclude<Extract<R, string>, Extract<G, string> | KeysOf<T, Extract<G, StepLike>>> : never;
+} ? [Extract<R, string>] extends [never] ? never : Exclude<Extract<R, string>, Extract<G, string> | KeysOf<T, Extract<G, AnyStep>>> : never;
 type EscapedObjs<T, Rt> = Rt extends {
   readonly ret: infer R;
   readonly tg: infer G;
-} ? [Extract<R, StepLike>] extends [Extract<G, StepLike> | T[Extract<G, string> & keyof T]] ? never : true : never;
+} ? [Extract<R, AnyStep>] extends [Extract<G, AnyStep> | T[Extract<G, string> & keyof T]] ? never : true : never;
 type RouteProblem<T, K extends string, Rt> = [EscapedIds<T, Rt>] extends [never] ? [EscapedObjs<T, Rt>] extends [never] ? never : `step '${K}': next may return a step object that is not in targets` : `step '${K}': next may return ${Quoted<EscapedIds<T, Rt>>}, which is not in targets`;
-type LinkProblem<T, K extends string, L> = L extends Links<infer Refs, infer Objs, infer Nd, infer _A, infer _S, infer P, infer _W, infer Rt> ? [P] extends [never] ? string extends Refs ? `step '${K}' references an id typed as plain string; use a literal id or the step object` : [Exclude<Refs, keyof T>] extends [never] ? [Objs | NeedSteps<Nd>] extends [T[keyof T]] ? [EmptyAny<Nd>] extends [never] ? RouteProblem<T, K, Rt> : `step '${K}': need ${Quoted<EmptyAny<Nd> & string>} lists no steps (\`any\` needs at least one)` : ForeignProblem<T, K, Nd> : `step '${K}' references unknown step id ${Quoted<Exclude<Refs, keyof T>>}` : `step '${K}': ${P}` : never;
+type LinkProblem<T, K extends string, L> = L extends StepLinks<infer Refs, infer Objs, infer Nd, infer _A, infer _S, infer P, infer _W, infer Rt> ? [P] extends [never] ? string extends Refs ? `step '${K}' references an id typed as plain string; use a literal id or the step object` : [Exclude<Refs, keyof T>] extends [never] ? [Objs | NeedSteps<Nd>] extends [T[keyof T]] ? [EmptyAny<Nd>] extends [never] ? RouteProblem<T, K, Rt> : `step '${K}': need ${Quoted<EmptyAny<Nd> & string>} lists no steps (\`any\` needs at least one)` : ForeignProblem<T, K, Nd> : `step '${K}' references unknown step id ${Quoted<Exclude<Refs, keyof T>>}` : `step '${K}': ${P}` : never;
 type StepProblem<T, K extends string, C, Ev, D> = T[K & keyof T] extends {
   readonly '~links': infer L;
   readonly '~bound': infer B;
@@ -1005,10 +1009,10 @@ type WizardErrorCode = 'UNKNOWN_STEP' | 'UNKNOWN_EVENT' | 'NOT_A_VIEW' | 'NOT_RU
 declare class WizardError extends Error {
   readonly code: WizardErrorCode;
   readonly step?: string;
-  readonly issues?: readonly Issue$2[];
+  readonly issues?: readonly Issue$1[];
   constructor(code: WizardErrorCode, message: string, options?: {
     step?: string;
-    issues?: readonly Issue$2[];
+    issues?: readonly Issue$1[];
     cause?: unknown;
   });
 }
@@ -1031,7 +1035,7 @@ type LifecycleEventBody = EachEventBody | {
 {
   readonly type: 'run.failed';
   readonly step?: string;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
   /** `AUTO_ADVANCE_LOOP`: synchronous `next` hops without an async boundary (absent: `output` failed). */
   readonly code?: 'AUTO_ADVANCE_LOOP';
   /** The runnable step's `mapError` value, when present. */
@@ -1041,7 +1045,7 @@ type LifecycleEventBody = EachEventBody | {
 {
   readonly type: 'run.halted';
   readonly step: string;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
   /** The runnable step's `mapError` value, when present. */
   readonly data?: unknown;
 } |
@@ -1096,12 +1100,12 @@ type LifecycleEventBody = EachEventBody | {
   readonly txId: string;
   readonly reason: TransitionRejectReason;
   readonly step?: string;
-  readonly issues?: readonly Issue$2[];
+  readonly issues?: readonly Issue$1[];
 } | {
   readonly type: 'transition.failed';
   readonly txId: string;
   readonly step: string;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
 } | {
   readonly type: 'step.arrived';
   readonly step: string;
@@ -1136,7 +1140,7 @@ type LifecycleEventBody = EachEventBody | {
 {
   readonly type: 'step.failed';
   readonly step: string;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
   readonly kind: StepFailureKind;
   readonly data?: unknown;
 } |
@@ -1151,7 +1155,7 @@ type LifecycleEventBody = EachEventBody | {
   readonly step: string;
   readonly reason?: string;
   readonly next?: string | readonly string[];
-  readonly error?: SerializedError$1;
+  readonly error?: SerializedError;
   readonly kind?: StepFailureKind;
   readonly data?: unknown;
 } |
@@ -1183,7 +1187,7 @@ type LifecycleEventBody = EachEventBody | {
 } | {
   readonly type: 'step.validationFailed';
   readonly step: string;
-  readonly issues: readonly Issue$2[];
+  readonly issues: readonly Issue$1[];
 } | {
   readonly type: 'step.guardEvaluated';
   readonly step: string;
@@ -1218,7 +1222,7 @@ type LifecycleEventBody = EachEventBody | {
   readonly type: 'step.mapErrorStarted';
   readonly step: string;
   readonly attempt: number;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
   readonly timedOut?: boolean;
   readonly syncViolation?: boolean;
   readonly failureKind?: 'typed' | 'defect' | 'interrupted';
@@ -1228,7 +1232,7 @@ type LifecycleEventBody = EachEventBody | {
   readonly type: 'step.runFailed';
   readonly step: string;
   readonly attempt: number;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
   readonly willRetry: boolean;
   readonly timedOut?: boolean;
   /** Failure channel from a run adapter; ordinary run functions leave this absent. */
@@ -1256,7 +1260,7 @@ type LifecycleEventBody = EachEventBody | {
   readonly type: 'step.compensationFailed';
   readonly step: string;
   readonly runId?: number;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
 };
 /**
  * Why a step failed for good (stored as `StepError.kind`). `guard`: its `needs` can never be
@@ -1292,7 +1296,7 @@ type EachEventBody = {
   readonly step: string;
   readonly index: number;
   readonly attempt: number;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
   readonly willRetry: boolean;
   readonly kind?: StepFailureKind;
   readonly data?: unknown;
@@ -1317,7 +1321,7 @@ type EachEventBody = {
   readonly type: 'step.eachChildSummary';
   readonly step: string;
   readonly index: number;
-  readonly summary: ChildSummary$1;
+  readonly summary: ChildSummary;
 } | {
   readonly type: 'step.eachChildOutputRequested';
   readonly step: string;
@@ -1328,7 +1332,7 @@ type EachEventBody = {
   readonly step: string;
   readonly index: number;
   readonly attempt: number;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
   readonly timedOut?: boolean;
   readonly syncViolation?: boolean;
   readonly failureKind?: 'typed' | 'defect' | 'interrupted';
@@ -1355,7 +1359,7 @@ type IoEventBody = {
 } | {
   readonly type: 'event.rejected';
   readonly event: string;
-  readonly issues: readonly Issue$2[];
+  readonly issues: readonly Issue$1[];
 } |
 /** `payload` travels with the delivery so `plan` can build the `on` call from the event alone. */
 {
@@ -1407,7 +1411,7 @@ type IoEventBody = {
   readonly type: 'event.handlerFailed';
   readonly step?: string;
   readonly event: string;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
 } |
 /** `dueAt` = absolute fire time (`at` is the envelope timestamp). `step` is set for `retry` / `waitTimeout` timers (owner step). */
 {
@@ -1434,7 +1438,7 @@ type IoEventBody = {
 {
   readonly type: 'child.summary';
   readonly step: string;
-  readonly summary: ChildSummary$1;
+  readonly summary: ChildSummary;
   readonly done?: {
     readonly output: unknown;
   };
@@ -1717,7 +1721,7 @@ type ChildStartedEvent<T, F extends AnyWizardDefinition, P extends readonly stri
 } : never;
 type ChildSummaryEvent<T, F extends AnyWizardDefinition, K extends ChildStepId<F> = ChildStepId<F>> = K extends unknown ? Omit<T, 'step' | 'done' | 'summary'> & {
   readonly step: K;
-  readonly summary: Omit<ChildSummary$1, 'current'> & {
+  readonly summary: Omit<ChildSummary, 'current'> & {
     readonly current: ViewId<ChildWizardOf<F, K>> | null;
   };
   readonly done?: {
@@ -1833,7 +1837,7 @@ type CommandResult = {
   readonly code: WizardErrorCode | 'STALE' | 'RUN_COMPENSATING' | 'FORBIDDEN';
   readonly message: string;
   readonly step?: string;
-  readonly issues?: readonly Issue$2[];
+  readonly issues?: readonly Issue$1[];
 };
 /**
  * Result of the navigation methods `next()`, `back()` and `go()`.
@@ -1851,7 +1855,7 @@ type NavResult = {
   readonly code: WizardErrorCode;
   readonly message: string;
   readonly step?: string;
-  readonly issues?: readonly Issue$2[];
+  readonly issues?: readonly Issue$1[];
 } |
 /**
  * The transition was accepted but a hook threw (`transition.failed`), or the
@@ -1863,7 +1867,7 @@ type NavResult = {
   readonly code: WizardErrorCode | 'HOOK_FAILED' | 'STALE';
   readonly message: string;
   readonly step?: string;
-  readonly error?: SerializedError$1;
+  readonly error?: SerializedError;
 };
 /**
  * Result of `send(event, payload, options)`: delivered/buffered, a duplicate (`duplicate: true`:
@@ -1887,7 +1891,7 @@ type SendResult = {
   readonly reason: 'rejected';
   readonly code: 'BOUNDARY_REJECTED';
   readonly message: string;
-  readonly issues: readonly Issue$2[];
+  readonly issues: readonly Issue$1[];
 } | {
   readonly ok: false;
   readonly reason: 'dropped';
@@ -1900,7 +1904,7 @@ type SendResult = {
 type CompensationFailure<F extends AnyWizardDefinition> = { readonly [K in RunStepId<F>]: {
   readonly step: K;
   readonly runId: number;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
 }; }[RunStepId<F>];
 /** Compensation facts retained on a failed or cancelled terminal result: `'partial'` when at
  * least one compensation hook failed (`failures` is non-empty), else `'completed'`.
@@ -1940,7 +1944,7 @@ type TerminalFailure<F extends AnyWizardDefinition> = StepFailure<F> | {
 } | {
   readonly kind: 'runtime';
   readonly step?: StepId<F>;
-  readonly error: SerializedError$1;
+  readonly error: SerializedError;
 };
 /** Successful terminal result.
  * @public
@@ -2083,12 +2087,6 @@ interface DispatchOptions {
  * @public
  */
 type StepPhase = StepPhase$1;
-/**
- * Compact status of a child run as stored on the parent's child step (`status`, `current`,
- * `progress` 0..1, `seq`) — what `child: true` exposes.
- * @public
- */
-type ChildSummary = ChildSummary$1;
 /**
  * Exposure of one step: its draft `input`, its `output`, its validation `issues`, its sanitized
  * `error` (with the `mapError` `data`), its hook `progress(value)` events (`progress: true`:
@@ -2574,7 +2572,7 @@ interface WizardHeader<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPolicies, Wiza
   }>; }>;
   readonly correlate?: NoInfer<{ readonly [E in keyof Ev]?: (payload: Ev[E]) => string | undefined; }>;
 }
-/** Phantom facts of a wizard; `provided` holds the dep keys bound by `provide()`. */
+/** The type facts of a wizard. `provided` holds the dependency keys bound by `provide()`. @public */
 interface WizardTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
   readonly ctx: C;
   readonly ctxIn: CIn;
@@ -2737,8 +2735,8 @@ type OnHandlers<C, Ev, D, N, R = void> = { readonly [E in keyof Ev]?: (args: Eve
 //#endregion
 //#region src/authoring/types/step-config.d.ts
 type CheckedNeed = NeedRef & {
-  readonly any?: readonly StepLike[];
-  readonly optional?: StepLike;
+  readonly any?: readonly AnyStep[];
+  readonly optional?: AnyStep;
 };
 interface Common<C, D, Nd> {
   readonly label?: string;
@@ -2846,17 +2844,17 @@ interface Steps<M> {
 interface StepApi<C, Ev, D> {
   step<R = any, OB = Unset, Em extends JsonValue | Unset = Unset, Ea extends JsonValue = never, Item = any, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Fb extends Ref = never, To extends Ref = never, H extends { readonly [E in Wk]?: (...args: never[]) => MaybePromise<WaitResult>; } = {}, Wk extends string = never, Xk extends string = never>(config: StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, To, H, Xk, Wk> & OptionKeys<Xk, StepOption>): Step<'step', RunFacts<StepOutput<R, OB, Item, H, Ev, Xk>, ErrorFor<Em, Ea | ReturnedAdapterError<R>>, 'run' extends Xk ? true : false> & ('each' extends Xk ? {
     readonly each: true;
-  } : {}), Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>, Nd, Tg | Fb | To, HasSuccessor<Nx, Tg>, StepProblems<Xk, To> | ReturnedAdapterProblem<R, C, D, Nd, Item, Xk> | RoutingProblem<Xk, Nx, Nr, Tg> | EmptyWait<Xk, Wk>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
+  } : {}), StepLinks<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>, Nd, Tg | Fb | To, HasSuccessor<Nx, Tg>, StepProblems<Xk, To> | ReturnedAdapterProblem<R, C, D, Nd, Item, Xk> | RoutingProblem<Xk, Nx, Nr, Tg> | EmptyWait<Xk, Wk>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
   view<I = never, O = [I] extends [never] ? undefined : I, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Nh extends Ref = never, Xk extends string = never>(config: ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Nh> & OptionKeys<Xk, ViewOption>): Step<'view', {
     readonly input: I;
     readonly output: O;
-  }, Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>, Nd, Tg | Nh, HasSuccessor<Nx, Tg>, RoutingProblem<Xk, Nx, Nr, Tg>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
+  }, StepLinks<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>, Nd, Tg | Nh, HasSuccessor<Nx, Tg>, RoutingProblem<Xk, Nx, Nr, Tg>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
   child<CF extends AnyWizardDefinition, OB = Unset, Item = Unset, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Fb extends Ref = never, Xk extends string = never>(child: CF, config: ChildConfig<C, Ev, D, ContextInput<CF>, WizardOutput<CF>, ChildDeps<CF>, OB, Item, Nd, Nx, Nr, Tg, Fb> & DepsRule<C, D, Nd, Item, CF> & OptionKeys<Xk, ChildOption>): Step<'child', {
     readonly output: ChildOutput<WizardOutput<CF>, OB, Item>;
     readonly child: CF;
   } & ('each' extends Xk ? {
     readonly each: true;
-  } : {}), Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>, Nd, Tg | Fb, HasSuccessor<Nx, Tg>, RoutingProblem<Xk, Nx, Nr, Tg>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
+  } : {}), StepLinks<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>, Nd, Tg | Fb, HasSuccessor<Nx, Tg>, RoutingProblem<Xk, Nx, Nr, Tg>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
   /**
    * Assemble the wizard. Every reference, need, target and binding is checked here; a bad step
    * gets a diagnostic on its own property. `start` defaults to the first step.
@@ -2972,5 +2970,5 @@ type ReplayOptions<F extends AnyWizardDefinition> = {
  */
 declare function replay<F extends AnyWizardDefinition>(wizard: F, events: readonly RunEvent<F>[], options: ReplayOptions<F>): Snapshot<F>['state'];
 //#endregion
-export { type AnyProjection, type AnyStep, type AnyWizard, type AnyWizardDefinition, type Boundary, type Checker, type ChildCommand, type ChildRunEvent, type ChildStepId, type ChildSummary, type ChildWizardOf, type ClientState, type ClientStepError, type ClientStepState, type Clock, type Command, type CommandResult, type CompensationFailure, type CompensationSummary, type ContextInput, type ContextPatch, type Ctx, type DepsOf, type DispatchOptions, type DraftOf, type Duration, type EachRunArgs, type ErrorOf, type EventType, type Explanation, type ExposeSpec, type HookArgs, type InputOf, type IsEach, type Issue$1 as Issue, type JsonValue, type MemoryStore, type NavResult, type NeedRef, type NeedsOutput, type NeedsSpec, type OutputOf, type PayloadInput, type PayloadOf, type Progress, type ProgressSpec, type Projection, type ProjectionDefinition, type ProjectionOutput, type ProjectionScope, type ProjectionSelect, type ProjectionWizard, RUN_ADAPTER, RUN_EVENT_TYPES, type ReplayOptions, type RequiredDepsOf, type ResumeOptions, type RetryPolicy, type RetryStepId, type RootRunEvent, type Run, type RunAdapter, type RunAdapterMetadata, type RunArgs, type RunCancelled, type RunDone, type RunEvent, type RunEventType, type RunFailed, type RunFailure, type RunFailureKind, type RunHalted, type RunLifecycleCode, RunLifecycleError, type RunOptions, type RunOutcome, type RunResult, type RunStatus, type RunStepId, type RunWaiting, type Scheduler, type SendOptions, type SendResult, type SerializedError, type SetInputCommand, type Snapshot, type SnapshotMigration, type Step, type StepApi, type StepErrorOf, type StepExpose, type StepFailure, type StepId, type StepKind, type StepPhase, type StepState, type StepStatus, type Store, type TerminalFailure, type ViewId, type WaitHandlers, type WaitResult, type WaitingFor, type Wizard, type WizardDefinition, WizardError, type WizardErrorCode, type WizardHeader, type WizardOptions, type WizardOutput, type WizardResumeOptions, type WizardStep, boundary, createMemoryStore, createRunFailure, defineProjection, defineWizard, isChildEvent, isRunAdapter, isRunFailure, isWizardError, parseCommand, renameSteps, replay };
+export { type AnyProjection, type AnyStep, type AnyWizard, type AnyWizardDefinition, type Boundary, type Checker, type ChildCommand, type ChildRunEvent, type ChildStepId, type ChildSummary, type ChildWizardOf, type ClientState, type ClientStepError, type ClientStepState, type Clock, type Command, type CommandResult, type CompensationFailure, type CompensationSummary, type ContextInput, type ContextPatch, type Ctx, type DepsOf, type DispatchOptions, type DraftOf, type Duration, type EachRunArgs, type ErrorOf, type EventType, type Explanation, type ExposeSpec, type HookArgs, type InputOf, type IsEach, type Issue$1 as Issue, type JsonValue, type MemoryStore, type NavResult, type NeedRef, type NeedsOutput, type NeedsSpec, type OutputOf, type PayloadInput, type PayloadOf, type Progress, type ProgressSpec, type Projection, type ProjectionDefinition, type ProjectionOutput, type ProjectionScope, type ProjectionSelect, type ProjectionWizard, RUN_ADAPTER, RUN_EVENT_TYPES, type ReplayOptions, type RequiredDepsOf, type ResumeOptions, type RetryPolicy, type RetryStepId, type RootRunEvent, type Run, type RunAdapter, type RunAdapterMetadata, type RunArgs, type RunCancelled, type RunDone, type RunEvent, type RunEventType, type RunFailed, type RunFailure, type RunFailureKind, type RunHalted, type RunLifecycleCode, RunLifecycleError, type RunOptions, type RunOutcome, type RunResult, type RunStatus, type RunStepId, type RunWaiting, type Scheduler, type SendOptions, type SendResult, type SerializedError, type SetInputCommand, type Snapshot, type SnapshotMigration, type Step, type StepApi, type StepBinding, type StepErrorOf, type StepExpose, type StepFailure, type StepId, type StepKind, type StepLinks, type StepPhase, type StepState, type StepStatus, type Store, type TerminalFailure, type ViewId, type WaitHandlers, type WaitResult, type WaitingFor, type Wizard, type WizardDefinition, WizardError, type WizardErrorCode, type WizardHeader, type WizardOnArgs, type WizardOptions, type WizardOutput, type WizardResumeOptions, type WizardState, type WizardStep, type WizardTypes, boundary, createMemoryStore, createRunFailure, defineProjection, defineWizard, isChildEvent, isRunAdapter, isRunFailure, isWizardError, parseCommand, renameSteps, replay };
 //# sourceMappingURL=index.d.ts.map

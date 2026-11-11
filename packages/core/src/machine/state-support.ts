@@ -15,14 +15,20 @@ export type StepErrorKind =
   | 'hook'
   | 'sync-violation'
 
-/** Serializable error. Never carries a stack. */
+/**
+ * A serializable error (`name`, `message`, optional `code`). It never carries a stack.
+ * @public
+ */
 export interface SerializedError {
   readonly name: string
   readonly message: string
   readonly code?: string
 }
 
-/** Standard Schema v1 issue, kept structural so core has zero runtime deps. */
+/**
+ * A validation problem (Standard Schema issue shape): a message and an optional path.
+ * @public
+ */
 export interface Issue {
   readonly message: string
   readonly path?: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }>

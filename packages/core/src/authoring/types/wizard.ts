@@ -47,8 +47,8 @@ export interface WizardHeader<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPolicie
   }>
 }
 
-/** Phantom facts of a wizard; `provided` holds the dep keys bound by `provide()`. */
-interface WizardTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
+/** The type facts of a wizard. `provided` holds the dependency keys bound by `provide()`. @public */
+export interface WizardTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
   readonly ctx: C
   readonly ctxIn: CIn
   readonly events: Ev

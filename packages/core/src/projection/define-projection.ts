@@ -39,7 +39,7 @@ import type {
 } from '../authoring/types'
 import { WizardError } from '../errors'
 import type { StepPhase as MachineStepPhase } from '../machine/selectors'
-import type { ChildSummary as MachineChildSummary } from '../machine/state'
+import type { ChildSummary } from '../machine/state'
 import type { Snapshot } from '../wizard/create-wizard'
 import type { WaitingFor } from '../wizard/results'
 
@@ -50,12 +50,7 @@ import type { WaitingFor } from '../wizard/results'
  */
 export type StepPhase = MachineStepPhase
 
-/**
- * Compact status of a child run as stored on the parent's child step (`status`, `current`,
- * `progress` 0..1, `seq`) — what `child: true` exposes.
- * @public
- */
-export type ChildSummary = MachineChildSummary
+export type { ChildSummary } from '../machine/state'
 
 /**
  * Exposure of one step: its draft `input`, its `output`, its validation `issues`, its sanitized

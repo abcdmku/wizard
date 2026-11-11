@@ -93,6 +93,11 @@ interface GuardResult {
   readonly reason?: string
 }
 
+/**
+ * Compact status of a child run as stored on the parent's child step (`status`, `current`,
+ * `progress` 0..1, `seq`). It is what `child: true` exposes in a projection.
+ * @public
+ */
 export interface ChildSummary {
   readonly status: RunStatus
   readonly current: string | null
@@ -241,6 +246,7 @@ export interface SagaState {
   readonly reason?: string
 }
 
+/** The stored state of a run. `Snapshot<F>['state']` types it by the wizard. @public */
 export interface WizardState {
   readonly status: RunStatus
   /** UI cursor: the active view step, or null. */

@@ -11,14 +11,15 @@ import { analyze, type ManifestWarning } from '../authoring/compile'
 import type { CompiledWizard } from '../authoring/compiled'
 import { isRecord } from '../record'
 import { fingerprint } from './fingerprint'
-import { exclusiveJoinWarnings } from './joins'
+import { exclusiveJoinWarnings, skippedNeedWarnings } from './joins'
 import { toJSONSchema } from './json-schema'
 import { declaredTargets, prose, toNode } from './node'
 import type { JSONSchema, Manifest, ManifestEdge, ManifestStep } from './types'
 
 /**
  * Describe a wizard (compiles it if needed; throws `DEFINITION_INVALID` for a broken wizard).
- * Warnings include unreachable steps, blocked joins, navigation cycles and ambiguous sinks.
+ * Warnings include unreachable steps, blocked joins, a timeout or fallback target that needs the
+ * step that starts it, navigation cycles and ambiguous sinks.
  * @public
  */
 export function inspect(wizard: AnyWizardDefinition): Manifest {
@@ -79,7 +80,7 @@ function collect(
     }
     if (step.child !== undefined) children.push([id, step.child])
   }
-  warnings.push(...exclusiveJoinWarnings(def, path))
+  warnings.push(...exclusiveJoinWarnings(def, path), ...skippedNeedWarnings(def, path))
   // A wizard's own nodes/edges come first, then its child wizards (in declaration order).
   for (const [id, child] of children) collect(child, [...path, id], nodes, edges, warnings)
 }

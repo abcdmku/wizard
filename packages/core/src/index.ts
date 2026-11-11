@@ -144,10 +144,19 @@ export type { Clock, Scheduler } from './interpreter/env'
 export type { AnyProjection, ProjectionWizard } from './projection/define-projection'
 export type { ProjectionDefinition } from './projection/definition'
 // ---- declaration-emit support ------------------------------------------------
-// (`Step` / `WizardStep` are the inferred types of `view(…)` results and of `wizard.steps[k]`,
-// `MemoryStore` of `createMemoryStore()`; a consumer compiling with `declaration: true` must
-// be able to name them when it exports a wizard, a step or a store — TS4023 otherwise.)
-export type { WizardStep, Step } from './authoring/types'
+// (These names appear in the inferred type of a wizard, a step module, a header object, a
+// projection or a store. A consumer compiling with `declaration: true` must be able to name them
+// when it exports one, or the compiler reports TS4023 / TS4058. `tests/__declarations__` exports
+// one of each, and `pnpm test:canary` compiles it against the built package.)
+export type {
+  Step,
+  StepBinding,
+  StepLinks,
+  WizardOnArgs,
+  WizardStep,
+  WizardTypes,
+} from './authoring/types'
+export type { WizardState } from './machine/state'
 export type { MemoryStore } from './persistence/memory-store'
 // ---- replay (devtools / audits) ------------------------------------------------
 export { replay, type ReplayOptions } from './replay'

@@ -14,7 +14,7 @@ type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
  * @public
  */
 interface ManifestWarning {
-  readonly code: 'UNREACHABLE' | 'NAV_CYCLE' | 'EXCLUSIVE_JOIN' | 'MULTIPLE_SINKS' | 'NO_SINKS';
+  readonly code: 'UNREACHABLE' | 'NAV_CYCLE' | 'EXCLUSIVE_JOIN' | 'SKIPPED_NEED' | 'MULTIPLE_SINKS' | 'NO_SINKS';
   readonly message: string;
   /** Step the warning is about. */
   readonly step?: string;
@@ -153,7 +153,8 @@ interface Manifest {
 //#region src/inspect/graph.d.ts
 /**
  * Describe a wizard (compiles it if needed; throws `DEFINITION_INVALID` for a broken wizard).
- * Warnings include unreachable steps, blocked joins, navigation cycles and ambiguous sinks.
+ * Warnings include unreachable steps, blocked joins, a timeout or fallback target that needs the
+ * step that starts it, navigation cycles and ambiguous sinks.
  * @public
  */
 declare function inspect(wizard: AnyWizardDefinition): Manifest;

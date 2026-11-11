@@ -1,4 +1,4 @@
-import { AnyProjection, AnyWizardDefinition, ChildStepId, ChildWizardOf, Command, CommandResult, Ctx, DraftOf, EventType, IsEach, PayloadInput, Projection, ProjectionDefinition, ProjectionOutput, ProjectionWizard, RetryStepId, Run, RunEvent, RunStepId, Snapshot, StepId, ViewId } from "@openwizard/core";
+import { AnyProjection, AnyWizardDefinition, ChildStepId, ChildWizardOf, Command, CommandResult, Ctx, DraftOf, EventType, IsEach, Issue, PayloadInput, Projection, ProjectionDefinition, ProjectionOutput, ProjectionWizard, RetryStepId, Run, RunEvent, RunStepId, Snapshot, StepId, ViewId } from "@openwizard/core";
 //#region src/mirror/commands.d.ts
 /**
  * A Mirror command that never reached the server, or whose answer could not be trusted: the
@@ -83,26 +83,18 @@ interface IdGenerator {
   id(prefix: string): string;
 }
 //#endregion
-//#region src/machine/state-support.d.ts
-/** Standard Schema v1 issue, kept structural so core has zero runtime deps. */
-interface Issue {
-  readonly message: string;
-  readonly path?: ReadonlyArray<PropertyKey | {
-    readonly key: PropertyKey;
-  }>;
-}
-//#endregion
-//#region src/authoring/compiled.d.ts
-/** Result of parsing through a boundary. */
-type BoundaryResult<T = unknown> = {
+//#region src/mirror/wire.d.ts
+/**
+ * What a decoder returns. `Issue` comes from the main entry, so a project that exports a decoded
+ * value can name its type.
+ */
+type Decoded<T> = {
   readonly ok: true;
   readonly value: T;
 } | {
   readonly ok: false;
   readonly issues: readonly Issue[];
 };
-//#endregion
-//#region src/mirror/wire.d.ts
 /**
  * Server → client: one full projected snapshot (`state`) of instance `instanceId`, tagged with
  * `epoch` (increments on every resume) and `seq` (increments per applied event). A Mirror
@@ -182,7 +174,7 @@ interface WireAck {
  * hosts can run it themselves before authorising the command.
  * @public
  */
-declare function parseWireCommand<F extends AnyWizardDefinition>(wizard: F, input: unknown): BoundaryResult<WireCommand<F>>;
+declare function parseWireCommand<F extends AnyWizardDefinition>(wizard: F, input: unknown): Decoded<WireCommand<F>>;
 /**
  * Strictly check an untrusted value as a `Frame`: exact property allow-list per `kind`, a
  * non-empty `instanceId` and non-negative integer `epoch` / `seq`. A `snapshot` frame needs a
@@ -194,7 +186,7 @@ declare function parseWireCommand<F extends AnyWizardDefinition>(wizard: F, inpu
  * can run it themselves.
  * @public
  */
-declare function parseFrame(input: unknown): BoundaryResult<Frame<unknown>>;
+declare function parseFrame(input: unknown): Decoded<Frame<unknown>>;
 //#endregion
 //#region src/mirror/transport.d.ts
 /**

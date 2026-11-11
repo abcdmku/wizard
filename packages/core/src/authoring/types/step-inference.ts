@@ -2,7 +2,7 @@
 import type { RUN_ADAPTER, RunAdapter } from '../run-adapter'
 import type { EachRunArgs, RunArgs } from './hook-args'
 import type { IsUnset } from './primitives'
-import type { Ref, StaticNext, StepLike } from './step'
+import type { AnyStep, Ref, StaticNext } from './step'
 
 type OutputOfStep<S> = S extends { readonly '~types': infer P }
   ? NonNullable<P> extends { readonly output: infer O }
@@ -16,9 +16,9 @@ type OutputOfStep<S> = S extends { readonly '~types': infer P }
  * @public
  */
 export type NeedRef =
-  | StepLike
-  | { readonly any: readonly StepLike[] }
-  | { readonly optional: StepLike }
+  | AnyStep
+  | { readonly any: readonly AnyStep[] }
+  | { readonly optional: AnyStep }
 /** Named data requirements referencing earlier step objects. @public */
 export type NeedsSpec = { readonly [alias: string]: NeedRef }
 export type NeedOutput<S> = S extends string
@@ -129,7 +129,7 @@ export type RoutingProblem<Xk, Nx, Nr, Tg> = 'next' extends Xk
     ? '`targets` requires a function `next`'
     : never
 export type IdRefs<X> = Extract<X, string>
-export type ObjRefs<X> = Extract<X, StepLike>
+export type ObjRefs<X> = Extract<X, AnyStep>
 export type HasSuccessor<Nx, Tg> = [Extract<StaticNext<Nx>, Ref> | Tg] extends [never]
   ? false
   : true

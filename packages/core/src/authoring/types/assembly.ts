@@ -1,5 +1,5 @@
 /** Validate refs only after the real steps map exists. */
-import type { BoundTo, Links, SinkRole, Step, StepLike, WizardStep } from './step'
+import type { AnyStep, BoundTo, SinkRole, Step, StepLinks, WizardStep } from './step'
 import type { NeedStep, NeedSteps } from './step-inference'
 
 export type StepError<M> = { readonly [P in M & string]: never }
@@ -24,10 +24,10 @@ type KeysOf<T, O> = { [K in keyof T]: [T[K]] extends [O] ? K : never }[keyof T]
 type EscapedIds<T, Rt> = Rt extends { readonly ret: infer R; readonly tg: infer G }
   ? [Extract<R, string>] extends [never]
     ? never
-    : Exclude<Extract<R, string>, Extract<G, string> | KeysOf<T, Extract<G, StepLike>>>
+    : Exclude<Extract<R, string>, Extract<G, string> | KeysOf<T, Extract<G, AnyStep>>>
   : never
 type EscapedObjs<T, Rt> = Rt extends { readonly ret: infer R; readonly tg: infer G }
-  ? [Extract<R, StepLike>] extends [Extract<G, StepLike> | T[Extract<G, string> & keyof T]]
+  ? [Extract<R, AnyStep>] extends [Extract<G, AnyStep> | T[Extract<G, string> & keyof T]]
     ? never
     : true
   : never
@@ -37,7 +37,16 @@ type RouteProblem<T, K extends string, Rt> = [EscapedIds<T, Rt>] extends [never]
     : `step '${K}': next may return a step object that is not in targets`
   : `step '${K}': next may return ${Quoted<EscapedIds<T, Rt>>}, which is not in targets`
 type LinkProblem<T, K extends string, L> =
-  L extends Links<infer Refs, infer Objs, infer Nd, infer _A, infer _S, infer P, infer _W, infer Rt>
+  L extends StepLinks<
+    infer Refs,
+    infer Objs,
+    infer Nd,
+    infer _A,
+    infer _S,
+    infer P,
+    infer _W,
+    infer Rt
+  >
     ? [P] extends [never]
       ? string extends Refs
         ? `step '${K}' references an id typed as plain string; use a literal id or the step object`

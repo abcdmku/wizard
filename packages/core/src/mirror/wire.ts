@@ -20,10 +20,17 @@
  */
 
 import type { AnyWizardDefinition, Command, CommandResult, Issue, RunEvent } from '@openwizard/core'
-import type { BoundaryResult } from '../authoring/compiled'
 import { isPlainObject } from '../machine/util'
 import { parseCommand } from '../wizard/parse-command'
 import { isNonNegativeInt } from '../wizard/snapshot-checks'
+
+/**
+ * What a decoder returns. `Issue` comes from the main entry, so a project that exports a decoded
+ * value can name its type.
+ */
+type Decoded<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly issues: readonly Issue[] }
 
 /**
  * Server → client: one full projected snapshot (`state`) of instance `instanceId`, tagged with
@@ -121,7 +128,7 @@ const MAX_STRING = 65_536
 export function parseWireCommand<F extends AnyWizardDefinition>(
   wizard: F,
   input: unknown,
-): BoundaryResult<WireCommand<F>> {
+): Decoded<WireCommand<F>> {
   const issues: Issue[] = []
   if (!isPlainObject(input)) {
     return { ok: false, issues: [{ message: 'wire command must be an object', path: [] }] }
@@ -189,7 +196,7 @@ export function parseWireCommand<F extends AnyWizardDefinition>(
  * can run it themselves.
  * @public
  */
-export function parseFrame(input: unknown): BoundaryResult<Frame<unknown>> {
+export function parseFrame(input: unknown): Decoded<Frame<unknown>> {
   const issues: Issue[] = []
   if (!isPlainObject(input)) {
     return { ok: false, issues: [{ message: 'frame must be an object', path: [] }] }

@@ -1,14 +1,11 @@
 /**
- * Primitives shared with the machine ; documented aliases so the public surface names them; the
- * identity with the machine types is what matters for hooks.
+ * Primitives shared with the machine. Unions get a documented alias here. Interfaces are
+ * re-exported under their own name, so a project that exports a value of one can name it.
  * @packageDocumentation
  */
 
-import type { Progress as MachineProgress } from '../../machine/selectors'
 import type {
-  Issue as MachineIssue,
   RunStatus as MachineRunStatus,
-  SerializedError as MachineSerializedError,
   StepStatus as MachineStepStatus,
 } from '../../machine/state'
 import type { StepKind as CompiledStepKind } from '../compiled'
@@ -37,17 +34,8 @@ export type JsonValue =
   | readonly JsonValue[]
   | { readonly [key: string]: JsonValue }
 
-/**
- * A validation problem (Standard Schema issue shape): a message and an optional path.
- * @public
- */
-export type Issue = MachineIssue
-
-/**
- * A serializable error (`name`, `message`, optional `code`) ; never carries a stack.
- * @public
- */
-export type SerializedError = MachineSerializedError
+export type { Progress } from '../../machine/selectors'
+export type { Issue, SerializedError } from '../../machine/state'
 
 /**
  * The three step kinds: `step | view | child`. A plain step runs a hook, waits for an event,
@@ -87,13 +75,6 @@ export interface RetryPolicy<E = unknown> {
   /** Retry only when this returns true; receives the mapped error when `mapError` exists. */
   readonly when?: (error: E) => boolean
 }
-
-/**
- * Progress of a run (`run.progress()`, `ClientState.progress` with `expose.progress: true`):
- * Counts completed or skipped steps and reports their fraction of the total.
- * @public
- */
-export type Progress = MachineProgress
 
 /** Default of an inference site that was not given (distinct from `never`, which a value can have). */
 declare const UNSET: unique symbol

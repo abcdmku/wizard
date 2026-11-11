@@ -1,6 +1,13 @@
 ﻿import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
+/** What the payment provider reported. */
+type Payment =
+  | { readonly status: 'captured'; readonly paymentId: string }
+  | { readonly status: 'failed'; readonly reason: string }
+/** The provider reported nothing in time. */
+type Expired = { readonly status: 'expired' }
+
 export const checkout = defineWizard(
   {
     name: 'checkout',
@@ -32,31 +39,38 @@ export const checkout = defineWizard(
     // This view lets the demo send payment before the wait step starts.
     const review = view({ input: z.object({}), initial: {}, next: 'awaitPayment' })
     const awaitPayment = step({
-      description: 'Waits for the provider. Its output is the payload of whichever event arrived.',
+      description: 'Waits for the provider. Either event completes the wait with a payment.',
       waitFor: {
-        'payment.captured': ({ payload }) => ({ done: payload }),
-        'payment.failed': ({ payload }) => ({ done: payload }),
+        'payment.captured': ({ payload }): { done: Payment } => ({
+          done: { status: 'captured', paymentId: payload.paymentId },
+        }),
+        'payment.failed': ({ payload }): { done: Payment } => ({
+          done: { status: 'failed', reason: payload.reason },
+        }),
       },
       timeout: { after: '30m', next: 'expired' },
-      // Wait handlers complete the wait. This declared route selects the next step.
-      targets: ['paid', 'declined'],
-      next: ({ output }) => ('reason' in output ? 'declined' : 'paid'),
     })
-    // Both endings need the wait. Its output is one of two payloads, so each ending narrows it.
-    const paid = step({
-      needs: { payment: awaitPayment },
-      run: ({ needs }) =>
-        'paymentId' in needs.payment ? `paid (${needs.payment.paymentId})` : 'paid',
-    })
-    const declined = step({
-      needs: { payment: awaitPayment },
-      run: ({ needs }) =>
-        'reason' in needs.payment ? `declined: ${needs.payment.reason}` : 'declined',
-    })
+    // A wait that times out is skipped and has no output, so the timeout path has its own step.
     const expired = step({
-      description: 'Ends the run when no payment event arrived in time.',
-      run: () => 'expired: no payment within 30 minutes',
+      description: 'Records that no payment event arrived in time.',
+      run: (): Expired => ({ status: 'expired' }),
     })
-    return steps({ review, awaitPayment, paid, declined, expired }, { start: 'review' })
+    // Exactly one of the two finishes. The need is typed as the union of their outputs, and the
+    // `string` return type makes a missing case a compile error.
+    const result = step({
+      description: 'Turns the outcome into the result of the checkout.',
+      needs: { outcome: { any: [awaitPayment, expired] } },
+      run: ({ needs }): string => {
+        switch (needs.outcome.status) {
+          case 'captured':
+            return `paid (${needs.outcome.paymentId})`
+          case 'failed':
+            return `declined: ${needs.outcome.reason}`
+          case 'expired':
+            return 'expired: no payment within 30 minutes'
+        }
+      },
+    })
+    return steps({ review, awaitPayment, expired, result }, { start: 'review' })
   },
 )

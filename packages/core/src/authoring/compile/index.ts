@@ -40,7 +40,13 @@ import { compileWizard, type NestingProblem } from './wizard'
  * @public
  */
 export interface ManifestWarning {
-  readonly code: 'UNREACHABLE' | 'NAV_CYCLE' | 'EXCLUSIVE_JOIN' | 'MULTIPLE_SINKS' | 'NO_SINKS'
+  readonly code:
+    | 'UNREACHABLE'
+    | 'NAV_CYCLE'
+    | 'EXCLUSIVE_JOIN'
+    | 'SKIPPED_NEED'
+    | 'MULTIPLE_SINKS'
+    | 'NO_SINKS'
   readonly message: string
   /** Step the warning is about. */
   readonly step?: string

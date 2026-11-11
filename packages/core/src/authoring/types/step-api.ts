@@ -3,7 +3,7 @@ import type { CheckSteps, CompactStep, RoleOf } from './assembly'
 import type { ContextInput, WizardOutput } from './extractors'
 import type { EmptyWait, WaitResult } from './handlers'
 import type { JsonValue, MaybePromise, Unset } from './primitives'
-import type { BoundTo, Links, Ref, RefWithin, Returned, Route, StaticNext, Step } from './step'
+import type { BoundTo, Ref, RefWithin, Returned, Route, StaticNext, Step, StepLinks } from './step'
 import type {
   ChildConfig,
   ChildDeps,
@@ -63,7 +63,7 @@ export interface StepApi<C, Ev, D> {
       'run' extends Xk ? true : false
     > &
       ('each' extends Xk ? { readonly each: true } : {}),
-    Links<
+    StepLinks<
       IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>,
       ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>,
       Nd,
@@ -92,7 +92,7 @@ export interface StepApi<C, Ev, D> {
   ): Step<
     'view',
     { readonly input: I; readonly output: O },
-    Links<
+    StepLinks<
       IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>,
       ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>,
       Nd,
@@ -139,7 +139,7 @@ export interface StepApi<C, Ev, D> {
       readonly output: ChildOutput<WizardOutput<CF>, OB, Item>
       readonly child: CF
     } & ('each' extends Xk ? { readonly each: true } : {}),
-    Links<
+    StepLinks<
       IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>,
       ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>,
       Nd,

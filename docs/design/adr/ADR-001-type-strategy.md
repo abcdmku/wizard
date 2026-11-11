@@ -9,7 +9,7 @@
 
 Use pre-bound constructors inside `defineWizard`, then validate the actual step map with `steps(map, { start? })`.
 
-The [parallel example](../../../packages/docs/snippets/recipes/parallel.ts) shows the checked assembly and inferred producer outputs.
+The [parallel example](../../../packages/docs/snippets/learn/needs.ts) shows the checked assembly and inferred producer outputs.
 
 A constructor knows its wizard's context, events, and deps. It infers facts from its own configuration, including output, error data, item type, needs, references, and targets. It cannot inspect sibling declarations that have not been assembled.
 

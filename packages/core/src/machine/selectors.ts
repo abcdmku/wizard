@@ -42,7 +42,11 @@ interface Memo {
   readonly phase: Map<string, StepPhase | undefined>
 }
 
-/** Completion counters over all steps; `skipped` counts as done. */
+/**
+ * Progress of a run (`run.progress()`, `ClientState.progress` with `expose.progress: true`).
+ * It counts completed or skipped steps and reports their fraction of the total.
+ * @public
+ */
 export interface Progress {
   readonly done: number
   readonly total: number

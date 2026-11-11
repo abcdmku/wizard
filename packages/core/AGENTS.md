@@ -154,5 +154,5 @@ run.dispose()
 
 - Run the type checker. Unknown step ids, a missing `targets`, and a wrong `needs` type are compile errors.
 - Import the module. A broken definition throws `WizardError` with code `DEFINITION_INVALID` and lists every problem.
-- Read `inspect(wizard).warnings`. The codes are `UNREACHABLE`, `NAV_CYCLE`, `EXCLUSIVE_JOIN`, `MULTIPLE_SINKS` and `NO_SINKS`. `MULTIPLE_SINKS` means the output depends on which branch finished last, so add an `output` selector to the wizard options.
+- Read `inspect(wizard).warnings`. The codes are `UNREACHABLE`, `NAV_CYCLE`, `EXCLUSIVE_JOIN`, `SKIPPED_NEED`, `MULTIPLE_SINKS` and `NO_SINKS`. `SKIPPED_NEED` means a `timeout.next` or `fallback` target has a plain need on the step that starts it, so it is skipped on that path. Declare the need as `{ optional: step }`. `MULTIPLE_SINKS` means the output depends on which branch finished last, so add an `output` selector to the wizard options.
 - Test time with `createTestScheduler()` from `@openwizard/core/testing`. Pass it as `scheduler` and call `advance(ms)` to fire retries, sleeps and timeouts.

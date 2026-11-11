@@ -1,4 +1,5 @@
 import { parseCommand, type RunEvent } from '@openwizard/core'
+import { inspect } from '@openwizard/core/inspect'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { checkout } from './checkout'
@@ -57,15 +58,14 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
       event: 'payment.captured',
       to: 'awaitPayment',
     })
-    expect(run.getState().steps.paid).toMatchObject({ status: 'done', output: 'paid (pay_1)' })
-    expect(run.getState().steps.awaitPayment).toMatchObject({
-      status: 'done',
-      output: {
-        paymentId: 'pay_1',
-        amount: 42,
-        orderId: 'o-1',
-      },
+    expect(run.getState().steps.result).toMatchObject({ status: 'done', output: 'paid (pay_1)' })
+    // The handler chose the output: the payment, not the raw payload.
+    expect(run.getState().steps.awaitPayment).toMatchObject({ status: 'done' })
+    expect(run.getState().steps.awaitPayment.output).toEqual({
+      status: 'captured',
+      paymentId: 'pay_1',
     })
+    expect(run.getState().steps.expired.status).toBe('idle') // the timeout path never started
     expect(run.getState().status).toBe('done')
     expect(run.getState().output).toBe('paid (pay_1)')
     expect(run.getState().timers).toEqual({}) // the 30-minute timeout was cleared
@@ -152,12 +152,21 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     expect(run.getState().status).toBe('waiting')
     scheduler.advance(1)
     expect(eventsOfType('timer.fired').at(-1)).toMatchObject({ timerId: 'wait:awaitPayment' })
+    // A wait that times out is skipped and has no output. `expired` supplies the outcome.
+    expect(run.getState().steps.awaitPayment).toMatchObject({
+      status: 'skipped',
+      skipReason: 'timeout',
+    })
     expect(run.getState().steps.awaitPayment.output).toBeUndefined()
+    expect(run.getState().steps.expired).toMatchObject({
+      status: 'done',
+      output: { status: 'expired' },
+    })
     expect(run.getState().output).toBe('expired: no payment within 30 minutes')
     run.dispose()
   })
 
-  it('routes a failed payment to the declared decline target and rejects unknown wire events', async () => {
+  it('reports a failed payment as declined and rejects unknown wire events', async () => {
     const { run } = make()
     await run.start()
     await run.next()
@@ -178,11 +187,18 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
       delivered: ['awaitPayment'],
     })
     expect(run.getState().steps.awaitPayment.status).toBe('done')
-    expect(run.getState().steps.awaitPayment.output).toEqual({ reason: 'insufficient funds' })
-    expect(run.getState().steps.declined.status).toBe('done')
-    expect(run.getState().steps.paid).toMatchObject({ status: 'skipped', skipReason: 'not-taken' })
+    expect(run.getState().steps.awaitPayment.output).toEqual({
+      status: 'failed',
+      reason: 'insufficient funds',
+    })
+    expect(run.getState().steps.result.status).toBe('done')
+    expect(run.getState().steps.expired.status).toBe('idle')
     expect(run.getState().output).toBe('declined: insufficient funds')
     run.dispose()
+  })
+
+  it('has one result step, so the definition has no warnings', () => {
+    expect(inspect(checkout).warnings).toEqual([])
   })
 
   it('drops an event whose correlation id belongs to another order', async () => {
