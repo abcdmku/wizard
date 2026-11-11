@@ -5,11 +5,11 @@ import { SearchDialog } from './search-dialog'
 import { ThemeToggle } from './theme-toggle'
 
 const TOP_LINKS = [
-  { label: 'Start', slug: 'getting-started' },
-  { label: 'Learn', slug: 'learn' },
+  { label: 'Quickstart', slug: 'getting-started' },
+  { label: 'Guide', slug: 'learn' },
   { label: 'Production', slug: 'advanced' },
-  { label: 'Recipes', slug: 'recipes' },
-  { label: 'Packages', slug: 'packages' },
+  { label: 'Reference', slug: 'packages' },
+  { label: 'Examples', slug: 'examples' },
 ] as const
 
 interface SiteHeaderProps {
