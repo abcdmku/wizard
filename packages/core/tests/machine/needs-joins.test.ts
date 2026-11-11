@@ -9,7 +9,7 @@ import {
   flow,
   of,
   replay,
-  routeStep,
+  routingStep,
   runStep,
   view,
 } from '../helpers/fixtures'
@@ -223,7 +223,7 @@ describe('needs data joins', () => {
         flow({
           start: 'gate',
           steps: {
-            gate: { ...routeStep(), next: { kind: 'dynamic', targets: ['a', 'b'] } },
+            gate: { ...routingStep(), next: { kind: 'dynamic', targets: ['a', 'b'] } },
             a: runStep(),
             b: runStep({ next: 'b2' }),
             b2: runStep(),
@@ -259,7 +259,10 @@ describe('needs data joins', () => {
         flow({
           start: 'gate',
           steps: {
-            gate: { ...routeStep(), next: { kind: 'dynamic', targets: ['approve', 'quarantine'] } },
+            gate: {
+              ...routingStep(),
+              next: { kind: 'dynamic', targets: ['approve', 'quarantine'] },
+            },
             approve: eventStep({
               on: { approved: () => ({ done: true }) },
               timeout: { afterMs: 10, next: 'quarantine' },

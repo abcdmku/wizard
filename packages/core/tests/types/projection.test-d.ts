@@ -202,7 +202,7 @@ const mappedFlow = defineWizard(
       done: step({ next: null }),
     }),
 )
-describe('v0.2 projections', () => {
+describe('projections: progress, error data, select', () => {
   it('`progress: true` adds a required `progress: Progress`; absent otherwise', () => {
     const withProgress = defineProjection(checkoutFlow, { expose: { progress: true } })
     expectTypeOf<ProjectionOutput<typeof withProgress>['progress']>().toEqualTypeOf<Progress>()

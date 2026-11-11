@@ -1,6 +1,6 @@
 /**
  * Command plumbing of one runtime: enqueue a command on the interpreter, keep the sync-commit
- * guarantee (plan §8.1 — a synchronous chain yields an already-fulfilled promise), map the
+ * guarantee (a synchronous chain yields an already-fulfilled promise), map the
  * processed batch to the public result, and the two doors that run a boundary before enqueuing
  * (`send`: the event boundary; `validate`: the view's input boundary + `validate` hook).
  *
@@ -103,7 +103,7 @@ export function createCommands(ctx: RuntimeContext): Commands {
 
   /**
    * Façade-side async work (a thenable boundary or validate hook) must not outlive the run:
-   * `dispose()` resolves it with `onDisposed()` (a DISPOSED value, never a throw, D20); the
+   * `dispose()` resolves it with `onDisposed()` (a DISPOSED value, never a throw); the
    * abandoned thenable keeps its handlers so it never rejects unhandled.
    */
   const untilDisposed = <T>(work: Promise<T>, onDisposed: () => T): Promise<T> =>
@@ -280,7 +280,7 @@ export function createCommands(ctx: RuntimeContext): Commands {
             : after(navResult(processed), navToCommandResult)
         })
       case 'send':
-        // The wire door runs the event boundary too (plan §1.3): a client cannot bypass it.
+        // The wire door runs the event boundary too: a client cannot bypass it.
         if (def.events[command.event] === undefined) {
           return { ok: false, code: 'UNKNOWN_EVENT', message: `unknown event '${command.event}'` }
         }

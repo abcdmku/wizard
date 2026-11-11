@@ -1,5 +1,5 @@
 /**
- * Strict decoder for wire commands (plan §8.9): JSON arrives from a transport
+ * Strict decoder for wire commands: JSON arrives from a transport
  * as `unknown`; `parseCommand(flow, input)` checks the exact shape — allow-listed
  * fields per command type (unknown properties are rejected, not dropped),
  * JSON-value payloads (`patch` / `payload` must survive `JSON.stringify`
@@ -27,7 +27,7 @@ import type { BoundaryResult, CompiledFlow } from '../authoring/compiled'
 import type { AnyFlow } from '../authoring/types'
 import type { Command } from '../machine/commands'
 import type { Issue } from '../machine/state'
-import { isPlainObject as isRecord } from '../machine/util'
+import { isPlainObject } from '../machine/util'
 import { resolveCommandPath } from './command-path'
 import type { Command as TypedCommand } from './create-wizard'
 import { firstNonJson, type JsonCheckOptions } from './json'
@@ -101,7 +101,7 @@ function parse(
   def: CompiledFlow | undefined,
   checkIds: boolean,
 ): Command | undefined {
-  if (!isRecord(input)) {
+  if (!isPlainObject(input)) {
     issues.push({ message: 'command must be an object', path })
     return undefined
   }
@@ -220,12 +220,12 @@ function parse(
     case 'retry': {
       const step = str('step')
       const patch = input.patch
-      if (patch !== undefined && !isRecord(patch))
+      if (patch !== undefined && !isPlainObject(patch))
         issues.push({ message: "'patch' must be an object", path: [...path, 'patch'] })
       const ok = patch === undefined || json('patch')
       if (!stepOfKind('step', step, 'retryable')) return undefined
       if (issues.length > start || step === undefined || !ok) return undefined
-      return isRecord(patch) ? { type, step, patch } : { type, step }
+      return isPlainObject(patch) ? { type, step, patch } : { type, step }
     }
     case 'send': {
       const event = str('event')

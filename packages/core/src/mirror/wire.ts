@@ -1,5 +1,5 @@
 /**
- * Mirror wire protocol (plan §8.9): the three JSON shapes that cross a transport.
+ * Mirror wire protocol: the three JSON shapes that cross a transport.
  *
  * - `Frame<S>`: server → client. A `SnapshotFrame<S>` (one full projected snapshot per committed
  *   batch) or a `ProgressFrame` (a hook's transient `progress(value)`, never part of the state),
@@ -21,7 +21,7 @@
 
 import type { AnyFlow, Command, CommandResult, Issue, RunEvent } from '@openwizard/core'
 import type { BoundaryResult } from '../authoring/compiled'
-import { isPlainObject as isRecord } from '../machine/util'
+import { isPlainObject } from '../machine/util'
 import { parseCommand } from '../wizard/parse-command'
 import { isNonNegativeInt } from '../wizard/snapshot-checks'
 
@@ -123,7 +123,7 @@ export function parseWireCommand<F extends AnyFlow>(
   input: unknown,
 ): BoundaryResult<WireCommand<F>> {
   const issues: Issue[] = []
-  if (!isRecord(input)) {
+  if (!isPlainObject(input)) {
     return { ok: false, issues: [{ message: 'wire command must be an object', path: [] }] }
   }
   const record = input
@@ -191,7 +191,7 @@ export function parseWireCommand<F extends AnyFlow>(
  */
 export function parseFrame(input: unknown): BoundaryResult<Frame<unknown>> {
   const issues: Issue[] = []
-  if (!isRecord(input)) {
+  if (!isPlainObject(input)) {
     return { ok: false, issues: [{ message: 'frame must be an object', path: [] }] }
   }
   const progress = input.kind === 'progress'
@@ -237,7 +237,7 @@ function checkState(
   // Any JSON value is a valid projected state (a `select` projection may return a primitive,
   // an array or `null`); the base facts are cross-checked only when the state carries them.
   const state = frame.state
-  if (!isRecord(state)) return
+  if (!isPlainObject(state)) return
   for (const key of ['instanceId', 'epoch', 'seq'] as const) {
     const expected = envelope[key]
     if (expected !== undefined && Object.hasOwn(state, key) && state[key] !== expected) {
@@ -248,7 +248,7 @@ function checkState(
 
 /** Decode a progress frame's `event`: an exact `step.progress` event (issues under `['event']`). */
 function progressEvent(input: unknown, issues: Issue[]): ProgressFrame['event'] | undefined {
-  if (!isRecord(input)) {
+  if (!isPlainObject(input)) {
     issues.push({ message: "'event' must be an object", path: ['event'] })
     return undefined
   }

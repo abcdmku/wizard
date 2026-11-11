@@ -16,7 +16,7 @@ import type {
   WizardState,
 } from './state'
 
-export interface RuntimeCompensationSummary {
+interface RuntimeCompensationSummary {
   readonly outcome: CompensationOutcome
   readonly failures: readonly CompensationFailureState[]
 }
@@ -26,7 +26,7 @@ export type RuntimeStepFailure = {
   readonly step: string
   readonly error: StepError
   readonly compensation?: RuntimeCompensationSummary
-  /** A failed flow step's terminal child result (D13), or the halted child a halted run waits on. */
+  /** A failed flow step's terminal child result, or the halted child a halted run waits on. */
   readonly child?: RuntimeResult | RuntimeHalt
 }
 

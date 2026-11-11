@@ -1,9 +1,9 @@
 /**
- * `res.child` (§7): a child flow's summary / completion / failure reported by the child bridge.
+ * `res.child`: a child flow's summary / completion / failure reported by the child bridge.
  * A halted child only updates the summary: the flow step stays active (its run is `halted` when
- * nothing else runs, D1) and continues when the recovered child finishes. A child that ends
+ * nothing else runs) and continues when the recovered child finishes. A child that ends
  * failed or cancelled fails the flow step — or, when its `fallback` chose a step, skips it and
- * routes there (D13). The child's mapped error data is kept on the flow step's error.
+ * routes there. The child's mapped error data is kept on the flow step's error.
  * @internal
  */
 

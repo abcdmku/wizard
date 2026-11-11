@@ -63,7 +63,7 @@ export interface SnapshotCommit {
   readonly snapshot: string
 }
 
-export interface FreshDedupeClaim {
+interface FreshDedupeClaim {
   readonly lease: Lease
   readonly id: string
   readonly digest: string
@@ -72,7 +72,7 @@ export interface FreshDedupeClaim {
   readonly request: string | null
 }
 
-export interface DedupeCompletionCommit {
+interface DedupeCompletionCommit {
   readonly lease: Lease
   readonly expected: Version | null
   readonly id: string

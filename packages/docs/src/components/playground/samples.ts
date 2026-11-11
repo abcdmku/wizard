@@ -62,7 +62,7 @@ const example = (
 })
 
 /** The runnable examples, verbatim (08 is a React app and lives on its own page). */
-export const exampleSamples: readonly PlaygroundSample[] = [
+const exampleSamples: readonly PlaygroundSample[] = [
   example(
     '11-order-workflow',
     '11 - backend order workflow',

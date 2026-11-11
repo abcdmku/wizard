@@ -137,7 +137,7 @@ function expectReplayEquals(run: Run<typeof flow>, log: readonly RunEvent<typeof
 // ---- tests ---------------------------------------------------------------------------------
 
 describe('replay(flow, log, { context }) == getState()', () => {
-  it('through a view, a retried task, a fan-out DAG with a skipped branch, a wait and a nested flow', async () => {
+  it('through a view, a retried step, a fan-out DAG with a skipped branch, a wait and a nested flow', async () => {
     let calls = 0
     const { run, sched } = make(async () => {
       calls += 1

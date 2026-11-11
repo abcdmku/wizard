@@ -1,6 +1,6 @@
 /**
- * v0.2 §10.4 (idempotent tasks + crash-resume re-run) and §10.7 (`mapError` → `StepError.data`),
- * plus a `replay(log) == state` fixture exercising the new events. Pure machine tests.
+ * Steps with an idempotency key (crash-resume re-run) and `mapError` → `StepError.data`, plus a
+ * `replay(log) == state` fixture exercising their events. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -18,8 +18,8 @@ import {
 const key = () => 'k'
 const map = () => ({})
 
-describe('idempotent tasks', () => {
-  it('resume: a running idempotent task is re-run with the same attempt/key (step.runStarted{resumed:true}); a non-idempotent one fails interrupted', () => {
+describe('steps with an idempotency key', () => {
+  it('resume: a running step with an idempotency key is re-run with the same attempt/key (step.runStarted{resumed:true}); one without a key fails interrupted', () => {
     const h = createHarness(
       flow({
         start: ['a', 'b'],
@@ -206,12 +206,12 @@ describe('mapError', () => {
   })
 })
 
-describe('replay(log) == state — v0.2 fixture', () => {
-  it('a flow using when/skip/invalidate/on-any-kind/flow-level on/mapError/idempotent replays exactly', () => {
+describe('replay(log) == state — every event kind', () => {
+  it('a flow using when/skip/invalidate/on-any-kind/flow-level on/mapError/idempotencyKey replays exactly', () => {
     const on = () => undefined
     const h = createHarness(
       flow({
-        name: 'v2',
+        name: 'replayed',
         start: 'a',
         correlate: { note: (p) => (p as { id?: string }).id },
         on: { note: on, stop: on },

@@ -208,7 +208,7 @@ describe('bindReact<typeof wizard>() — Run source', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// v0.2 — `useChild(step)`: hooks bound to a nested flow's slice; `skip` / `invalidate` actions
+// `useChild(step)`: hooks bound to a nested flow's slice; `skip` / `invalidate` actions
 // ─────────────────────────────────────────────────────────────────────────────
 
 const grandchildFlow = defineWizard(

@@ -81,7 +81,7 @@ describe('e2e nav: view → runnable step → completing step (all sync)', () =>
     expect(t.events.length).toBe(before)
   })
 
-  it('setInput + next() runs the whole pipeline synchronously through the task to the final step', async () => {
+  it('setInput + next() runs the whole pipeline synchronously through the run step to the sink', async () => {
     const t = e2e(happy())
     await t.run.start()
     await t.run.setInput('form', { name: 'ada' })

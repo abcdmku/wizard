@@ -33,12 +33,12 @@ export type StepNodeData = {
   readonly selected: boolean
 }
 
-export type MarkerNodeData = {
+type MarkerNodeData = {
   readonly variant: 'entry' | 'dynamic'
   readonly path: readonly string[]
 }
 
-export type FlowEdgeData = {
+type FlowEdgeData = {
   readonly kind: ModelEdgeKind
   readonly label?: string
   /** Left out of the layered layout (drawn as a U-turn / self-loop). */
@@ -50,8 +50,6 @@ export type GroupNode = Node<StepNodeData, 'group'>
 export type MarkerNode = Node<MarkerNodeData, 'marker'>
 export type DevtoolsNode = StepNode | GroupNode | MarkerNode
 export type DevtoolsEdge = Edge<FlowEdgeData, 'flow'>
-
-export const EMPTY_OVERLAY: GraphOverlay = { statuses: {}, current: null, selected: null }
 
 function stepData(
   node: ModelNode,

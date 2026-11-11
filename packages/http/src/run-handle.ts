@@ -64,7 +64,7 @@ export function runOf<F extends AnyWizard>(handle: RunHandle<F>): Run<F> {
  * Hash them before resolving the run so resolving a live owner happens as close to dispatch as
  * possible. The durable host must also accept a handle held across other I/O awaits.
  */
-export interface HostIds {
+interface HostIds {
   readonly id: string | undefined
   readonly digest?: string
   readonly expectedSeq?: number

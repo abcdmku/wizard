@@ -12,7 +12,22 @@ import {
 } from './span-state'
 import type { WorkflowSpans } from './workflow-spans'
 
-export function createTaskSpans(workflows: WorkflowSpans, report: (error: unknown) => void) {
+/** The kind the definition gives the step. Only a `step` runs, so that is the answer without one. */
+function stepKind(source: { readonly flow: { readonly steps: unknown } }, step: string): string {
+  const steps = source.flow.steps
+  const definition: unknown =
+    typeof steps === 'object' && steps !== null && Object.hasOwn(steps, step)
+      ? Reflect.get(steps, step)
+      : undefined
+  return typeof definition === 'object' &&
+    definition !== null &&
+    'kind' in definition &&
+    typeof definition.kind === 'string'
+    ? definition.kind
+    : 'step'
+}
+
+export function createStepSpans(workflows: WorkflowSpans, report: (error: unknown) => void) {
   const {
     root,
     tracer,
@@ -30,7 +45,7 @@ export function createTaskSpans(workflows: WorkflowSpans, report: (error: unknow
   const closeAttempt = (attempt: AttemptRecord, outcome: Outcome): void => {
     if (attempt.closed) return
     attempt.closed = true
-    setAttribute(attempt.span, 'openwizard.task.outcome', outcome)
+    setAttribute(attempt.span, 'openwizard.step.outcome', outcome)
     endSpan(attempt.span, outcome)
     attempts.delete(attempt.key)
     if (outcome === 'success') {
@@ -54,33 +69,34 @@ export function createTaskSpans(workflows: WorkflowSpans, report: (error: unknow
     compensations.delete(compensation.key)
   }
 
-  const taskParent = (path: readonly string[]): FlowRecord | undefined =>
+  const stepParent = (path: readonly string[]): FlowRecord | undefined =>
     stateFor(path) ?? ensureFlow(path)
 
-  const taskKey = (path: readonly string[], step: string): string => `${pathKey(path)}\u0000${step}`
+  const stepKey = (path: readonly string[], step: string): string => `${pathKey(path)}\u0000${step}`
 
   const startAttempt = (event: EventRecord, path: readonly string[], step: string): void => {
-    const flow = taskParent(path)
+    const flow = stepParent(path)
     if (!flow) return
     const attemptNumber = asNumber(event.attempt) ?? 0
     const runId = asNumber(event.runId) ?? 0
-    const key = taskKey(path, step)
+    const key = stepKey(path, step)
     const previous = attempts.get(key)
     if (previous) closeAttempt(previous, 'interrupted')
 
+    const source = runAt(path) ?? root
     const attributes: Attributes = {
-      ...flowAttributes(path, runAt(path) ?? root),
+      ...flowAttributes(path, source),
       'openwizard.step': step,
-      'openwizard.step.kind': 'task',
-      'openwizard.task.attempt': attemptNumber,
-      'openwizard.task.retry': attemptNumber > 1,
-      'openwizard.task.retry_count': Math.max(0, attemptNumber - 1),
-      'openwizard.task.run_id': runId,
+      'openwizard.step.kind': stepKind(source, step),
+      'openwizard.step.attempt': attemptNumber,
+      'openwizard.step.retry': attemptNumber > 1,
+      'openwizard.step.retry_count': Math.max(0, attemptNumber - 1),
+      'openwizard.step.run_id': runId,
     }
-    attributes['openwizard.task.resumed'] = event.resumed === true
+    attributes['openwizard.step.resumed'] = event.resumed === true
     try {
       const span = tracer.startSpan(
-        'openwizard.task',
+        'openwizard.step',
         { kind: SpanKind.INTERNAL, attributes },
         flow.spanContext,
       )
@@ -105,7 +121,7 @@ export function createTaskSpans(workflows: WorkflowSpans, report: (error: unknow
     step: string,
     outcome: Outcome,
   ): void => {
-    const attempt = attempts.get(taskKey(path, step))
+    const attempt = attempts.get(stepKey(path, step))
     if (!attempt) return
     const expected = asNumber(event.attempt)
     if (expected !== undefined && expected !== attempt.attempt) return
@@ -113,10 +129,10 @@ export function createTaskSpans(workflows: WorkflowSpans, report: (error: unknow
       setAttribute(
         attempt.span,
         'openwizard.error.kind',
-        event.timedOut === true ? 'timeout' : 'task',
+        event.timedOut === true ? 'timeout' : 'step',
       )
       if (typeof event.willRetry === 'boolean')
-        setAttribute(attempt.span, 'openwizard.task.will_retry', event.willRetry)
+        setAttribute(attempt.span, 'openwizard.step.will_retry', event.willRetry)
     }
     closeAttempt(attempt, outcome)
   }
@@ -139,7 +155,7 @@ export function createTaskSpans(workflows: WorkflowSpans, report: (error: unknow
   ): string => `${pathKey(path)}\u0000${step}\u0000${runId ?? 'unknown'}`
 
   const startCompensation = (event: EventRecord, path: readonly string[], step: string): void => {
-    const flow = taskParent(path)
+    const flow = stepParent(path)
     if (!flow) return
     const runId = asNumber(event.runId)
     const key = compensationKey(path, step, runId)

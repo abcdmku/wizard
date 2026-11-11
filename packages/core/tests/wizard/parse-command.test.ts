@@ -77,7 +77,7 @@ describe('parseCommand(flow, input)', () => {
     }
   })
 
-  it('rejects ids the flow does not know: views, tasks, events, compensate.from, child paths', () => {
+  it('rejects ids the flow does not know: views, steps, events, compensate.from, child paths', () => {
     expect(parseCommand(flow, { type: 'go', step: 'nope' })).toMatchObject({
       ok: false,
       issues: [{ message: "unknown step 'nope'", path: ['step'] }],
@@ -337,5 +337,64 @@ describe('parseCommand(flow, input)', () => {
     const cycle = parseCommand(flow, { type: 'setInput', step: 'a', patch: cyclic })
     expect(cycle.ok).toBe(false)
     if (!cycle.ok) expect(cycle.issues[0]?.message).toMatch(/is circular/)
+  })
+})
+
+describe('parseCommand — skip / invalidate', () => {
+  it('accepts the shapes (with and without optional fields) and checks the step id when a flow is given', () => {
+    expect(parseCommand(flow, { type: 'skip', step: 't' })).toEqual({
+      ok: true,
+      value: { type: 'skip', step: 't' },
+    })
+    expect(parseCommand(flow, { type: 'skip', step: 't', reason: 'why' })).toEqual({
+      ok: true,
+      value: { type: 'skip', step: 't', reason: 'why' },
+    })
+    expect(parseCommand(flow, { type: 'invalidate', step: 't' })).toEqual({
+      ok: true,
+      value: { type: 'invalidate', step: 't' },
+    })
+    expect(parseCommand(flow, { type: 'invalidate', step: 't', cascade: false })).toEqual({
+      ok: true,
+      value: { type: 'invalidate', step: 't', cascade: false },
+    })
+    // shape-only decoding (no flow) does not check ids
+    expect(decodeCommand({ type: 'skip', step: 'zzz' })).toMatchObject({ ok: true })
+  })
+
+  it('rejects unknown ids, missing/empty step, non-boolean cascade and unknown properties', () => {
+    const msg = (input: unknown) => {
+      const r = parseCommand(flow, input)
+      return r.ok ? [] : r.issues.map((i) => i.message)
+    }
+    expect(msg({ type: 'skip', step: 'zzz' })).toEqual(["unknown step 'zzz'"])
+    expect(msg({ type: 'skip' })).toEqual(["'step' is required"])
+    expect(msg({ type: 'skip', step: '' })).toEqual(["'step' must be a non-empty string"])
+    expect(msg({ type: 'invalidate', step: 't', cascade: 'yes' })).toEqual([
+      "'cascade' must be a boolean",
+    ])
+    expect(msg({ type: 'invalidate', step: 't', reason: 'x' })).toEqual([
+      "unknown property 'reason' on 'invalidate'",
+    ])
+    expect(msg({ type: 'skip', step: 't', cascade: true })).toEqual([
+      "unknown property 'cascade' on 'skip'",
+    ])
+  })
+})
+
+describe('parseCommand — retry.patch and send.eventId', () => {
+  it('carries a JSON object patch and an event id; rejects a non-object patch', () => {
+    expect(parseCommand(flow, { type: 'retry', step: 't', patch: { attempts: 2 } })).toEqual({
+      ok: true,
+      value: { type: 'retry', step: 't', patch: { attempts: 2 } },
+    })
+    expect(decodeCommand({ type: 'send', event: 'ping', payload: {}, eventId: 'evt_1' })).toEqual({
+      ok: true,
+      value: { type: 'send', event: 'ping', payload: {}, eventId: 'evt_1' },
+    })
+    expect(parseCommand(flow, { type: 'retry', step: 't', patch: 3 })).toEqual({
+      ok: false,
+      issues: [{ message: "'patch' must be an object", path: ['patch'] }],
+    })
   })
 })

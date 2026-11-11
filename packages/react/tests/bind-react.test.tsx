@@ -96,7 +96,7 @@ const Status = {
 }
 
 describe('bindReact over a Run', () => {
-  it('renders view → task → final through the hooks and re-renders only the touched slices', async () => {
+  it('renders view → step → sink through the hooks and re-renders only the touched slices', async () => {
     const { deps, release } = controlledDeps()
     const run = makeRun(deps)
     await run.start()

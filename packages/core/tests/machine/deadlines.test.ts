@@ -1,5 +1,5 @@
 /**
- * D9: deadlines are absolute. A wait timeout or retry that is already due fires before an event
+ * Deadlines are absolute. A wait timeout or retry that is already due fires before an event
  * is delivered and as soon as a run resumes, whatever the live timer is doing.
  */
 import { describe, expect, it } from 'vitest'

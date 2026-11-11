@@ -1,5 +1,5 @@
 /**
- * `useChild(step)` (v0.2): hooks bound to a nested flow's slice — over a loopback Mirror (the
+ * `useChild(step)`: hooks bound to a nested flow's slice — over a loopback Mirror (the
  * `steps[step].child` slice of the projection) and over a Run (`getSnapshot().children`);
  * `useSnapshot()` is null before the child exists, `useStep` reads the child step + scoped
  * helpers, `useActions()` sends `child` commands, nested `useChild` reaches a grandchild.

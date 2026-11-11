@@ -5,7 +5,7 @@
  */
 
 import type { Message } from '../machine/commands'
-import type { CallEffect, Effect } from '../machine/effects'
+import type { CallEffect, Effect, PersistReason } from '../machine/effects'
 import type { DomainEvent } from '../machine/events'
 import type { WizardState } from '../machine/state'
 import type { ChildBridge, ChildHandle } from './child'
@@ -13,9 +13,7 @@ import { causeOf } from './envelope'
 import type { InterpreterOptions } from './interpreter-types'
 import type { TimerRegistry } from './timers'
 
-export type PersistReason = 'change' | 'final' | 'manual'
-
-export interface EffectDispatcherOptions<H extends ChildHandle, P> {
+interface EffectDispatcherOptions<H extends ChildHandle, P> {
   readonly timers: TimerRegistry
   readonly bridge: ChildBridge<H, P> | undefined
   readonly beforeTimer: InterpreterOptions<H, P>['beforeTimer']

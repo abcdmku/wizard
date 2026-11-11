@@ -9,8 +9,8 @@ import { carryIndex, stepIndex } from '../step-index'
 import { omit } from '../util'
 import { writeActive, writeStep } from './draft'
 
-export type RecPatch = Partial<StepRecord>
-export type RecKey = keyof StepRecord
+type RecPatch = Partial<StepRecord>
+type RecKey = keyof StepRecord
 
 /** Keep `state.active` in activation order: a newcomer is appended, a leaver removed. */
 function activeAfter(

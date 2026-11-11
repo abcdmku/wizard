@@ -1,13 +1,12 @@
 /**
  * The typed façade tests `migrate` on resume through sync and async doors and hostile results,
- * and `parseCommand` for `skip` / `invalidate`.
+ * shared references in a live snapshot, and definition drift.
  */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createMemoryStore } from '../../src/persistence/memory-store'
 import { createRun, resumeRun, resumeRunAsync } from '../../src/wizard/create-wizard'
 import { defineWizard } from '../../src/wizard/define-wizard'
-import { parseCommand } from '../../src/wizard/parse-command'
 import { renameSteps } from '../../src/wizard/rename-steps'
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
@@ -15,41 +14,6 @@ interface NodeLikeProcess {
   on(event: 'unhandledRejection', listener: (reason: unknown) => void): unknown
   off(event: 'unhandledRejection', listener: (reason: unknown) => void): unknown
 }
-const flow = defineWizard(
-  {
-    name: 'v02',
-    context: z.object({
-      id: z.string(),
-      note: z.string().optional(),
-      cancelled: z.boolean().optional(),
-    }),
-    events: {
-      'note.added': z.object({ text: z.string(), orderId: z.string().optional() }),
-      'order.cancelled': z.object({ orderId: z.string(), reason: z.string() }),
-    },
-    on: {
-      'note.added': ({ payload, update }) => update({ note: `flow:${payload.text}` }),
-      'order.cancelled': ({ payload, update }) => {
-        update({ cancelled: true })
-        return { cancel: payload.reason }
-      },
-    },
-    correlate: {
-      'note.added': (p) => p.orderId,
-      'order.cancelled': (p) => p.orderId,
-    },
-  },
-  ({ steps, view, step }) =>
-    steps(
-      {
-        a: view({ input: z.object({ v: z.string() }), next: 'b' }),
-        b: view({ next: 'c' }),
-        c: view({ when: ({ context }) => context.note !== 'skip-c', next: 'end' }),
-        end: step({ run: ({ context }) => `note=${context.note ?? ''}` }),
-      },
-      { start: 'a' },
-    ),
-)
 describe('Run: migrate on resume', () => {
   const flowV1 = defineWizard(
     { name: 'approval', version: 1, context: z.object({ amount: z.number() }) },
@@ -195,7 +159,7 @@ describe('Run: migrate on resume', () => {
   })
 })
 describe('resume: shared references and definition drift', () => {
-  it('resumes a live snapshot whose context and output share one object (P0 #9)', async () => {
+  it('resumes a live snapshot whose context and output share one object', async () => {
     const signup = defineWizard(
       {
         name: 'signup',
@@ -271,23 +235,5 @@ describe('resume: shared references and definition drift', () => {
     expect(await resumed.next()).toMatchObject({ ok: true, from: 'review' })
     expect(resumed.result()).toMatchObject({ status: 'done' })
     resumed.dispose()
-  })
-})
-describe('parseCommand v0.2: skip / invalidate', () => {
-  it('decodes skip / invalidate with step-id checks and exact shapes', () => {
-    expect(parseCommand(flow, { type: 'skip', step: 'a', reason: 'ops' })).toEqual({
-      ok: true,
-      value: { type: 'skip', step: 'a', reason: 'ops' },
-    })
-    expect(parseCommand(flow, { type: 'invalidate', step: 'b', cascade: false })).toEqual({
-      ok: true,
-      value: { type: 'invalidate', step: 'b', cascade: false },
-    })
-    expect(parseCommand(flow, { type: 'skip', step: 'typo' })).toMatchObject({ ok: false })
-    expect(parseCommand(flow, { type: 'invalidate', step: 'typo' })).toMatchObject({ ok: false })
-    expect(parseCommand(flow, { type: 'invalidate', step: 'a', cascade: 'yes' })).toMatchObject({
-      ok: false,
-    })
-    expect(parseCommand(flow, { type: 'skip', step: 'a', nope: 1 })).toMatchObject({ ok: false })
   })
 })

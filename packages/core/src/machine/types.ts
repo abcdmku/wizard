@@ -5,7 +5,7 @@
  * providers (injectable for deterministic tests) and the run path.
  * Everything else flows through explicit parameters.
  *
- * Determinism rules (see plan §8.1):
+ * Determinism rules:
  * - `decide` never mutates its input; a no-op decides no events (and the same state).
  * - `apply` is a total fold: any event on any state returns a state.
  * - `plan` receives the POST-batch state and the whole batch.
@@ -34,7 +34,7 @@ export interface MachineEnv {
   readonly ledger?: StepLedger
   /** Uniform random number in [0, 1) for retry `jitter` (default `Math.random`; the drawn due time is recorded). */
   random?(): number
-  /** Bounds of the remembered `send` event ids (D8); `DEFAULT_EVENT_IDS` when absent. */
+  /** Bounds of the remembered `send` event ids; `DEFAULT_EVENT_IDS` when absent. */
   readonly eventIds?: EventIdPolicy
 }
 
@@ -64,7 +64,7 @@ export interface Machine {
   plan(env: MachineEnv, state: WizardState, events: readonly DomainEvent[]): readonly Effect[]
 }
 
-export interface InitialStateOptions {
+interface InitialStateOptions {
   readonly instanceId: string
   /** Context value that already passed the flow's context boundary. */
   readonly context: unknown

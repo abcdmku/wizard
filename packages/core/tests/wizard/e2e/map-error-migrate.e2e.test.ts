@@ -1,5 +1,5 @@
 /**
- * v0.2 end-to-end with the REAL machine — `mapError` data, idempotent crash-resume and `migrate`.
+ * End-to-end with the REAL machine — `mapError` data, idempotency-key crash-resume and `migrate`.
  */
 import { describe, expect, it } from 'vitest'
 import type { HookArgs } from '../../../src/authoring/compiled'
@@ -13,7 +13,7 @@ import { createWizardRuntime } from '../../../src/wizard/runtime'
 import { flow, routingStep, runStep, view } from '../../helpers/fixtures'
 import { e2e, e2eResume, roundTrip, tick } from './harness'
 
-describe('e2e v0.2 — mapError', () => {
+describe('e2e — mapError', () => {
   class HttpError extends Error {
     constructor(readonly status: number) {
       super(`http ${status}`)
@@ -91,8 +91,8 @@ describe('e2e v0.2 — mapError', () => {
   })
 })
 
-describe('e2e v0.2 — idempotent crash-resume and migrate', () => {
-  it('a running idempotent task is re-run after resume with the same key (step.runStarted{resumed:true}); the run sees args.idempotencyKey', async () => {
+describe('e2e — idempotency-key crash-resume and migrate', () => {
+  it('a running step with an idempotency key is re-run after resume with the same key (step.runStarted{resumed:true}); the run sees args.idempotencyKey', async () => {
     const keys: string[] = []
     let calls = 0
     const def = flow({

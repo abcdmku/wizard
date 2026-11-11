@@ -94,7 +94,7 @@ export const wizard = defineWizard(
       idempotencyKey: () => 42,
     })
     view({
-      // @ts-expect-error idempotent applies only to runnable steps
+      // @ts-expect-error idempotencyKey applies only to runnable steps
       idempotencyKey: true,
     })
     step({

@@ -279,7 +279,7 @@ describe('applyProjection', () => {
     })
   })
 
-  describe('applyProjection v0.2: progress, error data, select', () => {
+  describe('applyProjection: progress, error data, select', () => {
     it('`progress: true` exposes { done, total, ratio } over all steps (skipped counts as done)', () => {
       const projection = defineProjection(flow, { expose: { progress: true } })
       // form active, reserve failed, sub active, done idle → 0 of 4 steps.
@@ -329,7 +329,7 @@ describe('applyProjection', () => {
         message: 'boom',
         data: { code: 'LEDGER_DOWN', retryable: true },
       })
-      // Without data (v0.1 errors) the shape is unchanged.
+      // Without data the shape is unchanged.
       expect(applyProjection(projection, state, def).steps.reserve.error).toEqual({
         name: 'Error',
         message: 'boom',

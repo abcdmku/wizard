@@ -1,5 +1,5 @@
 /**
- * Structural checks of a persisted `WizardState` against its compiled flow (plan §8.8): step
+ * Structural checks of a persisted `WizardState` against its compiled flow: step
  * set, statuses and their invariants, cursor / history, nav, saga, inbox, timers and the
  * envelope fields. Every problem is a human-readable reason; nothing here runs user code.
  *
@@ -195,7 +195,7 @@ function checkCursor(def: CompiledFlow, state: Rec, steps: Rec, reasons: string[
 }
 
 /**
- * Derived-status invariants (§8.8 "status invariants"): the stored status must be consistent
+ * Derived-status invariants: the stored status must be consistent
  * with the active set the way `deriveStatus` would compute it.
  */
 function checkStatusInvariants(

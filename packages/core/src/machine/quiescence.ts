@@ -1,6 +1,6 @@
 /**
  * Quiescence: when a drained run can finish (`flow.done`), and when it is stuck because a join
- * waits on steps that nothing can complete any more (D5: the join fails `DEPS_UNREACHABLE`).
+ * waits on steps that nothing can complete any more (the join fails `DEPS_UNREACHABLE`).
  * The interpreter sends `settle` when `settles(def, state)` holds and nothing is in flight.
  *
  * @internal

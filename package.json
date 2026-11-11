@@ -19,6 +19,7 @@
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:scripts": "node --test scripts/dx-audit/dx-audit.test.mjs",
     "test:canary": "node ./scripts/check-type-canary.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
@@ -37,7 +38,7 @@
     "publint": "pnpm -r --filter \"./packages/*\" --filter \"!@openwizard/docs\" exec publint",
     "attw": "pnpm -r --filter \"./packages/*\" --filter \"!@openwizard/docs\" exec attw --pack",
     "changeset": "changeset",
-    "release:check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm test:canary && pnpm publint && pnpm attw && pnpm size && pnpm check:api && pnpm check:docs && pnpm check:public-tags && pnpm examples && pnpm --filter @openwizard/docs check && pnpm check:pack",
+    "release:check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm test:scripts && pnpm test:canary && pnpm publint && pnpm attw && pnpm size && pnpm check:api && pnpm check:docs && pnpm check:public-tags && pnpm examples && pnpm --filter @openwizard/docs check && pnpm check:pack",
     "release:publish": "changeset publish",
     "release": "pnpm release:check && pnpm release:publish"
   },

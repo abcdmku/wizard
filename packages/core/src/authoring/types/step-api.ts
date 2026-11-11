@@ -33,7 +33,6 @@ import type { AnyFlow } from './wizard'
 export interface Steps<M> {
   readonly '~steps': M | undefined
 }
-/** Constructors pre-bound to a wizard's context `C`, events `Ev` and deps `D`. */
 /** Constructors bound to one context, event map and dependency type. @public */
 export interface StepApi<C, Ev, D> {
   step<

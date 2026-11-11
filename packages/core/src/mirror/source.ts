@@ -1,5 +1,5 @@
 /**
- * `createMirrorSource(run, projection)` — the server half of the wire protocol (plan §8.9).
+ * `createMirrorSource(run, projection)` — the server half of the wire protocol.
  *
  * Wraps a live `Run` and a `Projection` of the same authored wizard. `subscribe` pushes the
  * current `SnapshotFrame` immediately,

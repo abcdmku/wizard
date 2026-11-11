@@ -1,6 +1,6 @@
 /**
  * `createMirror({ transport })` — the client-side, read-only replica of a run seen through a
- * projection (plan §1.7 / §8.9). Typed by the projection (`createMirror<typeof projection>`, a
+ * projection. Typed by the projection (`createMirror<typeof projection>`, a
  * type-only import on the client), it applies frames from the transport, exposes the latest
  * projected state with `getSnapshot`/`subscribe` (stable identity per change, structural
  * sharing of unchanged slices), and offers the same typed command sugar as `Run`, each call

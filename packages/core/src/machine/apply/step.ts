@@ -177,7 +177,7 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           }
     }
     case 'step.skipped': {
-      // §9.2: done-without-running — no output, no error; the draft `input` and
+      // Done-without-running — no output, no error; the draft `input` and
       // `previousOutput` survive. Continues (auto-advance) once `nav` is idle when busy.
       const next = withStep(dropHint(state, ev.step), ev.step, (rec) => ({
         ...omit(rec, [
@@ -219,7 +219,7 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
         ? patchStep(state, ev.step, { when: 'passed' })
         : patchStep(state, ev.step, {}, ['when'])
     case 'step.invalidated':
-      // §9.3: back to idle; the output moves to `previousOutput`, a view keeps its draft.
+      // Back to idle; the output moves to `previousOutput`, a view keeps its draft.
       return withStep(dropHint(state, ev.step), ev.step, (rec) => ({
         ...omit(rec, [
           'output',

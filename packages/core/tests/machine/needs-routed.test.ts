@@ -11,7 +11,7 @@ import {
   needOptional,
   of,
   replay,
-  routeStep,
+  routingStep,
   runStep,
 } from '../helpers/fixtures'
 
@@ -27,7 +27,7 @@ describe('needs on routed steps', () => {
       },
     })
   const chooses = (target: string) =>
-    routeStep({ decide: () => target, targets: ['ship', 'cancel'] })
+    routingStep({ decide: () => target, targets: ['ship', 'cancel'] })
   const shipRuns = (h: ReturnType<typeof createHarness>) =>
     h.effects.filter((e) => e.kind === 'call' && e.step === 'ship' && e.hook === 'run')
 
@@ -106,8 +106,8 @@ describe('needs on routed steps', () => {
         start: ['audit', 'outer'],
         steps: {
           audit: runStep(),
-          outer: routeStep({ decide: () => 'stop', targets: ['inner', 'stop'] }),
-          inner: routeStep({ decide: () => 'ship', targets: ['ship'] }),
+          outer: routingStep({ decide: () => 'stop', targets: ['inner', 'stop'] }),
+          inner: routingStep({ decide: () => 'ship', targets: ['ship'] }),
           ship: runStep({ needs: needAll('audit') }),
           stop: runStep(),
           report: runStep({ needs: needOptional('ship') }),

@@ -11,7 +11,7 @@ const DEFAULT_TIMER_CLAIM_TTL_MS = 30_000
 const DEFAULT_DEDUPE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 const DEFAULT_TIMER_RETENTION_MS = 5 * 60 * 1000
 
-export interface InternalLease {
+interface InternalLease {
   key: string
   ownerId: string
   fence: string
@@ -28,7 +28,7 @@ export interface OpenDedupe {
   request?: unknown
 }
 
-export interface CompletedDedupe {
+interface CompletedDedupe {
   status: 'completed'
   digest: string
   result: unknown

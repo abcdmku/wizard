@@ -1,5 +1,5 @@
 /**
- * The typed façade, v0.2 surface (plan §9): `skip` / `invalidate` sugar, `progress` / `readyViews`,
+ * The typed façade: `skip` / `invalidate` sugar, `progress` / `readyViews`,
  * `attach`, `correlationId` + `correlate`, `on` on non-wait kinds and flow-level `on` end to end.
  */
 import { describe, expect, it } from 'vitest'
@@ -13,7 +13,7 @@ import { defineWizard } from '../../src/wizard/define-wizard'
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 const flow = defineWizard(
   {
-    name: 'v02',
+    name: 'order',
     context: z.object({
       id: z.string(),
       note: z.string().optional(),
@@ -163,7 +163,7 @@ describe('Run: attach, correlation, flow-level `on`', () => {
     expect(run.getState().context.cancelled).toBe(true)
     run.dispose()
   })
-  it('a task / view `on` handler runs while the step is active; a view handler may move the cursor', async () => {
+  it('a step / view `on` handler runs while the step is active; a view handler may move the cursor', async () => {
     let release: (() => void) | undefined
     const f = defineWizard(
       {
@@ -215,7 +215,7 @@ describe('Run: attach, correlation, flow-level `on`', () => {
     expect(run.getState().status).toBe('done')
     run.dispose()
   })
-  it('compiled handler results reach the machine raw: a wait `{ done }` overrides the output, `{ fail }` fails the wait, a stray task `{ next }` is ignored (reason: kind)', async () => {
+  it('compiled handler results reach the machine raw: a wait `{ done }` overrides the output, `{ fail }` fails the wait, a stray step `{ next }` is ignored (reason: kind)', async () => {
     const f = defineWizard(
       {
         name: 'raw-results',

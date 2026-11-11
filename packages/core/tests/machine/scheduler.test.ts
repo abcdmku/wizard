@@ -1,5 +1,5 @@
 /**
- * Scheduler (§3) — arrival, gating, ordering and the concurrency budget. Pure machine tests.
+ * Scheduler — arrival, gating, ordering and the concurrency budget. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
 import { explain } from '../../src/machine/index'
@@ -14,7 +14,7 @@ import {
 } from '../helpers/fixtures'
 
 describe('scheduler — arrival, gating, ordering', () => {
-  it('start with several entry steps arrives at each; ready tasks enter in arrival order and run in parallel', () => {
+  it('start with several entry steps arrives at each; ready steps enter in arrival order and run in parallel', () => {
     const h = createHarness(
       flow({
         start: ['t1', 't2'],
@@ -111,7 +111,7 @@ describe('scheduler — arrival, gating, ordering', () => {
     expect(h.pending('run', 'held')).toHaveLength(0)
   })
 
-  it('concurrency budget: extra ready tasks stay pending and are picked in arrivedSeq order when a slot frees', () => {
+  it('concurrency budget: extra ready steps stay pending and are picked in arrivedSeq order when a slot frees', () => {
     const h = createHarness(
       flow({
         start: ['t1', 't2', 't3'],
@@ -138,7 +138,7 @@ describe('scheduler — arrival, gating, ordering', () => {
     expect(h.state.status).toBe('done')
   })
 
-  it('autoRun manual: ready tasks wait for startReady (all) or startStep (one, ignoring the budget)', () => {
+  it('autoRun manual: ready steps wait for startReady (all) or startStep (one, ignoring the budget)', () => {
     const h = createHarness(
       flow({
         start: ['t1', 't2', 't3'],
@@ -178,7 +178,7 @@ describe('scheduler — arrival, gating, ordering', () => {
     )
   })
 
-  it('a task with an enter hook starts its run only after enter resolves; enter failure fails the step', () => {
+  it('a step with an enter hook starts its run only after enter resolves; enter failure fails the step', () => {
     const h = createHarness(
       flow({
         start: 't',

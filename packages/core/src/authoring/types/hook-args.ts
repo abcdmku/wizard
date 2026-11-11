@@ -1,13 +1,19 @@
 /** Hook arguments shared by authoring and the interpreter. */
 import type { IsUnset, JsonValue } from './primitives'
 
-/** Keys to change; an optional key may be cleared with `undefined`. */
-/** A shallow context patch that can clear optional properties. @public */
+/**
+ * A shallow context patch that can clear optional properties.
+ * It lists the keys to change. An optional key may be cleared with `undefined`.
+ * @public
+ */
 export type ContextPatch<C> = {
   readonly [K in keyof C]?: C[K] | ({} extends Pick<C, K> ? undefined : never)
 }
-/** What every hook receives. `N` is the typed `needs` map (`{}` without `needs`). */
-/** Shared hook arguments including typed needs and atomic context updates. @public */
+/**
+ * Shared hook arguments including typed needs and atomic context updates.
+ * Every hook receives them. `N` is the typed `needs` map (`{}` without `needs`).
+ * @public
+ */
 export interface HookArgs<C, D, N = {}> {
   readonly context: C
   /** Patch the context; the function form applies atomically to the latest committed context. */
@@ -44,26 +50,27 @@ export interface RunArgs<C, D, N = {}> extends HookArgs<C, D, N> {
   readonly attempt: number
   readonly idempotencyKey: string
 }
-export interface ItemArgs<Item> {
+interface ItemArgs<Item> {
   readonly item: Item
   readonly index: number
 }
 /** Run arguments for one item in a mapped runnable step. @public */
 export interface EachRunArgs<C, D, N, Item> extends RunArgs<C, D, N>, ItemArgs<Item> {}
 /** Hook arguments for one item in a mapped child flow. @public */
-export interface EachHookArgs<C, D, N, Item> extends HookArgs<C, D, N>, ItemArgs<Item> {}
+interface EachHookArgs<C, D, N, Item> extends HookArgs<C, D, N>, ItemArgs<Item> {}
 /** Step event arguments with a parsed payload and typed needs. @public */
 export interface EventArgs<C, D, P, E, N = {}> extends HookArgs<C, D, N> {
   readonly event: E
   readonly payload: P
 }
-export type RunArgsFor<C, D, N, Item> =
-  IsUnset<Item> extends true ? RunArgs<C, D, N> : EachRunArgs<C, D, N, Item>
 export type HookArgsFor<C, D, N, Item> =
   IsUnset<Item> extends true ? HookArgs<C, D, N> : EachHookArgs<C, D, N, Item>
 
-/** Flow-level handlers do not belong to one step. */
-/** Flow event arguments with the parsed event payload. @public */
+/**
+ * Flow event arguments with the parsed event payload.
+ * A flow-level handler does not belong to one step, so it has no `step`, `needs` or `progress`.
+ * @public
+ */
 export interface FlowOnArgs<C, D, P, E = string>
   extends Omit<HookArgs<C, D>, 'step' | 'needs' | 'progress'> {
   readonly event: E

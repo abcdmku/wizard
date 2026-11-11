@@ -37,7 +37,7 @@ export interface ExternalSendOptions {
 export interface RunInstrumentation<F extends AnyWizard> {
   /** Stop observing and finish open spans. Calling this more than once is safe. */
   stop(): void
-  /** Return the workflow/task span for a path, if it has been created. */
+  /** Return the workflow span for a path, if it has been created. */
   span(path?: readonly string[]): Span | undefined
   /** Return a context containing the span for a path, if it has been created. */
   context(path?: readonly string[]): Context | undefined

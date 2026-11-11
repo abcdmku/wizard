@@ -1,5 +1,5 @@
 /**
- * Navigation phase machine (§1.2): the phase list per cause, the walk from one phase to the next
+ * Navigation phase machine: the phase list per cause, the walk from one phase to the next
  * (skip arrows decided here, effects planned by `plan`), target resolution, and the results of
  * the transaction hooks (`parseInput` / `validate` / `canExit` / `next` / `canEnter` / `exit` /
  * `enter`). `commit` and the rejections live in `nav.ts`.
@@ -24,7 +24,7 @@ const PHASES_FULL: readonly NavPhase[] = [
   'entering',
 ]
 const PHASES_TARGETED: readonly NavPhase[] = ['canEnter', 'exiting', 'entering']
-/** `back` leaves the current view without validating or exiting it (D7): its draft is kept. */
+/** `back` leaves the current view without validating or exiting it: its draft is kept. */
 const PHASES_BACK: readonly NavPhase[] = ['canEnter', 'entering']
 const PHASES_AUTO: readonly NavPhase[] = ['resolvingTarget', 'canEnter', 'exiting', 'entering']
 

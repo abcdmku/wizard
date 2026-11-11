@@ -4,14 +4,17 @@ import type { EachRunArgs, RunArgs } from './hook-args'
 import type { IsUnset } from './primitives'
 import type { Ref, StaticNext, StepLike } from './step'
 
-export type OutputOfStep<S> = S extends { readonly '~types': infer P }
+type OutputOfStep<S> = S extends { readonly '~types': infer P }
   ? NonNullable<P> extends { readonly output: infer O }
     ? O
     : never
   : never
-/** `needs: { alias: step | { any: [steps] } | { optional: step } }`. */
-/** One need: a step object, the first of several (`any`), or a step that may be skipped (`optional`). */
-/** One data requirement: a step, the first of several, or an optional step. @public */
+/**
+ * One data requirement: a step, the first of several, or an optional step.
+ * Written as `needs: { alias: step | { any: [steps] } | { optional: step } }`. `any` takes the
+ * first of several steps to finish, and `optional` allows the step to be skipped.
+ * @public
+ */
 export type NeedRef =
   | StepLike
   | { readonly any: readonly StepLike[] }
@@ -26,8 +29,11 @@ export type NeedOutput<S> = S extends string
     : S extends { readonly optional: infer R }
       ? OutputOfStep<R> | undefined
       : OutputOfStep<S>
-/** The typed `args.needs` of a step. */
-/** The parsed outputs exposed by the aliases in needs. @public */
+/**
+ * The parsed outputs exposed by the aliases in needs.
+ * This is the typed `args.needs` of a step.
+ * @public
+ */
 export type NeedsOutput<Nd> = { readonly [A in keyof Nd]: NeedOutput<Nd[A]> }
 export type NeedStep<S> = S extends { readonly any: readonly (infer R)[] }
   ? R
@@ -43,12 +49,12 @@ export type RunFacts<O, E, Rn extends boolean> = Rn extends false
     ? { readonly output: O; readonly runnable: true }
     : { readonly output: O; readonly error: E; readonly runnable: true }
 export type EachOf<Item, O> = IsUnset<Item> extends true ? O : O[]
-export type DoneOf<R, P> = R extends { readonly done: infer X }
+type DoneOf<R, P> = R extends { readonly done: infer X }
   ? X
   : R extends { readonly keep: true } | { readonly fail: string }
     ? never
     : P
-export type WaitOutput<H, Ev> = {
+type WaitOutput<H, Ev> = {
   [E in keyof H]: E extends keyof Ev
     ? H[E] extends (...args: never[]) => infer R
       ? DoneOf<Awaited<R>, Ev[E]>
@@ -61,7 +67,7 @@ export type WaitOutput<H, Ev> = {
  * while `Xk` still lists it: the output is then `any`, so the one error does not cascade into
  * every step that `needs` this one.
  */
-export type StepEach<Xk, O> = 'each' extends Xk ? O[] : O
+type StepEach<Xk, O> = 'each' extends Xk ? O[] : O
 export type StepOutput<R, OB, _Item, H, Ev, Xk> =
   IsUnset<OB> extends false
     ? StepEach<Xk, OB>
@@ -90,7 +96,7 @@ type AdapterOutput<V> = V extends { readonly [RUN_ADAPTER]: unknown }
 export type ReturnedAdapterError<R> = 0 extends 1 & Awaited<R>
   ? never
   : AdapterErrorChannel<Awaited<R>>
-export type RunOutput<R> = AdapterOutput<Awaited<R>>
+type RunOutput<R> = AdapterOutput<Awaited<R>>
 type BoundAdapterProblem<V, C, D, Nd, Item, Xk> = V extends { readonly [RUN_ADAPTER]: unknown }
   ? V extends RunAdapter<infer _C, infer _D, infer _A, infer _E, infer Accepted>
     ? [
@@ -106,7 +112,7 @@ export type ReturnedAdapterProblem<R, C, D, Nd, Item, Xk> = 0 extends 1 & Awaite
   ? never
   : BoundAdapterProblem<Awaited<R>, C, D, Nd, Item, Xk>
 
-export type NextProblem<Nr, Tg> = [Nr] extends [never]
+type NextProblem<Nr, Tg> = [Nr] extends [never]
   ? never
   : [Tg] extends [never]
     ? 'a function `next` must declare `targets` (the ids or steps it may return)'
@@ -127,12 +133,12 @@ export type ObjRefs<X> = Extract<X, StepLike>
 export type HasSuccessor<Nx, Tg> = [Extract<StaticNext<Nx>, Ref> | Tg] extends [never]
   ? false
   : true
-export type Behaviors<Xk> = Extract<Xk, 'run' | 'waitFor' | 'sleep'>
-export type RunOnly<Xk> = Extract<
+type Behaviors<Xk> = Extract<Xk, 'run' | 'waitFor' | 'sleep'>
+type RunOnly<Xk> = Extract<
   Xk,
   'retry' | 'compensate' | 'mapError' | 'idempotencyKey' | 'output' | 'fallback' | 'each'
 >
-export type IsUnion<U, A = U> = U extends unknown ? ([A] extends [U] ? false : true) : never
+type IsUnion<U, A = U> = U extends unknown ? ([A] extends [U] ? false : true) : never
 /** Option combinations a step config cannot have (read from the keys it was written with). */
 export type StepProblems<Xk, To> =
   | (true extends IsUnion<Behaviors<Xk>>

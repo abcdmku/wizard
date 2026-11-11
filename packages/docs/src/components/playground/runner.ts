@@ -28,7 +28,7 @@ export interface TraceEntry {
   readonly detail: string
 }
 
-export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error' | 'debug'
+type ConsoleLevel = 'log' | 'info' | 'warn' | 'error' | 'debug'
 
 export interface ConsoleEntry {
   readonly id: number
@@ -42,7 +42,7 @@ export interface RunHandle {
 }
 
 /** Runtime modules have erased types; the editor still checks their real wizard types. */
-export interface PlaygroundWizard extends AnyFlow {
+interface PlaygroundWizard extends AnyFlow {
   create(input: unknown, options?: { readonly deps?: object }): Run<AnyFlow>
   createAsync(input: unknown, options?: object): Promise<Run<AnyFlow>>
   resume(snapshot: unknown, options?: object): Run<AnyFlow>

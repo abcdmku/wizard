@@ -21,13 +21,12 @@
 import { WizardError } from '../errors'
 import type { Scheduler } from '../interpreter/env'
 import { noop } from '../interpreter/executor-invoke'
+import type { PersistReason } from '../machine/effects'
 import { firstNonJson } from '../wizard/json'
 import type { Snapshot } from '../wizard/snapshot'
 import type { Store } from './store'
 
-export type PersistReason = 'change' | 'final' | 'manual'
-
-export interface PersistenceDriverOptions {
+interface PersistenceDriverOptions {
   readonly store: Store
   readonly key: string
   readonly autoSave: 'change' | 'off'

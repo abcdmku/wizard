@@ -25,7 +25,7 @@ export function summarize(state: WizardState, def: CompiledFlow): ChildSummary {
 }
 
 /** Why a child ended without output: its terminal failure, the error the parent step records, and the mapped data. */
-export interface ChildFailure {
+interface ChildFailure {
   readonly failure: RuntimeFailure
   readonly error: SerializedError
   readonly data?: unknown

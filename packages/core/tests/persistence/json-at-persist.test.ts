@@ -1,5 +1,5 @@
 /**
- * JSON safety is enforced BEFORE every store write (plan §8.8): a snapshot that `JSON.stringify`
+ * JSON safety is enforced BEFORE every store write: a snapshot that `JSON.stringify`
  * would distort is not written; the failure is a value on `onPersistError` and a `persist.failed`
  * event, with the exact path. `Date`s (any `toJSON()` object) are accepted only where a schema /
  * parse boundary re-parses them on resume — and then they do come back as `Date`s.
@@ -17,7 +17,7 @@ const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0
 describe('persistence: JSON-checked before every store write', () => {
   const dates = { name: 'dates', context: z.object({ tenant: z.string() }) }
 
-  it('a task output holding a Date (no output boundary) is not written: onPersistError + persist.failed name the path; getSnapshot() stays live', async () => {
+  it('a step output holding a Date (no output boundary) is not written: onPersistError + persist.failed name the path; getSnapshot() stays live', async () => {
     const stamped = defineWizard(dates, ({ step, steps }) =>
       steps(
         {
@@ -153,7 +153,7 @@ describe('persistence: JSON-checked before every store write', () => {
     run.dispose()
   })
 
-  it('a Date under a reviving boundary (task `output` with z.coerce.date()) is written as JSON and comes back as a Date after resume', async () => {
+  it('a Date under a reviving boundary (step `output` with z.coerce.date()) is written as JSON and comes back as a Date after resume', async () => {
     const stamped = defineWizard(dates, ({ step, view, steps }) => {
       const save = step({
         run: () => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }),

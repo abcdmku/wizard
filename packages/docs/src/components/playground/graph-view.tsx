@@ -22,7 +22,7 @@ export function snapshotAt(
 }
 
 /** Live status / phase per node: the root from `getState()` + `explain()`, children from their snapshots. */
-export function liveStateLookup(run: Run<AnyFlow>): NodeStateLookup {
+function liveStateLookup(run: Run<AnyFlow>): NodeStateLookup {
   return (path, id) => {
     if (path.length === 0) {
       const record = run.getState().steps[id]

@@ -8,7 +8,7 @@
 
 import { getBezierPath, Position } from '@xyflow/react'
 
-export interface EdgeGeometry {
+interface EdgeGeometry {
   readonly sourceX: number
   readonly sourceY: number
   readonly targetX: number
@@ -22,7 +22,7 @@ export interface EdgeGeometry {
   readonly bulge?: boolean
 }
 
-export interface EdgePath {
+interface EdgePath {
   readonly path: string
   readonly labelX: number
   readonly labelY: number

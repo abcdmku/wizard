@@ -46,7 +46,7 @@ export function invoke(
     case 'flowOn':
       throw missingHook(stepDef.id, 'flowOn')
     case 'childContext': {
-      // The child's context is a data door (plan §1.3): the mapped value goes through the
+      // The child's context is a data door: the mapped value goes through the
       // child flow's context boundary before `child.create` can see it.
       const hook = stepDef.hooks.childContext
       if (hook === undefined) throw missingHook(stepDef.id, 'childContext')
@@ -80,7 +80,7 @@ export function invokeFlowOn(def: CompiledFlow, args: HookArgs): unknown {
 }
 
 /**
- * D12: the step's `retry.when` rejects retrying after `error` (the `mapError` value when the step
+ * The step's `retry.when` rejects retrying after `error` (the `mapError` value when the step
  * maps errors, else the run adapter's mapped data or the raw thrown value). A throwing predicate
  * rejects too.
  */

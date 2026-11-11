@@ -1,5 +1,5 @@
 /**
- * Resume a run from a persisted snapshot (plan §8.8).
+ * Resume a run from a persisted snapshot.
  *
  * 1. `validateSnapshot` — envelope, flow identity, step set, status
  *    invariants, JSON safety (recursively for children).
@@ -23,7 +23,7 @@
  * every boundary of the whole tree first and only then instantiates (still
  * atomic; the boundary jobs are enumerated by a dry run of the same preparation).
  *
- * §9.5: `opts.migrate(snapshot, from)` runs first when the snapshot names this
+ * `opts.migrate(snapshot, from)` runs first when the snapshot names this
  * flow at a different version; its result is stamped with the current version and goes
  * through the same validation (a thenable result is a reason on the sync door, awaited on
  * the async one). Steps the definition added since the snapshot resume idle.
@@ -110,7 +110,7 @@ export async function resumeWizardRuntimeAsync(
 type Settled = { readonly result: unknown } | { readonly threw: unknown }
 
 /**
- * §9.5: the snapshot's flow identity, when it has one. `migrate` runs only for a
+ * The snapshot's flow identity, when it has one. `migrate` runs only for a
  * same-name, different-version snapshot; anything else is left for `validateSnapshot` to judge.
  */
 function migrationNeeded(

@@ -177,7 +177,7 @@ describe('resumeWizardRuntime', () => {
     expect(Object.keys(snap.state.timers)).toEqual(['wait:w'])
     run.dispose()
 
-    // Machine spec §8: `plan` re-arms every `S.timers` entry on flow.resumed (overdue → now).
+    // `plan` re-arms every `S.timers` entry on flow.resumed (overdue → now).
     const o2 = baseOpts({
       plan: (env, S, batch, base) => {
         const out: Effect[] = [...base()]

@@ -124,7 +124,7 @@ describe('run runtime: nested flows', () => {
     expect(run.getSnapshot().children.f?.instanceId).toBe(c.id)
   })
 
-  it('after dispose: child() returns the disposed child, attach() never calls its source, listeners are inert (D20)', async () => {
+  it('after dispose: child() returns the disposed child, attach() never calls its source, listeners are inert', async () => {
     const { run } = make(parent)
     await run.start()
     const live = run.child('f')
@@ -221,7 +221,7 @@ describe('run runtime: dispose', () => {
       message: 'the run is disposed; create or resume a new run',
     }
     expect(await pending).toEqual(disposedNav)
-    // D20: after dispose every command resolves a DISPOSED value; subscriptions are inert.
+    // After dispose every command resolves a DISPOSED value; subscriptions are inert.
     expect(await run.next()).toEqual(disposedNav)
     expect(await run.dispatch({ type: 'start' })).toEqual({
       ok: false,

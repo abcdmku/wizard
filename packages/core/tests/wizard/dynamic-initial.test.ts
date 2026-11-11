@@ -100,7 +100,7 @@ describe('dynamic view initial', () => {
     expect(containsFunction(run.getSnapshot())).toBe(false)
   })
 
-  it('initializes before enter on the scheduler path after a task', async () => {
+  it('initializes before enter on the scheduler path after a step', async () => {
     const order: string[] = []
     const flow = defineWizard(
       { name: 'initial-scheduler', context: boundary.trusted<{}>() },

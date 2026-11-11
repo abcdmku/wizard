@@ -1,5 +1,5 @@
 /**
- * Published versions of the live step table (D3: no per-event or per-batch copy of `steps`).
+ * Published versions of the live step table (no per-event or per-batch copy of `steps`).
  *
  * The machine writes step records in place into ONE table the interpreter's ledger owns and
  * journals each record it overwrites (`MachineEnv.ledger`, machine/apply/draft.ts). Every
@@ -32,7 +32,7 @@ interface Version {
   steps: Steps | undefined
 }
 
-export interface StepVersions {
+interface StepVersions {
   readonly ledger: StepLedger
   /** The immutable published view of a committed state. */
   publish(state: WizardState): WizardState

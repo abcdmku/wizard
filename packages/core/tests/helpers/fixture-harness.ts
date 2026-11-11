@@ -225,9 +225,6 @@ export function replay(
   return s
 }
 
-/** Event types of a batch (handy for `toEqual`). */
-export const types = (r: BatchResult): readonly DomainEventType[] => r.types
-
 /** Pick the events of one type from a batch. */
 export function of<T extends DomainEventType>(
   r: BatchResult | readonly DomainEvent[],

@@ -15,7 +15,7 @@ import {
 const on = () => undefined
 
 describe('replay(log) == state', () => {
-  it('fixture 1: linear run with a retried task and a back()', () => {
+  it('fixture 1: linear run with a retried step and a back()', () => {
     const h = createHarness(
       flow({
         name: 'run',
@@ -119,7 +119,7 @@ describe('replay(log) == state', () => {
   })
 })
 
-describe('resume matrix (§8.8)', () => {
+describe('resume matrix', () => {
   it('nav in flight → transition.rejected{resumed}; from stays active; the promise is settled', () => {
     const h = createHarness(
       flow({
@@ -143,7 +143,7 @@ describe('resume matrix (§8.8)', () => {
     expect(r.effects.map((e) => e.kind)).toEqual(['settle', 'persist'])
   })
 
-  it('running task → step.failed{interrupted} + flow.failed; retry re-runs it', () => {
+  it('running step → step.failed{interrupted} + flow.failed; retry re-runs it', () => {
     const h = createHarness(
       flow({ start: 't', steps: { t: runStep({ next: 'end' }), end: routingStep() } }),
     )
@@ -157,7 +157,7 @@ describe('resume matrix (§8.8)', () => {
     expect(h.call('run').token).toEqual({ step: 't', runId: 1, attempt: 1 })
   })
 
-  it('an interrupted task never triggers compensation (even with onFailure: compensate)', () => {
+  it('an interrupted step never triggers compensation (even with onFailure: compensate)', () => {
     const h = createHarness(
       flow({
         start: 'a',
@@ -177,7 +177,7 @@ describe('resume matrix (§8.8)', () => {
     expect(h.state.saga.stack.map((e) => e.step)).toEqual(['a'])
   })
 
-  it('task with an overdue retryAt → the retry fires in the resume batch; wait deadline not due: inbox drained, timer re-armed', () => {
+  it('step with an overdue retryAt → the retry fires in the resume batch; wait deadline not due: inbox drained, timer re-armed', () => {
     const h = createHarness(
       flow({
         start: ['t', 'w'],

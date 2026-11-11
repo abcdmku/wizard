@@ -122,7 +122,7 @@ describe('terminal run results', () => {
     cancelled.dispose()
   })
 
-  it("retains a task's mapped error data without treating the thrown value as typed", async () => {
+  it("retains a step's mapped error data without treating the thrown value as typed", async () => {
     const wizard = defineWizard(
       { name: 'mapped-result', context: boundary.trusted<{}>(), onFailure: 'compensate' },
       ({ step, steps }) =>

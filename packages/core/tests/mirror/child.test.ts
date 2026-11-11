@@ -1,7 +1,7 @@
 /**
- * `mirror.child(step)` (v0.2, plan §9.9): a scoped sender whose sugar wraps every command as
+ * `mirror.child(step)`: a scoped sender whose sugar wraps every command as
  * `{ type: 'child', path, command }` — end to end over the loopback with a nested flow, nested
- * `.child().child()`, and the wire shape of the v0.2 sugar (`skip` / `invalidate`).
+ * `.child().child()`, and the wire shape of the `skip` / `invalidate` sugar.
  */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'

@@ -26,17 +26,17 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `AnyFlow` | type | A structural constraint for code that reads any flow definition. | [src](../../packages/core/src/authoring/types/wizard.ts#L83) |
+| `AnyFlow` | type | A structural constraint for code that reads any flow definition. | [src](../../packages/core/src/authoring/types/wizard.ts#L80) |
 | `AnyProjection` | interface | Any projection (the constraint of `ProjectionOutput`, `Mirror`, the React binding): the | [src](../../packages/core/src/projection/define-projection.ts#L227) |
-| `AnyStep` | type | A structural constraint for generic step modules and references. | [src](../../packages/core/src/authoring/types/step.ts#L101) |
-| `AnyWizard` | type | A structural constraint for adapters that create or resume wizard runs. | [src](../../packages/core/src/authoring/types/wizard.ts#L171) |
+| `AnyStep` | type | A structural constraint for generic step modules and references. | [src](../../packages/core/src/authoring/types/step.ts#L102) |
+| `AnyWizard` | type | A structural constraint for adapters that create or resume wizard runs. | [src](../../packages/core/src/authoring/types/wizard.ts#L174) |
 | `boundary` | const | Build a branded `Checker` from a plain function: `parse` (returns the value or throws), | [src](../../packages/core/src/authoring/boundary.ts#L42) |
 | `Boundary` | type | A Standard Schema, such as Zod, Valibot or ArkType, or a branded checker. | [src](../../packages/core/src/authoring/types/boundary.ts#L40) |
 | `Checker` | interface | A branded runtime checker built by `boundary.parse/guard/assert/trusted`. `I` is the | [src](../../packages/core/src/authoring/types/boundary.ts#L30) |
 | `ChildCommand` | type | A command addressed to a nested flow: `path: [flowStep]` with a `Command` of that child, or a | [src](../../packages/core/src/wizard/create-wizard/command.ts#L53) |
-| `ChildFlowOf` | type | The child flow of a flow step, or never for other step kinds. | [src](../../packages/core/src/authoring/types/extractors.ts#L68) |
+| `ChildFlowOf` | type | The child flow of a flow step, or never for other step kinds. | [src](../../packages/core/src/authoring/types/extractors.ts#L70) |
 | `ChildRunEvent` | type | A domain event forwarded from a child flow (`path.length > 0`). `path` identifies the child | [src](../../packages/core/src/wizard/create-wizard/state.ts#L309) |
-| `ChildStepId` | type | The ids of child-flow steps. | [src](../../packages/core/src/authoring/types/extractors.ts#L91) |
+| `ChildStepId` | type | The ids of child-flow steps. | [src](../../packages/core/src/authoring/types/extractors.ts#L93) |
 | `ChildSummary` | type | Compact status of a child flow as stored on the parent's flow step (`status`, `current`, | [src](../../packages/core/src/projection/define-projection.ts#L58) |
 | `ClientState` | type | The projected (client-safe) state of a run for exposure spec `E`. `Depth` counts the child | [src](../../packages/core/src/projection/define-projection.ts#L175) |
 | `ClientStepError` | interface | A step error as a projection exposes it (`error: true`): `{ name, message, code? }` — never a | [src](../../packages/core/src/projection/define-projection.ts#L133) |
@@ -47,43 +47,43 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 | `CompensationFailure` | type | A compensation-hook failure. Its error is serialized because compensation has no `mapError`. | [src](../../packages/core/src/wizard/results.ts#L109) |
 | `CompensationSummary` | interface | Compensation facts retained on a failed or cancelled terminal result: `'partial'` when at | [src](../../packages/core/src/wizard/results.ts#L121) |
 | `ContextInput` | type | The input accepted by the context boundary at run creation. | [src](../../packages/core/src/authoring/types/extractors.ts#L11) |
-| `ContextPatch` | type | A shallow context patch that can clear optional properties. | [src](../../packages/core/src/authoring/types/hook-args.ts#L6) |
+| `ContextPatch` | type | A shallow context patch that can clear optional properties. | [src](../../packages/core/src/authoring/types/hook-args.ts#L9) |
 | `createMemoryStore` | function | In-memory `Store` (JSON round-trip on every `set`/`get`) for tests, examples and single-process use. | [src](../../packages/core/src/persistence/memory-store.ts#L27) |
-| `createRunFailure` | function | Construct a runtime-neutral adapter failure envelope. | [src](../../packages/core/src/authoring/run-adapter.ts#L35) |
+| `createRunFailure` | function | Construct a runtime-neutral adapter failure envelope. | [src](../../packages/core/src/authoring/run-adapter.ts#L33) |
 | `Ctx` | type | The parsed context seen by hooks. | [src](../../packages/core/src/authoring/types/extractors.ts#L9) |
 | `defineProjection` | function | Define a projection of a wizard. `{ expose }` returns only the selected fields and base facts. | [src](../../packages/core/src/projection/define-projection.ts#L262) |
-| `defineWizard` | function | Define a wizard. Return `steps(map, { start? })` from the callback. | [src](../../packages/core/src/wizard/define-wizard.ts#L29) |
-| `DepsOf` | type | All dependencies seen by hooks, including supplied dependencies. | [src](../../packages/core/src/authoring/types/extractors.ts#L14) |
+| `defineWizard` | function | Define a wizard. Return `steps(map, { start? })` from the callback. | [src](../../packages/core/src/wizard/define-wizard.ts#L39) |
+| `DepsOf` | type | All dependencies seen by hooks, including supplied dependencies. | [src](../../packages/core/src/authoring/types/extractors.ts#L13) |
 | `DispatchOptions` | interface | Optimistic concurrency checked atomically when dispatch reaches the machine. | [src](../../packages/core/src/wizard/runtime/types.ts#L267) |
-| `DraftOf` | type | A partial patch of a view boundary input. | [src](../../packages/core/src/authoring/types/extractors.ts#L60) |
+| `DraftOf` | type | A partial patch of a view boundary input. | [src](../../packages/core/src/authoring/types/extractors.ts#L62) |
 | `Duration` | type | A duration: milliseconds as a number, or a string with a unit (`'250ms'`, `'15m'`, `'2h'`, `'1d'`). | [src](../../packages/core/src/authoring/types/primitives.ts#L26) |
-| `EachRunArgs` | interface | Run arguments for one item in a mapped runnable step. | [src](../../packages/core/src/authoring/types/hook-args.ts#L52) |
-| `ErrorOf` | type | The JSON error data produced by mapError or a run adapter. | [src](../../packages/core/src/authoring/types/extractors.ts#L62) |
-| `EventType` | type | The declared external event names. | [src](../../packages/core/src/authoring/types/extractors.ts#L31) |
+| `EachRunArgs` | interface | Run arguments for one item in a mapped runnable step. | [src](../../packages/core/src/authoring/types/hook-args.ts#L58) |
+| `ErrorOf` | type | The JSON error data produced by mapError or a run adapter. | [src](../../packages/core/src/authoring/types/extractors.ts#L64) |
+| `EventType` | type | The declared external event names. | [src](../../packages/core/src/authoring/types/extractors.ts#L33) |
 | `Explanation` | type | Result of `run.explain(step)`: the step's stored `status` (`'unknown'` for an unknown id), | [src](../../packages/core/src/wizard/create-wizard/state.ts#L341) |
 | `ExposeSpec` | interface | What a projection exposes: per-step flags, the context keys that cross the wire, whether the | [src](../../packages/core/src/projection/define-projection.ts#L85) |
 | `Flow` | interface | The declarative definition accepted by inspectors and flow consumers. | [src](../../packages/core/src/authoring/types/wizard.ts#L63) |
 | `FlowFailure` | type | The typed failure channel of a terminal run. Unknown thrown values remain serialized/runtime data. | [src](../../packages/core/src/wizard/results.ts#L148) |
-| `FlowOutput` | type | The stored selector result or resolved union of sink outputs. | [src](../../packages/core/src/authoring/types/extractors.ts#L99) |
-| `FlowStep` | interface | Compact step facts and its sink role in the assembled wizard. | [src](../../packages/core/src/authoring/types/step.ts#L93) |
-| `HookArgs` | interface | Shared hook arguments including typed needs and atomic context updates. | [src](../../packages/core/src/authoring/types/hook-args.ts#L11) |
-| `InputOf` | type | The raw input of a view, or never for steps without input. | [src](../../packages/core/src/authoring/types/extractors.ts#L58) |
+| `FlowOutput` | type | The stored selector result or resolved union of sink outputs. | [src](../../packages/core/src/authoring/types/extractors.ts#L101) |
+| `FlowStep` | interface | Compact step facts and its sink role in the assembled wizard. | [src](../../packages/core/src/authoring/types/step.ts#L95) |
+| `HookArgs` | interface | Shared hook arguments including typed needs and atomic context updates. | [src](../../packages/core/src/authoring/types/hook-args.ts#L17) |
+| `InputOf` | type | The raw input of a view, or never for steps without input. | [src](../../packages/core/src/authoring/types/extractors.ts#L60) |
 | `isChildEvent` | function | True for events forwarded from a child flow (`event.path.length > 0`); narrows a | [src](../../packages/core/src/wizard/create-wizard/state.ts#L328) |
-| `IsEach` | type | Whether a step maps over items. | [src](../../packages/core/src/authoring/types/extractors.ts#L64) |
-| `isRunAdapter` | function | Test for an adapter returned by an optional integration. | [src](../../packages/core/src/authoring/run-adapter.ts#L92) |
-| `isRunFailure` | function | Test for an adapter failure without depending on the optional integration. | [src](../../packages/core/src/authoring/run-adapter.ts#L49) |
+| `IsEach` | type | Whether a step maps over items. | [src](../../packages/core/src/authoring/types/extractors.ts#L66) |
+| `isRunAdapter` | function | Test for an adapter returned by an optional integration. | [src](../../packages/core/src/authoring/run-adapter.ts#L90) |
+| `isRunFailure` | function | Test for an adapter failure without depending on the optional integration. | [src](../../packages/core/src/authoring/run-adapter.ts#L47) |
 | `Issue` | type | A validation problem (Standard Schema issue shape): a message and an optional path. | [src](../../packages/core/src/authoring/types/primitives.ts#L44) |
 | `isWizardError` | function | Type guard for `WizardError`. | [src](../../packages/core/src/errors.ts#L78) |
 | `JsonValue` | type | A JSON value (`meta` and other data that must survive `JSON.stringify` unchanged). | [src](../../packages/core/src/authoring/types/primitives.ts#L32) |
 | `MemoryStore` | interface | What `createMemoryStore()` returns: a `Store` plus `keys()` / `clear()` for tests and diagnostics. | [src](../../packages/core/src/persistence/memory-store.ts#L16) |
 | `NavResult` | type | Result of the navigation methods `next()`, `back()` and `go()`. | [src](../../packages/core/src/wizard/results.ts#L45) |
-| `NeedRef` | type | One data requirement: a step, the first of several, or an optional step. | [src](../../packages/core/src/authoring/types/step-inference.ts#L15) |
-| `NeedsOutput` | type | The parsed outputs exposed by the aliases in needs. | [src](../../packages/core/src/authoring/types/step-inference.ts#L31) |
-| `NeedsSpec` | type | Named data requirements referencing earlier step objects. | [src](../../packages/core/src/authoring/types/step-inference.ts#L20) |
-| `OutputOf` | type | The inferred output of one step. | [src](../../packages/core/src/authoring/types/extractors.ts#L56) |
+| `NeedRef` | type | One data requirement: a step, the first of several, or an optional step. | [src](../../packages/core/src/authoring/types/step-inference.ts#L18) |
+| `NeedsOutput` | type | The parsed outputs exposed by the aliases in needs. | [src](../../packages/core/src/authoring/types/step-inference.ts#L37) |
+| `NeedsSpec` | type | Named data requirements referencing earlier step objects. | [src](../../packages/core/src/authoring/types/step-inference.ts#L23) |
+| `OutputOf` | type | The inferred output of one step. | [src](../../packages/core/src/authoring/types/extractors.ts#L58) |
 | `parseCommand` | function | Strictly decode an untrusted wire value into a `Command<F>` of `flow`: exact per-type field | [src](../../packages/core/src/wizard/parse-command.ts#L72) |
-| `PayloadInput` | type | The event boundary input accepted by send. | [src](../../packages/core/src/authoring/types/extractors.ts#L28) |
-| `PayloadOf` | type | The parsed event payload seen by handlers. | [src](../../packages/core/src/authoring/types/extractors.ts#L33) |
+| `PayloadInput` | type | The event boundary input accepted by send. | [src](../../packages/core/src/authoring/types/extractors.ts#L30) |
+| `PayloadOf` | type | The parsed event payload seen by handlers. | [src](../../packages/core/src/authoring/types/extractors.ts#L35) |
 | `Progress` | type | Progress of a run (`run.progress()`, `ClientState.progress` with `expose.progress: true`): | [src](../../packages/core/src/authoring/types/primitives.ts#L96) |
 | `ProgressSpec` | type | Transient progress selected by step. `true` exposes that step's own progress events; a child | [src](../../packages/core/src/projection/define-projection.ts#L99) |
 | `Projection` | interface | A projection of flow `F` producing the client state type `S` — either deny-by-default | [src](../../packages/core/src/projection/define-projection.ts#L208) |
@@ -95,24 +95,24 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 | `renameSteps` | function | Rename step ids in a persisted snapshot (the root flow's steps; a renamed flow step keeps its | [src](../../packages/core/src/wizard/rename-steps.ts#L21) |
 | `replay` | function | Fold `events` (a `log()` slice or anything captured with `observe()`, in `seq` order) with the | [src](../../packages/core/src/replay.ts#L53) |
 | `ReplayOptions` | type | `replay` options. Either `context` (the context INPUT the run was created with, parsed | [src](../../packages/core/src/replay.ts#L33) |
-| `RequiredDepsOf` | type | The dependencies still required when creating or resuming a run. | [src](../../packages/core/src/authoring/types/extractors.ts#L17) |
+| `RequiredDepsOf` | type | The dependencies still required when creating or resuming a run. | [src](../../packages/core/src/authoring/types/extractors.ts#L19) |
 | `ResumeOptions` | type | `wizard.resume` options: `RunOptions` without `context` / `instanceId` / `correlationId` | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L270) |
 | `RetryPolicy` | interface | Retry policy for runnable steps (plain data, so `inspect()` shows it; the retry STATE ; `attempt`, the | [src](../../packages/core/src/authoring/types/primitives.ts#L79) |
-| `RetryStepId` | type | The ids of runnable steps and mapped child flows that can retry failed items. | [src](../../packages/core/src/authoring/types/extractors.ts#L87) |
+| `RetryStepId` | type | The ids of runnable steps and mapped child flows that can retry failed items. | [src](../../packages/core/src/authoring/types/extractors.ts#L89) |
 | `RootRunEvent` | type | A domain event of the run's OWN flow (`path` is `[]`), typed by the flow: `step` is a | [src](../../packages/core/src/wizard/create-wizard/state.ts#L300) |
 | `Run` | interface | A live run instance, typed by its flow. Navigation returns `NavResult`, everything else a | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L47) |
-| `RUN_ADAPTER` | const | Runtime marker for run adapters. | [src](../../packages/core/src/authoring/run-adapter.ts#L87) |
+| `RUN_ADAPTER` | const | Runtime marker for run adapters. | [src](../../packages/core/src/authoring/run-adapter.ts#L85) |
 | `RUN_EVENT_TYPES` | const | Every event name emitted by a run. | [src](../../packages/core/src/machine/events.ts#L31) |
-| `RunAdapter` | interface | Runtime-neutral run adapter. Execution lives in metadata, so the adapter is not callable. | [src](../../packages/core/src/authoring/run-adapter.ts#L76) |
-| `RunAdapterMetadata` | interface | Metadata installed by a run adapter. | [src](../../packages/core/src/authoring/run-adapter.ts#L62) |
-| `RunArgs` | interface | Run arguments with attempt, idempotency key and typed needs. | [src](../../packages/core/src/authoring/types/hook-args.ts#L43) |
+| `RunAdapter` | interface | Runtime-neutral run adapter. Execution lives in metadata, so the adapter is not callable. | [src](../../packages/core/src/authoring/run-adapter.ts#L74) |
+| `RunAdapterMetadata` | interface | Metadata installed by a run adapter. | [src](../../packages/core/src/authoring/run-adapter.ts#L60) |
+| `RunArgs` | interface | Run arguments with attempt, idempotency key and typed needs. | [src](../../packages/core/src/authoring/types/hook-args.ts#L49) |
 | `RunCancelled` | interface | Cancellation is separate from a failed run, including when compensation was attempted. | [src](../../packages/core/src/wizard/results.ts#L189) |
 | `RunDone` | interface | Successful terminal result. | [src](../../packages/core/src/wizard/results.ts#L169) |
 | `RunEvent` | type | A domain event of a run (`observe()` / `log()`): either an event of its own flow, typed by | [src](../../packages/core/src/wizard/create-wizard/state.ts#L318) |
 | `RunEventType` | type | Name of any event emitted by an OpenWizard run. | [src](../../packages/core/src/wizard/create-wizard/state.ts#L321) |
 | `RunFailed` | interface | Failed terminal result: nothing can recover the run (a recoverable halt is `RunHalted`). | [src](../../packages/core/src/wizard/results.ts#L179) |
-| `RunFailure` | interface | Internal marker carried by an adapter rejection. `data` is only included after the adapter | [src](../../packages/core/src/authoring/run-adapter.ts#L22) |
-| `RunFailureKind` | type | A failure channel produced by a run adapter. | [src](../../packages/core/src/authoring/run-adapter.ts#L15) |
+| `RunFailure` | interface | Internal marker carried by an adapter rejection. `data` is only included after the adapter | [src](../../packages/core/src/authoring/run-adapter.ts#L20) |
+| `RunFailureKind` | type | A failure channel produced by a run adapter. | [src](../../packages/core/src/machine/commands.ts#L104) |
 | `RunHalted` | interface | A run stopped by a failed step under `onFailure: 'halt'`, or by a halted child flow | [src](../../packages/core/src/wizard/results.ts#L233) |
 | `RunLifecycleCode` | type | Why a lifecycle-sensitive waiter ended before producing its normal result. | [src](../../packages/core/src/wizard/results.ts#L265) |
 | `RunLifecycleError` | class | Rejection from a lifecycle-sensitive wait. `awaitResult()` rejects on reset or disposal; | [src](../../packages/core/src/wizard/results.ts#L273) |
@@ -120,7 +120,7 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 | `RunOutcome` | type | What `run.awaitOutcome()`, `wizard.run()` and `wizard.runSync()` return: a terminal | [src](../../packages/core/src/wizard/results.ts#L260) |
 | `RunResult` | type | One-shot terminal outcome of a `Run`. | [src](../../packages/core/src/wizard/results.ts#L199) |
 | `RunStatus` | type | Status of a run instance, including recoverable `halted` and terminal `failed`. | [src](../../packages/core/src/authoring/types/primitives.ts#L69) |
-| `RunStepId` | type | The ids of runnable steps. | [src](../../packages/core/src/authoring/types/extractors.ts#L79) |
+| `RunStepId` | type | The ids of runnable steps. | [src](../../packages/core/src/authoring/types/extractors.ts#L81) |
 | `RunWaiting` | interface | A run parked on a view or an external event: `waitingFor` lists every wait (sleeps included), | [src](../../packages/core/src/wizard/results.ts#L247) |
 | `Scheduler` | interface | Timer scheduler the runtime arms retries, wait timeouts and inbox TTLs with | [src](../../packages/core/src/interpreter/env.ts#L28) |
 | `SendOptions` | interface | `send()` options: correlation and event deduplication. | [src](../../packages/core/src/wizard/runtime/types.ts#L181) |
@@ -129,27 +129,27 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 | `SetInputCommand` | type | `setInput` correlated per view: `step: K` with `patch: DraftOf<F, K>`. | [src](../../packages/core/src/wizard/create-wizard/command.ts#L39) |
 | `Snapshot` | type | Snapshot typing depends only on definition facts, so a wizard and its Flow have the same snapshot. | [src](../../packages/core/src/wizard/create-wizard/state.ts#L82) |
 | `SnapshotMigration` | type | Snapshot migration (`resume(snapshot, { migrate })`): called with the raw snapshot when its | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L257) |
-| `Step` | interface | A constructor record with authored config and inference facts. | [src](../../packages/core/src/authoring/types/step.ts#L80) |
-| `StepApi` | interface | Constructors bound to one context, event map and dependency type. | [src](../../packages/core/src/authoring/types/step-api.ts#L38) |
+| `Step` | interface | A constructor record with authored config and inference facts. | [src](../../packages/core/src/authoring/types/step.ts#L83) |
+| `StepApi` | interface | Constructors bound to one context, event map and dependency type. | [src](../../packages/core/src/authoring/types/step-api.ts#L37) |
 | `StepErrorOf` | type | A step's stored error typed by the step: `SerializedError` (`name`, `message`, `code?`) plus | [src](../../packages/core/src/wizard/create-wizard/state.ts#L36) |
 | `StepExpose` | type | Exposure of one step: its draft `input`, its `output`, its validation `issues`, its sanitized | [src](../../packages/core/src/projection/define-projection.ts#L69) |
 | `StepFailure` | type | A failure attributed to one flow step; `error.data` is present only for a mapped run error. | [src](../../packages/core/src/wizard/results.ts#L129) |
-| `StepId` | type | The literal ids of an assembled wizard. | [src](../../packages/core/src/authoring/types/extractors.ts#L36) |
+| `StepId` | type | The literal ids of an assembled wizard. | [src](../../packages/core/src/authoring/types/extractors.ts#L38) |
 | `StepKind` | type | The three step kinds: `step \| view \| flow`. A plain step runs a hook, waits for an event, | [src](../../packages/core/src/authoring/types/primitives.ts#L57) |
 | `StepPhase` | type | Live phase of a step as seen by UIs (`blocked \| ready \| entering \| validating \| running \| | [src](../../packages/core/src/projection/define-projection.ts#L51) |
 | `StepState` | type | Typed view of one step's stored record: `input` is the draft (`DraftOf`), `output` the | [src](../../packages/core/src/wizard/create-wizard/state.ts#L46) |
 | `StepStatus` | type | Stored status of a step: `idle \| active \| done \| failed \| skipped \| cancelled \| compensating \| compensated`. | [src](../../packages/core/src/authoring/types/primitives.ts#L63) |
 | `Store` | interface | Store — the persistence port. One snapshot per key; the value is whatever | [src](../../packages/core/src/persistence/store.ts#L15) |
-| `ViewId` | type | The ids of view steps. | [src](../../packages/core/src/authoring/types/extractors.ts#L71) |
-| `WaitHandlers` | type | Wait handlers with parsed event payloads and a closed return contract. | [src](../../packages/core/src/authoring/types/handlers.ts#L16) |
+| `ViewId` | type | The ids of view steps. | [src](../../packages/core/src/authoring/types/extractors.ts#L73) |
+| `WaitHandlers` | type | Wait handlers with parsed event payloads and a closed return contract. | [src](../../packages/core/src/authoring/types/handlers.ts#L20) |
 | `WaitingFor` | type | One thing a run waits on from the outside: a user on a `view`, an external `event` (with the | [src](../../packages/core/src/wizard/results.ts#L220) |
-| `WaitResult` | type | A wait verdict: complete with payload or done, keep waiting, or fail. | [src](../../packages/core/src/authoring/types/handlers.ts#L9) |
+| `WaitResult` | type | A wait verdict: complete with payload or done, keep waiting, or fail. | [src](../../packages/core/src/authoring/types/handlers.ts#L13) |
 | `Wizard` | interface | A flow with bound creation, resume, execution and dependency methods. | [src](../../packages/core/src/authoring/types/wizard.ts#L114) |
 | `WizardDefinition` | interface | Definition header with context, event and dependency boundaries. | [src](../../packages/core/src/authoring/types/wizard.ts#L28) |
 | `WizardError` | class | Error thrown for programmer errors (misuse of the API): unknown event names, | [src](../../packages/core/src/errors.ts#L55) |
 | `WizardErrorCode` | type | Stable error codes carried by `WizardError` and by `{ ok: false }` results. | [src](../../packages/core/src/errors.ts#L20) |
-| `WizardOptions` | type | Creation options requiring only dependencies not already provided. | [src](../../packages/core/src/authoring/types/wizard.ts#L98) |
-| `WizardResumeOptions` | type | Restore options with run identity taken from the snapshot. | [src](../../packages/core/src/authoring/types/wizard.ts#L103) |
+| `WizardOptions` | type | Creation options requiring only dependencies not already provided. | [src](../../packages/core/src/authoring/types/wizard.ts#L95) |
+| `WizardResumeOptions` | type | Restore options with run identity taken from the snapshot. | [src](../../packages/core/src/authoring/types/wizard.ts#L100) |
 
 ### `@openwizard/core/testing`
 
@@ -175,7 +175,7 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 | `inspect` | function | Describe a flow (compiles it if needed; throws `DEFINITION_INVALID` for a broken flow). | [src](../../packages/core/src/inspect/graph.ts#L24) |
 | `JSONSchema` | type | A JSON Schema document (draft 2020-12), as produced by a Standard JSON Schema vendor. | [src](../../packages/core/src/inspect/types.ts#L17) |
 | `toJSONSchema` | function | JSON Schema (draft 2020-12) of one side of a boundary: `'input'` is what callers send (a | [src](../../packages/core/src/inspect/json-schema.ts#L19) |
-| `toMarkdown` | function | Render a manifest as a Markdown page for people and coding agents: a title with the version | [src](../../packages/core/src/inspect/markdown.ts#L24) |
+| `toMarkdown` | function | Render a manifest as a Markdown page for people and coding agents: a title with the version | [src](../../packages/core/src/inspect/markdown.ts#L25) |
 | `toMermaid` | function | Render a manifest as Mermaid: one node per step (text = `label` or id, shape by kind: view | [src](../../packages/core/src/inspect/mermaid.ts#L21) |
 | `traceLine` | function | Describe one event. `at` is `+250ms` / `+1.250s` relative to `origin` when given, else | [src](../../packages/core/src/inspect/trace.ts#L33) |
 | `TraceLine` | interface | One event of a trace, ready to print: `at` is formatted (see `traceLine`), `step` / `event` | [src](../../packages/core/src/inspect/trace.ts#L17) |

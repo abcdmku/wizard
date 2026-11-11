@@ -106,7 +106,7 @@ describe('Run.whenIdle', () => {
     expect(commits).toEqual(settledCommits)
   })
 
-  it('resolves while future timers and indefinitely-running task hooks remain pending', async () => {
+  it('resolves while future timers and indefinitely-running step hooks remain pending', async () => {
     const scheduler = createTestScheduler({ now: 1_000 })
     const flow = defineWizard(
       {

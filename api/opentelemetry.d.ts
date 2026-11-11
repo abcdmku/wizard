@@ -34,7 +34,7 @@ interface ExternalSendOptions {
 interface RunInstrumentation<F extends AnyWizard> {
   /** Stop observing and finish open spans. Calling this more than once is safe. */
   stop(): void;
-  /** Return the workflow/task span for a path, if it has been created. */
+  /** Return the workflow span for a path, if it has been created. */
   span(path?: readonly string[]): Span | undefined;
   /** Return a context containing the span for a path, if it has been created. */
   context(path?: readonly string[]): Context | undefined;
@@ -50,7 +50,7 @@ interface RunInstrumentation<F extends AnyWizard> {
 //#endregion
 //#region src/index.d.ts
 /**
- * Attach OpenTelemetry workflow, task-attempt, compensation, and nested-flow spans to a run.
+ * Attach OpenTelemetry workflow, step-attempt, compensation, and nested-flow spans to a run.
  *
  * Only stable identifiers, event names, counters, paths, and boolean outcomes are exported.
  * Payloads, outputs, input/context patches, inbox/correlation values, idempotency keys, and

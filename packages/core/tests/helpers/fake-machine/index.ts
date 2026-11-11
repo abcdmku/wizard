@@ -26,6 +26,7 @@ import type { Effect } from '../../../src/machine/effects'
 import type { DomainEvent, DomainEventBody } from '../../../src/machine/events'
 import type { StepRecord, WizardState } from '../../../src/machine/state'
 import type { InitialState, Machine, MachineEnv } from '../../../src/machine/types'
+import { trusted } from '../fixture-definitions'
 import { toyApply } from './toy-apply'
 import { toyDecide } from './toy-decide'
 import { toyPlan } from './toy-plan'
@@ -33,8 +34,6 @@ import { toyPlan } from './toy-plan'
 // ---------------------------------------------------------------------------
 // Boundaries
 // ---------------------------------------------------------------------------
-
-export const trusted: RuntimeBoundary = { kind: 'trusted', parse: (value) => ({ ok: true, value }) }
 
 export function boundary(fn: (value: unknown) => BoundaryResult): RuntimeBoundary {
   return { kind: 'parse', parse: fn }
@@ -103,7 +102,7 @@ export function flow(spec: FlowSpec): CompiledFlow {
   return {
     name: spec.name ?? 'test-flow',
     version: spec.version ?? 1,
-    context: spec.context ?? trusted,
+    context: spec.context ?? trusted(),
     events: spec.events ?? {},
     steps,
     order,

@@ -1,5 +1,6 @@
 /** External-event routing, inbox draining, handler results and wait timeouts. @internal */
 
+import { isRecord } from '../record'
 import type { Batch } from './batch'
 import { emit, rec, stepDef } from './batch'
 import type { Command } from './commands'
@@ -58,7 +59,7 @@ export function routeEvent(b: Batch, cmd: Extract<Command, { type: 'send' }>): v
     ...(effective !== undefined ? { correlationId: effective } : {}),
     ...(eventId !== undefined ? { eventId } : {}),
   })
-  // Correlation (§10.1): a mismatch with the run's id drops the event outright (no buffering).
+  // Correlation: a mismatch with the run's id drops the event outright (no buffering).
   const own = b.state.correlationId
   if (
     extracted !== undefined &&
@@ -145,12 +146,6 @@ function armWaitTimeout(b: Batch, step: string): void {
   })
 }
 
-function asObject(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
-}
-
 /** Apply the kind-specific contract of a step-level event handler result. */
 export function onHandlerResult(
   b: Batch,
@@ -165,7 +160,7 @@ export function onHandlerResult(
     onWaitHandlerResult(b, step, value, delivered)
     return
   }
-  const next = def.kind === 'view' ? asObject(value)?.next : undefined
+  const next = def.kind === 'view' && isRecord(value) ? value.next : undefined
   if (next !== undefined && next !== null) {
     if (typeof next !== 'string' || stepDef(b, next) === undefined) {
       failUnknownTarget(b, step, next)
@@ -185,8 +180,7 @@ export function onHandlerResult(
 
 /** A view's `{}` / `{ next: null }` means "nothing" (the typed contract allows it). */
 function isVoidViewResult(kind: string, value: unknown): boolean {
-  const result = asObject(value)
-  return kind === 'view' && result !== undefined && Object.keys(result).every((k) => k === 'next')
+  return kind === 'view' && isRecord(value) && Object.keys(value).every((k) => k === 'next')
 }
 
 function failUnknownTarget(b: Batch, step: string, target: unknown): void {
@@ -216,7 +210,7 @@ function onWaitHandlerResult(
     )
     return
   }
-  const result = asObject(value)
+  const result = isRecord(value) ? value : undefined
   if (result?.keep === true) {
     drainInbox(b, step)
     return

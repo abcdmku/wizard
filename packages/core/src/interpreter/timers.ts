@@ -8,6 +8,7 @@
  */
 
 import type { Clock, Scheduler } from './env'
+import { isThenable } from './thenable'
 
 export interface TimerRegistry {
   /** Arm (or re-arm) `timerId` to fire at absolute time `at` (past → next tick). */
@@ -55,7 +56,7 @@ export function createTimerRegistry(env: {
         } catch {
           return
         }
-        if (isPromiseLike(allowed)) {
+        if (isThenable(allowed)) {
           allowed.then(
             (ok) => {
               if (handles.get(timerId) !== handle) return
@@ -83,13 +84,4 @@ export function createTimerRegistry(env: {
     has: (timerId) => handles.has(timerId),
     size: () => handles.size,
   }
-}
-
-function isPromiseLike(value: unknown): value is Promise<boolean> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'then' in value &&
-    typeof value.then === 'function'
-  )
 }

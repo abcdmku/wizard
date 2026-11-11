@@ -1,5 +1,5 @@
 /**
- * v0.2 §10.2 — `when` predicates and the `skip` command. Pure machine tests.
+ * `when` predicates and the `skip` command. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
 import { explain, phase, ready } from '../../src/machine/index'
@@ -103,7 +103,7 @@ describe('when — evaluated at readiness', () => {
     expect(replay(h)).toEqual(h.state)
   })
 
-  it('a task with when: false is skipped before it ever runs; its dependents proceed; the concurrency budget is untouched', () => {
+  it('a step with when: false is skipped before it ever runs; its dependents proceed; the concurrency budget is untouched', () => {
     let calls = 0
     const h = createHarness(
       flow({

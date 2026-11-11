@@ -1,5 +1,5 @@
 /**
- * Scheduler (§3 / §4.1), retry / backoff / timeout and sink completion.
+ * Scheduler, retry / backoff / timeout and sink completion.
  */
 import { describe, expect, it } from 'vitest'
 import type { Message } from '../../src/machine/commands'
@@ -127,7 +127,7 @@ describe('retry / backoff / timeout', () => {
     expect(h.rec('t').error?.kind).toBe('timeout')
   })
 
-  it('retry command re-runs a failed task with attempt 1 and the flow resumes; success clears failedStep', () => {
+  it('retry command re-runs a failed step with attempt 1 and the flow resumes; success clears failedStep', () => {
     const h = createHarness(
       flow({ start: 't', steps: { t: runStep({ next: 'end' }), end: routingStep() } }),
     )
@@ -153,7 +153,7 @@ describe('retry / backoff / timeout', () => {
     expect(h.state.status).toBe('done')
   })
 
-  it('halt: other running tasks settle but nothing new enters until the failed step recovers', () => {
+  it('halt: other running steps settle but nothing new enters until the failed step recovers', () => {
     const h = createHarness(
       flow({
         start: ['a', 'b'],
@@ -186,7 +186,7 @@ describe('retry / backoff / timeout', () => {
 })
 
 describe('sink completion', () => {
-  it('a completed sink leaves running tasks and waiting views active until all work drains', () => {
+  it('a completed sink leaves running steps and waiting views active until all work drains', () => {
     const h = createHarness(
       flow({
         start: 'a',
@@ -268,7 +268,7 @@ describe('sink completion', () => {
   })
 })
 
-describe('retry jitter and patch (D12)', () => {
+describe('retry jitter and patch', () => {
   it('jitter shortens the backoff by a random share (the drawn due time is recorded)', () => {
     const h = createHarness(
       flow({

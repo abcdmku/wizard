@@ -7,6 +7,7 @@ import type {
   TerminalState,
   TimerEntry,
 } from '../machine/state'
+import { isSerializedError } from '../machine/util'
 import { decodeCommand } from './parse-command'
 import {
   describe,
@@ -115,12 +116,6 @@ function checkCompensationFailure(
   return true
 }
 
-function isSerializedError(
-  value: unknown,
-): value is { readonly name: string; readonly message: string } {
-  return isRecord(value) && isString(value.name) && isString(value.message)
-}
-
 export function checkInbox(def: CompiledFlow, state: Rec, reasons: string[]): void {
   if (!Array.isArray(state.inbox)) {
     reasons.push('state.inbox: expected an array')
@@ -142,7 +137,7 @@ export function checkInbox(def: CompiledFlow, state: Rec, reasons: string[]): vo
   })
 }
 
-/** `state.eventIds` (D8): absent, or the remembered `{ id, at }` deliveries. */
+/** `state.eventIds`: absent, or the remembered `{ id, at }` deliveries. */
 export function checkEventIds(state: Rec, reasons: string[]): void {
   if (state.eventIds === undefined) return
   if (!Array.isArray(state.eventIds)) {

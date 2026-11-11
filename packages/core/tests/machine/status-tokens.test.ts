@@ -12,7 +12,7 @@ import {
 } from '../helpers/fixtures'
 
 describe('deriveStatus table', () => {
-  it('idle → waiting (view) → running (task) → waiting (wait) → done', () => {
+  it('idle → waiting (view) → running (step) → waiting (wait) → done', () => {
     const h = createHarness(
       flow({
         start: 'v',

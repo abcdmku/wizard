@@ -3,6 +3,9 @@
  * @internal
  */
 
+import { isRecord } from '../record'
+import type { SerializedError } from './state'
+
 /** Shallow copy without the given keys (needed because optional fields must be absent, not `undefined`). */
 export function omit<T extends object, K extends keyof T>(obj: T, keys: readonly K[]): Omit<T, K> {
   const drop: ReadonlySet<PropertyKey> = new Set(keys)
@@ -15,6 +18,11 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const proto = Object.getPrototypeOf(value)
   return proto === Object.prototype || proto === null
+}
+
+/** A serialized error as hooks report it and snapshots store it: `{ name, message }`. */
+export function isSerializedError(value: unknown): value is SerializedError {
+  return isRecord(value) && typeof value.name === 'string' && typeof value.message === 'string'
 }
 
 /** Normalize a `NextRef` value into a target list (`null`/`undefined` → []). */

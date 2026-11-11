@@ -19,7 +19,7 @@
  *   timeout are dropped; the machine's token check covers everything else).
  * - `abort(step)` (cancel/compensate/flow-done) aborts the signal but lets the
  *   hook settle cooperatively — bounded by a grace timer when no `timeoutMs`
- *   is set (plan §8.5).
+ *   is set.
  *
  * @internal
  */

@@ -1,5 +1,5 @@
 /**
- * Snapshot envelope + structural validation (plan §8.8).
+ * Snapshot envelope + structural validation.
  *
  * `toSnapshot(state, children, savedAt)` wraps a run state (and its live
  * children's snapshots) in the versioned, JSON-serializable envelope that
@@ -38,7 +38,7 @@ export interface Snapshot {
   readonly children: Readonly<Record<string, Snapshot>>
 }
 
-export type SnapshotValidation =
+type SnapshotValidation =
   | { readonly ok: true; readonly snapshot: Snapshot }
   | { readonly ok: false; readonly reasons: readonly string[] }
 

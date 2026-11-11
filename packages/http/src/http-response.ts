@@ -36,7 +36,7 @@ export function methodNotAllowed(allow: readonly string[]): Response {
   )
 }
 
-export function isJsonMediaType(contentType: string | null): boolean {
+function isJsonMediaType(contentType: string | null): boolean {
   if (contentType === null) return false
   const mediaType = contentType.split(';', 1)[0]?.trim().toLowerCase()
   return mediaType === 'application/json' || mediaType?.endsWith('+json') === true

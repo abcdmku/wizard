@@ -110,7 +110,7 @@ export function prepareResume(
   for (const id of def.order) {
     const stepDef = def.steps[id]
     if (stepDef === undefined) continue
-    // A step the definition added after this snapshot was taken starts idle (D11).
+    // A step the definition added after this snapshot was taken starts idle.
     const rec = Object.hasOwn(state.steps, id) ? state.steps[id] : undefined
     if (rec === undefined) {
       setOwn(steps, id, idleRecord(id, stepDef.kind))

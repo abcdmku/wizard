@@ -9,7 +9,7 @@ import type { CallEffect } from './effects'
 import type { StepRecord } from './state'
 import type { MachineEnv } from './types'
 
-export interface CallOpts {
+interface CallOpts {
   readonly extra?: Readonly<Record<string, unknown>>
   readonly attempt?: number
   readonly txId?: string

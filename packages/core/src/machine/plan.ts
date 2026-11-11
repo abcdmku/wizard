@@ -1,6 +1,6 @@
 /**
  * `plan` — events → effect descriptions. Receives the POST-batch state and the
- * whole batch (plan §8.1), so every rule first checks that the state is still
+ * whole batch, so every rule first checks that the state is still
  * "parked" where the event says (a transaction still in that phase, a step
  * still active with the same runId/attempt, a timer still registered): a batch
  * that moved past a phase synchronously produces no effect for it.
@@ -28,7 +28,7 @@ export function plan(
 ): readonly Effect[] {
   const out: Effect[] = []
   // Resume effects (re-issued calls, then re-armed timers) go AFTER everything else in the batch;
-  // overdue timers already fired inside the resume batch (D9), only future ones are re-armed.
+  // overdue timers already fired inside the resume batch, only future ones are re-armed.
   const resume: Effect[] = []
   let final = false
   let resumed = false
@@ -148,14 +148,14 @@ function planEvent(
       return
     }
     case 'step.whenStarted': {
-      // §10.2: the predicate runs while the step is still pending (token = current runId).
+      // The predicate runs while the step is still pending (token = current runId).
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status === 'active' || rec.when !== 'pending') return
       out.push(call(env, rec, 'when'))
       return
     }
     case 'step.idempotencyKeyRequested': {
-      // §10.4: computed before the first attempt of the run (args = the run's args).
+      // Computed before the first attempt of the run (args = the run's args).
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status !== 'active' || rec.runId !== ev.runId) return
       if (rec.attempt !== 0 || rec.entering === true) return
@@ -163,7 +163,7 @@ function planEvent(
       return
     }
     case 'step.mapErrorStarted': {
-      // §10.7: the raw failure travels in `extra` and comes back on the result.
+      // The raw failure travels in `extra` and comes back on the result.
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status !== 'active' || rec.attempt !== ev.attempt) return
       if (rec.retryAt !== undefined || rec.entering === true) return
@@ -225,7 +225,7 @@ function planEvent(
       return
     }
     case 'event.flowDelivered':
-      // §10.1: the flow-level handler has no step — `step: ''`, token `{ step: '', runId: 0 }`;
+      // The flow-level handler has no step — `step: ''`, token `{ step: '', runId: 0 }`;
       // the executor and `decide` route on `hook: 'flowOn'` before looking at the step.
       out.push({
         kind: 'call',

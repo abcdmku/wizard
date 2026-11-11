@@ -1,5 +1,5 @@
 /**
- * Saga — compensation (§5.2 / plan §8.5).
+ * Saga — compensation.
  *
  * Phase 1 (settle): `flow.compensating` (apply records `saga.settling` = runs
  * whose `run` is in flight), every active step is cancelled (the interpreter
@@ -20,7 +20,7 @@ import { cancelAllActive } from './scheduler'
 import { sameEntry } from './selectors'
 import type { SagaEntry, SagaEntryRef, SerializedError } from './state'
 
-export const GRACE_TIMER_ID = 'saga:grace'
+const GRACE_TIMER_ID = 'saga:grace'
 export const DEFAULT_COMPENSATION_GRACE_MS = 30_000
 
 export function compensationGraceMs(b: Batch): number {

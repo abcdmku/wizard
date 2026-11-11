@@ -2,7 +2,7 @@
 
 import type { ChildSummary, StepError } from './state'
 
-export interface EachItem {
+interface EachItem {
   readonly status: 'pending' | 'running' | 'done' | 'failed' | 'retrying'
   readonly attempt: number
   readonly generation?: number
@@ -13,7 +13,7 @@ export interface EachItem {
   readonly child?: ChildSummary
 }
 
-export type EachItemPatch = Partial<Pick<EachItem, 'status' | 'attempt' | 'generation'>> & {
+type EachItemPatch = Partial<Pick<EachItem, 'status' | 'attempt' | 'generation'>> & {
   readonly [K in 'output' | 'error' | 'retryAt' | 'child' | 'idempotencyKey']?:
     | EachItem[K]
     | undefined
@@ -23,7 +23,7 @@ type ItemNode =
   | { readonly items: readonly (EachItem | null)[] }
   | { readonly children: readonly (ItemNode | null)[] }
 
-export interface EachRecords {
+interface EachRecords {
   /** Number of branch levels above the item leaves. */
   readonly depth: number
   readonly root: ItemNode

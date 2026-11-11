@@ -84,7 +84,7 @@ export interface HookArgs {
   readonly idempotencyKey: string
   /**
    * Patch the flow context (recorded as `context.changed`; JSON only). A function receives the
-   * latest committed context and returns the patch, applied atomically (D6).
+   * latest committed context and returns the patch, applied atomically.
    */
   update(patch: Record<string, unknown> | ((current: unknown) => unknown)): void
   /** Report progress: a transient `step.progress` event for observers (never persisted). */

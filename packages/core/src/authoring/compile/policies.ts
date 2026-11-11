@@ -3,6 +3,7 @@
  * @internal
  */
 
+import { describeError } from '../../errors'
 import type { RetryPolicy } from '../compiled'
 import { parseDuration } from '../duration'
 import type { Duration } from '../types'
@@ -16,7 +17,7 @@ export function durationMs(
   try {
     return parseDuration(value as Duration)
   } catch (error) {
-    problem(`${what}: ${error instanceof Error ? error.message : String(error)}`)
+    problem(`${what}: ${describeError(error)}`)
     return undefined
   }
 }

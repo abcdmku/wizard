@@ -1,6 +1,6 @@
 /**
  * Timers (`timer.fired`: retry, wait timeout, inbox TTL, compensation grace) and the resume
- * matrix (plan §8.8 / §10.4).
+ * matrix.
  * @internal
  */
 
@@ -57,7 +57,7 @@ export function onTimerFired(b: Batch, timerId: string): void {
 }
 
 /**
- * Deadlines are absolute (D9): wait timeouts and retries that are already due fire now, in due
+ * Deadlines are absolute: wait timeouts and retries that are already due fire now, in due
  * order — on resume, and before an event is delivered (a late event never beats its timeout).
  */
 export function fireOverdue(b: Batch): void {
@@ -73,12 +73,12 @@ export function fireOverdue(b: Batch): void {
 }
 
 /**
- * Resume matrix (plan §8.8 / §10.4). `plan(flow.resumed)` re-arms timers and re-issues
- * in-flight hook calls. Overdue timers fire first (D9); then each run interrupted by the restart
+ * Resume matrix. `plan(flow.resumed)` re-arms timers and re-issues
+ * in-flight hook calls. Overdue timers fire first; then each run interrupted by the restart
  * that is still the same run is re-issued when the step is idempotent (`step.runStarted
- * { resumed: true }`, same attempt/key), else it fails `interrupted`. D9 orders one run's own
- * work: a parent resumes before its children are restored, and runs in a tree are not ordered
- * against each other.
+ * { resumed: true }`, same attempt/key), else it fails `interrupted`. The ordering covers one
+ * run's own work: a parent resumes before its children are restored, and runs in a tree are not
+ * ordered against each other.
  */
 export function onResume(b: Batch, fromSeq: number): void {
   const s = b.state

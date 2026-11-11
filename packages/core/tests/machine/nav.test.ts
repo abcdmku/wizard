@@ -1,5 +1,5 @@
 /**
- * Navigation pipeline (§1) — start, hookless `next`, and every veto point of a transaction.
+ * Navigation pipeline — start, hookless `next`, and every veto point of a transaction.
  */
 import { describe, expect, it } from 'vitest'
 import { createHarness, flow, guard, of, routingStep, view } from '../helpers/fixtures'

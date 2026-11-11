@@ -1,9 +1,10 @@
 /**
  * `settle` (sent by the interpreter once a drained run has nothing in flight): finish the flow
- * with its output, or fail a join that can never run (D5, `DEPS_UNREACHABLE`).
+ * with its output, or fail a join that can never run (`DEPS_UNREACHABLE`).
  * @internal
  */
 
+import { describeError } from '../../errors'
 import type { Batch } from '../batch'
 import { emit } from '../batch'
 import { canFinish, type StuckJoin, stuckJoin } from '../quiescence'
@@ -41,7 +42,7 @@ function finish(b: Batch): void {
       type: 'flow.failed',
       error: {
         name: 'OutputError',
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       },
     })
   }

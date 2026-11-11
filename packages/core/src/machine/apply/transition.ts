@@ -15,7 +15,7 @@ import { patchStep, withNav } from './patch'
 const TRAIL = 4
 
 /** Idle nav that keeps the cross-transaction bookkeeping (`hops`, `trail`, `deferred`, `cursorHint`). */
-export function idleNav(nav: NavState): NavState {
+function idleNav(nav: NavState): NavState {
   const out: NavState = { phase: 'idle' }
   return {
     ...out,
@@ -86,7 +86,7 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
         ...(trail !== undefined ? { trail } : {}),
         ...(ev.to !== undefined ? { targets: [ev.to] } : {}),
         ...(deferred.length > 0 ? { deferred } : {}),
-        // §10.2: the hint survives unrelated transactions; only a cursor set (or the hinted
+        // The hint survives unrelated transactions; only a cursor set (or the hinted
         // view entering / skipping / invalidating / failing) forgets it.
         ...(state.nav.cursorHint !== undefined ? { cursorHint: state.nav.cursorHint } : {}),
       }

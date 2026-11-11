@@ -12,10 +12,10 @@ import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from '@openwizard/core/i
 import { stepKey } from '../types'
 
 /** Rendered size of a step card. */
-export const STEP_WIDTH = 200
+const STEP_WIDTH = 200
 export const STEP_HEIGHT = 72
 /** Rendered size of an entry / dynamic-next marker. */
-export const MARKER_SIZE = 28
+const MARKER_SIZE = 28
 /** Room a group leaves for its header and around its children. */
 export const GROUP_PADDING = { top: 60, right: 24, bottom: 24, left: 24 } as const
 
@@ -78,7 +78,7 @@ export interface GraphModel {
 
 const pathId = (path: readonly string[]): string => path.join('/')
 export const entryKey = (path: readonly string[]): string => `${pathId(path)}#entry`
-export const dynamicKey = (key: string): string => `${key}#dyn`
+const dynamicKey = (key: string): string => `${key}#dyn`
 
 /** The group (flow step) key that contains flow `path`, or undefined at the root. */
 function parentOf(path: readonly string[]): string | undefined {

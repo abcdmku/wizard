@@ -1,5 +1,5 @@
 /**
- * v0.2 §10.1 — flow-level `on` handlers, resume with buffered events, correlation. Pure machine tests.
+ * Flow-level `on` handlers, resume with buffered events, correlation. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
 import {

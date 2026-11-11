@@ -24,7 +24,7 @@ async function settle(): Promise<void> {
 }
 
 describe('instrumentRun', () => {
-  it('emits a workflow and task span without copying payloads or errors', async () => {
+  it('emits a workflow and step span without copying payloads or errors', async () => {
     const wizard = defineWizard(
       { name: 'privacy', version: 4, context: boundary.trusted<{}>() },
       ({ step, steps }) =>
@@ -39,13 +39,14 @@ describe('instrumentRun', () => {
 
     const spans = exporter.getFinishedSpans()
     expect(spans.map((span) => span.name)).toEqual(
-      expect.arrayContaining(['openwizard.workflow', 'openwizard.task']),
+      expect.arrayContaining(['openwizard.workflow', 'openwizard.step']),
     )
-    const task = spans.find((span) => span.name === 'openwizard.task')
-    expect(task?.attributes).toMatchObject({
+    const attempt = spans.find((span) => span.name === 'openwizard.step')
+    expect(attempt?.attributes).toMatchObject({
       'openwizard.step': 'charge',
-      'openwizard.task.attempt': 1,
-      'openwizard.task.retry': false,
+      'openwizard.step.kind': 'step',
+      'openwizard.step.attempt': 1,
+      'openwizard.step.retry': false,
       'openwizard.instance.id': 'order-42',
     })
     const serialized = JSON.stringify(
@@ -56,7 +57,7 @@ describe('instrumentRun', () => {
     expect(serialized).not.toContain('error.message')
   })
 
-  it('creates one task span for each retry attempt and closes it on stop', async () => {
+  it('creates one step span for each retry attempt and closes it on stop', async () => {
     let calls = 0
     const wizard = defineWizard(
       { name: 'retry', context: boundary.trusted<{}>() },
@@ -83,19 +84,21 @@ describe('instrumentRun', () => {
     await settle()
     instrumentation.stop()
 
-    const tasks = exporter
+    const attempts = exporter
       .getFinishedSpans()
-      .filter((span) => span.name === 'openwizard.task')
+      .filter((span) => span.name === 'openwizard.step')
       .sort(
         (a, b) =>
-          Number(a.attributes['openwizard.task.attempt']) -
-          Number(b.attributes['openwizard.task.attempt']),
+          Number(a.attributes['openwizard.step.attempt']) -
+          Number(b.attributes['openwizard.step.attempt']),
       )
     expect(calls).toBe(2)
-    expect(tasks.map((span) => span.attributes['openwizard.task.attempt'])).toEqual([1, 2])
-    expect(tasks[1]?.attributes['openwizard.task.retry']).toBe(true)
+    expect(attempts.map((span) => span.attributes['openwizard.step.attempt'])).toEqual([1, 2])
+    expect(attempts[1]?.attributes['openwizard.step.retry']).toBe(true)
     expect(
-      JSON.stringify(tasks.map((span) => ({ attributes: span.attributes, events: span.events }))),
+      JSON.stringify(
+        attempts.map((span) => ({ attributes: span.attributes, events: span.events })),
+      ),
     ).not.toContain('private failure')
   })
 
@@ -250,7 +253,7 @@ describe('instrumentRun', () => {
     run.dispose()
   })
 
-  it('traces tasks started through startStep and startReady', async () => {
+  it('traces steps started through startStep and startReady', async () => {
     const wizard = defineWizard(
       { name: 'manual', context: boundary.trusted<{}>(), autoRun: 'manual' },
       ({ step, steps }) =>
@@ -272,13 +275,13 @@ describe('instrumentRun', () => {
     expect(
       exporter
         .getFinishedSpans()
-        .filter((span) => span.name === 'openwizard.task')
+        .filter((span) => span.name === 'openwizard.step')
         .map((span) => span.attributes['openwizard.step']),
     ).toEqual(['one', 'two'])
     run.dispose()
   })
 
-  it('links a compensation span to the completed task attempt', async () => {
+  it('links a compensation span to the completed step attempt', async () => {
     const wizard = defineWizard(
       {
         name: 'saga',

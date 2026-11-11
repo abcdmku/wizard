@@ -18,8 +18,8 @@ export {
   type RunAdapter,
   type RunAdapterMetadata,
   type RunFailure,
-  type RunFailureKind,
 } from './authoring/run-adapter'
+export type { RunFailureKind } from './machine/commands'
 export type {
   AnyFlow,
   AnyStep,

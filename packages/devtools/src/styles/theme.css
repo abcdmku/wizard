@@ -117,25 +117,13 @@
   border-color: var(--owd-accent);
   color: var(--owd-accent);
 }
-.owd-kind[data-kind="task"] {
+.owd-kind[data-kind="step"] {
   border-color: var(--owd-success);
   color: var(--owd-success);
-}
-.owd-kind[data-kind="wait"] {
-  border-color: var(--owd-warn);
-  color: var(--owd-warn);
-}
-.owd-kind[data-kind="decision"] {
-  border-color: var(--owd-accent-2);
-  color: var(--owd-accent-2);
 }
 .owd-kind[data-kind="flow"] {
   border-color: var(--owd-edge);
   color: var(--owd-edge);
-}
-.owd-kind[data-kind="final"] {
-  border-color: var(--owd-subtle);
-  color: var(--owd-subtle);
 }
 .owd-btn {
   font: inherit;

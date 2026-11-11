@@ -1,6 +1,6 @@
 /**
- * `WizardError` — the ONE error type of the public API, thrown only for programmer errors
- * (plan §8.2): a disposed run, an invalid definition, an incompatible snapshot, an undeclared
+ * `WizardError` — the ONE error type of the public API, thrown only for programmer errors:
+ * a disposed run, an invalid definition, an incompatible snapshot, an undeclared
  * event name, `child()` of a non-flow / inactive step, a boundary rejecting `context` / `deps` at
  * the door. Data problems never throw: machine-level rejections are events
  * (`command.rejected`, `transition.rejected`, …) and the façade returns them as values

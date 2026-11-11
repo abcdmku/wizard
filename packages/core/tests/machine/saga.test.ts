@@ -37,7 +37,7 @@ function runThree(h: ReturnType<typeof createHarness>) {
 }
 
 describe('compensation', () => {
-  it('a task failure with onFailure:compensate unwinds in reverse order, one step at a time, then flow.compensated{failed}', () => {
+  it('a step failure with onFailure:compensate unwinds in reverse order, one step at a time, then flow.compensated{failed}', () => {
     const h = createHarness(saga())
     runThree(h)
     const r = h.err(h.call('run', 'boom'), 'kaput')
@@ -139,7 +139,7 @@ describe('compensation', () => {
     expect(of(h.cmd({ type: 'compensate' }), 'command.rejected')[0]?.code).toBe('FLOW_TERMINAL')
   })
 
-  it('settle phase: running tasks are cancelled and the unwind waits for their in-flight results', () => {
+  it('settle phase: running steps are cancelled and the unwind waits for their in-flight results', () => {
     const h = createHarness(
       flow({
         start: ['a', 'b'],
@@ -214,7 +214,7 @@ describe('compensation', () => {
     expect(of(h.cmd('cancel'), 'command.rejected')[0]?.code).toBe('FLOW_TERMINAL')
   })
 
-  it('cancel on a halt flow cancels running tasks (timers cleared) and ends the flow', () => {
+  it('cancel on a halt flow cancels running steps (timers cleared) and ends the flow', () => {
     const h = createHarness(
       flow({
         start: 't',
@@ -275,7 +275,7 @@ describe('compensation', () => {
     expect(h.state.status).toBe('failed')
   })
 
-  it('a task failure with an empty stack still goes through flow.compensating → flow.compensated', () => {
+  it('a step failure with an empty stack still goes through flow.compensating → flow.compensated', () => {
     const h = createHarness(
       flow({
         start: 'v',

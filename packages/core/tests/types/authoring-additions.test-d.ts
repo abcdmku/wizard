@@ -1,4 +1,4 @@
-// Wave B additions to scenarios.ts (paste after section 11; merge the imports).
+// Authoring type contracts: run adapters, mapped errors, routing, sinks and provided deps.
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
 import type { RunAdapter } from '../../src/authoring/run-adapter'

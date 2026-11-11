@@ -28,7 +28,7 @@ const diagrams = {
   system,
 } as const
 
-export type DiagramName = keyof typeof diagrams
+type DiagramName = keyof typeof diagrams
 
 export function Diagram({ name }: { readonly name: DiagramName }) {
   // These strings are compile-time imports from the repository's SVG files, never user input.

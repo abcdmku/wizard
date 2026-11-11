@@ -1,5 +1,5 @@
 /**
- * Navigation pipeline (§1) — dynamic `next`, `go` reachability and `back`.
+ * Navigation pipeline — dynamic `next`, `go` reachability and `back`.
  */
 import { describe, expect, it } from 'vitest'
 import { createHarness, flow, needAll, of, routingStep, runStep, view } from '../helpers/fixtures'

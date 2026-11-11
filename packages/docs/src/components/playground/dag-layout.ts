@@ -28,7 +28,7 @@ export interface DagLayout {
   readonly height: number
 }
 
-export const NODE_HEIGHT = 44
+const NODE_HEIGHT = 44
 const LAYER_GAP = 44
 const NODE_GAP = 28
 const PADDING = 12

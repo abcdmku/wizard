@@ -118,7 +118,7 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
         epoch: state.epoch,
         ...(state.correlationId !== undefined ? { correlationId: state.correlationId } : {}),
       })
-      // Deliveries already applied stay duplicates after a reset (D8).
+      // Deliveries already applied stay duplicates after a reset.
       return state.eventIds === undefined ? fresh : { ...fresh, eventIds: state.eventIds }
     }
     default:

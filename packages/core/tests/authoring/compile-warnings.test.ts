@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { compile, type FlowWarning } from '../../src/authoring/compile'
+import { analyze, compile, type FlowWarning } from '../../src/authoring/compile'
 import type { AnyFlow } from '../../src/authoring/types'
 import { WizardError } from '../../src/errors'
 import { defineWizard } from '../../src/wizard/define-wizard'
 import { rawFlow, rawStep } from './helpers'
 
-function warningsOf(flow: AnyFlow): FlowWarning[] {
-  const warnings: FlowWarning[] = []
-  compile(flow, { onWarning: (warning) => warnings.push(warning) })
-  return warnings
+function warningsOf(flow: AnyFlow): readonly FlowWarning[] {
+  return analyze(flow).warnings
 }
 
 describe('graph warnings', () => {

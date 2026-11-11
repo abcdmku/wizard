@@ -13,7 +13,7 @@ export interface PlaygroundDiagnostic {
   readonly category: 'error' | 'warning'
 }
 
-export interface TranspileResult {
+interface TranspileResult {
   /** File name → emitted ES module source. */
   readonly modules: ReadonlyMap<string, string>
   readonly diagnostics: readonly PlaygroundDiagnostic[]

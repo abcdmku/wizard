@@ -113,7 +113,7 @@ describe('compile validation for JavaScript definitions', () => {
     ).toEqual([`step 'work': ${message}`])
   })
 
-  it('restricts waitFor to dedicated event steps and rejects view-only fields on tasks', () => {
+  it('restricts waitFor to dedicated event steps and rejects view-only fields on steps', () => {
     expect(
       issuesOf(() =>
         compile(

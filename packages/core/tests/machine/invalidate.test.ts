@@ -1,5 +1,5 @@
 /**
- * v0.2 §10.3 — explicit `invalidate` (never automatic). Pure machine tests.
+ * Explicit `invalidate` (never automatic). Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -49,7 +49,7 @@ function toC() {
 }
 
 describe('invalidate', () => {
-  it('a done task returns to idle: output → previousOutput, error/issues cleared, saga stack entry kept; without cascade nothing else changes', () => {
+  it('a done step returns to idle: output → previousOutput, error/issues cleared, saga stack entry kept; without cascade nothing else changes', () => {
     const h = toC()
     const r = h.cmd({ type: 'invalidate', step: 'load', cascade: false })
     expect(r.types).toEqual(['step.invalidated'])
@@ -111,7 +111,7 @@ describe('invalidate', () => {
     expect(h.state.current).toBe('a')
   })
 
-  it('running dependents are cancelled first (a task run aborted, a child flow cancelled), then invalidated', () => {
+  it('running dependents are cancelled first (a step run aborted, a child flow cancelled), then invalidated', () => {
     const child = flow({ start: 'x', steps: { x: view({ next: 'e' }), e: routingStep() } })
     const h = createHarness(
       flow({

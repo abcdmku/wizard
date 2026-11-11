@@ -8,11 +8,9 @@
  * @packageDocumentation
  */
 
+import type { RunFailureKind } from '../machine/commands'
 import type { JsonValue, MaybePromise, RunArgs } from './types'
 import type { Boundary } from './types/boundary'
-
-/** A failure channel produced by a run adapter. @public */
-export type RunFailureKind = 'typed' | 'defect' | 'interrupted'
 
 /**
  * Internal marker carried by an adapter rejection. `data` is only included after the adapter

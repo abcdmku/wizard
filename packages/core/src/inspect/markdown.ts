@@ -6,6 +6,7 @@
  * @packageDocumentation
  */
 
+import { samePath } from '../machine/util'
 import { describeSchema, fieldTable } from './markdown-schema'
 import { toMermaid } from './mermaid'
 import { duration } from './mermaid-syntax'
@@ -214,10 +215,6 @@ function warningsSection(graph: FlowGraph): string[] {
 /** A step id, prefixed with its child path (`fulfil / pick`), unique within the page. */
 function stepName(node: FlowGraphNode): string {
   return [...node.path, node.id].join(' / ')
-}
-
-function samePath(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((part, index) => part === b[index])
 }
 
 /** `finishes` for one subject, `finish` for several. */

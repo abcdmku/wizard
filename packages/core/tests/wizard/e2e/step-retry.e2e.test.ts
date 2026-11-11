@@ -1,5 +1,5 @@
 /**
- * (b) tasks with the REAL machine: async run, retry { retries: 3, backoff: 100 }
+ * Runnable steps with the REAL machine: async run, retry { retries: 3, backoff: 100 }
  * succeeding on attempt 2 (scheduler-driven, `step.retryScheduled.dueAt`),
  * timeout → failed → `retry(step)` re-runs; output boundary rejection.
  */
@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest'
 import { flow, guard, routingStep, runStep } from '../../helpers/fixtures'
 import { e2e, tick } from './harness'
 
-describe('e2e tasks: retry, timeout, retry command', () => {
-  it('retries an async task on a fixed backoff and succeeds on attempt 2', async () => {
+describe('e2e steps: retry, timeout, retry command', () => {
+  it('retries an async step on a fixed backoff and succeeds on attempt 2', async () => {
     let calls = 0
     const def = flow({
       name: 'retry',
@@ -140,7 +140,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
     expect(t.run.getState().status).toBe('done')
   })
 
-  it('an output boundary rejects the run value → the task fails with the boundary issues', async () => {
+  it('an output boundary rejects the run value → the step fails with the boundary issues', async () => {
     const def = flow({
       name: 'output',
       start: 't',

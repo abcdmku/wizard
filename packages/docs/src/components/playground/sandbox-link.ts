@@ -7,7 +7,7 @@
 
 export type HostModules = Readonly<Record<string, Readonly<Record<string, unknown>>>>
 
-export interface LinkedModules {
+interface LinkedModules {
   /** File name → the module namespace after evaluation (the entry's top-level code has run). */
   readonly namespaces: ReadonlyMap<string, Readonly<Record<string, unknown>>>
 }

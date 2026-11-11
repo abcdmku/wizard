@@ -61,7 +61,7 @@ export function cmdInput(
 }
 
 /**
- * `update(patch)` records the patch. `update(fn)` (D6) applies `fn` to the latest committed
+ * `update(patch)` records the patch. `update(fn)` applies `fn` to the latest committed
  * context right here, so concurrent hooks never lose each other's writes; `undefined` changes
  * nothing. A throwing, async or non-object `fn` fails the calling step while it still runs.
  */

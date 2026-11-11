@@ -12,11 +12,11 @@ import type { SerializedError } from '../machine/state'
 import { toSerializedError } from './errors'
 import { isThenable } from './thenable'
 
-export type DepsResolution =
+type DepsResolution =
   | { readonly ok: true; readonly value: unknown }
   | { readonly ok: false; readonly error: SerializedError }
 
-export interface ResolveDepsInput {
+interface ResolveDepsInput {
   readonly step: string
   /** The flow step's RAW `deps` mapper, if any. */
   readonly mapper: ((args: HookArgs) => unknown) | undefined

@@ -1,5 +1,5 @@
 /**
- * D6: a hook's `context` is the context when it actually starts (earlier synchronous updates
+ * A hook's `context` is the context when it actually starts (earlier synchronous updates
  * included), and `update(fn)` applies `fn` to the latest committed context, so fan-out branches
  * never lose each other's writes.
  */

@@ -1,5 +1,5 @@
 /**
- * Task run results (§4.1 / §10.7): success, failure with retry / backoff, `mapError`, and the
+ * Task run results: success, failure with retry / backoff, `mapError`, and the
  * settling of aborted runs during compensation phase 1.
  * @internal
  */
@@ -12,11 +12,12 @@ import { unwindNext } from '../saga'
 import { failStep, retryTimerId } from '../scheduler'
 import { isRunnableStep, runInFlight } from '../selectors'
 import type { SerializedError } from '../state'
+import { isSerializedError } from '../util'
 import type { ResultMsg } from './results'
 
 /**
- * `RetryPolicy` backoff (§4.1): fixed ms, or exponential `min(baseMs * factor^(attempt-1),
- * maxBackoffMs)`; `jitter` shortens it by a random share of up to `jitter` (D12).
+ * `RetryPolicy` backoff: fixed ms, or exponential `min(baseMs * factor^(attempt-1),
+ * maxBackoffMs)`; `jitter` shortens it by a random share of up to `jitter`.
  */
 export function backoffMs(b: Batch, policy: RetryPolicy | undefined, attempt: number): number {
   const backoff = policy?.backoff
@@ -76,7 +77,7 @@ export function onRunResult(b: Batch, msg: ResultMsg): boolean {
     data: msg.failure?.data,
   }
   if (def.hooks.mapError !== undefined && msg.error.code !== 'INVALID_RUN_ERROR') {
-    // §10.7: map the failure first; `onMapErrorResult` records it with `data`.
+    // Map the failure first; `onMapErrorResult` records it with `data`.
     emit(b, {
       type: 'step.mapErrorStarted',
       step,
@@ -136,18 +137,7 @@ export function onMapErrorResult(b: Batch, msg: ResultMsg): boolean {
   return true
 }
 
-function isSerializedError(value: unknown): value is SerializedError {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'name' in value &&
-    typeof value.name === 'string' &&
-    'message' in value &&
-    typeof value.message === 'string'
-  )
-}
-
-/** `step.runFailed { data? }` then retry (`step.retryScheduled`) or fail for good (§4.1). */
+/** `step.runFailed { data? }` then retry (`step.retryScheduled`) or fail for good. */
 function recordRunFailure(b: Batch, step: string, failure: RunFailure, data: unknown): void {
   const r = rec(b, step)
   const def = stepDef(b, step)
@@ -158,7 +148,7 @@ function recordRunFailure(b: Batch, step: string, failure: RunFailure, data: unk
   const dataField = effectiveData !== undefined ? { data: effectiveData } : {}
   const timedOutField = failure.timedOut ? { timedOut: true } : {}
   if (failure.syncViolation) {
-    // `strict: 'sync'` violation: never retried, fails as 'sync-violation' (plan §8.1).
+    // `strict: 'sync'` violation: never retried, fails as 'sync-violation'.
     emit(b, {
       type: 'step.runFailed',
       step,

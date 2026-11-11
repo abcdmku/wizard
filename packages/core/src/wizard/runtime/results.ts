@@ -1,6 +1,6 @@
 /**
  * Result mapping: a processed batch (or a transaction outcome) → the value the public method
- * returns (`CommandResult` / `NavResult` / `SendResult`, plan §8.2). Pure functions.
+ * returns (`CommandResult` / `NavResult` / `SendResult`). Pure functions.
  *
  * @internal
  */
@@ -194,7 +194,7 @@ export function navToCommandResult(result: NavResult): CommandResult {
   }
 }
 
-export const DISPOSED_MESSAGE = 'the run is disposed; create or resume a new run'
+const DISPOSED_MESSAGE = 'the run is disposed; create or resume a new run'
 
 export const DISPOSED_COMMAND: CommandResult = {
   ok: false,

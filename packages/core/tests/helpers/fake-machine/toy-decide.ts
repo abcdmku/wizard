@@ -188,7 +188,7 @@ export function toyDecide(
     case 'reset':
       return [{ type: 'flow.reset' }]
     case 'child': {
-      // Parent FIFO route (machine spec §7): accepted child commands become child.command → plan child.send.
+      // Parent FIFO route: accepted child commands become child.command → plan child.send.
       const step = msg.path[0]
       const rec = step === undefined ? undefined : S.steps[step]
       if (rec === undefined || rec.kind !== 'flow') {

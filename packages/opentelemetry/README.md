@@ -31,7 +31,7 @@ Read the [OpenTelemetry package guide](../docs/pages/packages/opentelemetry.mdx)
 | Export | Kind | Summary | Source |
 |---|---|---|---|
 | `ExternalSendOptions` | interface | Options for the instrumentation `send` convenience method. | [src](../../packages/opentelemetry/src/types.ts#L27) |
-| `instrumentRun` | function | Attach OpenTelemetry workflow, task-attempt, compensation, and nested-flow spans to a run. | [src](../../packages/opentelemetry/src/index.ts#L34) |
+| `instrumentRun` | function | Attach OpenTelemetry workflow, step-attempt, compensation, and nested-flow spans to a run. | [src](../../packages/opentelemetry/src/index.ts#L34) |
 | `InstrumentRunOptions` | interface | Options for `instrumentRun`. | [src](../../packages/opentelemetry/src/types.ts#L7) |
 | `RunInstrumentation` | interface | Handle returned by `instrumentRun`. | [src](../../packages/opentelemetry/src/types.ts#L37) |
 

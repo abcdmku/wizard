@@ -16,7 +16,8 @@ import { createEachState, eachOutputs, updateEachItem } from '../../src/machine/
 import type { DomainEvent } from '../../src/machine/events'
 import type { WizardState } from '../../src/machine/state'
 import { type Snapshot, toSnapshot } from '../../src/wizard/snapshot'
-import { flow, initialState, trusted } from '../helpers/fake-machine'
+import { flow, initialState } from '../helpers/fake-machine'
+import { trusted } from '../helpers/fixtures'
 
 interface Handle extends ChildHandle {
   readonly commands: Command[]
@@ -90,7 +91,7 @@ function setup(keys = ['one', 'two'], extraSteps: Parameters<typeof flow>[0]['st
   const childWithDeps = {
     ...child,
     deps: {
-      ...trusted,
+      ...trusted(),
       parse(value: unknown) {
         boundaryCalls++
         return { ok: true as const, value }

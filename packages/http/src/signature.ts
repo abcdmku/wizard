@@ -41,7 +41,7 @@ export async function signWebhook(input: SignWebhookInput): Promise<WebhookSigna
   }
 }
 
-export type VerifiedSignature =
+type VerifiedSignature =
   | { readonly ok: true; readonly id: string; readonly timestamp: Date }
   | { readonly ok: false }
 

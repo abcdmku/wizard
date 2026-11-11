@@ -1,14 +1,14 @@
 /**
- * Untyped run runtime — the live object behind the typed `Run<F>` façade
- * (`createRun`/`resumeRun` in the authoring layer wrap it).
+ * Untyped run runtime — the live object behind the typed `Run<F>` that `wizard.create` and
+ * `wizard.resume` return (the internal constructors in `create-wizard` wrap it).
  *
- * Every method is sugar over `dispatch(command)`; results are values (plan
- * §8.2): `CommandResult`, `NavResult`, `SendResult`. `WizardError` is the
+ * Every method is sugar over `dispatch(command)`; results are values:
+ * `CommandResult`, `NavResult`, `SendResult`. `WizardError` is the
  * rejection only for misuse: `UNKNOWN_EVENT` (send), `UNKNOWN_STEP` (validate),
  * and `NOT_A_FLOW_STEP` / `NOT_ACTIVE` are thrown by `child()`. After `dispose()`
- * every command resolves a `DISPOSED` value and subscriptions are inert (D20).
+ * every command resolves a `DISPOSED` value and subscriptions are inert.
  *
- * Sync-commit guarantee (plan §8.1): every public call enqueues its command
+ * Sync-commit guarantee: every public call enqueues its command
  * synchronously; when the whole chain (boundary, hooks, machine) is
  * synchronous, the state is committed and listeners are notified before the
  * call returns and the returned promise is *already fulfilled* — no `async`
@@ -52,7 +52,7 @@ import type {
   WizardRuntimeOptions,
 } from './types'
 
-/** Subscriptions made after `dispose()` are inert (D20): they never fire and unsubscribe is a no-op. */
+/** Subscriptions made after `dispose()` are inert: they never fire and unsubscribe is a no-op. */
 const noop = (): void => {}
 
 export { machineEnv, toConfig } from './config'
@@ -88,7 +88,7 @@ export function createWizardRuntime(def: CompiledFlow, opts: WizardRuntimeOption
 /**
  * The child factory of one runtime: each child runs with ITS deps (`flow.flow(child, { deps })`
  * mapped + parsed by the bridge, or the parent's deps passed through) and inherits the parent's
- * correlation id (§9.1 — same business entity) and is linked to its parent (`ParentLink`);
+ * correlation id (same business entity) and is linked to its parent (`ParentLink`);
  * everything else in the config is shared.
  */
 function childFactory(

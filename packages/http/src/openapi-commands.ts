@@ -30,7 +30,7 @@ const DESCRIPTIONS: { readonly [K in FlowCommandType | StepCommandType]: string 
 }
 
 /** Commands exposed by one API. */
-export interface CommandSelection {
+interface CommandSelection {
   readonly flow: ReadonlySet<FlowCommandType>
   readonly steps: ReadonlyMap<string, ReadonlySet<StepCommandType>>
 }

@@ -8,7 +8,7 @@
  * envelopes; the two folds are identical because `apply` only reads `seq`/`at`
  * from the envelope.
  *
- * Global rules (§0): unknown messages → `[]`; unknown steps → `command.rejected`
+ * Global rules: unknown messages → `[]`; unknown steps → `command.rejected`
  * / `result.ignored`; token checks come first on every `res.*`; terminal /
  * compensating / not-started gates come first on every command.
  *
@@ -71,7 +71,7 @@ function isHopBoundary(msg: Message): boolean {
 }
 
 /**
- * `send`: wait timeouts and retries already due fire first (D9: deadlines are absolute, also
+ * `send`: wait timeouts and retries already due fire first (deadlines are absolute, also
  * across restarts), then the event is routed — unless those timers ended the run.
  */
 function cmdSend(b: Batch, cmd: Extract<Command, { type: 'send' }>): void {
@@ -82,7 +82,7 @@ function cmdSend(b: Batch, cmd: Extract<Command, { type: 'send' }>): void {
 }
 
 function decideCommand(b: Batch, cmd: Command): void {
-  // A remembered delivery is a duplicate in every status (D8): it emits nothing.
+  // A remembered delivery is a duplicate in every status: it emits nothing.
   if (
     cmd.type === 'send' &&
     cmd.eventId !== undefined &&

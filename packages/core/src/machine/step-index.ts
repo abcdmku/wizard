@@ -11,7 +11,7 @@ import type { StepRecord } from './state'
 
 type Steps = Readonly<Record<string, StepRecord>>
 
-export interface StepIndex {
+interface StepIndex {
   /** Ids with `pendingActivation`, in ascending `arrivedSeq` order. */
   readonly pending: readonly string[]
   /** Records with status `failed`. */

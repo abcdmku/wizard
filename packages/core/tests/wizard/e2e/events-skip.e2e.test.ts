@@ -1,9 +1,7 @@
 /**
- * v0.2 end-to-end with the REAL machine through `createWizardRuntime` /
- * `resumeWizardRuntime`: runtime methods (`skip`, `invalidate`, `attach`,
- * `progress`, `readyViews`), the `correlationId` option, `on` on views / flow
- * level with real hooks, `mapError` data (raw error, persistence check),
- * idempotent crash-resume, and `migrate`.
+ * End-to-end with the REAL machine through `createWizardRuntime`: runtime methods (`skip`,
+ * `invalidate`, `attach`, `progress`, `readyViews`), the `correlationId` option, and `on` on
+ * views / flow level with real hooks.
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -22,7 +20,7 @@ import { e2e, tick } from './harness'
 const on = () => undefined
 const anyEvent = { guard: guard(() => true) }
 
-describe('e2e v0.2 — external events on every kind, flow-level, correlation, attach()', () => {
+describe('e2e — external events on every kind, flow-level, correlation, attach()', () => {
   it('a view handler returning { next } advances the cursor (cause event) without validation; SendResult lists the view', async () => {
     const def = flow({
       name: 'view-on',
@@ -146,7 +144,7 @@ describe('e2e v0.2 — external events on every kind, flow-level, correlation, a
   })
 })
 
-describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
+describe('e2e — skip / invalidate / progress / readyViews', () => {
   const dag = () =>
     flow({
       name: 'dag',
@@ -162,7 +160,7 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
       },
     })
 
-  it('progress() and readyViews() follow the run; skip() unblocks a slow task; invalidate() cascades and rejects active steps', async () => {
+  it('progress() and readyViews() follow the run; skip() unblocks a slow step; invalidate() cascades and rejects active steps', async () => {
     const t = e2e(dag())
     expect(t.run.progress()).toEqual({ done: 0, total: 7, ratio: 0 })
     expect(t.run.readyViews()).toEqual([])
@@ -244,7 +242,7 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
     expect(t.run.getState().output).toBeUndefined()
   })
 
-  it('when: false on a task skips it in the same drain as readiness (sync predicate); an async predicate resolves later', async () => {
+  it('when: false on a step skips it in the same drain as readiness (sync predicate); an async predicate resolves later', async () => {
     let asked = 0
     const def = flow({
       name: 'when',

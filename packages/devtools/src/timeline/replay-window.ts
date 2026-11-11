@@ -48,7 +48,7 @@ export function stateAt(window: ReplayWindow, flow: AnyFlow, seq: number): Repla
   return replay(flow, window.events, { from: window.base, upTo: seq })
 }
 
-export const DEFAULT_REPLAY_EVENTS = 5_000
+const DEFAULT_REPLAY_EVENTS = 5_000
 
 /**
  * Create the replay window of a run: the base is the run's state when `attach()` runs (or
@@ -128,7 +128,7 @@ export function createReplayWindow(
   }
 }
 
-export interface UseReplayWindowOptions {
+interface UseReplayWindowOptions {
   readonly maxEvents?: number
   readonly context?: unknown
   /** A window created (and attached) by an owner higher up: reused, not attached again. */

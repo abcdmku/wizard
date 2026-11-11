@@ -20,7 +20,7 @@ export interface ChildHandle {
 
 /**
  * A child interpreter's link to the run that embeds it. Its hook calls wait while an ancestor
- * still has messages queued (D6 across a tree: a parent `cancel` a listener queued lands first),
+ * still has messages queued (so a parent `cancel` that a listener queued lands first),
  * and a child that stops on its own (a fatal error, or a direct `dispose()`) fails the flow step.
  */
 export interface ParentLink {

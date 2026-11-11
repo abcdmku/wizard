@@ -9,19 +9,21 @@ export type TypesOf<F extends AnyFlow> = NonNullable<F['~types']>
 export type Ctx<F extends AnyFlow> = TypesOf<F>['ctx']
 /** The input accepted by the context boundary at run creation. @public */
 export type ContextInput<F extends AnyFlow> = TypesOf<F>['ctxIn']
-/** Every dep the hooks see. */
 /** All dependencies seen by hooks, including supplied dependencies. @public */
 export type DepsOf<F extends AnyFlow> = TypesOf<F>['deps']
-/** Deps still required when a run is created (`DepsOf` minus what `provide()` bound). */
-/** The dependencies still required when creating or resuming a run. @public */
+/**
+ * The dependencies still required when creating or resuming a run.
+ * That is `DepsOf` minus what `provide()` bound.
+ * @public
+ */
 export type RequiredDepsOf<F extends AnyFlow> = RemainingDeps<
   TypesOf<F>['deps'],
   TypesOf<F>['provided']
 >
-export type EventMapOf<F extends AnyFlow> = unknown extends TypesOf<F>['events']
+type EventMapOf<F extends AnyFlow> = unknown extends TypesOf<F>['events']
   ? Record<string, unknown>
   : TypesOf<F>['events']
-export type EventInputMapOf<F extends AnyFlow> = unknown extends TypesOf<F>['eventsIn']
+type EventInputMapOf<F extends AnyFlow> = unknown extends TypesOf<F>['eventsIn']
   ? Record<string, unknown>
   : TypesOf<F>['eventsIn']
 /** The event boundary input accepted by send. @public */
@@ -35,7 +37,7 @@ type StepsOf<F extends AnyFlow> = TypesOf<F>['steps']
 /** The literal ids of an assembled wizard. @public */
 export type StepId<F extends AnyFlow> =
   unknown extends StepsOf<F> ? string : Extract<keyof StepsOf<F>, string>
-export type FactsOf<F extends AnyFlow, K> =
+type FactsOf<F extends AnyFlow, K> =
   unknown extends StepsOf<F>
     ? StepFacts
     : K extends keyof StepsOf<F>

@@ -26,11 +26,11 @@ import type { Snapshot } from '../snapshot'
 import type { RuntimeContext } from './context'
 import type { WizardRuntime } from './types'
 
-export interface RuntimeHalted extends RuntimeHalt {
+interface RuntimeHalted extends RuntimeHalt {
   readonly snapshot: Snapshot
 }
 
-export interface RuntimeWaiting {
+interface RuntimeWaiting {
   readonly status: 'waiting'
   readonly waitingFor: readonly WaitingFor[]
   readonly snapshot: Snapshot
@@ -80,7 +80,7 @@ export function outcomeOf(ctx: RuntimeContext): RuntimeOutcome | undefined {
 }
 
 /** Parked on sleeps only: their timers will move the run on without outside input. */
-export function isPureSleep(outcome: RuntimeOutcome): boolean {
+function isPureSleep(outcome: RuntimeOutcome): boolean {
   return (
     outcome.status === 'waiting' &&
     outcome.waitingFor.length > 0 &&

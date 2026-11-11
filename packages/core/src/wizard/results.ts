@@ -2,7 +2,7 @@
  * Result types returned by `Run` methods and `dispatch()`.
  *
  * One contract: results are values; the machine never throws for data
- * problems (see plan §8.2). `WizardError` is reserved for programmer errors.
+ * problems. `WizardError` is reserved for programmer errors.
  *
  * @public
  */

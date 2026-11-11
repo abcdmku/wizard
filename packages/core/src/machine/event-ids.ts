@@ -1,5 +1,5 @@
 /**
- * Delivered `send` event ids (D8): a bounded, TTL-pruned record kept in the state, so dedupe
+ * Delivered `send` event ids: a bounded, TTL-pruned record kept in the state, so dedupe
  * survives snapshots, resumes and resets. A remembered id is a duplicate delivery that changes
  * nothing; an expired one is a new delivery. Pure.
  *

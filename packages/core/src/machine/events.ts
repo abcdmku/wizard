@@ -100,6 +100,3 @@ export const RUN_EVENT_TYPES: readonly DomainEventType[] = Object.freeze([
   'transition.rejected',
   'transition.started',
 ])
-
-/** Narrow a domain event by type. */
-export type EventOf<T extends DomainEventType> = Extract<DomainEvent, { type: T }>

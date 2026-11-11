@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { type LayoutEngine, type LayoutResult, layoutGraph } from '../layout/elk'
 import { buildGraphModel, type GraphModel } from '../layout/model'
 
-export interface GraphLayoutState {
+interface GraphLayoutState {
   readonly model: GraphModel | undefined
   readonly layout: LayoutResult | undefined
   /** True while the engine works on the current model. */

@@ -27,7 +27,7 @@ import {
   sameVersion,
 } from './durable-run-values'
 
-export type DurableOpenRequest<F extends AnyWizard> =
+type DurableOpenRequest<F extends AnyWizard> =
   | { readonly kind: 'create'; readonly options: DurableRunOptions<F> }
   | { readonly kind: 'resume'; readonly options: DurableResumeOptions<F> }
 

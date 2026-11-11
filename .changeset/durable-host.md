@@ -21,7 +21,7 @@ Host durable runs by key and move the store protocol to its own entry.
   takeover. Event `digest`/`expectedVersion`, `EVENT_PENDING`, and the dedupe claim `kind` are gone;
   command ids keep their digest check and `expectedVersion` gate.
 - `DurableRunHost.send` and `DurableHost.send` type-check a typed payload exactly like
-  `FlowRun.send` (excess properties are rejected; an `unknown` body is still accepted).
+  `Run.send` (excess properties are rejected; an `unknown` body is still accepted).
   `host.claimTimer` is removed. `release()` and `dispose()` wait for commands and
   events already sent to the host.
 - `renew: 'manual' | { everyMs }` replaces `renewEveryMs`; `everyMs` must be shorter than the

@@ -6,7 +6,9 @@
  * @internal
  */
 
-import { isRunFailure, type RunFailureKind } from '../authoring/run-adapter'
+import { toIssue } from '../authoring/boundary'
+import { isRunFailure } from '../authoring/run-adapter'
+import type { RunFailureKind } from '../machine/commands'
 import type { Issue, SerializedError } from '../machine/state'
 import { firstNonJson } from '../wizard/json'
 
@@ -112,17 +114,4 @@ export function unwrapBoundary(result: unknown, what: string): unknown {
     'BOUNDARY_INVALID_RESULT',
     `${what} boundary returned an invalid result`,
   )
-}
-
-function toIssue(raw: unknown): Issue {
-  if (
-    typeof raw === 'object' &&
-    raw !== null &&
-    'message' in raw &&
-    typeof raw.message === 'string'
-  ) {
-    const path = 'path' in raw && Array.isArray(raw.path) ? raw.path : undefined
-    return path === undefined ? { message: raw.message } : { message: raw.message, path }
-  }
-  return { message: String(raw) }
 }

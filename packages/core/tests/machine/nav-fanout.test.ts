@@ -1,5 +1,5 @@
 /**
- * Navigation pipeline (§1.4 / plan §8.3) — fan-out atomicity, cursor rules, auto-advance and the multi-target entry follow-ups.
+ * Navigation pipeline — fan-out atomicity, cursor rules, auto-advance and the multi-target entry follow-ups.
  */
 import { describe, expect, it } from 'vitest'
 import { createHarness, eventStep, flow, of, routingStep, runStep, view } from '../helpers/fixtures'
@@ -43,7 +43,7 @@ describe('fan-out atomicity and cursor rules', () => {
     expect(h.state.active).toEqual(['a'])
   })
 
-  it('all canEnter ok → every target arrives; tasks run in parallel; the first view becomes current', () => {
+  it('all canEnter ok → every target arrives; steps run in parallel; the first view becomes current', () => {
     const h = createHarness(
       flow({
         start: 'a',
@@ -148,7 +148,7 @@ describe('fan-out atomicity and cursor rules', () => {
     expect(hops).toBeLessThan(1010)
   })
 
-  it('hops restart at every external message: a send-driven wait/task loop never trips the guard', () => {
+  it('hops restart at every external message: a send-driven wait/step loop never trips the guard', () => {
     const h = createHarness(
       flow({
         start: 'w',
@@ -202,7 +202,7 @@ describe('fan-out atomicity and cursor rules', () => {
 })
 
 describe('review follow-ups — atomic multi-target entry, go after back', () => {
-  it('next() to a task whose enter hook fails: no commit, no successful settle, from stays current', () => {
+  it('next() to a step whose enter hook fails: no commit, no successful settle, from stays current', () => {
     const h = createHarness(
       flow({
         start: 'a',
@@ -238,7 +238,7 @@ describe('review follow-ups — atomic multi-target entry, go after back', () =>
     expect(h.pending('run')).toHaveLength(0)
   })
 
-  it('next() to a task whose enter succeeds: commit, then the run starts without a second enter call', () => {
+  it('next() to a step whose enter succeeds: commit, then the run starts without a second enter call', () => {
     const h = createHarness(
       flow({
         start: 'a',
@@ -314,7 +314,7 @@ describe('review follow-ups — atomic multi-target entry, go after back', () =>
     expect(late.state.active).toEqual(['a'])
   })
 
-  it('auto-advance targets (from a completed task) still enter through the scheduler sub-phase', () => {
+  it('auto-advance targets (from a completed step) still enter through the scheduler sub-phase', () => {
     const h = createHarness(
       flow({
         start: 't',

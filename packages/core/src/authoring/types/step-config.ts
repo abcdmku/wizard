@@ -167,7 +167,7 @@ export type ChildDeps<CF extends AnyFlow> = [NonNullable<CF['~types']>['provided
         : never]?: DepsOf<CF>[K]
     }
 /** Added when this wizard's deps do not cover `RequiredDepsOf<child>`: the `deps` mapper is required. */
-export interface ChildDepsRequired<C, D, Nd, CD, Item> {
+interface ChildDepsRequired<C, D, Nd, CD, Item> {
   readonly deps: (args: HookArgsFor<C, D, NeedsOutput<Nd>, Item>) => CD
 }
 export type DepsRule<C, D, Nd, Item, CF extends AnyFlow> =

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { WizardState } from '../../src/machine/state'
 import { type Snapshot, toSnapshot, validateSnapshot } from '../../src/wizard/snapshot'
-import { flow, initialState, testEnv, trusted } from '../helpers/fake-machine'
+import { flow, initialState, testEnv } from '../helpers/fake-machine'
+import { trusted } from '../helpers/fixtures'
 
 const child = flow({ name: 'child', steps: { c: { kind: 'view' } } })
 const def = flow({
   name: 'main',
   version: 2,
-  events: { ping: trusted },
+  events: { ping: trusted() },
   steps: {
     a: { kind: 'view', next: { kind: 'static', targets: ['f'] } },
     f: { kind: 'flow', child },
@@ -141,6 +142,42 @@ describe('toSnapshot / validateSnapshot', () => {
     expect(reasonsOf({ ...snap, state: { ...s, timers: { t: { at: 'soon' } } } })).toContain(
       'state.timers.t: expected { at, fire }',
     )
+  })
+
+  it('accepts correlationId / when / cursorHint / skipReason / previousOutput and rejects malformed ones', () => {
+    const snap = base()
+    const s = snap.state
+    const end = s.steps.end!
+    const withEnd = (patch: object) => ({
+      ...snap,
+      state: { ...s, steps: { ...s.steps, end: { ...end, ...patch } } },
+    })
+    expect(
+      reasonsOf({
+        ...snap,
+        state: {
+          ...s,
+          correlationId: 'c1',
+          nav: { ...s.nav, cursorHint: 'a' },
+          steps: {
+            ...s.steps,
+            end: { ...end, when: 'pending', skipReason: 'command', previousOutput: 1 },
+          },
+        },
+      }),
+    ).toEqual([])
+    expect(reasonsOf({ ...snap, state: { ...s, correlationId: 7 } })).toEqual([
+      'state.correlationId: expected a string',
+    ])
+    expect(reasonsOf({ ...snap, state: { ...s, nav: { ...s.nav, cursorHint: 'end' } } })).toEqual([
+      "state.nav.cursorHint: expected a view id, got 'end'",
+    ])
+    expect(reasonsOf(withEnd({ when: 'maybe' }))).toEqual([
+      "state.steps.end.when: expected 'pending' | 'passed', got 'maybe'",
+    ])
+    expect(reasonsOf(withEnd({ skipReason: 1 }))).toEqual([
+      'state.steps.end.skipReason: expected a string',
+    ])
   })
 
   it('rejects duplicate active entries, non-view history and inconsistent derived status', () => {

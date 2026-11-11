@@ -3,7 +3,7 @@ import type { AnyHTTPResource, HTTPSource } from './http'
 import { decodeSegment, failure, methodNotAllowed } from './http-response'
 
 /** Path parameters of `pattern` (`/api/:runId`) in `pathname`, or `undefined` when it does not match. */
-export function matchPath(
+function matchPath(
   pattern: string,
   pathname: string,
 ): { readonly [name: string]: string } | undefined {

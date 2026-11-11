@@ -13,7 +13,7 @@ declare function child<const P extends readonly [string, ...string[]], const C>(
 ): { readonly type: 'child'; readonly path: P; readonly command: C }
 
 describe('typed wire commands', () => {
-  it('Command<F> types every id: go/setInput/resetInput views, startStep/retry tasks, send events, compensate.from steps', () => {
+  it('Command<F> types every id: go/setInput/resetInput views, startStep/retry steps, send events, compensate.from steps', () => {
     const go: Command<CheckoutF> = { type: 'go', step: 'shipping' }
     expectTypeOf(go).toMatchTypeOf<Command>()
     cmd({ type: 'startStep', step: 'reserve' })

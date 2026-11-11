@@ -21,6 +21,9 @@ export interface CallEffect {
   readonly token: ResultToken
 }
 
+/** Why a snapshot write is requested: a state change, the run's end, or an explicit save. */
+export type PersistReason = 'change' | 'final' | 'manual'
+
 export type Effect =
   | CallEffect
   | {
@@ -38,7 +41,7 @@ export type Effect =
     }
   | { readonly kind: 'child.send'; readonly step: string; readonly command: Command }
   | { readonly kind: 'child.dispose'; readonly step: string }
-  | { readonly kind: 'persist'; readonly reason: 'change' | 'final' | 'manual' }
+  | { readonly kind: 'persist'; readonly reason: PersistReason }
   /** Resolve the public promise associated with a transaction/command. */
   | {
       readonly kind: 'settle'
@@ -47,5 +50,3 @@ export type Effect =
       readonly value?: unknown
       readonly error?: unknown
     }
-
-export type EffectKind = Effect['kind']

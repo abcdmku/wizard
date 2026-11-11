@@ -38,17 +38,3 @@ export interface Checker<O, I = O> {
  * @public
  */
 export type Boundary<O, I = O> = StandardSchemaV1<I, O> | Checker<O, I>
-
-/**
- * Output type of a boundary.
- * @public
- */
-export type InferBoundary<B> =
-  B extends StandardSchemaV1<unknown, infer O> ? O : B extends Checker<infer O, unknown> ? O : never
-
-/**
- * Input (draft) type of a boundary.
- * @public
- */
-export type InferBoundaryInput<B> =
-  B extends StandardSchemaV1<infer I, unknown> ? I : B extends Checker<unknown, infer I> ? I : never

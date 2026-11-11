@@ -86,7 +86,7 @@ export interface StepError extends SerializedError {
   readonly data?: unknown
 }
 
-export interface GuardResult {
+interface GuardResult {
   readonly ok: boolean
   /** seq of the event that recorded this result. */
   readonly seq: number
@@ -265,7 +265,7 @@ export interface WizardState {
   readonly instanceId: string
   /** Correlation id used to filter external events (`defineWizard({ correlate })`). */
   readonly correlationId?: string
-  /** Delivered `send` event ids still inside the dedupe window, oldest first (D8). */
+  /** Delivered `send` event ids still inside the dedupe window, oldest first. */
   readonly eventIds?: readonly SeenEventId[]
   /** Increments on every resume so a restarted instance is distinguishable (Mirror frames carry `epoch` + `seq`). */
   readonly epoch: number

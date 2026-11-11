@@ -1,5 +1,5 @@
 /**
- * D4: a dynamic `next` that names an unknown step, or throws, fails its step under the flow's
+ * A dynamic `next` that names an unknown step, or throws, fails its step under the flow's
  * failure policy instead of letting the run finish `done`.
  */
 import { describe, expect, it } from 'vitest'

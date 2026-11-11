@@ -1,7 +1,7 @@
 /**
  * Commands (public, JSON-serializable intents) and internal messages.
  *
- * Every `FlowRun` method is sugar over `dispatch(command)`. Transports (Mirror,
+ * Every `Run` method is sugar over `dispatch(command)`. Transports (Mirror,
  * HTTP, WebSocket) carry `Command` objects; the machine (`decide`) validates
  * them and turns them into events. Internal messages (`EffectResult`,
  * `TimerFired`) never cross the wire.
@@ -22,7 +22,7 @@ export type Command =
   | { readonly type: 'resetInput'; readonly step: string }
   /**
    * External event whose payload was ALREADY parsed by the flow's event boundary. `eventId`
-   * dedupes deliveries (D8): an id the run still remembers is a duplicate and changes nothing.
+   * dedupes deliveries: an id the run still remembers is a duplicate and changes nothing.
    */
   | {
       readonly type: 'send'
@@ -35,7 +35,7 @@ export type Command =
   | { readonly type: 'sendRejected'; readonly event: string; readonly issues: readonly Issue[] }
   | { readonly type: 'startStep'; readonly step: string }
   | { readonly type: 'startReady' }
-  /** Re-run a failed runnable step; `patch` is merged into the context first (D12). */
+  /** Re-run a failed runnable step; `patch` is merged into the context first. */
   | {
       readonly type: 'retry'
       readonly step: string
@@ -50,8 +50,6 @@ export type Command =
   | { readonly type: 'invalidate'; readonly step: string; readonly cascade?: boolean }
   /** Address a command to a nested flow. `path` is relative to this run (`['fulfil']`, `['fulfil','payment']`). */
   | { readonly type: 'child'; readonly path: readonly string[]; readonly command: Command }
-
-export type CommandType = Command['type']
 
 // ---------------------------------------------------------------------------
 // Internal messages
@@ -102,7 +100,8 @@ export type HookName =
   /** Flow-level `on[event]` handler (`event.flowDelivered`); the call's `step` is `''` (no step). */
   | 'flowOn'
 
-export type TaskFailureKind = 'typed' | 'defect' | 'interrupted'
+/** A failure channel produced by a run adapter. @public */
+export type RunFailureKind = 'typed' | 'defect' | 'interrupted'
 
 export type EffectResult =
   | {
@@ -138,7 +137,7 @@ export type EffectResult =
       readonly retryable?: false
       /** Optional failure classification supplied by a runtime-neutral run adapter. */
       readonly failure?: {
-        readonly kind: TaskFailureKind
+        readonly kind: RunFailureKind
         /** Present only after the adapter validated its durable error value. */
         readonly data?: unknown
       }
@@ -190,7 +189,7 @@ export type InternalMessage =
       readonly patch: Readonly<Record<string, unknown>> | ContextUpdater
       readonly by?: string
     }
-  /** Emitted once by `wizard.resume()` after loading a snapshot (see plan §8.8 recovery matrix). */
+  /** Emitted once by `wizard.resume()` after loading a snapshot (see `decide/timers-resume.ts`). */
   | { readonly type: 'resume'; readonly fromSeq: number }
 
 /** `update(fn)`: the patch computed from the current context (`undefined` = no change). */

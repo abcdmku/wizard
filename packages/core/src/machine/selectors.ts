@@ -62,7 +62,7 @@ function memo(state: WizardState): Memo {
 }
 
 // ---------------------------------------------------------------------------
-// Readiness (§3.1)
+// Readiness
 // ---------------------------------------------------------------------------
 
 export function isRunnableStep(def: CompiledStep | undefined): def is CompiledStep & {
@@ -114,7 +114,7 @@ export function awaitingWhen(def: CompiledFlow, state: WizardState, id: string):
   return def.steps[id]?.hooks.when !== undefined && state.steps[id]?.when !== 'passed'
 }
 
-/** Activated + gated, ignoring `when`: `pendingActivation && status !== 'active' && depsSatisfied(id)` (§3.1). */
+/** Activated + gated, ignoring `when`: `pendingActivation && status !== 'active' && depsSatisfied(id)`. */
 export function eligible(def: CompiledFlow, state: WizardState, id: string): boolean {
   const rec = state.steps[id]
   if (rec === undefined) return false
@@ -303,7 +303,7 @@ export function progress(state: WizardState, def: CompiledFlow): Progress {
 }
 
 /**
- * §9.6: views the user can be on right now — the current view plus every ready view, in
+ * Views the user can be on right now — the current view plus every ready view, in
  * declaration order. Memoized per state (one array identity per seq).
  */
 export function readyOrCurrentViews(def: CompiledFlow, state: WizardState): readonly string[] {

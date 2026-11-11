@@ -7,6 +7,7 @@
  * @internal
  */
 
+import { isRecord } from '../record'
 import type { FlowGraph, FlowGraphNode, JSONSchema } from './types'
 
 /** 16 hex chars; equal for structurally equal manifests. */
@@ -72,7 +73,7 @@ function bare(schema: unknown): unknown {
 /** JSON with object keys sorted (arrays keep their order). */
 function canonical(value: unknown): string {
   return JSON.stringify(value, (_key, v: unknown) =>
-    typeof v === 'object' && v !== null && !Array.isArray(v)
+    isRecord(v)
       ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
       : v,
   )

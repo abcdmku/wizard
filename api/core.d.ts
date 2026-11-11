@@ -53,7 +53,7 @@ type Command$1 = {
 } |
 /**
  * External event whose payload was ALREADY parsed by the flow's event boundary. `eventId`
- * dedupes deliveries (D8): an id the run still remembers is a duplicate and changes nothing.
+ * dedupes deliveries: an id the run still remembers is a duplicate and changes nothing.
  */
 {
   readonly type: 'send';
@@ -73,7 +73,7 @@ type Command$1 = {
 } | {
   readonly type: 'startReady';
 } |
-/** Re-run a failed runnable step; `patch` is merged into the context first (D12). */
+/** Re-run a failed runnable step; `patch` is merged into the context first. */
 {
   readonly type: 'retry';
   readonly step: string;
@@ -106,6 +106,8 @@ type Command$1 = {
   readonly path: readonly string[];
   readonly command: Command$1;
 };
+/** A failure channel produced by a run adapter. @public */
+type RunFailureKind = 'typed' | 'defect' | 'interrupted';
 interface TimerFired {
   readonly type: 'timer.fired';
   readonly timerId: string;
@@ -345,7 +347,7 @@ interface WizardState {
   readonly instanceId: string;
   /** Correlation id used to filter external events (`defineWizard({ correlate })`). */
   readonly correlationId?: string;
-  /** Delivered `send` event ids still inside the dedupe window, oldest first (D8). */
+  /** Delivered `send` event ids still inside the dedupe window, oldest first. */
   readonly eventIds?: readonly SeenEventId[];
   /** Increments on every resume so a restarted instance is distinguishable (Mirror frames carry `epoch` + `seq`). */
   readonly epoch: number;
@@ -568,8 +570,6 @@ interface Checker<O, I = O> {
 type Boundary<O, I = O> = StandardSchemaV1<I, O> | Checker<O, I>;
 //#endregion
 //#region src/authoring/run-adapter.d.ts
-/** A failure channel produced by a run adapter. @public */
-type RunFailureKind = 'typed' | 'defect' | 'interrupted';
 /**
  * Internal marker carried by an adapter rejection. `data` is only included after the adapter
  * has validated it with its durable error schema.
@@ -677,8 +677,10 @@ interface StepFacts {
   readonly runnable?: boolean;
   readonly each?: boolean;
 }
-/** Facts only `steps()` reads: references, needs, successors and constructor-level problems. */
-/** `cond`: the step has its own `when`, so it may be skipped. */
+/**
+ * Facts only `steps()` reads: references, needs, successors and constructor-level problems.
+ * `cond`: the step has its own `when`, so it may be skipped.
+ */
 interface Links<Refs extends string, Objs, Needs, Alt, Succ extends boolean, Problem extends string, Cond extends boolean = false, Rt = never> {
   readonly cond: Cond;
   readonly route: Rt;
@@ -697,11 +699,12 @@ interface Binding<C, Ev, D> {
 /** Invariant probe for the definition facts the step was built with. */
 type BoundTo<C, Ev, D> = (facts: Binding<C, Ev, D>) => Binding<C, Ev, D>;
 /**
- * A step as returned by `step`, `view` or `flow` (every field present; values are phantom).
+ * A constructor record with authored config and inference facts.
+ * It is what `step`, `view` or `flow` returns (every field present; values are phantom).
  * `'~exact'` makes a step invariant in its facts, so `steps()` matches a `needs` ref to the map
  * entry it IS rather than to any step whose output happens to be a subtype.
+ * @public
  */
-/** A constructor record with authored config and inference facts. @public */
 interface Step<K extends StepKind, X extends StepFacts, L, B> {
   readonly kind: K;
   readonly config: StepRecordConfig;
@@ -715,23 +718,27 @@ interface Step<K extends StepKind, X extends StepFacts, L, B> {
 }
 /** Whether a step's output can be the wizard output: no successor (`sink`), maybe skipped (`maybe`). */
 type SinkRole = 'sink' | 'maybe' | 'inner';
-/** A step as stored in an assembled wizard: kind, facts and sink role only. */
 /** Compact step facts and its sink role in the assembled wizard. @public */
 interface FlowStep<K extends StepKind, X extends StepFacts, Role extends SinkRole> {
   readonly kind: K;
   readonly '~types': X | undefined;
   readonly '~role': Role | undefined;
 }
-/** Structural constraint for generic step modules. */
 /** A structural constraint for generic step modules and references. @public */
 type AnyStep = StepLike;
 //#endregion
 //#region src/authoring/types/hook-args.d.ts
-/** Keys to change; an optional key may be cleared with `undefined`. */
-/** A shallow context patch that can clear optional properties. @public */
+/**
+ * A shallow context patch that can clear optional properties.
+ * It lists the keys to change. An optional key may be cleared with `undefined`.
+ * @public
+ */
 type ContextPatch<C> = { readonly [K in keyof C]?: C[K] | ({} extends Pick<C, K> ? undefined : never); };
-/** What every hook receives. `N` is the typed `needs` map (`{}` without `needs`). */
-/** Shared hook arguments including typed needs and atomic context updates. @public */
+/**
+ * Shared hook arguments including typed needs and atomic context updates.
+ * Every hook receives them. `N` is the typed `needs` map (`{}` without `needs`).
+ * @public
+ */
 interface HookArgs<C, D, N = {}> {
   readonly context: C;
   /** Patch the context; the function form applies atomically to the latest committed context. */
@@ -782,8 +789,11 @@ interface EventArgs<C, D, P, E, N = {}> extends HookArgs<C, D, N> {
   readonly payload: P;
 }
 type HookArgsFor<C, D, N, Item> = IsUnset<Item> extends true ? HookArgs<C, D, N> : EachHookArgs<C, D, N, Item>;
-/** Flow-level handlers do not belong to one step. */
-/** Flow event arguments with the parsed event payload. @public */
+/**
+ * Flow event arguments with the parsed event payload.
+ * A flow-level handler does not belong to one step, so it has no `step`, `needs` or `progress`.
+ * @public
+ */
 interface FlowOnArgs<C, D, P, E = string> extends Omit<HookArgs<C, D>, 'step' | 'needs' | 'progress'> {
   readonly event: E;
   readonly payload: P;
@@ -795,9 +805,12 @@ type OutputOfStep<S> = S extends {
 } ? NonNullable<P> extends {
   readonly output: infer O;
 } ? O : never : never;
-/** `needs: { alias: step | { any: [steps] } | { optional: step } }`. */
-/** One need: a step object, the first of several (`any`), or a step that may be skipped (`optional`). */
-/** One data requirement: a step, the first of several, or an optional step. @public */
+/**
+ * One data requirement: a step, the first of several, or an optional step.
+ * Written as `needs: { alias: step | { any: [steps] } | { optional: step } }`. `any` takes the
+ * first of several steps to finish, and `optional` allows the step to be skipped.
+ * @public
+ */
 type NeedRef = StepLike | {
   readonly any: readonly StepLike[];
 } | {
@@ -812,8 +825,11 @@ type NeedOutput<S> = S extends string ? any : S extends {
 } ? OutputOfStep<R> : S extends {
   readonly optional: infer R;
 } ? OutputOfStep<R> | undefined : OutputOfStep<S>;
-/** The typed `args.needs` of a step. */
-/** The parsed outputs exposed by the aliases in needs. @public */
+/**
+ * The parsed outputs exposed by the aliases in needs.
+ * This is the typed `args.needs` of a step.
+ * @public
+ */
 type NeedsOutput<Nd> = { readonly [A in keyof Nd]: NeedOutput<Nd[A]>; };
 type NeedStep<S> = S extends {
   readonly any: readonly (infer R)[];
@@ -2037,7 +2053,7 @@ declare class RunLifecycleError extends Error {
 //#endregion
 //#region src/wizard/runtime/types.d.ts
 /**
- * §9.5: rewrite a snapshot persisted by an older flow version. Called only when the
+ * Rewrite a snapshot persisted by an older flow version. Called only when the
  * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
  * incompatible); the result is stamped with the flow's current version and validated like any
  * snapshot (`renameSteps` rewrites renamed step ids). May return a promise — then only
@@ -2597,8 +2613,11 @@ type WizardOptions<F extends AnyFlow> = Omit<RunOptions<F>, 'context' | 'deps'> 
 type WizardResumeOptions<F extends AnyFlow> = Omit<WizardOptions<F>, 'instanceId' | 'correlationId'> & Pick<ResumeOptions<F>, 'migrate'>;
 type SureKeys<Q> = { [K in keyof Q]-?: {} extends Pick<Q, K> ? never : K; }[keyof Q];
 type OptionsArgs<O> = {} extends O ? [options?: O] : [options: O];
-/** A wizard IS its flow, plus run constructors. `provide()` returns a new wizard. */
-/** A flow with bound creation, resume, execution and dependency methods. @public */
+/**
+ * A flow with bound creation, resume, execution and dependency methods.
+ * A wizard is its flow plus those methods. `provide()` returns a new wizard.
+ * @public
+ */
 interface Wizard<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never, EvIn = Ev> extends Flow<C, CIn, Ev, D, T, O, P, EvIn> {
   create(input: CIn, ...options: OptionsArgs<WizardOptions<Flow<C, CIn, Ev, D, T, O, P, EvIn>>>): Run<this>;
   createAsync(input: CIn, ...options: OptionsArgs<WizardOptions<Flow<C, CIn, Ev, D, T, O, P, EvIn>>>): Promise<Run<this>>;
@@ -2627,8 +2646,11 @@ type OutputIn<S> = S extends {
 } ? NonNullable<X> extends {
   readonly output: infer O;
 } ? O : never : never;
-/** Structural constraint for code that creates runs of any wizard (durable hosts, registries). */
-/** A structural constraint for adapters that create or resume wizard runs. @public */
+/**
+ * A structural constraint for adapters that create or resume wizard runs.
+ * Durable hosts and registries use it.
+ * @public
+ */
 type AnyWizard = AnyFlow & {
   create(input: never, ...options: never[]): unknown;
   resume(snapshot: unknown, ...options: never[]): unknown;
@@ -2640,11 +2662,13 @@ type TypesOf<F extends AnyFlow> = NonNullable<F['~types']>;
 type Ctx<F extends AnyFlow> = TypesOf<F>['ctx'];
 /** The input accepted by the context boundary at run creation. @public */
 type ContextInput<F extends AnyFlow> = TypesOf<F>['ctxIn'];
-/** Every dep the hooks see. */
 /** All dependencies seen by hooks, including supplied dependencies. @public */
 type DepsOf<F extends AnyFlow> = TypesOf<F>['deps'];
-/** Deps still required when a run is created (`DepsOf` minus what `provide()` bound). */
-/** The dependencies still required when creating or resuming a run. @public */
+/**
+ * The dependencies still required when creating or resuming a run.
+ * That is `DepsOf` minus what `provide()` bound.
+ * @public
+ */
 type RequiredDepsOf<F extends AnyFlow> = RemainingDeps<TypesOf<F>['deps'], TypesOf<F>['provided']>;
 type EventMapOf<F extends AnyFlow> = unknown extends TypesOf<F>['events'] ? Record<string, unknown> : TypesOf<F>['events'];
 type EventInputMapOf<F extends AnyFlow> = unknown extends TypesOf<F>['eventsIn'] ? Record<string, unknown> : TypesOf<F>['eventsIn'];
@@ -2687,8 +2711,12 @@ type ChildStepId<F extends AnyFlow> = { [K in StepId<F>]: [KindOf<F, K>] extends
 type FlowOutput<F extends AnyFlow> = TypesOf<F>['output'];
 //#endregion
 //#region src/authoring/types/handlers.d.ts
-/** What a `waitFor` handler returns: nothing (output = payload), `{ done }`, keep waiting, or fail. */
-/** A wait verdict: complete with payload or done, keep waiting, or fail. @public */
+/**
+ * A wait verdict: complete with payload or done, keep waiting, or fail.
+ * A `waitFor` handler returns nothing (the payload becomes the output), `{ done }`,
+ * `{ keep: true }` or `{ fail }`.
+ * @public
+ */
 type WaitResult = void | undefined | {
   readonly done: unknown;
   readonly next?: never;
@@ -2815,7 +2843,6 @@ type ChildOption = keyof ChildConfig<unknown, unknown, unknown, unknown, unknown
 interface Steps<M> {
   readonly '~steps': M | undefined;
 }
-/** Constructors pre-bound to a wizard's context `C`, events `Ev` and deps `D`. */
 /** Constructors bound to one context, event map and dependency type. @public */
 interface StepApi<C, Ev, D> {
   step<R = any, OB = Unset, Em extends JsonValue | Unset = Unset, Ea extends JsonValue = never, Item = any, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Fb extends Ref = never, To extends Ref = never, H extends { readonly [E in Wk]?: (...args: never[]) => MaybePromise<WaitResult>; } = {}, Wk extends string = never, Xk extends string = never>(config: StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, To, H, Xk, Wk> & OptionKeys<Xk, StepOption>): Step<'step', RunFacts<StepOutput<R, OB, Item, H, Ev, Xk>, ErrorFor<Em, Ea | ReturnedAdapterError<R>>, 'run' extends Xk ? true : false> & ('each' extends Xk ? {
@@ -2856,11 +2883,16 @@ declare const boundary: {
 //#endregion
 //#region src/wizard/define-wizard.d.ts
 /**
+ * A wizard's output: the type of its `output` selector, else the union of its sink steps'
+ * outputs, plus `undefined` when it has no sink.
+ */
+type WizardOutput<O, M> = [O] extends [never] ? { [K in keyof M]: RoleIn<M[K]> extends 'inner' ? never : OutputIn<M[K]>; }[keyof M] | ('sink' extends { [K in keyof M]: RoleIn<M[K]>; }[keyof M] ? never : undefined) : O;
+/**
  * Define a wizard. Return `steps(map, { start? })` from the callback.
  * Context, dependencies, events, step references and sink outputs are inferred.
  * @public
  */
-declare function defineWizard<C, CIn, Ev = {}, D = unknown, O = never, M = UncheckedSteps, EvIn = Ev>(options: WizardDefinition<C, CIn, Ev, D, O, EvIn>, build: (api: StepApi<C, Ev, D>) => Steps<M>): Wizard<C, CIn, Ev, D, M, [O] extends [never] ? { [K in keyof M]: RoleIn<M[K]> extends 'inner' ? never : OutputIn<M[K]>; }[keyof M] | ('sink' extends { [K in keyof M]: RoleIn<M[K]>; }[keyof M] ? never : undefined) : O, never, EvIn>;
+declare function defineWizard<C, CIn, Ev = {}, D = unknown, O = never, M = UncheckedSteps, EvIn = Ev>(options: WizardDefinition<C, CIn, Ev, D, O, EvIn>, build: (api: StepApi<C, Ev, D>) => Steps<M>): Wizard<C, CIn, Ev, D, M, WizardOutput<O, M>, never, EvIn>;
 //#endregion
 //#region src/persistence/memory-store.d.ts
 /**

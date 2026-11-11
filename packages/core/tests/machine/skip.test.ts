@@ -1,5 +1,5 @@
 /**
- * v0.2 §10.2 — the `skip` command. Pure machine tests.
+ * The `skip` command. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -31,7 +31,7 @@ describe('skip command', () => {
       },
     })
 
-  it('an active task is cancelled first (run aborted, late result ignored), then skipped; optional needs count it as settled', () => {
+  it('an active step is cancelled first (run aborted, late result ignored), then skipped; optional needs count it as settled', () => {
     const h = createHarness(dag())
     h.start()
     h.cmd('next')
@@ -66,7 +66,7 @@ describe('skip command', () => {
     expect(replay(h)).toEqual(h.state)
   })
 
-  it('a ready (pending, budget-limited) task is skipped without entering; unknown / not-ready / done steps are rejected', () => {
+  it('a ready (pending, budget-limited) step is skipped without entering; unknown / not-ready / done steps are rejected', () => {
     const h = createHarness(
       flow({
         start: ['t1', 't2'],

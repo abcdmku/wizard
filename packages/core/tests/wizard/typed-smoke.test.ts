@@ -1,5 +1,5 @@
 /**
- * Typed end-to-end smoke test: `defineWizard` → `create` → view → task → sink, through the
+ * Typed end-to-end smoke test: `defineWizard` → `create` → view → step → sink, through the
  * real machine + interpreter. Asserts typed `getState().current`, typed outputs, projections,
  * events, resume, and the door-level errors of the façade.
  */
@@ -77,7 +77,7 @@ function make(extra: Partial<Parameters<typeof createRun<typeof checkoutFlow>>[1
   )
 }
 describe('createRun: typed end-to-end', () => {
-  it('view → task → final with typed state, outputs and events', async () => {
+  it('view → step → sink with typed state, outputs and events', async () => {
     const run = make()
     const events: RunEvent<typeof checkoutFlow>[] = []
     run.observe((e) => events.push(e))
@@ -155,7 +155,7 @@ describe('createRun: typed end-to-end', () => {
     })
     run.dispose()
   })
-  it('startStep(task) starts one ready task under autoRun: manual; reset() returns to the initial state', async () => {
+  it('startStep(step) starts one ready step under autoRun: manual; reset() returns to the initial state', async () => {
     const manualFlow = defineWizard(
       {
         name: 'manual',

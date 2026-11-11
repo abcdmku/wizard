@@ -87,7 +87,7 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     // @ts-expect-error `resetInput` accepts view ids only
     mirror.resetInput('reserve')
   })
-  it('run/retry accept task ids; send accepts declared events (+ correlationId); the whole Run sugar is there, as MirrorResults', () => {
+  it('run/retry accept step ids; send accepts declared events (+ correlationId); the whole Run sugar is there, as MirrorResults', () => {
     expectTypeOf(mirror.retry('reserve')).toEqualTypeOf<Promise<MirrorResult>>()
     // @ts-expect-error `retry` accepts task ids only
     mirror.retry('shipping')
@@ -136,7 +136,7 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     // @ts-expect-error `total` is not exposed by `other`
     otherMirror.getSnapshot()?.context.total
   })
-  it('v0.2: skip / invalidate sugar, and child(step) scopes the sugar to a nested flow (nestable)', () => {
+  it('skip / invalidate sugar, and child(step) scopes the sugar to a nested flow (nestable)', () => {
     expectTypeOf(mirror.skip('reserve', 'ops')).toEqualTypeOf<Promise<MirrorResult>>()
     expectTypeOf(mirror.invalidate('reserve', { cascade: false })).toEqualTypeOf<
       Promise<MirrorResult>

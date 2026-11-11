@@ -1,5 +1,5 @@
 /**
- * D3: the auto-advance loop guard counts synchronous hops only — an asynchronously settled hook
+ * The auto-advance loop guard counts synchronous hops only — an asynchronously settled hook
  * or child flow restarts it — and its error names the steps of the loop.
  */
 import { describe, expect, it } from 'vitest'

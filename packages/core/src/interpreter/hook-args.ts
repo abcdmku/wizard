@@ -10,7 +10,7 @@ import type { ContextUpdater } from '../machine/commands'
 import type { WizardState } from '../machine/state'
 import { setOwn } from '../machine/util'
 
-export interface BuildHookArgsInput {
+interface BuildHookArgsInput {
   readonly def: CompiledFlow
   readonly path: readonly string[]
   readonly instanceId: string

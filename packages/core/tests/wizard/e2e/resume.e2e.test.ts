@@ -19,7 +19,7 @@ import {
 import { e2e, e2eResume, roundTrip, tick } from './harness'
 
 describe('e2e resume', () => {
-  it('mid-wait: an overdue timeout fires during the resume batch, before any buffered event is delivered (D9)', async () => {
+  it('mid-wait: an overdue timeout fires during the resume batch, before any buffered event is delivered', async () => {
     const def = flow({
       name: 'wait-resume',
       start: 'form',
@@ -88,7 +88,7 @@ describe('e2e resume', () => {
     expect(e.run.getState().output).toBe('expired')
   })
 
-  it('mid-running task: resumed as step.failed{kind:interrupted}; retry() re-runs it', async () => {
+  it('mid-running step: resumed as step.failed{kind:interrupted}; retry() re-runs it', async () => {
     let calls = 0
     const def = flow({
       name: 'task-resume',

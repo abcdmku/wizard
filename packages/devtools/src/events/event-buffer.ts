@@ -9,9 +9,9 @@ import type { RunEvent } from '@openwizard/core'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import type { RunSource } from '../types'
 
-export const DEFAULT_MAX_EVENTS = 2_000
+const DEFAULT_MAX_EVENTS = 2_000
 
-export interface EventBuffer {
+interface EventBuffer {
   /** The current events, oldest first (at most `max`). */
   readonly events: readonly RunEvent[]
   subscribe(listener: () => void): () => void
@@ -20,7 +20,7 @@ export interface EventBuffer {
   push(event: RunEvent): void
 }
 
-export function createEventBuffer(max: number): EventBuffer {
+function createEventBuffer(max: number): EventBuffer {
   let events: readonly RunEvent[] = []
   let pending: RunEvent[] = []
   let scheduled = false

@@ -14,7 +14,7 @@ interface ExplainViewProps {
 type StepExplanation = Explanation<AnyFlow> & { readonly note?: string }
 
 /** `run.explain(step)` for the root, `run.child(...).explain(step)` down a path when the child is live. */
-export function explainAt(run: Run<AnyFlow>, ref: StepRef): StepExplanation {
+function explainAt(run: Run<AnyFlow>, ref: StepRef): StepExplanation {
   try {
     return runAt(run, ref.path).explain(ref.id)
   } catch (error) {

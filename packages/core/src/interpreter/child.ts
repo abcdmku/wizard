@@ -139,7 +139,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
       ...(entered && state.status === 'done' ? { done: { output: state.output } } : {}),
       ...(failed !== undefined ? { failed } : {}),
       ...(phase !== undefined ? { phase } : {}),
-      // A commit the parent did not drive (an async child hook settled) is a hop boundary (D3).
+      // A commit the parent did not drive (an async child hook settled) is a hop boundary.
       ...(driving === 0 ? { async: true as const } : {}),
     }
     opts.send(msg)
@@ -152,7 +152,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     entry.handle.dispose()
   }
 
-  /** A child that stopped while still attached fails its flow step (D20: the step never hangs). */
+  /** A child that stopped while still attached fails its flow step (the step never hangs). */
   const lose = (step: string, entry: Attached<H>, error: unknown): void => {
     if (children.get(step) !== entry) return
     children.delete(step)
@@ -174,7 +174,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     const slot: { entry?: Attached<H>; early?: { readonly error: unknown } } = {}
     const link: ParentLink = {
       busy: opts.turn.busy,
-      // A resumed drain is still parent-driven: its commits are no async hop boundary (D3).
+      // A resumed drain is still parent-driven: its commits are no async hop boundary.
       defer: (resume) => opts.turn.defer(() => drive(resume)),
       stopped: (error) => {
         if (slot.entry === undefined) slot.early ??= { error }

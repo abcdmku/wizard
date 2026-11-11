@@ -6,7 +6,7 @@ import type { EffectResult } from './commands'
 import { completeStep } from './nav'
 import { failStep } from './scheduler'
 
-export const sleepTimerId = (step: string) => `sleep:${step}`
+const sleepTimerId = (step: string) => `sleep:${step}`
 
 /** A dynamic duration is planned as a hook; a static duration is recorded immediately. */
 export function startSleep(b: Batch, step: string): void {

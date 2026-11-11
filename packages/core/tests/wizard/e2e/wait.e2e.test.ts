@@ -246,7 +246,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
     expect(t.run.getState().status).toBe('halted')
   })
 
-  it('a task in flight while a wait listens: send() to the wait works while the task runs', async () => {
+  it('a step in flight while a wait listens: send() to the wait works while the step runs', async () => {
     let finish: (v: unknown) => void = () => {}
     const def = flow({
       name: 'parallel',

@@ -1,7 +1,6 @@
 /**
- * Scheduler — step entry, kind-specific start, readiness-driven scheduling
- * (§3), the `when` predicate + skipping (§10.2), concurrency budget,
- * cancellation and the failure policy dispatch (§5.2).
+ * Scheduler — step entry, kind-specific start, readiness-driven scheduling, the `when`
+ * predicate + skipping, concurrency budget, cancellation and the failure policy dispatch.
  *
  * All functions append events to a `Batch` (see `batch.ts`).
  *
@@ -127,7 +126,7 @@ export function startKind(b: Batch, step: string): void {
       }
       if (!isRunnableStep(def)) break
       if (def.hooks.idempotencyKey !== undefined) {
-        // §10.4: the custom key is computed first; `step.runStarted` follows with its value.
+        // The custom key is computed first; `step.runStarted` follows with its value.
         emit(b, { type: 'step.idempotencyKeyRequested', step, runId: r.runId })
       } else {
         emit(b, {
@@ -143,15 +142,15 @@ export function startKind(b: Batch, step: string): void {
       // A view waits for the cursor. A child flow starts through `plan`.
       break
   }
-  // §10.1: a listening step drains its inbox on start (views: once `nav` is idle, see `onNavIdle`).
+  // A listening step drains its inbox on start (views: once `nav` is idle, see `onNavIdle`).
   if (def.kind !== 'view' && hasEventHandlers(b, step)) drainInbox(b, step)
 }
 
 // ---------------------------------------------------------------------------
-// Scheduling (§3.2)
+// Scheduling
 // ---------------------------------------------------------------------------
 
-export interface ScheduleOptions {
+interface ScheduleOptions {
   /** Run step 2 even when `autoRun === 'manual'` (`runReady`). */
   readonly force?: boolean
   /** Cause recorded by the cursor rule's `transition.committed` (default 'auto'; `start` uses 'start'). */
@@ -162,7 +161,7 @@ export function schedule(b: Batch, opts: ScheduleOptions = {}): void {
   if (schedulingFrozen(b)) return
   synchronizeNeeds(b)
   const def = b.env.def
-  // §10.2: eligible steps with an unevaluated `when` predicate ask it first (any kind, any
+  // Eligible steps with an unevaluated `when` predicate ask it first (any kind, any
   // autoRun) — except the target of an in-flight `go` / `back`, whose `when` is bypassed.
   for (const id of eligibleSteps(def, b.state)) {
     if (
@@ -229,7 +228,7 @@ export function cancelAllActive(b: Batch, reason?: string): void {
 }
 
 /**
- * §10.2: skip a step — done without running. `step.skipped { reason }`, then its `next`
+ * Skip a step — done without running. `step.skipped { reason }`, then its `next`
  * targets are arrived through the auto-advance transaction (dynamic `next` is resolved by a
  * `next` call first; a skipped step runs no other hook), then schedule.
  */

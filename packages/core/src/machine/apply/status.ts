@@ -1,5 +1,5 @@
 /**
- * Status derivation (§5.1) — the ONE place run status is computed, after every event.
+ * Status derivation — the ONE place run status is computed, after every event.
  * O(active) per event: the halt check reads the derived step index, never every record.
  * @internal
  */

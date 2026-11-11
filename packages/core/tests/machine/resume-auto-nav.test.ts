@@ -46,7 +46,7 @@ describe('resume committed automatic navigation', () => {
     ).toHaveLength(1)
   })
 
-  it('reuses resolved target arrays without rerunning a completed task or next hook', () => {
+  it('reuses resolved target arrays without rerunning a completed step or next hook', () => {
     const h = createHarness(
       flow({
         start: 'task',

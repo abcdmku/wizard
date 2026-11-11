@@ -65,7 +65,7 @@ describe('e2e dispose', () => {
 })
 
 describe("e2e strict: 'sync'", () => {
-  it('a thenable from a task run fails the step with code SYNC_VIOLATION preserved on the error', async () => {
+  it('a thenable from a step run fails the step with code SYNC_VIOLATION preserved on the error', async () => {
     const def = flow({
       name: 'strict-task',
       start: 't',

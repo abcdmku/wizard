@@ -1,5 +1,5 @@
 /**
- * Event delivery dedupe (D8, P0 #10): `send(event, payload, { eventId })` remembers delivered ids
+ * Event delivery dedupe: `send(event, payload, { eventId })` remembers delivered ids
  * in the snapshot; a redelivery is `{ ok: true, duplicate: true }` and changes nothing.
  */
 import { describe, expect, it } from 'vitest'

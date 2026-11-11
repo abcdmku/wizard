@@ -10,9 +10,9 @@
 import type { Placement } from './elk'
 
 /** Handle ids on every node: top / bottom / left / right. */
-export type Side = 't' | 'b' | 'l' | 'r'
+type Side = 't' | 'b' | 'l' | 'r'
 
-export interface HandlePair {
+interface HandlePair {
   readonly sourceHandle: Side
   readonly targetHandle: Side
 }

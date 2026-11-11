@@ -1,5 +1,5 @@
 /**
- * Effect results (`res.ok` / `res.err`) → events: token checks first (§0), then the transaction
+ * Effect results (`res.ok` / `res.err`) → events: token checks first, then the transaction
  * (`nav.ts`), the compensation entry (`saga.ts`), the flow-level handler or the step-level hook.
  * @internal
  */
@@ -39,7 +39,7 @@ export function ignore(
   emit(b, { type: 'result.ignored', effectId, reason })
 }
 
-/** Token checks first (§0), then route to the transaction or the step-level handler. */
+/** Token checks first, then route to the transaction or the step-level handler. */
 export function onResult(b: Batch, msg: ResultMsg): void {
   const { token } = msg
   if (msg.hook === 'flowOn') {
@@ -96,7 +96,7 @@ function handlerCancelled(msg: ResultMsg): boolean {
 }
 
 /**
- * §10.1: flow-level `on[event]` result. `{ cancel: reason }` cancels the flow like the
+ * Flow-level `on[event]` result. `{ cancel: reason }` cancels the flow like the
  * `cancel` command (compensation policy applies); a throw is recorded as `event.handlerFailed`.
  * Stale once the flow is idle again (reset), terminal or compensating, or when the runtime
  * aborted the call.
@@ -132,7 +132,7 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
   const ok = msg.type === 'res.ok'
   const value = ok ? msg.value : undefined
   const errorKind = !ok && msg.syncViolation === true ? 'sync-violation' : 'hook'
-  // A `strict: 'sync'` violation is a programmer error: the step fails as 'sync-violation' (plan §8.1).
+  // A `strict: 'sync'` violation is a programmer error: the step fails as 'sync-violation'.
   const fail = (kind: 'hook' | 'child') =>
     failStep(b, step, ok ? { name: 'Error', message: '' } : msg.error, ok ? kind : errorKind)
   switch (msg.hook) {
@@ -162,7 +162,7 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
     case 'sleep':
       return onSleepResult(b, msg)
     case 'when':
-      // §10.2: only meaningful while the predicate is in flight for a pending activation
+      // Only meaningful while the predicate is in flight for a pending activation
       // of a live flow (a terminal / compensating flow schedules nothing: the result is stale).
       if (r.status === 'active' || r.when !== 'pending' || !r.pendingActivation) return false
       if (isTerminal(b.state) || b.state.status === 'compensating') return false
@@ -176,7 +176,7 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
       }
       return true
     case 'idempotencyKey': {
-      // §10.4: the run starts with the custom key (a non-string value → default key).
+      // The run starts with the custom key (a non-string value → default key).
       if (!isRunnableStep(def) || r.status !== 'active' || r.attempt !== 0 || r.entering === true)
         return false
       if (!ok) {
@@ -205,7 +205,7 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
       }
       return true
     case 'on': {
-      // §10.1: any kind may handle events; the result contract depends on the kind.
+      // Any kind may handle events; the result contract depends on the kind.
       if (
         r.status !== 'active' ||
         r.entering === true ||

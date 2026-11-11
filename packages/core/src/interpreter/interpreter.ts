@@ -1,13 +1,13 @@
 /**
  * Batch-atomic FIFO interpreter. Published state and child snapshots advance only after their
  * host barrier commits. Step versions copy records lazily (versions.ts).
- * Hook calls run in plan order after preceding messages, so they see context when they start
- * (D6). Superseded calls never run. A child yields while an ancestor has queued messages.
+ * Hook calls run in plan order after preceding messages, so they see context when they start.
+ * Superseded calls never run. A child yields while an ancestor has queued messages.
  * Synchronous results stay in the current drain. Any drain failure aborts the runtime.
  * @internal
  */
 import type { Message } from '../machine/commands'
-import type { CallEffect } from '../machine/effects'
+import type { CallEffect, PersistReason } from '../machine/effects'
 import type { DomainEvent } from '../machine/events'
 import { settles } from '../machine/quiescence'
 import type { MachineEnv } from '../machine/types'
@@ -22,7 +22,7 @@ import { createEachChildBridge } from './each-child'
 import { causeOf, envelope } from './envelope'
 import { createExecutor, type ExecutorOptions } from './executor'
 import { buildHookArgs } from './hook-args'
-import { createEffectDispatcher, type PersistReason } from './interpreter-effects'
+import { createEffectDispatcher } from './interpreter-effects'
 import type { Interpreter, InterpreterOptions } from './interpreter-types'
 import { isStaleCall } from './stale-call'
 import { createTimerRegistry } from './timers'
@@ -106,7 +106,7 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
     } else queue.push({ msg, causedBy, expectedVersion })
     if (!draining && hydrating === 0 && !restorationPending) drain()
   }
-  /** A hook's `progress(value)` (D14): observers see it; it never enters the state or the log. */
+  /** A hook's `progress(value)`: observers see it; it never enters the state or the log. */
   const progress = (step: string, value: unknown): void => {
     if (disposed) return
     const event: DomainEvent = {

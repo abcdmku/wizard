@@ -1,10 +1,10 @@
 /**
- * D5: a join whose needs can no longer complete never hangs the run: once nothing else can move,
+ * A join whose needs can no longer complete never hangs the run: once nothing else can move,
  * it fails `DEPS_UNREACHABLE` (naming the producers and the routing step that went elsewhere), and
  * `skip(join)` lets the run finish.
  */
 import { describe, expect, it } from 'vitest'
-import { flow, needAll, needOptional, routeStep, runStep } from '../helpers/fixtures'
+import { flow, needAll, needOptional, routingStep, runStep } from '../helpers/fixtures'
 import { e2e } from '../wizard/e2e/harness'
 
 describe('branch joins', () => {
@@ -13,7 +13,7 @@ describe('branch joins', () => {
       start: 'decide',
       steps: {
         decide: {
-          ...routeStep({ decide: () => 'a' }),
+          ...routingStep({ decide: () => 'a' }),
           next: { kind: 'dynamic', targets: ['a', 'b'] },
         },
         a: runStep({ run: () => 'A', next: 'join' }),
@@ -32,7 +32,7 @@ describe('branch joins', () => {
     const def = flow({
       start: 'decide',
       steps: {
-        decide: routeStep({ decide: () => 'a' }),
+        decide: routingStep({ decide: () => 'a' }),
         a: runStep({ run: () => 'A', next: 'join' }),
         b: runStep({ run: () => 'B', next: 'join' }),
         join: runStep({ run: () => 'joined', needs: needAll('a', 'b') }),

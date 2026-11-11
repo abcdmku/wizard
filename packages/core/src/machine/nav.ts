@@ -1,6 +1,6 @@
 /**
- * Navigation pipeline (§1): `next` / `go` / `back` transactions, rejections, commit (§1.3),
- * auto-advance for non-view completions (§1.4) and the deferred auto-advance queue
+ * Navigation pipeline: `next` / `go` / `back` transactions, rejections, commit,
+ * auto-advance for non-view completions and the deferred auto-advance queue
  * (`nav.deferred`, drained whenever `nav` returns to idle). The phase machine and the
  * transaction hook results live in `nav-phases.ts`.
  *
@@ -18,7 +18,7 @@ import type { Issue, NavCause, SerializedError } from './state'
 import { normalizeTargets } from './util'
 import { drainInbox } from './wait'
 
-export const AUTO_ADVANCE_LIMIT = 1000
+const AUTO_ADVANCE_LIMIT = 1000
 
 // ---------------------------------------------------------------------------
 // Rejections
@@ -52,7 +52,7 @@ export function rejectCurrent(
 /**
  * The transaction failed. When it was the auto-advance of a non-view step (its `next` threw,
  * rejected or named an unknown step; its `exit` threw), that step fails under the flow's failure
- * policy: a broken route never lets the run finish `done` (D4). A view's transaction is only
+ * policy: a broken route never lets the run finish `done`. A view's transaction is only
  * rejected (the user is still on the view).
  */
 export function failCurrent(b: Batch, step: string, error: SerializedError): void {
@@ -145,7 +145,7 @@ export function startTransaction(
 }
 
 // ---------------------------------------------------------------------------
-// Auto-advance (§1.4)
+// Auto-advance
 // ---------------------------------------------------------------------------
 
 /**
@@ -212,7 +212,7 @@ export function startAuto(b: Batch, from: string, override?: string | readonly s
 /**
  * `nav` just returned to idle: start the next deferred auto-advance, if any; otherwise
  * let the current view drain its inbox — a view listens for external events only
- * while `nav` is idle (§10.1), so events buffered while it was busy are delivered now.
+ * while `nav` is idle, so events buffered while it was busy are delivered now.
  */
 export function onNavIdle(b: Batch): void {
   const s = b.state
@@ -228,7 +228,7 @@ export function onNavIdle(b: Batch): void {
 }
 
 /**
- * §10.1: a view's `on[event]` handler returned `{ next }` — an external event advances
+ * A view's `on[event]` handler returned `{ next }` — an external event advances
  * the cursor through a transaction with `cause: 'event'`: `canEnter` (targets) → `exit` (view)
  * → `enter` (targets) → commit; no `parseInput` / `validate` / `canExit`. Requires an idle `nav`.
  */
@@ -239,7 +239,7 @@ export function startEventTransition(b: Batch, view: string, to: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Commit (§1.3)
+// Commit
 // ---------------------------------------------------------------------------
 
 export function commit(b: Batch): void {

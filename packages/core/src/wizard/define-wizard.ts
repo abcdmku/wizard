@@ -22,6 +22,16 @@ import {
 import { inheritDefinition } from './definition-identity'
 
 /**
+ * A wizard's output: the type of its `output` selector, else the union of its sink steps'
+ * outputs, plus `undefined` when it has no sink.
+ */
+type WizardOutput<O, M> = [O] extends [never]
+  ?
+      | { [K in keyof M]: RoleIn<M[K]> extends 'inner' ? never : OutputIn<M[K]> }[keyof M]
+      | ('sink' extends { [K in keyof M]: RoleIn<M[K]> }[keyof M] ? never : undefined)
+  : O
+
+/**
  * Define a wizard. Return `steps(map, { start? })` from the callback.
  * Context, dependencies, events, step references and sink outputs are inferred.
  * @public
@@ -37,31 +47,14 @@ export function defineWizard<
 >(
   options: WizardDefinition<C, CIn, Ev, D, O, EvIn>,
   build: (api: StepApi<C, Ev, D>) => Steps<M>,
-): Wizard<
-  C,
-  CIn,
-  Ev,
-  D,
-  M,
-  [O] extends [never]
-    ?
-        | { [K in keyof M]: RoleIn<M[K]> extends 'inner' ? never : OutputIn<M[K]> }[keyof M]
-        | ('sink' extends { [K in keyof M]: RoleIn<M[K]> }[keyof M] ? never : undefined)
-    : O,
-  never,
-  EvIn
-> {
+): Wizard<C, CIn, Ev, D, M, WizardOutput<O, M>, never, EvIn> {
   return bind(buildFlow(options, build)) as Wizard<
     C,
     CIn,
     Ev,
     D,
     M,
-    [O] extends [never]
-      ?
-          | { [K in keyof M]: RoleIn<M[K]> extends 'inner' ? never : OutputIn<M[K]> }[keyof M]
-          | ('sink' extends { [K in keyof M]: RoleIn<M[K]> }[keyof M] ? never : undefined)
-      : O,
+    WizardOutput<O, M>,
     never,
     EvIn
   >

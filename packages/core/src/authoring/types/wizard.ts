@@ -7,16 +7,16 @@ import type { Boundary } from './boundary'
 import type { DepsOf, RequiredDepsOf } from './extractors'
 import type { FlowOnArgs } from './hook-args'
 import type { Duration, JsonValue, MaybePromise, RetryPolicy, StepKind } from './primitives'
-import type { FlowStep, SinkRole, StepFacts } from './step'
+import type { FlowStep } from './step'
 
 /** Author documentation, copied to the manifest that `inspect` returns. */
-export interface WizardProse {
+interface WizardProse {
   /** What the wizard is for, in a sentence or two. `toMarkdown` prints it under the title. */
   readonly description?: string
   /** JSON data for tools. The runtime never reads it. */
   readonly meta?: Readonly<Record<string, JsonValue>>
 }
-export interface WizardPolicies {
+interface WizardPolicies {
   /** What happens when a step fails for good with no `fallback`. Default `'halt'`. */
   readonly onFailure?: 'halt' | 'compensate'
   readonly retry?: RetryPolicy
@@ -48,7 +48,7 @@ export interface WizardDefinition<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPol
 }
 
 /** Phantom facts of a flow; `provided` holds the dep keys bound by `provide()`. */
-export interface FlowTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
+interface FlowTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
   readonly ctx: C
   readonly ctxIn: CIn
   readonly events: Ev
@@ -75,9 +75,6 @@ export interface Flow<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never
   readonly output?: (args: never) => unknown
   readonly steps: T
   readonly start?: string | readonly string[]
-}
-export interface AnyFlowSteps {
-  readonly [id: string]: FlowStep<StepKind, StepFacts, SinkRole>
 }
 /** A structural constraint for code that reads any flow definition. @public */
 export type AnyFlow = Flow<
@@ -107,10 +104,13 @@ export type WizardResumeOptions<F extends AnyFlow> = Omit<
   Pick<ResumeOptions<F>, 'migrate'>
 
 type SureKeys<Q> = { [K in keyof Q]-?: {} extends Pick<Q, K> ? never : K }[keyof Q]
-export type OptionsArgs<O> = {} extends O ? [options?: O] : [options: O]
+type OptionsArgs<O> = {} extends O ? [options?: O] : [options: O]
 
-/** A wizard IS its flow, plus run constructors. `provide()` returns a new wizard. */
-/** A flow with bound creation, resume, execution and dependency methods. @public */
+/**
+ * A flow with bound creation, resume, execution and dependency methods.
+ * A wizard is its flow plus those methods. `provide()` returns a new wizard.
+ * @public
+ */
 export interface Wizard<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never, EvIn = Ev>
   extends Flow<C, CIn, Ev, D, T, O, P, EvIn> {
   create(
@@ -166,8 +166,11 @@ export type OutputIn<S> = S extends { readonly '~types': infer X }
     : never
   : never
 
-/** Structural constraint for code that creates runs of any wizard (durable hosts, registries). */
-/** A structural constraint for adapters that create or resume wizard runs. @public */
+/**
+ * A structural constraint for adapters that create or resume wizard runs.
+ * Durable hosts and registries use it.
+ * @public
+ */
 export type AnyWizard = AnyFlow & {
   create(input: never, ...options: never[]): unknown
   resume(snapshot: unknown, ...options: never[]): unknown

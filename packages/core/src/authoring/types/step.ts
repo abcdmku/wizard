@@ -42,8 +42,10 @@ export interface StepFacts {
   readonly runnable?: boolean
   readonly each?: boolean
 }
-/** Facts only `steps()` reads: references, needs, successors and constructor-level problems. */
-/** `cond`: the step has its own `when`, so it may be skipped. */
+/**
+ * Facts only `steps()` reads: references, needs, successors and constructor-level problems.
+ * `cond`: the step has its own `when`, so it may be skipped.
+ */
 export interface Links<
   Refs extends string,
   Objs,
@@ -72,11 +74,12 @@ interface Binding<C, Ev, D> {
 export type BoundTo<C, Ev, D> = (facts: Binding<C, Ev, D>) => Binding<C, Ev, D>
 
 /**
- * A step as returned by `step`, `view` or `flow` (every field present; values are phantom).
+ * A constructor record with authored config and inference facts.
+ * It is what `step`, `view` or `flow` returns (every field present; values are phantom).
  * `'~exact'` makes a step invariant in its facts, so `steps()` matches a `needs` ref to the map
  * entry it IS rather than to any step whose output happens to be a subtype.
+ * @public
  */
-/** A constructor record with authored config and inference facts. @public */
 export interface Step<K extends StepKind, X extends StepFacts, L, B> {
   readonly kind: K
   readonly config: StepRecordConfig
@@ -88,7 +91,6 @@ export interface Step<K extends StepKind, X extends StepFacts, L, B> {
 }
 /** Whether a step's output can be the wizard output: no successor (`sink`), maybe skipped (`maybe`). */
 export type SinkRole = 'sink' | 'maybe' | 'inner'
-/** A step as stored in an assembled wizard: kind, facts and sink role only. */
 /** Compact step facts and its sink role in the assembled wizard. @public */
 export interface FlowStep<K extends StepKind, X extends StepFacts, Role extends SinkRole> {
   readonly kind: K
@@ -96,6 +98,5 @@ export interface FlowStep<K extends StepKind, X extends StepFacts, Role extends 
   readonly '~role': Role | undefined
 }
 
-/** Structural constraint for generic step modules. */
 /** A structural constraint for generic step modules and references. @public */
 export type AnyStep = StepLike

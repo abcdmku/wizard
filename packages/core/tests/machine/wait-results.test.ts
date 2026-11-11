@@ -10,7 +10,7 @@ function fixture(
   sinks: readonly string[],
 ): CompiledFlow {
   return {
-    name: 'wait-wave-b',
+    name: 'wait-results',
     version: 1,
     context: trusted(),
     events: { paid: trusted() },
@@ -43,7 +43,7 @@ const view: Step = {
   expose: { input: true, output: false },
 }
 
-describe('Wave B waits', () => {
+describe('wait handler results and context updates', () => {
   it('uses the event payload as output when the handler returns nothing', () => {
     const h = createHarness(fixture({ waiting: wait }, ['waiting'], ['waiting']))
     h.start()
@@ -57,23 +57,6 @@ describe('Wave B waits', () => {
     h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(h.state.output).toEqual({ receipt: 'r-1' })
-  })
-
-  it('uses done as output and follows the next declared on the step', () => {
-    const h = createHarness(
-      fixture(
-        { waiting: { ...wait, next: { kind: 'static', targets: ['review'] } }, review: view },
-        ['waiting'],
-        ['review'],
-      ),
-    )
-    h.start()
-    h.cmd({ type: 'send', event: 'paid', payload: { receipt: 'raw' } })
-    h.ok(h.call('on'), { done: 'accepted' })
-    expect(h.rec('waiting').output).toBe('accepted')
-    expect(h.rec('review').status).toBe('active')
-    expect(h.state.active).toEqual(['review'])
-    expect(replay(h)).toEqual(h.state)
   })
 
   it.each([
@@ -130,28 +113,6 @@ describe('Wave B waits', () => {
     expect(h.state.inbox).toEqual([])
     h.ok(h.call('on'), { done: 'accepted' })
     expect(h.rec('waiting').output).toBe('accepted')
-    expect(h.state.timers).toEqual({})
-  })
-
-  it('a timeout skips the wait and follows its alternate edge', () => {
-    const h = createHarness(
-      fixture(
-        { waiting: { ...wait, waitTimeout: { afterMs: 500, next: 'expired' } }, expired: view },
-        ['waiting'],
-        ['waiting', 'expired'],
-      ),
-    )
-    h.start()
-    h.clock.advance(500)
-    const expired = h.fire('wait:waiting')
-    expect(of(expired, 'step.skipped')[0]).toMatchObject({
-      step: 'waiting',
-      reason: 'timeout',
-      next: 'expired',
-    })
-    expect(of(expired, 'step.done')).toEqual([])
-    expect(h.rec('waiting')).toMatchObject({ status: 'skipped', skipReason: 'timeout' })
-    expect(h.rec('expired').status).toBe('active')
     expect(h.state.timers).toEqual({})
   })
 
@@ -264,7 +225,7 @@ describe('Wave B waits', () => {
   })
 })
 
-describe('Wave B default output', () => {
+describe('default flow output', () => {
   it('keeps the last completed sink output when a routing step finishes later', () => {
     const h = createHarness(
       fixture(

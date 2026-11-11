@@ -1,5 +1,5 @@
 /**
- * D14: `progress(value)` from a hook reaches `observe()` as a transient `step.progress` event; it
+ * `progress(value)` from a hook reaches `observe()` as a transient `step.progress` event; it
  * never enters the state, the snapshot or the event log.
  */
 import { describe, expect, it } from 'vitest'

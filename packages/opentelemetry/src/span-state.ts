@@ -64,7 +64,7 @@ export const asString = (value: unknown): string | undefined =>
 export const asNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined
 
-export const isContext = (value: Context | SpanContext): value is Context =>
+const isContext = (value: Context | SpanContext): value is Context =>
   typeof value === 'object' && value !== null && 'getValue' in value
 
 export const spanContextOf = (

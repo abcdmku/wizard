@@ -1,5 +1,5 @@
 /**
- * D3: step records are written in place and a published state rebuilds its `steps` on first
+ * Step records are written in place and a published state rebuilds its `steps` on first
  * read, so every state a subscriber received must still show its committed records. A hook's
  * context must likewise keep the value from when its call started.
  */

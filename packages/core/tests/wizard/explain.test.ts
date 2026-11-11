@@ -100,7 +100,7 @@ describe('run.explain()', () => {
     run.dispose()
   })
 
-  it('records guard-false:canEnter after a rejected transition and failed:<kind> for a failed task', async () => {
+  it('records guard-false:canEnter after a rejected transition and failed:<kind> for a failed step', async () => {
     const run = make(false)
     await run.start()
     await run.setInput('form', { name: 'ada' })

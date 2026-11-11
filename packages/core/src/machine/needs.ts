@@ -39,7 +39,7 @@ export function unmetNeeds(def: CompiledFlow, state: WizardState, id: string): r
 }
 
 /** A skipped required producer has no output. Optional needs still accept that completion. */
-export function needsSkipReason(
+function needsSkipReason(
   def: CompiledFlow,
   state: WizardState,
   id: string,

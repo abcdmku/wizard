@@ -1,5 +1,5 @@
 /**
- * Commands → events: the status gate (§0) and one function per command (`start`, `setInput` /
+ * Commands → events: the status gate and one function per command (`start`, `setInput` /
  * `resetInput`, `run`, `retry`, `skip`, `invalidate`, `cancel`, `compensate`, `reset`, `child`).
  * Navigation commands live in `nav.ts`, `send` in `wait.ts`.
  * @internal
@@ -57,8 +57,8 @@ const HALTED_COMMANDS: ReadonlySet<Command['type']> = new Set([
 ])
 
 /**
- * Status gate (§0). Returns the rejection code, or undefined when the command
- * may proceed. A halted run accepts `HALTED_COMMANDS` only (§5.2); `compensate`
+ * Status gate. Returns the rejection code, or undefined when the command
+ * may proceed. A halted run accepts `HALTED_COMMANDS` only; `compensate`
  * re-runs failures after a compensated flow.
  */
 export function gate(b: Batch, cmd: Command): RejectCode | undefined {
@@ -131,7 +131,7 @@ export function cmdRetry(b: Batch, cmd: Extract<Command, { type: 'retry' }>): vo
     reject(b, cmd, 'INVALID_COMMAND', 'invalid-patch')
     return
   }
-  // D12: `retry(step, { patch })` fixes the context the step re-runs with.
+  // `retry(step, { patch })` fixes the context the step re-runs with.
   if (cmd.patch !== undefined) emit(b, { type: 'context.changed', patch: cmd.patch, by: cmd.step })
   if (def.each !== undefined && r.each !== undefined) {
     retryEach(b, cmd.step)
@@ -182,7 +182,7 @@ export function cmdSkip(b: Batch, cmd: Extract<Command, { type: 'skip' }>): void
 const INVALIDATABLE: ReadonlySet<string> = new Set(['done', 'failed', 'skipped'])
 
 /**
- * §10.3: `invalidate{step, cascade = true}` — a done/failed/skipped step returns to idle
+ * `invalidate{step, cascade = true}` — a done/failed/skipped step returns to idle
  * (`step.invalidated { cause: 'command' }`); with `cascade`, every transitive `needs`
  * dependent that is done/failed/skipped follows (`cause: 'cascade'`), running dependents are
  * cancelled first. Never automatic; active steps (the current view included) are rejected.

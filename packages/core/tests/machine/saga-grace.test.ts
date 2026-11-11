@@ -1,5 +1,5 @@
 /**
- * Saga (§5.2 / plan §8.5) — grace period, resume during settle, repeated completions and timeouts.
+ * Saga — grace period, resume during settle, repeated completions and timeouts.
  */
 import { describe, expect, it } from 'vitest'
 import {

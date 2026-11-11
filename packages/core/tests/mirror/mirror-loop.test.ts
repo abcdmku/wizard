@@ -24,7 +24,7 @@ describe('createMirror: end to end through the loopback', () => {
     const mirror: Mirror<typeof checkoutClient> = createMirror({ transport })
     return { run, source, transport, mirror }
   }
-  it('drives a real run view → task → final through the mirror; the mirror never sees unexposed fields', async () => {
+  it('drives a real run view → step → sink through the mirror; the mirror never sees unexposed fields', async () => {
     const { run, mirror, source } = loop()
     expect(mirror.connected).toBe(true) // the loopback delivers the initial frame synchronously
     expect(mirror.getSnapshot()?.status).toBe('idle')

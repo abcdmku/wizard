@@ -1,5 +1,5 @@
 /**
- * v0.2 §10.1 — `on[event]` handlers on every kind, flow-level `on`, correlation.
+ * `on[event]` handlers on every kind, flow-level `on`, correlation.
  * Pure machine tests (decide / apply / plan through the harness).
  */
 import { describe, expect, it } from 'vitest'
@@ -119,7 +119,7 @@ describe('on — routing to every kind', () => {
     expect(h.state.nav.phase).toBe('canExit')
   })
 
-  it('a task handler may only update(): a returned { next } is ignored (reason: kind) and the run continues', () => {
+  it('a step handler may only update(): a returned { next } is ignored (reason: kind) and the run continues', () => {
     const h = createHarness(
       flow({
         start: 't',
@@ -223,7 +223,7 @@ describe('on — routing to every kind', () => {
     expect(h.err(forW!, 'wait handler bug').types).toEqual(['step.failed', 'flow.halted'])
   })
 
-  it('a task drains buffered events when it starts (one per drain), then the next after each handler result', () => {
+  it('a step drains buffered events when it starts (one per drain), then the next after each handler result', () => {
     const h = createHarness(
       flow({
         start: 'v',

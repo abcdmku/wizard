@@ -15,7 +15,7 @@
  * for the function form) and `mapError` → `hooks.mapError` (called with `(args.error, args)`);
  * the definition header's `on` / `correlate` → `def.on` / `def.correlate`.
  *
- * Warnings (never thrown; `compile(flow, { onWarning })`, reused by `inspect()`):
+ * Warnings (never thrown; `analyze(flow).warnings`, which `inspect()` reports):
  * `UNREACHABLE` (no path from `start` through `next`, `targets`, `needs`, `fallback` or
  * `timeout.next`), `NAV_CYCLE` (a cycle through static `next` / `timeout.next` edges —
  * allowed, reported).
@@ -48,14 +48,6 @@ export interface FlowWarning {
   readonly path: readonly string[]
 }
 
-/**
- * `compile()` options.
- * @public
- */
-export interface CompileOptions {
-  readonly onWarning?: (warning: FlowWarning) => void
-}
-
 /** @internal Cached result of analysing one flow object. */
 export interface Analysis {
   readonly compiled: CompiledFlow
@@ -66,14 +58,11 @@ const cache = new WeakMap<object, Analysis>()
 
 /**
  * Compile (and validate) a flow. Throws `WizardError('DEFINITION_INVALID' | 'NESTING_CYCLE' |
- * 'NESTING_TOO_DEEP')` listing every problem; reports warnings through `options.onWarning`.
- * Cached per flow object.
- * @public
+ * 'NESTING_TOO_DEEP')` listing every problem. Cached per flow object.
+ * @internal
  */
-export function compile(flow: AnyFlow, options: CompileOptions = {}): CompiledFlow {
-  const analysis = analyze(flow)
-  if (options.onWarning !== undefined) for (const w of analysis.warnings) options.onWarning(w)
-  return analysis.compiled
+export function compile(flow: AnyFlow): CompiledFlow {
+  return analyze(flow).compiled
 }
 
 /** @internal Compile + warnings, cached per flow object. */

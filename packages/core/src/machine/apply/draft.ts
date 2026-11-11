@@ -1,5 +1,5 @@
 /**
- * Draft scopes: how `withStep` writes without copying the whole run per event (D3).
+ * Draft scopes: how `withStep` writes without copying the whole run per event.
  *
  * `emit` folds each event of a `decide` batch inside `inDraft(batch, ledger, …)`:
  * - `active` (and `steps` when there is no ledger) is copied by the batch's first write; later

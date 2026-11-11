@@ -53,9 +53,9 @@ interface CommonCfg {
   readonly exit?: Hook<void>
   readonly label?: string
   readonly expose?: ExposeSpec
-  /** v0.2: skip predicate (any non-final kind). */
+  /** Skip predicate. */
   readonly when?: Hook<boolean>
-  /** v0.2: `on[event]` handlers on any kind (waits keep their own `on` field too). */
+  /** `on[event]` handlers on any kind (waits keep their own `on` field too). */
   readonly on?: Readonly<Record<string, Hook<OnHandlerResult>>>
 }
 
@@ -72,7 +72,6 @@ export interface RunStepCfg extends CommonCfg {
   readonly retry?: RetryPolicy
   readonly timeoutMs?: number
   readonly compensate?: Hook<void>
-  /** v0.2 */
   readonly mapError?: Hook<unknown>
   readonly idempotent?: boolean
   readonly idempotencyKey?: Hook<string>
@@ -180,8 +179,6 @@ export const routingStep = (cfg: RouteStepCfg = {}): StepSpec => {
   return base('step', { ...cfg, ...(dynamicNext !== undefined ? { dynamicNext } : {}) }, {})
 }
 
-export const routeStep = routingStep
-
 export const flowStep = (child: CompiledFlow, cfg: FlowStepCfg = {}): StepSpec => ({
   ...base('flow', cfg, {
     childContext: cfg.context ?? (() => ({})),
@@ -208,9 +205,9 @@ export interface FlowCfg {
   readonly steps: Readonly<Record<string, StepSpec>>
   readonly policies?: Partial<CompiledFlow['policies']>
   readonly events?: Readonly<Record<string, RuntimeBoundary>>
-  /** v0.2: flow-level `on[event]` handlers. */
+  /** Flow-level `on[event]` handlers. */
   readonly on?: Readonly<Record<string, Hook<FlowOnHandlerResult>>>
-  /** v0.2: correlation extractors. */
+  /** Correlation extractors. */
   readonly correlate?: Readonly<Record<string, (payload: unknown) => string | undefined>>
 }
 

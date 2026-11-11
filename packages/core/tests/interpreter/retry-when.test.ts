@@ -1,5 +1,5 @@
 /**
- * D12: `retry.when` decides per failure whether the step retries. It sees the `mapError` value
+ * `retry.when` decides per failure whether the step retries. It sees the `mapError` value
  * when the step maps errors, else the raw thrown value.
  */
 import { describe, expect, it } from 'vitest'

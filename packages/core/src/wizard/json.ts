@@ -1,9 +1,12 @@
 /**
- * `firstNonJson(value, options?)` — the one JSON-safety walk shared by the command decoders
- * (`parseCommand` payloads, with hard limits so untrusted input can never exhaust the stack or
- * the heap) and by the persistence driver (a snapshot is checked BEFORE every store write, so
- * a `Map` / class instance / `bigint` / `NaN` / function / `undefined` array slot is reported
- * with its exact path instead of being silently distorted by `JSON.stringify`).
+ * `firstNonJson(value, options?)` — the JSON-safety walk that stops at the first problem. It is
+ * shared by the command decoders (`parseCommand` payloads, with hard limits so untrusted input
+ * can never exhaust the stack or the heap), by the persistence driver (a snapshot is checked
+ * BEFORE every store write, so a `Map` / class instance / `bigint` / `NaN` / function /
+ * `undefined` array slot is reported with its exact path instead of being silently distorted by
+ * `JSON.stringify`) and by run failure data. Two checks keep their own walk: snapshot validation
+ * on resume reports every problem at once (`checkJsonSafe`), and the compiler's `meta` check
+ * (`isJson`) stays out of this module so `@openwizard/core/inspect` does not bundle it.
  *
  * Iterative (explicit stack, no recursion), cycle-aware (ancestors only — a value referenced
  * twice is fine, JSON duplicates it), plain-object-only (`Object.prototype` or `null` prototype).
@@ -37,7 +40,7 @@ export interface JsonCheckOptions {
 }
 
 /** Where and why a value is not JSON: `path` is `''` for the root, `.a[0].b` style below it. */
-export interface JsonProblem {
+interface JsonProblem {
   readonly path: string
   readonly segments: readonly (string | number)[]
   readonly problem: string

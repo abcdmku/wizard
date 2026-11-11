@@ -17,14 +17,14 @@ import {
   type Outcome,
   safeOutcome,
 } from './span-state'
-import { createTaskSpans } from './task-spans'
+import { createStepSpans } from './step-spans'
 import type { InstrumentRunOptions, RunInstrumentation } from './types'
 import { createWorkflowSpans } from './workflow-spans'
 
 export type { ExternalSendOptions, InstrumentRunOptions, RunInstrumentation } from './types'
 
 /**
- * Attach OpenTelemetry workflow, task-attempt, compensation, and nested-flow spans to a run.
+ * Attach OpenTelemetry workflow, step-attempt, compensation, and nested-flow spans to a run.
  *
  * Only stable identifiers, event names, counters, paths, and boolean outcomes are exported.
  * Payloads, outputs, input/context patches, inbox/correlation values, idempotency keys, and
@@ -43,7 +43,7 @@ export function instrumentRun<F extends AnyWizard>(
     }
   }
   const workflows = createWorkflowSpans(run, options, report)
-  const tasks = createTaskSpans(workflows, report)
+  const stepSpans = createStepSpans(workflows, report)
   const external = createExternalEvents(run, workflows, options, report)
   let stopped = false
   let observing = true
@@ -52,7 +52,7 @@ export function instrumentRun<F extends AnyWizard>(
   let stoppingFromRunDispose = false
 
   const closePath = (path: readonly string[], outcome: Outcome): void => {
-    tasks.closePath(path, outcome)
+    stepSpans.closePath(path, outcome)
     workflows.closePath(path, outcome)
   }
 
@@ -75,25 +75,25 @@ export function instrumentRun<F extends AnyWizard>(
         }
         break
       case 'step.runStarted':
-        if (step) tasks.startAttempt(event, path, step)
+        if (step) stepSpans.startAttempt(event, path, step)
         break
       case 'step.runSucceeded':
-        if (step) tasks.finishAttempt(event, path, step, 'success')
+        if (step) stepSpans.finishAttempt(event, path, step, 'success')
         break
       case 'step.runFailed':
-        if (step) tasks.finishAttempt(event, path, step, 'error')
+        if (step) stepSpans.finishAttempt(event, path, step, 'error')
         break
       case 'step.cancelled':
-        if (step) tasks.finishAttempt(event, path, step, 'cancelled')
+        if (step) stepSpans.finishAttempt(event, path, step, 'cancelled')
         break
       case 'step.compensationStarted':
-        if (step) tasks.startCompensation(event, path, step)
+        if (step) stepSpans.startCompensation(event, path, step)
         break
       case 'step.compensated':
-        if (step) tasks.finishCompensation(event, path, step, 'success')
+        if (step) stepSpans.finishCompensation(event, path, step, 'success')
         break
       case 'step.compensationFailed':
-        if (step) tasks.finishCompensation(event, path, step, 'error')
+        if (step) stepSpans.finishCompensation(event, path, step, 'error')
         break
       case 'flow.done':
         closePath(path, 'success')
@@ -111,7 +111,7 @@ export function instrumentRun<F extends AnyWizard>(
         break
       case 'flow.reset':
         closePath(path, 'reset')
-        tasks.reset(path)
+        stepSpans.reset(path)
         break
       default:
         break
@@ -127,7 +127,7 @@ export function instrumentRun<F extends AnyWizard>(
     } catch (error) {
       report(error)
     }
-    tasks.stop()
+    stepSpans.stop()
     workflows.stop()
     external.clear()
     if (!stoppingFromRunDispose) {

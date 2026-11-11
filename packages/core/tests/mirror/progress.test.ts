@@ -1,5 +1,5 @@
 /**
- * R7 / D14: a hook's transient `progress(value)` crosses the wire as a progress frame and reaches
+ * A hook's transient `progress(value)` crosses the wire as a progress frame and reaches
  * `mirror.observe()` exactly like the local `run.observe()`, but only for steps the projection
  * exposes with `progress: true` (deny-by-default).
  */

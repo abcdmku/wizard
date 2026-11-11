@@ -13,7 +13,7 @@ import { toJSONSchema } from './json-schema'
 import type { FlowGraphNode, GraphRetry, JSONSchema } from './types'
 
 /** Where a step sits: its flow's path, whether it is an entry, and the flow's default retry. */
-export interface NodeSite {
+interface NodeSite {
   readonly path: readonly string[]
   readonly start: boolean
   readonly sink: boolean

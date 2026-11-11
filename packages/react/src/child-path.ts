@@ -1,5 +1,5 @@
 /** Child selection stays explicit internally, so numeric step ids are never treated as indices. */
-export interface ChildSegment {
+interface ChildSegment {
   readonly step: string
   readonly index?: number
 }

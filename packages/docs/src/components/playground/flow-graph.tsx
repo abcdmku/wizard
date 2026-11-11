@@ -9,7 +9,7 @@ import {
   layoutFlow,
 } from './dag-layout'
 
-export interface NodeLiveState {
+interface NodeLiveState {
   readonly status: StepStatus
   readonly phase?: string
 }
