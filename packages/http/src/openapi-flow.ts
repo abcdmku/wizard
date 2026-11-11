@@ -63,7 +63,7 @@ export function flowDocs<F extends AnyWizard>(
   }
 }
 
-/** The context input accepted by `createRun`, from the flow's context boundary. */
+/** The context input accepted by `wizard.create`, from the flow's context boundary. */
 export function registerInput(docs: FlowDocs<AnyWizard>): void {
   docs.registry.ref(
     docs.names.input,

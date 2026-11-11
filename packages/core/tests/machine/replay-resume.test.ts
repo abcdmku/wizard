@@ -21,7 +21,7 @@ describe('replay(log) == state', () => {
         steps: {
           a: view({ initial: { n: 0 }, next: 'b' }),
           b: view({ canExit: () => true, next: 't' }),
-          t: runStep({ retry: { attempts: 1, backoff: 100 }, next: 'c' }),
+          t: runStep({ retry: { retries: 1, backoff: 100 }, next: 'c' }),
           c: view({ next: 'end' }),
           end: runStep({ run: () => 'bye' }),
         },
@@ -180,7 +180,7 @@ describe('resume matrix (§8.8)', () => {
       flow({
         start: ['t', 'w'],
         steps: {
-          t: runStep({ retry: { attempts: 1, backoff: 1_000 } }),
+          t: runStep({ retry: { retries: 1, backoff: 1_000 } }),
           w: eventStep({ on: { e: on }, timeout: { afterMs: 5_000, next: 'end' } }),
           end: routingStep(),
         },

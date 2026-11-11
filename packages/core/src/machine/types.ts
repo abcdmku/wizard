@@ -70,7 +70,7 @@ export interface InitialStateOptions {
   readonly context: unknown
   readonly now: number
   readonly epoch?: number
-  /** v0.2: correlation id stored in `WizardState.correlationId` (`createRun(flow, { correlationId })`). */
+  /** Correlation id stored in `WizardState.correlationId` (`wizard.create(input, { correlationId })`). */
   readonly correlationId?: string
 }
 

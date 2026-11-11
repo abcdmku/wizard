@@ -34,7 +34,7 @@ type JSONSchema = Readonly<Record<string, unknown>>;
  * @public
  */
 interface GraphRetry {
-  readonly attempts: number;
+  readonly retries: number;
   readonly backoff?: number | 'exponential';
   readonly baseMs?: number;
   readonly factor?: number;
@@ -170,11 +170,24 @@ declare function inspect(flow: AnyFlow): FlowGraph;
  */
 declare function toJSONSchema(schema: Boundary<unknown, unknown>, side: 'input' | 'output'): JSONSchema | undefined;
 //#endregion
+//#region src/inspect/markdown.d.ts
+/**
+ * Render a manifest as a Markdown page for people and coding agents: a title with the version
+ * and fingerprint, the `toMermaid` diagram, then per flow (root first, each child flow under its
+ * step) a table of when every step starts, what it does and where it leads, followed by one
+ * section per step with its needs, guard, retry, timeout, undo hook, hooks and JSON Schemas.
+ * Ends with the context fields, the declared events with the steps that wait for or handle
+ * them, and the warnings. Only manifest facts are printed: a hook is named, never executed or
+ * described. Deterministic for a given manifest.
+ * @public
+ */
+declare function toMarkdown(graph: FlowGraph): string;
+//#endregion
 //#region src/inspect/mermaid.d.ts
 /**
  * Render a manifest as Mermaid: one node per step (text = `label` or id, shape by kind: view
  * `[…]`, step `[[…]]`, flow `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
- * attempts, run timeout, `compensable`), a start circle per flow, solid `next` edges, dashed
+ * retries, run timeout, `compensable`), a start circle per flow, solid `next` edges, dashed
  * `route` edges to declared targets (a dashed edge to `?` when targets are undeclared),
  * `dependsOn` and named `needs` labels on joins (merged with activation edges),
  * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child flow
@@ -217,5 +230,5 @@ declare function formatTrace(events: readonly RunEvent[], options?: {
   readonly all?: boolean;
 }): string;
 //#endregion
-export { type FlowGraph, type FlowGraphEdge, type FlowGraphNode, type FlowWarning, type GraphEach, type GraphNeed, type GraphRetry, type JSONSchema, type TraceLine, formatTrace, inspect, toJSONSchema, toMermaid, traceLine };
+export { type FlowGraph, type FlowGraphEdge, type FlowGraphNode, type FlowWarning, type GraphEach, type GraphNeed, type GraphRetry, type JSONSchema, type TraceLine, formatTrace, inspect, toJSONSchema, toMarkdown, toMermaid, traceLine };
 //# sourceMappingURL=inspect.d.ts.map

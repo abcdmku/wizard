@@ -105,7 +105,7 @@ describe('defineWizard assembly', () => {
     for (const config of [() => 1, null, undefined, []]) {
       expect(() =>
         buildFlow({ name: 'bad-config', context: z.object({}) }, ({ step, steps }: JavaScriptApi) =>
-          steps({ work: step(config, { retry: { attempts: 1 } }) }),
+          steps({ work: step(config, { retry: { retries: 1 } }) }),
         ),
       ).toThrow('step() requires an object config')
     }

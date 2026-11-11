@@ -32,7 +32,7 @@ For production, read [recovery and hosting](./packages/docs/pages/advanced/index
 
 ## Work on the repository
 
-Node.js 20 or newer and pnpm 10.
+Node.js 22 or newer and pnpm 10. The published packages run on Node.js 20.
 
 ```sh
 pnpm install
@@ -41,4 +41,4 @@ pnpm test
 pnpm --filter @openwizard/docs check
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full checks.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full checks. Coding agents start with [AGENTS.md](./AGENTS.md).

@@ -29,7 +29,7 @@ function withoutDeferred(state: WizardState, step: string): WizardState {
 }
 
 /**
- * v0.2: a non-view step that completed (`step.done`) or was skipped while a transition was in
+ * A non-view step that completed (`step.done`) or was skipped while a transition was in
  * flight continues (auto-advance) once `nav` is idle again: queue it in `nav.deferred`.
  */
 function deferContinuation(
@@ -177,7 +177,7 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           }
     }
     case 'step.skipped': {
-      // v0.2 (§9.2): done-without-running — no output, no error; the draft `input` and
+      // §9.2: done-without-running — no output, no error; the draft `input` and
       // `previousOutput` survive. Continues (auto-advance) once `nav` is idle when busy.
       const next = withStep(dropHint(state, ev.step), ev.step, (rec) => ({
         ...omit(rec, [
@@ -219,7 +219,7 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
         ? patchStep(state, ev.step, { when: 'passed' })
         : patchStep(state, ev.step, {}, ['when'])
     case 'step.invalidated':
-      // v0.2 (§9.3): back to idle; the output moves to `previousOutput`, a view keeps its draft.
+      // §9.3: back to idle; the output moves to `previousOutput`, a view keeps its draft.
       return withStep(dropHint(state, ev.step), ev.step, (rec) => ({
         ...omit(rec, [
           'output',

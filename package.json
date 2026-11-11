@@ -25,7 +25,7 @@
     "format": "biome format --write .",
     "check:api": "node ./scripts/check-api.mjs",
     "check:api:update": "node ./scripts/check-api.mjs --update",
-    "check:docs": "node ./scripts/gen-export-tables.mjs --check && node ./scripts/check-doc-imports.mjs && node ./scripts/check-readme-quickstart.mjs",
+    "check:docs": "node ./scripts/gen-export-tables.mjs --check && node ./scripts/check-doc-imports.mjs && node ./scripts/check-readme-quickstart.mjs README.md packages/core/AGENTS.md",
     "check:public-tags": "node ./scripts/check-public-tags.mjs",
     "check:pack": "node ./scripts/check-pack.mjs",
     "docs:gen": "node ./scripts/gen-export-tables.mjs",
@@ -69,7 +69,7 @@
     {
       "name": "@openwizard/core/inspect (esm, brotli)",
       "path": "packages/core/dist/inspect.js",
-      "limit": "12 kB",
+      "limit": "14 kB",
       "brotli": true
     },
     {

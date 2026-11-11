@@ -19,7 +19,7 @@ import { omit } from '../util'
 import { patchStep, withSaga } from './patch'
 
 /**
- * v0.2: a `when` predicate in flight for a pending activation belongs to a live flow. Once the
+ * A `when` predicate in flight for a pending activation belongs to a live flow. Once the
  * flow is done / cancelled / compensating nothing may enter or skip any more, so the in-flight
  * token is staled here (its late result is `result.ignored`, resume does not re-issue it).
  */

@@ -11,7 +11,7 @@ const machineDecide = (h: ReturnType<typeof createHarness>, msg: Message) =>
 
 describe('retry / backoff / timeout', () => {
   const retrying = (retry: {
-    attempts: number
+    retries: number
     backoff?: number | 'exponential'
     baseMs?: number
     factor?: number
@@ -23,7 +23,7 @@ describe('retry / backoff / timeout', () => {
     })
 
   it('exponential backoff: schedule attempts 2..N+1 at 200·2^(n-1) capped by maxBackoffMs, then fail', () => {
-    const h = createHarness(retrying({ attempts: 3, backoff: 'exponential', maxBackoffMs: 500 }), {
+    const h = createHarness(retrying({ retries: 3, backoff: 'exponential', maxBackoffMs: 500 }), {
       now: 10_000,
     })
     h.start()
@@ -62,14 +62,14 @@ describe('retry / backoff / timeout', () => {
   })
 
   it('fixed and tuned exponential backoff (baseMs/factor); flow-level retry policy applies when the step has none', () => {
-    const fixed = createHarness(retrying({ attempts: 1, backoff: 1234 }))
+    const fixed = createHarness(retrying({ retries: 1, backoff: 1234 }))
     fixed.start()
     expect(of(fixed.err(fixed.call('run')), 'step.retryScheduled')[0]?.dueAt).toBe(
       fixed.clock.now + 1234,
     )
 
     const tuned = createHarness(
-      retrying({ attempts: 3, backoff: 'exponential', baseMs: 10, factor: 3, maxBackoffMs: 50 }),
+      retrying({ retries: 3, backoff: 'exponential', baseMs: 10, factor: 3, maxBackoffMs: 50 }),
     )
     tuned.start()
     const delays: number[] = []
@@ -82,7 +82,7 @@ describe('retry / backoff / timeout', () => {
     expect(delays).toEqual([10, 30, 50])
 
     // purity: the same state + message always yields the same schedule (no callbacks in the policy)
-    const pure = createHarness(retrying({ attempts: 1, backoff: 'exponential' }))
+    const pure = createHarness(retrying({ retries: 1, backoff: 'exponential' }))
     pure.start()
     const call = pure.call('run')
     const msg = {
@@ -101,7 +101,7 @@ describe('retry / backoff / timeout', () => {
       flow({
         start: 't',
         steps: { t: runStep({ next: 'end' }), end: routingStep() },
-        policies: { retry: { attempts: 1, backoff: 5 } },
+        policies: { retry: { retries: 1, backoff: 5 } },
       }),
     )
     flowLevel.start()
@@ -273,7 +273,7 @@ describe('retry jitter and patch (D12)', () => {
     const h = createHarness(
       flow({
         start: 't',
-        steps: { t: runStep({ retry: { attempts: 1, backoff: 1_000, jitter: 0.5 } }) },
+        steps: { t: runStep({ retry: { retries: 1, backoff: 1_000, jitter: 0.5 } }) },
       }),
     )
     h.start()

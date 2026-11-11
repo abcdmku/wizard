@@ -1,6 +1,6 @@
 # Contributing
 
-OpenWizard is a pnpm workspace. You need Node.js 20 or newer and pnpm 10.
+OpenWizard is a pnpm workspace. You need Node.js 22 or newer and pnpm 10. The published packages run on Node.js 20.
 
 ## Set up the repository
 

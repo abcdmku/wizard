@@ -170,7 +170,7 @@ export function completeStep(
 }
 
 /**
- * Start the lightweight auto transaction from a completed non-view step — or (v0.2)
+ * Start the lightweight auto transaction from a completed non-view step — or
  * from a skipped step of any kind, whose `next` targets are arrived the same way.
  */
 export function startAuto(b: Batch, from: string, override?: string | readonly string[]): void {
@@ -211,7 +211,7 @@ export function startAuto(b: Batch, from: string, override?: string | readonly s
 
 /**
  * `nav` just returned to idle: start the next deferred auto-advance, if any; otherwise
- * (v0.2) let the current view drain its inbox — a view listens for external events only
+ * let the current view drain its inbox — a view listens for external events only
  * while `nav` is idle (§10.1), so events buffered while it was busy are delivered now.
  */
 export function onNavIdle(b: Batch): void {
@@ -228,7 +228,7 @@ export function onNavIdle(b: Batch): void {
 }
 
 /**
- * v0.2 (§10.1): a view's `on[event]` handler returned `{ next }` — an external event advances
+ * §10.1: a view's `on[event]` handler returned `{ next }` — an external event advances
  * the cursor through a transaction with `cause: 'event'`: `canEnter` (targets) → `exit` (view)
  * → `enter` (targets) → commit; no `parseInput` / `validate` / `canExit`. Requires an idle `nav`.
  */
@@ -265,7 +265,7 @@ export function commit(b: Batch): void {
     emit(b, { type: 'step.arrived', step: t, from })
   }
   const cursor = cursorTarget(b.env.def, b.state, targets, from)
-  // v0.2: a `when` predicate gates automatic entry (`next` / auto / cursor rule); a view the user
+  // A `when` predicate gates automatic entry (`next` / auto / cursor rule); a view the user
   // navigated to explicitly (`go` / `back`) enters when eligible — explicit intent overrides `when`.
   const explicit = isExplicitCause(cause)
   if (

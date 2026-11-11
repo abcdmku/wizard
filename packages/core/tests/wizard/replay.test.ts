@@ -61,7 +61,7 @@ const flow = defineWizard(
             update({ rows })
             return { rows }
           },
-          retry: { attempts: 2, backoff: 100 },
+          retry: { retries: 2, backoff: 100 },
           next: ['normalize', 'enrich'],
         }),
         normalize: step({

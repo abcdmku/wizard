@@ -101,7 +101,7 @@ describe('runEffect', () => {
             },
           ),
           retry: {
-            attempts: 2,
+            retries: 2,
             when: (error) => {
               errors.push(error.reason)
               return error.reason === 'temporarily unavailable'
@@ -168,7 +168,7 @@ describe('runEffect', () => {
                 : 'payments unavailable',
           }),
           retry: {
-            attempts: 2,
+            retries: 2,
             when: (error) => {
               retriedErrors.push(error)
               return error.reason === 'temporarily unavailable'

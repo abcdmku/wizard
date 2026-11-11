@@ -62,7 +62,7 @@ describe('deferred Effect adapters', () => {
               )
             },
             retry: {
-              attempts: 1,
+              retries: 1,
               when: (error) => {
                 expectTypeOf(error).toEqualTypeOf<{ reason: string }>()
                 return error.reason === 'unavailable'

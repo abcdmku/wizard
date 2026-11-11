@@ -17,7 +17,7 @@ function mappedChildren() {
               concurrency: 3,
             },
           }),
-          retry: { attempts: 1, backoff: 100 },
+          retry: { retries: 1, backoff: 100 },
         },
       },
     }),

@@ -7,7 +7,7 @@
  * every id exists in the compiled flow (`go` / `setInput` / `resetInput` name a
  * view, `run` / `retry` a runnable step (`retry.patch` a JSON object), `send` a declared event
  * (`send.eventId` a dedupe id), `compensate.from` /
- * `skip.step` / `invalidate.step` a step (v0.2; `invalidate.cascade` a boolean),
+ * `skip.step` / `invalidate.step` a step (`invalidate.cascade` a boolean),
  * every `child` path segment a flow step, the nested command checked
  * against the child flow it reaches). It returns a fresh `Command<F>` or
  * Standard-Schema style issues, so `run.dispatch(parsed.value)` typechecks.

@@ -109,14 +109,14 @@ describe('inspect manifest', () => {
       {
         name: 'retrying',
         context: boundary.trusted<{}>(),
-        retry: { attempts: 2 },
+        retry: { retries: 2 },
       },
       ({ step, view, steps }) =>
         steps({
           own: step({
             run: async () => 1,
             retry: {
-              attempts: 5,
+              retries: 5,
               backoff: 'exponential',
               baseMs: 100,
               factor: 3,
@@ -129,8 +129,8 @@ describe('inspect manifest', () => {
         }),
     )
     expect(inspect(wizard).nodes.map((node) => [node.id, node.retry])).toEqual([
-      ['own', { attempts: 5, backoff: 'exponential', baseMs: 100, factor: 3, maxBackoffMs: 2000 }],
-      ['inherited', { attempts: 2 }],
+      ['own', { retries: 5, backoff: 'exponential', baseMs: 100, factor: 3, maxBackoffMs: 2000 }],
+      ['inherited', { retries: 2 }],
       ['form', undefined],
     ])
   })

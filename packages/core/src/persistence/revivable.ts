@@ -9,7 +9,7 @@
  * |-----------------------------------|----------------------------------------------------|
  * | `state.context`                   | the flow's `context` boundary                      |
  * | `state.steps.<id>.output`         | the step's `output` (views: `input`) boundary      |
- * | `state.steps.<id>.previousOutput` | same boundary (v0.2: the output `invalidate` moved) |
+ * | `state.steps.<id>.previousOutput` | same boundary (the output `invalidate` moved) |
  * | `state.saga.stack[i].output`      | that entry's step, same rule                       |
  * | `state.inbox[i].payload`          | `events[<entry.event>]`                            |
  * | `children.<id>.…`                 | the same table against the child flow              |

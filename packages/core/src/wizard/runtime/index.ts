@@ -1,17 +1,17 @@
 /**
- * Untyped run runtime â€” the live object behind the typed `Run<F>` faÃ§ade
+ * Untyped run runtime — the live object behind the typed `Run<F>` façade
  * (`createRun`/`resumeRun` in the authoring layer wrap it).
  *
  * Every method is sugar over `dispatch(command)`; results are values (plan
- * Â§8.2): `CommandResult`, `NavResult`, `SendResult`. `WizardError` is the
+ * §8.2): `CommandResult`, `NavResult`, `SendResult`. `WizardError` is the
  * rejection only for misuse: `UNKNOWN_EVENT` (send), `UNKNOWN_STEP` (validate),
  * and `NOT_A_FLOW_STEP` / `NOT_ACTIVE` are thrown by `child()`. After `dispose()`
  * every command resolves a `DISPOSED` value and subscriptions are inert (D20).
  *
- * Sync-commit guarantee (plan Â§8.1): every public call enqueues its command
+ * Sync-commit guarantee (plan §8.1): every public call enqueues its command
  * synchronously; when the whole chain (boundary, hooks, machine) is
  * synchronous, the state is committed and listeners are notified before the
- * call returns and the returned promise is *already fulfilled* â€” no `async`
+ * call returns and the returned promise is *already fulfilled* — no `async`
  * wrappers, no gratuitous microtask hops. Only genuinely asynchronous work
  * (a thenable from a boundary/hook, a transaction waiting for a hook result)
  * yields a pending promise, and every such promise is settled by `dispose()`.
@@ -19,14 +19,14 @@
  * Promise settlement: a command's promise resolves when the batch produced by
  * that command commits; navigation commands wait for their transaction
  * (`transition.committed/rejected/failed`; the machine's `settle` effect is
- * honoured as a fallback). Nothing here re-enters the machine: everything â€”
- * including `child` commands (`child.command` â†’ `child.send`) â€” flows through
+ * honoured as a fallback). Nothing here re-enters the machine: everything —
+ * including `child` commands (`child.command` → `child.send`) — flows through
  * the interpreter queue.
  *
  * This file is the composition root: `context.ts` (interpreter + shared state),
  * `commands.ts` (enqueue / result plumbing), `transactions.ts` (nav promises),
  * `results.ts` (result mapping), `persistence.ts` (driver + `save`) and
- * `config.ts` (options â†’ config).
+ * `config.ts` (options → config).
  *
  * @internal Public users see the typed `Run<F>`.
  */
@@ -88,7 +88,7 @@ export function createWizardRuntime(def: CompiledFlow, opts: WizardRuntimeOption
 /**
  * The child factory of one runtime: each child runs with ITS deps (`flow.flow(child, { deps })`
  * mapped + parsed by the bridge, or the parent's deps passed through) and inherits the parent's
- * correlation id (v0.2 Â§9.1 â€” same business entity) and is linked to its parent (`ParentLink`);
+ * correlation id (§9.1 — same business entity) and is linked to its parent (`ParentLink`);
  * everything else in the config is shared.
  */
 function childFactory(

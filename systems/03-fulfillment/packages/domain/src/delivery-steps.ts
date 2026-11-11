@@ -18,7 +18,7 @@ export function createDeliverySteps(step: FulfillmentStep) {
         update({ paymentCapture: { state: 'pending' }, updatedAt: deps.now() })
         return accepted
       },
-      retry: { attempts: 3, backoff: 'exponential' },
+      retry: { retries: 3, backoff: 'exponential' },
       idempotent: ({ context }) => `order:${context.orderId}:capture-payment`,
       mapError: (error, { attempt }) => mappedFailure(error, attempt),
       compensate: async ({ context, deps }) => {
@@ -94,7 +94,7 @@ export function createDeliverySteps(step: FulfillmentStep) {
         })
         return accepted
       },
-      retry: { attempts: 3, backoff: 'exponential' },
+      retry: { retries: 3, backoff: 'exponential' },
       idempotent: ({ context }) => `order:${context.orderId}:create-shipment`,
       mapError: (error, { attempt }) => mappedFailure(error, attempt),
       compensate: ({ context, deps, output }) =>

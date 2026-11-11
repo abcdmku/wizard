@@ -134,7 +134,7 @@ function schemasOf(record: AnyStep | undefined): {
 
 function retryFacts(policy: RetryPolicy): GraphRetry {
   return {
-    attempts: policy.attempts,
+    retries: policy.retries,
     ...(policy.backoff !== undefined ? { backoff: policy.backoff } : {}),
     ...(policy.baseMs !== undefined ? { baseMs: policy.baseMs } : {}),
     ...(policy.factor !== undefined ? { factor: policy.factor } : {}),

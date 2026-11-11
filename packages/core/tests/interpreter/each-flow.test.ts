@@ -218,7 +218,7 @@ describe('mapped child flows with the real machine', () => {
             each: { items: () => [0, 1, 2], concurrency: 2 },
             context: ({ item }) => item,
           }),
-          retry: { attempts: 1, backoff: 10 },
+          retry: { retries: 1, backoff: 10 },
         },
       },
     })

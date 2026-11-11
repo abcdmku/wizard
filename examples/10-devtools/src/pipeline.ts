@@ -39,7 +39,7 @@ export const pipeline = defineWizard(
             update({ rows })
             return { rows }
           },
-          retry: { attempts: 2, backoff: 800 },
+          retry: { retries: 2, backoff: 800 },
           next: ['normalize', 'enrich'],
         }),
         normalize: step({
@@ -57,7 +57,7 @@ export const pipeline = defineWizard(
             return { enriched, quality }
           },
           when: ({ context }) => context.enrichment === 'on',
-          retry: { attempts: 1, backoff: 1_200 }, // the fake enricher fails once → `retrying` in the graph
+          retry: { retries: 1, backoff: 1_200 }, // the fake enricher fails once → `retrying` in the graph
           next: 'gate',
         }),
         gate: step({

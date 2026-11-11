@@ -148,14 +148,14 @@ function planEvent(
       return
     }
     case 'step.whenStarted': {
-      // v0.2 (§10.2): the predicate runs while the step is still pending (token = current runId).
+      // §10.2: the predicate runs while the step is still pending (token = current runId).
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status === 'active' || rec.when !== 'pending') return
       out.push(call(env, rec, 'when'))
       return
     }
     case 'step.idempotencyKeyRequested': {
-      // v0.2 (§10.4): computed before the first attempt of the run (args = the run's args).
+      // §10.4: computed before the first attempt of the run (args = the run's args).
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status !== 'active' || rec.runId !== ev.runId) return
       if (rec.attempt !== 0 || rec.entering === true) return
@@ -163,7 +163,7 @@ function planEvent(
       return
     }
     case 'step.mapErrorStarted': {
-      // v0.2 (§10.7): the raw failure travels in `extra` and comes back on the result.
+      // §10.7: the raw failure travels in `extra` and comes back on the result.
       const rec = state.steps[ev.step]
       if (rec === undefined || rec.status !== 'active' || rec.attempt !== ev.attempt) return
       if (rec.retryAt !== undefined || rec.entering === true) return
@@ -225,7 +225,7 @@ function planEvent(
       return
     }
     case 'event.flowDelivered':
-      // v0.2 (§10.1): the flow-level handler has no step — `step: ''`, token `{ step: '', runId: 0 }`;
+      // §10.1: the flow-level handler has no step — `step: ''`, token `{ step: '', runId: 0 }`;
       // the executor and `decide` route on `hook: 'flowOn'` before looking at the step.
       out.push({
         kind: 'call',

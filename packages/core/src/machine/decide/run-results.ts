@@ -76,7 +76,7 @@ export function onRunResult(b: Batch, msg: ResultMsg): boolean {
     data: msg.failure?.data,
   }
   if (def.hooks.mapError !== undefined && msg.error.code !== 'INVALID_RUN_ERROR') {
-    // v0.2 (§10.7): map the failure first; `onMapErrorResult` records it with `data`.
+    // §10.7: map the failure first; `onMapErrorResult` records it with `data`.
     emit(b, {
       type: 'step.mapErrorStarted',
       step,
@@ -172,7 +172,7 @@ function recordRunFailure(b: Batch, step: string, failure: RunFailure, data: unk
     return
   }
   const policy = def.retry ?? b.env.def.policies.retry
-  const allowed = policy?.attempts ?? 0
+  const allowed = policy?.retries ?? 0
   if (r.attempt <= allowed && failure.retryable) {
     emit(b, {
       type: 'step.runFailed',

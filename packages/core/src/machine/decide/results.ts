@@ -96,7 +96,7 @@ function handlerCancelled(msg: ResultMsg): boolean {
 }
 
 /**
- * v0.2 (§10.1): flow-level `on[event]` result. `{ cancel: reason }` cancels the flow like the
+ * §10.1: flow-level `on[event]` result. `{ cancel: reason }` cancels the flow like the
  * `cancel` command (compensation policy applies); a throw is recorded as `event.handlerFailed`.
  * Stale once the flow is idle again (reset), terminal or compensating, or when the runtime
  * aborted the call.
@@ -162,7 +162,7 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
     case 'sleep':
       return onSleepResult(b, msg)
     case 'when':
-      // v0.2 (§10.2): only meaningful while the predicate is in flight for a pending activation
+      // §10.2: only meaningful while the predicate is in flight for a pending activation
       // of a live flow (a terminal / compensating flow schedules nothing: the result is stale).
       if (r.status === 'active' || r.when !== 'pending' || !r.pendingActivation) return false
       if (isTerminal(b.state) || b.state.status === 'compensating') return false
@@ -176,7 +176,7 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
       }
       return true
     case 'idempotencyKey': {
-      // v0.2 (§10.4): the run starts with the custom key (a non-string value → default key).
+      // §10.4: the run starts with the custom key (a non-string value → default key).
       if (!isRunnableStep(def) || r.status !== 'active' || r.attempt !== 0 || r.entering === true)
         return false
       if (!ok) {
@@ -205,7 +205,7 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
       }
       return true
     case 'on': {
-      // v0.2 (§10.1): any kind may handle events; the result contract depends on the kind.
+      // §10.1: any kind may handle events; the result contract depends on the kind.
       if (
         r.status !== 'active' ||
         r.entering === true ||

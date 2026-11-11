@@ -17,7 +17,7 @@ export function createReadinessSteps(step: FulfillmentStep) {
           callbackUrl: context.callbackUrl,
           idempotencyKey,
         }),
-      retry: { attempts: 3, backoff: 'exponential' },
+      retry: { retries: 3, backoff: 'exponential' },
       idempotent: ({ context }) => `order:${context.orderId}:authorize-payment`,
       mapError: (error, { attempt }) => mappedFailure(error, attempt),
       compensate: async ({ context, deps }) => {
@@ -78,7 +78,7 @@ export function createReadinessSteps(step: FulfillmentStep) {
           callbackUrl: context.callbackUrl,
           idempotencyKey,
         }),
-      retry: { attempts: 3, backoff: 'exponential' },
+      retry: { retries: 3, backoff: 'exponential' },
       idempotent: ({ context }) => `order:${context.orderId}:reserve-inventory`,
       mapError: (error, { attempt }) => mappedFailure(error, attempt),
       compensate: async ({ context, deps }) => {

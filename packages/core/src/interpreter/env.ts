@@ -6,12 +6,12 @@
  * (`./test-scheduler`, exported from `@openwizard/core/testing`: `advance(ms)` /
  * `flush()`), and every id in an event trace is reproducible with
  * `createSequentialIds()`. `Clock` and `Scheduler` are public
- * (`createRun({ clock, scheduler })`); the id generator and the real
+ * (`wizard.create(input, { clock, scheduler })`); the id generator and the real
  * implementations are internal.
  */
 
 /**
- * Wall clock the runtime reads for timestamps and timer deadlines (`createRun({ clock })`).
+ * Wall clock the runtime reads for timestamps and timer deadlines (`wizard.create(input, { clock })`).
  * @public
  */
 export interface Clock {
@@ -21,7 +21,7 @@ export interface Clock {
 
 /**
  * Timer scheduler the runtime arms retries, wait timeouts and inbox TTLs with
- * (`createRun({ scheduler })`). Handles are opaque: the runtime only ever passes them back
+ * (`wizard.create(input, { scheduler })`). Handles are opaque: the runtime only ever passes them back
  * to `clearTimeout` of the same scheduler.
  * @public
  */

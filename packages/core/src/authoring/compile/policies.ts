@@ -24,7 +24,7 @@ export function durationMs(
 
 /**
  * Validate a `RetryPolicy` — one shape shared by the DSL and the machine, so nothing is mapped:
- * `attempts` a non-negative integer; `backoff` a fixed number of ms or `'exponential'`;
+ * `retries` a non-negative integer; `backoff` a fixed number of ms or `'exponential'`;
  * `baseMs` / `factor` / `maxBackoffMs` only with `'exponential'` (defaults are applied by the
  * machine: 200 ms / 2 / 30 s); `jitter` a number in 0..1; `when` a predicate. Returns a copy
  * holding only the recognised fields.
@@ -36,16 +36,16 @@ export function compileRetry(
 ): RetryPolicy | undefined {
   if (!isRecord(policy)) {
     problem(
-      `${what} must be { attempts, backoff?, baseMs?, factor?, maxBackoffMs?, jitter?, when? }`,
+      `${what} must be { retries, backoff?, baseMs?, factor?, maxBackoffMs?, jitter?, when? }`,
     )
     return undefined
   }
-  const { attempts, backoff, baseMs, factor, maxBackoffMs, jitter, when } = policy
-  if (typeof attempts !== 'number' || !Number.isInteger(attempts) || attempts < 0) {
-    problem(`${what}.attempts must be a non-negative integer`)
+  const { retries, backoff, baseMs, factor, maxBackoffMs, jitter, when } = policy
+  if (typeof retries !== 'number' || !Number.isInteger(retries) || retries < 0) {
+    problem(`${what}.retries must be a non-negative integer`)
     return undefined
   }
-  const out: Mutable<RetryPolicy> = { attempts }
+  const out: Mutable<RetryPolicy> = { retries }
   if (backoff !== undefined) {
     if (backoff === 'exponential') out.backoff = 'exponential'
     else if (typeof backoff === 'number' && Number.isFinite(backoff) && backoff >= 0)

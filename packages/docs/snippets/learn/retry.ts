@@ -14,7 +14,7 @@ export const uploadFlow = defineWizard(
           code: error instanceof Error && error.message === 'storage is busy' ? 'BUSY' : 'REJECTED',
           attempt,
         }),
-        retry: { attempts: 2, backoff: 1_000, when: (error) => error.code === 'BUSY' },
+        retry: { retries: 2, backoff: 1_000, when: (error) => error.code === 'BUSY' },
         next: 'done',
       }),
       done: step({ run: () => 'saved' }),

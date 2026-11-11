@@ -118,11 +118,11 @@ export interface StepRecord {
   /** Last validation issues (view). Cleared on the next input change. */
   readonly issues?: readonly Issue[]
   readonly error?: StepError
-  /** v0.2: output before the last explicit invalidation. */
+  /** Output before the last explicit invalidation. */
   readonly previousOutput?: unknown
   /** An explicit invalidation remains pending until the step is activated again. */
   readonly invalidated?: true
-  /** v0.2: why the step was skipped (`'when'` | `'command'`). */
+  /** Why the step was skipped (`'when'` | `'command'`). */
   readonly skipReason?: string
   /** Attempt counter for the current run (1-based while running; 0 when idle). */
   readonly attempt: number
@@ -139,7 +139,7 @@ export interface StepRecord {
     readonly canExit?: GuardResult
   }
   /**
-   * v0.2: state of the step's `when` predicate for the current activation — `'pending'` while the
+   * State of the step's `when` predicate for the current activation — `'pending'` while the
    * call is in flight, `'passed'` once it returned true (the step may enter). Absent when the step
    * has no `when` hook or has not been evaluated yet; cleared on entry, skip and invalidation.
    */
@@ -205,7 +205,7 @@ export interface NavState {
     readonly to?: string | readonly string[]
   }>
   /**
-   * v0.2: the view a committed transition wanted as cursor but could not enter because its `when`
+   * The view a committed transition wanted as cursor but could not enter because its `when`
    * predicate was still unevaluated. Once the predicate passes, the cursor rule prefers this view
    * when several views are ready. Cleared when a cursor is set or the view enters/skips/invalidates.
    */
@@ -260,7 +260,7 @@ export interface WizardState {
   readonly terminal?: TerminalState
   readonly seq: number
   readonly instanceId: string
-  /** v0.2: correlation id used to filter external events (`defineFlow({ correlate })`). */
+  /** Correlation id used to filter external events (`defineWizard({ correlate })`). */
   readonly correlationId?: string
   /** Delivered `send` event ids still inside the dedupe window, oldest first (D8). */
   readonly eventIds?: readonly SeenEventId[]

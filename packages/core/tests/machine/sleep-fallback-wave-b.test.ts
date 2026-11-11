@@ -78,7 +78,7 @@ describe('static failure fallback', () => {
         start: 'request',
         policies: { onFailure: 'compensate' },
         steps: {
-          request: { ...runStep({ retry: { attempts: 1 } }), fallback: 'recover' },
+          request: { ...runStep({ retry: { retries: 1 } }), fallback: 'recover' },
           recover: runStep(),
         },
       }),

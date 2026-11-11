@@ -78,7 +78,7 @@ When a quiescent join cannot satisfy a dependency that can no longer activate, f
 
 A successful runnable result becomes step output after boundary validation. A failure can pass through `mapError`; the returned data must be JSON-safe and determines `retry.when` when configured.
 
-`retry.attempts` counts retries after the initial call. Backoff is fixed milliseconds or exponential with `baseMs`, `factor`, and `maxBackoffMs`. `jitter` is bounded from zero to one. Draw and store the absolute retry deadline once; replay and resume do not draw it again.
+`retry.retries` is the number of extra runs after the initial call. Backoff is fixed milliseconds or exponential with `baseMs`, `factor`, and `maxBackoffMs`. `jitter` is bounded from zero to one. Draw and store the absolute retry deadline once; replay and resume do not draw it again.
 
 An explicit `retry(step, { patch })` applies its context patch before starting the new attempt. Preserve the stored idempotency key for the activation.
 

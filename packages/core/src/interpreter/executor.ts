@@ -8,9 +8,9 @@
  * - `parseInput` runs the view's `input` boundary over the draft; `run` pipes
  *   the hook value through the optional `output` boundary; `childContext`
  *   pipes the mapped context through the child flow's `context` boundary;
- *   `on` resolves `hooks.on[extra.event]`; `flowOn` (v0.2) resolves the
+ *   `on` resolves `hooks.on[extra.event]`; `flowOn` resolves the
  *   flow-level `def.on[extra.event]` (no step: the effect's `step` is `''`);
- *   `mapError` (v0.2) receives the RAW value the failed `run` threw as
+ *   `mapError` receives the RAW value the failed `run` threw as
  *   `args.error` when it is still known (same step/runId/attempt), else the
  *   serialized form the machine put in `extra`. Every result echoes the effect's
  *   `extra` (`res.ok/res.err.extra`) so the machine gets its routing data back.
@@ -228,7 +228,7 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     }
     track(inf)
 
-    // v0.2: the flow-level handler is routed on the hook name alone (`step` is `''`, not a step id).
+    // The flow-level handler is routed on the hook name alone (`step` is `''`, not a step id).
     const flowLevel = effect.hook === 'flowOn'
     if (stepDef === undefined && !flowLevel) {
       errResult(
@@ -246,7 +246,7 @@ export function createExecutor(opts: ExecutorOptions): Executor {
       inf.updates = []
     }
 
-    // `mapError` (v0.2) sees the raw thrown value of the failed attempt when it is still known.
+    // `mapError` sees the raw thrown value of the failed attempt when it is still known.
     const key = failureKey(effect.token)
     const raw = effect.hook === 'mapError' ? rawFailures.get(key) : undefined
     const rawError =

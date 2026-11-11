@@ -39,9 +39,9 @@ export type IoEventBody =
       readonly payload?: unknown
     }
   | { readonly type: 'event.expired'; readonly event: string; readonly inboxId: string }
-  /** `reason`: `'no-listener'`, or `'correlation'` (v0.2: `correlate[event](payload)` â‰  the run's `correlationId`). */
+  /** `reason`: `'no-listener'`, or `'correlation'` (`correlate[event](payload)` ≠ the run's `correlationId`). */
   | { readonly type: 'event.dropped'; readonly event: string; readonly reason: string }
-  /** v0.2: delivered to the flow-level `on[event]` handler (`plan` â†’ `call { hook: 'flowOn' }`), after step deliveries. */
+  /** Delivered to the flow-level `on[event]` handler (`plan` → `call { hook: 'flowOn' }`), after step deliveries. */
   | {
       readonly type: 'event.flowDelivered'
       readonly event: string
@@ -49,7 +49,7 @@ export type IoEventBody =
       readonly payload?: unknown
     }
   /**
-   * v0.2: a step handler returned something its kind cannot honour and it was ignored â€” `reason`:
+   * A step handler returned something its kind cannot honour and it was ignored — `reason`:
    * `'kind'` (a passive handler returned a result it cannot use; a view returned
    * `keep`/`done`/`fail`) or `'nav-busy'` (a view returned `{ next }` while a transition was in flight).
    */
@@ -60,7 +60,7 @@ export type IoEventBody =
       readonly reason: 'kind' | 'nav-busy'
     }
   /**
-   * v0.2: an `on[event]` handler threw. Wait handlers fail their step instead (v0.1 rule); this is
+   * An `on[event]` handler threw. Wait handlers fail their step instead; this is
    * recorded for every other kind (`step`) and for the flow-level handler (no `step`); nothing else changes.
    */
   | {
@@ -95,7 +95,7 @@ export type IoEventBody =
       readonly summary: ChildSummary
       readonly done?: { readonly output: unknown }
     }
-  /** A `child` command was accepted and must be forwarded to the child interpreter (`plan` â†’ `child.send`). */
+  /** A `child` command was accepted and must be forwarded to the child interpreter (`plan` → `child.send`). */
   | {
       readonly type: 'child.command'
       readonly step: string

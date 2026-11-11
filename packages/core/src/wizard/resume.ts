@@ -1,34 +1,34 @@
 /**
- * Resume a run from a persisted snapshot (plan Â§8.8).
+ * Resume a run from a persisted snapshot (plan §8.8).
  *
- * 1. `validateSnapshot` â€” envelope, flow identity, step set, status
+ * 1. `validateSnapshot` — envelope, flow identity, step set, status
  *    invariants, JSON safety (recursively for children).
  * 2. Every boundary re-runs over the persisted data: `context`, view outputs
  *    (parsed inputs), run/flow outputs with an `output` boundary (and their
  *    copies on the compensation stack), inbox payloads. Parsed values replace
- *    the stored ones â€” this is what turns a persisted JSON form back into the
+ *    the stored ones — this is what turns a persisted JSON form back into the
  *    rich value (`z.coerce.date()`), see `persistence/revivable.ts`.
  * 3. The whole tree is prepared *before* anything is instantiated (atomic): a
  *    `ResumePlan` per run, with the plans of its children. Nothing runs
- *    twice â€” the child factory consumes the prepared child plans as they are.
+ *    twice — the child factory consumes the prepared child plans as they are.
  * 4. `epoch + 1`, then the complete child tree is attached before `{ type: 'resume', fromSeq }`
  *    (the machine applies the recovery matrix) and children are re-attached.
  *    An active `flow` step whose child snapshot is missing has its child
  *    summary stripped so the machine re-creates the child through the normal
- *    `childContext` â†’ `child.started` â†’ `child.create` pipeline.
+ *    `childContext` → `child.started` → `child.create` pipeline.
  *
- * Any failure â†’ `WizardError('SNAPSHOT_INCOMPATIBLE')` whose `issues` list one
+ * Any failure → `WizardError('SNAPSHOT_INCOMPATIBLE')` whose `issues` list one
  * reason per problem. `resumeWizardRuntime` (sync) reports an asynchronous
  * boundary as a reason pointing to `resumeWizardRuntimeAsync`, which awaits
  * every boundary of the whole tree first and only then instantiates (still
  * atomic; the boundary jobs are enumerated by a dry run of the same preparation).
  *
- * v0.2 (Â§9.5): `opts.migrate(snapshot, from)` runs first when the snapshot names this
+ * §9.5: `opts.migrate(snapshot, from)` runs first when the snapshot names this
  * flow at a different version; its result is stamped with the current version and goes
  * through the same validation (a thenable result is a reason on the sync door, awaited on
  * the async one). Steps the definition added since the snapshot resume idle.
  *
- * @internal Public users see the typed `resumeRun` / `resumeRunAsync`.
+ * @internal Public users call `wizard.resume` / `wizard.resumeAsync`.
  */
 
 import type { CompiledFlow, RuntimeBoundary } from '../authoring/compiled'
@@ -110,7 +110,7 @@ export async function resumeWizardRuntimeAsync(
 type Settled = { readonly result: unknown } | { readonly threw: unknown }
 
 /**
- * v0.2 (Â§9.5): the snapshot's flow identity, when it has one. `migrate` runs only for a
+ * §9.5: the snapshot's flow identity, when it has one. `migrate` runs only for a
  * same-name, different-version snapshot; anything else is left for `validateSnapshot` to judge.
  */
 function migrationNeeded(
@@ -126,7 +126,7 @@ function migrationNeeded(
 }
 
 /**
- * Run `migrate` synchronously; a thenable result or a throw is a reason (async â†’ use the async
+ * Run `migrate` synchronously; a thenable result or a throw is a reason (async → use the async
  * door). The `then` accessor is read inside the same guard as the call (a hostile thenable is a
  * reason, never an escaping exception) and an abandoned promise gets a rejection sink so it can
  * never surface as an unhandled rejection.

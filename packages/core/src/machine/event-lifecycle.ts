@@ -95,7 +95,7 @@ export type LifecycleEventBody =
       readonly runId: number
       readonly enterPending?: boolean
     }
-  /** The step's `enter` hook resolved; kind-specific work may start (see machine-spec Â§2). */
+  /** The step's `enter` hook resolved; kind-specific work may start (see machine-spec §2). */
   | { readonly type: 'step.enterCompleted'; readonly step: string }
   | {
       readonly type: 'step.exited'
@@ -131,11 +131,11 @@ export type LifecycleEventBody =
       readonly kind?: StepFailureKind
       readonly data?: unknown
     }
-  /** v0.2: the step's `when` predicate is being evaluated (it is ready; `apply` marks `when: 'pending'`). */
+  /** The step's `when` predicate is being evaluated (it is ready; `apply` marks `when: 'pending'`). */
   | { readonly type: 'step.whenStarted'; readonly step: string }
-  /** v0.2: `when` resolved â€” `ok: false` is followed by `step.skipped { reason: 'when' }`. */
+  /** `when` resolved — `ok: false` is followed by `step.skipped { reason: 'when' }`. */
   | { readonly type: 'step.whenEvaluated'; readonly step: string; readonly ok: boolean }
-  /** v0.2: explicit invalidation (never automatic). */
+  /** Explicit invalidation (never automatic). */
   | {
       readonly type: 'step.invalidated'
       readonly step: string
@@ -208,7 +208,7 @@ export type LifecycleEventBody =
       readonly timerId: string
     }
   // ---- compensation --------------------------------------------------------
-  /** `runId` identifies the stack entry (completion) being compensated â€” repeated activations have several. */
+  /** `runId` identifies the stack entry (completion) being compensated — repeated activations have several. */
   | { readonly type: 'step.compensationStarted'; readonly step: string; readonly runId?: number }
   | { readonly type: 'step.compensated'; readonly step: string; readonly runId?: number }
   | {

@@ -40,7 +40,7 @@ export type NextRef = string | readonly string[] | null
  * the machine only reads the verdict.
  */
 export interface RetryPolicy {
-  readonly attempts: number
+  readonly retries: number
   readonly backoff?: number | 'exponential'
   readonly baseMs?: number
   readonly factor?: number
@@ -97,7 +97,7 @@ export interface HookArgs {
 
 export type Hook<R = unknown> = (args: HookArgs) => MaybePromise<R>
 
-/** Return contract for flow-level `on[event]` handlers (v0.2): may cancel the flow. */
+/** Return contract for flow-level `on[event]` handlers: may cancel the flow. */
 export type FlowOnHandlerResult = void | undefined | { readonly cancel?: string }
 
 /**
@@ -160,7 +160,7 @@ export interface CompiledStep {
     /** RAW `deps` mapper of a flow step; the child bridge parses its value through `child.deps` (once) at creation. */
     readonly childDeps?: Hook<unknown>
     readonly childOutput?: Hook<unknown>
-    /** v0.2: skip predicate evaluated when the step becomes ready (false → `step.skipped { reason: 'when' }`). */
+    /** Skip predicate evaluated when the step becomes ready (false → `step.skipped { reason: 'when' }`). */
     readonly when?: Hook<boolean>
     /** Maps a run failure to a JSON-safe value stored as `StepError.data` (`args.error` = raw error). */
     readonly mapError?: Hook<unknown>
@@ -196,9 +196,9 @@ export interface CompiledFlow {
   /** Dependencies bound by wizard.provide(); merged when creating this child. */
   readonly providedDeps?: Readonly<Record<string, unknown>>
   readonly events: Readonly<Record<string, RuntimeBoundary>>
-  /** v0.2: flow-level event handlers, run after step-level ones in the same batch. */
+  /** Flow-level event handlers, run after step-level ones in the same batch. */
   readonly on?: Readonly<Record<string, Hook<FlowOnHandlerResult>>>
-  /** v0.2: per-event correlation extractors; a mismatch with the run's `correlationId` drops the event. */
+  /** Per-event correlation extractors; a mismatch with the run's `correlationId` drops the event. */
   readonly correlate?: Readonly<Record<string, (payload: unknown) => string | undefined>>
   readonly steps: Readonly<Record<string, CompiledStep>>
   /** Declaration order of step ids. */

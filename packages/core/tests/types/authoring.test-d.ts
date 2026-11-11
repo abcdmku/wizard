@@ -141,7 +141,7 @@ export const summarize = defineWizard(
       each: ({ context }) => context.docs,
       key: (doc) => doc.id,
       concurrency: 8,
-      retry: { attempts: 3, backoff: 'exponential', jitter: 0.2 },
+      retry: { retries: 3, backoff: 'exponential', jitter: 0.2 },
       run: async ({ item, index, progress }) => {
         progress({ chars: item.text.length })
         return { id: item.id, index, words: item.text.split(' ').length }
@@ -232,7 +232,7 @@ export const trip = defineWizard(
       }),
       flight: step({
         run: async () => ({ pnr: 'X' }),
-        retry: { attempts: 3, when: (error) => error instanceof Error },
+        retry: { retries: 3, when: (error) => error instanceof Error },
         fallback: 'manual',
       }),
       manual: step({ run: () => 'queued for an agent' }),

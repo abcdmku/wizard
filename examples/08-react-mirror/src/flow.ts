@@ -71,8 +71,8 @@ export const checkoutFlow = defineWizard(
         reserve: step({
           run: ({ context, deps }) => deps.inventory.reserve(context.cartId),
           label: 'Reserve stock',
-          // `attempts` = retries after the first failure: one retry here, 400 ms later.
-          retry: { attempts: 1, backoff: 400 },
+          // One retry, 400 ms after the first failure.
+          retry: { retries: 1, backoff: 400 },
           exit: ({ output, update }) => update({ reservationId: output.reservationId }),
           compensate: () => {
             /* release the reservation in a real system */

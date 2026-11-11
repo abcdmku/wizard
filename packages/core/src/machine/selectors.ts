@@ -126,7 +126,7 @@ export function unmetDeps(def: CompiledFlow, state: WizardState, id: string): re
 }
 
 /**
- * v0.2: the step declares a `when` predicate that has not passed for the current activation
+ * The step declares a `when` predicate that has not passed for the current activation
  * (unevaluated, or in flight). Such a step is eligible but not ready: the scheduler evaluates
  * `when` first and either lets it enter (`'passed'`) or skips it.
  */
@@ -141,7 +141,7 @@ export function eligible(def: CompiledFlow, state: WizardState, id: string): boo
   return rec.pendingActivation && rec.status !== 'active' && depsSatisfied(def, state, id)
 }
 
-/** `ready(id) = eligible(id) && !awaitingWhen(id)` — may enter now (v0.2 adds the `when` clause). */
+/** `ready(id) = eligible(id) && !awaitingWhen(id)` — may enter now. */
 export function ready(def: CompiledFlow, state: WizardState, id: string): boolean {
   return eligible(def, state, id) && !awaitingWhen(def, state, id)
 }
@@ -169,7 +169,7 @@ export function readyViews(def: CompiledFlow, state: WizardState): readonly stri
   return readySteps(def, state).filter((id) => def.steps[id]?.kind === 'view')
 }
 
-/** Eligible views whose `when` is still unresolved: the cursor rule waits for them (v0.2). */
+/** Eligible views whose `when` is still unresolved: the cursor rule waits for them. */
 export function viewsAwaitingWhen(def: CompiledFlow, state: WizardState): readonly string[] {
   return eligibleSteps(def, state).filter(
     (id) => def.steps[id]?.kind === 'view' && awaitingWhen(def, state, id),
@@ -215,7 +215,7 @@ export function cursorInitiated(def: CompiledFlow, nav: NavState): boolean {
   return nav.from == null || def.steps[nav.from]?.kind === 'view'
 }
 
-/** Explicit navigation (`go` / `back`): the user's intent overrides the target's `when` (v0.2). */
+/** Explicit navigation (`go` / `back`): the user's intent overrides the target's `when`. */
 export function isExplicitCause(cause: NavCause | undefined): boolean {
   return cause === 'go' || cause === 'back'
 }
@@ -273,7 +273,7 @@ function computePhase(def: CompiledFlow, state: WizardState, id: string): StepPh
   if (rec.status === 'compensating') return 'compensating'
   if (rec.status !== 'active') {
     if (!rec.pendingActivation) return undefined
-    // v0.2: an eligible step whose `when` predicate is unresolved cannot enter yet → blocked.
+    // An eligible step whose `when` predicate is unresolved cannot enter yet → blocked.
     return depsSatisfied(def, state, id) && !awaitingWhen(def, state, id) ? 'ready' : 'blocked'
   }
   if (rec.entering === true) return 'entering'
@@ -323,7 +323,7 @@ export function progress(state: WizardState, def: CompiledFlow): Progress {
 }
 
 /**
- * v0.2 (§9.6): views the user can be on right now — the current view plus every ready view, in
+ * §9.6: views the user can be on right now — the current view plus every ready view, in
  * declaration order. Memoized per state (one array identity per seq).
  */
 export function readyOrCurrentViews(def: CompiledFlow, state: WizardState): readonly string[] {

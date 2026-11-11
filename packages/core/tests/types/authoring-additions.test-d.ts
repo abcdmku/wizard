@@ -98,8 +98,8 @@ export const oneError = defineWizard(
       join: step({
         needs: { load },
         run: ({ context, needs }) => context.n + needs.load,
-        // @ts-expect-error ; attempts is a number (no `Unset` error on the run line)
-        retry: { attempts: '3' },
+        // @ts-expect-error ; retries is a number (no `Unset` error on the run line)
+        retry: { retries: '3' },
       }),
       // @ts-expect-error ; a need is a step object, not an id
       bad: step({ needs: { load: 'load' }, run: ({ needs }) => needs.load }),
@@ -225,7 +225,7 @@ export const typedErrors = defineWizard(
         run: adapter(async ({ context }) => context.id, {
           mapError: () => ({ code: 'DOWN' as const }),
         }),
-        retry: { attempts: 2, when: (e) => e.code === 'DOWN' },
+        retry: { retries: 2, when: (e) => e.code === 'DOWN' },
       }),
       // @ts-expect-error ; a mapped error is persisted, so it must be JSON
       notJson: step({ run: () => 1, mapError: () => new Date() }),

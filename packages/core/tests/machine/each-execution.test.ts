@@ -86,7 +86,7 @@ describe('map item execution', () => {
     const h = createHarness(
       flow({
         start: 'map',
-        steps: { map: runStep({ each, retry: { attempts: 1, backoff: 25 } }) },
+        steps: { map: runStep({ each, retry: { retries: 1, backoff: 25 } }) },
       }),
     )
     startItems(h, ['a', 'b'])
@@ -164,7 +164,7 @@ describe('map item execution', () => {
 
   it('ignores duplicates and older item attempts without overwriting successful output', () => {
     const h = createHarness(
-      flow({ start: 'map', steps: { map: runStep({ each, retry: { attempts: 1 } }) } }),
+      flow({ start: 'map', steps: { map: runStep({ each, retry: { retries: 1 } }) } }),
     )
     startItems(h, ['a', 'b'])
     const first = itemCall(h, 0)

@@ -10,14 +10,17 @@ The example observes a contact view, sets its input, and advances. It then repla
 ## Inspect the definition or explain a run
 
 ```ts
-import { inspect, toMermaid } from '@openwizard/core/inspect'
+import { inspect, toMarkdown, toMermaid } from '@openwizard/core/inspect'
 
 const graph = inspect(wizard)
 const diagram = toMermaid(graph)
+const page = toMarkdown(graph)
 const explanation = run.explain('contact')
 ```
 
-`inspect` reads the wizard's graph without creating a run. It includes data needs, control gates, declared routing targets, fallback edges, and warnings such as exclusive-branch AND-joins or ambiguous default output.
+`inspect` reads the wizard's graph without creating a run. `toMarkdown` turns it into one page with the diagram, a table of every step, each step's needs and policies, the schemas, and the warnings. The page is the same for the same definition, so you can commit it and fail a build when it drifts.
+
+The manifest includes data needs, control gates, declared routing targets, fallback edges, and warnings such as exclusive-branch AND-joins or ambiguous default output.
 
 `explain(step)` reads live state. It emits no events and starts no work, even after disposal. It returns stored status, live phase, ready view candidates, blocking reasons, and `waitingFor`.
 

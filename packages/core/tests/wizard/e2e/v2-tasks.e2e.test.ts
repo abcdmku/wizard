@@ -35,7 +35,7 @@ describe('e2e v0.2 — mapError', () => {
             status: error instanceof HttpError ? error.status : -1,
             retryable: error instanceof HttpError && error.status >= 500,
           }),
-          retry: { attempts: 1, backoff: 50 },
+          retry: { retries: 1, backoff: 50 },
           next: 'end',
         }),
         end: routingStep(),

@@ -68,7 +68,7 @@ describe('instrumentRun', () => {
               if (calls === 1) throw new Error('private failure')
               return 'ok'
             },
-            retry: { attempts: 2, backoff: 5 },
+            retry: { retries: 2, backoff: 5 },
           }),
         }),
     )

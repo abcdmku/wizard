@@ -6,9 +6,16 @@ import type { StepError } from './assembly'
 import type { Boundary } from './boundary'
 import type { DepsOf, RequiredDepsOf } from './extractors'
 import type { FlowOnArgs } from './hook-args'
-import type { Duration, MaybePromise, RetryPolicy, StepKind } from './primitives'
+import type { Duration, JsonValue, MaybePromise, RetryPolicy, StepKind } from './primitives'
 import type { FlowStep, SinkRole, StepFacts } from './step'
 
+/** Author documentation, copied to the manifest that `inspect` returns. */
+export interface WizardProse {
+  /** What the wizard is for, in a sentence or two. `toMarkdown` prints it under the title. */
+  readonly description?: string
+  /** JSON data for tools. The runtime never reads it. */
+  readonly meta?: Readonly<Record<string, JsonValue>>
+}
 export interface WizardPolicies {
   /** What happens when a step fails for good with no `fallback`. Default `'halt'`. */
   readonly onFailure?: 'halt' | 'compensate'
@@ -18,7 +25,7 @@ export interface WizardPolicies {
   readonly unmatchedEvents?: { readonly buffer: boolean; readonly ttl: Duration }
 }
 /** Definition header with context, event and dependency boundaries. @public */
-export interface WizardDefinition<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPolicies {
+export interface WizardDefinition<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPolicies, WizardProse {
   readonly name: string
   readonly version?: number
   readonly context: Boundary<C, CIn>
@@ -54,7 +61,8 @@ export interface FlowTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev
 
 /** The declarative definition accepted by inspectors and flow consumers. @public */
 export interface Flow<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never, EvIn = Ev>
-  extends WizardPolicies {
+  extends WizardPolicies,
+    WizardProse {
   readonly '~types': FlowTypes<C, CIn, Ev, D, T, O, P, EvIn> | undefined
   readonly name: string
   readonly version?: number

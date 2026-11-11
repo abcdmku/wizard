@@ -46,7 +46,7 @@ describe('durable map recovery', () => {
               if (calls === 1) throw new Error('try again')
               return calls
             },
-            retry: { attempts: 1, backoff: 10 },
+            retry: { retries: 1, backoff: 10 },
             idempotent: true,
           }),
           each: { items: () => ['a'], concurrency: 1 },
@@ -80,7 +80,7 @@ describe('durable map recovery', () => {
         work: {
           ...runStep({
             run,
-            retry: { attempts: 1, backoff: 10 },
+            retry: { retries: 1, backoff: 10 },
             idempotent: true,
             idempotencyKey: ({ index }) => {
               mapped.push(index)

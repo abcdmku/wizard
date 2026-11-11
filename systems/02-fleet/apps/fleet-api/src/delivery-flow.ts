@@ -23,7 +23,7 @@ type EventHookArgs<P, E extends string> = HookBase & {
   readonly payload: P
 }
 const retryPolicy = {
-  attempts: 3,
+  retries: 3,
   backoff: 'exponential',
   baseMs: 250,
   factor: 2,

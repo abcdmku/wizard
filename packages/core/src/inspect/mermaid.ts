@@ -11,7 +11,7 @@ import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from './types'
 /**
  * Render a manifest as Mermaid: one node per step (text = `label` or id, shape by kind: view
  * `[…]`, step `[[…]]`, flow `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
- * attempts, run timeout, `compensable`), a start circle per flow, solid `next` edges, dashed
+ * retries, run timeout, `compensable`), a start circle per flow, solid `next` edges, dashed
  * `route` edges to declared targets (a dashed edge to `?` when targets are undeclared),
  * `dependsOn` and named `needs` labels on joins (merged with activation edges),
  * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child flow
@@ -65,11 +65,12 @@ export function toMermaid(graph: FlowGraph): string {
   return lines.join('\n')
 }
 
-/** The second text line of a node: `may skip`, attempts, run timeout, `compensable`. */
+/** The second text line of a node: `may skip`, retries, run timeout, `compensable`. */
 function tagLine(node: FlowGraphNode, waitTimeout: boolean): string[] {
   const tags: string[] = []
   if (node.hooks.includes('when')) tags.push('may skip')
-  if (node.retry !== undefined) tags.push(`${node.retry.attempts} attempts`)
+  if (node.retry !== undefined)
+    tags.push(`${node.retry.retries} ${node.retry.retries === 1 ? 'retry' : 'retries'}`)
   if (node.timeout !== undefined && !waitTimeout) tags.push(`timeout ${duration(node.timeout)}`)
   if (node.compensable === true) tags.push('compensable')
   if (node.sleep !== undefined)

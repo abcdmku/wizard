@@ -5,13 +5,13 @@ A runnable step can retry with backoff, store a typed error, and pass an idempot
 ```ts file="examples/02-recoverable-failure/src/sync-invoice.ts"
 ```
 
-When the ledger is down, the step remains `active` with `phase: 'retrying'` and an absolute `retryAt` deadline. `attempts: 3` allows three retries after the first call. With a 200 ms exponential base, those delays are 200 ms, 400 ms, and 800 ms. Once retries run out, the default policy puts the run in `halted` so an operator can repair and retry it.
+When the ledger is down, the step remains `active` with `phase: 'retrying'` and an absolute `retryAt` deadline. `retries: 3` allows three retries after the first call. With a 200 ms exponential base, those delays are 200 ms, 400 ms, and 800 ms. Once retries run out, the default policy puts the run in `halted` so an operator can repair and retry it.
 
 ## Retry policy
 
 ```ts
 retry: {
-  attempts: 3,
+  retries: 3,
   backoff: 'exponential',
   baseMs: 200,
   factor: 2,

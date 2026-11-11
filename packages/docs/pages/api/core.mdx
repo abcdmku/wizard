@@ -164,7 +164,7 @@ Import `createMirrorSource`, `createMirror`, `parseWireCommand`, and `parseFrame
 
 ## Introspection, adapters, and errors
 
-Import `inspect`, `toMermaid`, `toJSONSchema`, and `formatTrace` from `@openwizard/core/inspect`. `replay(wizard, events, options)` rebuilds state without running hooks. `isChildEvent` narrows nested events; `RUN_EVENT_TYPES` lists emitted event names.
+Import `inspect`, `toMarkdown`, `toMermaid`, `toJSONSchema`, and `formatTrace` from `@openwizard/core/inspect`. `replay(wizard, events, options)` rebuilds state without running hooks. `isChildEvent` narrows nested events; `RUN_EVENT_TYPES` lists emitted event names.
 
 A `RunAdapter` is an object passed as `step({ run: adapter })`. It supplies a default output boundary and typed failure channel. A step-level `output` replaces that boundary; a step-level `mapError` maps the original failure and replaces the adapter's mapped JSON data. Adapter mapping, such as `runEffect(program, { mapError })`, remains the default when the step does not override it. `createRunFailure`, `isRunFailure`, and `RunFailure` describe adapter failure envelopes; `StepFailure` describes a failed step.
 

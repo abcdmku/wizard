@@ -14,7 +14,7 @@ describe('idempotent tasks', () => {
       flow({
         start: ['a', 'b'],
         steps: {
-          a: runStep({ idempotent: true, retry: { attempts: 2, backoff: 10 }, next: 'end' }),
+          a: runStep({ idempotent: true, retry: { retries: 2, backoff: 10 }, next: 'end' }),
           b: runStep({ next: 'end' }),
           end: routingStep({ dependsOn: ['a', 'b'] }),
         },
@@ -58,7 +58,7 @@ describe('idempotent tasks', () => {
           t: runStep({
             idempotent: true,
             idempotencyKey: key,
-            retry: { attempts: 1, backoff: 5 },
+            retry: { retries: 1, backoff: 5 },
             next: 'end',
           }),
           end: routingStep(),
@@ -127,7 +127,7 @@ describe('mapError', () => {
       flow({
         start: 't',
         steps: {
-          t: runStep({ mapError: map, retry: { attempts: 1, backoff: 100 }, next: 'end' }),
+          t: runStep({ mapError: map, retry: { retries: 1, backoff: 100 }, next: 'end' }),
           end: routingStep(),
         },
       }),
@@ -212,7 +212,7 @@ describe('replay(log) == state — v0.2 fixture', () => {
             idempotent: true,
             idempotencyKey: () => 'w',
             mapError: () => ({ mapped: true }),
-            retry: { attempts: 1, backoff: 10 },
+            retry: { retries: 1, backoff: 10 },
             on: { progress: on },
             next: 'join',
           }),

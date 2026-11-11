@@ -183,7 +183,7 @@ type DepsOption<F extends AnyFlow> =
     : { readonly deps: RequiredDepsOf<F> & Partial<DepsOf<F>> }
 
 /**
- * `createRun` options: the context input (parsed by the flow's context boundary), `deps`
+ * `wizard.create` options: the context input (parsed by the flow's context boundary), `deps`
  * (required iff the flow declares a deps boundary), persistence and injectables.
  * @public
  */
@@ -262,7 +262,7 @@ export type SharedOptions<F extends AnyFlow> = Omit<
 >
 
 /**
- * `resumeRun` options: `RunOptions` without `context` / `instanceId` / `correlationId`
+ * `wizard.resume` options: `RunOptions` without `context` / `instanceId` / `correlationId`
  * (they come from the snapshot), plus `migrate` for snapshots of an older flow `version`.
  * @public
  */

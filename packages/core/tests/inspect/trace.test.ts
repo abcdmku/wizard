@@ -12,7 +12,7 @@ describe('formatTrace', () => {
       {
         name: 'charge',
         context: boundary.trusted<{}>(),
-        retry: { attempts: 2, backoff: 250 },
+        retry: { retries: 2, backoff: 250 },
       },
       ({ step, view, steps }) =>
         steps({

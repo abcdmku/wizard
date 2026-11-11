@@ -39,12 +39,12 @@ const deferred = defineWizard(
             mapError: () => ({ code: 'DOWN' as const }),
           })
         },
-        retry: { attempts: 1, when: (error) => error.code === 'DOWN' },
+        retry: { retries: 1, when: (error) => error.code === 'DOWN' },
       }),
       awaited: step({
         run: async () =>
           adapter(({ deps }) => deps.read('one'), { mapError: () => ({ async: true as const }) }),
-        retry: { attempts: 1, when: (error) => error.async },
+        retry: { retries: 1, when: (error) => error.async },
       }),
       mixed: step({
         run: ({ context }) =>
@@ -53,13 +53,13 @@ const deferred = defineWizard(
                 mapError: () => ({ mixed: true as const }),
               })
             : ('empty' as const),
-        retry: { attempts: 1, when: (error) => error.mixed },
+        retry: { retries: 1, when: (error) => error.mixed },
       }),
       override: step({
         run: () => adapter(() => 1, { mapError: () => ({ adapter: true }) }),
         output: boundary.parse((value) => String(value)),
         mapError: () => ({ code: 'OVERRIDE' as const }),
-        retry: { attempts: 1, when: (error) => error.code === 'OVERRIDE' },
+        retry: { retries: 1, when: (error) => error.code === 'OVERRIDE' },
       }),
     })
   },
@@ -83,7 +83,7 @@ const modularErrorMapper = defineWizard(
     steps({
       work: step({
         run: () => 1,
-        retry: { attempts: 1, when: (error) => error.code === 'DOWN' },
+        retry: { retries: 1, when: (error) => error.code === 'DOWN' },
         mapError: classify,
       }),
     }),

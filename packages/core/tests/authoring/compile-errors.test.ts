@@ -93,7 +93,7 @@ describe('compile validation for JavaScript definitions', () => {
     [{ next: () => null }, "a function 'next' must declare 'targets'"],
     [{ next: 'end', targets: ['end'] }, "'targets' requires a function 'next'"],
     [{ each: () => [], next: 'end' }, "'each' requires 'run'"],
-    [{ retry: { attempts: 1 }, next: 'end' }, "'retry' requires 'run'"],
+    [{ retry: { retries: 1 }, next: 'end' }, "'retry' requires 'run'"],
     [{ fallback: 'end', next: 'end' }, "'fallback' requires 'run'"],
     [{ complete: true }, "'complete' is not an option of a step step"],
     [{ route: () => 'end' }, "'route' is not an option of a step step"],

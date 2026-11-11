@@ -89,7 +89,7 @@ export const orderWorkflowFlow = defineWizard(
           }),
           // Retry deadlines and the mapped error survive a restart. A declined payment is final.
           retry: {
-            attempts: 3,
+            retries: 3,
             backoff: 'exponential',
             when: (error) => error.code === 'PAYMENT_UNAVAILABLE',
           },

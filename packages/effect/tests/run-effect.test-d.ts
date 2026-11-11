@@ -45,7 +45,7 @@ describe('runEffect as a step', () => {
             },
           ),
           retry: {
-            attempts: 3,
+            retries: 3,
             when: (error) => {
               expectTypeOf(error).toEqualTypeOf<{ reason: string }>()
               return error.reason === 'unavailable'
@@ -77,7 +77,7 @@ describe('runEffect as a step', () => {
           output: boundary.parse((value) => String(value)),
           mapError: () => ({ reason: 'overridden' }),
           retry: {
-            attempts: 2,
+            retries: 2,
             when: (error) => {
               expectTypeOf(error).toEqualTypeOf<{ reason: string }>()
               return error.reason === 'overridden'

@@ -182,7 +182,7 @@ export function cmdSkip(b: Batch, cmd: Extract<Command, { type: 'skip' }>): void
 const INVALIDATABLE: ReadonlySet<string> = new Set(['done', 'failed', 'skipped'])
 
 /**
- * v0.2 (§10.3): `invalidate{step, cascade = true}` — a done/failed/skipped step returns to idle
+ * §10.3: `invalidate{step, cascade = true}` — a done/failed/skipped step returns to idle
  * (`step.invalidated { cause: 'command' }`); with `cascade`, every transitive `dependsOn`
  * dependent that is done/failed/skipped follows (`cause: 'cascade'`), running dependents are
  * cancelled first. Never automatic; active steps (the current view included) are rejected.

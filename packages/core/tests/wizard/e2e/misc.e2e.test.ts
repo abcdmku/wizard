@@ -86,7 +86,7 @@ describe("e2e strict: 'sync'", () => {
       name: 'strict-retry',
       start: 't',
       steps: {
-        t: runStep({ run: async () => 1, retry: { attempts: 2, backoff: 10 }, next: 'end' }),
+        t: runStep({ run: async () => 1, retry: { retries: 2, backoff: 10 }, next: 'end' }),
         end: routingStep(),
       },
     })

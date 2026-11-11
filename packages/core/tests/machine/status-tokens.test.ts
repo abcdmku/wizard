@@ -113,7 +113,7 @@ describe('token staleness', () => {
         start: 'v',
         steps: {
           v: view({ canExit: () => true, next: 't' }),
-          t: runStep({ retry: { attempts: 1 }, next: 'end' }),
+          t: runStep({ retry: { retries: 1 }, next: 'end' }),
           end: routingStep(),
         },
       }),
@@ -286,7 +286,7 @@ describe('selectors and explain', () => {
         start: 'a',
         steps: {
           a: view({ next: ['t', 'b', 'c'] }),
-          t: runStep({ retry: { attempts: 1, backoff: 10 } }),
+          t: runStep({ retry: { retries: 1, backoff: 10 } }),
           b: view({ dependsOn: ['t'], canEnter: () => true, next: 'end' }),
           c: view({ next: 'end' }),
           end: routingStep(),
@@ -339,7 +339,7 @@ describe("strict: 'sync' violations", () => {
       flow({
         start: 't',
         steps: {
-          t: runStep({ retry: { attempts: 3 }, next: 'd' }),
+          t: runStep({ retry: { retries: 3 }, next: 'd' }),
           d: routingStep({ decide: () => 'end', targets: ['end'] }),
           end: routingStep(),
         },

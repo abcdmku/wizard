@@ -39,7 +39,7 @@ describe('overdue deadlines', () => {
       flow({
         start: ['t', 'w'],
         steps: {
-          t: runStep({ retry: { attempts: 1, backoff: 2_000 } }),
+          t: runStep({ retry: { retries: 1, backoff: 2_000 } }),
           w: eventStep({
             on: { paid: () => undefined },
             timeout: { afterMs: 1_000, next: 'late' },
@@ -64,7 +64,7 @@ describe('overdue deadlines', () => {
         start: ['a', 'b'],
         steps: {
           a: runStep({ idempotent: true }),
-          b: runStep({ retry: { attempts: 1, backoff: 2_000 } }),
+          b: runStep({ retry: { retries: 1, backoff: 2_000 } }),
         },
       }),
     )

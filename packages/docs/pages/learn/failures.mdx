@@ -9,7 +9,7 @@ A thrown error or rejected promise fails a work attempt. A retry policy schedule
 2. Attempt 2 throws. Another 1,000 ms wait.
 3. Attempt 3 succeeds. The output is stored and the step follows `next`.
 
-`attempts` counts retries after the first call, so `attempts: 2` allows three calls in total. `backoff` can be a fixed delay in milliseconds or `'exponential'`. Use `baseMs`, `factor`, `maxBackoffMs`, and `jitter` to tune exponential backoff. `retry.when(error)` can refuse a retry for an error that another call cannot fix.
+`retries` is the number of extra calls after the first one fails, so `retries: 2` allows three calls in total. `backoff` can be a fixed delay in milliseconds or `'exponential'`. Use `baseMs`, `factor`, `maxBackoffMs`, and `jitter` to tune exponential backoff. `retry.when(error)` can refuse a retry for an error that another call cannot fix.
 
 ## When retries run out
 
@@ -36,7 +36,7 @@ A runnable or child step can route to a fallback after it fails for good:
 ```ts
 load: step({
   run: ({ deps }) => deps.fetchLiveData(),
-  retry: { attempts: 2, backoff: 1_000 },
+  retry: { retries: 2, backoff: 1_000 },
   fallback: 'cached',
 }),
 cached: step({ run: ({ deps }) => deps.readCachedData() }),

@@ -27,7 +27,7 @@ export function idleNav(nav: NavState): NavState {
 }
 
 /**
- * v0.2: a completed transition could not enter its cursor target because the target's `when`
+ * A completed transition could not enter its cursor target because the target's `when`
  * predicate is unresolved → remember it so the cursor rule prefers it once the predicate passes.
  * Same admission rule as `cursorTarget` (a background auto-advance never steals the cursor).
  */
@@ -86,11 +86,11 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
         ...(trail !== undefined ? { trail } : {}),
         ...(ev.to !== undefined ? { targets: [ev.to] } : {}),
         ...(deferred.length > 0 ? { deferred } : {}),
-        // v0.2 (§10.2): the hint survives unrelated transactions; only a cursor set (or the hinted
+        // §10.2: the hint survives unrelated transactions; only a cursor set (or the hinted
         // view entering / skipping / invalidating / failing) forgets it.
         ...(state.nav.cursorHint !== undefined ? { cursorHint: state.nav.cursorHint } : {}),
       }
-      // v0.2: explicit navigation (`go` / `back`) to a view bypasses its `when` — an in-flight
+      // Explicit navigation (`go` / `back`) to a view bypasses its `when` — an in-flight
       // predicate is staled now (its late result is `result.ignored`) so it cannot skip the
       // target while the transaction runs.
       const to = ev.to
@@ -169,7 +169,7 @@ export function applyTransition(env: MachineEnv, state: WizardState, ev: DomainE
           history = [...history, view]
         }
       }
-      // v0.2: a cursor set forgets any hint; no cursor → remember the `when`-pending target (if any).
+      // A cursor set forgets any hint; no cursor → remember the `when`-pending target (if any).
       const hint =
         view === undefined
           ? (pendingCursor(env.def, state, targets, ev.from) ?? state.nav.cursorHint)

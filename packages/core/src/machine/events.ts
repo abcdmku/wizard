@@ -1,5 +1,5 @@
 /**
- * Domain events â€” the facts the machine produces. `apply` folds them into state; `plan` turns
+ * Domain events — the facts the machine produces. `apply` folds them into state; `plan` turns
  * them into effects; `observe()` streams them to users; `log()` keeps the trace. Every event
  * carries an envelope with sequence, time, run path and causality.
  */

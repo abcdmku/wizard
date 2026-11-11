@@ -181,10 +181,7 @@ function recordFailure(
             ? (msg.failure?.kind ?? mappedKind ?? 'run')
             : (mappedKind ?? 'run')
   const willRetry =
-    current.status === 'active' &&
-    !violation &&
-    retryable &&
-    item.attempt <= (policy?.attempts ?? 0)
+    current.status === 'active' && !violation && retryable && item.attempt <= (policy?.retries ?? 0)
   const error = data === undefined ? raw : { ...raw, data }
   emit(b, {
     type: 'step.eachItemFailed',

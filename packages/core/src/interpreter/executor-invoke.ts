@@ -46,7 +46,7 @@ export function invoke(
     case 'flowOn':
       throw missingHook(stepDef.id, 'flowOn')
     case 'childContext': {
-      // The child's context is a data door (plan Â§1.3): the mapped value goes through the
+      // The child's context is a data door (plan §1.3): the mapped value goes through the
       // child flow's context boundary before `child.create` can see it.
       const hook = stepDef.hooks.childContext
       if (hook === undefined) throw missingHook(stepDef.id, 'childContext')
@@ -65,7 +65,7 @@ export function invoke(
   }
 }
 
-/** v0.2: the flow-level `on[extra.event]` handler (`CompiledFlow.on`). */
+/** The flow-level `on[extra.event]` handler (`CompiledFlow.on`). */
 export function invokeFlowOn(def: CompiledFlow, args: HookArgs): unknown {
   const event = typeof args.event === 'string' ? args.event : undefined
   const hook = event === undefined ? undefined : def.on?.[event]

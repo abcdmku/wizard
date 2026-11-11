@@ -31,7 +31,7 @@ describe('toMermaid', () => {
           reserve: step({
             run: async () => ({ reservationId: 'r' }),
             next: ['awaitPayment', 'audit'],
-            retry: { attempts: 3 },
+            retry: { retries: 3 },
             compensate: () => {},
           }),
           audit: step({ run: async () => 1, next: 'route', when: () => true, timeout: '30s' }),
@@ -67,7 +67,7 @@ describe('toMermaid', () => {
         '---',
         'flowchart TD',
         '  shipping["Shipping address"]',
-        '  reserve[["reserve<br/>3 attempts · compensable"]]',
+        '  reserve[["reserve<br/>3 retries · compensable"]]',
         '  audit[["audit<br/>may skip · timeout 30s"]]',
         '  awaitPayment[["awaitPayment"]]',
         '  route[["route"]]',

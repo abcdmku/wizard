@@ -1,6 +1,6 @@
 /**
  * Types of the untyped run runtime: creation / resume options, the `WizardRuntime` surface
- * (what the typed `Run<F>` faÃ§ade wraps) and the internal config / plan shapes shared by a
+ * (what the typed `Run<F>` façade wraps) and the internal config / plan shapes shared by a
  * root, its resume path and its children.
  *
  * @internal Public users see the typed `Run<F>`.
@@ -70,7 +70,7 @@ export interface WizardRuntimeOptions {
   /** Listener exceptions are isolated; default rethrows asynchronously. */
   readonly onListenerError?: (error: unknown) => void
   /**
-   * v0.2 (Â§9.1): correlation id of this instance. An event whose `correlate[event](payload)`
+   * §9.1: correlation id of this instance. An event whose `correlate[event](payload)`
    * differs from it is dropped (`event.dropped { reason: 'correlation' }`). Stored in the state
    * (persisted with the snapshot); children created by this instance inherit it.
    */
@@ -79,18 +79,18 @@ export interface WizardRuntimeOptions {
   readonly eventIds?: EventIdOptions
 }
 
-/** `RunOptions.eventIds`: the dedupe window of `send(â€¦, { eventId })`. */
+/** `RunOptions.eventIds`: the dedupe window of `send(…, { eventId })`. */
 export interface EventIdOptions {
   readonly ttl?: Duration
   readonly limit?: number
 }
 
 /**
- * v0.2 (Â§9.5): rewrite a snapshot persisted by an older flow version. Called only when the
+ * §9.5: rewrite a snapshot persisted by an older flow version. Called only when the
  * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
  * incompatible); the result is stamped with the flow's current version and validated like any
- * snapshot (`renameSteps` rewrites renamed step ids). May return a promise â€” then only
- * `resumeRunAsync` accepts it.
+ * snapshot (`renameSteps` rewrites renamed step ids). May return a promise — then only
+ * `wizard.resumeAsync` accepts it.
  */
 export type SnapshotMigration = (
   snapshot: unknown,
@@ -118,7 +118,7 @@ export interface WizardRuntime {
   /** Pure query: the view's `input` boundary + `validate` hook over the current draft; no events. */
   validate(step: string): Promise<readonly Issue[]>
   /**
-   * External event through the flow's event boundary. Unknown event name â†’ `WizardError('UNKNOWN_EVENT')`.
+   * External event through the flow's event boundary. Unknown event name → `WizardError('UNKNOWN_EVENT')`.
    * A remembered `eventId` is a duplicate: `{ ok: true, duplicate: true, delivered: [] }`, nothing changes.
    */
   send(event: string, payload: unknown, options?: SendOptions): Promise<SendResult>
@@ -131,17 +131,17 @@ export interface WizardRuntime {
   reset(): Promise<CommandResult>
   /** Skip a ready or active step that does not complete the flow. */
   skip(step: string, reason?: string): Promise<CommandResult>
-  /** v0.2 (Â§9.3): a done/failed/skipped step returns to idle; `cascade` (default true) follows `dependsOn` dependents. */
+  /** §9.3: a done/failed/skipped step returns to idle; `cascade` (default true) follows `dependsOn` dependents. */
   invalidate(step: string, options?: { readonly cascade?: boolean }): Promise<CommandResult>
   /**
-   * v0.2 (Â§9.1): connect an external event source: `source(send)` subscribes and returns a
+   * §9.1: connect an external event source: `source(send)` subscribes and returns a
    * disposer, which runs on `dispose()` (or when the returned function is called). After
    * `dispose()` the source is never called and the returned function is a no-op.
    */
   attach(source: (send: WizardRuntime['send']) => () => void): () => void
   /** `{ done, total, ratio }` over steps that do not complete the flow. */
   progress(): Progress
-  /** v0.2 (Â§9.6): the current view plus every ready view, in declaration order. */
+  /** §9.6: the current view plus every ready view, in declaration order. */
   readyViews(): readonly string[]
   /** The one wire door: validates the shape (`decodeCommand`) and never throws for data problems. */
   dispatch(command: Command, options?: DispatchOptions): Promise<CommandResult>

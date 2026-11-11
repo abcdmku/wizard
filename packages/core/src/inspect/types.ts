@@ -22,7 +22,7 @@ export type JSONSchema = Readonly<Record<string, unknown>>
  * @public
  */
 export interface GraphRetry {
-  readonly attempts: number
+  readonly retries: number
   readonly backoff?: number | 'exponential'
   readonly baseMs?: number
   readonly factor?: number

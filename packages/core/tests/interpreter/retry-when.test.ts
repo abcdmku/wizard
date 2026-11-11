@@ -25,7 +25,7 @@ describe('retry.when', () => {
       steps: {
         t: runStep({
           run: work.run,
-          retry: { attempts: 5, when: (error) => (error as Error).message === 'timeout' },
+          retry: { retries: 5, when: (error) => (error as Error).message === 'timeout' },
         }),
       },
     })
@@ -48,7 +48,7 @@ describe('retry.when', () => {
           run: failing([]).run,
           mapError: ({ error }) => ({ code: (error as Error).message.toUpperCase() }),
           retry: {
-            attempts: 3,
+            retries: 3,
             when: (error) => {
               seen.push(error)
               return false

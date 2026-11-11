@@ -51,7 +51,7 @@ describe('durable error data', () => {
               },
             },
             retry: {
-              attempts: 1,
+              retries: 1,
               when: (error) => {
                 seen.push(error)
                 return false
@@ -151,7 +151,7 @@ describe('durable error data', () => {
           kind: 'step',
           hooks: { mapError: () => value },
           retry: {
-            attempts: 3,
+            retries: 3,
             when: (error) => {
               seen.push(error)
               return true

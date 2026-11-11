@@ -38,7 +38,7 @@ export interface RuntimeContext {
   readonly pendingMessages: Map<Message, (processed: Processed) => void>
   /** Façade-side async work (boundaries, validate hooks) still pending: settled on dispose. */
   readonly pendingOps: Set<() => void>
-  /** Disposers of `attach()`ed event sources (v0.2): run on `dispose()`. */
+  /** Disposers of `attach()`ed event sources: run on `dispose()`. */
   readonly attached: Set<() => void>
   /** The children that were live at `dispose()` (disposed with it): what `child()` answers afterwards. */
   readonly disposedChildren: Map<string, WizardRuntime>

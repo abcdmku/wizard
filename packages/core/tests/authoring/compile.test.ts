@@ -15,7 +15,7 @@ describe('compiled execution contracts', () => {
         events: { ping: z.object({ n: z.number() }) },
         deps: boundary.trusted<{ log: (message: string) => void }>(),
         onFailure: 'compensate',
-        retry: { attempts: 1, backoff: 1000 },
+        retry: { retries: 1, backoff: 1000 },
         autoRun: 'manual',
         concurrency: 3,
         unmatchedEvents: { buffer: false, ttl: '1m' },
@@ -39,7 +39,7 @@ describe('compiled execution contracts', () => {
     expect(def.events.ping?.parse({ n: 2 })).toEqual({ ok: true, value: { n: 2 } })
     expect(def.policies).toEqual({
       onFailure: 'compensate',
-      retry: { attempts: 1, backoff: 1000 },
+      retry: { retries: 1, backoff: 1000 },
       autoRun: 'manual',
       concurrency: 3,
       unmatchedEvents: { buffer: false, ttlMs: 60_000 },
@@ -134,7 +134,7 @@ describe('compiled execution contracts', () => {
         work: rawStep({
           run: () => 1,
           retry: {
-            attempts: 2,
+            retries: 2,
             backoff: 'exponential',
             baseMs: 50,
             factor: 3,
@@ -146,7 +146,7 @@ describe('compiled execution contracts', () => {
       }),
     )
     expect(def.steps.work?.retry).toEqual({
-      attempts: 2,
+      retries: 2,
       backoff: 'exponential',
       baseMs: 50,
       factor: 3,
@@ -155,9 +155,9 @@ describe('compiled execution contracts', () => {
       when,
     })
     expect(
-      compile(rawFlow({ work: rawStep({ run: () => 1, retry: { attempts: 2 } }) })).steps.work
+      compile(rawFlow({ work: rawStep({ run: () => 1, retry: { retries: 2 } }) })).steps.work
         ?.retry,
-    ).toEqual({ attempts: 2 })
+    ).toEqual({ retries: 2 })
   })
 
   it('compiles static and context-dependent sleep durations to milliseconds', async () => {
@@ -199,17 +199,17 @@ describe('compiled execution contracts', () => {
   })
 
   it.each([
-    [{ attempts: -1 }, 'retry.attempts must be a non-negative integer'],
+    [{ retries: -1 }, 'retry.retries must be a non-negative integer'],
     [
-      { attempts: 1, backoff: 'linear' },
+      { retries: 1, backoff: 'linear' },
       "retry.backoff must be a number of ms >= 0 or 'exponential'",
     ],
-    [{ attempts: 1, backoff: -5 }, "retry.backoff must be a number of ms >= 0 or 'exponential'"],
-    [{ attempts: 1, factor: 2 }, "retry.factor only applies to backoff: 'exponential'"],
-    [{ attempts: 1, backoff: 'exponential', factor: 0.5 }, 'retry.factor must be a number >= 1'],
-    [{ attempts: 1, backoff: 'exponential', baseMs: -1 }, 'retry.baseMs must be a number >= 0'],
-    [{ attempts: 1, jitter: 1.5 }, 'retry.jitter must be a number from 0 to 1'],
-    [{ attempts: 1, when: 'fatal' }, 'retry.when must be a function (error) => boolean'],
+    [{ retries: 1, backoff: -5 }, "retry.backoff must be a number of ms >= 0 or 'exponential'"],
+    [{ retries: 1, factor: 2 }, "retry.factor only applies to backoff: 'exponential'"],
+    [{ retries: 1, backoff: 'exponential', factor: 0.5 }, 'retry.factor must be a number >= 1'],
+    [{ retries: 1, backoff: 'exponential', baseMs: -1 }, 'retry.baseMs must be a number >= 0'],
+    [{ retries: 1, jitter: 1.5 }, 'retry.jitter must be a number from 0 to 1'],
+    [{ retries: 1, when: 'fatal' }, 'retry.when must be a function (error) => boolean'],
   ])('rejects malformed retry policy %j', (retry, message) => {
     expect(issuesOf(() => compile(rawFlow({ work: rawStep({ run: () => 1, retry }) })))).toEqual([
       `step 'work': ${message}`,

@@ -33,7 +33,7 @@ export const batch = defineWizard(
           progress({ id: item, phase: 'fetching' })
           return { id: item, position: index }
         },
-        retry: { attempts: 2, backoff: 100 },
+        retry: { retries: 2, backoff: 100 },
       }),
     }),
 )
@@ -53,7 +53,7 @@ export const cached = defineWizard(
       run: async () => {
         throw new Error('remote unavailable')
       },
-      retry: { attempts: 2, backoff: 100 },
+      retry: { retries: 2, backoff: 100 },
       fallback: cache,
     })
     return steps({ remote, cache })

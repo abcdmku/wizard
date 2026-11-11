@@ -1,5 +1,5 @@
 /**
- * (b) tasks with the REAL machine: async run, retry { attempts: 3, backoff: 100 }
+ * (b) tasks with the REAL machine: async run, retry { retries: 3, backoff: 100 }
  * succeeding on attempt 2 (scheduler-driven, `step.retryScheduled.dueAt`),
  * timeout → failed → `retry(step)` re-runs; output boundary rejection.
  */
@@ -21,7 +21,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
             if (attempt === 1) throw new Error('flaky')
             return { attempt }
           },
-          retry: { attempts: 3, backoff: 100 },
+          retry: { retries: 3, backoff: 100 },
           next: 'end',
         }),
         end: routingStep(),
@@ -70,7 +70,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
             if (fail) throw new Error('down')
             return 'up'
           },
-          retry: { attempts: 1, backoff: 10 },
+          retry: { retries: 1, backoff: 10 },
           next: 'end',
         }),
         end: routingStep(),

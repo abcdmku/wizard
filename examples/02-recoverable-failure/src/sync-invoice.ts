@@ -29,7 +29,7 @@ export const syncInvoiceFlow = defineWizard(
           run: ({ context, deps, idempotencyKey }) =>
             deps.ledger.post(context.invoiceId, context.amount, { idempotencyKey }),
           // Three retries follow the first call at 200 ms, 400 ms, and 800 ms.
-          retry: { attempts: 3, backoff: 'exponential', baseMs: 200 },
+          retry: { retries: 3, backoff: 'exponential', baseMs: 200 },
           // Resume restarts this task with the same key if a crash interrupts it.
           idempotent: ({ context }) => `invoice:${context.invoiceId}`,
           // The mapped value is stored as typed, JSON-safe error data.

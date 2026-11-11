@@ -62,7 +62,7 @@ export function schedulingFrozen(b: Batch): boolean {
   return isTerminal(b.state) || s === 'compensating' || s === 'idle'
 }
 
-/** The step declares at least one `on[event]` handler (v0.2: any kind). */
+/** The step declares at least one `on[event]` handler (any kind). */
 export function hasEventHandlers(b: Batch, step: string): boolean {
   const hooks = stepDef(b, step)?.hooks
   const handlers = hooks?.waitFor ?? hooks?.on
@@ -127,7 +127,7 @@ export function startKind(b: Batch, step: string): void {
       }
       if (!isRunnableStep(def)) break
       if (def.hooks.idempotencyKey !== undefined) {
-        // v0.2 (§10.4): the custom key is computed first; `step.runStarted` follows with its value.
+        // §10.4: the custom key is computed first; `step.runStarted` follows with its value.
         emit(b, { type: 'step.idempotencyKeyRequested', step, runId: r.runId })
       } else {
         emit(b, {
@@ -143,7 +143,7 @@ export function startKind(b: Batch, step: string): void {
       // A view waits for the cursor. A child flow starts through `plan`.
       break
   }
-  // v0.2 (§10.1): a listening step drains its inbox on start (views: once `nav` is idle, see `onNavIdle`).
+  // §10.1: a listening step drains its inbox on start (views: once `nav` is idle, see `onNavIdle`).
   if (def.kind !== 'view' && hasEventHandlers(b, step)) drainInbox(b, step)
 }
 
@@ -162,7 +162,7 @@ export function schedule(b: Batch, opts: ScheduleOptions = {}): void {
   if (schedulingFrozen(b)) return
   synchronizeNeeds(b)
   const def = b.env.def
-  // v0.2 (§10.2): eligible steps with an unevaluated `when` predicate ask it first (any kind, any
+  // §10.2: eligible steps with an unevaluated `when` predicate ask it first (any kind, any
   // autoRun) — except the target of an in-flight `go` / `back`, whose `when` is bypassed.
   for (const id of eligibleSteps(def, b.state)) {
     if (
@@ -196,7 +196,7 @@ export function schedule(b: Batch, opts: ScheduleOptions = {}): void {
 /**
  * If no view is current and exactly one view is ready, the cursor moves there —
  * through a (lightweight) transaction so `canEnter`/`enter` run before commit.
- * v0.2: the rule waits while an eligible view's `when` is unresolved, and among
+ * The rule waits while an eligible view's `when` is unresolved, and among
  * several ready views it prefers `nav.cursorHint` (the target a committed
  * transition wanted but could not enter yet).
  */
@@ -229,7 +229,7 @@ export function cancelAllActive(b: Batch, reason?: string): void {
 }
 
 /**
- * v0.2 (§10.2): skip a step — done without running. `step.skipped { reason }`, then its `next`
+ * §10.2: skip a step — done without running. `step.skipped { reason }`, then its `next`
  * targets are arrived through the auto-advance transaction (dynamic `next` is resolved by a
  * `next` call first; a skipped step runs no other hook), then schedule.
  */

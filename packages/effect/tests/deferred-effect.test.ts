@@ -62,7 +62,7 @@ it('awaits mapped adapters with services, ordered outputs, per-item retries and 
               },
             ),
           retry: {
-            attempts: 1,
+            retries: 1,
             when: (error) => {
               retryErrors.push(error.reason)
               return error.reason === 'temporary'

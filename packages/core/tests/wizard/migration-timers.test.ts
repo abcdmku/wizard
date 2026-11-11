@@ -38,7 +38,7 @@ it('renames encoded per-item retry timers and retries only the interrupted item'
     steps({
       'old/map': step({
         each: () => [1],
-        retry: { attempts: 1, backoff: 10 },
+        retry: { retries: 1, backoff: 10 },
         run: () => {
           throw new Error('offline')
         },
@@ -51,7 +51,7 @@ it('renames encoded per-item retry timers and retries only the interrupted item'
       steps({
         'new/map': step({
           each: () => [1],
-          retry: { attempts: 1, backoff: 10 },
+          retry: { retries: 1, backoff: 10 },
           run: ({ attempt }) => attempt,
         }),
       }),

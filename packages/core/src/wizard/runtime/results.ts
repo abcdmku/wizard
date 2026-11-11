@@ -245,7 +245,7 @@ export function sendResult(
     else if (ev.type === 'event.flowDelivered' && ev.event === event) flowHandled = true
     else if (ev.type === 'event.dropped' && ev.event === event) dropped = ev.reason
   }
-  // v0.2: a flow-level handler counts as handled (`delivered` lists step ids only).
+  // A flow-level handler counts as handled (`delivered` lists step ids only).
   if (delivered.length > 0 || buffered || flowHandled)
     return { ok: true, delivered, buffered, seq: processed.seq }
   return {

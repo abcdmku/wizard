@@ -1,5 +1,5 @@
 /**
- * The single untyped â†’ typed boundary: the cached `Run<F>` faÃ§ade around an untyped
+ * The single untyped → typed boundary: the cached `Run<F>` façade around an untyped
  * `WizardRuntime`, and the typed view of a runtime outcome.
  */
 import type { CompiledFlow } from '../../authoring/compiled'

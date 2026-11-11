@@ -206,7 +206,7 @@ describe('callback-returned run adapters', () => {
               },
             }),
             retry: {
-              attempts: 1,
+              retries: 1,
               when: (error) => {
                 seen.push(error)
                 return true
@@ -279,7 +279,7 @@ describe('callback-returned run adapters', () => {
               mappings++
               return { hidden: true }
             },
-            retry: { attempts: 3 },
+            retry: { retries: 3 },
           }),
         }),
     )

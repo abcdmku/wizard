@@ -94,7 +94,7 @@ type Command$1 = {
   readonly step: string;
   readonly reason?: string;
 } |
-/** v0.2: explicit invalidation of a done/failed/skipped step (+ transitive `dependsOn` dependents when `cascade`). */
+/** Explicit invalidation of a done/failed/skipped step (+ transitive `dependsOn` dependents when `cascade`). */
 {
   readonly type: 'invalidate';
   readonly step: string;
@@ -208,11 +208,11 @@ interface StepRecord {
   /** Last validation issues (view). Cleared on the next input change. */
   readonly issues?: readonly Issue$2[];
   readonly error?: StepError$1;
-  /** v0.2: output before the last explicit invalidation. */
+  /** Output before the last explicit invalidation. */
   readonly previousOutput?: unknown;
   /** An explicit invalidation remains pending until the step is activated again. */
   readonly invalidated?: true;
-  /** v0.2: why the step was skipped (`'when'` | `'command'`). */
+  /** Why the step was skipped (`'when'` | `'command'`). */
   readonly skipReason?: string;
   /** Attempt counter for the current run (1-based while running; 0 when idle). */
   readonly attempt: number;
@@ -229,7 +229,7 @@ interface StepRecord {
     readonly canExit?: GuardResult;
   };
   /**
-   * v0.2: state of the step's `when` predicate for the current activation — `'pending'` while the
+   * State of the step's `when` predicate for the current activation — `'pending'` while the
    * call is in flight, `'passed'` once it returned true (the step may enter). Absent when the step
    * has no `when` hook or has not been evaluated yet; cleared on entry, skip and invalidation.
    */
@@ -289,7 +289,7 @@ interface NavState {
     readonly to?: string | readonly string[];
   }>;
   /**
-   * v0.2: the view a committed transition wanted as cursor but could not enter because its `when`
+   * The view a committed transition wanted as cursor but could not enter because its `when`
    * predicate was still unevaluated. Once the predicate passes, the cursor rule prefers this view
    * when several views are ready. Cleared when a cursor is set or the view enters/skips/invalidates.
    */
@@ -340,7 +340,7 @@ interface WizardState {
   readonly terminal?: TerminalState;
   readonly seq: number;
   readonly instanceId: string;
-  /** v0.2: correlation id used to filter external events (`defineFlow({ correlate })`). */
+  /** Correlation id used to filter external events (`defineWizard({ correlate })`). */
   readonly correlationId?: string;
   /** Delivered `send` event ids still inside the dedupe window, oldest first (D8). */
   readonly eventIds?: readonly SeenEventId[];
@@ -411,14 +411,14 @@ type StepStatus = StepStatus$1;
 type RunStatus = RunStatus$1;
 /**
  * Retry policy for runnable steps (plain data, so `inspect()` shows it; the retry STATE ; `attempt`, the
- * `retryAt` deadline ; is what persists, the policy is read from the flow): `attempts` retries
- * after the first failure (`1` = one retry, two runs), spaced by `backoff` ; a number is a fixed
+ * `retryAt` deadline ; is what persists, the policy is read from the flow): `retries` extra runs
+ * after the first failure (`retries: 1` = at most two runs), spaced by `backoff` ; a number is a fixed
  * delay in ms (absent = retry immediately); `'exponential'` waits
  * `min(baseMs * factor^(attempt-1), maxBackoffMs)` (`baseMs` 200, `factor` 2, `maxBackoffMs` 30 000).
  * @public
  */
 interface RetryPolicy<E = unknown> {
-  readonly attempts: number;
+  readonly retries: number;
   readonly backoff?: number | 'exponential';
   readonly baseMs?: number;
   readonly factor?: number;
@@ -929,7 +929,7 @@ type CompactStep<S, Role extends SinkRole> = S extends Step<infer K, infer X, in
 //#endregion
 //#region src/interpreter/env.d.ts
 /**
- * Wall clock the runtime reads for timestamps and timer deadlines (`createRun({ clock })`).
+ * Wall clock the runtime reads for timestamps and timer deadlines (`wizard.create(input, { clock })`).
  * @public
  */
 interface Clock {
@@ -938,7 +938,7 @@ interface Clock {
 }
 /**
  * Timer scheduler the runtime arms retries, wait timeouts and inbox TTLs with
- * (`createRun({ scheduler })`). Handles are opaque: the runtime only ever passes them back
+ * (`wizard.create(input, { scheduler })`). Handles are opaque: the runtime only ever passes them back
  * to `clearTimeout` of the same scheduler.
  * @public
  */
@@ -956,7 +956,7 @@ interface IdGenerator {
  * Store — the persistence port. One snapshot per key; the value is whatever
  * `toSnapshot()` produced (after `redact`, if configured), JSON-checked right
  * before `set` (a write of a non-JSON snapshot never reaches the store —
- * `onPersistError` / `persist.failed`). Single-owner in v0.1: one live run
+ * `onPersistError` / `persist.failed`). Single-owner: one live run
  * per key, no compare-and-swap or lease.
  *
  * Implementations are the host's job; core ships
@@ -1099,7 +1099,7 @@ type LifecycleEventBody = EachEventBody | {
   readonly runId: number;
   readonly enterPending?: boolean;
 } |
-/** The step's `enter` hook resolved; kind-specific work may start (see machine-spec Â§2). */
+/** The step's `enter` hook resolved; kind-specific work may start (see machine-spec §2). */
 {
   readonly type: 'step.enterCompleted';
   readonly step: string;
@@ -1137,18 +1137,18 @@ type LifecycleEventBody = EachEventBody | {
   readonly kind?: StepFailureKind;
   readonly data?: unknown;
 } |
-/** v0.2: the step's `when` predicate is being evaluated (it is ready; `apply` marks `when: 'pending'`). */
+/** The step's `when` predicate is being evaluated (it is ready; `apply` marks `when: 'pending'`). */
 {
   readonly type: 'step.whenStarted';
   readonly step: string;
 } |
-/** v0.2: `when` resolved â€” `ok: false` is followed by `step.skipped { reason: 'when' }`. */
+/** `when` resolved — `ok: false` is followed by `step.skipped { reason: 'when' }`. */
 {
   readonly type: 'step.whenEvaluated';
   readonly step: string;
   readonly ok: boolean;
 } |
-/** v0.2: explicit invalidation (never automatic). */
+/** Explicit invalidation (never automatic). */
 {
   readonly type: 'step.invalidated';
   readonly step: string;
@@ -1225,7 +1225,7 @@ type LifecycleEventBody = EachEventBody | {
   readonly dueAt: number;
   readonly timerId: string;
 } |
-/** `runId` identifies the stack entry (completion) being compensated â€” repeated activations have several. */
+/** `runId` identifies the stack entry (completion) being compensated — repeated activations have several. */
 {
   readonly type: 'step.compensationStarted';
   readonly step: string;
@@ -1357,13 +1357,13 @@ type IoEventBody = {
   readonly event: string;
   readonly inboxId: string;
 } |
-/** `reason`: `'no-listener'`, or `'correlation'` (v0.2: `correlate[event](payload)` â‰  the run's `correlationId`). */
+/** `reason`: `'no-listener'`, or `'correlation'` (`correlate[event](payload)` ≠ the run's `correlationId`). */
 {
   readonly type: 'event.dropped';
   readonly event: string;
   readonly reason: string;
 } |
-/** v0.2: delivered to the flow-level `on[event]` handler (`plan` â†’ `call { hook: 'flowOn' }`), after step deliveries. */
+/** Delivered to the flow-level `on[event]` handler (`plan` → `call { hook: 'flowOn' }`), after step deliveries. */
 {
   readonly type: 'event.flowDelivered';
   readonly event: string;
@@ -1371,7 +1371,7 @@ type IoEventBody = {
   readonly payload?: unknown;
 } |
 /**
- * v0.2: a step handler returned something its kind cannot honour and it was ignored â€” `reason`:
+ * A step handler returned something its kind cannot honour and it was ignored — `reason`:
  * `'kind'` (a passive handler returned a result it cannot use; a view returned
  * `keep`/`done`/`fail`) or `'nav-busy'` (a view returned `{ next }` while a transition was in flight).
  */
@@ -1382,7 +1382,7 @@ type IoEventBody = {
   readonly reason: 'kind' | 'nav-busy';
 } |
 /**
- * v0.2: an `on[event]` handler threw. Wait handlers fail their step instead (v0.1 rule); this is
+ * An `on[event]` handler threw. Wait handlers fail their step instead; this is
  * recorded for every other kind (`step`) and for the flow-level handler (no `step`); nothing else changes.
  */
 {
@@ -1421,7 +1421,7 @@ type IoEventBody = {
     readonly output: unknown;
   };
 } |
-/** A `child` command was accepted and must be forwarded to the child interpreter (`plan` â†’ `child.send`). */
+/** A `child` command was accepted and must be forwarded to the child interpreter (`plan` → `child.send`). */
 {
   readonly type: 'child.command';
   readonly step: string;
@@ -2035,11 +2035,11 @@ declare class RunLifecycleError extends Error {
 //#endregion
 //#region src/wizard/runtime/types.d.ts
 /**
- * v0.2 (Â§9.5): rewrite a snapshot persisted by an older flow version. Called only when the
+ * §9.5: rewrite a snapshot persisted by an older flow version. Called only when the
  * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
  * incompatible); the result is stamped with the flow's current version and validated like any
- * snapshot (`renameSteps` rewrites renamed step ids). May return a promise â€” then only
- * `resumeRunAsync` accepts it.
+ * snapshot (`renameSteps` rewrites renamed step ids). May return a promise — then only
+ * `wizard.resumeAsync` accepts it.
  */
 type SnapshotMigration$1 = (snapshot: unknown, from: {
   readonly name: string;
@@ -2430,7 +2430,7 @@ type DepsOption<F extends AnyFlow> = {} extends RequiredDepsOf<F> ? {
   readonly deps: RequiredDepsOf<F> & Partial<DepsOf<F>>;
 };
 /**
- * `createRun` options: the context input (parsed by the flow's context boundary), `deps`
+ * `wizard.create` options: the context input (parsed by the flow's context boundary), `deps`
  * (required iff the flow declares a deps boundary), persistence and injectables.
  * @public
  */
@@ -2512,7 +2512,7 @@ type SnapshotMigration = SnapshotMigration$1;
 /** The options shared by creation and resume (persistence, injectables, deps). */
 type SharedOptions<F extends AnyFlow> = Omit<RunOptions<F>, 'context' | 'instanceId' | 'correlationId'>;
 /**
- * `resumeRun` options: `RunOptions` without `context` / `instanceId` / `correlationId`
+ * `wizard.resume` options: `RunOptions` without `context` / `instanceId` / `correlationId`
  * (they come from the snapshot), plus `migrate` for snapshots of an older flow `version`.
  * @public
  */
@@ -2521,6 +2521,13 @@ type ResumeOptions<F extends AnyFlow> = SharedOptions<F> & {
 };
 //#endregion
 //#region src/authoring/types/wizard.d.ts
+/** Author documentation, copied to the manifest that `inspect` returns. */
+interface WizardProse {
+  /** What the wizard is for, in a sentence or two. `toMarkdown` prints it under the title. */
+  readonly description?: string;
+  /** JSON data for tools. The runtime never reads it. */
+  readonly meta?: Readonly<Record<string, JsonValue>>;
+}
 interface WizardPolicies {
   /** What happens when a step fails for good with no `fallback`. Default `'halt'`. */
   readonly onFailure?: 'halt' | 'compensate';
@@ -2533,7 +2540,7 @@ interface WizardPolicies {
   };
 }
 /** Definition header with context, event and dependency boundaries. @public */
-interface WizardDefinition<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPolicies {
+interface WizardDefinition<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPolicies, WizardProse {
   readonly name: string;
   readonly version?: number;
   readonly context: Boundary<C, CIn>;
@@ -2560,7 +2567,7 @@ interface FlowTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
   readonly provided: P;
 }
 /** The declarative definition accepted by inspectors and flow consumers. @public */
-interface Flow<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never, EvIn = Ev> extends WizardPolicies {
+interface Flow<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never, EvIn = Ev> extends WizardPolicies, WizardProse {
   readonly '~types': FlowTypes<C, CIn, Ev, D, T, O, P, EvIn> | undefined;
   readonly name: string;
   readonly version?: number;

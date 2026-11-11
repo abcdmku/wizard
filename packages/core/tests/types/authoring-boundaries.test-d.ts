@@ -164,7 +164,7 @@ const allHookNeeds = defineWizard(
       run: ({ needs }) => needs.load.amount,
       idempotent: ({ needs }) => `collect:${needs.load.amount}`,
       mapError: (_, { needs }) => ({ amount: needs.load.amount }),
-      retry: { attempts: 1, when: (error) => error.amount > 0 },
+      retry: { retries: 1, when: (error) => error.amount > 0 },
       compensate: ({ needs, idempotencyKey }) => {
         expectTypeOf(needs.load.amount).toEqualTypeOf<number>()
         expectTypeOf(idempotencyKey).toEqualTypeOf<string>()

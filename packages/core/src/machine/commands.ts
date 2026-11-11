@@ -46,7 +46,7 @@ export type Command =
   | { readonly type: 'reset' }
   /** Skip a ready or active step that does not complete the flow. */
   | { readonly type: 'skip'; readonly step: string; readonly reason?: string }
-  /** v0.2: explicit invalidation of a done/failed/skipped step (+ transitive `dependsOn` dependents when `cascade`). */
+  /** Explicit invalidation of a done/failed/skipped step (+ transitive `dependsOn` dependents when `cascade`). */
   | { readonly type: 'invalidate'; readonly step: string; readonly cascade?: boolean }
   /** Address a command to a nested flow. `path` is relative to this run (`['fulfil']`, `['fulfil','payment']`). */
   | { readonly type: 'child'; readonly path: readonly string[]; readonly command: Command }
@@ -93,13 +93,13 @@ export type HookName =
   | 'childOutput'
   | 'each'
   | 'sleep'
-  /** v0.2: skip predicate (`step.whenStarted` → `res` → `step.whenEvaluated`). */
+  /** Skip predicate (`step.whenStarted` → `res` → `step.whenEvaluated`). */
   | 'when'
   /** Run failure mapper (`step.mapErrorStarted` → `res` → `step.runFailed { data }`). */
   | 'mapError'
   /** Custom idempotency key of an idempotent run. */
   | 'idempotencyKey'
-  /** v0.2: flow-level `on[event]` handler (`event.flowDelivered`); the call's `step` is `''` (no step). */
+  /** Flow-level `on[event]` handler (`event.flowDelivered`); the call's `step` is `''` (no step). */
   | 'flowOn'
 
 export type TaskFailureKind = 'typed' | 'defect' | 'interrupted'
@@ -190,7 +190,7 @@ export type InternalMessage =
       readonly patch: Readonly<Record<string, unknown>> | ContextUpdater
       readonly by?: string
     }
-  /** Emitted once by `resumeRun()` after loading a snapshot (see plan §8.8 recovery matrix). */
+  /** Emitted once by `wizard.resume()` after loading a snapshot (see plan §8.8 recovery matrix). */
   | { readonly type: 'resume'; readonly fromSeq: number }
 
 /** `update(fn)`: the patch computed from the current context (`undefined` = no change). */

@@ -13,7 +13,7 @@ const saga = (opts: { boomRetry?: number } = {}) =>
       t3: runStep({ compensate: comp, next: 'boom' }),
       boom: runStep({
         next: 'end',
-        ...(opts.boomRetry !== undefined ? { retry: { attempts: opts.boomRetry } } : {}),
+        ...(opts.boomRetry !== undefined ? { retry: { retries: opts.boomRetry } } : {}),
       }),
       end: routingStep(),
     },
@@ -210,7 +210,7 @@ describe('compensation', () => {
       flow({
         start: 't',
         steps: {
-          t: runStep({ retry: { attempts: 2, backoff: 100 }, next: 'end' }),
+          t: runStep({ retry: { retries: 2, backoff: 100 }, next: 'end' }),
           end: routingStep(),
         },
       }),

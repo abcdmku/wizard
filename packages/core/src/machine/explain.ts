@@ -6,7 +6,7 @@
  * `unknown-step`, `flow-not-started`, `flow-terminal`, `flow-compensating`, `flow-halted`,
  * `nav-busy`, `not-activated`, `deps-unmet:<id>`, `guard-false:canEnter`,
  * `guard-false:canExit`, `concurrency-limit`, `auto-run-manual`,
- * `failed:<kind>`, `not-current`, `entering`, `retrying`, `when-pending` (v0.2:
+ * `failed:<kind>`, `not-current`, `entering`, `retrying`, `when-pending` (
  * the step's `when` predicate has not passed yet), `skipped:<reason>`.
  * `candidates` = ready views the cursor could move to.
  *
