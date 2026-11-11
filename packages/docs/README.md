@@ -39,4 +39,12 @@ pnpm --filter @openwizard/docs check:snippets
 pnpm --filter @openwizard/docs check:links
 ```
 
+## Move or rename a page
+
+Add the old route to [`lib/redirects.mjs`](./lib/redirects.mjs). The build writes a redirect page there, and `check:links` fails when a redirect leads nowhere.
+
+## What the build adds
+
+`pnpm --filter @openwizard/docs build` writes the site to `dist/client`. After the pages it adds the search index, the TypeDoc reference, the redirect pages, and `llms.txt` and `llms-full.txt`, which are generated from `pages`. It fails when a docs page loads the playground's editor.
+
 [CONTRIBUTING.md](../../CONTRIBUTING.md#change-the-docs) has the rules for writing a page.
