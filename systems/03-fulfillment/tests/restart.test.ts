@@ -1,4 +1,4 @@
-import { fulfillmentFlow } from '@fulfillment/domain'
+import { fulfillmentWizard } from '@fulfillment/domain'
 import { createMemoryStore } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
@@ -31,7 +31,7 @@ describe('fulfillment restart recovery', () => {
     run.dispose()
 
     const resumedCalls: string[] = []
-    const resumed = fulfillmentFlow.resume(saved, {
+    const resumed = fulfillmentWizard.resume(saved, {
       store,
       key: 'acme/order-1',
       deps: { gateway: createGateway(resumedCalls), now: () => NOW },
@@ -56,7 +56,7 @@ describe('fulfillment restart recovery', () => {
     resumed.dispose()
   })
 
-  it('rejects a snapshot from another flow before any dependency runs', async () => {
+  it('rejects a snapshot from another wizard before any dependency runs', async () => {
     const store = createMemoryStore()
     const run = makeRun([], { store, key: 'acme/order-1' })
     await run.start()
@@ -65,9 +65,9 @@ describe('fulfillment restart recovery', () => {
     if (saved === null || typeof saved !== 'object' || saved === null) {
       throw new Error('restart fixture did not persist a snapshot')
     }
-    const alien = { ...saved, wizard: { name: 'other-flow', version: 1 } }
+    const alien = { ...saved, wizard: { name: 'other-wizard', version: 1 } }
     expect(() =>
-      fulfillmentFlow.resume(alien, {
+      fulfillmentWizard.resume(alien, {
         deps: { gateway: createGateway([]), now: () => NOW },
       }),
     ).toThrow(/SNAPSHOT_INCOMPATIBLE|wizard/i)

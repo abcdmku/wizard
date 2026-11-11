@@ -13,6 +13,6 @@
     "packages/domain/src/readiness-steps.ts",
     "packages/domain/src/projections.ts",
     "apps/orchestrator/src/operator-routes.ts",
-    "tests/flow.test.ts"
+    "tests/wizard.test.ts"
   ]
 }

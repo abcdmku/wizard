@@ -1,13 +1,13 @@
 # Verification plan
 
 Tests are split by the boundary they exercise. Pure tests use the production
-flow, typed fake effects, and a fake clock. Integration tests use the Compose
+wizard, typed fake effects, and a fake clock. Integration tests use the Compose
 Postgres and LocalStack services. The Playwright spec checks behavior visible
 to a customer and an operator.
 
 | Area | Test | Protection |
 | --- | --- | --- |
-| flow | `tests/flow.test.ts` | parallel branches, join, fraud, wait, compensation |
+| wizard | `tests/wizard.test.ts` | parallel branches, join, fraud, wait, compensation |
 | types | `tests/contracts.test-d.ts` | context, input, output, events, scopes, errors |
 | projection | `tests/projection.test.ts` | deny-by-default fields and JSON leaks |
 | restart | `tests/restart.test.ts` | snapshots, epochs, retry and stale results |
@@ -18,9 +18,9 @@ to a customer and an operator.
 | queue Compose | `tests/queue.integration.test.ts`, `tests/queue-filter.integration.test.ts` | topics, queues, filters, DLQs, Lambda workers |
 | browser | `tests/e2e/customer-operator.spec.ts` | customer journey and fraud drill |
 
-## Deterministic flow tests
+## Deterministic wizard tests
 
-The fixture imports the production `fulfillmentFlow` and uses stable UUIDs, a
+The fixture imports the production `fulfillmentWizard` and uses stable UUIDs, a
 fake clock, and effects that record calls. It asserts that authorization and
 stock reservation run in parallel, the join waits for both, fraud review occurs
 before capture, and shipping enters a wait. Advancing virtual time fires retries
@@ -46,17 +46,17 @@ package builds and cannot pass against stale declarations. To check a workflow
 change from this system directory:
 
 ```sh
-pnpm exec vitest run --config vitest.config.ts tests/flow.test.ts tests/restart.test.ts tests/projection.test.ts --maxWorkers 2
+pnpm exec vitest run --config vitest.config.ts tests/wizard.test.ts tests/restart.test.ts tests/projection.test.ts --maxWorkers 2
 pnpm exec tsc --noEmit -p tsconfig.source.json
 ```
 
 ## Type and boundary tests
 
-`contracts.test-d.ts` imports the real fulfillment flow and checks TypeScript
+`contracts.test-d.ts` imports the real fulfillment wizard and checks TypeScript
 inference for context, context input, task output, event payload, mapped errors,
 and final output. It defines a trusted `Viewer` scope and checks the production
 projection shape with `run.project(projection, scope)`. A projection from a
-different flow is rejected at the run boundary.
+different wizard is rejected at the run boundary.
 
 Runtime tests send malformed context, command, event, task output, webhook, and
 queue data. They expect structured issues and stable error codes. An unknown

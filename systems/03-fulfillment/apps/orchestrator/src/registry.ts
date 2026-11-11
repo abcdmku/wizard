@@ -1,4 +1,8 @@
-import { customerStatus, type FulfillmentDependencies, fulfillmentFlow } from '@fulfillment/domain'
+import {
+  customerStatus,
+  type FulfillmentDependencies,
+  fulfillmentWizard,
+} from '@fulfillment/domain'
 import {
   createDurableRun,
   createHostRegistry,
@@ -11,7 +15,7 @@ import type { DurableStore } from '@openwizard/durable/store'
 import type { OrderCatalog, OrderRecord } from './catalog'
 import { FulfillmentServiceError } from './errors'
 
-type Host = DurableRunHost<typeof fulfillmentFlow>
+type Host = DurableRunHost<typeof fulfillmentWizard>
 type State = ReturnType<Host['run']['getState']>
 
 interface RegistryEntry {
@@ -104,7 +108,7 @@ export class DurableOrderRegistry {
     let lastRetryAt = Date.now()
     for (let attempt = 0; attempt < 3; attempt += 1) {
       if (lifecycle.signal.aborted) return busy(lastRetryAt)
-      const opened = await createDurableRun(fulfillmentFlow, {
+      const opened = await createDurableRun(fulfillmentWizard, {
         context: record.initialContext,
         deps: this.options.deps,
         store: this.options.store,

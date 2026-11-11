@@ -184,7 +184,7 @@ extra workflow and compensation detail needed for operations.
 
 ## Tests
 
-Fast tests use the production `fulfillmentFlow`, typed fake effects, a fake
+Fast tests use the production `fulfillmentWizard`, typed fake effects, a fake
 clock, and in-memory snapshots:
 
 ```sh
@@ -265,7 +265,7 @@ and its [official documentation source](https://github.com/abcdmku/wizard/tree/m
 
 ## Change drill and DX budget
 
-A workflow change normally updates the flow test, the relevant contract/type
+A workflow change normally updates the wizard test, the relevant contract/type
 test, the projection serialization assertion, and the browser assertion when
 the user-visible path changes. Keep each handwritten source or test file below
 300 lines and aim for five changed files or fewer for a normal change.

@@ -37,6 +37,9 @@ export type FulfillmentStep = StepApi<
 export const fulfillmentOptions = {
   name: 'durable-order-fulfillment',
   version: 1,
+  description:
+    'Fulfils one order: authorizes payment and reserves inventory in parallel, waits for a ' +
+    'fraud review, captures the payment and ships. Any failure undoes the partner work.',
   context: FulfillmentContextSchema,
   deps: boundary.trusted<FulfillmentDependencies>(),
   concurrency: 2,

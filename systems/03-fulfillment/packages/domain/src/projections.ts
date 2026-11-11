@@ -14,9 +14,9 @@ import {
 } from '@fulfillment/contracts'
 import { boundary, defineProjection, type Snapshot } from '@openwizard/core'
 import { z } from 'zod'
-import { fulfillmentFlow } from './workflow'
+import { fulfillmentWizard } from './wizard'
 
-type FulfillmentState = Snapshot<typeof fulfillmentFlow>['state']
+type FulfillmentState = Snapshot<typeof fulfillmentWizard>['state']
 
 export const PartnerViewerSchema = z.object({
   role: z.literal('partner'),
@@ -33,7 +33,7 @@ export const ViewerSchema = z.discriminatedUnion('role', [
 export type PartnerViewer = z.infer<typeof PartnerViewerSchema>
 export type Viewer = z.infer<typeof ViewerSchema>
 
-export const customerOrderProjection = defineProjection(fulfillmentFlow, {
+export const customerOrderProjection = defineProjection(fulfillmentWizard, {
   scope: boundary.trusted<CustomerPrincipal>(),
   select: ({ state, scope }) => {
     requireCustomerScope(state, scope)
@@ -41,7 +41,7 @@ export const customerOrderProjection = defineProjection(fulfillmentFlow, {
   },
 })
 
-export const operatorOrderProjection = defineProjection(fulfillmentFlow, {
+export const operatorOrderProjection = defineProjection(fulfillmentWizard, {
   scope: boundary.trusted<OperatorPrincipal>(),
   select: ({ state, scope }) => {
     requireTenantScope(state, scope.tenantId)
@@ -49,7 +49,7 @@ export const operatorOrderProjection = defineProjection(fulfillmentFlow, {
   },
 })
 
-export const partnerOrderProjection = defineProjection(fulfillmentFlow, {
+export const partnerOrderProjection = defineProjection(fulfillmentWizard, {
   scope: boundary.trusted<PartnerViewer>(),
   select: ({ state, scope }) => {
     requireTenantScope(state, scope.tenantId)
