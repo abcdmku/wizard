@@ -16,8 +16,8 @@ import { createEachState, eachOutputs, updateEachItem } from '../../src/machine/
 import type { DomainEvent } from '../../src/machine/events'
 import type { WizardState } from '../../src/machine/state'
 import { type Snapshot, toSnapshot } from '../../src/wizard/snapshot'
-import { flow, initialState } from '../helpers/fake-machine'
-import { trusted } from '../helpers/fixtures'
+import { initialState } from '../../src/machine/index'
+import { flow, flowStep, runStep, trusted } from '../helpers/fixtures'
 
 interface Handle extends ChildHandle {
   readonly commands: Command[]
@@ -84,10 +84,7 @@ function setup(keys = ['one', 'two'], extraSteps: Parameters<typeof flow>[0]['st
   const items = keys.map((key) => ({ key }))
   const mappedArgs: HookArgs[] = []
   let boundaryCalls = 0
-  const child = flow({
-    name: 'child',
-    steps: { work: { kind: 'step', hooks: { run: () => 1 } } },
-  })
+  const child = flow({ name: 'child', start: 'work', steps: { work: runStep({ run: () => 1 }) } })
   const childWithDeps = {
     ...child,
     deps: {
@@ -100,19 +97,16 @@ function setup(keys = ['one', 'two'], extraSteps: Parameters<typeof flow>[0]['st
   }
   const def = flow({
     name: 'parent',
+    start: 'mapped',
     steps: {
-      mapped: {
-        kind: 'child',
-        child: childWithDeps,
-        each: { items: () => items, concurrency: 2 },
-        hooks: {
-          childDeps(args) {
-            mappedArgs.push(args)
-            return { ...Object(args.deps), item: args.item, index: args.index }
-          },
+      mapped: flowStep(childWithDeps, {
+        deps: function (args) {
+          mappedArgs.push(args)
+          return { ...Object(args.deps), item: args.item, index: args.index }
         },
-      },
-      plain: { kind: 'child', child },
+        each: { items: () => items, concurrency: 2 },
+      }),
+      plain: flowStep(child),
       ...extraSteps,
     },
   })
@@ -371,8 +365,8 @@ describe('map child bridge', () => {
 
   it('keeps ordinary child flows and indexed children with colliding literal ids separate', () => {
     const collision = eachChildAddress('mapped', 0, 'one')
-    const child = flow({ steps: { end: { kind: 'step', hooks: { run: () => 1 } } } })
-    const s = setup(['one'], { [collision]: { kind: 'child', child } })
+    const child = flow({ start: 'end', steps: { end: runStep({ run: () => 1 }) } })
+    const s = setup(['one'], { [collision]: flowStep(child) })
     s.bridge.create(collision, { plain: true })
     s.bridge.create('mapped', { mapped: true }, undefined, 0)
     expect(s.bridge.get(collision)).toBe(s.handles[0])

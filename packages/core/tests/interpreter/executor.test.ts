@@ -23,7 +23,9 @@ function harness(
   strict?: 'sync',
 ) {
   const sched = createTestScheduler({ now: 100 })
-  const state = patch(initialState(createEnv(def).env, { instanceId: 'inst', context: { c: 1 }, now: 100 }))
+  const state = patch(
+    initialState(createEnv(def).env, { instanceId: 'inst', context: { c: 1 }, now: 100 }),
+  )
   const sent: Array<{ msg: Message; causedBy: number | undefined }> = []
   const executor = createExecutor({
     def,

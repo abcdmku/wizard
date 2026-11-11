@@ -8,7 +8,8 @@ import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { Message } from '../../src/machine/commands'
 import type { CallEffect } from '../../src/machine/effects'
 import type { WizardState } from '../../src/machine/state'
-import { flow, initialState, testEnv } from '../helpers/fake-machine'
+import { initialState } from '../../src/machine/index'
+import { createEnv, eventStep, flow, runStep } from '../helpers/fixtures'
 
 function harness(
   def: ReturnType<typeof flow>,
@@ -16,8 +17,9 @@ function harness(
   strict?: 'sync',
 ) {
   const sched = createTestScheduler({ now: 100 })
-  const menv = testEnv(def)
-  const state = patch(initialState(menv, { instanceId: 'inst', context: { c: 1 }, now: 100 }))
+  const state = patch(
+    initialState(createEnv(def).env, { instanceId: 'inst', context: { c: 1 }, now: 100 }),
+  )
   const sent: Array<{ msg: Message; causedBy: number | undefined }> = []
   const executor = createExecutor({
     def,
@@ -61,19 +63,17 @@ const call = (
 describe('executor: extra echo and hostile thenables', () => {
   it("echoes CallEffect.extra on res.ok and res.err (an 'on' handler's event/payload/inboxId come back)", async () => {
     const def = flow({
+      start: 'w',
       steps: {
-        w: {
-          kind: 'step',
-          hooks: {
-            waitFor: {
-              ok: () => ({ done: 'x' }),
-              boom: () => {
-                throw new Error('handler failed')
-              },
-              late: () => Promise.reject(new Error('later')),
+        w: eventStep({
+          on: {
+            ok: () => ({ done: 'x' }),
+            boom: () => {
+              throw new Error('handler failed')
             },
+            late: () => Promise.reject(new Error('later')),
           },
-        },
+        }),
       },
     })
     const { executor, sent } = harness(def, activate('w'))
@@ -101,18 +101,16 @@ describe('executor: extra echo and hostile thenables', () => {
 
   it('a throwing `then` getter is reported as res.err, never thrown out of execute()', () => {
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: () => ({
-              // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
-              get then() {
-                throw new Error('hostile getter')
-              },
-            }),
-          },
-        },
+        t: runStep({
+          run: () => ({
+            // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
+            get then() {
+              throw new Error('hostile getter')
+            },
+          }),
+        }),
       },
     })
     const { executor, sent } = harness(def, activate('t'))
@@ -123,18 +121,16 @@ describe('executor: extra echo and hostile thenables', () => {
 
   it('a thenable whose then() throws is reported once as res.err', () => {
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: () => ({
-              // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
-              then() {
-                throw new Error('then exploded')
-              },
-            }),
-          },
-        },
+        t: runStep({
+          run: () => ({
+            // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
+            then() {
+              throw new Error('then exploded')
+            },
+          }),
+        }),
       },
     })
     const { executor, sent } = harness(def, activate('t'))
@@ -145,20 +141,18 @@ describe('executor: extra echo and hostile thenables', () => {
 
   it('a custom thenable that settles synchronously and repeatedly still yields exactly one report', () => {
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: () => ({
-              // biome-ignore lint/suspicious/noThenProperty: intentionally synchronous custom thenable
-              then(onOk: (v: unknown) => void, onErr: (e: unknown) => void) {
-                onOk('first')
-                onOk('second')
-                onErr(new Error('third'))
-              },
-            }),
-          },
-        },
+        t: runStep({
+          run: () => ({
+            // biome-ignore lint/suspicious/noThenProperty: intentionally synchronous custom thenable
+            then(onOk: (v: unknown) => void, onErr: (e: unknown) => void) {
+              onOk('first')
+              onOk('second')
+              onErr(new Error('third'))
+            },
+          }),
+        }),
       },
     })
     const { executor, sent } = harness(def, activate('t'))
@@ -169,18 +163,16 @@ describe('executor: extra echo and hostile thenables', () => {
 
   it("strict: 'sync' swallows a hostile thenable's then() and reports the violation once", () => {
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: () => ({
-              // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
-              then() {
-                throw new Error('cannot subscribe')
-              },
-            }),
-          },
-        },
+        t: runStep({
+          run: () => ({
+            // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
+            then() {
+              throw new Error('cannot subscribe')
+            },
+          }),
+        }),
       },
     })
     const { executor, sent } = harness(def, activate('t'), 'sync')
@@ -194,20 +186,18 @@ describe('executor: timeout and abort', () => {
   it('aborts a navigation transaction without cancelling an unrelated run of the same step', () => {
     const signals: { run?: AbortSignal; guard?: AbortSignal } = {}
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: ({ signal }) => {
-              signals.run = signal
-              return new Promise(() => {})
-            },
-            canEnter: ({ signal }) => {
-              signals.guard = signal
-              return new Promise<boolean>(() => {})
-            },
+        t: runStep({
+          run: ({ signal }) => {
+            signals.run = signal
+            return new Promise(() => {})
           },
-        },
+          canEnter: ({ signal }) => {
+            signals.guard = signal
+            return new Promise<boolean>(() => {})
+          },
+        }),
       },
     })
     const { executor, sent, sched } = harness(def, activate('t'))
@@ -236,16 +226,14 @@ describe('executor: timeout and abort', () => {
     let resolveIt: (v: unknown) => void = () => {}
     let signal: AbortSignal | undefined
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: (a) => {
-              signal = a.signal
-              return new Promise((r) => (resolveIt = r))
-            },
+        t: runStep({
+          run: (a) => {
+            signal = a.signal
+            return new Promise((r) => (resolveIt = r))
           },
-        },
+        }),
       },
     })
     const { executor, sent, sched } = harness(def, activate('t'))
@@ -266,7 +254,8 @@ describe('executor: timeout and abort', () => {
   it('abort(step) aborts the signal but lets a late success through as res.ok', async () => {
     let resolveIt: (v: unknown) => void = () => {}
     const def = flow({
-      steps: { t: { kind: 'step', hooks: { run: () => new Promise((r) => (resolveIt = r)) } } },
+      start: 't',
+      steps: { t: runStep({ run: () => new Promise((r) => (resolveIt = r)) }) },
     })
     const { executor, sent } = harness(def, activate('t'))
     executor.execute(call('t', 'run'))
@@ -279,18 +268,16 @@ describe('executor: timeout and abort', () => {
   it('abort(step) reports a rejection as res.err { cancelled }', async () => {
     let signal: AbortSignal | undefined
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: (a) => {
-              signal = a.signal
-              return new Promise((_, rej) =>
-                a.signal.addEventListener('abort', () => rej(a.signal.reason)),
-              )
-            },
+        t: runStep({
+          run: (a) => {
+            signal = a.signal
+            return new Promise((_, rej) =>
+              a.signal.addEventListener('abort', () => rej(a.signal.reason)),
+            )
           },
-        },
+        }),
       },
     })
     const { executor, sent } = harness(def, activate('t'))
@@ -307,9 +294,7 @@ describe('executor: timeout and abort', () => {
   })
 
   it('abort(step) without a timeout arms the grace timer; abortAll silences everything', () => {
-    const def = flow({
-      steps: { t: { kind: 'step', hooks: { run: () => new Promise(() => {}) } } },
-    })
+    const def = flow({ start: 't', steps: { t: runStep({ run: () => new Promise(() => {}) }) } })
     const { executor, sent, sched } = harness(def, activate('t'))
     executor.execute(call('t', 'run'))
     executor.abort('t')

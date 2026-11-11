@@ -4,11 +4,12 @@ import { createExecutor } from '../../src/interpreter/executor'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { Message, ResultToken } from '../../src/machine/commands'
 import type { CallEffect } from '../../src/machine/effects'
-import { flow, initialState, testEnv } from '../helpers/fake-machine'
+import { initialState } from '../../src/machine/index'
+import { createEnv, flow, runStep } from '../helpers/fixtures'
 
 function harness(def: ReturnType<typeof flow>) {
   const scheduler = createTestScheduler({ now: 100 })
-  const state = initialState(testEnv(def), { instanceId: 'errors', context: {}, now: 100 })
+  const state = initialState(createEnv(def).env, { instanceId: 'errors', context: {}, now: 100 })
   const sent: Message[] = []
   const executor = createExecutor({
     def,
@@ -42,13 +43,11 @@ describe('durable error data', () => {
     (data) => {
       const seen: unknown[] = []
       const def = flow({
+        start: 'work',
         steps: {
-          work: {
-            kind: 'step',
-            hooks: {
-              run: () => {
-                throw { [RUN_FAILURE]: true, kind: 'typed', error: new Error('declined'), data }
-              },
+          work: runStep({
+            run: () => {
+              throw { [RUN_FAILURE]: true, kind: 'typed', error: new Error('declined'), data }
             },
             retry: {
               retries: 1,
@@ -57,7 +56,7 @@ describe('durable error data', () => {
                 return false
               },
             },
-          },
+          }),
         },
       })
       const { execute, sent } = harness(def)
@@ -73,20 +72,18 @@ describe('durable error data', () => {
 
   it('rejects invalid adapter data as a defect without storing the invalid value', () => {
     const def = flow({
+      start: 'work',
       steps: {
-        work: {
-          kind: 'step',
-          hooks: {
-            run: () => {
-              throw {
-                [RUN_FAILURE]: true,
-                kind: 'typed',
-                error: new Error('original'),
-                data: { amount: 1n },
-              }
-            },
+        work: runStep({
+          run: () => {
+            throw {
+              [RUN_FAILURE]: true,
+              kind: 'typed',
+              error: new Error('original'),
+              data: { amount: 1n },
+            }
           },
-        },
+        }),
       },
     })
     const { execute, sent } = harness(def)
@@ -110,22 +107,20 @@ describe('durable error data', () => {
 
   it('rejects an adapter failure whose data getter throws', () => {
     const def = flow({
+      start: 'work',
       steps: {
-        work: {
-          kind: 'step',
-          hooks: {
-            run: () => {
-              throw {
-                [RUN_FAILURE]: true,
-                kind: 'typed',
-                error: new Error('original'),
-                get data(): unknown {
-                  throw new Error('unreadable')
-                },
-              }
-            },
+        work: runStep({
+          run: () => {
+            throw {
+              [RUN_FAILURE]: true,
+              kind: 'typed',
+              error: new Error('original'),
+              get data(): unknown {
+                throw new Error('unreadable')
+              },
+            }
           },
-        },
+        }),
       },
     })
     const { execute, sent } = harness(def)
@@ -146,10 +141,10 @@ describe('durable error data', () => {
   ])('rejects a mapError result at $detail before retry.when runs', ({ value, detail }) => {
     const seen: unknown[] = []
     const def = flow({
+      start: 'work',
       steps: {
-        work: {
-          kind: 'step',
-          hooks: { mapError: () => value },
+        work: runStep({
+          mapError: () => value,
           retry: {
             retries: 3,
             when: (error) => {
@@ -157,7 +152,7 @@ describe('durable error data', () => {
               return true
             },
           },
-        },
+        }),
       },
     })
     const { execute, sent, executor } = harness(def)
@@ -176,9 +171,7 @@ describe('durable error data', () => {
   })
 
   it('checks asynchronous mapper results before accepting them', async () => {
-    const def = flow({
-      steps: { work: { kind: 'step', hooks: { mapError: async () => 1n } } },
-    })
+    const def = flow({ start: 'work', steps: { work: runStep({ mapError: async () => 1n }) } })
     const { execute, sent } = harness(def)
     execute('mapError')
     await Promise.resolve()
@@ -195,9 +188,7 @@ describe('durable error data', () => {
         throw new Error('getter broke')
       },
     }
-    const def = flow({
-      steps: { work: { kind: 'step', hooks: { mapError: () => value } } },
-    })
+    const def = flow({ start: 'work', steps: { work: runStep({ mapError: () => value }) } })
     const { execute, sent } = harness(def)
     expect(() => execute('mapError')).not.toThrow()
     expect(sent[0]).toMatchObject({
@@ -212,16 +203,14 @@ describe('durable error data', () => {
 
   it('maps each concurrent item with its own raw failure, even when mappings run in reverse', () => {
     const def = flow({
+      start: 'work',
       steps: {
-        work: {
-          kind: 'step',
-          hooks: {
-            run: ({ item }) => {
-              throw new Error(`item ${item}`)
-            },
-            mapError: ({ error }) => ({ message: (error as Error).message }),
+        work: runStep({
+          run: ({ item }) => {
+            throw new Error(`item ${item}`)
           },
-        },
+          mapError: ({ error }) => ({ message: (error as Error).message }),
+        }),
       },
     })
     const { execute, sent } = harness(def)
