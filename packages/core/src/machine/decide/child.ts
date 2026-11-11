@@ -1,9 +1,9 @@
 /**
- * `res.child`: a child flow's summary / completion / failure reported by the child bridge.
- * A halted child only updates the summary: the flow step stays active (its run is `halted` when
+ * `res.child`: a child run's summary / completion / failure reported by the child bridge.
+ * A halted child only updates the summary: the child step stays active (its run is `halted` when
  * nothing else runs) and continues when the recovered child finishes. A child that ends
- * failed or cancelled fails the flow step — or, when its `fallback` chose a step, skips it and
- * routes there. The child's mapped error data is kept on the flow step's error.
+ * failed or cancelled fails the child step — or, when its `fallback` chose a step, skips it and
+ * routes there. The child's mapped error data is kept on the child step's error.
  * @internal
  */
 
@@ -32,7 +32,7 @@ export function onChildResult(b: Batch, msg: Extract<EffectResult, { type: 'res.
     return
   }
   // Freshness: right kind, the parent runId the child was created under, increasing summary seq.
-  if (def.kind !== 'flow' || msg.token.step !== msg.step || msg.token.runId !== r.runId) {
+  if (def.kind !== 'child' || msg.token.step !== msg.step || msg.token.runId !== r.runId) {
     ignore(b, effectId, 'stale')
     return
   }

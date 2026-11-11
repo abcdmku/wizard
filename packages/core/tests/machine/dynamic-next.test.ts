@@ -19,7 +19,7 @@ describe('dynamic next failures', () => {
     h.start()
     h.ok(h.call('run'))
     const r = h.ok(h.call('next'), 'nope')
-    expect(r.types).toEqual(['transition.failed', 'step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['transition.failed', 'step.failed', 'run.halted'])
     expect(of(r, 'step.failed')[0]).toMatchObject({
       step: 'a',
       kind: 'hook',
@@ -48,7 +48,7 @@ describe('dynamic next failures', () => {
       step: 'a',
       error: { message: 'route exploded' },
     })
-    expect(of(r, 'flow.done')).toHaveLength(0)
+    expect(of(r, 'run.done')).toHaveLength(0)
     expect(h.state.status).toBe('failed')
   })
 })

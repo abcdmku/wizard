@@ -1,5 +1,5 @@
 /**
- * The checkout flow. This is SERVER code: in production this module (and everything it
+ * The checkout wizard. This is SERVER code: in production this module (and everything it
  * imports) runs on the server; the client only ever imports the TYPE of `checkoutClient`
  * (see client.ts).
  *
@@ -9,7 +9,7 @@ import { boundary, defineProjection, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
 /**
- * Services outside the flow that the tasks call. Injected through `deps` (no globals in
+ * Services outside the wizard that the tasks call. Injected through `deps` (no globals in
  * hooks). Note there is no `tokenize` here: the card number is tokenised in the BROWSER by the
  * payment provider's SDK (`payments.ts` fakes it), so the run, the server, the snapshots
  * and every frame only ever see the opaque token.
@@ -19,7 +19,7 @@ export interface CheckoutDeps {
   payments: { charge(token: string, amount: number): Promise<{ chargeId: string }> }
 }
 
-export const checkoutFlow = defineWizard(
+export const checkoutWizard = defineWizard(
   {
     name: 'checkout',
     description: 'Collects shipping and payment, reserves stock, charges, and returns a receipt.',
@@ -90,11 +90,11 @@ export const checkoutFlow = defineWizard(
 /**
  * Deny-by-default projection = the client's whole view of the run. Only what is listed
  * crosses the wire: the two view drafts (the payment draft is a token + last4) and their
- * validation issues, the two tasks' sanitized errors, two context fields and the flow output
+ * validation issues, the two tasks' sanitized errors, two context fields and the wizard output
  * (the receipt). `cartId` and the step outputs never do. Base facts (`id` / `kind` / `status` /
  * `phase` / `attempt` per step, `current`, `status`) always do.
  */
-export const checkoutClient = defineProjection(checkoutFlow, {
+export const checkoutClient = defineProjection(checkoutWizard, {
   expose: {
     steps: {
       shipping: { input: true, issues: true },

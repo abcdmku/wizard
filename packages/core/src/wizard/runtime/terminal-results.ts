@@ -79,7 +79,7 @@ export function createTerminalResultTracker(args: {
     },
     commit(state, batch) {
       if (disposed) return
-      if (batch.some((event) => event.type === 'flow.reset')) {
+      if (batch.some((event) => event.type === 'run.reset')) {
         notifiedKey = undefined
         rejectAll(new RunLifecycleError('RUN_RESET'))
       }

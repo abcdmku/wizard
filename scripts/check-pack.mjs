@@ -144,11 +144,11 @@ async function checkCoreSharedRuntime() {
     try {
       inspect(probe)
     } catch (error) {
-      problems.push(`${format}: /inspect rejects a flow built with the main entry (${error})`)
+      problems.push(`${format}: /inspect rejects a wizard built with the main entry (${error})`)
     }
     try {
       inspect({})
-      problems.push(`${format}: /inspect accepted an invalid flow`)
+      problems.push(`${format}: /inspect accepted an invalid wizard`)
     } catch (error) {
       if (!(error instanceof core.WizardError))
         problems.push(`${format}: errors thrown by /inspect are not the main entry's WizardError`)

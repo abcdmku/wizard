@@ -9,7 +9,7 @@ npm install @openwizard/durable @openwizard/core
 ```ts file="packages/docs/snippets/packages/durable.mts"
 ```
 
-1. `createDurableHost(helloFlow, { store, ownerId })` hosts runs of the wizard by key.
+1. `createDurableHost(hello, { store, ownerId })` hosts runs of the wizard by key.
 2. `host.create('hello-1', input)` creates the run, or opens its existing record.
 3. `host.dispatch(key, command, { commandId })` routes a command through lease, persistence, and deduplication gates.
 4. `host.send(key, event, payload, { eventId })` delivers an external event through the same host.

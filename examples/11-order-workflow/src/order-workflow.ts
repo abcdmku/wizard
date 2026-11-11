@@ -13,7 +13,7 @@ const OrderContext = z.object({
 export type OrderContext = z.infer<typeof OrderContext>
 export type OrderLine = OrderContext['lines'][number]
 
-/** The host supplies these services when it calls orderWorkflowFlow.create(input, { deps }). */
+/** The host supplies these services when it calls orderWorkflow.create(input, { deps }). */
 export interface Deps {
   inventory: {
     reserve(
@@ -45,7 +45,7 @@ export type ChargeFailure = {
   attempt: number
 }
 
-export const orderWorkflowFlow = defineWizard(
+export const orderWorkflow = defineWizard(
   {
     name: 'order-workflow',
     description:

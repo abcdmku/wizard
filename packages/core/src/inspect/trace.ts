@@ -46,8 +46,8 @@ export function traceLine(event: RunEvent, origin?: number): TraceLine {
 
 /**
  * A readable trace, one line per event: time relative to the first event, `[child/path]` for
- * events of child flows, and a sentence (`charge attempt 2 failed: PSP down, will retry`).
- * Machine bookkeeping (timers, navigation phases, `flow.status`, …) is left out unless
+ * events of child runs, and a sentence (`charge attempt 2 failed: PSP down, will retry`).
+ * Machine bookkeeping (timers, navigation phases, `run.status`, …) is left out unless
  * `all: true`.
  * @public
  */

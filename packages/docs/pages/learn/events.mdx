@@ -56,7 +56,7 @@ A valid event sent to a started run with no active listener is buffered for five
 unmatchedEvents: { buffer: true, ttl: '30m' },
 ```
 
-With `buffer: false`, an unmatched event returns a dropped result. Sending before `run.start()` returns `FLOW_NOT_STARTED`.
+With `buffer: false`, an unmatched event returns a dropped result. Sending before `run.start()` returns `RUN_NOT_STARTED`.
 
 ## Duplicate deliveries
 

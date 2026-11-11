@@ -22,7 +22,7 @@ describe('10 devtools: the page drives the pipeline and the panel follows', () =
   it('moves through approval while the graph and event log update', async () => {
     const run = createPipelineRun(makeDeps(0))
     const { container } = render(<App run={run} />)
-    // The panel is open by default and draws the run's own flow.
+    // The panel is open by default and draws the run's own wizard.
     await waitFor(() => expect(cardOf(container, 'ingest')).toBeDefined())
     fireEvent.click(screen.getByRole('button', { name: 'Start' }))
     // Fake enricher fails once → retry (1.2 s) → then the gate → the approval wait.

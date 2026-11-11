@@ -32,7 +32,7 @@ describe('navigation cancellation', () => {
 
       const cancelled = h.cmd({ type: 'cancel', reason: 'owner stopped' })
 
-      expect(cancelled.types).toEqual(['transition.failed', 'step.cancelled', 'flow.cancelled'])
+      expect(cancelled.types).toEqual(['transition.failed', 'step.cancelled', 'run.cancelled'])
       expect(of(cancelled, 'transition.failed')[0]).toMatchObject({
         txId,
         step: 'a',
@@ -94,7 +94,7 @@ describe('navigation cancellation', () => {
 
     const cancelled = h.cmd('cancel')
 
-    expect(cancelled.types).toEqual(['transition.failed', 'flow.cancelled'])
+    expect(cancelled.types).toEqual(['transition.failed', 'run.cancelled'])
     expect(of(cancelled, 'transition.failed')[0]?.step).toBe('a')
     expect(h.state.nav.phase).toBe('idle')
     expect(h.state.current).toBeNull()

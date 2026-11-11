@@ -1,4 +1,4 @@
-/** Exhausted failures, alternate failure edges, and the flow failure policy. @internal */
+/** Exhausted failures, alternate failure edges, and the run failure policy. @internal */
 
 import type { Batch } from './batch'
 import { emit, stepDef } from './batch'
@@ -40,5 +40,5 @@ export function failStep(
     startCompensation(b, `step-failed:${step}`, 'failed')
     return
   }
-  emit(b, { type: 'flow.halted', step, error, ...(data !== undefined ? { data } : {}) })
+  emit(b, { type: 'run.halted', step, error, ...(data !== undefined ? { data } : {}) })
 }

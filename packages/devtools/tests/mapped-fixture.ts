@@ -11,14 +11,14 @@ export const mappedLeaf = defineWizard(
 
 export const numericChild = defineWizard(
   { name: 'numeric-child', context: z.object({ name: z.string() }) },
-  ({ flow, steps }) => steps({ '0': flow(mappedLeaf, { context: ({ context }) => context }) }),
+  ({ child, steps }) => steps({ '0': child(mappedLeaf, { context: ({ context }) => context }) }),
 )
 
 export const mappedParent = defineWizard(
   { name: 'mapped-parent', context: z.object({ names: z.array(z.string()) }) },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      batch: flow(numericChild, {
+      batch: child(numericChild, {
         each: ({ context }) => context.names,
         context: ({ item }) => ({ name: item }),
         key: (_item, index) => String(1 - index),

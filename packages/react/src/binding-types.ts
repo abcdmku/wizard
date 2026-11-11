@@ -7,10 +7,10 @@
  */
 
 import type {
-  AnyFlow,
   AnyProjection,
-  ChildFlowOf,
+  AnyWizardDefinition,
   ChildStepId,
+  ChildWizardOf,
   DraftOf,
   IsEach,
   Snapshot,
@@ -24,12 +24,12 @@ import type {
   ActionsOf,
   BindTarget,
   CurrentOf,
-  FlowOf,
   IssuesFor,
   SourceOf,
   StateOf,
   StepRecordIn,
   UseStepResult,
+  WizardOf,
 } from './types'
 
 /**
@@ -54,27 +54,27 @@ type ChildSliceOf<R> = R extends { readonly child?: infer CS }
     : ChildState<NonNullable<CS>>
   : never
 type ChildState<S> = [S] extends [{ readonly steps: unknown }] ? S : never
-type ChildIndex<F extends AnyFlow, K extends StepId<F>> =
+type ChildIndex<F extends AnyWizardDefinition, K extends StepId<F>> =
   true extends IsEach<F, K> ? [index: number] : [index?: never]
 
 /**
- * The steps of flow `F` whose record in the projected slice `S` carries a nested child state
+ * The steps of wizard `F` whose record in the projected slice `S` carries a nested child state
  * (exposed with `child: ExposeSpec`) — the only children a Mirror binding can read.
  * @public
  */
-export type ExposedChildId<F extends AnyFlow, S> = {
+export type ExposedChildId<F extends AnyWizardDefinition, S> = {
   [K in StepId<F>]: [ChildSliceOf<StepRecordIn<S, K>>] extends [never] ? never : K
 }[StepId<F>]
 
 /**
- * Ids of the flow steps whose child state the binding can read with `useChild`: over a
- * projection, the flow steps exposed with a nested `child: ExposeSpec` (their projected slice
- * carries `steps`); over a Run, every flow step. Mapped steps require an input index.
+ * Ids of the child steps whose child state the binding can read with `useChild`: over a
+ * projection, the child steps exposed with a nested `child: ExposeSpec` (their projected slice
+ * carries `steps`); over a Run, every child step. Mapped steps require an input index.
  * @public
  */
 export type ChildBindingId<T extends BindTarget> = T extends AnyProjection
-  ? ExposedChildId<FlowOf<T>, StateOf<T>>
-  : ChildStepId<FlowOf<T>>
+  ? ExposedChildId<WizardOf<T>, StateOf<T>>
+  : ChildStepId<WizardOf<T>>
 
 /**
  * The selected child slice `useChild` reads: one projected `ClientState` over a projection,
@@ -86,15 +86,15 @@ export type ChildStateOf<
   K extends ChildBindingId<T>,
 > = T extends AnyProjection
   ? ChildSliceOf<StepRecordIn<StateOf<T>, K>>
-  : Snapshot<ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>>['state']
+  : Snapshot<ChildWizardOf<WizardOf<T>, K & StepId<WizardOf<T>>>>['state']
 
 /**
  * Helpers `useChild(step).useStep(id)` binds to a child VIEW step: the scoped `MirrorChild`
- * sugar of the child flow with the same rules as `StepHelpers` (`next` / `back` only from the
+ * sugar of the child wizard with the same rules as `StepHelpers` (`next` / `back` only from the
  * child's current view; `issuesFor` only where the child record `R` carries `issues`).
  * @public
  */
-export type ChildStepHelpers<CF extends AnyFlow, K extends StepId<CF>, R> =
+export type ChildStepHelpers<CF extends AnyWizardDefinition, K extends StepId<CF>, R> =
   K extends ViewId<CF>
     ? {
         readonly next: () => Promise<MirrorResult>
@@ -107,16 +107,20 @@ export type ChildStepHelpers<CF extends AnyFlow, K extends StepId<CF>, R> =
 
 /**
  * What `useChild(step)` returns: hooks bound to the child slice of the state (`S`), typed by the
- * child flow `CF`. `useSnapshot()` is `null` while the child has no state (its flow step has not
+ * child wizard `CF`. `useSnapshot()` is `null` while the child has no state (its child step has not
  * been entered); `useStep` throws in that case, so render it under a `useSnapshot()` guard.
  * `useActions()` is the scoped `MirrorChild` sugar (every command wrapped as a `child` command);
  * `useChild` nests further (`Source` says how the grandchild slice is read: `'mirror'` from
  * `steps[step].child` of this slice — only the grandchildren the projection exposes with a
  * nested `child: ExposeSpec` —, `'run'` from the child snapshot's `children[step]`, every
- * flow step).
+ * child step).
  * @public
  */
-export interface ChildBinding<CF extends AnyFlow, S, Source extends 'run' | 'mirror' = 'mirror'> {
+export interface ChildBinding<
+  CF extends AnyWizardDefinition,
+  S,
+  Source extends 'run' | 'mirror' = 'mirror',
+> {
   /** The child slice, or `null` before the child exists. */
   useSnapshot(): S | null
   /** One child step's record (+ its live `phase` over a Run) and bound helpers; throws while the child has no state. */
@@ -132,9 +136,9 @@ export interface ChildBinding<CF extends AnyFlow, S, Source extends 'run' | 'mir
     step: K,
     ...selection: ChildIndex<CF, K & StepId<CF>>
   ): ChildBinding<
-    ChildFlowOf<CF, K & StepId<CF>>,
+    ChildWizardOf<CF, K & StepId<CF>>,
     Source extends 'run'
-      ? Snapshot<ChildFlowOf<CF, K & StepId<CF>>>['state']
+      ? Snapshot<ChildWizardOf<CF, K & StepId<CF>>>['state']
       : ChildSliceOf<StepRecordIn<S, K>>,
     Source
   >
@@ -153,21 +157,21 @@ export interface ReactBinding<T extends BindTarget> {
   /** The current view's record or `null`. */
   useCurrent(): CurrentOf<T>
   /** One step's record + bound helpers; re-renders only when that step's slice changes. */
-  useStep<K extends StepId<FlowOf<T>>>(step: K): UseStepResult<T, K>
+  useStep<K extends StepId<WizardOf<T>>>(step: K): UseStepResult<T, K>
   /** A derived value; re-renders when `isEqual` (default `Object.is`) says it changed. */
   useSelector<R>(select: (state: StateOf<T>) => R, isEqual?: (a: R, b: R) => boolean): R
   /** The source's command methods (+ the run's queries over a Run); stable identity per source. */
   useActions(): ActionsOf<T>
   /**
-   * Hooks bound to a nested flow (`steps[step].child` of the projected state — the flow step
+   * Hooks bound to a nested run (`steps[step].child` of the projected state — the child step
    * must be exposed with `child: ExposeSpec` — or the live child state over a Run).
    * Mapped steps require `useChild(step, index)`. Identities stay stable per selected path.
    */
   useChild<K extends ChildBindingId<T>>(
     step: K,
-    ...selection: ChildIndex<FlowOf<T>, K & StepId<FlowOf<T>>>
+    ...selection: ChildIndex<WizardOf<T>, K & StepId<WizardOf<T>>>
   ): ChildBinding<
-    ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>,
+    ChildWizardOf<WizardOf<T>, K & StepId<WizardOf<T>>>,
     ChildStateOf<T, K>,
     T extends AnyProjection ? 'mirror' : 'run'
   >
@@ -195,7 +199,7 @@ export interface MirrorBinding<P extends AnyProjection> extends ReactBinding<P> 
 }
 
 /**
- * What `bindReact<T>()` returns: a `MirrorBinding` for a projection, a `ReactBinding` for a flow.
+ * What `bindReact<T>()` returns: a `MirrorBinding` for a projection, a `ReactBinding` for a wizard.
  * @public
  */
 export type BindingOf<T extends BindTarget> = T extends AnyProjection

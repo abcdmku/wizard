@@ -1,6 +1,6 @@
 /** Boundary parsing and recursive snapshot preparation for resume. @internal */
 
-import type { BoundaryResult, CompiledFlow, RuntimeBoundary } from '../authoring/compiled'
+import type { BoundaryResult, CompiledWizard, RuntimeBoundary } from '../authoring/compiled'
 import { describeError } from '../errors'
 import { parseEachChildAddress } from '../interpreter/each-child'
 import { noop } from '../interpreter/executor-invoke'
@@ -80,7 +80,7 @@ export function interpretResult(
  * accumulated as readable reasons so resume remains atomic.
  */
 export function prepareResume(
-  def: CompiledFlow,
+  def: CompiledWizard,
   input: unknown,
   prefix: string,
   reasons: string[],
@@ -131,9 +131,9 @@ export function prepareResume(
       }
     if (rec.each !== undefined)
       next = { ...next, each: reviveEach(stepDef, `steps.${id}.each`, rec.each, run) }
-    // Missing child snapshot for a live flow step: forget its summary so resume re-creates it.
+    // Missing child snapshot for a live child step: forget its summary so resume re-creates it.
     if (
-      stepDef.kind === 'flow' &&
+      stepDef.kind === 'child' &&
       rec.status === 'active' &&
       rec.child !== undefined &&
       !Object.hasOwn(children, id) &&
@@ -172,11 +172,11 @@ export function prepareResume(
       epoch: state.epoch + 1,
       ...(state.status === 'done' && def.output === undefined && state.output !== undefined
         ? {
-            output: revivedFlowOutput(def, steps),
+            output: revivedWizardOutput(def, steps),
             terminal: {
               ...state.terminal,
               status: 'done' as const,
-              output: revivedFlowOutput(def, steps),
+              output: revivedWizardOutput(def, steps),
             },
           }
         : {}),
@@ -194,8 +194,8 @@ function isIssueLike(value: unknown): value is { readonly message: string } {
   )
 }
 
-function revivedFlowOutput(
-  def: CompiledFlow,
+function revivedWizardOutput(
+  def: CompiledWizard,
   steps: Readonly<Record<string, StepRecord>>,
 ): unknown {
   let latest: StepRecord | undefined

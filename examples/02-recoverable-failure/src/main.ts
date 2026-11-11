@@ -4,7 +4,7 @@
  * (the test scheduler doubles as the clock), so the demo finishes instantly.
  */
 import { createTestScheduler } from '@openwizard/core/testing'
-import { type Deps, syncInvoiceFlow } from './sync-invoice'
+import { type Deps, syncInvoice } from './sync-invoice'
 
 let calls = 0
 const deps: Deps = {
@@ -19,7 +19,7 @@ const deps: Deps = {
 }
 
 const scheduler = createTestScheduler({ now: 0 })
-const run = syncInvoiceFlow.create({ invoiceId: 'INV-7', amount: 120 }, { deps, scheduler })
+const run = syncInvoice.create({ invoiceId: 'INV-7', amount: 120 }, { deps, scheduler })
 run.observe((event) => {
   if (event.type === 'step.runFailed')
     console.log(

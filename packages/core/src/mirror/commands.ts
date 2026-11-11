@@ -1,5 +1,5 @@
 /**
- * The typed command sugar of a Mirror (`MirrorCommands`) and of a nested flow (`MirrorChild`),
+ * The typed command sugar of a Mirror (`MirrorCommands`) and of a nested run (`MirrorChild`),
  * plus the untyped builder both share: every method becomes one `Command` handed to a
  * `dispatch` (a child's wrapped as `{ type: 'child', path, command }`).
  *
@@ -7,9 +7,9 @@
  */
 
 import type {
-  AnyFlow,
-  ChildFlowOf,
+  AnyWizardDefinition,
   ChildStepId,
+  ChildWizardOf,
   Command,
   CommandResult,
   Ctx,
@@ -44,12 +44,12 @@ export interface TransportFailure {
 export type MirrorResult = CommandResult | TransportFailure
 
 /**
- * The typed command sugar of a Mirror (and of a `MirrorChild`), typed by flow `F`: the same
+ * The typed command sugar of a Mirror (and of a `MirrorChild`), typed by wizard `F`: the same
  * methods as `Run`, each resolving with a `MirrorResult`; `dispatch` is the wire door;
- * `child(step)` scopes the same sugar to a nested flow.
+ * `child(step)` scopes the same sugar to a nested run.
  * @public
  */
-export interface MirrorCommands<F extends AnyFlow> {
+export interface MirrorCommands<F extends AnyWizardDefinition> {
   start(): Promise<MirrorResult>
   next(): Promise<MirrorResult>
   back(): Promise<MirrorResult>
@@ -75,31 +75,31 @@ export interface MirrorCommands<F extends AnyFlow> {
     readonly reason?: string
   }): Promise<MirrorResult>
   reset(): Promise<MirrorResult>
-  /** Skip a ready or active step that does not complete the flow. */
+  /** Skip a ready or active step that does not complete the run. */
   skip(step: StepId<F>, reason?: string): Promise<MirrorResult>
   /** Return a done / failed / skipped step to `idle` (+ transitive dependents with `cascade`, default `true`). */
   invalidate(step: StepId<F>, options?: { readonly cascade?: boolean }): Promise<MirrorResult>
-  /** The wire door: any `Command` of flow `F`, sent as-is (the server re-decodes it with `parseCommand`). */
+  /** The wire door: any `Command` of wizard `F`, sent as-is (the server re-decodes it with `parseCommand`). */
   dispatch(command: Command<F>): Promise<MirrorResult>
   /**
-   * The same sugar scoped to the child flow of flow step `step`: every command travels as
+   * The same sugar scoped to the child run of child step `step`: every command travels as
    * `{ type: 'child', path, command }`. Mapped children require their input index; ordinary
    * children use only the step id. Nestable.
    */
   child<K extends ChildStepId<F>>(
     step: K,
     ...selector: true extends IsEach<F, K> ? [index: number] : [index?: never]
-  ): MirrorChild<Extract<ChildFlowOf<F, K>, AnyFlow>>
+  ): MirrorChild<Extract<ChildWizardOf<F, K>, AnyWizardDefinition>>
 }
 
 /**
- * A scoped sender for a nested flow (`mirror.child(step)`, `.child(step).child(step2)`): the
- * `MirrorCommands` of the child flow, wrapped as `child` commands on `path`. It carries no
+ * A scoped sender for a nested run (`mirror.child(step)`, `.child(step).child(step2)`): the
+ * `MirrorCommands` of the child wizard, wrapped as `child` commands on `path`. It carries no
  * state of its own — read the child's projected state from `steps[step].child` of the mirror's
  * snapshot (exposed with `child: ExposeSpec`).
  * @public
  */
-export interface MirrorChild<F extends AnyFlow> extends MirrorCommands<F> {
+export interface MirrorChild<F extends AnyWizardDefinition> extends MirrorCommands<F> {
   /** Path from the root run to this child (`['fulfil']`, `['batch', '0']`, `['fulfil', 'pack']`). */
   readonly path: readonly [string, ...string[]]
 }
@@ -109,9 +109,9 @@ type Dispatch = (command: Command) => Promise<MirrorResult>
 /**
  * The untyped command sugar over a `dispatch`, for the root (`path: []`) and for children: a
  * child's commands are wrapped as `{ type: 'child', path, command }` (flattened path — the
- * server walks it segment by segment). The public interfaces narrow the ids to the flow.
+ * server walks it segment by segment). The public interfaces narrow the ids to the wizard.
  */
-export function commandSugar<F extends AnyFlow>(
+export function commandSugar<F extends AnyWizardDefinition>(
   dispatch: Dispatch,
   path: readonly string[],
 ): MirrorCommands<F> {
@@ -166,7 +166,7 @@ export function commandSugar<F extends AnyFlow>(
       ...selector: true extends IsEach<F, K> ? [index: number] : [index?: never]
     ) => {
       const index = selector[0]
-      return childSender<Extract<ChildFlowOf<F, K>, AnyFlow>>(
+      return childSender<Extract<ChildWizardOf<F, K>, AnyWizardDefinition>>(
         dispatch,
         index === undefined ? [...path, step] : [...path, step, String(index)],
       )
@@ -174,7 +174,7 @@ export function commandSugar<F extends AnyFlow>(
   }
 }
 
-function childSender<F extends AnyFlow>(
+function childSender<F extends AnyWizardDefinition>(
   dispatch: Dispatch,
   segments: readonly string[],
 ): MirrorChild<F> {

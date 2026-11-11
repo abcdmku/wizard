@@ -1,4 +1,4 @@
-import { AnyFlow, Boundary, RunEvent, RunEventType, StepKind } from "@openwizard/core";
+import { AnyWizardDefinition, Boundary, RunEvent, RunEventType, StepKind } from "@openwizard/core";
 //#region src/authoring/types/primitives.d.ts
 /**
  * A JSON value (`meta` and other data that must survive `JSON.stringify` unchanged).
@@ -10,15 +10,15 @@ type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
 //#endregion
 //#region src/authoring/compile/index.d.ts
 /**
- * A static-analysis warning about a flow (advisory; never thrown).
+ * A static-analysis warning about a wizard (advisory; never thrown).
  * @public
  */
-interface FlowWarning {
+interface ManifestWarning {
   readonly code: 'UNREACHABLE' | 'NAV_CYCLE' | 'EXCLUSIVE_JOIN' | 'MULTIPLE_SINKS' | 'NO_SINKS';
   readonly message: string;
   /** Step the warning is about. */
   readonly step?: string;
-  /** Run path of the flow the step belongs to (`[]` = root). */
+  /** Run path of the wizard the step belongs to (`[]` = root). */
   readonly path: readonly string[];
 }
 //#endregion
@@ -29,7 +29,7 @@ interface FlowWarning {
  */
 type JSONSchema = Readonly<Record<string, unknown>>;
 /**
- * Retry facts of a runnable step (the step's own policy, else the flow's default).
+ * Retry facts of a runnable step (the step's own policy, else the wizard's default).
  * `when: true` marks a retry predicate (a function, so not part of the manifest).
  * @public
  */
@@ -54,12 +54,12 @@ interface GraphEach {
   readonly keyed?: true;
 }
 /**
- * One step of the graph. `path` is the run path of the flow the step belongs to
+ * One step of the graph. `path` is the run path of the wizard the step belongs to
  * (`[]` = root, `['fulfil']` = inside the child of step `fulfil`), so ids never collide across
  * nesting levels.
  * @public
  */
-interface FlowGraphNode {
+interface ManifestStep {
   readonly id: string;
   readonly kind: StepKind;
   readonly label?: string;
@@ -68,7 +68,7 @@ interface FlowGraphNode {
   readonly path: readonly string[];
   /**
    * Hooks the step defines, by their AUTHORING names (`enter`, `run`, `when`, `mapError`,
-   * `on:payment.captured`, `waitFor:payment.captured`, a flow step's `context` / `deps` / `output`
+   * `on:payment.captured`, `waitFor:payment.captured`, a child step's `context` / `deps` / `output`
    * mappers, or a runnable step's `idempotencyKey` function).
    */
   readonly hooks: readonly string[];
@@ -89,7 +89,7 @@ interface FlowGraphNode {
   readonly dynamicNext?: true;
   /** Declared targets of a dynamic `next` (also listed as `route` edges). */
   readonly targets?: readonly string[];
-  /** The step is an entry point of its flow. */
+  /** The step is an entry point of its wizard. */
   readonly start?: true;
   /** JSON Schema of the draft a view accepts (input side of its `input` boundary). */
   readonly input?: JSONSchema;
@@ -99,21 +99,21 @@ interface FlowGraphNode {
   readonly waitsFor?: readonly string[];
   /** A sink: no normal static successor and no consumers pulling its output. */
   readonly completes?: true;
-  /** The step declares `compensate` (undone in reverse order when the flow compensates). */
+  /** The step declares `compensate` (undone in reverse order when the run compensates). */
   readonly compensable?: true;
   readonly retry?: GraphRetry;
-  /** Name and version of the child flow of a `flow` step (its nodes carry `path: [...path, id]`). */
+  /** Name and version of the child wizard of a `child` step (its nodes carry `path: [...path, id]`). */
   readonly child?: {
     readonly name: string;
     readonly version: number;
   };
 }
 /**
- * A static edge between two steps of the same flow (`path`). `start` edges have no `from`;
+ * A static edge between two steps of the same wizard (`path`). `start` edges have no `from`;
  * `route` edges are the declared targets of a dynamic `next`.
  * @public
  */
-interface FlowGraphEdge {
+interface ManifestEdge {
   readonly from: string | null;
   readonly to: string;
   readonly kind: 'next' | 'route' | 'needs' | 'fallback' | 'timeout' | 'start';
@@ -125,10 +125,10 @@ interface FlowGraphEdge {
 }
 /**
  * The wizard manifest: identity, prose, JSON Schemas, nodes and edges (recursively for child
- * flows) and analysis warnings.
+ * wizards) and analysis warnings.
  * @public
  */
-interface FlowGraph {
+interface Manifest {
   readonly name: string;
   readonly version: number;
   readonly description?: string;
@@ -145,18 +145,18 @@ interface FlowGraph {
     readonly context?: JSONSchema;
     readonly events: Readonly<Record<string, JSONSchema | undefined>>;
   };
-  readonly nodes: readonly FlowGraphNode[];
-  readonly edges: readonly FlowGraphEdge[];
-  readonly warnings: readonly FlowWarning[];
+  readonly nodes: readonly ManifestStep[];
+  readonly edges: readonly ManifestEdge[];
+  readonly warnings: readonly ManifestWarning[];
 }
 //#endregion
 //#region src/inspect/graph.d.ts
 /**
- * Describe a flow (compiles it if needed; throws `DEFINITION_INVALID` for a broken flow).
+ * Describe a wizard (compiles it if needed; throws `DEFINITION_INVALID` for a broken wizard).
  * Warnings include unreachable steps, blocked joins, navigation cycles and ambiguous sinks.
  * @public
  */
-declare function inspect(flow: AnyFlow): FlowGraph;
+declare function inspect(wizard: AnyWizardDefinition): Manifest;
 //#endregion
 //#region src/inspect/json-schema.d.ts
 /**
@@ -171,7 +171,7 @@ declare function toJSONSchema(schema: Boundary<unknown, unknown>, side: 'input' 
 //#region src/inspect/markdown.d.ts
 /**
  * Render a manifest as a Markdown page for people and coding agents: a title with the version
- * and fingerprint, the `toMermaid` diagram, then per flow (root first, each child flow under its
+ * and fingerprint, the `toMermaid` diagram, then per wizard (root first, each child wizard under its
  * step) a table of when every step starts, what it does and where it leads, followed by one
  * section per step with its needs, guard, retry, timeout, undo hook, hooks and JSON Schemas.
  * Ends with the context fields, the declared events with the steps that wait for or handle
@@ -179,20 +179,20 @@ declare function toJSONSchema(schema: Boundary<unknown, unknown>, side: 'input' 
  * described. Deterministic for a given manifest.
  * @public
  */
-declare function toMarkdown(graph: FlowGraph): string;
+declare function toMarkdown(graph: Manifest): string;
 //#endregion
 //#region src/inspect/mermaid.d.ts
 /**
  * Render a manifest as Mermaid: one node per step (text = `label` or id, shape by kind: view
- * `[…]`, step `[[…]]`, flow `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
- * retries, run timeout, `compensable`), a start circle per flow, solid `next` edges, dashed
+ * `[…]`, step `[[…]]`, child `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
+ * retries, run timeout, `compensable`), a start circle per wizard, solid `next` edges, dashed
  * `route` edges to declared targets (a dashed edge to `?` when targets are undeclared),
  * named `needs` labels on joins (merged with activation edges),
- * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child flow
- * in a `subgraph` titled with its flow name. Deterministic for a given manifest.
+ * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child wizard
+ * in a `subgraph` titled with its wizard name. Deterministic for a given manifest.
  * @public
  */
-declare function toMermaid(graph: FlowGraph): string;
+declare function toMermaid(graph: Manifest): string;
 //#endregion
 //#region src/inspect/trace.d.ts
 /**
@@ -219,8 +219,8 @@ interface TraceLine {
 declare function traceLine(event: RunEvent, origin?: number): TraceLine;
 /**
  * A readable trace, one line per event: time relative to the first event, `[child/path]` for
- * events of child flows, and a sentence (`charge attempt 2 failed: PSP down, will retry`).
- * Machine bookkeeping (timers, navigation phases, `flow.status`, …) is left out unless
+ * events of child runs, and a sentence (`charge attempt 2 failed: PSP down, will retry`).
+ * Machine bookkeeping (timers, navigation phases, `run.status`, …) is left out unless
  * `all: true`.
  * @public
  */
@@ -228,5 +228,5 @@ declare function formatTrace(events: readonly RunEvent[], options?: {
   readonly all?: boolean;
 }): string;
 //#endregion
-export { type FlowGraph, type FlowGraphEdge, type FlowGraphNode, type FlowWarning, type GraphEach, type GraphNeed, type GraphRetry, type JSONSchema, type TraceLine, formatTrace, inspect, toJSONSchema, toMarkdown, toMermaid, traceLine };
+export { type GraphEach, type GraphNeed, type GraphRetry, type JSONSchema, type Manifest, type ManifestEdge, type ManifestStep, type ManifestWarning, type TraceLine, formatTrace, inspect, toJSONSchema, toMarkdown, toMermaid, traceLine };
 //# sourceMappingURL=inspect.d.ts.map

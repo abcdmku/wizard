@@ -7,7 +7,7 @@ export interface Deps {
   carrier: { ship(orderId: string, warehouse: 'east' | 'west'): Promise<{ tracking: string }> }
 }
 
-export const fulfilmentFlow = defineWizard(
+export const fulfilment = defineWizard(
   {
     name: 'fulfilment',
     description: 'Lets a person pick a warehouse, then ships the order from it.',
@@ -36,21 +36,21 @@ export const fulfilmentFlow = defineWizard(
     ),
 )
 
-export const orderFlow = defineWizard(
+export const order = defineWizard(
   {
     name: 'order',
     description: 'Charges an order, runs fulfilment as a child wizard, and returns a receipt.',
     context: z.object({ orderId: z.string(), amount: z.number().positive() }),
     deps: boundary.trusted<Deps>(),
   },
-  ({ step, flow, steps }) => {
+  ({ step, child, steps }) => {
     const pay = step({
       run: ({ context, deps }) => deps.payments.charge(context.orderId, context.amount),
       next: 'fulfil',
     })
     // Matching dependency types let the child reuse the parent's services.
     // Parent observers see child events at path ['fulfil']; child observers see path [].
-    const fulfil = flow(fulfilmentFlow, {
+    const fulfil = child(fulfilment, {
       description: 'Runs the fulfilment wizard. Its output is the child output.',
       context: ({ context }) => ({ orderId: context.orderId }),
     })

@@ -136,7 +136,7 @@ function isFailureFallback(node, specifier) {
   if (declaration.name.text === 'UncheckedSteps')
     return (
       ts.isTypeReferenceNode(parent) &&
-      parent.typeName.getText() === 'FlowStep' &&
+      parent.typeName.getText() === 'WizardStep' &&
       parent.typeArguments?.[1] === node
     )
   return false

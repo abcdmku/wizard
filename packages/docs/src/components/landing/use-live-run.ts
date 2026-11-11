@@ -5,15 +5,15 @@
  */
 import { createMemoryStore, type Run, type RunEvent, type Snapshot } from '@openwizard/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createPayments, type OrderFlow, orderFlow } from './order-flow'
+import { createPayments, type OrderWizard, orderWizard } from './order-wizard'
 
 export type DemoPhase = 'idle' | 'running' | 'crashed' | 'waiting' | 'done' | 'failed'
 
 export interface LiveRun {
   readonly phase: DemoPhase
-  readonly state: Snapshot<OrderFlow>['state'] | null
+  readonly state: Snapshot<OrderWizard>['state'] | null
   readonly epoch: number
-  readonly events: readonly RunEvent<OrderFlow>[]
+  readonly events: readonly RunEvent<OrderWizard>[]
   readonly charges: number
   readonly output: string | null
   readonly start: () => void
@@ -28,7 +28,7 @@ const KEY = 'orders/order-1042'
 const NOISE = ['transition.', 'step.arrived', 'step.idempotencyKeyRequested', 'persist.']
 const CONTEXT = { orderId: 'order-1042', amount: 129.5 }
 
-function phaseOf(state: Snapshot<OrderFlow>['state'] | null, crashed: boolean): DemoPhase {
+function phaseOf(state: Snapshot<OrderWizard>['state'] | null, crashed: boolean): DemoPhase {
   if (!state) return 'idle'
   if (crashed) return 'crashed'
   switch (state.status) {
@@ -50,14 +50,14 @@ export function useLiveRun(): LiveRun {
   const store = useRef(createMemoryStore())
   const [charges, setCharges] = useState(0)
   const payments = useRef(createPayments(setCharges))
-  const runRef = useRef<Run<OrderFlow> | null>(null)
-  const [state, setState] = useState<Snapshot<OrderFlow>['state'] | null>(null)
-  const [events, setEvents] = useState<readonly RunEvent<OrderFlow>[]>([])
+  const runRef = useRef<Run<OrderWizard> | null>(null)
+  const [state, setState] = useState<Snapshot<OrderWizard>['state'] | null>(null)
+  const [events, setEvents] = useState<readonly RunEvent<OrderWizard>[]>([])
   const [epoch, setEpoch] = useState(0)
   const [crashed, setCrashed] = useState(false)
   const [output, setOutput] = useState<string | null>(null)
 
-  const adopt = useCallback((run: Run<OrderFlow>) => {
+  const adopt = useCallback((run: Run<OrderWizard>) => {
     runRef.current = run
     setEpoch(run.epoch)
     setCrashed(false)
@@ -79,7 +79,7 @@ export function useLiveRun(): LiveRun {
 
   const start = useCallback(() => {
     if (runRef.current) return
-    const run = orderFlow.create(CONTEXT, { instanceId: 'order-1042', ...options() })
+    const run = orderWizard.create(CONTEXT, { instanceId: 'order-1042', ...options() })
     adopt(run)
     void run.start()
   }, [adopt, options])
@@ -96,7 +96,7 @@ export function useLiveRun(): LiveRun {
   const resume = useCallback(async () => {
     const saved = await store.current.get(KEY)
     if (!saved || runRef.current) return
-    adopt(orderFlow.resume(saved, options()))
+    adopt(orderWizard.resume(saved, options()))
   }, [adopt, options])
 
   const approve = useCallback(() => {

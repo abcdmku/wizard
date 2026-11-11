@@ -25,7 +25,7 @@ if (!retried.ok) console.error(retried.code, retried.message)
 
 `retry()` starts a fresh retry cycle. Use `run.retry('save', { patch: { destination: 'backup' } })` to change context before the new attempt. A mapped `each` step keeps finished item results and retries failed items.
 
-Mapped child flows also support `run.retry('batch')` after item failure. It keeps completed children and retries failed items. `RetryStepId<typeof wizard>` includes runnable steps and mapped child flows. Recover an ordinary halted child through `run.child('address')` and its own retry command.
+Mapped child steps also support `run.retry('batch')` after item failure. It keeps completed children and retries failed items. `RetryStepId<typeof wizard>` includes runnable steps and mapped child steps. Recover an ordinary halted child through `run.child('address')` and its own retry command.
 
 `run.awaitOutcome()` returns a halted outcome with the failure and snapshot. `run.awaitResult()` waits for a terminal result and remains pending while the run is halted. A run with terminal `failed` status cannot recover with `retry()`.
 

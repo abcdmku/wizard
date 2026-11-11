@@ -8,7 +8,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import { isEventStep, isTerminal, readyViews } from './selectors'
 import type { WizardState } from './state'
 
@@ -32,7 +32,7 @@ export type WaitingFor =
 
 const ROOT: readonly string[] = []
 
-export function waitingFor(def: CompiledFlow, state: WizardState): readonly WaitingFor[] {
+export function waitingFor(def: CompiledWizard, state: WizardState): readonly WaitingFor[] {
   if (state.status === 'idle' || state.status === 'compensating' || isTerminal(state)) return []
   const out: WaitingFor[] = []
   for (const id of state.active) {

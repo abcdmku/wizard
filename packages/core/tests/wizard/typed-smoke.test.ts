@@ -83,7 +83,7 @@ describe('createRun: typed end-to-end', () => {
     run.observe((e) => events.push(e))
     expect(run.id).toBe('wiz-1')
     expect(run.epoch).toBe(0)
-    expect(run.flow).toBe(checkoutFlow)
+    expect(run.wizard).toBe(checkoutFlow)
     expect(run.getState().context).toEqual({ cartId: 'c1', total: 10, express: false }) // parsed (default applied)
     expect(run.getState().status).toBe('idle')
     expect(await run.start()).toMatchObject({ ok: true })
@@ -106,7 +106,7 @@ describe('createRun: typed end-to-end', () => {
     expect(state.output).toEqual({ cartId: 'c1', express: false, reservationId: 'res-c1' })
     expect(state.context.address).toBe('Main St')
     expect(events.some((e) => e.type === 'step.done' && e.step === 'reserve')).toBe(true)
-    expect(events.some((e) => e.type === 'flow.done')).toBe(true)
+    expect(events.some((e) => e.type === 'run.done')).toBe(true)
     expect(run.log().length).toBeGreaterThan(0)
     run.dispose()
   })
@@ -128,7 +128,7 @@ describe('createRun: typed end-to-end', () => {
       ({ steps, step }) => steps({ e: step({}) }),
     )
     const otherProjection = defineProjection(otherFlow, { expose: {} })
-    expect(() => run.project(otherProjection as any)).toThrowError(/defined for flow 'other'/)
+    expect(() => run.project(otherProjection as any)).toThrowError(/defined for wizard 'other'/)
     run.dispose()
   })
   it('send() routes declared events; an undeclared event is a programmer error', async () => {
@@ -193,7 +193,7 @@ describe('createRun: typed end-to-end', () => {
     expect(await run.reset()).toMatchObject({ ok: true })
     expect(run.getState()).toMatchObject({ status: 'idle', current: null, active: [] })
     expect(run.getState().steps.a.status).toBe('idle')
-    expect(run.log().some((e) => e.type === 'flow.reset')).toBe(true)
+    expect(run.log().some((e) => e.type === 'run.reset')).toBe(true)
     expect(await run.start()).toMatchObject({ ok: true }) // runs again after a reset
     run.dispose()
   })
@@ -306,9 +306,9 @@ describe('createRun: doors', () => {
           n: number
         }>(),
       },
-      ({ steps, flow, step }) =>
+      ({ steps, child, step }) =>
         steps({
-          sub: flow(childFlow, {
+          sub: child(childFlow, {
             context: ({ context }) => ({ n: context.n + 1 }),
             next: 'end',
           }),
@@ -320,7 +320,7 @@ describe('createRun: doors', () => {
     await new Promise((r) => setTimeout(r, 0))
     const sub = run.child('sub')
     expect(sub).toBe(run.child('sub'))
-    expect(sub.flow).toBe(childFlow)
+    expect(sub.wizard).toBe(childFlow)
     expect(sub.getState().context).toEqual({ n: 2 }) // mapped and parsed by the child's boundary
     expect(sub.getState().current).toBe('hold')
     expect(run.getSnapshot().children.sub?.state.current).toBe('hold')

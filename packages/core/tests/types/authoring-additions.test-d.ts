@@ -6,12 +6,12 @@ import type {
   AnyStep,
   AnyWizard,
   ErrorOf,
-  FlowOutput,
   JsonValue,
   OutputOf,
   RequiredDepsOf,
   RunArgs,
   StepApi,
+  WizardOutput,
 } from '../../src/authoring/types'
 import { defineWizard } from '../../src/wizard/define-wizard'
 
@@ -32,19 +32,19 @@ export const fanOut = defineWizard(
     return steps({ shopA, shopB, best }, { start: ['shopA', 'shopB'] })
   },
 )
-assert<Equal<FlowOutput<typeof fanOut>, number>>() // same-shape producers pulled by shorthand needs
+assert<Equal<WizardOutput<typeof fanOut>, number>>() // same-shape producers pulled by shorthand needs
 export const twins = defineWizard({ name: 'twins', context: z.object({}) }, ({ step, steps }) => {
   const a = step({ run: () => 1 })
   const b = step({ run: () => 1 })
   const join = step({ needs: { first: a }, run: () => 'j' })
   return steps({ a, b, join }, { start: ['a', 'b'] })
 })
-assert<Equal<number extends FlowOutput<typeof twins> ? true : false, true>>() // b is a real sink
+assert<Equal<number extends WizardOutput<typeof twins> ? true : false, true>>() // b is a real sink
 export const guarded = defineWizard(
   { name: 'guarded', context: z.object({ ok: z.boolean() }) },
   ({ step, steps }) => steps({ only: step({ when: ({ context }) => context.ok, run: () => 1 }) }),
 )
-assert<Equal<FlowOutput<typeof guarded>, number | undefined>>()
+assert<Equal<WizardOutput<typeof guarded>, number | undefined>>()
 export const exclusiveJoin = defineWizard(
   { name: 'exclusive', context: z.object({ ok: z.boolean() }) },
   ({ step, steps }) => {
@@ -58,7 +58,7 @@ export const exclusiveJoin = defineWizard(
     return steps({ choose, card, invoice, join })
   },
 )
-assert<Equal<FlowOutput<typeof exclusiveJoin>, 'both' | undefined>>() // join is skipped at runtime
+assert<Equal<WizardOutput<typeof exclusiveJoin>, 'both' | undefined>>() // join is skipped at runtime
 const maybeChild = defineWizard(
   { name: 'maybe-child', context: z.object({ ok: z.boolean() }) },
   ({ step, steps }) =>
@@ -66,7 +66,7 @@ const maybeChild = defineWizard(
 )
 export const usesMaybeChild = defineWizard(
   { name: 'uses-maybe', context: z.object({}) },
-  ({ flow, steps }) => steps({ c: flow(maybeChild, { context: () => ({ ok: true }) }) }),
+  ({ child, steps }) => steps({ c: child(maybeChild, { context: () => ({ ok: true }) }) }),
 )
 assert<Equal<OutputOf<typeof usesMaybeChild, 'c'>, 'x' | undefined>>()
 export const collision = defineWizard(
@@ -195,13 +195,14 @@ const leaf = defineWizard(
 )
 export const plainParent = defineWizard(
   { name: 'plain-parent', context: z.object({ to: z.string() }) },
-  ({ flow, steps }) => steps({ c: flow(leaf, { context: ({ context }) => ({ to: context.to }) }) }),
+  ({ child, steps }) =>
+    steps({ c: child(leaf, { context: ({ context }) => ({ to: context.to }) }) }),
 )
 export const perItemDeps = defineWizard(
   { name: 'per-item-deps', context: z.object({ to: z.array(z.string()) }) },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      all: flow(notify2, {
+      all: child(notify2, {
         each: ({ context }) => context.to,
         context: ({ item }) => ({ to: item }),
         deps: ({ item }) => ({ mail: { send: async () => {} }, log: () => void item }),

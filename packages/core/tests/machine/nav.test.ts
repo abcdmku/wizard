@@ -21,7 +21,7 @@ describe('nav pipeline — start and hookless next', () => {
     const r = h.start()
     // the cursor rule is a (lightweight) transaction: canEnter → exiting → entering → commit
     expect(r.types).toEqual([
-      'flow.started',
+      'run.started',
       'step.arrived',
       'transition.started',
       'transition.phase',
@@ -93,13 +93,13 @@ describe('nav pipeline — start and hookless next', () => {
     h.cmd('next')
     const r = h.cmd('next')
     expect(r.types.slice(-3)).toEqual(['transition.committed', 'step.entered', 'step.done'])
-    expect(h.step({ type: 'settle' }).types).toEqual(['flow.done'])
+    expect(h.step({ type: 'settle' }).types).toEqual(['run.done'])
     expect(h.state.status).toBe('done')
     expect(h.state.current).toBeNull()
     expect(h.state.active).toEqual([])
     const rej = h.cmd('next')
     expect(rej.types).toEqual(['transition.rejected'])
-    expect(of(rej, 'transition.rejected')[0]?.reason).toBe('flow-terminal')
+    expect(of(rej, 'transition.rejected')[0]?.reason).toBe('run-terminal')
   })
 })
 

@@ -27,13 +27,13 @@ export type RejectCode =
   | 'UNKNOWN_STEP'
   | 'NOT_A_VIEW'
   | 'NOT_RUNNABLE'
-  | 'NOT_A_FLOW_STEP'
+  | 'NOT_A_CHILD_STEP'
   | 'NOT_ACTIVE'
   | 'NAV_BUSY'
-  | 'FLOW_TERMINAL'
-  | 'FLOW_NOT_STARTED'
-  | 'FLOW_COMPENSATING'
-  | 'FLOW_HALTED'
+  | 'RUN_TERMINAL'
+  | 'RUN_NOT_STARTED'
+  | 'RUN_COMPENSATING'
+  | 'RUN_HALTED'
   | 'STALE'
   | 'INVALID_COMMAND'
 
@@ -59,7 +59,7 @@ const HALTED_COMMANDS: ReadonlySet<Command['type']> = new Set([
 /**
  * Status gate. Returns the rejection code, or undefined when the command
  * may proceed. A halted run accepts `HALTED_COMMANDS` only; `compensate`
- * re-runs failures after a compensated flow.
+ * re-runs failures after a compensated run.
  */
 export function gate(b: Batch, cmd: Command): RejectCode | undefined {
   const s = b.state
@@ -69,26 +69,26 @@ export function gate(b: Batch, cmd: Command): RejectCode | undefined {
     // `cancel` before `start` ends the run cancelled, so a result awaited on it settles.
     return t === 'start' || t === 'cancel' || t === 'setInput' || t === 'resetInput'
       ? undefined
-      : 'FLOW_NOT_STARTED'
+      : 'RUN_NOT_STARTED'
   }
-  if (t === 'start') return isTerminal(s) ? 'FLOW_TERMINAL' : 'INVALID_COMMAND'
+  if (t === 'start') return isTerminal(s) ? 'RUN_TERMINAL' : 'INVALID_COMMAND'
   if (s.status === 'compensating') {
     if (t === 'cancel' || t === 'child') return undefined
-    if (t === 'compensate') return s.saga.failures.length > 0 ? undefined : 'FLOW_COMPENSATING'
-    return 'FLOW_COMPENSATING'
+    if (t === 'compensate') return s.saga.failures.length > 0 ? undefined : 'RUN_COMPENSATING'
+    return 'RUN_COMPENSATING'
   }
-  if (s.status === 'halted') return HALTED_COMMANDS.has(t) ? undefined : 'FLOW_HALTED'
+  if (s.status === 'halted') return HALTED_COMMANDS.has(t) ? undefined : 'RUN_HALTED'
   if (isTerminal(s)) {
     if (t === 'compensate' && s.saga.failures.length > 0) return undefined
     if (t === 'child') return undefined
-    return 'FLOW_TERMINAL'
+    return 'RUN_TERMINAL'
   }
   return undefined
 }
 
 export function cmdStart(b: Batch): void {
   const start = b.env.def.start
-  emit(b, { type: 'flow.started', start: start[0] ?? '' })
+  emit(b, { type: 'run.started', start: start[0] ?? '' })
   for (const id of start) emit(b, { type: 'step.arrived', step: id, from: null })
   schedule(b, { cursorCause: 'start' })
 }
@@ -152,7 +152,7 @@ export function cmdRetry(b: Batch, cmd: Extract<Command, { type: 'retry' }>): vo
 
 /**
  * `skip{step, reason?}` skips a ready, active or failed non-completing step; an active step is cancelled
- * first (a run is aborted, event timers are cleared, and a child flow is cancelled). The current view may be skipped
+ * first (a run is aborted, event timers are cleared, and a child run is cancelled). The current view may be skipped
  * (it leaves without validation or `exit`) unless a transition is in flight from it.
  */
 export function cmdSkip(b: Batch, cmd: Extract<Command, { type: 'skip' }>): void {
@@ -163,7 +163,7 @@ export function cmdSkip(b: Batch, cmd: Extract<Command, { type: 'skip' }>): void
     return
   }
   if (r.status === 'failed') {
-    // Recovery of a halted run: the failed step counts as settled and the flow moves on.
+    // Recovery of a halted run: the failed step counts as settled and the run moves on.
   } else if (r.status === 'active') {
     if (b.state.nav.phase !== 'idle' && b.state.nav.from === cmd.step) {
       reject(b, cmd, 'NAV_BUSY', 'nav-busy')
@@ -246,7 +246,7 @@ export function cmdCancel(b: Batch, reason: string | undefined): void {
     return
   }
   cancelAllActive(b, reason ?? 'cancelled')
-  emit(b, { type: 'flow.cancelled', ...(reason !== undefined ? { reason } : {}) })
+  emit(b, { type: 'run.cancelled', ...(reason !== undefined ? { reason } : {}) })
 }
 
 export function cmdCompensate(b: Batch, cmd: Extract<Command, { type: 'compensate' }>): void {
@@ -273,12 +273,12 @@ export function cmdCompensate(b: Batch, cmd: Extract<Command, { type: 'compensat
     return
   }
   cancelAllActive(b, cmd.reason ?? 'compensate')
-  emit(b, { type: 'flow.cancelled', ...(cmd.reason !== undefined ? { reason: cmd.reason } : {}) })
+  emit(b, { type: 'run.cancelled', ...(cmd.reason !== undefined ? { reason: cmd.reason } : {}) })
 }
 
 export function cmdReset(b: Batch): void {
   for (const timerId of Object.keys(b.state.timers)) emit(b, { type: 'timer.cleared', timerId })
-  emit(b, { type: 'flow.reset' })
+  emit(b, { type: 'run.reset' })
 }
 
 export function cmdChild(b: Batch, cmd: Extract<Command, { type: 'child' }>): void {
@@ -293,8 +293,8 @@ export function cmdChild(b: Batch, cmd: Extract<Command, { type: 'child' }>): vo
     reject(b, cmd, 'UNKNOWN_STEP', 'unknown-step')
     return
   }
-  if (def.kind !== 'flow') {
-    reject(b, cmd, 'NOT_A_FLOW_STEP', 'not-a-flow-step')
+  if (def.kind !== 'child') {
+    reject(b, cmd, 'NOT_A_CHILD_STEP', 'not-a-child-step')
     return
   }
   if (r.status !== 'active' && r.status !== 'compensating') {

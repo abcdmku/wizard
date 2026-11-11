@@ -12,12 +12,12 @@ import {
   defineProjection,
   defineWizard,
   type ErrorOf,
-  type FlowOutput,
   type OutputOf,
   type PayloadOf,
   type ProjectionOutput,
   type ProjectionScope,
   type Run,
+  type WizardOutput,
 } from '@openwizard/core'
 import { expectTypeOf } from 'vitest'
 import type { z } from 'zod'
@@ -86,7 +86,7 @@ expectTypeOf<
 expectTypeOf<PayloadOf<typeof fulfillmentFlow, 'fraud.reviewed'>>().toEqualTypeOf<
   z.infer<typeof FraudReviewedEventSchema>
 >()
-expectTypeOf<FlowOutput<typeof fulfillmentFlow>>().toEqualTypeOf<
+expectTypeOf<WizardOutput<typeof fulfillmentFlow>>().toEqualTypeOf<
   { orderId: string; shipmentId: string | undefined } | undefined
 >()
 

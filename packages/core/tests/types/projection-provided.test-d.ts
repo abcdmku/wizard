@@ -1,7 +1,7 @@
 /** Provisioning leaves projection state and wire inference intact without casts. */
 import { describe, expectTypeOf, it } from 'vitest'
 import { boundary } from '../../src/authoring/boundary'
-import type { AnyFlow } from '../../src/authoring/types'
+import type { AnyWizardDefinition } from '../../src/authoring/types'
 import { createMirror } from '../../src/mirror/create-mirror'
 import { createMirrorSource, type MirrorSource } from '../../src/mirror/source'
 import {
@@ -32,7 +32,10 @@ const selected = defineProjection(wizard, {
 
 describe('provided projection types', () => {
   it('retains a generic adapter over an ordinary run and its projection', () => {
-    const adapt = <F extends AnyFlow, S>(run: Run<F>, projection: Projection<F, S>) => ({
+    const adapt = <F extends AnyWizardDefinition, S>(
+      run: Run<F>,
+      projection: Projection<F, S>,
+    ) => ({
       state: run.project(projection),
       source: createMirrorSource(run, projection),
     })

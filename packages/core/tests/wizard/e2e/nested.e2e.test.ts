@@ -63,7 +63,7 @@ describe('e2e nested flows', () => {
     })
     // Child events are observable on the parent with their own path.
     const childEvents = t.events.filter((e) => e.path.length === 1 && e.path[0] === 'fulfil')
-    expect(childEvents.map((e) => e.type).slice(0, 2)).toEqual(['flow.started', 'step.arrived'])
+    expect(childEvents.map((e) => e.type).slice(0, 2)).toEqual(['run.started', 'step.arrived'])
     expect(childEvents.every((e) => e.path[0] === 'fulfil')).toBe(true)
     // Parent state carries the child summary (waiting on the view).
     expect(t.rec('fulfil').child).toMatchObject({ status: 'waiting', current: 'confirm' })
@@ -82,7 +82,7 @@ describe('e2e nested flows', () => {
     expect(Object.keys(snap.children)).toEqual(['fulfil'])
     expect(snap.children.fulfil).toMatchObject({
       v: 1,
-      flow: { name: 'fulfil', version: 1 },
+      wizard: { name: 'fulfil', version: 1 },
       instanceId: c.id,
     })
     expect(snap.children.fulfil?.state.status).toBe('done')
@@ -94,14 +94,14 @@ describe('e2e nested flows', () => {
       await t.run.dispatch({ type: 'child', path: ['fulfil'], command: { type: 'next' } }),
     ).toMatchObject({
       ok: false,
-      code: 'FLOW_NOT_STARTED',
+      code: 'RUN_NOT_STARTED',
     })
     await t.run.start()
     expect(
       await t.run.dispatch({ type: 'child', path: ['pay'], command: { type: 'next' } }),
     ).toMatchObject({
       ok: false,
-      code: 'NOT_A_FLOW_STEP',
+      code: 'NOT_A_CHILD_STEP',
       step: 'pay',
     })
     t.clear()

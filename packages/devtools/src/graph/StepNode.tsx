@@ -1,5 +1,5 @@
 /**
- * The step card (`type: 'step'`) and the child-flow container (`type: 'group'`): id + kind chip,
+ * The step card (`type: 'step'`) and the child wizard container (`type: 'group'`): id + kind chip,
  * a warnings badge, the authored hooks / `needs` / `timeout` as flag chips, and the live
  * overlay — `data-status` / `data-phase` colour the ring, `data-current` marks the cursor view.
  */

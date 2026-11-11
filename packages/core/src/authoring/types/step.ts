@@ -75,7 +75,7 @@ export type BoundTo<C, Ev, D> = (facts: Binding<C, Ev, D>) => Binding<C, Ev, D>
 
 /**
  * A constructor record with authored config and inference facts.
- * It is what `step`, `view` or `flow` returns (every field present; values are phantom).
+ * It is what `step`, `view` or `child` returns (every field present; values are phantom).
  * `'~exact'` makes a step invariant in its facts, so `steps()` matches a `needs` ref to the map
  * entry it IS rather than to any step whose output happens to be a subtype.
  * @public
@@ -92,7 +92,7 @@ export interface Step<K extends StepKind, X extends StepFacts, L, B> {
 /** Whether a step's output can be the wizard output: no successor (`sink`), maybe skipped (`maybe`). */
 export type SinkRole = 'sink' | 'maybe' | 'inner'
 /** Compact step facts and its sink role in the assembled wizard. @public */
-export interface FlowStep<K extends StepKind, X extends StepFacts, Role extends SinkRole> {
+export interface WizardStep<K extends StepKind, X extends StepFacts, Role extends SinkRole> {
   readonly kind: K
   readonly '~types': X | undefined
   readonly '~role': Role | undefined

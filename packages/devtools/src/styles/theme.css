@@ -121,7 +121,7 @@
   border-color: var(--owd-success);
   color: var(--owd-success);
 }
-.owd-kind[data-kind="flow"] {
+.owd-kind[data-kind="child"] {
   border-color: var(--owd-edge);
   color: var(--owd-edge);
 }

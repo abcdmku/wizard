@@ -8,8 +8,8 @@
 import type { Run, Scheduler } from '@openwizard/core'
 import { createMirrorSource, type Transport } from '@openwizard/core/mirror'
 import { createLocalTransport } from '@openwizard/core/testing'
+import { type CheckoutDeps, checkoutClient, checkoutWizard } from './checkout'
 import type { ClientView } from './client'
-import { type CheckoutDeps, checkoutClient, checkoutFlow } from './flow'
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -50,9 +50,9 @@ export interface ServerOptions {
  */
 export function startServer(options: ServerOptions = {}): {
   readonly transport: Transport<ClientView>
-  readonly run: Run<typeof checkoutFlow>
+  readonly run: Run<typeof checkoutWizard>
 } {
-  const run = checkoutFlow.create(
+  const run = checkoutWizard.create(
     { cartId: 'cart-42', total: 129.5 },
     {
       deps: options.deps ?? demoDeps,

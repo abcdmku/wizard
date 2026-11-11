@@ -9,5 +9,5 @@ Deadlines are absolute and event delivery is atomic.
   a parent resumes before its child runs are restored.
 - When a `waitFor` handler or reducer halts the run during one `send` (it throws or returns
   `{ fail }`), the handlers of that event that have not started yet do not run: later step
-  listeners and the flow-level `on` handler. A run that was already halted before the `send` still
+  listeners and the wizard-level `on` handler. A run that was already halted before the `send` still
   delivers it.

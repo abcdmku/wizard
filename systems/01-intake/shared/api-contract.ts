@@ -64,7 +64,7 @@ export type CreateApplicationRequest = z.infer<typeof CreateApplicationRequestSc
 export const StepViewSchema = z
   .object({
     id: IntakeStepIdSchema,
-    kind: z.enum(['step', 'view', 'flow']),
+    kind: z.enum(['step', 'view', 'child']),
     status: z.string(),
     phase: z.string().optional(),
     attempt: z.number().int().nonnegative(),

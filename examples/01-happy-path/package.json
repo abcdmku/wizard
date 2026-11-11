@@ -2,7 +2,7 @@
   "name": "example-01-happy-path",
   "private": true,
   "type": "module",
-  "description": "Define and run the smallest useful OpenWizard flow.",
+  "description": "Define and run the smallest useful OpenWizard wizard.",
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json && vitest run --root .",
     "start": "tsx src/main.ts"

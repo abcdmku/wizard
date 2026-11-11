@@ -1,17 +1,17 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import type {
-  FlowFailure,
   Run,
   RunHalted,
   RunLifecycleError,
   RunOutcome,
   RunResult,
+  TerminalFailure,
   WaitingFor,
 } from '../../src/wizard/create-wizard'
 import { defineWizard } from '../../src/wizard/define-wizard'
 
-const child = defineWizard(
+const childWizard = defineWizard(
   { name: 'result-child', context: z.object({ id: z.string() }) },
   ({ step, steps }) => steps({ done: step({ run: ({ context }) => context.id }) }),
 )
@@ -20,10 +20,10 @@ type Down = { readonly code: 'DOWN' }
 
 const root = defineWizard(
   { name: 'result-root', context: z.object({ id: z.string() }) },
-  ({ step, flow, steps }) =>
+  ({ step, child, steps }) =>
     steps({
       work: step({ run: () => 1, mapError: (): Down => ({ code: 'DOWN' }), next: 'child' }),
-      child: flow(child, { context: ({ context }) => ({ id: context.id }), next: 'end' }),
+      child: child(childWizard, { context: ({ context }) => ({ id: context.id }), next: 'end' }),
       end: step({ run: () => ({ ok: true as const }) }),
     }),
 )
@@ -44,7 +44,7 @@ describe('Run terminal result types', () => {
         expectTypeOf(result.output).toEqualTypeOf<{ ok: true }>()
       } else if (result.status === 'failed') {
         expectTypeOf(result.failure).toEqualTypeOf<
-          Exclude<FlowFailure<typeof root>, { kind: 'cancelled' }>
+          Exclude<TerminalFailure<typeof root>, { kind: 'cancelled' }>
         >()
         if (result.failure.kind === 'step' && result.failure.step === 'work') {
           expectTypeOf(result.failure.error.data).toEqualTypeOf<
@@ -59,8 +59,8 @@ describe('Run terminal result types', () => {
 
   it('keeps child Run result typing recursive', () => {
     const childRun = run.child('child')
-    expectTypeOf(childRun.result()).toEqualTypeOf<RunResult<typeof child> | undefined>()
-    expectTypeOf(childRun.awaitResult()).toEqualTypeOf<Promise<RunResult<typeof child>>>()
+    expectTypeOf(childRun.result()).toEqualTypeOf<RunResult<typeof childWizard> | undefined>()
+    expectTypeOf(childRun.awaitResult()).toEqualTypeOf<Promise<RunResult<typeof childWizard>>>()
   })
 })
 
@@ -73,7 +73,7 @@ describe('Run outcome types', () => {
     if (outcome.status === 'halted') {
       if (outcome.failure.step === 'child') {
         expectTypeOf(outcome.failure.child).toEqualTypeOf<
-          RunResult<typeof child> | RunHalted<typeof child> | undefined
+          RunResult<typeof childWizard> | RunHalted<typeof childWizard> | undefined
         >()
       }
     } else if (outcome.status === 'waiting') {

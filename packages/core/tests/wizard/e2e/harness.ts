@@ -4,7 +4,7 @@
  * and sequential ids. Flows come from `tests/helpers/fixtures.ts`.
  */
 
-import type { CompiledFlow } from '../../../src/authoring/compiled'
+import type { CompiledWizard } from '../../../src/authoring/compiled'
 import { createSequentialIds } from '../../../src/interpreter/env'
 import { createTestScheduler, type TestScheduler } from '../../../src/interpreter/test-scheduler'
 import type { DomainEvent, DomainEventType } from '../../../src/machine/events'
@@ -35,7 +35,7 @@ export interface E2E {
 }
 
 export function e2e(
-  def: CompiledFlow,
+  def: CompiledWizard,
   opts: Partial<WizardRuntimeOptions> & { readonly now?: number } = {},
 ): E2E {
   const sched = createTestScheduler({ now: opts.now ?? 10_000 })
@@ -53,7 +53,7 @@ export function e2e(
 }
 
 export function e2eResume(
-  def: CompiledFlow,
+  def: CompiledWizard,
   snapshot: unknown,
   opts: Partial<ResumeWizardRuntimeOptions> & { readonly now?: number } = {},
 ): E2E {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CompiledFlow, Hook } from '../../src/authoring/compiled'
+import type { CompiledWizard, Hook } from '../../src/authoring/compiled'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createInterpreter } from '../../src/interpreter/interpreter'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
@@ -12,15 +12,15 @@ import { flow, runStep } from '../helpers/fixtures'
 function mapped(
   items: Hook<readonly unknown[]>,
   run: Hook,
-  extra: Partial<CompiledFlow['steps'][string]> = {},
-): CompiledFlow {
+  extra: Partial<CompiledWizard['steps'][string]> = {},
+): CompiledWizard {
   return flow({
     start: 'work',
     steps: { work: { ...runStep({ run }), each: { items, concurrency: 2 }, ...extra } },
   })
 }
 
-function runner(def: CompiledFlow, saved?: WizardState) {
+function runner(def: CompiledWizard, saved?: WizardState) {
   const sched = createTestScheduler({ now: 1_000 })
   const ids = createSequentialIds()
   const events: DomainEvent[] = []

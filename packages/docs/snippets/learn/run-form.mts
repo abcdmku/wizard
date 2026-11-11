@@ -1,6 +1,6 @@
-import { signupFlow } from './form'
+import { signupWizard } from './form'
 
-const run = signupFlow.create({})
+const run = signupWizard.create({})
 
 await run.start()
 await run.setInput('contact', { email: 'ada@example.com' })

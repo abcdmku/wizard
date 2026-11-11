@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import { buildFlow } from '../../src/authoring/build-flow'
+import { buildWizard } from '../../src/authoring/build-wizard'
 import { compile } from '../../src/authoring/compile'
 import { WizardError } from '../../src/errors'
 import { defineWizard } from '../../src/wizard/define-wizard'
@@ -48,13 +48,14 @@ describe('defineWizard assembly', () => {
   })
 
   it('passes the wizard directly to a child flow', async () => {
-    const child = defineWizard(
+    const childWizard = defineWizard(
       { name: 'child', context: z.object({ n: z.number() }) },
       ({ step, steps }) => steps({ done: step({ run: ({ context }) => context.n * 2 }) }),
     )
     const parent = defineWizard(
       { name: 'parent', context: z.object({ n: z.number() }) },
-      ({ flow, steps }) => steps({ child: flow(child, { context: ({ context }) => context }) }),
+      ({ child, steps }) =>
+        steps({ child: child(childWizard, { context: ({ context }) => context }) }),
     )
     expect(await parent.run({ n: 4 })).toMatchObject({ status: 'done', output: 8 })
   })
@@ -95,7 +96,7 @@ describe('defineWizard assembly', () => {
 
   it('requires an assembly result from JavaScript build callbacks', () => {
     expect(() =>
-      buildFlow({ name: 'unassembled', context: z.object({}) }, ({ step }: JavaScriptApi) => ({
+      buildWizard({ name: 'unassembled', context: z.object({}) }, ({ step }: JavaScriptApi) => ({
         work: step({ run: () => 1 }),
       })),
     ).toThrow('wizard build must return steps(map, { start? })')
@@ -104,8 +105,10 @@ describe('defineWizard assembly', () => {
   it('rejects positional step functions and malformed constructor configs', () => {
     for (const config of [() => 1, null, undefined, []]) {
       expect(() =>
-        buildFlow({ name: 'bad-config', context: z.object({}) }, ({ step, steps }: JavaScriptApi) =>
-          steps({ work: step(config, { retry: { retries: 1 } }) }),
+        buildWizard(
+          { name: 'bad-config', context: z.object({}) },
+          ({ step, steps }: JavaScriptApi) =>
+            steps({ work: step(config, { retry: { retries: 1 } }) }),
         ),
       ).toThrow('step() requires an object config')
     }
@@ -114,7 +117,7 @@ describe('defineWizard assembly', () => {
   it('parses child context and dependencies once at child creation', async () => {
     let contextParses = 0
     let depsParses = 0
-    const child = defineWizard(
+    const childWizard = defineWizard(
       {
         name: 'child-boundaries',
         context: z.object({ n: z.string() }).transform((value) => {
@@ -131,9 +134,9 @@ describe('defineWizard assembly', () => {
     )
     const parent = defineWizard(
       { name: 'child-mapping', context: z.object({}) },
-      ({ flow, steps }) =>
+      ({ child, steps }) =>
         steps({
-          child: flow(child, { context: () => ({ n: '4' }), deps: () => ({ factor: 2 }) }),
+          child: child(childWizard, { context: () => ({ n: '4' }), deps: () => ({ factor: 2 }) }),
         }),
     )
     expect(await parent.run({})).toMatchObject({ status: 'done', output: 8 })

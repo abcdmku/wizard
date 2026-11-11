@@ -1,12 +1,12 @@
 import type { StepStatus } from '@openwizard/core'
-import type { FlowGraph, FlowGraphNode } from '@openwizard/core/inspect'
+import type { Manifest, ManifestStep } from '@openwizard/core/inspect'
 import { useMemo } from 'react'
 import {
   type DagLayout,
-  flowsOf,
   type LaidOutEdge,
   type LaidOutNode,
-  layoutFlow,
+  layoutWizard,
+  wizardsOf,
 } from './dag-layout'
 
 interface NodeLiveState {
@@ -16,17 +16,17 @@ interface NodeLiveState {
 
 export type NodeStateLookup = (path: readonly string[], id: string) => NodeLiveState | undefined
 
-interface FlowGraphViewProps {
-  readonly graph: FlowGraph
+interface WizardGraphViewProps {
+  readonly graph: Manifest
   readonly liveState?: NodeStateLookup | undefined
   readonly selected?: { readonly path: readonly string[]; readonly id: string } | null | undefined
   readonly onSelect?: ((path: readonly string[], id: string) => void) | undefined
 }
 
-const KIND_GLYPH: Record<FlowGraphNode['kind'], string> = {
+const KIND_GLYPH: Record<ManifestStep['kind'], string> = {
   view: 'V',
   step: 'S',
-  flow: 'F',
+  child: 'C',
 }
 
 function edgePath({ from, to, back }: LaidOutEdge): string {
@@ -106,7 +106,7 @@ function NodeShape({
 }) {
   const { x, y, width: w, height: h } = node
   switch (node.node.kind) {
-    case 'flow':
+    case 'child':
       return (
         <polygon
           points={`${x + 10},${y} ${x + w},${y} ${x + w - 10},${y + h} ${x},${y + h}`}
@@ -138,7 +138,7 @@ function NodeShape({
   }
 }
 
-function FlowSvg({
+function WizardSvg({
   layout,
   path,
   liveState,
@@ -147,7 +147,7 @@ function FlowSvg({
 }: {
   readonly layout: DagLayout
   readonly path: readonly string[]
-} & Pick<FlowGraphViewProps, 'liveState' | 'selected' | 'onSelect'>) {
+} & Pick<WizardGraphViewProps, 'liveState' | 'selected' | 'onSelect'>) {
   const markerId = `arrow-${path.join('-') || 'root'}`
   const isSelected = (id: string) =>
     selected !== null &&
@@ -162,7 +162,7 @@ function FlowSvg({
       className="block max-w-full font-mono text-[11px]"
       style={{ height: 'auto' }}
       role="img"
-      aria-label="Flow graph"
+      aria-label="Wizard graph"
     >
       <defs>
         <marker
@@ -248,24 +248,28 @@ function FlowSvg({
   )
 }
 
-/** Every flow of the graph (root first, then each child flow) as a stacked set of SVG graphs. */
-export function FlowGraphView({ graph, liveState, selected, onSelect }: FlowGraphViewProps) {
-  const flows = useMemo(
-    () => flowsOf(graph).map((flow) => ({ ...flow, layout: layoutFlow(flow.nodes, flow.edges) })),
+/** Every wizard of the graph (root first, then each child wizard) as a stacked set of SVG graphs. */
+export function WizardGraphView({ graph, liveState, selected, onSelect }: WizardGraphViewProps) {
+  const wizards = useMemo(
+    () =>
+      wizardsOf(graph).map((wizard) => ({
+        ...wizard,
+        layout: layoutWizard(wizard.nodes, wizard.edges),
+      })),
     [graph],
   )
   return (
     <div className="flex flex-col gap-6">
-      {flows.map((flow) => (
-        <section key={flow.path.join('/') || 'root'} className="flex flex-col items-center gap-2">
+      {wizards.map((wizard) => (
+        <section key={wizard.path.join('/') || 'root'} className="flex flex-col items-center gap-2">
           <h4 className="self-start font-mono text-[11px] text-neutral-500">
-            {flow.path.length === 0
+            {wizard.path.length === 0
               ? `${graph.name} v${graph.version}`
-              : `${flow.path.join(' › ')} · child flow`}
+              : `${wizard.path.join(' › ')} · child wizard`}
           </h4>
-          <FlowSvg
-            layout={flow.layout}
-            path={flow.path}
+          <WizardSvg
+            layout={wizard.layout}
+            path={wizard.path}
             liveState={liveState}
             selected={selected}
             onSelect={onSelect}

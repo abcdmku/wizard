@@ -1,6 +1,6 @@
 /**
  * Human-readable messages for rejected commands and transitions. The machine records stable
- * reason tokens (`not-ready`, `flow-halted`, …); callers read a sentence that says what went
+ * reason tokens (`not-ready`, `run-halted`, …); callers read a sentence that says what went
  * wrong and what to do instead. Codes stay the machine-readable part of every result.
  *
  * @internal
@@ -11,14 +11,14 @@ import type { TransitionRejectReason } from '../../machine/events'
 import type { Issue } from '../../machine/state'
 
 const RUN_STATE: Readonly<Record<string, string>> = {
-  'flow-not-started': 'the run has not started yet; call start() first',
-  'flow-terminal': 'the run has finished (done, failed or cancelled); nothing can change it now',
-  'flow-halted':
+  'run-not-started': 'the run has not started yet; call start() first',
+  'run-terminal': 'the run has finished (done, failed or cancelled); nothing can change it now',
+  'run-halted':
     'the run is halted by a failed step; recover it first with retry(step), skip(step), run(step), compensate() or cancel()',
-  'flow-compensating': 'the run is compensating; only cancel() and child commands are accepted',
+  'run-compensating': 'the run is compensating; only cancel() and child commands are accepted',
 }
 
-/** The step a command names, if any (`child` commands name their flow step). */
+/** The step a command names, if any (`child` commands name their child step). */
 export function commandStep(command: Command): string | undefined {
   if ('step' in command && typeof command.step === 'string') return command.step
   return command.type === 'child' ? command.path[0] : undefined
@@ -32,15 +32,15 @@ export function rejectionMessage(reason: string, command: Command): string {
   const [token, detail] = splitReason(reason)
   switch (token) {
     case 'unknown-step':
-      return `${step} is not a step of this flow`
+      return `${step} is not a step of this wizard`
     case 'not-a-view':
       return `${step} is not a view; only views have input and can be navigated to`
     case 'not-runnable':
       return `${step} has no run function; only runnable steps can be run or retried`
-    case 'not-a-flow-step':
-      return `${step} is not a flow step`
+    case 'not-a-child-step':
+      return `${step} is not a child step`
     case 'child-not-running':
-      return `the child flow of ${step} is not running`
+      return `the child run of ${step} is not running`
     case 'empty-path':
       return 'a child command needs a non-empty path'
     case 'when-pending':
@@ -50,7 +50,7 @@ export function rejectionMessage(reason: string, command: Command): string {
     case 'not-failed':
       return `${step} has not failed; retry(step) re-runs a failed step only`
     case 'completing-step':
-      return `${step} completes the flow and cannot be skipped`
+      return `${step} completes the run and cannot be skipped`
     case 'not-skippable':
       return `${step} is ${detail ?? 'not ready'}; only a ready or active step can be skipped`
     case 'nav-busy':

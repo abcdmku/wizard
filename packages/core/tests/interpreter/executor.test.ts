@@ -227,7 +227,7 @@ describe('executor: child context boundary', () => {
     const def = flow({
       steps: {
         f: {
-          kind: 'flow',
+          kind: 'child',
           child: child((v) => ({ ok: true, value: { ...(v as object), normalized: true } })),
           hooks: { childContext: ({ context }: any) => ({ tenant: context.c }) },
         },
@@ -242,8 +242,8 @@ describe('executor: child context boundary', () => {
     const reject = () => ({ ok: false, issues: [{ message: 'tenant required' }] })
     const def = flow({
       steps: {
-        f: { kind: 'flow', child: child(reject), hooks: { childContext: () => ({}) } },
-        g: { kind: 'flow', child: child(reject), hooks: { childContext: async () => ({}) } },
+        f: { kind: 'child', child: child(reject), hooks: { childContext: () => ({}) } },
+        g: { kind: 'child', child: child(reject), hooks: { childContext: async () => ({}) } },
       },
     })
     const { executor, sent } = harness(def, (s) => activate('g')(activate('f')(s)))
@@ -266,7 +266,7 @@ describe('executor: child context boundary', () => {
     const def = flow({
       steps: {
         f: {
-          kind: 'flow',
+          kind: 'child',
           child: child(async (v: unknown) => ({ ok: true, value: v })),
           hooks: { childContext: () => ({}) },
         },

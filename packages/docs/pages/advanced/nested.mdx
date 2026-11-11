@@ -1,8 +1,8 @@
-# Nested flows
+# Nested wizards
 
-A `flow(childWizard, options)` step runs a child wizard with its own run id, context, snapshot, and events. Use it when a stage needs its own navigation or recovery, or several parents reuse it.
+A `child(childWizard, options)` step runs a child wizard with its own run id, context, snapshot, and events. Use it when a stage needs its own navigation or recovery, or several parents reuse it.
 
-```ts file="examples/06-nested-flow/src/order.ts"
+```ts file="examples/06-nested-wizard/src/order.ts"
 ```
 
 Here `pay` completes before `fulfil` starts a child run. The `context` mapper produces the child's input, which its boundary parses. Once the child finishes, its output becomes the parent step's output. `receipt` needs `fulfil`, so it reads the tracking number as `needs.fulfil.tracking`.
@@ -52,8 +52,8 @@ If an item child fails, `run.retry('batch')` retries failed items while retainin
 
 ## Failures cross the boundary
 
-A halted or failed child fails its parent flow step under the parent's failure policy. A `fallback` on that step marks it skipped with the child's error retained and activates the recovery target. The child still has its own failure record for inspection.
+A halted or failed child fails the step that runs it, under the parent's failure policy. A `fallback` on that step marks it skipped with the child's error retained and activates the recovery target. The child still has its own failure record for inspection.
 
 If the child would contain only one function and no lifecycle of its own, use a runnable step. Nest when separate state or recovery helps.
 
-Next: [Projections and mirrors](/advanced/projections). Related: [use a child flow](/recipes/nested).
+Next: [Projections and mirrors](/advanced/projections). Related: [use a child wizard](/recipes/nested).

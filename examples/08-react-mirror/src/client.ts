@@ -2,7 +2,7 @@
 import type { ProjectionOutput } from '@openwizard/core'
 import { createMirror, type Mirror, type Transport } from '@openwizard/core/mirror'
 import { bindReact } from '@openwizard/react'
-import type { checkoutClient } from './flow'
+import type { checkoutClient } from './checkout'
 
 export type ClientView = ProjectionOutput<typeof checkoutClient>
 

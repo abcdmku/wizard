@@ -22,7 +22,7 @@ export function compileBehaviors(
     for (const field of ['concurrency', 'key']) {
       if (c[field] !== undefined) problem(`'${field}' requires 'each'`)
     }
-  if (raw.kind === 'flow') {
+  if (raw.kind === 'child') {
     compileChild(raw, c, step, hooks, problem, sc)
     return
   }

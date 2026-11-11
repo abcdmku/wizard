@@ -48,7 +48,7 @@ A child interpreter defers hook execution while an ancestor is processing messag
 
 ### 1.2 Structural kinds and behavior
 
-There is no mode switch. The structural kinds are `step`, `view`, and `flow`.
+There is no mode switch. The structural kinds are `step`, `view`, and `child`.
 
 | Definition | Completion |
 |---|---|
@@ -58,8 +58,8 @@ There is no mode switch. The structural kinds are `step`, `view`, and `flow`.
 | `step({ sleep })` | Persisted absolute deadline is due |
 | `step({ next, targets? })` | Routing or join work completes with `undefined` output |
 | `view({ input, ... })` | Forward navigation parses and validates the draft |
-| `flow(childWizard, ...)` | Child finishes, with optional output mapping |
-| `flow(childWizard, { each, ... })` | Per-item children finish; output is an ordered array |
+| `child(childWizard, ...)` | Child finishes, with optional output mapping |
+| `child(childWizard, { each, ... })` | Per-item children finish; output is an ordered array |
 
 Policies such as retry, concurrency, `when`, fallback, and compensation modify those behaviors. A configuration that mixes incompatible work fields, such as `run` and `waitFor`, is invalid.
 
@@ -103,7 +103,7 @@ const run = checkout.create(input)
 const graph = inspect(checkout)
 ```
 
-A `Wizard` is the flow definition plus bound `create`, `createAsync`, `resume`, `resumeAsync`, `run`, `runSync`, and `provide` methods. Pass it directly to inspectors, child constructors, projections, durable hosts, HTTP adapters, and React bindings. A `Run` refers to that definition through `run.flow`.
+A `Wizard` is the definition plus bound `create`, `createAsync`, `resume`, `resumeAsync`, `run`, `runSync`, and `provide` methods. Pass it directly to inspectors, child constructors, projections, durable hosts, HTTP adapters, and React bindings. A `Run` refers to that definition through `run.wizard`.
 
 `provide(deps)` returns a new wizard. `DepsOf` describes all services hooks see; `RequiredDepsOf` describes those still needed at creation. Provided services follow the definition into every run creator, including children and durable hosts.
 

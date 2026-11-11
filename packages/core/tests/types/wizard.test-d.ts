@@ -89,7 +89,7 @@ describe('Run<F> method typing', () => {
     >()
     expectTypeOf(run.id).toEqualTypeOf<string>()
     expectTypeOf(run.epoch).toEqualTypeOf<number>()
-    expectTypeOf(run.flow).toEqualTypeOf<CheckoutF>()
+    expectTypeOf(run.wizard).toEqualTypeOf<CheckoutF>()
     expectTypeOf(run.subscribe(() => {})).toEqualTypeOf<() => void>()
     expectTypeOf(run.save()).toEqualTypeOf<Promise<void>>()
     expectTypeOf(run.dispose()).toEqualTypeOf<void>()
@@ -111,7 +111,7 @@ describe('Run<F> method typing', () => {
         expectTypeOf(result.issues).toEqualTypeOf<readonly Issue[]>()
       } else {
         expectTypeOf(result.reason).toEqualTypeOf<'dropped'>()
-        expectTypeOf(result.code).toEqualTypeOf<WizardErrorCode | 'STALE' | 'FLOW_COMPENSATING'>()
+        expectTypeOf(result.code).toEqualTypeOf<WizardErrorCode | 'STALE' | 'RUN_COMPENSATING'>()
       }
     }
   })

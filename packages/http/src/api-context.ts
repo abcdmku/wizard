@@ -20,7 +20,7 @@ export interface SharedOptions {
 /** Everything a generated API handler needs, resolved once by `createRunAPI`. */
 export interface APIContext<F extends AnyWizard, P> {
   readonly id: string
-  readonly flow: F
+  readonly wizard: F
   readonly runs: RunDataLayer<F, P>
   readonly auth: ScopeProvider<P>
   readonly plan: AccessPlan<F>

@@ -36,9 +36,9 @@ export function plan(
   for (const ev of events) {
     if (ev.type === 'event.received')
       delivery = { inboxId: ev.inboxId, failed: stepIndex(state.steps).failed }
-    if (ev.type === 'flow.resumed') resumed = true
+    if (ev.type === 'run.resumed') resumed = true
     else planEvent(env, state, ev, out, delivery)
-    if (ev.type === 'flow.done' || ev.type === 'flow.cancelled' || ev.type === 'flow.compensated')
+    if (ev.type === 'run.done' || ev.type === 'run.cancelled' || ev.type === 'run.compensated')
       final = true
   }
   if (resumed) {
@@ -224,14 +224,14 @@ function planEvent(
       )
       return
     }
-    case 'event.flowDelivered':
-      // The flow-level handler has no step — `step: ''`, token `{ step: '', runId: 0 }`;
-      // the executor and `decide` route on `hook: 'flowOn'` before looking at the step.
+    case 'event.wizardDelivered':
+      // The wizard-level handler has no step — `step: ''`, token `{ step: '', runId: 0 }`;
+      // the executor and `decide` route on `hook: 'wizardOn'` before looking at the step.
       out.push({
         kind: 'call',
         effectId: env.id('fx'),
         step: '',
-        hook: 'flowOn',
+        hook: 'wizardOn',
         token: { step: '', runId: 0, ...deliveryToken(delivery, ev.inboxId) },
         extra: { event: ev.event, payload: ev.payload, inboxId: ev.inboxId },
       })
@@ -244,7 +244,7 @@ function planEvent(
     }
     case 'step.cancelled': {
       const rec = state.steps[ev.step]
-      if (rec?.kind === 'flow') {
+      if (rec?.kind === 'child') {
         out.push({
           kind: 'child.send',
           step: ev.step,
@@ -254,11 +254,11 @@ function planEvent(
       return
     }
     case 'step.skipped':
-      if (ev.reason === 'fallback' && state.steps[ev.step]?.kind === 'flow')
+      if (ev.reason === 'fallback' && state.steps[ev.step]?.kind === 'child')
         out.push({ kind: 'child.dispose', step: ev.step })
       return
     case 'step.invalidated':
-      if (env.def.steps[ev.step]?.kind === 'flow')
+      if (env.def.steps[ev.step]?.kind === 'child')
         out.push({ kind: 'child.dispose', step: ev.step })
       return
     case 'child.started':
@@ -282,9 +282,9 @@ function planEvent(
       out.push({ kind: 'child.send', step, command: ev.command })
       return
     }
-    case 'flow.reset':
+    case 'run.reset':
       for (const id of env.def.order)
-        if (env.def.steps[id]?.kind === 'flow') out.push({ kind: 'child.dispose', step: id })
+        if (env.def.steps[id]?.kind === 'child') out.push({ kind: 'child.dispose', step: id })
       return
     default:
       return

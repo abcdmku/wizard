@@ -1,12 +1,12 @@
 /**
- * Structural checks of a persisted `WizardState` against its compiled flow: step
+ * Structural checks of a persisted `WizardState` against its compiled wizard: step
  * set, statuses and their invariants, cursor / history, nav, saga, inbox, timers and the
  * envelope fields. Every problem is a human-readable reason; nothing here runs user code.
  *
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import type { NavPhase, RunStatus, SagaEntry, SagaEntryRef, StepStatus } from '../machine/state'
 import { describe, isNonNegativeInt, isRecord, isString, isStringArray } from './snapshot-checks'
 import { checkEach } from './snapshot-each'
@@ -55,7 +55,7 @@ const NAV_PHASES: ReadonlySet<string> = new Set<NavPhase>([
 ])
 
 /** Every check over `state` (an object); reasons are prefixed `state.…`. */
-export function checkState(def: CompiledFlow, state: Rec, reasons: string[]): void {
+export function checkState(def: CompiledWizard, state: Rec, reasons: string[]): void {
   if (!isString(state.status) || !WIZARD_STATUSES.has(state.status)) {
     reasons.push(`state.status: unknown status ${describe(state.status)}`)
   }
@@ -102,11 +102,11 @@ function checkActive(state: Rec, steps: Rec, reasons: string[]): ReadonlySet<str
  * Every snapshot step must still exist. Steps the definition added since the snapshot was taken
  * are fine: `prepareResume` gives them idle records.
  */
-function checkStepSet(def: CompiledFlow, steps: Rec, reasons: string[]): void {
+function checkStepSet(def: CompiledWizard, steps: Rec, reasons: string[]): void {
   for (const id of Object.keys(steps)) {
     if (Object.hasOwn(def.steps, id)) continue
     reasons.push(
-      `state.steps: step '${id}' is no longer defined; if it was renamed, bump the flow's version ` +
+      `state.steps: step '${id}' is no longer defined; if it was renamed, bump the wizard's version ` +
         `and resume with { migrate: (snapshot) => renameSteps(snapshot, { '${id}': '<new id>' }) }`,
     )
   }
@@ -114,7 +114,7 @@ function checkStepSet(def: CompiledFlow, steps: Rec, reasons: string[]): void {
 
 /** Every record's shape and its status ↔ `state.active` link. */
 function checkStepRecords(
-  def: CompiledFlow,
+  def: CompiledWizard,
   steps: Rec,
   active: ReadonlySet<string>,
   reasons: string[],
@@ -167,7 +167,7 @@ function checkStepRecords(
 }
 
 /** `state.current` is an active view (or null); `state.history` lists views only. */
-function checkCursor(def: CompiledFlow, state: Rec, steps: Rec, reasons: string[]): void {
+function checkCursor(def: CompiledWizard, state: Rec, steps: Rec, reasons: string[]): void {
   if (state.current !== null) {
     if (!isString(state.current)) reasons.push('state.current: expected a step id or null')
     else {
@@ -199,7 +199,7 @@ function checkCursor(def: CompiledFlow, state: Rec, steps: Rec, reasons: string[
  * with the active set the way `deriveStatus` would compute it.
  */
 function checkStatusInvariants(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: Rec,
   active: ReadonlySet<string>,
   reasons: string[],
@@ -222,7 +222,7 @@ function checkStatusInvariants(
         !activeIds.some((id) => {
           const step = def.steps[id]
           return (
-            step?.kind === 'flow' ||
+            step?.kind === 'child' ||
             (step?.kind === 'step' &&
               (step.hooks.waitFor === undefined ||
                 (isRecord(state.steps) &&
@@ -232,19 +232,19 @@ function checkStatusInvariants(
         })
       )
         reasons.push(
-          'state.status: running without an active runnable, routing, completing, or child-flow step',
+          'state.status: running without an active runnable, routing, completing, or child step',
         )
       break
     case 'halted':
       if (!isHalt(state.steps, activeIds))
-        reasons.push('state.status: halted without a failed step or a halted child flow')
+        reasons.push('state.status: halted without a failed step or a halted child run')
       break
     default:
       break
   }
 }
 
-/** A halt needs a failed step record or an active flow step whose child is halted. */
+/** A halt needs a failed step record or an active child step whose child is halted. */
 function isHalt(steps: unknown, active: readonly string[]): boolean {
   if (!isRecord(steps)) return false
   if (Object.values(steps).some((rec) => isRecord(rec) && rec.status === 'failed')) return true
@@ -254,7 +254,7 @@ function isHalt(steps: unknown, active: readonly string[]): boolean {
   })
 }
 
-function checkNav(def: CompiledFlow, state: Rec, reasons: string[]): void {
+function checkNav(def: CompiledWizard, state: Rec, reasons: string[]): void {
   if (!isRecord(state.nav)) {
     reasons.push('state.nav: expected an object')
     return
@@ -271,7 +271,7 @@ function checkNav(def: CompiledFlow, state: Rec, reasons: string[]): void {
 }
 
 /** `SagaState`: `stack: SagaEntry[]`, `compensated`/`failures: SagaEntryRef[]`, optional bookkeeping. */
-function checkSaga(def: CompiledFlow, saga: Rec, reasons: string[]): void {
+function checkSaga(def: CompiledWizard, saga: Rec, reasons: string[]): void {
   const isRef = (value: unknown): value is SagaEntryRef =>
     isRecord(value) &&
     isString(value.step) &&

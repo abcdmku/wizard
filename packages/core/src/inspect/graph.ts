@@ -1,33 +1,33 @@
 /**
- * `inspect(flow)` — the wizard manifest: nodes, edges, JSON Schemas, prose, warnings and a
- * structural fingerprint, recursing into child flows with `path`. Nothing here runs a hook.
+ * `inspect(wizard)` — the wizard manifest: nodes, edges, JSON Schemas, prose, warnings and a
+ * structural fingerprint, recursing into child wizards with `path`. Nothing here runs a hook.
  *
  * @packageDocumentation
  */
 
-import type { AnyFlow } from '@openwizard/core'
+import type { AnyWizardDefinition } from '@openwizard/core'
 import { isBoundary } from '../authoring/boundary'
-import { analyze, type FlowWarning } from '../authoring/compile'
-import type { CompiledFlow } from '../authoring/compiled'
+import { analyze, type ManifestWarning } from '../authoring/compile'
+import type { CompiledWizard } from '../authoring/compiled'
 import { isRecord } from '../record'
 import { fingerprint } from './fingerprint'
 import { exclusiveJoinWarnings } from './joins'
 import { toJSONSchema } from './json-schema'
 import { declaredTargets, prose, toNode } from './node'
-import type { FlowGraph, FlowGraphEdge, FlowGraphNode, JSONSchema } from './types'
+import type { JSONSchema, Manifest, ManifestEdge, ManifestStep } from './types'
 
 /**
- * Describe a flow (compiles it if needed; throws `DEFINITION_INVALID` for a broken flow).
+ * Describe a wizard (compiles it if needed; throws `DEFINITION_INVALID` for a broken wizard).
  * Warnings include unreachable steps, blocked joins, navigation cycles and ambiguous sinks.
  * @public
  */
-export function inspect(flow: AnyFlow): FlowGraph {
-  const { compiled, warnings } = analyze(flow)
-  const nodes: FlowGraphNode[] = []
-  const edges: FlowGraphEdge[] = []
-  const joinWarnings: FlowWarning[] = []
+export function inspect(wizard: AnyWizardDefinition): Manifest {
+  const { compiled, warnings } = analyze(wizard)
+  const nodes: ManifestStep[] = []
+  const edges: ManifestEdge[] = []
+  const joinWarnings: ManifestWarning[] = []
   collect(compiled, [], nodes, edges, joinWarnings)
-  const schemas = flowSchemas(compiled)
+  const schemas = wizardSchemas(compiled)
   return {
     name: compiled.name,
     version: compiled.version,
@@ -41,16 +41,16 @@ export function inspect(flow: AnyFlow): FlowGraph {
 }
 
 function collect(
-  def: CompiledFlow,
+  def: CompiledWizard,
   path: readonly string[],
-  nodes: FlowGraphNode[],
-  edges: FlowGraphEdge[],
-  warnings: FlowWarning[],
+  nodes: ManifestStep[],
+  edges: ManifestEdge[],
+  warnings: ManifestWarning[],
 ): void {
   const starts = new Set(def.start)
   const sinks = new Set(def.sinks)
   const raw = rawSteps(def)
-  const children: Array<readonly [string, CompiledFlow]> = []
+  const children: Array<readonly [string, CompiledWizard]> = []
   for (const id of def.start) edges.push({ from: null, to: id, kind: 'start', path })
   for (const id of def.order) {
     const step = def.steps[id]
@@ -80,24 +80,24 @@ function collect(
     if (step.child !== undefined) children.push([id, step.child])
   }
   warnings.push(...exclusiveJoinWarnings(def, path))
-  // A flow's own nodes/edges come first, then its child flows (in declaration order).
+  // A wizard's own nodes/edges come first, then its child wizards (in declaration order).
   for (const [id, child] of children) collect(child, [...path, id], nodes, edges, warnings)
 }
 
-/** The authoring step records of a compiled flow (its `identity` is the flow object). */
-function rawSteps(def: CompiledFlow): Readonly<Record<string, unknown>> {
-  const flow: unknown = def.identity
-  return isRecord(flow) && isRecord(flow.steps) ? flow.steps : {}
+/** The authoring step records of a compiled wizard (its `identity` is the wizard object). */
+function rawSteps(def: CompiledWizard): Readonly<Record<string, unknown>> {
+  const wizard: unknown = def.identity
+  return isRecord(wizard) && isRecord(wizard.steps) ? wizard.steps : {}
 }
 
 /** JSON Schemas of the context (input side: what `create` accepts) and of every event payload. */
-function flowSchemas(def: CompiledFlow): FlowGraph['schemas'] {
-  const flow: unknown = def.identity
-  if (!isRecord(flow)) return { events: {} }
-  const context = isBoundary(flow.context) ? toJSONSchema(flow.context, 'input') : undefined
+function wizardSchemas(def: CompiledWizard): Manifest['schemas'] {
+  const wizard: unknown = def.identity
+  if (!isRecord(wizard)) return { events: {} }
+  const context = isBoundary(wizard.context) ? toJSONSchema(wizard.context, 'input') : undefined
   const events: Record<string, JSONSchema | undefined> = {}
   for (const name of Object.keys(def.events)) {
-    const schema = isRecord(flow.events) ? flow.events[name] : undefined
+    const schema = isRecord(wizard.events) ? wizard.events[name] : undefined
     events[name] = isBoundary(schema) ? toJSONSchema(schema, 'input') : undefined
   }
   return { ...(context !== undefined ? { context } : {}), events }

@@ -60,9 +60,9 @@ export function outcomeOf(ctx: RuntimeContext): RuntimeOutcome | undefined {
   const waits = [...waitingFor(ctx.def, state)]
   for (const id of state.active) {
     const step = ctx.def.steps[id]
-    if (step?.kind === 'flow' && step.each === undefined && ctx.interp.child(id) !== undefined)
+    if (step?.kind === 'child' && step.each === undefined && ctx.interp.child(id) !== undefined)
       continue
-    if (step?.kind === 'flow' && step.each !== undefined) {
+    if (step?.kind === 'child' && step.each !== undefined) {
       const each = state.steps[id]?.each
       if (each === undefined) return undefined
       if (each.running === 0 && each.done < each.items.length) return undefined
@@ -164,7 +164,7 @@ function halted(ctx: RuntimeContext, state: WizardState): RuntimeHalted {
 }
 
 /**
- * A run halted by a halted child (the halt invariant: a failed step or a halted child): the flow
+ * A run halted by a halted child (the halt invariant: a failed step or a halted child): the wizard
  * step carries the child's failure, kind `child`, and the child's own halted outcome.
  */
 function childHalt(ctx: RuntimeContext, state: WizardState): RuntimeStepFailure {
@@ -176,7 +176,7 @@ function childHalt(ctx: RuntimeContext, state: WizardState): RuntimeStepFailure 
     const error: StepError = { ...outcome.failure.error, kind: 'child' }
     return { kind: 'step', step, error, child: outcome }
   }
-  const message = `the child flow of step '${step}' halted; recover it through run.child('${step}')`
+  const message = `the child run of step '${step}' halted; recover it through run.child('${step}')`
   return {
     kind: 'step',
     step,
@@ -190,7 +190,7 @@ function liveChildren(
 ): readonly { path: readonly string[]; child: WizardRuntime }[] {
   const out: { path: readonly string[]; child: WizardRuntime }[] = []
   for (const id of state.active) {
-    if (ctx.def.steps[id]?.kind !== 'flow') continue
+    if (ctx.def.steps[id]?.kind !== 'child') continue
     const child = ctx.interp.child(id)
     if (child !== undefined) out.push({ path: [id], child })
   }

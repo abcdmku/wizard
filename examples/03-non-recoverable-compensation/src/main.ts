@@ -2,7 +2,7 @@
  * Runnable walk-through: `pnpm --filter example-03-non-recoverable-compensation start`.
  * Three reservations succeed, the payment is declined, and the saga unwinds in reverse order.
  */
-import { bookTripFlow, type Deps } from './book-trip'
+import { bookTrip, type Deps } from './book-trip'
 
 const deps: Deps = {
   flights: {
@@ -24,7 +24,7 @@ const deps: Deps = {
   },
 }
 
-const run = bookTripFlow.create({ tripId: 'T1', total: 900 }, { deps })
+const run = bookTrip.create({ tripId: 'T1', total: 900 }, { deps })
 run.observe((event) => {
   switch (event.type) {
     case 'step.done':
@@ -33,10 +33,10 @@ run.observe((event) => {
     case 'step.failed':
       console.log(`✖ ${event.step} failed (${event.kind}): ${event.error.message}`)
       break
-    case 'flow.compensating':
+    case 'run.compensating':
       console.log(`⟲ compensating, plan: ${event.plan.join(' → ')}`)
       break
-    case 'flow.compensated':
+    case 'run.compensated':
       console.log(`⟲ compensated (run ${event.status}, failures: ${event.failures.length})`)
       break
     default:

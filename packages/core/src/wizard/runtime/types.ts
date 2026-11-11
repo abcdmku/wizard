@@ -6,7 +6,7 @@
  * @internal Public users see the typed `Run<F>`.
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import type { Duration } from '../../authoring/types'
 import type { ParentLink } from '../../interpreter/child'
 import type { Clock, IdGenerator, RuntimeEnv, Scheduler } from '../../interpreter/env'
@@ -23,7 +23,7 @@ import type { Snapshot } from '../snapshot'
 import type { RuntimeOutcome } from './outcome'
 
 export interface WizardRuntimeOptions {
-  /** Context value that already passed the flow's context boundary. */
+  /** Context value that already passed the wizard's context boundary. */
   readonly context: unknown
   /** Injected dependencies (already through `def.deps`, if declared); `args.deps` in hooks. */
   readonly deps?: unknown
@@ -40,7 +40,7 @@ export interface WizardRuntimeOptions {
   readonly debounceMs?: number
   /** Applied to the snapshot right before `store.set`. */
   readonly redact?: (snapshot: Snapshot) => unknown
-  /** Delete the key instead of writing once the flow is `done`. */
+  /** Delete the key instead of writing once the run is `done`. */
   readonly clearOnDone?: boolean
   /** Store failures on the auto-save path. Default: rethrown asynchronously. */
   readonly onPersistError?: (error: unknown) => void
@@ -86,9 +86,9 @@ export interface EventIdOptions {
 }
 
 /**
- * Rewrite a snapshot persisted by an older flow version. Called only when the
- * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
- * incompatible); the result is stamped with the flow's current version and validated like any
+ * Rewrite a snapshot persisted by an older wizard version. Called only when the
+ * snapshot's `wizard.version` differs from the wizard's (a `wizard.name` mismatch is always
+ * incompatible); the result is stamped with the wizard's current version and validated like any
  * snapshot (`renameSteps` rewrites renamed step ids). May return a promise — then only
  * `wizard.resumeAsync` accepts it.
  */
@@ -118,7 +118,7 @@ export interface WizardRuntime {
   /** Pure query: the view's `input` boundary + `validate` hook over the current draft; no events. */
   validate(step: string): Promise<readonly Issue[]>
   /**
-   * External event through the flow's event boundary. Unknown event name → `WizardError('UNKNOWN_EVENT')`.
+   * External event through the wizard's event boundary. Unknown event name → `WizardError('UNKNOWN_EVENT')`.
    * A remembered `eventId` is a duplicate: `{ ok: true, duplicate: true, delivered: [] }`, nothing changes.
    */
   send(event: string, payload: unknown, options?: SendOptions): Promise<SendResult>
@@ -129,7 +129,7 @@ export interface WizardRuntime {
   startReady(): Promise<CommandResult>
   compensate(options?: { readonly from?: string; readonly reason?: string }): Promise<CommandResult>
   reset(): Promise<CommandResult>
-  /** Skip a ready or active step that does not complete the flow. */
+  /** Skip a ready or active step that does not complete the run. */
   skip(step: string, reason?: string): Promise<CommandResult>
   /** A done/failed/skipped step returns to idle; `cascade` (default true) follows `needs` dependents. */
   invalidate(step: string, options?: { readonly cascade?: boolean }): Promise<CommandResult>
@@ -139,7 +139,7 @@ export interface WizardRuntime {
    * `dispose()` the source is never called and the returned function is a no-op.
    */
   attach(source: (send: WizardRuntime['send']) => () => void): () => void
-  /** `{ done, total, ratio }` over steps that do not complete the flow. */
+  /** `{ done, total, ratio }` over steps that do not complete the run. */
   progress(): Progress
   /** The current view plus every ready view, in declaration order. */
   readyViews(): readonly string[]
@@ -169,7 +169,7 @@ export interface WizardRuntime {
   /** Event listeners: every event of this run and its children (`event.path`). */
   observe(listener: (event: DomainEvent) => void): () => void
   log(): readonly DomainEvent[]
-  /** Live nested runtime of a `flow` step. Throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE` (also after `dispose()`). */
+  /** Live nested runtime of a `child` step. Throws `NOT_A_CHILD_STEP` / `NOT_ACTIVE` (also after `dispose()`). */
   child(step: string, keyOrIndex?: number | string): WizardRuntime
   /** Write a snapshot now (no-op without a store). */
   save(): Promise<void>
@@ -238,7 +238,7 @@ export interface ResumePlan {
 }
 
 export type RestoreChild = (
-  def: CompiledFlow,
+  def: CompiledWizard,
   plan: ResumePlan,
   cfg: RuntimeConfig,
   path: readonly string[],

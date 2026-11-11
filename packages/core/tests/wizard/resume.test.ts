@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CompiledFlow } from '../../src/authoring/compiled'
+import type { CompiledWizard } from '../../src/authoring/compiled'
 import { WizardError } from '../../src/errors'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
@@ -44,7 +44,7 @@ const twoViews = flow({
   },
 })
 
-async function running(def: CompiledFlow = twoViews) {
+async function running(def: CompiledWizard = twoViews) {
   const o = baseOpts()
   const run = createWizardRuntime(def, { ...o, context: { tenant: 't' }, instanceId: 'orig' })
   await run.start()
@@ -52,7 +52,7 @@ async function running(def: CompiledFlow = twoViews) {
   return { run, snap: run.getSnapshot(), o }
 }
 
-const resumeErr = (def: CompiledFlow, input: unknown, opts = baseOpts()) => {
+const resumeErr = (def: CompiledWizard, input: unknown, opts = baseOpts()) => {
   try {
     resumeWizardRuntime(def, input, opts)
   } catch (error) {
@@ -62,7 +62,7 @@ const resumeErr = (def: CompiledFlow, input: unknown, opts = baseOpts()) => {
 }
 
 describe('resumeWizardRuntime', () => {
-  it('restores state from a JSON round trip, bumps epoch, keeps the id and emits flow.resumed', async () => {
+  it('restores state from a JSON round trip, bumps epoch, keeps the id and emits run.resumed', async () => {
     const { run, snap } = await running()
     expect(snap.state.current).toBe('b')
     const events: DomainEvent[] = []
@@ -70,9 +70,9 @@ describe('resumeWizardRuntime', () => {
     const resumed = resumeWizardRuntime(twoViews, roundTrip(snap), o)
     resumed.observe((e) => events.push(e))
     // observe() attached after construction: the resume batch already happened → check the log.
-    expect(types(resumed.log())).toEqual(['flow.resumed'])
+    expect(types(resumed.log())).toEqual(['run.resumed'])
     expect(resumed.log()[0]).toMatchObject({
-      type: 'flow.resumed',
+      type: 'run.resumed',
       fromSeq: snap.seq,
       seq: snap.seq + 1,
     })
@@ -115,11 +115,11 @@ describe('resumeWizardRuntime', () => {
 
   it('throws SNAPSHOT_INCOMPATIBLE with one reason per problem', async () => {
     const { snap } = await running()
-    const bad = resumeErr(twoViews, { ...snap, v: 2, flow: { name: 'other', version: 1 } })
+    const bad = resumeErr(twoViews, { ...snap, v: 2, wizard: { name: 'other', version: 1 } })
     expect(bad).toBeInstanceOf(WizardError)
     expect(bad.code).toBe('SNAPSHOT_INCOMPATIBLE')
     expect(bad.issues?.map((i) => i.message)).toEqual(
-      expect.arrayContaining(['v: expected 1, got 2', "flow.name: expected 'nav', got 'other'"]),
+      expect.arrayContaining(['v: expected 1, got 2', "wizard.name: expected 'nav', got 'other'"]),
     )
     expect(bad.message).toContain('SNAPSHOT_INCOMPATIBLE'.length > 0 ? 'not compatible' : '')
 
@@ -177,12 +177,12 @@ describe('resumeWizardRuntime', () => {
     expect(Object.keys(snap.state.timers)).toEqual(['wait:w'])
     run.dispose()
 
-    // `plan` re-arms every `S.timers` entry on flow.resumed (overdue → now).
+    // `plan` re-arms every `S.timers` entry on run.resumed (overdue → now).
     const o2 = baseOpts({
       plan: (env, S, batch, base) => {
         const out: Effect[] = [...base()]
         for (const ev of batch) {
-          if (ev.type !== 'flow.resumed') continue
+          if (ev.type !== 'run.resumed') continue
           for (const [timerId, t] of Object.entries(S.timers)) {
             out.push({
               kind: 'timer.set',
@@ -220,7 +220,7 @@ describe('resumeWizardRuntime', () => {
     const parent = flow({
       name: 'parent',
       steps: {
-        f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
+        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
         end: { kind: 'step' },
       },
     })
@@ -245,13 +245,13 @@ describe('resumeWizardRuntime', () => {
   })
 
   it('an active flow step with no persisted child has its summary stripped so the machine re-creates it', async () => {
-    // (The re-creation itself — plan(flow.resumed) → childContext → child.create — is proven
-    // against the real machine in e2e-resume.test.ts; the toy machine only emits flow.resumed.)
+    // (The re-creation itself — plan(run.resumed) → childContext → child.create — is proven
+    // against the real machine in e2e-resume.test.ts; the toy machine only emits run.resumed.)
     const child = flow({ name: 'child', steps: { w: { kind: 'step', hooks: { waitFor: {} } } } })
     const parent = flow({
       name: 'parent',
       steps: {
-        f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
+        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
         end: { kind: 'step' },
       },
     })
@@ -287,7 +287,7 @@ describe('resumeWizardRuntime', () => {
     const parent = flow({
       name: 'parent',
       steps: {
-        f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
+        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
         end: { kind: 'step' },
       },
     })

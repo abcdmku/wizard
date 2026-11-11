@@ -45,7 +45,7 @@ const resumed = approval.resume(await store.get(key), {
   scheduler: sched2,
 })
 resumed.observe((event) => {
-  if (event.type === 'timer.fired' || event.type === 'step.done' || event.type === 'flow.done')
+  if (event.type === 'timer.fired' || event.type === 'step.done' || event.type === 'run.done')
     console.log(
       `process 2: seq ${event.seq} ${event.type}${'step' in event ? ` ${event.step}` : ''}`,
     )

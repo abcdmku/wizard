@@ -1,12 +1,12 @@
 /**
- * Quiescence: when a drained run can finish (`flow.done`), and when it is stuck because a join
+ * Quiescence: when a drained run can finish (`run.done`), and when it is stuck because a join
  * waits on steps that nothing can complete any more (the join fails `DEPS_UNREACHABLE`).
  * The interpreter sends `settle` when `settles(def, state)` holds and nothing is in flight.
  *
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import { unmetNeeds } from './needs'
 import { depsSatisfied } from './selectors'
 import type { WizardState } from './state'
@@ -24,7 +24,7 @@ function quiescent(state: WizardState): boolean {
 }
 
 /** No activated work remains; unselected branches do not prevent completion. */
-export function canFinish(_def: CompiledFlow, state: WizardState): boolean {
+export function canFinish(_def: CompiledWizard, state: WizardState): boolean {
   const index = stepIndex(state.steps)
   return (
     quiescent(state) &&
@@ -46,7 +46,7 @@ export interface StuckJoin {
  * first such join in arrival order (undefined = not stuck). `routers` are the decided steps
  * whose declared `targets` named one of those producers.
  */
-export function stuckJoin(def: CompiledFlow, state: WizardState): StuckJoin | undefined {
+export function stuckJoin(def: CompiledWizard, state: WizardState): StuckJoin | undefined {
   const index = stepIndex(state.steps)
   if (!quiescent(state) || index.whenPending > 0) return undefined
   if (index.pending.some((id) => depsSatisfied(def, state, id))) return undefined
@@ -66,6 +66,6 @@ export function stuckJoin(def: CompiledFlow, state: WizardState): StuckJoin | un
 }
 
 /** The drained run has something to settle: it can finish, or a join is stuck. */
-export function settles(def: CompiledFlow, state: WizardState): boolean {
+export function settles(def: CompiledWizard, state: WizardState): boolean {
   return canFinish(def, state) || stuckJoin(def, state) !== undefined
 }

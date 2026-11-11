@@ -5,13 +5,13 @@
  * @internal
  */
 
-import type { CompiledFlow, HookArgs } from '../authoring/compiled'
+import type { CompiledWizard, HookArgs } from '../authoring/compiled'
 import type { ContextUpdater } from '../machine/commands'
 import type { WizardState } from '../machine/state'
 import { setOwn } from '../machine/util'
 
 interface BuildHookArgsInput {
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   readonly path: readonly string[]
   readonly instanceId: string
   readonly deps: unknown

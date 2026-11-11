@@ -1,10 +1,10 @@
 /** Progress follows only explicitly allowed steps, at the actual child definition depth. */
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import { isPlainObject } from '../machine/util'
 
 export function exposesProgress(
   projection: { readonly expose: unknown; readonly progress: unknown },
-  definition: CompiledFlow,
+  definition: CompiledWizard,
   path: readonly string[],
   step: string,
 ): boolean {

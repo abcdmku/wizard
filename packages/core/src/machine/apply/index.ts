@@ -4,7 +4,7 @@
  * `updatedAt` and `seq` after EVERY event.
  *
  * `apply` never emits events and never looks at hooks; it only reads the
- * compiled flow for structural facts (kind, needs, initial input, which
+ * compiled wizard for structural facts (kind, needs, initial input, which
  * steps have a `compensate` hook).
  *
  * @internal
@@ -15,7 +15,7 @@ import type { WizardState } from '../state'
 import type { MachineEnv } from '../types'
 import { omit } from '../util'
 import { applyData } from './data'
-import { applyFlow } from './flow'
+import { applyLifecycle } from './lifecycle'
 import { withNav } from './patch'
 import { applyRun, applySaga } from './run'
 import { deriveStatus } from './status'
@@ -26,7 +26,7 @@ export { deriveStatus } from './status'
 
 function reduce(env: MachineEnv, state: WizardState, ev: DomainEvent): WizardState {
   const type = ev.type
-  if (type.startsWith('flow.')) return applyFlow(env, state, ev)
+  if (type.startsWith('run.')) return applyLifecycle(env, state, ev)
   if (type.startsWith('transition.')) return applyTransition(env, state, ev)
   if (type.startsWith('step.compensat')) return applySaga(env, state, ev)
   if (
@@ -47,8 +47,8 @@ function reduce(env: MachineEnv, state: WizardState, ev: DomainEvent): WizardSta
  * settled hook restarts it too (`Batch.hopBoundary` → `transition.started.hops`).
  */
 const HOP_RESET_EVENTS: ReadonlySet<DomainEvent['type']> = new Set([
-  'flow.started',
-  'flow.resumed',
+  'run.started',
+  'run.resumed',
   'event.received',
   'event.rejected',
   'input.changed',
@@ -63,7 +63,7 @@ function resetHops(state: WizardState, event: DomainEvent): WizardState {
 
 export function apply(env: MachineEnv, state: WizardState, event: DomainEvent): WizardState {
   const reduced = resetHops(reduce(env, state, event), event)
-  if (event.type === 'flow.reset') {
+  if (event.type === 'run.reset') {
     return { ...reduced, seq: event.seq, updatedAt: event.at }
   }
   const current =

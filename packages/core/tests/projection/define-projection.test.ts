@@ -27,7 +27,7 @@ const flow = defineWizard(
     name: 'root',
     context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
   },
-  ({ step, view, flow, steps }) =>
+  ({ step, view, child, steps }) =>
     steps(
       {
         form: view({ input: z.object({ address: z.string() }), next: 'reserve' }),
@@ -35,7 +35,7 @@ const flow = defineWizard(
           run: async () => ({ reservationId: 'r' }),
           next: 'sub',
         }),
-        sub: flow(childFlow, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
+        sub: child(childFlow, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
         done: step({ run: () => ({ receipt: 1 }) }),
       },
       { start: 'form' },
@@ -46,16 +46,16 @@ describe('defineProjection', () => {
     const projection = defineProjection(flow, { expose: { context: ['total'] } })
     expect(projection).toEqual({
       '~types': undefined,
-      flow,
+      wizard: flow,
       expose: { context: ['total'] },
       select: undefined,
     })
-    expect(projection.flow).toBe(flow)
-    expect(defineProjection(childFlow, { expose: {} }).flow).toBe(childFlow)
+    expect(projection.wizard).toBe(flow)
+    expect(defineProjection(childFlow, { expose: {} }).wizard).toBe(childFlow)
     const select = (state: { seq: number }) => state.seq
     expect(defineProjection(flow, { select })).toEqual({
       '~types': undefined,
-      flow,
+      wizard: flow,
       expose: undefined,
       select,
     })
@@ -84,7 +84,7 @@ describe('defineProjection', () => {
         name: 'root',
         context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
       },
-      ({ step, view, flow, steps }) =>
+      ({ step, view, child, steps }) =>
         steps(
           {
             form: view({ input: z.object({ address: z.string() }), next: 'reserve' }),
@@ -92,7 +92,7 @@ describe('defineProjection', () => {
               run: async () => ({ reservationId: 'r' }),
               next: 'sub',
             }),
-            sub: flow(childFlow, {
+            sub: child(childFlow, {
               context: () => ({ n: 1, childSecret: 's' }),
               next: 'done',
             }),

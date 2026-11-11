@@ -97,7 +97,7 @@ expectTypeOf(authenticated.message).toMatchTypeOf<ClientMessage>()
 declare const viewer: Viewer
 declare const dungeonState: DungeonState
 declare const parsedDungeonState: ParsedDungeonState
-declare const run: Run<typeof dungeonProjection.flow>
+declare const run: Run<typeof dungeonProjection.wizard>
 expectTypeOf<ProjectionScope<typeof dungeonProjection>>().toEqualTypeOf<Viewer>()
 expectTypeOf(run.project(dungeonProjection, viewer)).toEqualTypeOf<PlayerProjection>()
 // @ts-expect-error The dungeon projection requires an immutable Viewer scope.

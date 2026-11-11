@@ -6,7 +6,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import { describeError, WizardError } from '../../errors'
 import type { ChildFactory } from '../../interpreter/child'
 import { createInterpreter, type Interpreter } from '../../interpreter/interpreter'
@@ -24,7 +24,7 @@ import { createTxTracker, type TxTracker } from './transactions'
 import type { BuildInit, ResumePlan, RuntimeConfig, WizardRuntime } from './types'
 
 export interface RuntimeContext {
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   readonly cfg: RuntimeConfig
   readonly init: BuildInit
   readonly instanceId: string
@@ -57,7 +57,7 @@ export interface RuntimeContext {
 }
 
 export function createContext(
-  def: CompiledFlow,
+  def: CompiledWizard,
   cfg: RuntimeConfig,
   init: BuildInit,
   childFactory: (ctx: () => RuntimeContext) => ChildFactory<WizardRuntime, ResumePlan>,

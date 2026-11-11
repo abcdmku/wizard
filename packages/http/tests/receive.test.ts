@@ -125,7 +125,7 @@ describe('signed receivers', () => {
     const http = receiver(() => run)
     const early = await http.fetch(await delivery())
     expect([early.status, early.headers.get('retry-after')]).toEqual([409, '1'])
-    expect(await early.json()).toMatchObject({ code: 'FLOW_NOT_STARTED' })
+    expect(await early.json()).toMatchObject({ code: 'RUN_NOT_STARTED' })
     await run.start()
     await run.setInput('review', { note: 'gift' })
     await run.next()

@@ -1,30 +1,30 @@
 /**
- * `toMermaid(graph)` — render a manifest (from `inspect(flow)`) as a Mermaid `flowchart TD`
- * titled with the flow name. Pure text; paste it into any Mermaid renderer.
+ * `toMermaid(graph)` — render a manifest (from `inspect(wizard)`) as a Mermaid `flowchart TD`
+ * titled with the wizard name. Pure text; paste it into any Mermaid renderer.
  *
  * @packageDocumentation
  */
 
 import { duration, Ids, quote, shape } from './mermaid-syntax'
-import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from './types'
+import type { Manifest, ManifestEdge, ManifestStep } from './types'
 
 /**
  * Render a manifest as Mermaid: one node per step (text = `label` or id, shape by kind: view
- * `[…]`, step `[[…]]`, flow `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
- * retries, run timeout, `compensable`), a start circle per flow, solid `next` edges, dashed
+ * `[…]`, step `[[…]]`, child `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
+ * retries, run timeout, `compensable`), a start circle per wizard, solid `next` edges, dashed
  * `route` edges to declared targets (a dashed edge to `?` when targets are undeclared),
  * named `needs` labels on joins (merged with activation edges),
- * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child flow
- * in a `subgraph` titled with its flow name. Deterministic for a given manifest.
+ * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child wizard
+ * in a `subgraph` titled with its wizard name. Deterministic for a given manifest.
  * @public
  */
-export function toMermaid(graph: FlowGraph): string {
+export function toMermaid(graph: Manifest): string {
   const ids = new Ids()
-  const flows = groupByPath(graph)
+  const groups = groupByPath(graph)
   const lines: string[] = ['---', `title: ${JSON.stringify(graph.name)}`, '---', 'flowchart TD']
-  // Nodes and edges of a flow are declared inside its subgraph (root flow: top level).
+  // Nodes and edges of a wizard are declared inside its subgraph (root wizard: top level).
   const render = (path: readonly string[], indent: string): void => {
-    const group = flows.get(key(path))
+    const group = groups.get(key(path))
     if (group === undefined) return
     const nodeId = (id: string): string => ids.of([...path, id])
     const waitTimeouts = new Set(group.edges.flatMap((e) => (e.kind === 'timeout' ? [e.from] : [])))
@@ -50,11 +50,11 @@ export function toMermaid(graph: FlowGraph): string {
         lines.push(`${indent}${nodeId(node.id)} -.-> ${q}{"?"}`)
       }
     }
-    // Child flows: a subgraph per flow step that has one, linked from its step.
+    // Child wizards: a subgraph per child step that has one, linked from its step.
     for (const node of group.nodes) {
       const childPath = [...path, node.id]
-      if (node.kind !== 'flow' || !flows.has(key(childPath))) continue
-      const sg = ids.of([...childPath, '$flow'])
+      if (node.kind !== 'child' || !groups.has(key(childPath))) continue
+      const sg = ids.of([...childPath, '$child'])
       lines.push(`${indent}subgraph ${sg} [${quote(node.child?.name ?? node.id)}]`)
       render(childPath, `${indent}  `)
       lines.push(`${indent}end`)
@@ -66,7 +66,7 @@ export function toMermaid(graph: FlowGraph): string {
 }
 
 /** The second text line of a node: `may skip`, retries, run timeout, `compensable`. */
-function tagLine(node: FlowGraphNode, waitTimeout: boolean): string[] {
+function tagLine(node: ManifestStep, waitTimeout: boolean): string[] {
   const tags: string[] = []
   if (node.hooks.includes('when')) tags.push('may skip')
   if (node.retry !== undefined)
@@ -93,7 +93,7 @@ interface Link {
 interface Pair {
   readonly from: string
   readonly to: string
-  readonly kinds: Set<FlowGraphEdge['kind']>
+  readonly kinds: Set<ManifestEdge['kind']>
 }
 
 /**
@@ -143,11 +143,11 @@ function pairLink(group: Group, { from, to, kinds }: Pair): Link {
 }
 
 interface Group {
-  readonly nodes: FlowGraphNode[]
-  readonly edges: FlowGraphEdge[]
+  readonly nodes: ManifestStep[]
+  readonly edges: ManifestEdge[]
 }
 
-function groupByPath(graph: FlowGraph): Map<string, Group> {
+function groupByPath(graph: Manifest): Map<string, Group> {
   const groups = new Map<string, Group>()
   const groupOf = (path: readonly string[]): Group => {
     const k = key(path)

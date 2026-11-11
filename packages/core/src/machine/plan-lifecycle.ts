@@ -35,7 +35,7 @@ export function planKindStart(
       )
         out.push(call(env, rec, 'idempotencyKey', { extra: { attempt: 1 } }))
       return
-    case 'flow':
+    case 'child':
       if (rec.child === undefined) out.push(call(env, rec, 'childContext'))
       return
     default:
@@ -51,7 +51,7 @@ export function planCompensate(
 ): void {
   const inFlight = state.saga.inFlight
   if (inFlight === undefined || inFlight.step !== rec.id) return
-  if (rec.kind === 'flow') {
+  if (rec.kind === 'child') {
     out.push({ kind: 'child.send', step: rec.id, command: { type: 'compensate' } })
     return
   }

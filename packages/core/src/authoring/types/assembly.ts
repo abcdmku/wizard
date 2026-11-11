@@ -1,5 +1,5 @@
 /** Validate refs only after the real steps map exists. */
-import type { BoundTo, FlowStep, Links, SinkRole, Step, StepLike } from './step'
+import type { BoundTo, Links, SinkRole, Step, StepLike, WizardStep } from './step'
 import type { NeedStep, NeedSteps } from './step-inference'
 
 export type StepError<M> = { readonly [P in M & string]: never }
@@ -57,7 +57,7 @@ type StepProblem<T, K extends string, C, Ev, D> = T[K & keyof T] extends {
   ? [B] extends [BoundTo<C, Ev, D> | undefined]
     ? LinkProblem<T, K, NonNullable<L>>
     : `step '${K}' is bound to a different context/events/deps than this wizard`
-  : `'${K}' is not a step: create it with step(), view() or flow()`
+  : `'${K}' is not a step: create it with step(), view() or child()`
 /** Each invalid property gets an error whose first key is the diagnostic message. */
 export type CheckSteps<T, C, Ev, D> = {
   readonly [K in keyof T]: StepProblem<T, K & string, C, Ev, D> extends infer P
@@ -111,4 +111,4 @@ export type RoleOf<T, K extends keyof T> =
           ? 'maybe'
           : 'sink'
 export type CompactStep<S, Role extends SinkRole> =
-  S extends Step<infer K, infer X, infer _L, infer _B> ? FlowStep<K, X, Role> : never
+  S extends Step<infer K, infer X, infer _L, infer _B> ? WizardStep<K, X, Role> : never

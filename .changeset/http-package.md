@@ -5,7 +5,7 @@
 `@openwizard/webhooks` is now `@openwizard/http` (entries `.`, `./client`, `./nitro`; `./sse` folded
 into `./client`). One assembler serves a wizard over HTTP from any `Request → Response` runtime:
 
-- `createHTTP(flow, { runs, auth, access, projection?, receive?, idempotency?, cors?, onError? })`
+- `createHTTP(wizard, { runs, auth, access, projection?, receive?, idempotency?, cors?, onError? })`
   returns `{ fetch(request), openAPI(info) }`. `runs`, `auth` and `access` turn the run API on
   together; access is deny-by-default (an empty `access` throws). Routes: `POST /api/<id>` (create),
   `GET /:runId`, `GET /:runId/steps/:step`, `GET /:runId/stream` (SSE frames),
@@ -18,7 +18,7 @@ into `./client`). One assembler serves a wizard over HTTP from any `Request → 
   after the run is found. A repeat replays the run's first answer, refusals included. A throw or a
   refusal the run never recorded releases the key, so the retry reaches the run: a durable host's
   lease or dedupe gate, a disposed run (`503 RUN_UNAVAILABLE`), or an event sent before `start()`
-  (`409 FLOW_NOT_STARTED`, with `Retry-After`). The run dedupes on a
+  (`409 RUN_NOT_STARTED`, with `Retry-After`). The run dedupes on a
   SHA-256 of the scoped key (the event id; on a durable host also the command id, with a body
   digest), so one key on two routes, APIs or receivers never collides, across processes too. A
   durable command whose worker stopped mid-apply answers `409 IDEMPOTENCY_INTERRUPTED`: read the
@@ -35,7 +35,7 @@ into `./client`). One assembler serves a wizard over HTTP from any `Request → 
 - A durable host (`@openwizard/durable`) returned from `runs.get` or `resolve` is used through its
   lease and dedupe gates; its boundary rejection answers 422 and a busy host 503.
 - `createWebhookSubscriptions({ id, events, store, auth, ... })` publishes only the declared public
-  events (the flow-event form and its `'inherit'` of internal machine events are removed); routes
+  events (the form that forwarded run events and its `'inherit'` of internal machine events are removed); routes
   live under `/subscriptions/<id>`; create and rotate answer `{ ok, data: { ...subscription, secret } }`.
   Deliveries are signed with `signWebhook` (Web Crypto; no `standardwebhooks` dependency).
 - OpenAPI 3.1: named components from the wizard's schemas (`<Id>Input`, `<Id><Event>Payload`,

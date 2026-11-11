@@ -140,10 +140,10 @@ describe('fan-out atomicity and cursor rules', () => {
       const r = h.ok(call, target)
       last = r.state
       hops++
-      if (r.types.includes('flow.failed')) break
+      if (r.types.includes('run.failed')) break
     }
     expect(last.status).toBe('failed')
-    expect(of(h.log, 'flow.failed')[0]?.code).toBe('AUTO_ADVANCE_LOOP')
+    expect(of(h.log, 'run.failed')[0]?.code).toBe('AUTO_ADVANCE_LOOP')
     expect(hops).toBeGreaterThan(999)
     expect(hops).toBeLessThan(1010)
   })
@@ -166,7 +166,7 @@ describe('fan-out atomicity and cursor rules', () => {
     }
     expect(h.state.status).toBe('waiting')
     expect(h.state.nav.hops).toBe(2) // w → t → w since the last send
-    expect(h.log.some((e) => e.type === 'flow.failed')).toBe(false)
+    expect(h.log.some((e) => e.type === 'run.failed')).toBe(false)
   })
 
   it('a non-view completion while a transition is in flight is deferred until nav idles', () => {
@@ -344,7 +344,7 @@ describe('review follow-ups — atomic multi-target entry, go after back', () =>
     )
     h2.start()
     h2.ok(h2.call('run', 't'), 1)
-    expect(h2.err(h2.call('enter'), 'no').types).toEqual(['step.failed', 'flow.halted'])
+    expect(h2.err(h2.call('enter'), 'no').types).toEqual(['step.failed', 'run.halted'])
   })
 
   it('A → B → C → back to B → go(C): C is reachable because it was visited (history is only the back-stack)', () => {

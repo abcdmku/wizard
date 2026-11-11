@@ -1,6 +1,6 @@
 # OpenTelemetry
 
-`@openwizard/opentelemetry` turns a run's event stream into workflow, step-attempt, compensation, and nested-flow spans. You need it when an OpenTelemetry pipeline already exists and should show run timing and failures.
+`@openwizard/opentelemetry` turns a run's event stream into workflow, step-attempt, compensation, and nested run spans. You need it when an OpenTelemetry pipeline already exists and should show run timing and failures.
 
 ```sh
 npm install @openwizard/opentelemetry @opentelemetry/api
@@ -10,7 +10,7 @@ npm install @openwizard/opentelemetry @opentelemetry/api
 ```
 
 1. `instrumentRun(run)` subscribes to the run's events before `start()` so it sees the whole lifecycle.
-2. The workflow span opens on start; step attempts and child flows become child spans.
+2. The workflow span opens on start; step attempts and child runs become child spans.
 3. Failures set the span status; successes leave it unset unless `successStatus` is on.
 4. `telemetry.stop()` ends open spans and unsubscribes.
 5. Dispose the run after stopping instrumentation.
@@ -23,7 +23,7 @@ npm install @openwizard/opentelemetry @opentelemetry/api
 | `tracer`, `parentContext` | Tracer to use; parent of the root workflow span |
 | `resumeContext` | Context from an earlier process, added as a span link |
 | `recordEvents` | `'none'`, `'lifecycle'` (default), or `'all'` |
-| `children`, `instanceId`, `onError` | Trace child flows; instance id handling; adapter error hook |
+| `children`, `instanceId`, `onError` | Trace child runs; instance id handling; adapter error hook |
 | `span(path)`, `context(path)`, `inject()`, `extract()` | Read or propagate the current span context |
 | `send(event, payload, options?)` | Link the incoming trace context and forward `eventId` and `correlationId` to the run |
 

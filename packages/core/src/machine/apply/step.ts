@@ -3,7 +3,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import type { DomainEvent } from '../events'
 import { isTerminal } from '../selectors'
 import type { WizardState } from '../state'
@@ -33,7 +33,7 @@ function withoutDeferred(state: WizardState, step: string): WizardState {
  * flight continues (auto-advance) once `nav` is idle again: queue it in `nav.deferred`.
  */
 function deferContinuation(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   step: string,
   override: string | readonly string[] | undefined,

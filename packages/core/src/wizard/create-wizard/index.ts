@@ -4,18 +4,18 @@
  * are internal: `defineWizard` binds them to the wizard, and applications call the wizard's
  * methods.
  *
- * Each constructor compiles the flow (cached per flow object), pushes `context` (and `deps`,
- * when the flow declares a deps boundary) through their boundaries, and hands the untyped
+ * Each constructor compiles the wizard (cached per wizard object), pushes `context` (and `deps`,
+ * when the wizard declares a deps boundary) through their boundaries, and hands the untyped
  * `WizardRuntime` the pure machine. Every `Run` method is sugar over `dispatch(command)`, typed
- * by the flow (`Command<F>`). Untrusted input goes through `parseCommand(flow, unknown)` first.
+ * by the wizard (`Command<F>`). Untrusted input goes through `parseCommand(wizard, unknown)` first.
  * Results are values. `WizardError` is thrown only for programmer errors (see the runtime).
  *
  * @packageDocumentation
  */
 
 import { compile } from '../../authoring/compile'
-import type { CompiledFlow, RuntimeBoundary } from '../../authoring/compiled'
-import type { AnyFlow } from '../../authoring/types'
+import type { CompiledWizard, RuntimeBoundary } from '../../authoring/compiled'
+import type { AnyWizardDefinition } from '../../authoring/types'
 import { WizardError } from '../../errors'
 import { isThenable } from '../../interpreter/thenable'
 import { initialState, machine } from '../../machine'
@@ -34,7 +34,6 @@ import { typedOutcome, wrap } from './wrap'
 export type {
   CompensationFailure,
   CompensationSummary,
-  FlowFailure,
   RunCancelled,
   RunDone,
   RunFailed,
@@ -44,6 +43,7 @@ export type {
   RunResult,
   RunWaiting,
   StepFailure,
+  TerminalFailure,
   WaitingFor,
 } from '../results'
 export { RunLifecycleError } from '../results'
@@ -63,36 +63,39 @@ export {
 export type { ResumeOptions, Run, RunOptions, SnapshotMigration } from './wizard'
 
 /**
- * Behind `wizard.create`: parses `context` (and `deps`) through the flow's boundaries
- * synchronously, compiles the flow and builds a runtime. `start()` activates the entry steps.
+ * Behind `wizard.create`: parses `context` (and `deps`) through the wizard's boundaries
+ * synchronously, compiles the wizard and builds a runtime. `start()` activates the entry steps.
  */
-export function createRun<F extends AnyFlow>(flow: F, options: RunOptions<F>): Run<F> {
-  const def = compile(flow)
-  return wrap(createRuntime(def, options), flow, def)
+export function createRun<F extends AnyWizardDefinition>(
+  wizard: F,
+  options: RunOptions<F>,
+): Run<F> {
+  const def = compile(wizard)
+  return wrap(createRuntime(def, options), wizard, def)
 }
 
 /** Behind `wizard.createAsync`: like `createRun`, awaiting the context / deps boundaries. */
-export async function createRunAsync<F extends AnyFlow>(
-  flow: F,
+export async function createRunAsync<F extends AnyWizardDefinition>(
+  wizard: F,
   options: RunOptions<F>,
 ): Promise<Run<F>> {
-  const def = compile(flow)
+  const def = compile(wizard)
   const creation = prepareCreate(def, options)
   const context = await parseAsync(def.context, creation.context, 'context')
   const deps =
     def.deps === undefined ? creation.deps : await parseAsync(def.deps, creation.deps, 'deps')
-  return wrap(creation.runtime(context, deps), flow, def)
+  return wrap(creation.runtime(context, deps), wizard, def)
 }
 
 /**
  * Behind `wizard.run`: create, start, wait for the next outcome that needs the outside world
  * (`awaitOutcome`), dispose.
  */
-export async function runToOutcome<F extends AnyFlow>(
-  flow: F,
+export async function runToOutcome<F extends AnyWizardDefinition>(
+  wizard: F,
   options: RunOptions<F>,
 ): Promise<RunOutcome<F>> {
-  const run = await createRunAsync(flow, options)
+  const run = await createRunAsync(wizard, options)
   try {
     await run.start()
     return await run.awaitOutcome()
@@ -105,11 +108,11 @@ export async function runToOutcome<F extends AnyFlow>(
  * Behind `wizard.runSync`: the same outcome, computed synchronously under `strict: 'sync'`;
  * throws `SYNC_VIOLATION` naming the step when a hook returns a promise or a timer is needed.
  */
-export function runToOutcomeSync<F extends AnyFlow>(
-  flow: F,
+export function runToOutcomeSync<F extends AnyWizardDefinition>(
+  wizard: F,
   options: RunOptions<F>,
 ): RunOutcome<F> {
-  const runtime = createRuntime(compile(flow), { ...options, strict: 'sync' })
+  const runtime = createRuntime(compile(wizard), { ...options, strict: 'sync' })
   try {
     // start commits synchronous work before returning its command promise.
     void runtime.start()
@@ -120,45 +123,45 @@ export function runToOutcomeSync<F extends AnyFlow>(
 }
 
 /**
- * Behind `wizard.resume`: the envelope, flow identity, step set and every boundary are
+ * Behind `wizard.resume`: the envelope, wizard identity, step set and every boundary are
  * re-validated (`WizardError('SNAPSHOT_INCOMPATIBLE')` lists every reason); `epoch` increments;
- * interrupted work follows the recovery matrix. A snapshot of another flow `version` goes
+ * interrupted work follows the recovery matrix. A snapshot of another wizard `version` goes
  * through `options.migrate` first (else `SNAPSHOT_INCOMPATIBLE`).
  */
-export function resumeRun<F extends AnyFlow>(
-  flow: F,
+export function resumeRun<F extends AnyWizardDefinition>(
+  wizard: F,
   snapshot: unknown,
   options: ResumeOptions<F>,
 ): Run<F> {
-  const def = compile(flow)
+  const def = compile(wizard)
   const resumption = prepareResume(def, options)
   const deps =
     def.deps === undefined ? resumption.deps : parseSync(def.deps, resumption.deps, 'deps')
-  return wrap(resumeWizardRuntime(def, snapshot, resumption.options(deps)), flow, def)
+  return wrap(resumeWizardRuntime(def, snapshot, resumption.options(deps)), wizard, def)
 }
 
 /**
  * Behind `wizard.resumeAsync`: like `resumeRun`, for asynchronous boundaries (context, deps,
- * view inputs, run / flow outputs, event payloads). Every boundary is awaited BEFORE any runtime
+ * view inputs, run / wizard outputs, event payloads). Every boundary is awaited BEFORE any runtime
  * is constructed, so resume stays atomic (`SNAPSHOT_INCOMPATIBLE` lists every reason, nothing
  * runs on failure).
  */
-export async function resumeRunAsync<F extends AnyFlow>(
-  flow: F,
+export async function resumeRunAsync<F extends AnyWizardDefinition>(
+  wizard: F,
   snapshot: unknown,
   options: ResumeOptions<F>,
 ): Promise<Run<F>> {
-  const def = compile(flow)
+  const def = compile(wizard)
   const resumption = prepareResume(def, options)
   const deps =
     def.deps === undefined ? resumption.deps : await parseAsync(def.deps, resumption.deps, 'deps')
   const runtime = await resumeWizardRuntimeAsync(def, snapshot, resumption.options(deps))
-  return wrap(runtime, flow, def)
+  return wrap(runtime, wizard, def)
 }
 
 /** The runtime of a new run: `context` / `deps` through their synchronous boundaries. */
-function createRuntime<F extends AnyFlow>(
-  def: CompiledFlow,
+function createRuntime<F extends AnyWizardDefinition>(
+  def: CompiledWizard,
   options: RunOptions<F>,
 ): WizardRuntime {
   const creation = prepareCreate(def, options)
@@ -172,7 +175,7 @@ function createRuntime<F extends AnyFlow>(
  * with the definition's providers, and the runtime built from both once they are parsed. The
  * sync and async constructors differ only in how they parse.
  */
-function prepareCreate<F extends AnyFlow>(def: CompiledFlow, options: RunOptions<F>) {
+function prepareCreate<F extends AnyWizardDefinition>(def: CompiledWizard, options: RunOptions<F>) {
   const shared = runtimeOptions(options)
   const { context, deps, instanceId, correlationId } = options
   return {
@@ -190,7 +193,10 @@ function prepareCreate<F extends AnyFlow>(def: CompiledFlow, options: RunOptions
 }
 
 /** The resume counterpart of `prepareCreate`: merged `deps` and the options built from them. */
-function prepareResume<F extends AnyFlow>(def: CompiledFlow, options: ResumeOptions<F>) {
+function prepareResume<F extends AnyWizardDefinition>(
+  def: CompiledWizard,
+  options: ResumeOptions<F>,
+) {
   const shared = runtimeOptions(options)
   const { deps, migrate } = options
   return {
@@ -200,7 +206,7 @@ function prepareResume<F extends AnyFlow>(def: CompiledFlow, options: ResumeOpti
 }
 
 /** Snapshot every shared public option once, including inherited and non-enumerable values. */
-function runtimeOptions<F extends AnyFlow>(options: SharedOptions<F>) {
+function runtimeOptions<F extends AnyWizardDefinition>(options: SharedOptions<F>) {
   const out: Record<string, unknown> = { machine, initialState }
   for (const key of [
     'store',
@@ -253,7 +259,7 @@ function unwrap(result: Awaited<ReturnType<RuntimeBoundary['parse']>>, what: str
 }
 
 /** Providers are carried by the definition, including internal and adapter-created runs. */
-function mergeDeps(def: CompiledFlow, deps: unknown, supplied: boolean): unknown {
+function mergeDeps(def: CompiledWizard, deps: unknown, supplied: boolean): unknown {
   if (!supplied && deps === undefined && def.deps !== undefined) deps = {}
   return def.providedDeps === undefined
     ? deps

@@ -20,7 +20,7 @@ describe('toMermaid', () => {
       context: z.object({ cartId: z.string(), paymentId: z.string().optional() }),
       events: { 'payment.captured': z.object({ paymentId: z.string() }) },
     },
-    ({ step, view, flow, steps }) => {
+    ({ step, view, child, steps }) => {
       const reserve = step({
         run: async () => ({ reservationId: 'r' }),
         next: ['awaitPayment', 'audit'],
@@ -49,7 +49,7 @@ describe('toMermaid', () => {
             next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined'),
             targets: ['fulfil', 'declined'],
           }),
-          fulfil: flow(fulfilment, {
+          fulfil: child(fulfilment, {
             context: ({ context }) => ({ orderId: context.cartId }),
             next: 'receipt',
           }),
@@ -91,14 +91,14 @@ describe('toMermaid', () => {
         '  fulfil --> receipt',
         '  awaitPayment -.->|"timeout 15m"| expired',
         '  _event__payment_captured>"payment.captured"] -.-> awaitPayment',
-        '  subgraph fulfil___flow ["fulfilment"]',
+        '  subgraph fulfil___child ["fulfilment"]',
         '    fulfil__label[["label"]]',
         '    fulfil__done[["done"]]',
         '    fulfil___start((" "))',
         '    fulfil___start --> fulfil__label',
         '    fulfil__label --> fulfil__done',
         '  end',
-        '  fulfil -.->|"child"| fulfil___flow',
+        '  fulfil -.->|"child"| fulfil___child',
       ].join('\n'),
     )
   })
@@ -150,17 +150,17 @@ describe('toMermaid', () => {
   })
 
   it('entity-escapes labels and subgraph titles: line breaks become spaces, & < > # ; [ ] become entities', () => {
-    const child = defineWizard(
+    const childWizard = defineWizard(
       { name: 'inner', context: boundary.trusted<{}>() },
       ({ step, steps }) => steps({ 'a & b': step({ next: null }) }),
     )
     const hostile = defineWizard(
       { name: 'ho"stile', context: boundary.trusted<{}>() },
-      ({ step, view, flow, steps }) =>
+      ({ step, view, child, steps }) =>
         steps(
           {
             'line\r\nbreak\n<b>': view({ input: boundary.trusted<{}>(), next: 'sub[0]; #1' }),
-            'sub[0]; #1': flow(child, { context: () => ({}), next: 'end' }),
+            'sub[0]; #1': child(childWizard, { context: () => ({}), next: 'end' }),
             end: step({ next: null }),
           },
           { start: 'line\r\nbreak\n<b>' },
@@ -179,12 +179,12 @@ describe('toMermaid', () => {
         '  _start --> line__break__b_',
         '  line__break__b_ --> sub_0____1',
         '  sub_0____1 --> end_',
-        '  subgraph sub_0____1___flow ["inner"]',
+        '  subgraph sub_0____1___child ["inner"]',
         '    sub_0____1__a___b[["a #amp; b"]]',
         '    sub_0____1___start((" "))',
         '    sub_0____1___start --> sub_0____1__a___b',
         '  end',
-        '  sub_0____1 -.->|"child"| sub_0____1___flow',
+        '  sub_0____1 -.->|"child"| sub_0____1___child',
       ].join('\n'),
     )
   })

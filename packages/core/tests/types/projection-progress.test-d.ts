@@ -8,16 +8,16 @@ import { defineProjection, type ProjectionOutput } from '../../src/projection/de
 import type { Snapshot } from '../../src/wizard/create-wizard'
 import { defineWizard } from '../../src/wizard/define-wizard'
 
-const child = defineWizard(
+const childWizard = defineWizard(
   { name: 'progress-child', context: boundary.trusted<{ n: number }>() },
   ({ step, steps }) => steps({ work: step({ run: ({ context }) => context.n }) }),
 )
 const wizard = defineWizard(
   { name: 'progress-types', context: boundary.trusted<{ n: number }>() },
-  ({ step, flow, steps }) =>
+  ({ step, child, steps }) =>
     steps({
       load: step({ run: ({ context }) => context.n, next: 'sub' }),
-      sub: flow(child, { context: ({ context }) => ({ n: context.n }) }),
+      sub: child(childWizard, { context: ({ context }) => ({ n: context.n }) }),
     }),
 )
 

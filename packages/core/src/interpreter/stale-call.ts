@@ -4,7 +4,7 @@
  * is a handler call of a `send` whose delivery stopped before its turn (R6). Every one of those
  * only moves forward, so a call stale when its turn comes would have its result ignored: the
  * interpreter reports it aborted instead of running its side effect.
- * `flowOn` and `compensate` calls carry no step-run token and are otherwise never stale here.
+ * `wizardOn` and `compensate` calls carry no step-run token and are otherwise never stale here.
  * @internal
  */
 
@@ -15,7 +15,7 @@ import { deliveryCallStopped } from '../machine/wait-correlation'
 
 export function isStaleCall(state: WizardState, effect: CallEffect): boolean {
   if (deliveryCallStopped(state, effect.token)) return true
-  if (effect.hook === 'flowOn' || effect.hook === 'compensate') return false
+  if (effect.hook === 'wizardOn' || effect.hook === 'compensate') return false
   const { token } = effect
   const rec = state.steps[token.step]
   if (rec === undefined) return true

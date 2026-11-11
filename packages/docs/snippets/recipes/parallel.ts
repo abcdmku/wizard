@@ -1,7 +1,7 @@
 import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const dashboardFlow = defineWizard(
+export const dashboard = defineWizard(
   { name: 'dashboard', context: z.object({ userId: z.string() }) },
   ({ step, steps }) => {
     const loadProfile = step({ run: async () => ({ name: 'Ada' }) })

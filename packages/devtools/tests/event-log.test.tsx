@@ -28,7 +28,7 @@ describe('<EventLog source={run}>', () => {
     const seeded = run.log().length
     const { container } = render(<EventLog source={run} />)
     await waitFor(() => expect(counter(container)).toBe(`${seeded} events`))
-    expect(typesOf(container)[0]).toBe('flow.started')
+    expect(typesOf(container)[0]).toBe('run.started')
 
     await run.setInput('form', { name: 'ada' })
     await run.next()

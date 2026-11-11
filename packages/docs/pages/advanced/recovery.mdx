@@ -27,7 +27,7 @@ Retry deadlines appear in events and snapshots. Resume uses the remaining delay 
 
 ## Typed error data
 
-`mapError` returns a small JSON-safe value for application code. `ErrorOf<typeof syncInvoiceFlow, 'post'>` recovers its type. The record keeps it in `steps.post.error.data` alongside the serialized error message. A non-JSON mapper result fails the step.
+`mapError` returns a small JSON-safe value for application code. `ErrorOf<typeof syncInvoice, 'post'>` recovers its type. The record keeps it in `steps.post.error.data` alongside the serialized error message. A non-JSON mapper result fails the step.
 
 Raw thrown values may contain secrets or unstable library fields. Map the fields your UI or retry policy actually needs.
 
@@ -39,7 +39,7 @@ await run.retry('post', { patch: { amount: 125 } })
 
 `halted` is recoverable. The run keeps its error, attempt count, completed outputs, and log. `failed` is terminal, for example after the compensation policy ends a run. `awaitOutcome()` reports a halt; `awaitResult()` keeps waiting for a terminal result.
 
-For an `each` step, every item follows the retry policy independently. Exhausted items fail the step without discarding completed item results. An explicit retry reruns failed items rather than the whole collection. This applies to mapped child flows too: `run.retry('batch')` retains completed child outputs. `RetryStepId<typeof wizard>` includes runnable steps and mapped child-flow steps.
+For an `each` step, every item follows the retry policy independently. Exhausted items fail the step without discarding completed item results. An explicit retry reruns failed items rather than the whole collection. This applies to mapped child steps too: `run.retry('batch')` retains completed child outputs. `RetryStepId<typeof wizard>` includes runnable steps and mapped child step steps.
 
 ## Crash recovery needs service idempotency
 

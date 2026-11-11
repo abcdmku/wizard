@@ -1,5 +1,5 @@
 /**
- * `bindReact<T>()` — tRPC-style binding: the flow/projection is a TYPE parameter (a type-only
+ * `bindReact<T>()` — tRPC-style binding: the wizard/projection is a TYPE parameter (a type-only
  * import on the client), the live instance is supplied through `Provider`. Returns a `Provider`
  * and hooks typed by `T`, all built on `useSyncExternalStore` over the source's own
  * `subscribe`/`getSnapshot`: snapshot identities are stable per commit/frame, so
@@ -9,7 +9,7 @@
  * Server rendering reads the live source, on the server and during hydration: seed the client
  * source with the state the server rendered (`createMirror({ initial })`, `wizard.resume(snapshot)`).
  *
- * Child flows: `useChild(step)` returns hooks bound to the child slice — over a Mirror the
+ * Child runs: `useChild(step)` returns hooks bound to the child slice — over a Mirror the
  * `steps[step].child` slice of the projected state (exposed with `child: ExposeSpec`), over a
  * Run the selected child's state — and a scoped `MirrorChild`-shaped action set
  * (every command wrapped as `{ type: 'child', path, command }` through the source's `dispatch`).
@@ -18,7 +18,7 @@
  * @packageDocumentation
  */
 
-import type { AnyProjection, ChildFlowOf, IsEach, StepId } from '@openwizard/core'
+import type { AnyProjection, ChildWizardOf, IsEach, StepId } from '@openwizard/core'
 import {
   createContext,
   Fragment,
@@ -40,12 +40,12 @@ import type {
 import { childActions, type RawChildActions } from './child-actions'
 import { appendChild, type ChildPath, wirePath } from './child-path'
 import { stepResult, viewHelpers } from './step-helpers'
-import type { ActionsOf, BindTarget, CurrentOf, FlowOf, StateOf, UseStepResult } from './types'
+import type { ActionsOf, BindTarget, CurrentOf, StateOf, UseStepResult, WizardOf } from './types'
 
 const offline = (): boolean => false
 
 /**
- * Create a typed React binding for a flow or a projection. The type parameter is the only
+ * Create a typed React binding for a wizard or a projection. The type parameter is the only
  * link to the definition (`bindReact<typeof checkoutClient>()`); the live `Run` / `Mirror`
  * is supplied through `<Provider source={…}>`.
  * @public
@@ -128,7 +128,7 @@ export function bindReact<T extends BindTarget>(): BindingOf<T> {
     })
   }
 
-  function useStep<K extends StepId<FlowOf<T>>>(step: K): UseStepResult<T, K> {
+  function useStep<K extends StepId<WizardOf<T>>>(step: K): UseStepResult<T, K> {
     const adapter = useAdapter('useStep')
     const read = (state: RawState | null): unknown => {
       const record = state === null ? undefined : state.steps[step]
@@ -197,7 +197,7 @@ export function bindReact<T extends BindTarget>(): BindingOf<T> {
         const record = useSlice(adapter, (slice) => {
           if (slice === null) {
             throw new Error(
-              `${label}.useStep('${step}'): the child flow has no state yet (render it under a useSnapshot() !== null guard)`,
+              `${label}.useStep('${step}'): the child run has no state yet (render it under a useSnapshot() !== null guard)`,
             )
           }
           const found = slice.steps[step]
@@ -231,13 +231,13 @@ export function bindReact<T extends BindTarget>(): BindingOf<T> {
   }
 
   type ChildBindingOf<K extends ChildBindingId<T>> = ChildBinding<
-    ChildFlowOf<FlowOf<T>, K & StepId<FlowOf<T>>>,
+    ChildWizardOf<WizardOf<T>, K & StepId<WizardOf<T>>>,
     ChildStateOf<T, K>,
     T extends AnyProjection ? 'mirror' : 'run'
   >
   function useChild<K extends ChildBindingId<T>>(
     step: K,
-    ...[index]: true extends IsEach<FlowOf<T>, K & StepId<FlowOf<T>>>
+    ...[index]: true extends IsEach<WizardOf<T>, K & StepId<WizardOf<T>>>
       ? [index: number]
       : [index?: never]
   ): ChildBindingOf<K> {

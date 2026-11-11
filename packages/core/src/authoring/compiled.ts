@@ -1,9 +1,9 @@
 /**
- * CompiledFlow — the runtime representation of a flow definition.
+ * CompiledWizard — the runtime representation of a wizard definition.
  *
  * `defineWizard()` produces a typed `Wizard<…>`; compilation turns it
  * into this plain, untyped structure that the machine and interpreter consume.
- * Keeping the machine on `CompiledFlow` (not on the generic `Flow<F>`) means the
+ * Keeping the machine on `CompiledWizard` (not on the generic `WizardDefinition`) means the
  * engine never depends on user-level generics and can be tested with literals.
  *
  * @internal
@@ -12,7 +12,7 @@
 import type { Issue } from '../machine/state'
 import type { JsonValue } from './types/primitives'
 
-export type StepKind = 'step' | 'view' | 'flow'
+export type StepKind = 'step' | 'view' | 'child'
 
 export type MaybePromise<T> = T | Promise<T>
 
@@ -83,7 +83,7 @@ export interface HookArgs {
   readonly runId: number
   readonly idempotencyKey: string
   /**
-   * Patch the flow context (recorded as `context.changed`; JSON only). A function receives the
+   * Patch the wizard context (recorded as `context.changed`; JSON only). A function receives the
    * latest committed context and returns the patch, applied atomically.
    */
   update(patch: Record<string, unknown> | ((current: unknown) => unknown)): void
@@ -95,8 +95,8 @@ export interface HookArgs {
 
 export type Hook<R = unknown> = (args: HookArgs) => MaybePromise<R>
 
-/** Return contract for flow-level `on[event]` handlers: may cancel the flow. */
-export type FlowOnHandlerResult = void | undefined | { readonly cancel?: string }
+/** Return contract for wizard-level `on[event]` handlers: may cancel the run. */
+export type WizardOnHandlerResult = void | undefined | { readonly cancel?: string }
 
 /**
  * A step-level event handler's result reaches the machine raw. `waitFor` accepts
@@ -153,9 +153,9 @@ export interface CompiledStep {
     readonly on?: Readonly<Record<string, Hook<OnHandlerResult>>>
     readonly waitFor?: Readonly<Record<string, Hook<OnHandlerResult>>>
     readonly compensate?: Hook<void>
-    /** RAW `context` mapper of a flow step; the executor parses its value through `child.context` (once). */
+    /** RAW `context` mapper of a child step; the executor parses its value through `child.context` (once). */
     readonly childContext?: Hook<unknown>
-    /** RAW `deps` mapper of a flow step; the child bridge parses its value through `child.deps` (once) at creation. */
+    /** RAW `deps` mapper of a child step; the child bridge parses its value through `child.deps` (once) at creation. */
     readonly childDeps?: Hook<unknown>
     readonly childOutput?: Hook<unknown>
     /** Skip predicate evaluated when the step becomes ready (false → `step.skipped { reason: 'when' }`). */
@@ -173,11 +173,11 @@ export interface CompiledStep {
   /** Event timeout: after `afterMs` of being active, go to `next`. */
   readonly waitTimeout?: { readonly afterMs: number; readonly next: string }
   readonly expose: ExposeSpec
-  /** Child flow definition (kind === 'flow'). */
-  readonly child?: CompiledFlow
+  /** Child wizard definition (kind === 'child'). */
+  readonly child?: CompiledWizard
 }
 
-export interface CompiledFlow {
+export interface CompiledWizard {
   /** Pure final result selector; called after the interpreter drains. */
   readonly output?: (args: { readonly context: unknown }) => unknown
   /** Required: persistence identity together with `version`. */
@@ -194,8 +194,8 @@ export interface CompiledFlow {
   /** Dependencies bound by wizard.provide(); merged when creating this child. */
   readonly providedDeps?: Readonly<Record<string, unknown>>
   readonly events: Readonly<Record<string, RuntimeBoundary>>
-  /** Flow-level event handlers, run after step-level ones in the same batch. */
-  readonly on?: Readonly<Record<string, Hook<FlowOnHandlerResult>>>
+  /** Wizard-level event handlers, run after step-level ones in the same batch. */
+  readonly on?: Readonly<Record<string, Hook<WizardOnHandlerResult>>>
   /** Per-event correlation extractors; a mismatch with the run's `correlationId` drops the event. */
   readonly correlate?: Readonly<Record<string, (payload: unknown) => string | undefined>>
   readonly steps: Readonly<Record<string, CompiledStep>>
@@ -220,6 +220,6 @@ export interface CompiledFlow {
      */
     readonly compensationGraceMs?: number
   }
-  /** Runtime-only: identity used to detect a flow embedding one of its ancestors. */
+  /** Runtime-only: identity used to detect a wizard embedding one of its ancestors. */
   readonly identity: object
 }

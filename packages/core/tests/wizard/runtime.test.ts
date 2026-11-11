@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CompiledFlow } from '../../src/authoring/compiled'
+import type { CompiledWizard } from '../../src/authoring/compiled'
 import { WizardError } from '../../src/errors'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
@@ -16,7 +16,7 @@ import {
 } from '../helpers/fake-machine'
 
 function make(
-  def: CompiledFlow,
+  def: CompiledWizard,
   opts: Partial<WizardRuntimeOptions> = {},
   overrides: ToyOverrides = {},
 ) {
@@ -123,8 +123,8 @@ describe('run runtime: dispatch result mapping', () => {
     expect(run.getState().status).toBe('cancelled')
     expect(await run.next()).toMatchObject({
       ok: false,
-      reason: 'flow-terminal',
-      code: 'FLOW_TERMINAL',
+      reason: 'run-terminal',
+      code: 'RUN_TERMINAL',
     })
   })
 })
@@ -177,8 +177,8 @@ describe('run runtime: navigation promises', () => {
     const { run } = make(def)
     expect(await run.next()).toMatchObject({
       ok: false,
-      reason: 'flow-not-started',
-      code: 'FLOW_NOT_STARTED',
+      reason: 'run-not-started',
+      code: 'RUN_NOT_STARTED',
     })
     await run.start()
     void run.next() // hangs in canExit

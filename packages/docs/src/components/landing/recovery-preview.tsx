@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Webhook,
 } from 'lucide-react'
-import { STEP_NAMES } from './order-flow'
+import { STEP_NAMES } from './order-wizard'
 import { type DemoPhase, type LiveRun, useLiveRun } from './use-live-run'
 
 const PHASES: readonly { readonly id: DemoPhase; readonly tab: string }[] = [
@@ -40,7 +40,7 @@ function narrative(live: LiveRun) {
         icon: Play,
         title: 'A real run, in this tab',
         detail:
-          'Start creates a run of a four-step order flow with @openwizard/core. Only the payment provider is fake.',
+          'Start creates a run of a four-step order wizard with @openwizard/core. Only the payment provider is fake.',
         note: 'The provider takes a few seconds to answer. That is your window to pull the plug.',
         action: { label: 'Start run', onClick: live.start, icon: ChevronRight },
       }

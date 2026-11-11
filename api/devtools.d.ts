@@ -1,6 +1,6 @@
-import { FlowGraph as FlowGraph$1, FlowGraphEdge, FlowGraphNode } from "@openwizard/core/inspect";
+import { Manifest, ManifestEdge, ManifestStep } from "@openwizard/core/inspect";
 import { CSSProperties, ReactElement } from "react";
-import { AnyFlow, Explanation, RunEvent, Snapshot, StepKind, StepStatus } from "@openwizard/core";
+import { AnyWizardDefinition, Explanation, RunEvent, Snapshot, StepKind, StepStatus } from "@openwizard/core";
 import { ElkNode } from "elkjs/lib/elk-api";
 //#region src/types.d.ts
 /**
@@ -24,14 +24,14 @@ interface StepStatusInfo {
   readonly phase?: StepPhase;
 }
 /**
- * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root flow,
+ * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root wizard,
  * `'fulfil/pick'` for an ordinary child or `'batch/0/pick'` for a mapped child). Built with
  * `collectStatuses()` from a run snapshot or a projected (`ClientState`) state, or by hand.
  * @public
  */
 type StepStatusMap = Readonly<Record<string, StepStatusInfo>>;
 /**
- * What a graph click reports: the step `id`, the run `path` of its flow and the combined
+ * What a graph click reports: the step `id`, the run `path` of its wizard and the combined
  * `key` (`stepKey(path, id)`).
  * Mapped children carry their input index after the owning step, e.g. `['batch', '0']`.
  * @public
@@ -49,23 +49,23 @@ interface GraphSelection {
 declare function stepKey(path: readonly string[], id: string): string;
 /**
  * A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by
- * flow-step id. `Run.getSnapshot()` of any flow returns one.
+ * child step id. `Run.getSnapshot()` of any wizard returns one.
  * @public
  */
 interface SnapshotLike {
-  readonly state: Snapshot<AnyFlow>['state'];
+  readonly state: Snapshot<AnyWizardDefinition>['state'];
   readonly children: Readonly<Record<string, SnapshotLike | undefined>>;
 }
 /**
- * The structural view of a `Run` the devtools read (`Run<F>` of any flow satisfies it):
- * identity, the flow, state / snapshot, the two subscriptions, the bounded log, `explain` and
+ * The structural view of a `Run` the devtools read (`Run<F>` of any wizard satisfies it):
+ * identity, the wizard, state / snapshot, the two subscriptions, the bounded log, `explain` and
  * the live child handles.
  * @public
  */
 interface RunSource {
   readonly id: string;
-  readonly flow: AnyFlow;
-  getState(): Snapshot<AnyFlow>['state'];
+  readonly wizard: AnyWizardDefinition;
+  getState(): Snapshot<AnyWizardDefinition>['state'];
   getSnapshot(): SnapshotLike;
   subscribe(listener: () => void): () => void;
   observe(listener: (event: RunEvent) => void): () => void;
@@ -78,7 +78,7 @@ interface RunSource {
  * The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies
  * it): the projected state (`null` before the first frame), its subscription and the frame
  * identity. Events, `explain` and the timeline need a run; a Mirror source shows the graph
- * (with `flow` / `graph`) and the projected step facts.
+ * (with `wizard` / `graph`) and the projected step facts.
  * @public
  */
 interface MirrorSource {
@@ -140,14 +140,14 @@ interface ProjectedState {
  */
 declare function isProjectedState(value: unknown): value is ProjectedState;
 /**
- * The static graph the components draw: a ready `FlowGraph` (`inspect(flow)`, plain JSON — a
- * client can receive it from the server) or the flow itself (`inspect` is called for you);
+ * The static graph the components draw: a ready `Manifest` (`inspect(wizard)`, plain JSON — a
+ * client can receive it from the server) or the wizard itself (`inspect` is called for you);
  * `graph` wins when both are given.
  * @public
  */
 interface GraphInput {
-  readonly graph?: FlowGraph$1;
-  readonly flow?: AnyFlow;
+  readonly graph?: Manifest;
+  readonly wizard?: AnyWizardDefinition;
 }
 //#endregion
 //#region src/devtools/use-resize.d.ts
@@ -159,8 +159,8 @@ type DockPosition = 'bottom' | 'right';
 //#endregion
 //#region src/devtools/Devtools.d.ts
 /**
- * `<Devtools>` props: the `source` (a `Run` or a `Mirror`), the graph (`flow` / `graph`; a
- * run source brings its own flow), `theme`, `defaultOpen`, dock `position` and `defaultSize`
+ * `<Devtools>` props: the `source` (a `Run` or a `Mirror`), the graph (`wizard` / `graph`; a
+ * run source brings its own wizard), `theme`, `defaultOpen`, dock `position` and `defaultSize`
  * (px), the toggle `hotkey` (default `ctrl+shift+d`, `false` to disable), `context` (the input
  * `wizard.create` received) for a full-range timeline, `maxEvents` for the event buffer.
  * @public
@@ -177,7 +177,7 @@ interface DevtoolsProps extends GraphInput {
   readonly title?: string;
 }
 /**
- * The composite devtools panel: the flow graph with the live overlay (and the time-travelled
+ * The composite devtools panel: the wizard graph with the live overlay (and the time-travelled
  * state while the timeline scrubs), the event log, the step inspector and the timeline, in a
  * dockable, resizable panel. Works over a `Mirror` too (graph + inspector from the projected
  * state; the events and the timeline need a run and say so).
@@ -187,27 +187,27 @@ declare function Devtools(props: DevtoolsProps): ReactElement;
 //#endregion
 //#region src/layout/model.d.ts
 /**
- * Kind of a drawable node: a step card, a group (a `flow` step containing its child flow), a
- * flow's entry marker or the `?` port of a dynamic `next` without declared targets.
+ * Kind of a drawable node: a step card, a group (a `child` step containing its child wizard), a
+ * wizard's entry marker or the `?` port of a dynamic `next` without declared targets.
  * @public
  */
 type ModelNodeKind = 'step' | 'group' | 'entry' | 'dynamic';
 /**
- * Kind of a drawable edge: the `FlowGraph` kinds (`route` = a declared target of a dynamic
+ * Kind of a drawable edge: the `Manifest` kinds (`route` = a declared target of a dynamic
  * `next`) plus `dynamic` (a step → its `?` port when no targets are declared).
  * @public
  */
-type ModelEdgeKind = FlowGraphEdge['kind'] | 'dynamic';
+type ModelEdgeKind = ManifestEdge['kind'] | 'dynamic';
 /**
  * One drawable node. `key` is unique across nesting levels (`stepKey(path, id)`, `#entry` /
- * `#dyn` suffixes for the markers); `parent` is the group key for nodes inside a child flow.
+ * `#dyn` suffixes for the markers); `parent` is the group key for nodes inside a child wizard.
  * @public
  */
 interface ModelNode {
   readonly key: string;
   readonly kind: ModelNodeKind;
   /** The step this node stands for (absent for entry markers). */
-  readonly step?: FlowGraphNode;
+  readonly step?: ManifestStep;
   readonly path: readonly string[];
   readonly parent?: string;
   readonly width: number;
@@ -228,7 +228,7 @@ interface ModelEdge {
   readonly parent?: string;
 }
 /**
- * The drawable model of a `FlowGraph`: nodes (parents before children), edges and the warnings
+ * The drawable model of a `Manifest`: nodes (parents before children), edges and the warnings
  * by step key. Built by `buildGraphModel`, positioned by `layoutGraph`.
  * @public
  */
@@ -239,17 +239,17 @@ interface GraphModel {
   readonly warnings: Readonly<Record<string, readonly string[]>>;
 }
 /**
- * Build the drawable model of a `FlowGraph` (`inspect(flow)`): one entry marker per flow, a card
- * per step — a `flow` step whose child flow is in the graph becomes a group containing it — a
+ * Build the drawable model of a `Manifest` (`inspect(wizard)`): one entry marker per wizard, a card
+ * per step — a `child` step whose child wizard is in the graph becomes a group containing it — a
  * `?` port per dynamic `next` without declared targets, and typed, labelled edges. Pure and
  * synchronous.
  * @public
  */
-declare function buildGraphModel(graph: FlowGraph$1): GraphModel;
+declare function buildGraphModel(graph: Manifest): GraphModel;
 //#endregion
 //#region src/layout/elk.d.ts
 /**
- * Box of a laid-out node: absolute at the root, relative to its group inside a child flow.
+ * Box of a laid-out node: absolute at the root, relative to its group inside a child wizard.
  * @public
  */
 interface Placement {
@@ -298,14 +298,14 @@ declare function bundledElk(): Promise<LayoutEngine>;
  */
 declare function layoutGraph(model: GraphModel, engine?: LayoutEngine): Promise<LayoutResult>;
 //#endregion
-//#region src/graph/FlowGraph.d.ts
+//#region src/graph/WizardGraph.d.ts
 /**
- * `<FlowGraph>` props: the graph (`graph` from `inspect(flow)`, or `flow`), the live overlay
+ * `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay
  * (`statuses` keyed by `stepKey`, `activeStep` = the current view's key), a controlled or
  * uncontrolled selection (`selected` / `onSelect`), the theme and an optional layout engine.
  * @public
  */
-interface FlowGraphProps extends GraphInput {
+interface WizardGraphProps extends GraphInput {
   /** Key of the current view (`stepKey(path, id)`) — highlighted. */
   readonly activeStep?: string | null;
   /** Live statuses / phases by step key (see `collectStatuses`). */
@@ -324,13 +324,13 @@ interface FlowGraphProps extends GraphInput {
   readonly style?: CSSProperties;
 }
 /**
- * The static graph of a flow, laid out with ELK (left → right layers; cycles broken for the
- * layout and drawn as U-turns; nodes no edge touches parked in a right-hand column; child flows
+ * The static graph of a wizard, laid out with ELK (left → right layers; cycles broken for the
+ * layout and drawn as U-turns; nodes no edge touches parked in a right-hand column; child wizards
  * as group nodes) with the live overlay when `statuses` / `activeStep` are given. Click a step
  * to select it (`onSelect`), the pane to clear.
  * @public
  */
-declare function FlowGraph(props: FlowGraphProps): ReactElement;
+declare function WizardGraph(props: WizardGraphProps): ReactElement;
 //#endregion
 //#region src/events/EventLog.d.ts
 /**
@@ -363,14 +363,14 @@ declare function EventLog(props: EventLogProps): ReactElement;
 //#region src/inspector/StepInspector.d.ts
 /**
  * `<StepInspector>` props: the `source` (run or Mirror), the `step` id and the run `path`
- * of its flow (`[]` = root), the optional static `graph` for the definition facts.
+ * of its wizard (`[]` = root), the optional static `graph` for the definition facts.
  * @public
  */
 interface StepInspectorProps {
   readonly source: DevtoolsSource;
   readonly step: string;
   readonly path?: readonly string[];
-  readonly graph?: FlowGraph$1;
+  readonly graph?: Manifest;
   readonly theme?: DevtoolsTheme;
   readonly className?: string;
   readonly style?: CSSProperties;
@@ -387,7 +387,7 @@ declare function StepInspector(props: StepInspectorProps): ReactElement;
  * A (typed-erased) run state as `replay` returns it.
  * @public
  */
-type ReplayState = Snapshot<AnyFlow>['state'];
+type ReplayState = Snapshot<AnyWizardDefinition>['state'];
 /**
  * The replay window: a base state and the root events since it (`latest` = the newest seq).
  * @public
@@ -485,5 +485,5 @@ declare function overlayOf(source: DevtoolsSource, snapshot: unknown): {
   readonly childPaths: readonly (readonly string[])[];
 };
 //#endregion
-export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, EventLog, type EventLogProps, FlowGraph, type FlowGraphProps, type GraphInput, type GraphModel, type GraphSelection, type LayoutEngine, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type RunSource, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isProjectedState, isRunSource, layoutGraph, overlayOf, runPhaseReader, stepKey };
+export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, EventLog, type EventLogProps, type GraphInput, type GraphModel, type GraphSelection, type LayoutEngine, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type RunSource, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, WizardGraph, type WizardGraphProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isProjectedState, isRunSource, layoutGraph, overlayOf, runPhaseReader, stepKey };
 //# sourceMappingURL=index.d.ts.map

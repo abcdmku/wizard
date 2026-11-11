@@ -29,7 +29,7 @@ export interface Issue {
 }
 
 /** Primary failure retained while a run is halted or compensating. */
-export interface FlowFailureState {
+export interface RunFailureState {
   readonly step?: string
   readonly error: SerializedError
   readonly kind?: StepErrorKind | 'runtime'
@@ -52,7 +52,7 @@ export type CompensationOutcome = 'completed' | 'partial'
 export interface TerminalState {
   readonly status: 'done' | 'failed' | 'cancelled'
   readonly output?: unknown
-  readonly failure?: FlowFailureState
+  readonly failure?: RunFailureState
   readonly reason?: string
   readonly compensation?: {
     readonly outcome: CompensationOutcome

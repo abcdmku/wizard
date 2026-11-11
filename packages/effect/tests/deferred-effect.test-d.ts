@@ -2,8 +2,8 @@ import {
   boundary,
   defineWizard,
   type ErrorOf,
-  type FlowOutput,
   type OutputOf,
+  type WizardOutput,
 } from '@openwizard/core'
 import { Context, type Effect } from 'effect'
 import { describe, expectTypeOf, it } from 'vitest'
@@ -74,7 +74,7 @@ describe('deferred Effect adapters', () => {
     )
     expectTypeOf<OutputOf<typeof batch, 'charges'>>().toEqualTypeOf<{ paymentId: string }[]>()
     expectTypeOf<ErrorOf<typeof batch, 'charges'>>().toEqualTypeOf<{ reason: string }>()
-    expectTypeOf<FlowOutput<typeof batch>>().toEqualTypeOf<{ paymentId: string }[]>()
+    expectTypeOf<WizardOutput<typeof batch>>().toEqualTypeOf<{ paymentId: string }[]>()
   })
 
   it('infers a joined async adapter with services and mapped errors', () => {
@@ -103,7 +103,7 @@ describe('deferred Effect adapters', () => {
     )
     expectTypeOf<OutputOf<typeof joined, 'total'>>().toEqualTypeOf<{ paymentId: string }>()
     expectTypeOf<ErrorOf<typeof joined, 'total'>>().toEqualTypeOf<{ reason: string }>()
-    expectTypeOf<FlowOutput<typeof joined>>().toEqualTypeOf<{ paymentId: string }>()
+    expectTypeOf<WizardOutput<typeof joined>>().toEqualTypeOf<{ paymentId: string }>()
   })
 
   it('rejects deferred programs whose services are missing from deps', () => {

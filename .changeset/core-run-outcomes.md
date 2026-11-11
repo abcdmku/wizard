@@ -13,8 +13,8 @@ Runs report outcomes instead of hanging.
 - `run.awaitOutcome()` waits for the next outcome that needs the outside world without disposing
   the run. `run.waitingFor()` and `run.explain(step).waitingFor` list the waits as one flat array of
   `{ kind: 'view' | 'event' | 'sleep', path, step, events?, deadline? }`; `path` locates child runs
-  (`[]` is the run itself, typed by the flow).
-- A halted child flow halts its parent; the parent's `RunHalted.failure.child` is the child's own
+  (`[]` is the run itself, typed by the wizard).
+- A halted child run halts its parent; the parent's `RunHalted.failure.child` is the child's own
   halted outcome. Recover it through `run.child(step)`.
 - `run.retry(step, { patch })` and the wire command `{ type: 'retry', step, patch }` merge a context
   patch before the step re-runs.

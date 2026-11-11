@@ -3,7 +3,7 @@ import { createMirror, createMirrorSource } from '@openwizard/core/mirror'
 import { createLocalTransport } from '@openwizard/core/testing'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
-import { FlowGraph, type GraphSelection, overlayOf, StepInspector } from '../src'
+import { type GraphSelection, overlayOf, StepInspector, WizardGraph } from '../src'
 import { readStep } from '../src/inspector/read-step'
 import { mappedParent, mappedProjection } from './mapped-fixture'
 
@@ -32,7 +32,7 @@ it('reads each child by index, preserving numeric authored ids and item-specific
   const graph = inspect(mappedParent)
   const selected: GraphSelection[] = []
   const view = render(
-    <FlowGraph
+    <WizardGraph
       graph={graph}
       childPaths={overlay.childPaths}
       statuses={overlay.statuses}

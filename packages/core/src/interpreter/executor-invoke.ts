@@ -1,6 +1,6 @@
 /** Resolve and invoke compiled hooks, including their output boundaries. @internal */
 
-import type { CompiledFlow, CompiledStep, HookArgs } from '../authoring/compiled'
+import type { CompiledStep, CompiledWizard, HookArgs } from '../authoring/compiled'
 import type { HookName } from '../machine/commands'
 import type { StepRecord } from '../machine/state'
 import { snapshotEach } from './each'
@@ -43,11 +43,11 @@ export function invoke(
       if (typeof hook !== 'function') throw missingHook(stepDef.id, `on[${String(event)}]`)
       return hook(args)
     }
-    case 'flowOn':
-      throw missingHook(stepDef.id, 'flowOn')
+    case 'wizardOn':
+      throw missingHook(stepDef.id, 'wizardOn')
     case 'childContext': {
       // The child's context is a data door: the mapped value goes through the
-      // child flow's context boundary before `child.create` can see it.
+      // child wizard's context boundary before `child.create` can see it.
       const hook = stepDef.hooks.childContext
       if (hook === undefined) throw missingHook(stepDef.id, 'childContext')
       const value = hook(args)
@@ -65,15 +65,15 @@ export function invoke(
   }
 }
 
-/** The flow-level `on[extra.event]` handler (`CompiledFlow.on`). */
-export function invokeFlowOn(def: CompiledFlow, args: HookArgs): unknown {
+/** The wizard-level `on[extra.event]` handler (`CompiledWizard.on`). */
+export function invokeWizardOn(def: CompiledWizard, args: HookArgs): unknown {
   const event = typeof args.event === 'string' ? args.event : undefined
   const hook = event === undefined ? undefined : def.on?.[event]
   if (hook === undefined) {
     throw codedError(
       'HookMissingError',
       'HOOK_MISSING',
-      `flow '${def.name}' has no 'on[${String(event)}]' handler`,
+      `wizard '${def.name}' has no 'on[${String(event)}]' handler`,
     )
   }
   return hook(args)
@@ -84,7 +84,7 @@ export function invokeFlowOn(def: CompiledFlow, args: HookArgs): unknown {
  * maps errors, else the run adapter's mapped data or the raw thrown value). A throwing predicate
  * rejects too.
  */
-export function retryRejected(def: CompiledFlow, step: string, error: unknown): boolean {
+export function retryRejected(def: CompiledWizard, step: string, error: unknown): boolean {
   const when = (def.steps[step]?.retry ?? def.policies.retry)?.when
   if (when === undefined) return false
   try {

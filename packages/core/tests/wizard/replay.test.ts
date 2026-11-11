@@ -46,7 +46,7 @@ const flow = defineWizard(
     deps: boundary.trusted<Deps>(),
     concurrency: 2,
   },
-  ({ step, view, flow: childFlow, steps }) => {
+  ({ step, view, child: childFlow, steps }) => {
     const normalize = step({
       run: ({ context }) => ({ normalized: context.rows ?? 0 }),
       next: 'gate',

@@ -1,9 +1,9 @@
 import { createMemoryStore } from '@openwizard/core'
-import { signupFlow } from './form'
+import { signupWizard } from './form'
 
 const store = createMemoryStore()
 
-const first = signupFlow.create(
+const first = signupWizard.create(
   {},
   {
     instanceId: 'signup-1',
@@ -16,7 +16,7 @@ await first.save()
 first.dispose()
 
 const snapshot = await store.get('signup-1')
-const second = signupFlow.resume(snapshot, { store })
+const second = signupWizard.resume(snapshot, { store })
 
 await second.next()
 const result = await second.awaitResult()

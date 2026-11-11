@@ -3,11 +3,11 @@ import type { CompiledStep } from '../compiled'
 import type { AnyStep } from '../types'
 import { compileBehaviors } from './behaviors'
 import { compileEdges } from './edges'
-import type { Ctx } from './flow'
 import type { StepGraph } from './graph'
 import { compileProse, isRecord, type Mutable, NO_EXPOSE, type Rec } from './shared'
 import { compileStepHooks } from './step-hooks'
 import { compileView } from './view'
+import type { Ctx } from './wizard'
 
 export interface StepCtx {
   readonly ctx: Ctx
@@ -51,7 +51,7 @@ const FIELDS: Readonly<Record<string, readonly string[]>> = {
     'mapError',
     'fallback',
   ],
-  flow: [...COMMON, 'context', 'deps', 'output', 'each', 'key', 'concurrency', 'fallback'],
+  child: [...COMMON, 'context', 'deps', 'output', 'each', 'key', 'concurrency', 'fallback'],
 }
 
 export function compileStep(id: string, raw: AnyStep, sc: StepCtx): CompiledStep {

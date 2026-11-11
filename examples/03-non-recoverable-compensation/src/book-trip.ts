@@ -8,7 +8,7 @@ export interface Deps {
   payments: { charge(trip: string, amount: number): { receipt: string } }
 }
 
-export const bookTripFlow = defineWizard(
+export const bookTrip = defineWizard(
   {
     name: 'book-trip',
     description: 'Reserves a flight, a hotel and a car, then charges. A failure undoes them.',

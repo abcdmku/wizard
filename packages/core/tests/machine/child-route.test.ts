@@ -79,7 +79,7 @@ describe('routing', () => {
     bad.start()
     bad.cmd('next')
     const b = bad.ok(bad.call('next'), 'nope')
-    expect(b.types).toEqual(['step.failed', 'flow.halted'])
+    expect(b.types).toEqual(['step.failed', 'run.halted'])
     expect(bad.rec('route').error).toMatchObject({ kind: 'hook', code: 'UNKNOWN_STEP' })
   })
 
@@ -88,7 +88,7 @@ describe('routing', () => {
     h.start()
     h.cmd('next')
     const r = h.err(h.call('next'), 'cannot decide')
-    expect(r.types).toEqual(['step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['step.failed', 'run.halted'])
     expect(h.state.status).toBe('halted')
   })
 })
@@ -173,12 +173,12 @@ describe('nested flow steps', () => {
       { status: 'failed' },
       { failed: { error: { name: 'Error', message: 'child broke' } } },
     )
-    expect(r.types).toEqual(['child.summary', 'step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['child.summary', 'step.failed', 'run.halted'])
     expect(h.rec('sub').error).toMatchObject({ kind: 'child', message: 'child broke' })
 
     const h2 = createHarness(parent())
     h2.start()
-    expect(h2.err(h2.call('childContext'), 'no ctx').types).toEqual(['step.failed', 'flow.halted'])
+    expect(h2.err(h2.call('childContext'), 'no ctx').types).toEqual(['step.failed', 'run.halted'])
   })
 
   it('child command: forwarded via child.command → child.send (path peeled one level); rejections', () => {
@@ -197,7 +197,7 @@ describe('nested flow steps', () => {
     expect(
       of(h.cmd({ type: 'child', path: ['end'], command: { type: 'next' } }), 'command.rejected')[0]
         ?.code,
-    ).toBe('NOT_A_FLOW_STEP')
+    ).toBe('NOT_A_CHILD_STEP')
     expect(
       of(h.cmd({ type: 'child', path: ['zzz'], command: { type: 'next' } }), 'command.rejected')[0]
         ?.code,
@@ -231,7 +231,7 @@ describe('nested flow steps', () => {
     h.ok(h.call('childContext'), {})
     const before = h.state
     const r = h.cmd('reset')
-    expect(r.types).toEqual(['flow.reset'])
+    expect(r.types).toEqual(['run.reset'])
     expect(r.effects).toEqual([
       { kind: 'child.dispose', step: 'sub' },
       { kind: 'persist', reason: 'change' },

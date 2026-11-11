@@ -2,7 +2,7 @@
  * Which side an edge leaves and enters, from the relative position of its two boxes (same
  * coordinate space): forward edges run right → left, steep ones bottom → top (or top → bottom),
  * and an edge that has to go backwards leaves and enters on the SAME side (bottom–bottom or
- * top–top) so `FlowEdge` can draw it as a wide U-turn instead of crossing the cards.
+ * top–top) so `GraphEdge` can draw it as a wide U-turn instead of crossing the cards.
  *
  * @packageDocumentation
  */

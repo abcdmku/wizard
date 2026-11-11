@@ -63,7 +63,7 @@ export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
   const handle =
     snapshot.runs.find((candidate) => candidate.label === selectedRun) ?? snapshot.runs.at(-1)
   const run = handle?.run
-  const flow = run?.flow ?? snapshot.flows[0]
+  const wizard = run?.wizard ?? snapshot.wizards[0]
 
   // A new run replaces the runs: forget a selection that no longer exists.
   useEffect(() => {
@@ -152,7 +152,7 @@ export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
 
       <div className="min-h-0 flex-1 overflow-auto">
         {tab === 'graph' && (
-          <GraphView flow={flow} run={run} selected={selectedStep} onSelect={selectStep} />
+          <GraphView wizard={wizard} run={run} selected={selectedStep} onSelect={selectStep} />
         )}
         {tab === 'trace' && (
           <TraceView trace={snapshot.trace} multiRun={snapshot.runs.length > 1} />

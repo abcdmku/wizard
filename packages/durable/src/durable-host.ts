@@ -67,7 +67,7 @@ export type DurableHostOpenResult<F extends AnyWizard> =
   | DurableHostOpenFailure
 
 /**
- * Durable runs of one flow, addressed by key. The host owns each run's lease (renewal, release on
+ * Durable runs of one wizard, addressed by key. The host owns each run's lease (renewal, release on
  * a terminal result, reopening after a takeover) and keeps live runs open in memory; every method
  * returns failures as values.
  *
@@ -109,7 +109,7 @@ interface OpenRequest {
 }
 
 /**
- * Host the durable runs of `flow` on `store`: what a multi-worker service would otherwise build
+ * Host the durable runs of `wizard` on `store`: what a multi-worker service would otherwise build
  * from `createHostRegistry` and `createDurableRun`. A run whose lease is lost is dropped and
  * reopened by the next call for its key. A terminal run releases its lease after in-flight host
  * operations settle. Returned handles can be held across I/O: `send` and `dispatch` reopen on
@@ -119,10 +119,10 @@ interface OpenRequest {
  * @public
  */
 export function createDurableHost<F extends AnyWizard>(
-  flow: F,
+  wizard: F,
   options: DurableHostOptions<F>,
 ): DurableHost<F>
-export function createDurableHost(flow: AnyWizard, options: unknown): unknown {
+export function createDurableHost(wizard: AnyWizard, options: unknown): unknown {
   // The public overload keeps callbacks typed to the concrete wizard. This implementation
   // erases those arguments while every run it creates still belongs to that same wizard.
   const {
@@ -168,8 +168,8 @@ export function createDurableHost(flow: AnyWizard, options: unknown): unknown {
       }
       const opened =
         create === undefined
-          ? await resumeDurableRun(flow, runOptions)
-          : await createDurableRun(flow, {
+          ? await resumeDurableRun(wizard, runOptions)
+          : await createDurableRun(wizard, {
               ...runOptions,
               ...create.options,
               context: create.input,

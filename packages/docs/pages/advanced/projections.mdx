@@ -34,7 +34,7 @@ These flags allow transient progress frames; they do not add progress fields to 
 
 ## Project mapped children
 
-For a mapped flow step, `child: true` exposes a readonly array of `ChildSummary | null` in input order. A nested child exposure spec produces a readonly array of projected `ClientState | null` instead. A `null` slot has no available child data; keep its position rather than filtering it out and shifting item indexes.
+For a mapped child step, `child: true` exposes a readonly array of `ChildSummary | null` in input order. A nested child exposure spec produces a readonly array of projected `ClientState | null` instead. A `null` slot has no available child data; keep its position rather than filtering it out and shifting item indexes.
 
 These projections use `reviews` from the [mapped-child example](/advanced/nested#one-child-per-item):
 

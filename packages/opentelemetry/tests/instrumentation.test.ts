@@ -156,13 +156,13 @@ describe('instrumentRun', () => {
   })
 
   it('parents child workflow spans by path', async () => {
-    const child = defineWizard(
+    const childWizard = defineWizard(
       { name: 'child', context: boundary.trusted<{}>() },
       ({ step, steps }) => steps({ work: step({ run: () => 'child-output' }) }),
     )
     const parent = defineWizard(
       { name: 'parent', context: boundary.trusted<{}>() },
-      ({ flow, steps }) => steps({ child: flow(child, { context: () => ({}) }) }),
+      ({ child, steps }) => steps({ child: child(childWizard, { context: () => ({}) }) }),
     )
     const run = parent.create({})
     const { exporter, tracer } = tracerFixture()
@@ -182,7 +182,7 @@ describe('instrumentRun', () => {
         span.name === 'openwizard.workflow' &&
         span.attributes['openwizard.path']?.toString() === 'child',
     )
-    expect(childSpan?.attributes['openwizard.flow.name']).toBe('child')
+    expect(childSpan?.attributes['openwizard.wizard.name']).toBe('child')
     expect(childSpan?.parentSpanContext?.spanId).toBe(root?.spanContext().spanId)
   })
 

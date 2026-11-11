@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-// Durable runs of one flow, addressed by key.
+// Durable runs of one wizard, addressed by key.
 export {
   createDurableHost,
   type DurableCreateOptions,

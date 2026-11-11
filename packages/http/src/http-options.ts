@@ -17,8 +17,8 @@ import type { IdempotencyStore } from './idempotency'
 import type { ReceiverOptions } from './receive-types'
 import type { RunHandle } from './run-handle'
 
-/** Flow capabilities an API can expose. `create` adds `POST <base>`; the reads add `GET <base>/:runId` and its stream. @public */
-export type FlowAccess =
+/** Run capabilities an API can expose. `create` adds `POST <base>`; the reads add `GET <base>/:runId` and its stream. @public */
+export type RunAccess =
   | 'back'
   | 'cancel'
   | 'compensate'
@@ -47,7 +47,7 @@ export type StepAccessFor<F extends AnyWizard, K extends StepId<F>> =
 export interface HTTPAccess<F extends AnyWizard> {
   /** Context keys returned by the run routes. */
   readonly context?: readonly (keyof Ctx<F> & string)[]
-  readonly flow?: readonly FlowAccess[]
+  readonly run?: readonly RunAccess[]
   readonly steps?: { readonly [K in StepId<F>]?: readonly StepAccessFor<F, K>[] }
   /** Declared events that callers may send through `POST <base>/:runId/events/<event>`. */
   readonly events?: readonly EventType<F>[]
@@ -69,7 +69,7 @@ export interface RunLookup<P> {
   readonly runId: string
 }
 
-/** Authenticated creation of one run; `input` passed the flow's context boundary. @public */
+/** Authenticated creation of one run; `input` passed the wizard's context boundary. @public */
 export interface RunCreation<F extends AnyWizard, P> {
   readonly request: Request
   readonly tenantId: string
@@ -124,9 +124,9 @@ export type CreateHTTPOptions<F extends AnyWizard, S, P> = (
   | HTTPRunAPIOptions<F, S, P>
   | WithoutRunAPI
 ) & {
-  /** Namespace for paths, scopes, schema names and operation ids. Defaults to the flow name. */
+  /** Namespace for paths, scopes, schema names and operation ids. Defaults to the wizard name. */
   readonly id?: string
-  /** Signed Standard Webhooks receivers for the flow's events. */
+  /** Signed Standard Webhooks receivers for the wizard's events. */
   readonly receive?: ReceiverOptions<F>
   /**
    * Replays the response of a repeated `Idempotency-Key` or `webhook-id`. Defaults to an
@@ -140,7 +140,7 @@ export type CreateHTTPOptions<F extends AnyWizard, S, P> = (
   readonly onError?: (error: unknown, context: HTTPFailureContext) => APIMaybePromise<void>
 }
 
-/** Generated routes and documentation for one flow. @public */
+/** Generated routes and documentation for one wizard. @public */
 export interface WizardHTTP<F extends AnyWizard = AnyWizard> extends HTTPHandler {
   readonly id: string
   readonly wizard: F

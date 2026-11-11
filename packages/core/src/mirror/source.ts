@@ -6,7 +6,7 @@
  * then one per committed batch, plus a `ProgressFrame` per hook `progress(value)` of a step the
  * projection explicitly allows; `dispatch` decodes
  * a `WireCommand` with
- * `parseWireCommand(run.flow, …)` (shape + ids), checks the instance id and `expectedSeq`,
+ * `parseWireCommand(run.wizard, …)` (shape + ids), checks the instance id and `expectedSeq`,
  * optionally authorizes the decoded command against the current state and server-held scope,
  * then hands it to `run.dispatch` and answers with a `WireAck`. A host wires `subscribe` to its
  * push channel (SSE / WS) and `dispatch` to its command endpoint.
@@ -22,7 +22,7 @@
  */
 
 import type {
-  AnyFlow,
+  AnyWizardDefinition,
   Command,
   CommandResult,
   Projection,
@@ -63,7 +63,7 @@ export interface MirrorSource<S> {
   getFrame(): SnapshotFrame<S>
   /**
    * Decode + gate a wire command and dispatch it. Never rejects for data problems: a bad
-   * shape or an id unknown to the flow → `INVALID_COMMAND` (with issues), a foreign
+   * shape or an id unknown to the wizard → `INVALID_COMMAND` (with issues), a foreign
    * `instanceId` → `INVALID_COMMAND`, an `expectedSeq` that is not the current seq → `STALE`,
    * a disposed run or source → `DISPOSED`; otherwise the run's own `CommandResult`. The
    * denied authorization returns `FORBIDDEN`. The ack's `seq` is the instance seq after
@@ -77,7 +77,7 @@ export interface MirrorSource<S> {
 /** Values passed to a Mirror source command authorization policy.
  * @public
  */
-export interface MirrorAuthorizationInput<F extends AnyFlow, Scope> {
+export interface MirrorAuthorizationInput<F extends AnyWizardDefinition, Scope> {
   readonly state: Snapshot<F>['state']
   readonly command: Command<F>
   readonly scope: [Scope] extends [never] ? undefined : Scope
@@ -86,7 +86,7 @@ export interface MirrorAuthorizationInput<F extends AnyFlow, Scope> {
 /** Server-only principal and authorization policy for a Mirror source.
  * @public
  */
-export type MirrorSourceOptions<F extends AnyFlow, Scope = never> = {
+export type MirrorSourceOptions<F extends AnyWizardDefinition, Scope = never> = {
   readonly authorize?: (input: MirrorAuthorizationInput<F, Scope>) => boolean | PromiseLike<boolean>
   /** Reports subscriber failures without interrupting other subscribers. Default: rethrow asynchronously. */
   readonly onListenerError?: (error: unknown) => void
@@ -101,7 +101,7 @@ export type MirrorSourceOptions<F extends AnyFlow, Scope = never> = {
  * subscribers share one object.
  * @public
  */
-export function createMirrorSource<F extends AnyFlow, S, Scope = never>(
+export function createMirrorSource<F extends AnyWizardDefinition, S, Scope = never>(
   run: Run<F>,
   projection:
     | Projection<NoInfer<F>, S, Scope>
@@ -111,10 +111,10 @@ export function createMirrorSource<F extends AnyFlow, S, Scope = never>(
     : [options: MirrorSourceOptions<F, Scope>]
 ): MirrorSource<S> {
   const options = optionsArg[0] as MirrorSourceOptions<F, Scope> | undefined
-  if (!sameDefinition(run.flow, projection.flow)) {
+  if (!sameDefinition(run.wizard, projection.wizard)) {
     throw new WizardError(
       'DEFINITION_INVALID',
-      `projection was defined for flow '${projection.flow.name}' (a different authored definition), not for this run's flow '${run.flow.name}'`,
+      `projection was defined for wizard '${projection.wizard.name}' (a different authored definition), not for this run's wizard '${run.wizard.name}'`,
     )
   }
   const scopeSupplied = options !== undefined && Object.hasOwn(options, 'scope')
@@ -129,7 +129,7 @@ export function createMirrorSource<F extends AnyFlow, S, Scope = never>(
       : [bindParsedProjectionScope(projection, parsedScope as Scope)]
   ) as [Scope] extends [never] ? [] : [scope: Scope]
   const authorize = options?.authorize
-  const definition = compile(run.flow)
+  const definition = compile(run.wizard)
   const onListenerError = options?.onListenerError ?? rethrowListenerError
   const listeners = new Set<(frame: Frame<S>) => void>()
   const closers = new Map<(frame: Frame<S>) => void, () => void>()
@@ -151,7 +151,7 @@ export function createMirrorSource<F extends AnyFlow, S, Scope = never>(
     cache = { snapshot, frame }
     return frame
   }
-  // Validates the projection against the flow eagerly (throws DEFINITION_INVALID).
+  // Validates the projection against the wizard eagerly (throws DEFINITION_INVALID).
   currentFrame()
 
   const push = (frame: Frame<S>): void => {
@@ -200,7 +200,7 @@ export function createMirrorSource<F extends AnyFlow, S, Scope = never>(
     }
     let parsed: BoundaryResult<WireCommand<F>>
     try {
-      parsed = parseWireCommand(run.flow, input)
+      parsed = parseWireCommand(run.wizard, input)
     } catch (error) {
       release()
       return ack(commandIdOf(input), {
@@ -259,7 +259,7 @@ export function createMirrorSource<F extends AnyFlow, S, Scope = never>(
     }
     let pending: Promise<CommandResult>
     try {
-      // `parseWireCommand(flow, …)` decoded `command` into a `Command<F>` — no cast needed.
+      // `parseWireCommand(wizard, …)` decoded `command` into a `Command<F>` — no cast needed.
       pending = run.dispatch(
         wire.command,
         wire.expectedSeq === undefined

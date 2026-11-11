@@ -102,7 +102,7 @@ function setup(keys = ['one', 'two'], extraSteps: Parameters<typeof flow>[0]['st
     name: 'parent',
     steps: {
       mapped: {
-        kind: 'flow',
+        kind: 'child',
         child: childWithDeps,
         each: { items: () => items, concurrency: 2 },
         hooks: {
@@ -112,7 +112,7 @@ function setup(keys = ['one', 'two'], extraSteps: Parameters<typeof flow>[0]['st
           },
         },
       },
-      plain: { kind: 'flow', child },
+      plain: { kind: 'child', child },
       ...extraSteps,
     },
   })
@@ -278,7 +278,7 @@ describe('map child bridge', () => {
     s.bridge.create('mapped', {}, undefined, 1)
     const first = eachChildAddress('mapped', 0, 'one')
     const event: DomainEvent = {
-      type: 'flow.started',
+      type: 'run.started',
       start: 'work',
       at: 10,
       seq: 1,
@@ -372,7 +372,7 @@ describe('map child bridge', () => {
   it('keeps ordinary child flows and indexed children with colliding literal ids separate', () => {
     const collision = eachChildAddress('mapped', 0, 'one')
     const child = flow({ steps: { end: { kind: 'step', hooks: { run: () => 1 } } } })
-    const s = setup(['one'], { [collision]: { kind: 'flow', child } })
+    const s = setup(['one'], { [collision]: { kind: 'child', child } })
     s.bridge.create(collision, { plain: true })
     s.bridge.create('mapped', { mapped: true }, undefined, 0)
     expect(s.bridge.get(collision)).toBe(s.handles[0])

@@ -1,4 +1,4 @@
-# Flows and runs
+# Wizards and runs
 
 A wizard is a typed definition of steps and their links. A run is one execution with its own context, input drafts, and step records. Store its snapshot to continue after a process restart.
 
@@ -8,7 +8,7 @@ Commands, external events, and timers change the recorded state. OpenWizard uses
 
 ## Definition and instance
 
-`defineWizard(options, ({ step, view, flow, steps }) => steps(map))` builds the definition once. The wizard itself is the flow accepted by inspectors and integrations, so use `inspect(order)`, `createDurableHost(order, options)`, or `flow(order, config)`.
+`defineWizard(options, ({ step, view, child, steps }) => steps(map))` builds the definition once. Inspectors and integrations accept the wizard itself, so use `inspect(order)`, `createDurableHost(order, options)`, or `child(order, config)`.
 
 Create a run when you have input for one execution:
 

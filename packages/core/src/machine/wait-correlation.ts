@@ -25,7 +25,7 @@ export function correlationOf(
 /**
  * One delivery is atomic: once a handler ended the run, started compensation or
  * halted it (a step failed since `failedBefore`), the remaining listeners, deferred results, the
- * flow-level handler and inbox drains of that delivery are dropped. A run halted before the
+ * wizard-level handler and inbox drains of that delivery are dropped. A run halted before the
  * `send` still delivers to its active waits.
  */
 export function deliveryStopped(state: WizardState, failedBefore: number): boolean {

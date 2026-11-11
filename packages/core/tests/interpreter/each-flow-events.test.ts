@@ -18,11 +18,11 @@ describe('mapped child public event paths', () => {
           }),
         }),
     )
-    const child = defineWizard(
+    const childWizard = defineWizard(
       { name: 'event-path-child', context: boundary.trusted<{ label: string }>() },
-      ({ flow, steps }) =>
+      ({ child, steps }) =>
         steps({
-          inner: flow(leaf, {
+          inner: child(leaf, {
             each: ({ context }) => [context.label],
             key: (item) => item,
             context: ({ item }) => ({ label: item }),
@@ -31,9 +31,9 @@ describe('mapped child public event paths', () => {
     )
     const wizard = defineWizard(
       { name: 'event-path-root', context: boundary.trusted<Record<string, never>>() },
-      ({ flow, steps }) =>
+      ({ child, steps }) =>
         steps({
-          outer: flow(child, {
+          outer: child(childWizard, {
             each: () => ['order/a'],
             key: (item) => item,
             context: ({ item }) => ({ label: item }),

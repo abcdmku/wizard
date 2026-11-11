@@ -9,9 +9,9 @@
  * - `WireAck`: server → client. The `CommandResult` for one `commandId` and the seq the
  *   instance was at once the command was processed.
  *
- * `parseWireCommand(flow, input)` is the strict decoder for the client → server direction: exact
- * shape, nested `command` decoded with `parseCommand(flow, …)` (shape AND ids checked against
- * the flow, so `command` is a `Command<F>`). `parseFrame(input)` is the envelope check for the
+ * `parseWireCommand(wizard, input)` is the strict decoder for the client → server direction: exact
+ * shape, nested `command` decoded with `parseCommand(wizard, …)` (shape AND ids checked against
+ * the wizard, so `command` is a `Command<F>`). `parseFrame(input)` is the envelope check for the
  * server → client direction (the Mirror runs it on every frame; the projected `state` and a
  * progress `value` may be any JSON value). Both accept plain objects only and never throw.
  * Nothing here touches the machine.
@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 
-import type { AnyFlow, Command, CommandResult, Issue, RunEvent } from '@openwizard/core'
+import type { AnyWizardDefinition, Command, CommandResult, Issue, RunEvent } from '@openwizard/core'
 import type { BoundaryResult } from '../authoring/compiled'
 import { isPlainObject } from '../machine/util'
 import { parseCommand } from '../wizard/parse-command'
@@ -45,7 +45,7 @@ export interface SnapshotFrame<S> {
  * the log.
  * @public
  */
-export type StepProgressEvent<F extends AnyFlow = AnyFlow> = Extract<
+export type StepProgressEvent<F extends AnyWizardDefinition = AnyWizardDefinition> = Extract<
   RunEvent<F>,
   { readonly type: 'step.progress' }
 >
@@ -82,10 +82,10 @@ export type Frame<S> = SnapshotFrame<S> | ProgressFrame
  * Client → server: a wire `Command` (JSON, decoded with `parseCommand` on the server) addressed
  * to one instance. `commandId` correlates the `WireAck`; `expectedSeq`, when present, makes the
  * server reject the command with `STALE` unless the instance is exactly at that seq. `command`
- * is a `Command<F>` (`Command<AnyFlow>`, i.e. string ids, until it is decoded for a flow).
+ * is a `Command<F>` (`Command<AnyWizardDefinition>`, i.e. string ids, until it is decoded for a wizard).
  * @public
  */
-export interface WireCommand<F extends AnyFlow = AnyFlow> {
+export interface WireCommand<F extends AnyWizardDefinition = AnyWizardDefinition> {
   readonly commandId: string
   readonly instanceId: string
   readonly expectedSeq?: number
@@ -111,15 +111,15 @@ const PROGRESS_EVENT_ALLOWED = new Set(['type', 'step', 'value', 'seq', 'at', 'p
 const MAX_STRING = 65_536
 
 /**
- * Strictly decode an untrusted value into a `WireCommand<F>` for `flow`: exact property
+ * Strictly decode an untrusted value into a `WireCommand<F>` for `wizard`: exact property
  * allow-list, non-empty string ids, `expectedSeq` a non-negative integer when present, and the
- * nested `command` decoded with `parseCommand(flow, …)` (issues are prefixed with
+ * nested `command` decoded with `parseCommand(wizard, …)` (issues are prefixed with
  * `['command']`). The server half (`createMirrorSource().dispatch`) runs it on every input;
  * hosts can run it themselves before authorising the command.
  * @public
  */
-export function parseWireCommand<F extends AnyFlow>(
-  flow: F,
+export function parseWireCommand<F extends AnyWizardDefinition>(
+  wizard: F,
   input: unknown,
 ): BoundaryResult<WireCommand<F>> {
   const issues: Issue[] = []
@@ -150,7 +150,7 @@ export function parseWireCommand<F extends AnyFlow>(
   if (!Object.hasOwn(record, 'command')) {
     issues.push({ message: "'command' is required", path: ['command'] })
   } else {
-    const parsed = parseCommand(flow, record.command)
+    const parsed = parseCommand(wizard, record.command)
     if (parsed.ok) {
       command = parsed.value
     } else {

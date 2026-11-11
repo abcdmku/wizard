@@ -10,7 +10,7 @@ import { isTerminal } from './selectors'
 import type {
   CompensationFailureState,
   CompensationOutcome,
-  FlowFailureState,
+  RunFailureState,
   SerializedError,
   StepError,
   WizardState,
@@ -26,7 +26,7 @@ export type RuntimeStepFailure = {
   readonly step: string
   readonly error: StepError
   readonly compensation?: RuntimeCompensationSummary
-  /** A failed flow step's terminal child result, or the halted child a halted run waits on. */
+  /** A failed child step's terminal child result, or the halted child a halted run waits on. */
   readonly child?: RuntimeResult | RuntimeHalt
 }
 
@@ -38,7 +38,7 @@ export interface RuntimeHalt {
   readonly epoch: number
 }
 
-/** The terminal result of a flow step's live child, if it has one. */
+/** The terminal result of a child step's live child, if it has one. */
 export type ChildResultOf = (step: string) => RuntimeResult | undefined
 
 export type RuntimeFailure =
@@ -138,9 +138,9 @@ export function deriveRuntimeResult(
       kind: 'runtime',
       ...(failure?.step !== undefined ? { step: failure.step } : {}),
       error: failure?.error ?? {
-        name: 'FlowFailure',
-        message: `flow '${state.flow.name}' failed`,
-        code: 'FLOW_FAILED',
+        name: 'RunFailed',
+        message: `run of '${state.wizard.name}' failed`,
+        code: 'RUN_FAILED',
       },
     },
     seq: state.seq,
@@ -155,7 +155,7 @@ export function haltFailure(state: WizardState): RuntimeStepFailure | undefined 
 
 function toStepFailure(
   state: WizardState,
-  source: FlowFailureState | undefined,
+  source: RunFailureState | undefined,
   compensation: RuntimeCompensationSummary | undefined,
   childResult: ChildResultOf | undefined,
 ): RuntimeStepFailure | undefined {
@@ -192,7 +192,7 @@ function toStepFailure(
           ? { data: rec.error.data }
           : {}),
   }
-  const child = rec?.kind === 'flow' ? childResult?.(failure.step) : undefined
+  const child = rec?.kind === 'child' ? childResult?.(failure.step) : undefined
   return {
     kind: 'step',
     step: failure.step,
@@ -202,7 +202,7 @@ function toStepFailure(
   }
 }
 
-function latestFailedStep(state: WizardState): FlowFailureState | undefined {
+function latestFailedStep(state: WizardState): RunFailureState | undefined {
   let latest: { readonly id: string; readonly error: StepError } | undefined
   for (const [id, rec] of Object.entries(state.steps)) {
     if (rec.status !== 'failed' || rec.error === undefined) continue

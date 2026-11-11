@@ -1,7 +1,7 @@
 import { defineProjection, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const projectedCheckoutFlow = defineWizard(
+export const projectedCheckout = defineWizard(
   {
     name: 'projected-checkout',
     context: z.object({ cartId: z.string(), total: z.number() }),
@@ -16,7 +16,7 @@ export const projectedCheckoutFlow = defineWizard(
     }),
 )
 
-export const checkoutClient = defineProjection(projectedCheckoutFlow, {
+export const checkoutClient = defineProjection(projectedCheckout, {
   expose: {
     context: ['total'],
     output: true,
@@ -25,7 +25,7 @@ export const checkoutClient = defineProjection(projectedCheckoutFlow, {
 })
 
 export function projectCheckout() {
-  const run = projectedCheckoutFlow.create({ cartId: 'cart-42', total: 129.5 })
+  const run = projectedCheckout.create({ cartId: 'cart-42', total: 129.5 })
   const clientState = run.project(checkoutClient)
   run.dispose()
   return clientState

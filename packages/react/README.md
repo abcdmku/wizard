@@ -34,7 +34,7 @@ Mapped children use a numeric input index, such as `ow.useChild('batch', 0)`; or
 use only their step id. A mirrored child needs a nested projection spec. Its state is `null`
 until the child exists, so render its step hooks in a separate component after a
 `useSnapshot()` readiness check. The [checked mapped-child component](../docs/snippets/packages/mapped-react.tsx)
-shows that pattern. Retry actions accept mapped child flows and retain completed item outputs.
+shows that pattern. Retry actions accept mapped child steps and retain completed item outputs.
 
 Read the [React package guide](../docs/pages/packages/react.mdx).
 
@@ -48,31 +48,31 @@ Read the [React package guide](../docs/pages/packages/react.mdx).
 |---|---|---|---|
 | `Actions` | interface | The command methods of the source (`useActions()`) — the same sugar as `Run` / `Mirror`, | [src](../../packages/react/src/types.ts#L104) |
 | `ActionsOf` | type | What `useActions()` returns: `RunActions` over a Run, `Actions` over a Mirror. | [src](../../packages/react/src/types.ts#L155) |
-| `BindingOf` | type | What `bindReact<T>()` returns: a `MirrorBinding` for a projection, a `ReactBinding` for a flow. | [src](../../packages/react/src/binding-types.ts#L201) |
-| `bindReact` | function | Create a typed React binding for a flow or a projection. The type parameter is the only | [src](../../packages/react/src/bind-react.tsx#L53) |
-| `BindTarget` | type | What `bindReact<T>()` accepts: a flow (the source is a `Run`) or a projection (the source | [src](../../packages/react/src/types.ts#L44) |
+| `BindingOf` | type | What `bindReact<T>()` returns: a `MirrorBinding` for a projection, a `ReactBinding` for a wizard. | [src](../../packages/react/src/binding-types.ts#L205) |
+| `bindReact` | function | Create a typed React binding for a wizard or a projection. The type parameter is the only | [src](../../packages/react/src/bind-react.tsx#L53) |
+| `BindTarget` | type | What `bindReact<T>()` accepts: a wizard (the source is a `Run`) or a projection (the source | [src](../../packages/react/src/types.ts#L44) |
 | `ChildBinding` | interface | What `useChild(step)` returns: hooks bound to the child slice of the state (`S`), typed by the | [src](../../packages/react/src/binding-types.ts#L119) |
-| `ChildBindingId` | type | Ids of the flow steps whose child state the binding can read with `useChild`: over a | [src](../../packages/react/src/binding-types.ts#L75) |
+| `ChildBindingId` | type | Ids of the child steps whose child state the binding can read with `useChild`: over a | [src](../../packages/react/src/binding-types.ts#L75) |
 | `ChildStateOf` | type | The selected child slice `useChild` reads: one projected `ClientState` over a projection, | [src](../../packages/react/src/binding-types.ts#L84) |
 | `ChildStepHelpers` | type | Helpers `useChild(step).useStep(id)` binds to a child VIEW step: the scoped `MirrorChild` | [src](../../packages/react/src/binding-types.ts#L97) |
 | `CommandResultOf` | type | Result of the commands that are not navigation or `send`: `CommandResult` from a Run, a | [src](../../packages/react/src/types.ts#L82) |
-| `Connection` | interface | A Mirror's transport connection as `useConnection()` reads it: `connected` is true from the | [src](../../packages/react/src/binding-types.ts#L182) |
-| `CurrentOf` | type | What `useCurrent()` returns: the record of the current view step, or `null`. | [src](../../packages/react/src/types.ts#L232) |
-| `ExposedChildId` | type | The steps of flow `F` whose record in the projected slice `S` carries a nested child state | [src](../../packages/react/src/binding-types.ts#L65) |
+| `Connection` | interface | A Mirror's transport connection as `useConnection()` reads it: `connected` is true from the | [src](../../packages/react/src/binding-types.ts#L186) |
+| `CurrentOf` | type | What `useCurrent()` returns: the record of the current view step, or `null`. | [src](../../packages/react/src/types.ts#L241) |
+| `ExposedChildId` | type | The steps of wizard `F` whose record in the projected slice `S` carries a nested child state | [src](../../packages/react/src/binding-types.ts#L65) |
 | `FieldOf` | type | The field names of view `K`'s draft (what `issuesFor(field)` accepts). | [src](../../packages/react/src/types.ts#L188) |
-| `FlowOf` | type | The flow behind a bind target (the projection's flow, or the flow itself). | [src](../../packages/react/src/types.ts#L50) |
-| `MirrorBinding` | interface | What `bindReact<typeof projection>()` returns: the `ReactBinding` hooks plus | [src](../../packages/react/src/binding-types.ts#L193) |
+| `MirrorBinding` | interface | What `bindReact<typeof projection>()` returns: the `ReactBinding` hooks plus | [src](../../packages/react/src/binding-types.ts#L197) |
 | `NavResultOf` | type | Result of the navigation actions: `NavResult` from a Run, a `MirrorResult` from a Mirror. | [src](../../packages/react/src/types.ts#L90) |
 | `ProviderProps` | interface | `Provider` props: the `source` (`Run` or `Mirror`), an optional `fallback` rendered until | [src](../../packages/react/src/binding-types.ts#L44) |
-| `ReactBinding` | interface | What `bindReact<T>()` returns: a `Provider` plus hooks typed by `T`. Every hook must be used | [src](../../packages/react/src/binding-types.ts#L149) |
+| `ReactBinding` | interface | What `bindReact<T>()` returns: a `Provider` plus hooks typed by `T`. Every hook must be used | [src](../../packages/react/src/binding-types.ts#L153) |
 | `RunActions` | interface | `useActions()` over a Run: the commands plus the run's pure queries — `validate(view)` | [src](../../packages/react/src/types.ts#L145) |
 | `SendResultOf` | type | Result of the `send` action: `SendResult` from a Run, a `MirrorResult` from a Mirror. | [src](../../packages/react/src/types.ts#L96) |
-| `SourceOf` | type | The live object a binding's `Provider` takes: `Run<F>` for a flow, `Mirror<P>` for a projection. | [src](../../packages/react/src/types.ts#L60) |
+| `SourceOf` | type | The live object a binding's `Provider` takes: `Run<F>` for a wizard, `Mirror<P>` for a projection. | [src](../../packages/react/src/types.ts#L60) |
 | `StateOf` | type | The state the hooks read: `Snapshot<F>['state']` over a Run, `ProjectionOutput<P>` | [src](../../packages/react/src/types.ts#L71) |
-| `StepHelpers` | type | Helpers `useStep(id)` binds to a VIEW step (other steps get none): `next` / `back` navigate | [src](../../packages/react/src/types.ts#L209) |
+| `StepHelpers` | type | Helpers `useStep(id)` binds to a VIEW step (other steps get none): `next` / `back` navigate | [src](../../packages/react/src/types.ts#L215) |
 | `StepRecordIn` | type | The record of step `K` of a state slice `S` (a projected `ClientState` or a run state): | [src](../../packages/react/src/types.ts#L165) |
 | `StepRecordOf` | type | The record of step `K` as the hooks see it: the projected `ClientStepState` over a Mirror, the | [src](../../packages/react/src/types.ts#L177) |
 | `useRun` | function | Own a run or a Mirror inside a component, StrictMode-safe: `create` runs during the first | [src](../../packages/react/src/use-run.ts#L60) |
-| `UseStepResult` | type | What `useStep(id)` returns: the typed step record with the bound helpers spread in | [src](../../packages/react/src/types.ts#L225) |
+| `UseStepResult` | type | What `useStep(id)` returns: the typed step record with the bound helpers spread in | [src](../../packages/react/src/types.ts#L231) |
+| `WizardOf` | type | The wizard behind a bind target (the projection's wizard, or the wizard itself). | [src](../../packages/react/src/types.ts#L50) |
 
 <!-- exports:end -->

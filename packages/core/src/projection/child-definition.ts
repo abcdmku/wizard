@@ -1,14 +1,14 @@
 /** Resolve a child's real step id, including the encoded address of a mapped child. */
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import { parseEachChildAddress } from '../interpreter/each-child'
 
 export function projectionChild(
-  def: CompiledFlow,
+  def: CompiledWizard,
   address: string,
 ):
   | {
       readonly id: string
-      readonly definition: CompiledFlow
+      readonly definition: CompiledWizard
       readonly path: readonly string[]
       readonly index?: number
     }

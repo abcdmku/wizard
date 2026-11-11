@@ -43,10 +43,10 @@ export function enterEvents(
         def.sleep === undefined &&
         env.def.sinks.includes(id)
       ) {
-        out.push({ type: 'step.done', step: id }, { type: 'flow.done' })
+        out.push({ type: 'step.done', step: id }, { type: 'run.done' })
       }
       break
-    case 'flow':
+    case 'child':
       if (def.hooks.childContext === undefined)
         out.push({ type: 'child.started', step: id, childPath: [...env.path, id] })
       break
@@ -71,7 +71,7 @@ export function advance(
   const out: DomainEventBody[] = []
   for (const target of targetsOf(env, from)) out.push(...enterEvents(env, state, target, from))
   if (env.def.sinks.includes(from)) {
-    out.push({ type: 'flow.done', ...(output !== undefined ? { output } : {}) })
+    out.push({ type: 'run.done', ...(output !== undefined ? { output } : {}) })
   }
   return out
 }

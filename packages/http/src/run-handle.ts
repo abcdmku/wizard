@@ -7,7 +7,7 @@ import type {
   SendResult,
 } from '@openwizard/core'
 
-/** A refusal of a durable host's own gate (lease, version, dedupe), not of the flow. @public */
+/** A refusal of a durable host's own gate (lease, version, dedupe), not of the run. @public */
 export interface DurableHostFailure {
   readonly ok: false
   readonly code: string
@@ -120,8 +120,8 @@ export async function sendThrough<F extends AnyWizard>(
         ...(eventId === undefined ? {} : { eventId }),
         ...correlation,
       })
-  if (!isFlowResult(result)) return hostFailure(result.code)
-  if (result.ok || result.code !== 'FLOW_NOT_STARTED') return unlessDisposed(result)
+  if (!isRunResult(result)) return hostFailure(result.code)
+  if (result.ok || result.code !== 'RUN_NOT_STARTED') return unlessDisposed(result)
   // Refused at the run's status gate, before it recorded the id: a retry after `start()` delivers.
   return { ok: false, unrecorded: true, status: 409, code: result.code, message: result.message }
 }
@@ -134,8 +134,8 @@ function isDurable<F extends AnyWizard>(handle: RunHandle<F>): handle is Durable
   return 'run' in handle && typeof handle.run === 'object'
 }
 
-/** A flow `SendResult` failure always names its `reason`; a host refusal never does. */
-function isFlowResult(result: SendResult | DurableHostFailure): result is SendResult {
+/** A run's `SendResult` failure always names its `reason`; a host refusal never does. */
+function isRunResult(result: SendResult | DurableHostFailure): result is SendResult {
   return result.ok || 'reason' in result
 }
 

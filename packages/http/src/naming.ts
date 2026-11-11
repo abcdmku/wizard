@@ -1,4 +1,4 @@
-/** Split an id such as `payment.captured` or `order-flow` into its alphanumeric words. */
+/** Split an id such as `payment.captured` or `order-intake` into its alphanumeric words. */
 function words(value: string): string[] {
   return value.split(/[^A-Za-z0-9]+/).filter(Boolean)
 }

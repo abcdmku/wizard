@@ -21,12 +21,12 @@ export {
 } from './authoring/run-adapter'
 export type { RunFailureKind } from './machine/commands'
 export type {
-  AnyFlow,
+  AnyWizardDefinition,
   AnyStep,
   AnyWizard,
   Boundary,
   Checker,
-  ChildFlowOf,
+  ChildWizardOf,
   ChildStepId,
   ContextInput,
   ContextPatch,
@@ -37,8 +37,7 @@ export type {
   EachRunArgs,
   ErrorOf,
   EventType,
-  Flow,
-  FlowOutput,
+  WizardOutput,
   HookArgs,
   InputOf,
   IsEach,
@@ -66,6 +65,7 @@ export type {
   WaitResult,
   Wizard,
   WizardDefinition,
+  WizardHeader,
   WizardOptions,
   WizardResumeOptions,
   RunStatus,
@@ -122,7 +122,7 @@ export {
   type CompensationFailure,
   type CompensationSummary,
   type CommandResult,
-  type FlowFailure,
+  type TerminalFailure,
   type NavResult,
   type RunCancelled,
   type RunDone,
@@ -141,13 +141,13 @@ export type { Explanation } from './wizard/create-wizard'
 // (`createTestScheduler` / `TestScheduler` live in `@openwizard/core/testing`.)
 export type { Clock, Scheduler } from './interpreter/env'
 // Projection extractors let bindings name the wizard and state of a projection.
-export type { AnyProjection, ProjectionFlow } from './projection/define-projection'
+export type { AnyProjection, ProjectionWizard } from './projection/define-projection'
 export type { ProjectionDefinition } from './projection/definition'
 // ---- declaration-emit support ------------------------------------------------
-// (`Step` / `FlowStep` are the inferred types of `flow.view(…)` results and of `Flow.steps[k]`,
+// (`Step` / `WizardStep` are the inferred types of `view(…)` results and of `wizard.steps[k]`,
 // `MemoryStore` of `createMemoryStore()`; a consumer compiling with `declaration: true` must
-// be able to name them when it exports a flow, a step or a store — TS4023 otherwise.)
-export type { FlowStep, Step } from './authoring/types'
+// be able to name them when it exports a wizard, a step or a store — TS4023 otherwise.)
+export type { WizardStep, Step } from './authoring/types'
 export type { MemoryStore } from './persistence/memory-store'
 // ---- replay (devtools / audits) ------------------------------------------------
 export { replay, type ReplayOptions } from './replay'

@@ -63,7 +63,7 @@ interface DurableEventOptions {
   readonly eventId: string;
   readonly correlationId?: string;
 }
-/** Failure codes of the durable gate itself (not of the flow). @public */
+/** Failure codes of the durable gate itself (not of the run). @public */
 type DurableRunFailureCode = 'LEASE_LOST' | 'CAS_CONFLICT' | 'DEDUPLICATE_CONFLICT' | 'COMMAND_PENDING' | 'COMMAND_INTERRUPTED';
 /**
  * The durable gate refused or lost an operation. `actual` is the stored version
@@ -101,7 +101,7 @@ type DurableRunOpenResult<F extends AnyWizard> = {
 /**
  * Result of a deduplicated durable command: `applied` now or `replayed` from
  * the stored result of an earlier call with the same id. `result` is the
- * flow's own `CommandResult`, which may itself be a rejection.
+ * run's own `CommandResult`, which may itself be a rejection.
  *
  * @public
  */
@@ -112,7 +112,7 @@ type DurableCommandResult = {
   readonly version: Version;
 } | DurableHostFailure;
 /**
- * Result of a durable event: the flow's `SendResult` (accepted with the
+ * Result of a durable event: the run's `SendResult` (accepted with the
  * committed `version`, `duplicate: true` for a redelivered `eventId`, or the
  * boundary rejection / drop), or a failure of the durable gate.
  *
@@ -162,14 +162,14 @@ interface DurableRunHost<F extends AnyWizard> {
  *
  * @public
  */
-declare function createDurableRun<F extends AnyWizard>(flow: F, options: DurableRunOptions<F>): Promise<DurableRunOpenResult<F>>;
+declare function createDurableRun<F extends AnyWizard>(wizard: F, options: DurableRunOptions<F>): Promise<DurableRunOpenResult<F>>;
 /**
  * Acquire a durable lease and resume an existing record. It returns
  * `RUN_NOT_FOUND` when the key has no snapshot.
  *
  * @public
  */
-declare function resumeDurableRun<F extends AnyWizard>(flow: F, options: DurableResumeOptions<F>): Promise<DurableRunOpenResult<F>>;
+declare function resumeDurableRun<F extends AnyWizard>(wizard: F, options: DurableResumeOptions<F>): Promise<DurableRunOpenResult<F>>;
 //#endregion
 //#region src/host-registry.d.ts
 /**
@@ -272,7 +272,7 @@ type DurableHostOpenResult<F extends AnyWizard> = {
   readonly host: DurableRunHost<F>;
 } | DurableHostOpenFailure;
 /**
- * Durable runs of one flow, addressed by key. The host owns each run's lease (renewal, release on
+ * Durable runs of one wizard, addressed by key. The host owns each run's lease (renewal, release on
  * a terminal result, reopening after a takeover) and keeps live runs open in memory; every method
  * returns failures as values.
  *
@@ -291,7 +291,7 @@ interface DurableHost<F extends AnyWizard> {
   dispose(): Promise<void>;
 }
 /**
- * Host the durable runs of `flow` on `store`: what a multi-worker service would otherwise build
+ * Host the durable runs of `wizard` on `store`: what a multi-worker service would otherwise build
  * from `createHostRegistry` and `createDurableRun`. A run whose lease is lost is dropped and
  * reopened by the next call for its key. A terminal run releases its lease after in-flight host
  * operations settle. Returned handles can be held across I/O: `send` and `dispatch` reopen on
@@ -300,7 +300,7 @@ interface DurableHost<F extends AnyWizard> {
  *
  * @public
  */
-declare function createDurableHost<F extends AnyWizard>(flow: F, options: DurableHostOptions<F>): DurableHost<F>;
+declare function createDurableHost<F extends AnyWizard>(wizard: F, options: DurableHostOptions<F>): DurableHost<F>;
 //#endregion
 //#region src/memory-store.d.ts
 /**

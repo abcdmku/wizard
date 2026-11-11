@@ -1,6 +1,6 @@
 /** Structural map-state checks keep untrusted snapshots out of the item executor. */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import { eachChildAddress } from '../interpreter/each-child'
 import { type EachState, eachItem } from '../machine/each-state'
 import { isFiniteNumber, isNonNegativeInt, isRecord } from './snapshot-checks'
@@ -100,13 +100,13 @@ export function checkEach(value: unknown, at: string, reasons: string[]): void {
 
 /** Checked state shapes let us verify that every running mapped child can actually resume. */
 export function checkEachChildren(
-  def: CompiledFlow,
+  def: CompiledWizard,
   steps: Record<string, unknown>,
   children: Record<string, unknown>,
   reasons: string[],
 ): void {
   for (const [id, step] of Object.entries(def.steps)) {
-    if (step.kind !== 'flow' || step.each === undefined) continue
+    if (step.kind !== 'child' || step.each === undefined) continue
     const record = steps[id]
     if (
       !isRecord(record) ||

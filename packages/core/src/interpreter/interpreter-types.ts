@@ -1,4 +1,4 @@
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import type { Message } from '../machine/commands'
 import type { Effect } from '../machine/effects'
 import type { DomainEvent, DomainEventBody } from '../machine/events'
@@ -10,7 +10,7 @@ import type { Executor, ExecutorOptions } from './executor'
 import type { ExpectedVersion } from './version-guard'
 
 export interface InterpreterOptions<H extends ChildHandle = ChildHandle, P = Snapshot> {
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   readonly machine: import('../machine/types').Machine
   readonly path: readonly string[]
   readonly env: RuntimeEnv
@@ -28,7 +28,7 @@ export interface InterpreterOptions<H extends ChildHandle = ChildHandle, P = Sna
   readonly hooksExecutor?: (ctx: ExecutorOptions) => Executor
   /** Set on a child: the run that embeds it (see `ParentLink`). */
   readonly parent?: ParentLink
-  /** Nested-flow support. Without a factory, `child.create` fails the flow step. */
+  /** Nested run support. Without a factory, `child.create` fails the child step. */
   readonly children?: {
     readonly factory: ChildFactory<H, P>
     readonly ancestors?: readonly object[]
@@ -84,7 +84,7 @@ export interface Interpreter<H extends ChildHandle = ChildHandle, P = Snapshot> 
   /** Clear timers, abort in-flight hooks, and dispose children. Idempotent. */
   dispose(): void
   isDisposed(): boolean
-  /** Live child runtime for a `flow` step, if created. */
+  /** Live child runtime for a `child` step, if created. */
   child(step: string): H | undefined
   /** Child snapshots paired with `getState()` (the committed ones while a barrier is pending or after stop). */
   childSnapshots(): Record<string, Snapshot>

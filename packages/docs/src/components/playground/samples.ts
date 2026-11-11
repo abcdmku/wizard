@@ -1,26 +1,26 @@
 /**
  * The playground imports the tested example sources verbatim. The landing IDE opens the backend
- * order flow because that is the shortest path to the product's main use case.
+ * order wizard because that is the shortest path to the product's main use case.
  */
 
-import helloFlow from '../../../../../examples/01-happy-path/src/hello-flow.ts?raw'
+import helloSource from '../../../../../examples/01-happy-path/src/hello.ts?raw'
 import helloMain from '../../../../../examples/01-happy-path/src/main.ts?raw'
 import syncInvoiceMain from '../../../../../examples/02-recoverable-failure/src/main.ts?raw'
-import syncInvoiceFlow from '../../../../../examples/02-recoverable-failure/src/sync-invoice.ts?raw'
-import bookTripFlow from '../../../../../examples/03-non-recoverable-compensation/src/book-trip.ts?raw'
+import syncInvoiceSource from '../../../../../examples/02-recoverable-failure/src/sync-invoice.ts?raw'
+import bookTripSource from '../../../../../examples/03-non-recoverable-compensation/src/book-trip.ts?raw'
 import bookTripMain from '../../../../../examples/03-non-recoverable-compensation/src/main.ts?raw'
-import approvalFlow from '../../../../../examples/04-resume-from-snapshot/src/approval.ts?raw'
+import approvalSource from '../../../../../examples/04-resume-from-snapshot/src/approval.ts?raw'
 import approvalMain from '../../../../../examples/04-resume-from-snapshot/src/main.ts?raw'
-import checkoutFlow from '../../../../../examples/05-external-events/src/checkout.ts?raw'
+import checkoutSource from '../../../../../examples/05-external-events/src/checkout.ts?raw'
 import checkoutMain from '../../../../../examples/05-external-events/src/main.ts?raw'
-import orderMain from '../../../../../examples/06-nested-flow/src/main.ts?raw'
-import orderFlow from '../../../../../examples/06-nested-flow/src/order.ts?raw'
+import orderMain from '../../../../../examples/06-nested-wizard/src/main.ts?raw'
+import orderSource from '../../../../../examples/06-nested-wizard/src/order.ts?raw'
 import pipelineMain from '../../../../../examples/07-dag-pipeline/src/main.ts?raw'
-import pipelineFlow from '../../../../../examples/07-dag-pipeline/src/pipeline.ts?raw'
-import mermaidFlow from '../../../../../examples/09-mermaid/src/checkout.ts?raw'
+import pipelineSource from '../../../../../examples/07-dag-pipeline/src/pipeline.ts?raw'
+import mermaidSource from '../../../../../examples/09-mermaid/src/checkout.ts?raw'
 import mermaidMain from '../../../../../examples/09-mermaid/src/main.ts?raw'
 import backendOrderMain from '../../../../../examples/11-order-workflow/src/main.ts?raw'
-import backendOrderFlow from '../../../../../examples/11-order-workflow/src/order-workflow.ts?raw'
+import backendOrderSource from '../../../../../examples/11-order-workflow/src/order-workflow.ts?raw'
 
 export interface PlaygroundFile {
   readonly name: string
@@ -37,10 +37,10 @@ export interface PlaygroundSample {
 /** Keep the landing example small enough to understand without scrolling. */
 export const landingSample: PlaygroundSample = {
   id: 'landing',
-  title: 'Hello flow',
+  title: 'Hello wizard',
   entry: 'main.ts',
   files: [
-    { name: 'hello-flow.ts', content: helloFlow },
+    { name: 'hello.ts', content: helloSource },
     { name: 'main.ts', content: helloMain },
   ],
 }
@@ -48,15 +48,15 @@ export const landingSample: PlaygroundSample = {
 const example = (
   id: string,
   title: string,
-  flowFile: string,
-  flow: string,
+  sourceFile: string,
+  source: string,
   main: string,
 ): PlaygroundSample => ({
   id,
   title,
   entry: 'main.ts',
   files: [
-    { name: flowFile, content: flow },
+    { name: sourceFile, content: source },
     { name: 'main.ts', content: main },
   ],
 })
@@ -67,41 +67,47 @@ const exampleSamples: readonly PlaygroundSample[] = [
     '11-order-workflow',
     '11 - backend order workflow',
     'order-workflow.ts',
-    backendOrderFlow,
+    backendOrderSource,
     backendOrderMain,
   ),
-  example('01-happy-path', '01 - hello flow', 'hello-flow.ts', helloFlow, helloMain),
+  example('01-happy-path', '01 - hello wizard', 'hello.ts', helloSource, helloMain),
   example(
     '02-recoverable-failure',
     '02 - recoverable failure',
     'sync-invoice.ts',
-    syncInvoiceFlow,
+    syncInvoiceSource,
     syncInvoiceMain,
   ),
   example(
     '03-non-recoverable-compensation',
     '03 - compensation',
     'book-trip.ts',
-    bookTripFlow,
+    bookTripSource,
     bookTripMain,
   ),
   example(
     '04-resume-from-snapshot',
     '04 - resume from snapshot',
     'approval.ts',
-    approvalFlow,
+    approvalSource,
     approvalMain,
   ),
-  example('05-external-events', '05 - external events', 'checkout.ts', checkoutFlow, checkoutMain),
-  example('06-nested-flow', '06 - nested flow', 'order.ts', orderFlow, orderMain),
+  example(
+    '05-external-events',
+    '05 - external events',
+    'checkout.ts',
+    checkoutSource,
+    checkoutMain,
+  ),
+  example('06-nested-wizard', '06 - nested wizard', 'order.ts', orderSource, orderMain),
   example(
     '07-dag-pipeline',
     '07 - parallel work and joins',
     'pipeline.ts',
-    pipelineFlow,
+    pipelineSource,
     pipelineMain,
   ),
-  example('09-mermaid', '09 - mermaid', 'checkout.ts', mermaidFlow, mermaidMain),
+  example('09-mermaid', '09 - mermaid', 'checkout.ts', mermaidSource, mermaidMain),
 ]
 
 export const allSamples: readonly PlaygroundSample[] = [landingSample, ...exampleSamples]

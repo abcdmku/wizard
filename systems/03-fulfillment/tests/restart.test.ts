@@ -65,12 +65,12 @@ describe('fulfillment restart recovery', () => {
     if (saved === null || typeof saved !== 'object' || saved === null) {
       throw new Error('restart fixture did not persist a snapshot')
     }
-    const alien = { ...saved, flow: { name: 'other-flow', version: 1 } }
+    const alien = { ...saved, wizard: { name: 'other-flow', version: 1 } }
     expect(() =>
       fulfillmentFlow.resume(alien, {
         deps: { gateway: createGateway([]), now: () => NOW },
       }),
-    ).toThrow(/SNAPSHOT_INCOMPATIBLE|flow/i)
+    ).toThrow(/SNAPSHOT_INCOMPATIBLE|wizard/i)
     run.dispose()
   })
 })

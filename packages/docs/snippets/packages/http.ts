@@ -26,7 +26,7 @@ export const http = createHTTP(delivery, {
         ? { tenantId: 'acme', principal: 'ops', scopes: ['delivery:read'] }
         : null,
   }),
-  access: { flow: ['read'] },
+  access: { run: ['read'] },
   receive: {
     events: ['delivered'],
     secret: process.env.CARRIER_SECRET ?? 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw',

@@ -1,6 +1,6 @@
-# Use a child flow
+# Use a child wizard
 
-Use `flow(childWizard, config)` when one stage is a workflow of its own, such as an address wizard shared by checkout and account settings. Pass the child wizard itself.
+Use `child(childWizard, config)` when one stage is a workflow of its own, such as an address wizard shared by checkout and account settings. Pass the child wizard itself.
 
 ```ts file="packages/docs/snippets/recipes/nested.ts"
 ```
@@ -19,7 +19,7 @@ Parent and child each own their context, drafts, and step records. The `context`
 
 The child also needs its services. Dependencies bound with `childWizard.provide(deps)` travel with it. OpenWizard can use compatible parent dependencies for remaining services; when they do not satisfy the child's requirements, the `deps` mapper is required.
 
-A child halt halts the parent for recovery. `fallback` on the parent flow step can route around a halted or failed child instead. A parent `awaitOutcome()` includes waits in its children, with paths that identify the flow step.
+A child halt halts the parent for recovery. `fallback` on the child step can route around a halted or failed child instead. A parent `awaitOutcome()` includes waits in its children, with paths that identify the child step.
 
 ## Reach the live child
 
@@ -29,7 +29,7 @@ child.getState()
 await child.next()
 ```
 
-`child()` accepts ids of `flow` steps. An ordinary child takes only its step id. Parent snapshots contain child snapshots, so children resume with the parent. Dispose the parent when you no longer need either run.
+`child()` accepts ids of `child` steps. An ordinary child takes only its step id. Parent snapshots contain child snapshots, so children resume with the parent. Dispose the parent when you no longer need either run.
 
 ## Run a child for each item
 
@@ -39,6 +39,6 @@ A mapped child requires a selector. Use `run.child('batch', 0)` for the first in
 
 Mirror commands use numeric indices, such as `mirror.child('batch', 0)`. React bindings also use `useChild('batch', 0)`. Ordinary children use `mirror.child('address')` or `useChild('address')` without a selector. See [React](/packages/react) for child bindings.
 
-After an item fails, `run.retry('batch')` retries failed items and keeps completed child results. The mapped flow step is part of `RetryStepId<typeof wizard>`.
+After an item fails, `run.retry('batch')` retries failed items and keeps completed child results. The mapped child step is part of `RetryStepId<typeof wizard>`.
 
-[Nested flows](/advanced/nested) covers snapshots, event paths, and live child access.
+[Nested wizards](/advanced/nested) covers snapshots, event paths, and live child access.

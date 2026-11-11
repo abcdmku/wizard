@@ -1,5 +1,5 @@
 /** Stage child removals without disposing their live runtimes before commit. */
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import { parseEachChildAddress } from '../machine/child-address'
 import type { Effect } from '../machine/effects'
 import { setOwn } from '../machine/util'
@@ -10,7 +10,7 @@ export function hasChildDisposals(effects: readonly Effect[]): boolean {
 }
 
 export function stageChildSnapshots(
-  def: CompiledFlow,
+  def: CompiledWizard,
   snapshots: Readonly<Record<string, Snapshot>>,
   effects: readonly Effect[],
 ): Record<string, Snapshot> {

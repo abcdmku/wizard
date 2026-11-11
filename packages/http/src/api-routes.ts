@@ -21,21 +21,21 @@ import { refTo } from './json-schema'
 import { normalizePrefix } from './naming'
 import { registerCommands } from './openapi-commands'
 import { envelope } from './openapi-common'
+import type { JSONSchema, OpenAPIOperation } from './openapi-types'
 import {
-  type FlowDocs,
   registerInput,
   registerPayload,
   registerRun,
   registerStepState,
-} from './openapi-flow'
-import type { JSONSchema, OpenAPIOperation } from './openapi-types'
+  type WizardDocs,
+} from './openapi-wizard'
 import { parametersOf } from './router'
 
 type Parameters = { readonly [name: string]: string }
 
-/** The run routes of one flow, registering their component schemas into `docs.registry`. */
+/** The run routes of one wizard, registering their component schemas into `docs.registry`. */
 export function createRunAPI<F extends AnyWizard, S, P>(
-  docs: FlowDocs<F>,
+  docs: WizardDocs<F>,
   id: string,
   options: HTTPRunAPIOptions<F, S, P>,
   shared: SharedOptions,
@@ -43,7 +43,7 @@ export function createRunAPI<F extends AnyWizard, S, P>(
   readonly resources: readonly AnyHTTPResource[]
   readonly securitySchemes: { readonly [name: string]: JSONSchema }
 } {
-  const { flow, names, registry } = docs
+  const { wizard, names, registry } = docs
   validateProvider(options.auth)
   requirePositiveInteger(options.maxBodyBytes, 'maxBodyBytes')
   const plan = planAccess<F>(docs.steps, Object.keys(docs.schemas.events), options.access)
@@ -52,11 +52,11 @@ export function createRunAPI<F extends AnyWizard, S, P>(
   }
   const api: APIContext<F, P> = {
     id,
-    flow,
+    wizard,
     runs: options.runs,
     auth: options.auth,
     plan,
-    projection: options.projection ?? defineProjection(flow, { expose: plan.expose }),
+    projection: options.projection ?? defineProjection(wizard, { expose: plan.expose }),
     basePath: normalizePrefix(options.path ?? `/api/${id}`, 'path'),
     scopes: {
       read: validateScopes(options.scopes?.read ?? [`${id}:read`], 'scopes.read'),
@@ -69,7 +69,7 @@ export function createRunAPI<F extends AnyWizard, S, P>(
   }
   const context: OperationContext = {
     id,
-    flowName: flow.name,
+    wizardName: wizard.name,
     names,
     provider: options.auth,
     scopes: api.scopes,
@@ -129,7 +129,7 @@ export function createRunAPI<F extends AnyWizard, S, P>(
     )
   }
   if (hasCommands(plan)) {
-    registerCommands(docs, { flow: plan.flowCommands, steps: plan.stepCommands })
+    registerCommands(docs, { run: plan.runCommands, steps: plan.stepCommands })
     route('/:runId/commands', 'POST', 'dispatchCommand', commandOperation(context), (request, p) =>
       dispatchCommand(api, request, runId(p)),
     )

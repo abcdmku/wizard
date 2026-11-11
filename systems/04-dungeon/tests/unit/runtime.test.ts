@@ -58,7 +58,7 @@ async function connectParty(runtime: PartyRuntime): Promise<void> {
 describe('durable dungeonFlow runtime', () => {
   it('drives lobby generation with virtual time and explicit deterministic ticks', async () => {
     const { runtime, scheduler } = await createFixture()
-    expect(runtime.host.run.getSnapshot().flow).toEqual({
+    expect(runtime.host.run.getSnapshot().wizard).toEqual({
       name: dungeonFlow.name,
       version: dungeonFlow.version,
     })

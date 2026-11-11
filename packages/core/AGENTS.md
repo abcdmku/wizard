@@ -34,7 +34,7 @@ There are three constructors. The options you pass decide what a step does.
 | `step({ waitFor })` | Waits for a declared event |
 | `step({ sleep })` | Waits until a stored deadline |
 | `step({ next, targets })` | Routes without doing work |
-| `flow(child, { context })` | Runs another wizard. Its output is the step's output |
+| `child(childWizard, { context })` | Runs another wizard. Its output is the step's output |
 
 ## Connect steps
 

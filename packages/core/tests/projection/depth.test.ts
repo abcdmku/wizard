@@ -30,9 +30,9 @@ describe('projection depth', () => {
             n: number
           }>(),
         },
-        ({ step, flow, steps }) =>
+        ({ step, child, steps }) =>
           steps({
-            c: flow(current, {
+            c: child(current, {
               context: ({ context }) => ({ n: context.n + 1 }),
               next: 'end',
             }),

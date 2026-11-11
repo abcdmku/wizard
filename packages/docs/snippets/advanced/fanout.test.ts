@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest'
-import { ingestFlow } from './fanout'
+import { ingest } from './fanout'
 
 it('joins both branches and lets a skipped branch satisfy the join', async () => {
-  const run = ingestFlow.create({ enrichment: 'off' })
+  const run = ingest.create({ enrichment: 'off' })
   await run.start()
 
   const result = await run.awaitResult()

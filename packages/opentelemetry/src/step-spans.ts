@@ -5,16 +5,16 @@ import {
   type CompensationRecord,
   type CompletedAttempt,
   type EventRecord,
-  type FlowRecord,
   isUnderPath,
   type Outcome,
   pathKey,
+  type RunRecord,
 } from './span-state'
 import type { WorkflowSpans } from './workflow-spans'
 
 /** The kind the definition gives the step. Only a `step` runs, so that is the answer without one. */
-function stepKind(source: { readonly flow: { readonly steps: unknown } }, step: string): string {
-  const steps = source.flow.steps
+function stepKind(source: { readonly wizard: { readonly steps: unknown } }, step: string): string {
+  const steps = source.wizard.steps
   const definition: unknown =
     typeof steps === 'object' && steps !== null && Object.hasOwn(steps, step)
       ? Reflect.get(steps, step)
@@ -33,11 +33,11 @@ export function createStepSpans(workflows: WorkflowSpans, report: (error: unknow
     tracer,
     includeChildren,
     runAt,
-    flowAttributes,
+    runAttributes,
     setAttribute,
     endSpan,
     stateFor,
-    ensureFlow,
+    ensureRun,
   } = workflows
   const attempts = new Map<string, AttemptRecord>()
   const compensations = new Map<string, CompensationRecord>()
@@ -69,14 +69,14 @@ export function createStepSpans(workflows: WorkflowSpans, report: (error: unknow
     compensations.delete(compensation.key)
   }
 
-  const stepParent = (path: readonly string[]): FlowRecord | undefined =>
-    stateFor(path) ?? ensureFlow(path)
+  const stepParent = (path: readonly string[]): RunRecord | undefined =>
+    stateFor(path) ?? ensureRun(path)
 
   const stepKey = (path: readonly string[], step: string): string => `${pathKey(path)}\u0000${step}`
 
   const startAttempt = (event: EventRecord, path: readonly string[], step: string): void => {
-    const flow = stepParent(path)
-    if (!flow) return
+    const parent = stepParent(path)
+    if (!parent) return
     const attemptNumber = asNumber(event.attempt) ?? 0
     const runId = asNumber(event.runId) ?? 0
     const key = stepKey(path, step)
@@ -85,7 +85,7 @@ export function createStepSpans(workflows: WorkflowSpans, report: (error: unknow
 
     const source = runAt(path) ?? root
     const attributes: Attributes = {
-      ...flowAttributes(path, source),
+      ...runAttributes(path, source),
       'openwizard.step': step,
       'openwizard.step.kind': stepKind(source, step),
       'openwizard.step.attempt': attemptNumber,
@@ -98,7 +98,7 @@ export function createStepSpans(workflows: WorkflowSpans, report: (error: unknow
       const span = tracer.startSpan(
         'openwizard.step',
         { kind: SpanKind.INTERNAL, attributes },
-        flow.spanContext,
+        parent.spanContext,
       )
       attempts.set(key, {
         key,
@@ -107,7 +107,7 @@ export function createStepSpans(workflows: WorkflowSpans, report: (error: unknow
         runId,
         attempt: attemptNumber,
         span,
-        spanContext: trace.setSpan(flow.spanContext, span),
+        spanContext: trace.setSpan(parent.spanContext, span),
         closed: false,
       })
     } catch (error) {
@@ -155,8 +155,8 @@ export function createStepSpans(workflows: WorkflowSpans, report: (error: unknow
   ): string => `${pathKey(path)}\u0000${step}\u0000${runId ?? 'unknown'}`
 
   const startCompensation = (event: EventRecord, path: readonly string[], step: string): void => {
-    const flow = stepParent(path)
-    if (!flow) return
+    const parent = stepParent(path)
+    if (!parent) return
     const runId = asNumber(event.runId)
     const key = compensationKey(path, step, runId)
     const previous = compensations.get(key)
@@ -170,7 +170,7 @@ export function createStepSpans(workflows: WorkflowSpans, report: (error: unknow
       })
     }
     const attributes: Attributes = {
-      ...flowAttributes(path, runAt(path) ?? root),
+      ...runAttributes(path, runAt(path) ?? root),
       'openwizard.step': step,
       'openwizard.compensation': true,
       ...(runId !== undefined ? { 'openwizard.compensation.run_id': runId } : {}),
@@ -183,7 +183,7 @@ export function createStepSpans(workflows: WorkflowSpans, report: (error: unknow
           attributes,
           ...(links.length > 0 ? { links } : {}),
         },
-        flow.spanContext,
+        parent.spanContext,
       )
       compensations.set(key, {
         key,

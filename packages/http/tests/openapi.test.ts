@@ -28,7 +28,7 @@ function shop() {
       auth,
       access: {
         context: ['orderId'],
-        flow: ['create', 'read', 'cancel'],
+        run: ['create', 'read', 'cancel'],
         steps: { review: ['read', 'setInput'] },
         events: ['payment.captured'],
       },
@@ -41,7 +41,7 @@ function shop() {
     createHTTP(invoices, {
       runs: { get: () => undefined },
       auth,
-      access: { flow: ['read', 'cancel'] },
+      access: { run: ['read', 'cancel'] },
     }),
     createWebhookSubscriptions({
       id: 'orders',
@@ -162,7 +162,7 @@ describe('OpenAPI document', () => {
     const http = createHTTP(invoices, {
       runs: { get: () => undefined },
       auth,
-      access: { flow: ['read'] },
+      access: { run: ['read'] },
     })
     expect(() => combineHTTP([http, http])).toThrow("duplicate HTTP resource id 'invoices:getRun'")
   })

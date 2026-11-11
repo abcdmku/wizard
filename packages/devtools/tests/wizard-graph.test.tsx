@@ -1,11 +1,11 @@
 /**
- * `<FlowGraph>` in the DOM: every step becomes a card (child steps inside their group), the
+ * `<WizardGraph>` in the DOM: every step becomes a card (child steps inside their group), the
  * live overlay lands on the cards (`data-status`, `data-current`), a click reports the selection.
  */
 import { inspect } from '@openwizard/core/inspect'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { FlowGraph } from '../src/graph/FlowGraph'
+import { WizardGraph } from '../src/graph/WizardGraph'
 import type { GraphSelection } from '../src/types'
 import { pipeline } from './fixture'
 
@@ -16,9 +16,9 @@ const cards = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>('.ow
 const cardOf = (root: HTMLElement, id: string) =>
   cards(root).find((c) => c.querySelector('.owd-node-id')?.textContent === id)
 
-describe('<FlowGraph>', () => {
+describe('<WizardGraph>', () => {
   it('draws a card per step, the child flow as a group holding its steps, and the warnings badge', async () => {
-    const { container } = render(<FlowGraph graph={graph} />)
+    const { container } = render(<WizardGraph graph={graph} />)
     await waitFor(() => expect(cards(container).length).toBe(graph.nodes.length - 1)) // pack is a group
     const group = container.querySelector('.react-flow__node-group')
     expect(group?.querySelector('.owd-node-id')?.textContent).toBe('pack')
@@ -37,7 +37,7 @@ describe('<FlowGraph>', () => {
 
   it('overlays statuses / phases and the current view, and updates them without a new layout', async () => {
     const { container, rerender } = render(
-      <FlowGraph
+      <WizardGraph
         graph={graph}
         statuses={{ form: { status: 'active', phase: 'waiting' }, ingest: { status: 'idle' } }}
         activeStep="form"
@@ -52,7 +52,7 @@ describe('<FlowGraph>', () => {
     expect(cardOf(container, 'gate')?.dataset.status).toBeUndefined()
 
     rerender(
-      <FlowGraph
+      <WizardGraph
         graph={graph}
         statuses={{
           form: { status: 'done' },
@@ -70,7 +70,7 @@ describe('<FlowGraph>', () => {
 
   it('reports a click as { id, path, key } (nested steps carry their path) and the pane click clears it', async () => {
     const seen: Array<GraphSelection | null> = []
-    const { container } = render(<FlowGraph graph={graph} onSelect={(s) => seen.push(s)} />)
+    const { container } = render(<WizardGraph graph={graph} onSelect={(s) => seen.push(s)} />)
     await waitFor(() => expect(cardOf(container, 'count')).toBeDefined())
     const count = cardOf(container, 'count')
     if (count === undefined) throw new Error('no card')

@@ -10,7 +10,7 @@
   (`createMirror({ initial })`, `wizard.resume(snapshot)`) and create it with `useRun`. The `Provider`'s
   `serverSnapshot` prop is removed; hooks read the live source on the server and during hydration.
 - `bindReact<typeof projection>()` returns a `MirrorBinding` with `useConnection()` (`connected`,
-  `connect`), which re-renders when the transport drops or reconnects. Flow bindings stay
+  `connect`), which re-renders when the transport drops or reconnects. Bindings over a wizard stay
   `ReactBinding` (a local run has no transport).
 - `useStep(view)` binds helpers to views only: `next()` / `back()` resolve `NOT_ACTIVE` without
   sending anything when that view is not the current one; `issuesFor(field?)` filters the view's

@@ -2,17 +2,17 @@
  * Which snapshot locations may hold a `toJSON()` object (a `Date`, …) at persist time: exactly
  * the ones a schema / parse boundary re-parses on resume, so the JSON form written to the store
  * comes back as the rich value (`z.coerce.date()`), or resume rejects the snapshot loudly
- * (`SNAPSHOT_INCOMPATIBLE`) instead of quietly handing the flow a string where its types say
+ * (`SNAPSHOT_INCOMPATIBLE`) instead of quietly handing the wizard a string where its types say
  * `Date`. Everywhere else the state must be plain JSON.
  *
  * | location                          | reviving boundary                                  |
  * |-----------------------------------|----------------------------------------------------|
- * | `state.context`                   | the flow's `context` boundary                      |
+ * | `state.context`                   | the wizard's `context` boundary                      |
  * | `state.steps.<id>.output`         | the step's `output` (views: `input`) boundary      |
  * | `state.steps.<id>.previousOutput` | same boundary (the output `invalidate` moved) |
  * | `state.saga.stack[i].output`      | that entry's step, same rule                       |
  * | `state.inbox[i].payload`          | `events[<entry.event>]`                            |
- * | `children.<id>.…`                 | the same table against the child flow              |
+ * | `children.<id>.…`                 | the same table against the child wizard              |
  *
  * `guard` / `assert` / `trusted` boundaries validate or trust a value but never transform it, so
  * they cannot revive anything: only `standard` (a Standard Schema) and `parse` count.
@@ -20,11 +20,11 @@
  * @internal
  */
 
-import type { CompiledFlow, RuntimeBoundary } from '../authoring/compiled'
+import type { CompiledWizard, RuntimeBoundary } from '../authoring/compiled'
 import { parseEachChildAddress } from '../interpreter/each-child'
 
 export function canReviveAt(
-  def: CompiledFlow,
+  def: CompiledWizard,
   root: unknown,
   path: readonly (string | number)[],
 ): boolean {
@@ -48,7 +48,7 @@ export function canReviveAt(
 }
 
 function revivableInState(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: unknown,
   path: readonly (string | number)[],
 ): boolean {
@@ -121,7 +121,7 @@ function itemOutputPath(path: readonly (string | number)[]): boolean {
 }
 
 /** The boundary that re-parses a step's stored `output` on resume (views: their `input`). */
-function stepBoundary(def: CompiledFlow, step: string): RuntimeBoundary | undefined {
+function stepBoundary(def: CompiledWizard, step: string): RuntimeBoundary | undefined {
   if (!Object.hasOwn(def.steps, step)) return undefined
   const stepDef = def.steps[step]
   if (stepDef === undefined) return undefined

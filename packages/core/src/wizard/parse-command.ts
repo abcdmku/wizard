@@ -1,15 +1,15 @@
 /**
  * Strict decoder for wire commands: JSON arrives from a transport
- * as `unknown`; `parseCommand(flow, input)` checks the exact shape — allow-listed
+ * as `unknown`; `parseCommand(wizard, input)` checks the exact shape — allow-listed
  * fields per command type (unknown properties are rejected, not dropped),
  * JSON-value payloads (`patch` / `payload` must survive `JSON.stringify`
  * unchanged), no internal commands (`sendRejected` is façade-only) — AND that
- * every id exists in the compiled flow (`go` / `setInput` / `resetInput` name a
+ * every id exists in the compiled wizard (`go` / `setInput` / `resetInput` name a
  * view, `run` / `retry` a runnable step (`retry.patch` a JSON object), `send` a declared event
  * (`send.eventId` a dedupe id), `compensate.from` /
  * `skip.step` / `invalidate.step` a step (`invalidate.cascade` a boolean),
- * every `child` path segment a flow step, the nested command checked
- * against the child flow it reaches). It returns a fresh `Command<F>` or
+ * every `child` path segment a child step, the nested command checked
+ * against the child wizard it reaches). It returns a fresh `Command<F>` or
  * Standard-Schema style issues, so `run.dispatch(parsed.value)` typechecks.
  * The *effective* child path depth (all segments across the nesting) is capped
  * at 8. `decodeCommand` (internal) is the shape-only half the runtime uses.
@@ -23,8 +23,8 @@
  */
 
 import { compile } from '../authoring/compile'
-import type { BoundaryResult, CompiledFlow } from '../authoring/compiled'
-import type { AnyFlow } from '../authoring/types'
+import type { BoundaryResult, CompiledWizard } from '../authoring/compiled'
+import type { AnyWizardDefinition } from '../authoring/types'
 import type { Command } from '../machine/commands'
 import type { Issue } from '../machine/state'
 import { isPlainObject } from '../machine/util'
@@ -63,17 +63,17 @@ const SHAPES: Readonly<Record<string, readonly string[]>> = {
 }
 
 /**
- * Strictly decode an untrusted wire value into a `Command<F>` of `flow`: exact per-type field
+ * Strictly decode an untrusted wire value into a `Command<F>` of `wizard`: exact per-type field
  * allow-lists, JSON-only payloads, child path depth ≤ 8, and every step id / event name checked
- * against the flow (unknown → issues). Use it before `dispatch()` on anything from a transport.
+ * against the wizard (unknown → issues). Use it before `dispatch()` on anything from a transport.
  *
  * @public
  */
-export function parseCommand<F extends AnyFlow>(
-  flow: F,
+export function parseCommand<F extends AnyWizardDefinition>(
+  wizard: F,
   input: unknown,
 ): BoundaryResult<TypedCommand<F>> {
-  const decoded = decodeCommand(input, compile(flow))
+  const decoded = decodeCommand(input, compile(wizard))
   return decoded.ok ? { ok: true, value: decoded.value as TypedCommand<F> } : decoded
 }
 
@@ -83,7 +83,7 @@ export function parseCommand<F extends AnyFlow>(
  */
 export function decodeCommand(
   input: unknown,
-  def?: CompiledFlow,
+  def?: CompiledWizard,
   checkIds = true,
 ): BoundaryResult<Command> {
   const issues: Issue[] = []
@@ -98,7 +98,7 @@ function parse(
   path: readonly PropertyKey[],
   depth: number,
   issues: Issue[],
-  def: CompiledFlow | undefined,
+  def: CompiledWizard | undefined,
   checkIds: boolean,
 ): Command | undefined {
   if (!isPlainObject(input)) {
@@ -166,7 +166,7 @@ function parse(
     })
     return false
   }
-  /** Flow checks (only with a `def`): the id must name a step of the given kind. */
+  /** Wizard checks (only with a `def`): the id must name a step of the given kind. */
   const stepOfKind = (
     key: string,
     id: string | undefined,

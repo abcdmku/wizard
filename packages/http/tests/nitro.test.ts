@@ -20,7 +20,7 @@ function root(): string {
 const http = createHTTP(orders, {
   runs: memoryRuns(),
   auth,
-  access: { flow: ['read', 'cancel'] },
+  access: { run: ['read', 'cancel'] },
 })
 
 describe('withNitro', () => {

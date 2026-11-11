@@ -2,12 +2,12 @@ import type { AnyWizard } from '@openwizard/core'
 import { refTo } from './json-schema'
 import { camelCase, pascalCase } from './naming'
 import { errorResponses, headerParameter, jsonResponse } from './openapi-common'
-import { type FlowDocs, registerPayload } from './openapi-flow'
 import type { OpenAPIOperation } from './openapi-types'
+import { registerPayload, type WizardDocs } from './openapi-wizard'
 
 /** The documented signed receiver of `event`: tagged and grouped as `<id>.webhooks`. */
 export function receiverOperation(
-  docs: FlowDocs<AnyWizard>,
+  docs: WizardDocs<AnyWizard>,
   id: string,
   event: string,
 ): OpenAPIOperation {

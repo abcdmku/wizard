@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 150" role="img" aria-labelledby="simple-flow-title simple-flow-desc">
-  <title id="simple-flow-title">A three-step signup flow</title>
-  <desc id="simple-flow-desc">Collect email moves to send email, which moves to done.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 150" role="img" aria-labelledby="simple-wizard-title simple-wizard-desc">
+  <title id="simple-wizard-title">A three-step signup wizard</title>
+  <desc id="simple-wizard-desc">Collect email moves to send email, which moves to done.</desc>
   <style>
     text { font-family: "Geist Mono Variable", ui-monospace, monospace; fill: var(--d-ink); font-size: 15px; }
     .node { fill: var(--d-surface); stroke: var(--d-line); stroke-width: 1.5; }

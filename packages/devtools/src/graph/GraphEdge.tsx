@@ -23,7 +23,7 @@ const STYLE: Readonly<
   dynamic: { stroke: 'var(--owd-subtle)', width: 1.5, dash: '4 4' },
 }
 
-function FlowEdgeView(props: EdgeProps<DevtoolsEdge>): ReactElement {
+function GraphEdgeView(props: EdgeProps<DevtoolsEdge>): ReactElement {
   const kind = props.data?.kind ?? 'next'
   const style = STYLE[kind]
   const { path, labelX, labelY } = edgePath({
@@ -76,4 +76,4 @@ function FlowEdgeView(props: EdgeProps<DevtoolsEdge>): ReactElement {
   )
 }
 
-export const FlowEdgeComponent = memo(FlowEdgeView)
+export const GraphEdgeComponent = memo(GraphEdgeView)

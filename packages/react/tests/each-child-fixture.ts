@@ -16,9 +16,9 @@ export const approval = defineWizard(
 function approvalBatch(concurrency: number) {
   return defineWizard(
     { name: 'approval-batch', context: z.object({ ids: z.array(z.string()) }) },
-    ({ flow, steps }) =>
+    ({ child, steps }) =>
       steps({
-        batch: flow(approval, {
+        batch: child(approval, {
           each: ({ context }) => context.ids,
           key: (item) => item,
           concurrency,
@@ -58,10 +58,10 @@ export const serialClient = defineProjection(serialBatch, {
 
 export const nested = defineWizard(
   { name: 'nested-approval-batch', context: z.object({}) },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      single: flow(approval, { context: () => ({ id: 'single' }) }),
-      nested: flow(batch, { context: () => ({ ids: ['one', 'two'] }) }),
+      single: child(approval, { context: () => ({ id: 'single' }) }),
+      nested: child(batch, { context: () => ({ ids: ['one', 'two'] }) }),
     }),
 )
 export const nestedClient = defineProjection(nested, {

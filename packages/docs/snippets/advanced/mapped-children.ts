@@ -19,9 +19,9 @@ const review = defineWizard(
 
 export const reviews = defineWizard(
   { name: 'reviews', context: z.object({ orderIds: z.array(z.string()) }) },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      batch: flow(review, {
+      batch: child(review, {
         each: ({ context }) => context.orderIds,
         key: (orderId) => orderId,
         concurrency: 2,

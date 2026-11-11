@@ -60,7 +60,7 @@ describe('auto-advance hop guard', () => {
     const t = e2e(def, { context: { i: 0 } })
     await t.run.start()
     expect(t.run.getState().status).toBe('failed')
-    expect(t.of('flow.failed')[0]).toMatchObject({ code: 'AUTO_ADVANCE_LOOP' })
+    expect(t.of('run.failed')[0]).toMatchObject({ code: 'AUTO_ADVANCE_LOOP' })
   })
 
   it('fails a synchronous loop with AUTO_ADVANCE_LOOP naming its last steps', async () => {
@@ -74,7 +74,7 @@ describe('auto-advance hop guard', () => {
     const t = e2e(def, { context: { i: 0 } })
     await t.run.start()
     expect(t.run.getState().status).toBe('failed')
-    expect(t.of('flow.failed')[0]).toMatchObject({
+    expect(t.of('run.failed')[0]).toMatchObject({
       code: 'AUTO_ADVANCE_LOOP',
       step: 'one',
       error: {

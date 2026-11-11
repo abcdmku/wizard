@@ -15,7 +15,7 @@ export interface EventRecord {
   readonly [key: string]: unknown
 }
 
-export interface FlowRecord {
+export interface RunRecord {
   readonly path: readonly string[]
   readonly span: Span
   readonly spanContext: Context

@@ -5,7 +5,7 @@ import { inspect } from '../../src/inspect/graph'
 import { defineWizard } from '../../src/wizard/define-wizard'
 
 describe('inspect', () => {
-  const child = defineWizard(
+  const childWizard = defineWizard(
     { name: 'child', version: 2, context: z.object({ n: z.number() }), output: () => undefined },
     ({ step, steps }) =>
       steps({
@@ -21,7 +21,7 @@ describe('inspect', () => {
       events: { ping: boundary.trusted<{ n: number }>(), pong: boundary.trusted() },
       output: () => undefined,
     },
-    ({ step, view, flow, steps }) => {
+    ({ step, view, child, steps }) => {
       const reserve = step({
         run: async () => 1,
         timeout: '5s',
@@ -44,7 +44,7 @@ describe('inspect', () => {
             next: 'route',
           }),
           route: step({ next: () => 'sub', targets: ['sub'] }),
-          sub: flow(child, {
+          sub: child(childWizard, {
             context: () => ({ n: 1 }),
             needs: { reserve },
             next: 'done',
@@ -102,7 +102,7 @@ describe('inspect', () => {
       { id: 'route', kind: 'step', path: [], hooks: ['next'], dynamicNext: true, targets: ['sub'] },
       {
         id: 'sub',
-        kind: 'flow',
+        kind: 'child',
         path: [],
         hooks: ['context'], // authoring name (compiled: childContext)
         needs: { reserve: { kind: 'all', steps: ['reserve'] } },

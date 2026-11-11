@@ -1,12 +1,12 @@
 /**
- * A small layered ("Sugiyama-lite") layout for the graphs `inspect(flow)` returns: longest-path
+ * A small layered ("Sugiyama-lite") layout for the graphs `inspect(wizard)` returns: longest-path
  * layering from the start nodes, a few barycenter sweeps to reduce crossings, then top-down
- * coordinates. Pure data in, positions out — the SVG rendering lives in `flow-graph.tsx`.
+ * coordinates. Pure data in, positions out — the SVG rendering lives in `wizard-graph.tsx`.
  */
-import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from '@openwizard/core/inspect'
+import type { Manifest, ManifestEdge, ManifestStep } from '@openwizard/core/inspect'
 
 export interface LaidOutNode {
-  readonly node: FlowGraphNode
+  readonly node: ManifestStep
   readonly x: number
   readonly y: number
   readonly width: number
@@ -14,7 +14,7 @@ export interface LaidOutNode {
 }
 
 export interface LaidOutEdge {
-  readonly edge: FlowGraphEdge
+  readonly edge: ManifestEdge
   readonly from: LaidOutNode
   readonly to: LaidOutNode
   /** The edge points to an earlier (or the same) layer: drawn as a loop around the nodes. */
@@ -33,18 +33,18 @@ const LAYER_GAP = 44
 const NODE_GAP = 28
 const PADDING = 12
 
-const nodeWidth = (node: FlowGraphNode): number =>
+const nodeWidth = (node: ManifestStep): number =>
   Math.max(104, Math.min(220, node.id.length * 7.4 + 48))
 
-/** One flow of the graph = the nodes and edges sharing a `path`. */
-export function flowsOf(graph: FlowGraph): ReadonlyArray<{
+/** One wizard of the graph = the nodes and edges sharing a `path`. */
+export function wizardsOf(graph: Manifest): ReadonlyArray<{
   readonly path: readonly string[]
-  readonly nodes: readonly FlowGraphNode[]
-  readonly edges: readonly FlowGraphEdge[]
+  readonly nodes: readonly ManifestStep[]
+  readonly edges: readonly ManifestEdge[]
 }> {
   const byPath = new Map<
     string,
-    { path: readonly string[]; nodes: FlowGraphNode[]; edges: FlowGraphEdge[] }
+    { path: readonly string[]; nodes: ManifestStep[]; edges: ManifestEdge[] }
   >()
   for (const node of graph.nodes) {
     const key = node.path.join('/')
@@ -56,11 +56,11 @@ export function flowsOf(graph: FlowGraph): ReadonlyArray<{
 }
 
 /** Longest-path layers; DFS back edges (cycles through `next`) are excluded from layering. */
-function assignLayers(nodes: readonly FlowGraphNode[], edges: readonly FlowGraphEdge[]) {
+function assignLayers(nodes: readonly ManifestStep[], edges: readonly ManifestEdge[]) {
   const ids = nodes.map((node) => node.id)
   const out = new Map<string, string[]>(ids.map((id) => [id, []]))
   const directed = edges.filter(
-    (edge): edge is FlowGraphEdge & { from: string } =>
+    (edge): edge is ManifestEdge & { from: string } =>
       edge.from !== null && out.has(edge.from) && out.has(edge.to) && edge.from !== edge.to,
   )
   for (const edge of directed) out.get(edge.from)?.push(edge.to)
@@ -97,11 +97,11 @@ function assignLayers(nodes: readonly FlowGraphNode[], edges: readonly FlowGraph
 
 /** Order nodes inside each layer by the mean position of their neighbours (a few sweeps). */
 function orderLayers(
-  nodes: readonly FlowGraphNode[],
-  edges: readonly FlowGraphEdge[],
+  nodes: readonly ManifestStep[],
+  edges: readonly ManifestEdge[],
   layer: ReadonlyMap<string, number>,
-): FlowGraphNode[][] {
-  const layers: FlowGraphNode[][] = []
+): ManifestStep[][] {
+  const layers: ManifestStep[][] = []
   for (const node of nodes) {
     const index = layer.get(node.id) ?? 0
     layers[index] ??= []
@@ -145,10 +145,10 @@ function orderLayers(
   return layers.map((row) => row ?? [])
 }
 
-/** Layout one flow (nodes/edges of a single `path`) top-down. */
-export function layoutFlow(
-  nodes: readonly FlowGraphNode[],
-  edges: readonly FlowGraphEdge[],
+/** Layout one wizard (nodes/edges of a single `path`) top-down. */
+export function layoutWizard(
+  nodes: readonly ManifestStep[],
+  edges: readonly ManifestEdge[],
 ): DagLayout {
   if (nodes.length === 0) return { nodes: [], edges: [], width: 0, height: 0 }
   const { layer, backEdges } = assignLayers(nodes, edges)

@@ -310,7 +310,7 @@ describe('durable Run host', () => {
     )
     expect(await second.send('ping', { n: 1 }, { eventId: 'late-ping' })).toMatchObject({
       ok: false,
-      code: 'FLOW_TERMINAL',
+      code: 'RUN_TERMINAL',
     })
     expect(second.run.getState().steps.done.status).toBe('done')
     expect((await store.read('run-overdue'))?.version).toEqual(second.version)

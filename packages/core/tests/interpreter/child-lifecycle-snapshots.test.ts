@@ -22,7 +22,7 @@ describe('child snapshots follow committed parent lifecycle', () => {
     const saved: unknown[] = []
     const t = e2e(parent, {
       beforeEffects: ({ snapshot, events }) => {
-        if (events.some((event) => event.type === 'flow.reset')) saved.push(roundTrip(snapshot))
+        if (events.some((event) => event.type === 'run.reset')) saved.push(roundTrip(snapshot))
       },
     })
     await t.run.start()

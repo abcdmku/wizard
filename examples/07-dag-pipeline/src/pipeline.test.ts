@@ -32,13 +32,13 @@ function fakeDeps(scheduler: TestScheduler, options: { quality?: number } = {}) 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 function make(
-  flow: typeof pipeline,
+  wizard: typeof pipeline,
   quality?: number,
   context: { enrichment?: 'on' | 'off' } = {},
 ) {
   const scheduler = createTestScheduler({ now: 0 })
   const { deps, timeline } = fakeDeps(scheduler, quality === undefined ? {} : { quality })
-  const run = flow.create(
+  const run = wizard.create(
     { source: 'crm-export', ...context },
     {
       deps,
@@ -169,7 +169,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     expect(run.explain('gate')).toMatchObject({ phase: 'ready', reasons: ['auto-run-manual'] })
     expect(run.getState().status).toBe('waiting')
 
-    // Drive the rest stage by stage until the flow is done.
+    // Drive the rest stage by stage until the run is done.
     let rounds = 0
     while (run.getState().status !== 'done' && rounds < 5) {
       expect(await run.startReady()).toMatchObject({ ok: true })

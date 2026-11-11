@@ -1,7 +1,7 @@
-import { signupFlow } from './form'
+import { signupWizard } from './form'
 
 export async function changeContact() {
-  const run = signupFlow.create({})
+  const run = signupWizard.create({})
   try {
     await run.start()
     const { epoch, seq } = run.getState()

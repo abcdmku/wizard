@@ -39,12 +39,12 @@ describe('Run: migrate on resume', () => {
       migrate: (snapshot, from) => {
         seen.push(from)
         const snap = snapshot as {
-          flow: {
+          wizard: {
             name: string
             version: number
           }
           state: {
-            flow: {
+            wizard: {
               name: string
               version: number
             }
@@ -54,10 +54,10 @@ describe('Run: migrate on resume', () => {
         // Both the envelope and the state carry the flow identity.
         return {
           ...snap,
-          flow: { ...snap.flow, version: 2 },
+          wizard: { ...snap.wizard, version: 2 },
           state: {
             ...snap.state,
-            flow: { ...snap.state.flow, version: 2 },
+            wizard: { ...snap.state.wizard, version: 2 },
             context: { ...snap.state.context, currency: 'EUR' },
           },
         }
@@ -70,9 +70,9 @@ describe('Run: migrate on resume', () => {
     resumed.dispose()
     // Without migrate the snapshot is incompatible. A migrated snapshot is stamped with the
     // flow's version, so an identity migrate fails only on what really changed (the context).
-    expect(() => resumeRun(flowV2, saved, {})).toThrow('flow.version: expected 2, got 1')
+    expect(() => resumeRun(flowV2, saved, {})).toThrow('wizard.version: expected 2, got 1')
     expect(() => resumeRun(flowV2, saved, { migrate: (snap) => snap })).toThrow(
-      "snapshot is not compatible with flow 'approval@2': context: rejected by boundary (Invalid input: expected string, received undefined)",
+      "snapshot is not compatible with wizard 'approval@2': context: rejected by boundary (Invalid input: expected string, received undefined)",
     )
     // Same version: migrate is not called.
     let called = 0
@@ -95,10 +95,10 @@ describe('Run: migrate on resume', () => {
         }
         return {
           ...snap,
-          flow: { name: 'approval', version: 2 },
+          wizard: { name: 'approval', version: 2 },
           state: {
             ...snap.state,
-            flow: { name: 'approval', version: 2 },
+            wizard: { name: 'approval', version: 2 },
             context: { ...snap.state.context, currency: 'USD' },
           },
         }

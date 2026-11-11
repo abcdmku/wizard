@@ -1,7 +1,7 @@
 import { instrumentRun } from '@openwizard/opentelemetry'
-import { helloFlow } from '../../../../examples/01-happy-path/src/hello-flow'
+import { hello } from '../../../../examples/01-happy-path/src/hello'
 
-const run = helloFlow.create({ name: 'Ada' })
+const run = hello.create({ name: 'Ada' })
 const telemetry = instrumentRun(run)
 
 await run.start()

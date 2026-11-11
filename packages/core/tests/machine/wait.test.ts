@@ -155,7 +155,7 @@ describe('wait — routing', () => {
     nxt.start()
     nxt.cmd({ type: 'send', event: 'e', payload: 1 })
     const r = nxt.ok(nxt.call('on'), { next: 'b' })
-    expect(r.types).toEqual(['step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['step.failed', 'run.halted'])
     expect(nxt.rec('w').error?.code).toBe('INVALID_WAIT_RESULT')
     expect(nxt.rec('b').status).toBe('idle')
     expect(nxt.rec('a').status).toBe('idle')
@@ -171,7 +171,7 @@ describe('wait — routing', () => {
     fl.start()
     fl.cmd({ type: 'send', event: 'e', payload: 1 })
     const f = fl.ok(fl.call('on'), { fail: 'rejected by handler' })
-    expect(f.types).toEqual(['step.failed', 'flow.halted'])
+    expect(f.types).toEqual(['step.failed', 'run.halted'])
     expect(fl.rec('w').error).toMatchObject({ kind: 'hook', message: 'rejected by handler' })
     // unknown next
     const un = mk()
@@ -189,7 +189,7 @@ describe('wait — routing', () => {
     h.cmd({ type: 'send', event: 'failed', payload: 2 })
     const [first, second] = h.pending('on')
     const r = h.err(first!, 'handler threw')
-    expect(r.types).toEqual(['step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['step.failed', 'run.halted'])
     expect(h.ok(second!, undefined).types).toEqual(['result.ignored'])
   })
 })
@@ -275,7 +275,7 @@ describe('wait — inbox drain, TTL, timeout', () => {
   it('wait timeout: stores a deadline, skips the wait and advances to timeout.next', () => {
     const h = createHarness(waiting({ timeout: { afterMs: 1_000, next: 'expired' } }))
     const r = h.start()
-    expect(r.types).toEqual(['flow.started', 'step.arrived', 'step.entered', 'timer.scheduled'])
+    expect(r.types).toEqual(['run.started', 'step.arrived', 'step.entered', 'timer.scheduled'])
     expect(of(r, 'timer.scheduled')[0]).toMatchObject({
       timerId: 'wait:w',
       dueAt: h.clock.now + 1_000,

@@ -1,4 +1,4 @@
-import { AnyFlow, AnyProjection, ChildFlowOf, ChildStepId, Command, CommandResult, Ctx, DraftOf, EventType, IsEach, PayloadInput, Projection, ProjectionDefinition, ProjectionFlow, ProjectionOutput, RetryStepId, Run, RunEvent, RunStepId, Snapshot, StepId, ViewId } from "@openwizard/core";
+import { AnyProjection, AnyWizardDefinition, ChildStepId, ChildWizardOf, Command, CommandResult, Ctx, DraftOf, EventType, IsEach, PayloadInput, Projection, ProjectionDefinition, ProjectionOutput, ProjectionWizard, RetryStepId, Run, RunEvent, RunStepId, Snapshot, StepId, ViewId } from "@openwizard/core";
 //#region src/mirror/commands.d.ts
 /**
  * A Mirror command that never reached the server, or whose answer could not be trusted: the
@@ -18,12 +18,12 @@ interface TransportFailure {
  */
 type MirrorResult = CommandResult | TransportFailure;
 /**
- * The typed command sugar of a Mirror (and of a `MirrorChild`), typed by flow `F`: the same
+ * The typed command sugar of a Mirror (and of a `MirrorChild`), typed by wizard `F`: the same
  * methods as `Run`, each resolving with a `MirrorResult`; `dispatch` is the wire door;
- * `child(step)` scopes the same sugar to a nested flow.
+ * `child(step)` scopes the same sugar to a nested run.
  * @public
  */
-interface MirrorCommands<F extends AnyFlow> {
+interface MirrorCommands<F extends AnyWizardDefinition> {
   start(): Promise<MirrorResult>;
   next(): Promise<MirrorResult>;
   back(): Promise<MirrorResult>;
@@ -50,29 +50,29 @@ interface MirrorCommands<F extends AnyFlow> {
     readonly reason?: string;
   }): Promise<MirrorResult>;
   reset(): Promise<MirrorResult>;
-  /** Skip a ready or active step that does not complete the flow. */
+  /** Skip a ready or active step that does not complete the run. */
   skip(step: StepId<F>, reason?: string): Promise<MirrorResult>;
   /** Return a done / failed / skipped step to `idle` (+ transitive dependents with `cascade`, default `true`). */
   invalidate(step: StepId<F>, options?: {
     readonly cascade?: boolean;
   }): Promise<MirrorResult>;
-  /** The wire door: any `Command` of flow `F`, sent as-is (the server re-decodes it with `parseCommand`). */
+  /** The wire door: any `Command` of wizard `F`, sent as-is (the server re-decodes it with `parseCommand`). */
   dispatch(command: Command<F>): Promise<MirrorResult>;
   /**
-   * The same sugar scoped to the child flow of flow step `step`: every command travels as
+   * The same sugar scoped to the child run of child step `step`: every command travels as
    * `{ type: 'child', path, command }`. Mapped children require their input index; ordinary
    * children use only the step id. Nestable.
    */
-  child<K extends ChildStepId<F>>(step: K, ...selector: true extends IsEach<F, K> ? [index: number] : [index?: never]): MirrorChild<Extract<ChildFlowOf<F, K>, AnyFlow>>;
+  child<K extends ChildStepId<F>>(step: K, ...selector: true extends IsEach<F, K> ? [index: number] : [index?: never]): MirrorChild<Extract<ChildWizardOf<F, K>, AnyWizardDefinition>>;
 }
 /**
- * A scoped sender for a nested flow (`mirror.child(step)`, `.child(step).child(step2)`): the
- * `MirrorCommands` of the child flow, wrapped as `child` commands on `path`. It carries no
+ * A scoped sender for a nested run (`mirror.child(step)`, `.child(step).child(step2)`): the
+ * `MirrorCommands` of the child wizard, wrapped as `child` commands on `path`. It carries no
  * state of its own — read the child's projected state from `steps[step].child` of the mirror's
  * snapshot (exposed with `child: ExposeSpec`).
  * @public
  */
-interface MirrorChild<F extends AnyFlow> extends MirrorCommands<F> {
+interface MirrorChild<F extends AnyWizardDefinition> extends MirrorCommands<F> {
   /** Path from the root run to this child (`['fulfil']`, `['batch', '0']`, `['fulfil', 'pack']`). */
   readonly path: readonly [string, ...string[]];
 }
@@ -122,7 +122,7 @@ interface SnapshotFrame<S> {
  * the log.
  * @public
  */
-type StepProgressEvent<F extends AnyFlow = AnyFlow> = Extract<RunEvent<F>, {
+type StepProgressEvent<F extends AnyWizardDefinition = AnyWizardDefinition> = Extract<RunEvent<F>, {
   readonly type: 'step.progress';
 }>;
 /**
@@ -155,10 +155,10 @@ type Frame<S> = SnapshotFrame<S> | ProgressFrame;
  * Client → server: a wire `Command` (JSON, decoded with `parseCommand` on the server) addressed
  * to one instance. `commandId` correlates the `WireAck`; `expectedSeq`, when present, makes the
  * server reject the command with `STALE` unless the instance is exactly at that seq. `command`
- * is a `Command<F>` (`Command<AnyFlow>`, i.e. string ids, until it is decoded for a flow).
+ * is a `Command<F>` (`Command<AnyWizardDefinition>`, i.e. string ids, until it is decoded for a wizard).
  * @public
  */
-interface WireCommand<F extends AnyFlow = AnyFlow> {
+interface WireCommand<F extends AnyWizardDefinition = AnyWizardDefinition> {
   readonly commandId: string;
   readonly instanceId: string;
   readonly expectedSeq?: number;
@@ -175,14 +175,14 @@ interface WireAck {
   readonly seq: number;
 }
 /**
- * Strictly decode an untrusted value into a `WireCommand<F>` for `flow`: exact property
+ * Strictly decode an untrusted value into a `WireCommand<F>` for `wizard`: exact property
  * allow-list, non-empty string ids, `expectedSeq` a non-negative integer when present, and the
- * nested `command` decoded with `parseCommand(flow, …)` (issues are prefixed with
+ * nested `command` decoded with `parseCommand(wizard, …)` (issues are prefixed with
  * `['command']`). The server half (`createMirrorSource().dispatch`) runs it on every input;
  * hosts can run it themselves before authorising the command.
  * @public
  */
-declare function parseWireCommand<F extends AnyFlow>(flow: F, input: unknown): BoundaryResult<WireCommand<F>>;
+declare function parseWireCommand<F extends AnyWizardDefinition>(wizard: F, input: unknown): BoundaryResult<WireCommand<F>>;
 /**
  * Strictly check an untrusted value as a `Frame`: exact property allow-list per `kind`, a
  * non-empty `instanceId` and non-negative integer `epoch` / `seq`. A `snapshot` frame needs a
@@ -237,7 +237,7 @@ interface MirrorOptions<P extends AnyProjection> {
  * last applied frame (`null` before the first one).
  * @public
  */
-interface Mirror<P extends AnyProjection> extends MirrorCommands<ProjectionFlow<P>> {
+interface Mirror<P extends AnyProjection> extends MirrorCommands<ProjectionWizard<P>> {
   /** Latest projected state with pending drafts merged in (stable identity per change), `null` before the first frame. */
   getSnapshot(): ProjectionOutput<P> | null;
   /** Notified after every applied frame, draft change, connection change and on `dispose`; a no-op after `dispose`. */
@@ -247,7 +247,7 @@ interface Mirror<P extends AnyProjection> extends MirrorCommands<ProjectionFlow<
    * step a projection explicitly allows through its progress spec,
    * never part of the state. A no-op after `dispose`.
    */
-  observe(listener: (event: StepProgressEvent<ProjectionFlow<P>>) => void): () => void;
+  observe(listener: (event: StepProgressEvent<ProjectionWizard<P>>) => void): () => void;
   readonly instanceId: string | null;
   readonly epoch: number | null;
   readonly seq: number | null;
@@ -284,7 +284,7 @@ interface MirrorSource<S> {
   getFrame(): SnapshotFrame<S>;
   /**
    * Decode + gate a wire command and dispatch it. Never rejects for data problems: a bad
-   * shape or an id unknown to the flow → `INVALID_COMMAND` (with issues), a foreign
+   * shape or an id unknown to the wizard → `INVALID_COMMAND` (with issues), a foreign
    * `instanceId` → `INVALID_COMMAND`, an `expectedSeq` that is not the current seq → `STALE`,
    * a disposed run or source → `DISPOSED`; otherwise the run's own `CommandResult`. The
    * denied authorization returns `FORBIDDEN`. The ack's `seq` is the instance seq after
@@ -297,7 +297,7 @@ interface MirrorSource<S> {
 /** Values passed to a Mirror source command authorization policy.
  * @public
  */
-interface MirrorAuthorizationInput<F extends AnyFlow, Scope> {
+interface MirrorAuthorizationInput<F extends AnyWizardDefinition, Scope> {
   readonly state: Snapshot<F>['state'];
   readonly command: Command<F>;
   readonly scope: [Scope] extends [never] ? undefined : Scope;
@@ -305,7 +305,7 @@ interface MirrorAuthorizationInput<F extends AnyFlow, Scope> {
 /** Server-only principal and authorization policy for a Mirror source.
  * @public
  */
-type MirrorSourceOptions<F extends AnyFlow, Scope = never> = {
+type MirrorSourceOptions<F extends AnyWizardDefinition, Scope = never> = {
   readonly authorize?: (input: MirrorAuthorizationInput<F, Scope>) => boolean | PromiseLike<boolean>;
   /** Reports subscriber failures without interrupting other subscribers. Default: rethrow asynchronously. */
   readonly onListenerError?: (error: unknown) => void;
@@ -323,7 +323,7 @@ type MirrorSourceOptions<F extends AnyFlow, Scope = never> = {
  * subscribers share one object.
  * @public
  */
-declare function createMirrorSource<F extends AnyFlow, S, Scope = never>(run: Run<F>, projection: Projection<NoInfer<F>, S, Scope> | Projection<ProjectionDefinition<NoInfer<F>>, S, Scope>, ...optionsArg: [Scope] extends [never] ? [options?: MirrorSourceOptions<F, Scope>] : [options: MirrorSourceOptions<F, Scope>]): MirrorSource<S>;
+declare function createMirrorSource<F extends AnyWizardDefinition, S, Scope = never>(run: Run<F>, projection: Projection<NoInfer<F>, S, Scope> | Projection<ProjectionDefinition<NoInfer<F>>, S, Scope>, ...optionsArg: [Scope] extends [never] ? [options?: MirrorSourceOptions<F, Scope>] : [options: MirrorSourceOptions<F, Scope>]): MirrorSource<S>;
 //#endregion
 export { type Frame, type Mirror, type MirrorAuthorizationInput, type MirrorChild, type MirrorCommands, type MirrorOptions, type MirrorResult, type MirrorSource, type MirrorSourceOptions, type ProgressFrame, type SnapshotFrame, type StepProgressEvent, type Transport, type TransportFailure, type WireAck, type WireCommand, createMirror, createMirrorSource, parseFrame, parseWireCommand };
 //# sourceMappingURL=mirror.d.ts.map

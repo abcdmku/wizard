@@ -23,7 +23,7 @@ type BoundCreators<F extends AnyWizard> = {
 }
 
 export function createCoreRun<F extends AnyWizard>(
-  flow: F,
+  wizard: F,
   options: DurableRunOptions<F>,
   beforeEffects: BeforeEffects<F>,
   beforeTimer: BeforeTimer,
@@ -39,8 +39,8 @@ export function createCoreRun<F extends AnyWizard>(
     context,
     ...core
   } = options
-  const wizard = flow as F & BoundCreators<F>
-  return wizard.create(context, {
+  const bound = wizard as F & BoundCreators<F>
+  return bound.create(context, {
     ...core,
     instanceId: core.instanceId ?? key,
     beforeEffects,
@@ -49,7 +49,7 @@ export function createCoreRun<F extends AnyWizard>(
 }
 
 export function resumeCoreRun<F extends AnyWizard>(
-  flow: F,
+  wizard: F,
   options: DurableResumeOptions<F> | DurableRunOptions<F>,
   snapshot: unknown,
   beforeEffects: BeforeEffects<F>,
@@ -77,8 +77,8 @@ export function resumeCoreRun<F extends AnyWizard>(
     redact: _redact,
     ...core
   } = resumeOptions
-  const wizard = flow as F & BoundCreators<F>
-  return wizard.resume(snapshot, { ...core, beforeEffects, beforeTimer })
+  const bound = wizard as F & BoundCreators<F>
+  return bound.resume(snapshot, { ...core, beforeEffects, beforeTimer })
 }
 
 /** Commit the first snapshot of a new run: `value` is what the store keeps (redacted). */

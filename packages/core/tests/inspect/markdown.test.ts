@@ -22,7 +22,7 @@ describe('toMarkdown', () => {
       }),
       events: { 'payment.captured': z.object({ paymentId: z.string() }) },
     },
-    ({ step, view, flow, steps }) => {
+    ({ step, view, child, steps }) => {
       const shipping = view({
         label: 'Shipping address',
         input: z.object({ address: z.string(), express: z.boolean().optional() }),
@@ -41,7 +41,7 @@ describe('toMarkdown', () => {
         waitFor: { 'payment.captured': ({ payload }) => ({ done: payload }) },
         timeout: { after: '15m', next: 'expired' },
       })
-      const fulfil = flow(fulfilment, {
+      const fulfil = child(fulfilment, {
         needs: { reserve, payment: { optional: awaitPayment } },
         when: ({ needs }) => needs.payment !== undefined,
         context: ({ context }) => ({ orderId: context.cartId }),
@@ -58,7 +58,7 @@ describe('toMarkdown', () => {
         '',
         'Takes a cart from a shipping address to a shipped order.',
         '',
-        'Wizard `checkout`, version 1, fingerprint `eaffe112a6e9b85c`.',
+        'Wizard `checkout`, version 1, fingerprint `81d4b1f4533f8427`.',
         '',
         '## Diagram',
         '',
@@ -80,14 +80,14 @@ describe('toMarkdown', () => {
         '  awaitPayment -->|"needs: payment (optional)"| fulfil',
         '  awaitPayment -.->|"timeout 15m"| expired',
         '  _event__payment_captured>"payment.captured"] -.-> awaitPayment',
-        '  subgraph fulfil___flow ["fulfilment"]',
+        '  subgraph fulfil___child ["fulfilment"]',
         '    fulfil__label[["label"]]',
         '    fulfil__done[["done"]]',
         '    fulfil___start((" "))',
         '    fulfil___start --> fulfil__label',
         '    fulfil__label --> fulfil__done',
         '  end',
-        '  fulfil -.->|"child"| fulfil___flow',
+        '  fulfil -.->|"child"| fulfil___child',
         '```',
         '',
         '## Steps',
@@ -97,7 +97,7 @@ describe('toMarkdown', () => {
         '| `shipping` | view | its wizard starts | Collects input from a person | `reserve` |',
         '| `reserve` | step | `shipping` finishes | Runs work | `awaitPayment`; feeds `fulfil` |',
         '| `awaitPayment` | step | `reserve` finishes | Waits for `payment.captured` | feeds `fulfil`; `expired` after 15m without an event |',
-        '| `fulfil` | flow | `reserve` finishes; `awaitPayment` settles | Runs child wizard `fulfilment` version 1 | ends its branch, and its output can be the result |',
+        '| `fulfil` | child | `reserve` finishes; `awaitPayment` settles | Runs child wizard `fulfilment` version 1 | ends its branch, and its output can be the result |',
         '| `expired` | step | `awaitPayment` times out | Sleeps 1h | ends its branch, and its output can be the result |',
         '',
         '### shipping',

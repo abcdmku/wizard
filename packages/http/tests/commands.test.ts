@@ -19,7 +19,7 @@ describe('HTTP command names', () => {
     const http = createHTTP(bound, {
       auth,
       scopes: { create: ['orders:create'], read: ['orders:read'] },
-      access: { flow: ['create', 'output'] },
+      access: { run: ['create', 'output'] },
       runs: {
         get: () => run,
         create: async () => {
@@ -46,7 +46,7 @@ describe('HTTP command names', () => {
       runs: { get: ({ runId }) => runs.get(runId) },
       auth,
       scopes: { command: ['orders:command'] },
-      access: { flow: ['start', 'startReady'], steps: { work: ['startStep', 'retry'] } },
+      access: { run: ['start', 'startReady'], steps: { work: ['startStep', 'retry'] } },
     })
     const send = (id: string, body: object) =>
       http.fetch(call(`/api/manual/${id}/commands`, { token: 'alice', body }))

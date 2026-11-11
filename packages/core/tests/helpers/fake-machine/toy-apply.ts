@@ -14,7 +14,7 @@ export function toyApply(env: MachineEnv, S: WizardState, ev: DomainEvent): Wiza
   let next: WizardState = S
   let terminal: RunStatus | undefined
   switch (ev.type) {
-    case 'flow.started':
+    case 'run.started':
       next = { ...S, startedAt: ev.at }
       break
     case 'step.arrived':
@@ -106,17 +106,17 @@ export function toyApply(env: MachineEnv, S: WizardState, ev: DomainEvent): Wiza
     case 'transition.failed':
       next = { ...S, nav: { phase: 'idle' } }
       break
-    case 'flow.done':
+    case 'run.done':
       terminal = 'done'
       next = { ...S, ...(ev.output !== undefined ? { output: ev.output } : {}) }
       break
-    case 'flow.failed':
+    case 'run.failed':
       terminal = 'failed'
       break
-    case 'flow.cancelled':
+    case 'run.cancelled':
       terminal = 'cancelled'
       break
-    case 'flow.reset':
+    case 'run.reset':
       return {
         ...initialState(env, {
           instanceId: S.instanceId,
@@ -200,7 +200,7 @@ function deriveStatus(env: MachineEnv, S: WizardState, active: readonly string[]
   if (
     active.some((id) => {
       const step = env.def.steps[id]
-      return step?.kind === 'flow' || (step?.kind === 'step' && step.hooks.waitFor === undefined)
+      return step?.kind === 'child' || (step?.kind === 'step' && step.hooks.waitFor === undefined)
     })
   )
     return 'running'

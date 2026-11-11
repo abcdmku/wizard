@@ -4,7 +4,7 @@
 
 Host durable runs by key and move the store protocol to its own entry.
 
-- `createDurableHost(flow, { store, ownerId?, renew?, deps?(key), onLeaseLost? })` returns
+- `createDurableHost(wizard, { store, ownerId?, renew?, deps?(key), onLeaseLost? })` returns
   `{ create(key, input), open(key), send(key, event, payload, { eventId }), dispatch(key, command, { commandId }), dispose() }`.
   It keeps live runs open, drops a run whose lease was lost and reopens it on the next call,
   releases a run's lease once it reaches a terminal result, and releases every lease on

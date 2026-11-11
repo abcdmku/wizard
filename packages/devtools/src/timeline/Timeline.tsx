@@ -1,6 +1,6 @@
 /**
  * `<Timeline>` — a seq scrubber over the replay window of a run: pick a seq, see the state
- * the machine had right after that event (`replay(flow, events, { from, upTo })` — read-only,
+ * the machine had right after that event (`replay(wizard, events, { from, upTo })` — read-only,
  * nothing runs), step back and forth, or follow the live end.
  */
 
@@ -62,7 +62,7 @@ export function Timeline(props: TimelineProps): ReactElement {
   const live = pinned === null || seq >= window.latest
   const { source } = props
   const state = useMemo(
-    () => (live ? source.getState() : stateAt(window, source.flow, seq)),
+    () => (live ? source.getState() : stateAt(window, source.wizard, seq)),
     [live, seq, source, window],
   )
   const event = useMemo(() => window.events.find((e) => e.seq === seq), [window, seq])

@@ -1,5 +1,5 @@
 /** Drives the pure machine and records event batches and effects. */
-import type { CompiledFlow } from '../../src/authoring/compiled'
+import type { CompiledWizard } from '../../src/authoring/compiled'
 import type { Command, HookName, Message, ResultToken } from '../../src/machine/commands'
 import type { CallEffect, Effect } from '../../src/machine/effects'
 import type { DomainEvent, DomainEventBody, DomainEventType } from '../../src/machine/events'
@@ -13,7 +13,7 @@ export interface TestClock {
 }
 
 export function createEnv(
-  def: CompiledFlow,
+  def: CompiledWizard,
   opts: { now?: number; path?: readonly string[] } = {},
 ) {
   const clock: TestClock = {
@@ -47,7 +47,7 @@ export interface BatchResult {
 export interface Harness {
   readonly env: MachineEnv
   readonly clock: TestClock
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   state: WizardState
   /** Every event ever committed (all batches). */
   readonly log: DomainEvent[]
@@ -86,7 +86,7 @@ export interface Harness {
 }
 
 export function createHarness(
-  def: CompiledFlow,
+  def: CompiledWizard,
   opts: {
     now?: number
     context?: unknown

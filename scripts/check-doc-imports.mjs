@@ -44,7 +44,7 @@ for (const pkg of listPackages()) {
 
 const importRe =
   /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"](@openwizard\/[a-z-]+(?:\/[a-z-]+)*)['"]/g
-// Info strings may carry attributes (```ts title="examples/…/flow.ts" — see check-readme-quickstart).
+// Info strings may carry attributes (```ts title="examples/…/checkout.ts" — see check-readme-quickstart).
 const fenceRe = /```[a-zA-Z]*[^\n]*\n([\s\S]*?)```/g
 
 let problems = 0

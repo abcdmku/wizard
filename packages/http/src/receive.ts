@@ -5,7 +5,7 @@ import { failure, readText, requirePositiveInteger } from './http-response'
 import { idempotent } from './idempotency'
 import { isRecord } from './json-schema'
 import { normalizePrefix } from './naming'
-import type { FlowDocs } from './openapi-flow'
+import type { WizardDocs } from './openapi-wizard'
 import { receiverOperation } from './receive-openapi'
 import type {
   ReceiverOptions,
@@ -29,7 +29,7 @@ interface Receiver<F extends AnyWizard> {
 
 /** One signed `POST <path>/<event>` route per listed event of `options.events`. */
 export function createReceivers<F extends AnyWizard>(
-  docs: FlowDocs<F>,
+  docs: WizardDocs<F>,
   id: string,
   options: ReceiverOptions<F>,
   shared: SharedOptions,

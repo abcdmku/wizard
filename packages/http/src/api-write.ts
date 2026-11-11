@@ -25,7 +25,7 @@ export async function createRun<F extends AnyWizard, P>(
     if (identity instanceof Response) return identity
     const body = await readJson(request, api.maxBodyBytes)
     if (body instanceof Response) return body
-    const issues = await contextIssues(api.flow, body.value)
+    const issues = await contextIssues(api.wizard, body.value)
     if (issues !== undefined) return rejected(api, issues)
     const key = idempotencyKey(api, request, identity, 'create')
     return await idempotent(api.idempotency, key?.scoped, body.text, async () => {
@@ -54,7 +54,7 @@ export async function createRun<F extends AnyWizard, P>(
   }
 }
 
-/** `POST <base>/:runId/commands`: one flow or step command inside the declared access. */
+/** `POST <base>/:runId/commands`: one run or step command inside the declared access. */
 export async function dispatchCommand<F extends AnyWizard, P>(
   api: APIContext<F, P>,
   request: Request,
@@ -65,9 +65,9 @@ export async function dispatchCommand<F extends AnyWizard, P>(
     if (identity instanceof Response) return identity
     const body = await readJson(request, api.maxBodyBytes)
     if (body instanceof Response) return body
-    const parsed = parseCommand(api.flow, body.value)
+    const parsed = parseCommand(api.wizard, body.value)
     if (!parsed.ok) {
-      return failure(400, 'INVALID_COMMAND', 'the body is not a command of this flow', {
+      return failure(400, 'INVALID_COMMAND', 'the body is not a command of this wizard', {
         issues: parsed.issues,
       })
     }
@@ -136,9 +136,9 @@ export async function dispatchWire<F extends AnyWizard, P>(
     if (identity instanceof Response) return identity
     const body = await readJson(request, api.maxBodyBytes)
     if (body instanceof Response) return body
-    const parsed = parseWireCommand(api.flow, body.value)
+    const parsed = parseWireCommand(api.wizard, body.value)
     if (!parsed.ok) {
-      return failure(400, 'INVALID_COMMAND', 'the body is not a wire command of this flow', {
+      return failure(400, 'INVALID_COMMAND', 'the body is not a wire command of this wizard', {
         issues: parsed.issues,
       })
     }
@@ -187,16 +187,16 @@ function rejected<F extends AnyWizard, P>(
   return failure(
     422,
     'BOUNDARY_REJECTED',
-    `the input does not match the ${api.flow.name} context`,
+    `the input does not match the ${api.wizard.name} context`,
     {
       issues,
     },
   )
 }
 
-/** Issues of the flow's context boundary for `input`, when it is a Standard Schema. */
-async function contextIssues(flow: AnyWizard, input: unknown) {
-  if (!isStandardSchema(flow.context)) return undefined
-  const result = await flow.context['~standard'].validate(input)
+/** Issues of the wizard's context boundary for `input`, when it is a Standard Schema. */
+async function contextIssues(wizard: AnyWizard, input: unknown) {
+  if (!isStandardSchema(wizard.context)) return undefined
+  const result = await wizard.context['~standard'].validate(input)
   return result.issues === undefined ? undefined : jsonIssues(result.issues)
 }

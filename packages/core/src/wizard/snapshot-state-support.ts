@@ -1,9 +1,9 @@
 /** Failure, terminal, inbox, timer and identity checks for persisted state. @internal */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import type {
   CompensationFailureState,
-  FlowFailureState,
+  RunFailureState,
   TerminalState,
   TimerEntry,
 } from '../machine/state'
@@ -31,11 +31,11 @@ const FAILURE_KINDS =
   /^(?:validation|guard|run|typed|defect|timeout|compensate|interrupted|child|hook|sync-violation|runtime)$/
 
 export function checkFailure(
-  def: CompiledFlow,
+  def: CompiledWizard,
   value: unknown,
   at: string,
   reasons: string[],
-): value is FlowFailureState {
+): value is RunFailureState {
   if (!isRecord(value)) {
     reasons.push(`${at}: expected { step?, error }`)
     return false
@@ -60,7 +60,7 @@ export function checkFailure(
 }
 
 export function checkTerminal(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: Rec,
   value: unknown,
   reasons: string[],
@@ -99,7 +99,7 @@ export function checkTerminal(
 }
 
 function checkCompensationFailure(
-  def: CompiledFlow,
+  def: CompiledWizard,
   value: unknown,
   at: string,
   reasons: string[],
@@ -116,7 +116,7 @@ function checkCompensationFailure(
   return true
 }
 
-export function checkInbox(def: CompiledFlow, state: Rec, reasons: string[]): void {
+export function checkInbox(def: CompiledWizard, state: Rec, reasons: string[]): void {
   if (!Array.isArray(state.inbox)) {
     reasons.push('state.inbox: expected an array')
     return
@@ -150,7 +150,7 @@ export function checkEventIds(state: Rec, reasons: string[]): void {
   })
 }
 
-export function checkTimers(def: CompiledFlow, state: Rec, reasons: string[]): void {
+export function checkTimers(def: CompiledWizard, state: Rec, reasons: string[]): void {
   if (!isRecord(state.timers)) {
     reasons.push('state.timers: expected an object')
     return
@@ -185,12 +185,12 @@ function isValidTimerFire(fire: unknown, timerId: string): boolean {
   return decodeCommand(fire).ok
 }
 
-/** `seq` / `instanceId` / `epoch` / `flow` / `startedAt` / `updatedAt` of the state itself. */
+/** `seq` / `instanceId` / `epoch` / `wizard` / `startedAt` / `updatedAt` of the state itself. */
 export function checkIdentity(state: Rec, reasons: string[]): void {
   if (!isNonNegativeInt(state.seq)) reasons.push('state.seq: expected a non-negative integer')
   if (!isNonEmptyString(state.instanceId)) reasons.push('state.instanceId: expected a string')
   if (!isNonNegativeInt(state.epoch)) reasons.push('state.epoch: expected a non-negative integer')
-  if (!isRecord(state.flow)) reasons.push('state.flow: expected { name, version }')
+  if (!isRecord(state.wizard)) reasons.push('state.wizard: expected { name, version }')
   if (state.startedAt !== null && !isFiniteNumber(state.startedAt)) {
     reasons.push('state.startedAt: expected a number or null')
   }

@@ -5,7 +5,7 @@
  * is closed or another tab is showing.
  */
 
-import { type FlowGraph as FlowGraphData, inspect } from '@openwizard/core/inspect'
+import { inspect, type Manifest } from '@openwizard/core/inspect'
 import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useBufferedEvents, useEventBuffer } from '../events/event-buffer'
 import { useSourceOverlay, useSourceSnapshot } from '../hooks/use-source'
@@ -23,8 +23,8 @@ import { useHotkey } from './use-hotkey'
 import { type DockPosition, useResize } from './use-resize'
 
 /**
- * `<Devtools>` props: the `source` (a `Run` or a `Mirror`), the graph (`flow` / `graph`; a
- * run source brings its own flow), `theme`, `defaultOpen`, dock `position` and `defaultSize`
+ * `<Devtools>` props: the `source` (a `Run` or a `Mirror`), the graph (`wizard` / `graph`; a
+ * run source brings its own wizard), `theme`, `defaultOpen`, dock `position` and `defaultSize`
  * (px), the toggle `hotkey` (default `ctrl+shift+d`, `false` to disable), `context` (the input
  * `wizard.create` received) for a full-range timeline, `maxEvents` for the event buffer.
  * @public
@@ -50,7 +50,7 @@ const TABS: ReadonlyArray<readonly [Tab, string]> = [
 ]
 
 /**
- * The composite devtools panel: the flow graph with the live overlay (and the time-travelled
+ * The composite devtools panel: the wizard graph with the live overlay (and the time-travelled
  * state while the timeline scrubs), the event log, the step inspector and the timeline, in a
  * dockable, resizable panel. Works over a `Mirror` too (graph + inspector from the projected
  * state; the events and the timeline need a run and say so).
@@ -69,11 +69,11 @@ export function Devtools(props: DevtoolsProps): ReactElement {
     props.defaultSize ?? (position === 'bottom' ? 360 : 520),
   )
 
-  const graph: FlowGraphData | undefined = useMemo(() => {
+  const graph: Manifest | undefined = useMemo(() => {
     if (props.graph !== undefined) return props.graph
-    const flow = props.flow ?? run?.flow
-    return flow === undefined ? undefined : inspect(flow)
-  }, [props.graph, props.flow, run])
+    const wizard = props.wizard ?? run?.wizard
+    return wizard === undefined ? undefined : inspect(wizard)
+  }, [props.graph, props.wizard, run])
 
   // Buffers live here so closing the panel / switching tabs loses nothing.
   const buffer = useEventBuffer(run, props.maxEvents)

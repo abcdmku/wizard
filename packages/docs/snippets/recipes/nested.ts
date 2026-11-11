@@ -6,10 +6,10 @@ const address = defineWizard(
   ({ step, steps }) => steps({ city: step({ run: ({ context }) => context.city }) }),
 )
 
-export const checkoutFlow = defineWizard(
+export const checkout = defineWizard(
   { name: 'checkout', context: z.object({ city: z.string() }) },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      address: flow(address, { context: ({ context }) => ({ city: context.city }) }),
+      address: child(address, { context: ({ context }) => ({ city: context.city }) }),
     }),
 )

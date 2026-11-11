@@ -1,7 +1,7 @@
 /**
  * `applyProjection(projection, state, def, children?)` — build the plain, JSON-safe projected
  * state for a projection. An `expose` projection is deny-by-default (only exposed inputs /
- * outputs / issues / errors / children / context keys / flow output / progress), errors
+ * outputs / issues / errors / children / context keys / wizard output / progress), errors
  * sanitised to `{ name, message, code?, data? }`, `phase` and `progress` from the machine
  * selectors; a `select` projection is its mapper over the (typed) state. `Run.project()`
  * and the Mirror frame producer call this.
@@ -9,8 +9,8 @@
  * @internal Public users go through `run.project(projection)`.
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
-import type { AnyFlow } from '../authoring/types'
+import type { CompiledWizard } from '../authoring/compiled'
+import type { AnyWizardDefinition } from '../authoring/types'
 import { phase, progress } from '../machine'
 import { eachItem } from '../machine/each-state'
 import type { StepError, StepRecord, WizardState } from '../machine/state'
@@ -45,10 +45,10 @@ const MAX_DEPTH = 8
  * Project a run state through a projection. `children` are the live child snapshots
  * (`runtime.getSnapshot().children`) used for exposed `child` specs.
  */
-export function applyProjection<F extends AnyFlow, S, Scope = never>(
+export function applyProjection<F extends AnyWizardDefinition, S, Scope = never>(
   projection: Projection<F, S, Scope> | Projection<ProjectionDefinition<F>, S, Scope>,
   state: WizardState,
-  def: CompiledFlow,
+  def: CompiledWizard,
   children: Readonly<Record<string, Snapshot>> = {},
   ...scopeArg: [Scope] extends [never] ? [] : [scope: Scope]
 ): S {
@@ -71,7 +71,7 @@ export function applyProjection<F extends AnyFlow, S, Scope = never>(
 function project(
   expose: RawExpose | undefined,
   state: WizardState,
-  def: CompiledFlow,
+  def: CompiledWizard,
   children: Readonly<Record<string, Snapshot>>,
   depth: number,
 ): Record<string, unknown> {
@@ -101,7 +101,7 @@ function project(
 }
 
 function indexedChildren(
-  def: CompiledFlow,
+  def: CompiledWizard,
   children: Readonly<Record<string, Snapshot>>,
   specs: RawExpose['steps'],
 ): ReadonlyMap<string, ReadonlyMap<number, Snapshot>> {
@@ -135,7 +135,7 @@ function indexedChildren(
 }
 
 function projectedWaits(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   children: Readonly<Record<string, Snapshot>>,
 ): readonly WaitingFor[] {
@@ -165,7 +165,7 @@ function projectedWaits(
 function projectStep(
   rec: StepRecord,
   expose: RawStepExpose | undefined,
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   childSnapshot: Snapshot | undefined,
   indexed: ReadonlyMap<number, Snapshot> | undefined,

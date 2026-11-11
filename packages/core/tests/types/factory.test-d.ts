@@ -3,11 +3,11 @@ import { z } from 'zod'
 import {
   boundary,
   defineWizard,
-  type FlowOutput,
   type OutputOf,
   type RequiredDepsOf,
   type Run,
   type StepId,
+  type WizardOutput,
 } from '../../src'
 
 const wizard = defineWizard(
@@ -27,7 +27,7 @@ const wizard = defineWizard(
 
 expectTypeOf<StepId<typeof wizard>>().toEqualTypeOf<'form' | 'load' | 'done'>()
 expectTypeOf<OutputOf<typeof wizard, 'load'>>().toEqualTypeOf<number>()
-expectTypeOf<FlowOutput<typeof wizard>>().toEqualTypeOf<{ name: string }>()
+expectTypeOf<WizardOutput<typeof wizard>>().toEqualTypeOf<{ name: string }>()
 // @ts-expect-error the wizard itself is the flow definition
 wizard.flow
 
@@ -89,7 +89,7 @@ const asyncSink = defineWizard({ name: 'async-sink', context: z.object({}) }, ({
     done: step({ run: async () => ({ answer: 42 }) }),
   }),
 )
-expectTypeOf<FlowOutput<typeof asyncSink>>().toEqualTypeOf<{ answer: number }>()
+expectTypeOf<WizardOutput<typeof asyncSink>>().toEqualTypeOf<{ answer: number }>()
 
 const parsed = defineWizard({ name: 'parsed', context: z.object({}) }, ({ step, steps }) =>
   steps({

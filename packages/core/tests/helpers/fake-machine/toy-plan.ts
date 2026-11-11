@@ -80,7 +80,7 @@ export function toyPlan(
         break
       case 'step.entered': {
         const def = env.def.steps[ev.step]
-        if (def?.kind === 'flow' && def.hooks.childContext !== undefined) {
+        if (def?.kind === 'child' && def.hooks.childContext !== undefined) {
           out.push({
             kind: 'call',
             effectId: env.id('fx'),
@@ -97,10 +97,10 @@ export function toyPlan(
       case 'child.command':
         out.push({ kind: 'child.send', step: ev.step, command: ev.command })
         break
-      case 'flow.done':
+      case 'run.done':
         out.push({ kind: 'persist', reason: 'final' })
         break
-      case 'flow.reset':
+      case 'run.reset':
         for (const timerId of Object.keys(S.timers)) out.push({ kind: 'timer.clear', timerId })
         break
       default:

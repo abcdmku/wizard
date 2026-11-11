@@ -1,13 +1,13 @@
 /** Types shared by the hook executor and its invocation helpers. @internal */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import type { ContextUpdater, Message } from '../machine/commands'
 import type { CallEffect } from '../machine/effects'
 import type { WizardState } from '../machine/state'
 import type { Clock, Scheduler } from './env'
 
 export interface ExecutorOptions {
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   readonly path: readonly string[]
   readonly instanceId: string
   readonly clock: Clock

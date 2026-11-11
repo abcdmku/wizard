@@ -2,14 +2,14 @@ import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { boundary, defineWizard } from '../../src'
 import type {
-  AnyFlow,
+  AnyWizardDefinition,
   ErrorOf,
   EventArgs,
-  FlowOnArgs,
   HookArgs,
   OutputOf,
   RunArgs,
   StepId,
+  WizardOnArgs,
 } from '../../src/authoring/types'
 import type { Run, StepErrorOf, StepState } from '../../src/wizard/create-wizard'
 
@@ -35,7 +35,7 @@ export const wizard = defineWizard(
     on: {
       'note.added': (args) => {
         expectTypeOf(args).toEqualTypeOf<
-          FlowOnArgs<Context, Deps, { text: string }, 'note.added'>
+          WizardOnArgs<Context, Deps, { text: string }, 'note.added'>
         >()
         args.update({ note: args.payload.text })
       },
@@ -233,7 +233,7 @@ describe('flow-level handlers and correlation', () => {
       },
       ({ step, steps }) => steps({ done: step({}) }),
     )
-    expectTypeOf(wizard).toMatchTypeOf<AnyFlow>()
+    expectTypeOf(wizard).toMatchTypeOf<AnyWizardDefinition>()
   })
 })
 

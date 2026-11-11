@@ -148,7 +148,7 @@ describe('Run: attach, correlation, flow-level `on`', () => {
     expect(foreign).toMatchObject({ ok: false, reason: 'dropped' })
     expect(of('event.dropped').at(-1)).toMatchObject({ event: 'note.added', reason: 'correlation' })
     expect(run.getState().context.note).toBeUndefined()
-    // Same id (or none): handled by the flow-level handler.
+    // Same id (or none): handled by the wizard-level handler.
     await run.send('note.added', { text: 'mine', orderId: 'order-1' })
     expect(run.getState().context.note).toBe('flow:mine')
     await run.send('note.added', { text: 'anon' })

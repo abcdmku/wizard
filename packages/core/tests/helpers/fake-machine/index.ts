@@ -1,7 +1,7 @@
 /**
  * Test doubles for the interpreter / façade / persistence suites.
  *
- * - `flow()` / `step()` build `CompiledFlow` literals with sensible defaults.
+ * - `flow()` / `step()` build `CompiledWizard` literals with sensible defaults.
  * - `initialState` mirrors what the real machine's builder must produce.
  * - `createToyMachine()` is a small but real `Machine` (decide/apply/plan)
  *   covering start, next (with `canExit`), tasks (`run` + timeout), waits
@@ -16,8 +16,8 @@
 
 import type {
   BoundaryResult,
-  CompiledFlow,
   CompiledStep,
+  CompiledWizard,
   RuntimeBoundary,
   StepKind,
 } from '../../../src/authoring/compiled'
@@ -77,10 +77,10 @@ export interface FlowSpec {
   readonly start?: readonly string[]
   readonly events?: Readonly<Record<string, RuntimeBoundary>>
   readonly context?: RuntimeBoundary
-  readonly policies?: Partial<CompiledFlow['policies']>
+  readonly policies?: Partial<CompiledWizard['policies']>
 }
 
-export function flow(spec: FlowSpec): CompiledFlow {
+export function flow(spec: FlowSpec): CompiledWizard {
   const order = Object.keys(spec.steps)
   const steps: Record<string, CompiledStep> = {}
   for (const id of order) steps[id] = step(id, spec.steps[id]!)
@@ -152,7 +152,7 @@ export const initialState: InitialState = (env, opts) => {
     seq: 0,
     instanceId: opts.instanceId,
     epoch: opts.epoch ?? 0,
-    flow: { name: env.def.name, version: env.def.version },
+    wizard: { name: env.def.name, version: env.def.version },
     startedAt: null,
     updatedAt: opts.now,
   }
@@ -206,7 +206,7 @@ export function createToyMachine(overrides: ToyOverrides = {}): Machine {
 
 /** A ready-to-use env for direct machine calls in tests. */
 export function testEnv(
-  def: CompiledFlow,
+  def: CompiledWizard,
   now = 0,
 ): MachineEnv & { readonly tick: (ms: number) => void } {
   let t = now

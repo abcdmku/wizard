@@ -200,15 +200,15 @@ describe('terminal run results', () => {
   })
 
   it('exposes the same terminal API on a child run', async () => {
-    const child = defineWizard(
+    const childWizard = defineWizard(
       { name: 'child-result', context: boundary.trusted<{}>() },
       ({ step, steps }) => steps({ end: step({ run: () => 'child' }) }),
     )
     const parent = defineWizard(
       { name: 'parent-result', context: boundary.trusted<{}>() },
-      ({ step, flow, steps }) =>
+      ({ step, child, steps }) =>
         steps({
-          child: flow(child, { context: () => ({}), next: 'end' }),
+          child: child(childWizard, { context: () => ({}), next: 'end' }),
           end: step({ next: null }),
         }),
     )

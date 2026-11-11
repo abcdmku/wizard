@@ -1,7 +1,7 @@
 ﻿import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const checkoutFlow = defineWizard(
+export const checkout = defineWizard(
   {
     name: 'checkout',
     description: 'Waits for the payment provider to capture or decline the payment for an order.',
@@ -16,7 +16,7 @@ export const checkoutFlow = defineWizard(
       'payment.failed': z.object({ reason: z.string() }),
       'order.cancelled': z.object({ orderId: z.string(), reason: z.string() }),
     },
-    // Flow-level handlers run after step handlers, regardless of which step is active.
+    // Wizard-level handlers run after step handlers, regardless of which step is active.
     on: {
       'order.cancelled': ({ payload }) => ({ cancel: payload.reason }),
     },

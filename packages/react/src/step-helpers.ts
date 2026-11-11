@@ -18,7 +18,7 @@ interface ViewHelpers {
 }
 
 /**
- * Helpers bound to view `step`; `currentOf` reads the cursor of the view's flow at call time and
+ * Helpers bound to view `step`; `currentOf` reads the cursor of the view's wizard at call time and
  * `label` names the hook in the rejection message (`useStep('payment')`).
  */
 export function viewHelpers(

@@ -1,7 +1,7 @@
 import { defineWizard, type RunEvent, replay } from '@openwizard/core'
 import { z } from 'zod'
 
-export const inspectProfileFlow = defineWizard(
+export const inspectProfile = defineWizard(
   { name: 'inspect-profile', context: z.object({}) },
   ({ view, step, steps }) => {
     const contact = view({ input: z.object({ email: z.email() }) })
@@ -11,8 +11,8 @@ export const inspectProfileFlow = defineWizard(
 )
 
 export async function inspectProfileRun() {
-  const run = inspectProfileFlow.create({}, { logSize: 100 })
-  const events: RunEvent<typeof inspectProfileFlow>[] = []
+  const run = inspectProfile.create({}, { logSize: 100 })
+  const events: RunEvent<typeof inspectProfile>[] = []
   run.observe((event) => events.push(event))
   await run.start()
   const waiting = run.explain('contact')
@@ -20,7 +20,7 @@ export async function inspectProfileRun() {
   await run.next()
 
   const live = run.getState()
-  const rebuilt = replay(inspectProfileFlow, events, { context: {}, instanceId: run.id })
+  const rebuilt = replay(inspectProfile, events, { context: {}, instanceId: run.id })
   const progress = run.progress()
   run.dispose()
   return { waiting, live, rebuilt, progress, events }

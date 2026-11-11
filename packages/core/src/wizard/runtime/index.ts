@@ -5,7 +5,7 @@
  * Every method is sugar over `dispatch(command)`; results are values:
  * `CommandResult`, `NavResult`, `SendResult`. `WizardError` is the
  * rejection only for misuse: `UNKNOWN_EVENT` (send), `UNKNOWN_STEP` (validate),
- * and `NOT_A_FLOW_STEP` / `NOT_ACTIVE` are thrown by `child()`. After `dispose()`
+ * and `NOT_A_CHILD_STEP` / `NOT_ACTIVE` are thrown by `child()`. After `dispose()`
  * every command resolves a `DISPOSED` value and subscriptions are inert.
  *
  * Sync-commit guarantee: every public call enqueues its command
@@ -20,7 +20,7 @@
  * that command commits; navigation commands wait for their transaction
  * (`transition.committed/rejected/failed`; the machine's `settle` effect is
  * honoured as a fallback). Nothing here re-enters the machine: everything —
- * including `child` commands (`child.command` → `child.send`) — flows through
+ * including `child` commands (`child.command` → `child.send`) — passes through
  * the interpreter queue.
  *
  * This file is the composition root: `context.ts` (interpreter + shared state),
@@ -31,7 +31,7 @@
  * @internal Public users see the typed `Run<F>`.
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import { WizardError } from '../../errors'
 import type { ChildFactory } from '../../interpreter/child'
 import { eachChildAddress } from '../../interpreter/each-child'
@@ -70,7 +70,10 @@ export type {
 } from './types'
 
 /** Create a fresh run instance from an already-parsed context. */
-export function createWizardRuntime(def: CompiledFlow, opts: WizardRuntimeOptions): WizardRuntime {
+export function createWizardRuntime(
+  def: CompiledWizard,
+  opts: WizardRuntimeOptions,
+): WizardRuntime {
   const cfg = toConfig(opts, () => {
     throw new Error('children are only restored on the resume path')
   })
@@ -86,7 +89,7 @@ export function createWizardRuntime(def: CompiledFlow, opts: WizardRuntimeOption
 }
 
 /**
- * The child factory of one runtime: each child runs with ITS deps (`flow.flow(child, { deps })`
+ * The child factory of one runtime: each child runs with ITS deps (`child(childWizard, { deps })`
  * mapped + parsed by the bridge, or the parent's deps passed through) and inherits the parent's
  * correlation id (same business entity) and is linked to its parent (`ParentLink`);
  * everything else in the config is shared.
@@ -124,7 +127,7 @@ function childFactory(
 
 /** Build a runtime around an interpreter (root, resumed root, or child). */
 export function buildRuntime(
-  def: CompiledFlow,
+  def: CompiledWizard,
   cfg: RuntimeConfig,
   init: BuildInit,
 ): InternalRuntime {
@@ -245,8 +248,8 @@ export function buildRuntime(
     log: () => interp.log(),
     child(step, keyOrIndex) {
       const stepDef = def.steps[step]
-      if (stepDef === undefined || stepDef.kind !== 'flow') {
-        throw new WizardError('NOT_A_FLOW_STEP', `'${step}' is not a flow step`, { step })
+      if (stepDef === undefined || stepDef.kind !== 'child') {
+        throw new WizardError('NOT_A_CHILD_STEP', `'${step}' is not a child step`, { step })
       }
       let address = step
       if (stepDef.each !== undefined) {
@@ -272,7 +275,7 @@ export function buildRuntime(
       // Disposed runs retain the child handles that were live when they stopped.
       const child = interp.child(address) ?? ctx.disposedChildren.get(address)
       if (child === undefined) {
-        throw new WizardError('NOT_ACTIVE', `child flow '${step}' has not been created yet`, {
+        throw new WizardError('NOT_ACTIVE', `the child run of '${step}' has not been created yet`, {
           step,
         })
       }

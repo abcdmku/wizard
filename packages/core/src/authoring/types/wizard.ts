@@ -1,13 +1,13 @@
-/** A wizard is its declarative flow plus bound run constructors. */
+/** A wizard is its declarative definition plus bound run constructors. */
 
 import type { ResumeOptions, Run, RunOptions } from '../../wizard/create-wizard/wizard'
 import type { RunOutcome } from '../../wizard/results'
 import type { StepError } from './assembly'
 import type { Boundary } from './boundary'
 import type { DepsOf, RequiredDepsOf } from './extractors'
-import type { FlowOnArgs } from './hook-args'
+import type { WizardOnArgs } from './hook-args'
 import type { Duration, JsonValue, MaybePromise, RetryPolicy, StepKind } from './primitives'
-import type { FlowStep } from './step'
+import type { WizardStep } from './step'
 
 /** Author documentation, copied to the manifest that `inspect` returns. */
 interface WizardProse {
@@ -25,7 +25,7 @@ interface WizardPolicies {
   readonly unmatchedEvents?: { readonly buffer: boolean; readonly ttl: Duration }
 }
 /** Definition header with context, event and dependency boundaries. @public */
-export interface WizardDefinition<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPolicies, WizardProse {
+export interface WizardHeader<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPolicies, WizardProse {
   readonly name: string
   readonly version?: number
   readonly context: Boundary<C, CIn>
@@ -39,7 +39,7 @@ export interface WizardDefinition<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPol
   }) => O & (O extends PromiseLike<unknown> ? never : unknown)
   readonly on?: NoInfer<{
     readonly [E in keyof Ev]?: (
-      args: FlowOnArgs<C, D, Ev[E], E>,
+      args: WizardOnArgs<C, D, Ev[E], E>,
     ) => MaybePromise<void | { readonly cancel: string }>
   }>
   readonly correlate?: NoInfer<{
@@ -47,8 +47,8 @@ export interface WizardDefinition<C, CIn, Ev, D, O, EvIn = Ev> extends WizardPol
   }>
 }
 
-/** Phantom facts of a flow; `provided` holds the dep keys bound by `provide()`. */
-interface FlowTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
+/** Phantom facts of a wizard; `provided` holds the dep keys bound by `provide()`. */
+interface WizardTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
   readonly ctx: C
   readonly ctxIn: CIn
   readonly events: Ev
@@ -59,11 +59,19 @@ interface FlowTypes<C, CIn, Ev, D, T, O, P extends PropertyKey, EvIn = Ev> {
   readonly provided: P
 }
 
-/** The declarative definition accepted by inspectors and flow consumers. @public */
-export interface Flow<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never, EvIn = Ev>
-  extends WizardPolicies,
+/** The declarative definition accepted by inspectors and by code that only reads a wizard. @public */
+export interface WizardDefinition<
+  C,
+  CIn,
+  Ev,
+  D,
+  T,
+  O = never,
+  P extends PropertyKey = never,
+  EvIn = Ev,
+> extends WizardPolicies,
     WizardProse {
-  readonly '~types': FlowTypes<C, CIn, Ev, D, T, O, P, EvIn> | undefined
+  readonly '~types': WizardTypes<C, CIn, Ev, D, T, O, P, EvIn> | undefined
   readonly name: string
   readonly version?: number
   readonly context: Boundary<C, CIn>
@@ -76,8 +84,8 @@ export interface Flow<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never
   readonly steps: T
   readonly start?: string | readonly string[]
 }
-/** A structural constraint for code that reads any flow definition. @public */
-export type AnyFlow = Flow<
+/** A structural constraint for code that reads any wizard definition. @public */
+export type AnyWizardDefinition = WizardDefinition<
   unknown,
   unknown,
   unknown,
@@ -92,12 +100,12 @@ export type RemainingDeps<D, P extends PropertyKey> = [P] extends [never]
   ? D
   : { [K in keyof D as K extends P ? never : K]: D[K] }
 /** Creation options requiring only dependencies not already provided. @public */
-export type WizardOptions<F extends AnyFlow> = Omit<RunOptions<F>, 'context' | 'deps'> &
+export type WizardOptions<F extends AnyWizardDefinition> = Omit<RunOptions<F>, 'context' | 'deps'> &
   ({} extends RequiredDepsOf<F>
     ? { readonly deps?: Partial<DepsOf<F>> }
     : { readonly deps: RequiredDepsOf<F> & Partial<DepsOf<F>> })
 /** Restore options with run identity taken from the snapshot. @public */
-export type WizardResumeOptions<F extends AnyFlow> = Omit<
+export type WizardResumeOptions<F extends AnyWizardDefinition> = Omit<
   WizardOptions<F>,
   'instanceId' | 'correlationId'
 > &
@@ -107,37 +115,36 @@ type SureKeys<Q> = { [K in keyof Q]-?: {} extends Pick<Q, K> ? never : K }[keyof
 type OptionsArgs<O> = {} extends O ? [options?: O] : [options: O]
 
 /**
- * A flow with bound creation, resume, execution and dependency methods.
- * A wizard is its flow plus those methods. `provide()` returns a new wizard.
+ * A definition with bound creation, resume, execution and dependency methods. `provide()` returns a new wizard.
  * @public
  */
 export interface Wizard<C, CIn, Ev, D, T, O = never, P extends PropertyKey = never, EvIn = Ev>
-  extends Flow<C, CIn, Ev, D, T, O, P, EvIn> {
+  extends WizardDefinition<C, CIn, Ev, D, T, O, P, EvIn> {
   create(
     input: CIn,
-    ...options: OptionsArgs<WizardOptions<Flow<C, CIn, Ev, D, T, O, P, EvIn>>>
+    ...options: OptionsArgs<WizardOptions<WizardDefinition<C, CIn, Ev, D, T, O, P, EvIn>>>
   ): Run<this>
   createAsync(
     input: CIn,
-    ...options: OptionsArgs<WizardOptions<Flow<C, CIn, Ev, D, T, O, P, EvIn>>>
+    ...options: OptionsArgs<WizardOptions<WizardDefinition<C, CIn, Ev, D, T, O, P, EvIn>>>
   ): Promise<Run<this>>
   resume(
     snapshot: unknown,
-    ...options: OptionsArgs<WizardResumeOptions<Flow<C, CIn, Ev, D, T, O, P, EvIn>>>
+    ...options: OptionsArgs<WizardResumeOptions<WizardDefinition<C, CIn, Ev, D, T, O, P, EvIn>>>
   ): Run<this>
   resumeAsync(
     snapshot: unknown,
-    ...options: OptionsArgs<WizardResumeOptions<Flow<C, CIn, Ev, D, T, O, P, EvIn>>>
+    ...options: OptionsArgs<WizardResumeOptions<WizardDefinition<C, CIn, Ev, D, T, O, P, EvIn>>>
   ): Promise<Run<this>>
   /** Runs until done, failed, cancelled, halted or waiting on a view/event; never hangs or throws for step failures. */
   run(
     input: CIn,
-    ...options: OptionsArgs<WizardOptions<Flow<C, CIn, Ev, D, T, O, P, EvIn>>>
+    ...options: OptionsArgs<WizardOptions<WizardDefinition<C, CIn, Ev, D, T, O, P, EvIn>>>
   ): Promise<RunOutcome<this>>
   /** Like `run`, synchronously; throws `SYNC_VIOLATION` naming the step when work cannot finish synchronously. */
   runSync(
     input: CIn,
-    ...options: OptionsArgs<WizardOptions<Flow<C, CIn, Ev, D, T, O, P, EvIn>>>
+    ...options: OptionsArgs<WizardOptions<WizardDefinition<C, CIn, Ev, D, T, O, P, EvIn>>>
   ): RunOutcome<this>
   /** Bind some deps; the rest stay required wherever runs are created. */
   provide<Q extends Partial<D>>(
@@ -157,7 +164,7 @@ export interface Wizard<C, CIn, Ev, D, T, O = never, P extends PropertyKey = nev
  */
 export interface UncheckedSteps {
   // biome-ignore lint/suspicious/noExplicitAny: failure-mode only; see the comment above
-  readonly [id: string]: FlowStep<StepKind, any, 'sink'>
+  readonly [id: string]: WizardStep<StepKind, any, 'sink'>
 }
 export type RoleIn<S> = S extends { readonly '~role': infer R } ? NonNullable<R> : never
 export type OutputIn<S> = S extends { readonly '~types': infer X }
@@ -171,7 +178,7 @@ export type OutputIn<S> = S extends { readonly '~types': infer X }
  * Durable hosts and registries use it.
  * @public
  */
-export type AnyWizard = AnyFlow & {
+export type AnyWizard = AnyWizardDefinition & {
   create(input: never, ...options: never[]): unknown
   resume(snapshot: unknown, ...options: never[]): unknown
 }

@@ -2,7 +2,7 @@
 "@openwizard/core": minor
 ---
 
-Rename live instances to `Run`, with `startStep` and `startReady` methods and commands. A wizard is its flow definition and carries provided dependencies into every creator. Projections defined for a base wizard work with its provided variants, while separately authored definitions remain rejected.
+Rename live instances to `Run`, with `startStep` and `startReady` methods and commands. A wizard is its definition and carries provided dependencies into every creator. Projections defined for a base wizard work with its provided variants, while separately authored definitions remain rejected.
 
 Add atomic optimistic dispatch through `expectedVersion`, and associate durable command results with the exact committing command. Interrupted navigation returns `CANCELLED`.
 

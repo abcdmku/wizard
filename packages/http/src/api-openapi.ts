@@ -8,14 +8,14 @@ import {
   jsonResponse,
   pathParameter,
 } from './openapi-common'
-import type { FlowSchemaNames } from './openapi-flow'
 import type { JSONSchema, OpenAPIOperation } from './openapi-types'
+import type { WizardSchemaNames } from './openapi-wizard'
 
 /** Shared inputs of every operation of one generated API. */
 export interface OperationContext {
   readonly id: string
-  readonly flowName: string
-  readonly names: FlowSchemaNames
+  readonly wizardName: string
+  readonly names: WizardSchemaNames
   readonly provider: Pick<ScopeProvider<unknown>, 'documentation'>
   readonly scopes: {
     readonly read: readonly string[]
@@ -64,8 +64,8 @@ export function apiOperation(
 
 export function createRunOperation(context: OperationContext): OpenAPIOperation {
   return apiOperation(context, 'createRun', context.scopes.create, {
-    summary: `Create a run of ${context.flowName}`,
-    description: `Validates the body against the ${context.flowName} context schema, creates a run and returns its client state.`,
+    summary: `Create a run of ${context.wizardName}`,
+    description: `Validates the body against the ${context.wizardName} context schema, creates a run and returns its client state.`,
     parameters: [IDEMPOTENCY_KEY],
     requestBody: jsonBody(context.names.input),
     responses: {
@@ -83,7 +83,7 @@ export function createRunOperation(context: OperationContext): OpenAPIOperation 
 
 export function getRunOperation(context: OperationContext): OpenAPIOperation {
   return apiOperation(context, 'getRun', context.scopes.read, {
-    summary: `Get a run of ${context.flowName}`,
+    summary: `Get a run of ${context.wizardName}`,
     description:
       'Returns the client state of the run: only the context keys, steps and fields this API exposes.',
     parameters: [RUN_ID],
@@ -103,7 +103,7 @@ export function getStepOperation(
   steps: readonly string[],
 ): OpenAPIOperation {
   return apiOperation(context, 'getStep', context.scopes.read, {
-    summary: `Get a step of a ${context.flowName} run`,
+    summary: `Get a step of a ${context.wizardName} run`,
     description: 'Returns the state of one exposed step of the run.',
     parameters: [RUN_ID, pathParameter('step', 'Step id.', steps)],
     responses: {
@@ -119,9 +119,9 @@ export function getStepOperation(
 
 export function commandOperation(context: OperationContext): OpenAPIOperation {
   return apiOperation(context, 'dispatchCommand', context.scopes.command, {
-    summary: `Send a command to a run of ${context.flowName}`,
+    summary: `Send a command to a run of ${context.wizardName}`,
     description:
-      'Applies one exposed flow or step command. The discriminator `type` selects the command.',
+      'Applies one exposed run or step command. The discriminator `type` selects the command.',
     parameters: [RUN_ID, IDEMPOTENCY_KEY],
     requestBody: jsonBody(context.names.command),
     responses: {
@@ -145,7 +145,7 @@ export function eventOperation(
   description: string | undefined,
 ): OpenAPIOperation {
   return apiOperation(context, `send${pascalCase(event, 'Event')}`, context.scopes.command, {
-    summary: `Send ${event} to a run of ${context.flowName}`,
+    summary: `Send ${event} to a run of ${context.wizardName}`,
     description:
       description ??
       `Delivers the ${event} event; the body is its payload. The Idempotency-Key is the event id: the run accepts one event per id.`,
@@ -168,7 +168,7 @@ export function eventOperation(
 
 export function streamOperation(context: OperationContext): OpenAPIOperation {
   return apiOperation(context, 'streamRun', context.scopes.read, {
-    summary: `Stream a run of ${context.flowName}`,
+    summary: `Stream a run of ${context.wizardName}`,
     description:
       'Server-sent events named `frame`: the current client state at once, then one frame per committed change. The stream ends when the run is done, failed or cancelled.',
     parameters: [RUN_ID],
@@ -188,7 +188,7 @@ export function streamOperation(context: OperationContext): OpenAPIOperation {
 }
 
 /** The `Frame` component of the stream route: one SSE `data` payload. */
-export function frameSchema(names: FlowSchemaNames): JSONSchema {
+export function frameSchema(names: WizardSchemaNames): JSONSchema {
   const envelope = {
     instanceId: { type: 'string' },
     epoch: { type: 'integer' },

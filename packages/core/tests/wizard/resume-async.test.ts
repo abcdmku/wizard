@@ -63,14 +63,14 @@ describe('resumeRunAsync', () => {
         context: asyncSchema(str('context'), calls, 'context'),
         events: { ping: asyncSchema(str('ping'), calls, 'ping') },
       },
-      ({ steps, view, flow, step }) =>
+      ({ steps, view, child, step }) =>
         steps(
           {
             form: view({
               input: asyncSchema(str('form.input'), calls, 'form.input'),
               next: 'sub',
             }),
-            sub: flow(childFlow, { context: () => ({ n: '1' }), next: 'wait' }),
+            sub: child(childFlow, { context: () => ({ n: '1' }), next: 'wait' }),
             wait: step({ waitFor: { ping: () => {} }, next: 'end' }),
             end: step({}),
           },

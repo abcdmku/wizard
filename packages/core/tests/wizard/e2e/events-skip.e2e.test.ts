@@ -87,7 +87,7 @@ describe('e2e — external events on every kind, flow-level, correlation, attach
     expect(t.run.getState().inbox).toEqual([])
     expect(await t.run.send('abort', 'ops')).toMatchObject({ ok: true })
     expect(t.run.getState().status).toBe('cancelled')
-    expect(t.of('flow.cancelled')[0]).toMatchObject({ reason: 'abort:ops' })
+    expect(t.of('run.cancelled')[0]).toMatchObject({ reason: 'abort:ops' })
   })
 
   it('a child flow inherits the parent correlationId', async () => {

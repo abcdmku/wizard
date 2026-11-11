@@ -135,22 +135,22 @@ describe('resume matrix', () => {
     h.cmd('next')
     const tx = h.state.nav.txId
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'transition.rejected'])
-    expect(of(r, 'flow.resumed')[0]).toMatchObject({ fromSeq: h.state.seq - 2, interrupted: [] })
+    expect(r.types).toEqual(['run.resumed', 'transition.rejected'])
+    expect(of(r, 'run.resumed')[0]).toMatchObject({ fromSeq: h.state.seq - 2, interrupted: [] })
     expect(of(r, 'transition.rejected')[0]).toMatchObject({ txId: tx, reason: 'resumed' })
     expect(h.state.nav.phase).toBe('idle')
     expect(h.state.current).toBe('a')
     expect(r.effects.map((e) => e.kind)).toEqual(['settle', 'persist'])
   })
 
-  it('running step → step.failed{interrupted} + flow.failed; retry re-runs it', () => {
+  it('running step → step.failed{interrupted} + run.failed; retry re-runs it', () => {
     const h = createHarness(
       flow({ start: 't', steps: { t: runStep({ next: 'end' }), end: routingStep() } }),
     )
     h.start()
     const r = h.step({ type: 'resume', fromSeq: 3 })
-    expect(r.types).toEqual(['flow.resumed', 'step.failed', 'flow.halted'])
-    expect(of(r, 'flow.resumed')[0]?.interrupted).toEqual(['t'])
+    expect(r.types).toEqual(['run.resumed', 'step.failed', 'run.halted'])
+    expect(of(r, 'run.resumed')[0]?.interrupted).toEqual(['t'])
     expect(h.rec('t').error).toMatchObject({ kind: 'interrupted', code: 'INTERRUPTED' })
     expect(h.state.status).toBe('halted')
     expect(h.cmd({ type: 'retry', step: 't' }).types).toEqual(['step.runStarted'])
@@ -172,7 +172,7 @@ describe('resume matrix', () => {
     h.start()
     h.ok(h.call('run', 'a'), 1)
     const r = h.step({ type: 'resume', fromSeq: 1 })
-    expect(r.types).toEqual(['flow.resumed', 'step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['run.resumed', 'step.failed', 'run.halted'])
     expect(h.state.status).toBe('halted')
     expect(h.state.saga.stack.map((e) => e.step)).toEqual(['a'])
   })
@@ -200,7 +200,7 @@ describe('resume matrix', () => {
     h.clock.advance(2_000) // retry overdue, deadline not yet
     expect(retryAt).toBeLessThan(h.clock.now)
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'timer.fired', 'step.runStarted', 'event.delivered'])
+    expect(r.types).toEqual(['run.resumed', 'timer.fired', 'step.runStarted', 'event.delivered'])
     expect(of(r, 'step.runStarted')[0]).toMatchObject({ step: 't', attempt: 2 })
     expect(of(r, 'event.delivered')[0]).toMatchObject({ to: 'w', inboxId: 'evt-9' })
     expect(r.effects.filter((e) => e.kind === 'timer.set')).toEqual([
@@ -223,7 +223,7 @@ describe('resume matrix', () => {
     h.cmd({ type: 'send', event: 'x', payload: 1 })
     h.clock.advance(60_000)
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'timer.cleared', 'event.expired'])
+    expect(r.types).toEqual(['run.resumed', 'timer.cleared', 'event.expired'])
     expect(h.state.inbox).toEqual([])
   })
 
@@ -244,7 +244,7 @@ describe('resume matrix', () => {
     h.err(h.call('run', 'u'), 'x')
     expect(h.rec('t').status).toBe('compensating')
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed'])
+    expect(r.types).toEqual(['run.resumed'])
     expect(r.effects.filter((e) => e.kind === 'call')).toMatchObject([
       { hook: 'compensate', step: 't' },
     ])
@@ -252,7 +252,7 @@ describe('resume matrix', () => {
     expect(h.state.status).toBe('failed')
   })
 
-  it('in-flight enter / routing next hooks are re-issued; terminal flows only record flow.resumed', () => {
+  it('in-flight enter / routing next hooks are re-issued; terminal flows only record run.resumed', () => {
     const h = createHarness(
       flow({
         start: ['e', 'd'],
@@ -265,7 +265,7 @@ describe('resume matrix', () => {
     )
     h.start()
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed'])
+    expect(r.types).toEqual(['run.resumed'])
     expect(r.effects.filter((e) => e.kind === 'call').map((e) => [e.hook, e.step])).toEqual([
       ['enter', 'e'],
       ['next', 'd'],
@@ -278,9 +278,9 @@ describe('resume matrix', () => {
     h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     const t = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(t.types).toEqual(['flow.resumed'])
+    expect(t.types).toEqual(['run.resumed'])
     expect(t.effects.filter((e) => e.kind === 'call')).toEqual([])
-    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('flow-terminal')
+    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('run-terminal')
   })
 })
 

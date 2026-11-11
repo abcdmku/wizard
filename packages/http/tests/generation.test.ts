@@ -36,7 +36,7 @@ it('acknowledges the generation reopened while an idempotency store claim awaite
     auth,
     runs: { get: () => opened.host },
     scopes: { command: ['orders:command'] },
-    access: { flow: ['reset'] },
+    access: { run: ['reset'] },
     idempotency: {
       ...idempotency,
       async claim(key, fingerprint) {

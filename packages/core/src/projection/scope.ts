@@ -1,7 +1,7 @@
 /** Synchronous scope parsing shared by direct projections and Mirror sources. */
 
 import { toRuntimeBoundary } from '../authoring/boundary'
-import type { AnyFlow } from '../authoring/types'
+import type { AnyWizardDefinition } from '../authoring/types'
 import { describeError, WizardError } from '../errors'
 import { isThenable } from '../interpreter/thenable'
 import type { Projection } from './define-projection'
@@ -17,7 +17,7 @@ interface ParsedScope {
 
 /** @internal Bind an already parsed scope so Run does not run its boundary again. */
 export function bindParsedProjectionScope<Scope>(
-  projection: Pick<Projection<AnyFlow, unknown, Scope>, 'scope'>,
+  projection: Pick<Projection<AnyWizardDefinition, unknown, Scope>, 'scope'>,
   value: Scope,
 ): Scope {
   const bound: ParsedScope = {
@@ -27,7 +27,7 @@ export function bindParsedProjectionScope<Scope>(
 }
 
 export function parseProjectionScope<Scope>(
-  projection: Pick<Projection<AnyFlow, unknown, Scope>, 'scope'>,
+  projection: Pick<Projection<AnyWizardDefinition, unknown, Scope>, 'scope'>,
   supplied: boolean,
   value: Scope | undefined,
 ): Scope | undefined {

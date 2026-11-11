@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 const HOUR = 60 * 60 * 1000
 
-export const approvalFlow = defineWizard(
+export const approval = defineWizard(
   {
     name: 'approval',
     version: 1,
@@ -29,7 +29,7 @@ export async function saveAndResume() {
   const store = createMemoryStore()
   const key = 'approvals/req-1'
 
-  const first = approvalFlow.create(
+  const first = approval.create(
     { requestId: 'req-1' },
     {
       store,
@@ -43,7 +43,7 @@ export async function saveAndResume() {
 
   // Three hours elapsed. The original 48-hour deadline still has 45 hours left.
   const clock = createTestScheduler({ now: 3 * HOUR })
-  const second = approvalFlow.resume(await store.get(key), { store, key, scheduler: clock })
+  const second = approval.resume(await store.get(key), { store, key, scheduler: clock })
   const remaining = clock.pending()
   clock.advance(45 * HOUR)
   const result = await second.awaitResult()

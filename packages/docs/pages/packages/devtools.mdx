@@ -1,6 +1,6 @@
 # Devtools
 
-`@openwizard/devtools` renders a run's flow graph, step records, event log, and replay timeline in a dockable React panel. You need it when you are asking "why is this step waiting?" or "which event changed the context?".
+`@openwizard/devtools` renders a run's wizard graph, step records, event log, and replay timeline in a dockable React panel. You need it when you are asking "why is this step waiting?" or "which event changed the context?".
 
 ```sh
 npm install @openwizard/devtools @xyflow/react elkjs react react-dom
@@ -24,7 +24,7 @@ npm install @openwizard/devtools @xyflow/react elkjs react react-dom
 | `hotkey` | Toggle shortcut; `false` disables it |
 | `theme` | `'system'`, or force light or dark |
 | `context`, `maxEvents` | Initial context for replay; event log cap |
-| `FlowGraph`, `EventLog`, `StepInspector`, `Timeline` | The panel's parts, usable on their own |
+| `WizardGraph`, `EventLog`, `StepInspector`, `Timeline` | The panel's parts, usable on their own |
 | `buildGraphModel`, `layoutGraph` | Lower-level graph model and ELK layout |
 | `RunSource`, `isRunSource` | Local-run source contract and discriminator for custom panels |
 

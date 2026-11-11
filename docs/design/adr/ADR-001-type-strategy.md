@@ -51,7 +51,7 @@ Assembly computes each step's sink role once. A step is inner when it has a stat
 
 Fallback and wait-timeout edges are alternate paths. They do not make the original step inner, so a successful task with a fallback can still provide the happy-path result.
 
-Without a wizard-level output selector, `FlowOutput` is the union of sink outputs. Conditions and alternate branches can skip sinks, so the type includes `undefined` when needed. Several sinks do not promise which one finishes last. The runtime returns the last completed sink's output.
+Without a wizard-level output selector, `WizardOutput` is the union of sink outputs. Conditions and alternate branches can skip sinks, so the type includes `undefined` when needed. Several sinks do not promise which one finishes last. The runtime returns the last completed sink's output.
 
 Use `output: ({ context }) => value` when the application needs one stable final shape. The selector is synchronous and runs after activated work finishes.
 
@@ -67,11 +67,11 @@ The provided key facts stay on the returned Wizard. Child constructors and durab
 
 ## Child selection and retry
 
-A mapped child flow records an `each` fact. `run.child(step, keyOrIndex)` requires a saved item key or input index for that flow. Ordinary child steps accept only the step id. Mirrors and React use the input index for mapped children, which also appears in public paths such as `['batch', '0']`.
+A mapped child step records an `each` fact. `run.child(step, keyOrIndex)` requires a saved item key or input index for that step. Ordinary child steps accept only the step id. Mirrors and React use the input index for mapped children, which also appears in public paths such as `['batch', '0']`.
 
 Mapped child projections preserve input order. Summary exposure produces `readonly (ChildSummary | null)[]`; nested exposure produces the same array shape with projected child state. A `null` slot represents an item without child state yet.
 
-`RunStepId` identifies work that `startStep` can launch. `RetryStepId` also includes mapped child flows, so `retry` can recover failed items while keeping completed item outputs. The mapped-flow fact must survive compaction for these commands and projections to stay precise.
+`RunStepId` identifies work that `startStep` can launch. `RetryStepId` also includes mapped child steps, so `retry` can recover failed items while keeping completed item outputs. The mapped-child fact must survive compaction for these commands and projections to stay precise.
 
 ## Limits of structural typing
 

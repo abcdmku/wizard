@@ -1,5 +1,5 @@
 /**
- * `toMarkdown(graph)` — render a manifest (from `inspect(flow)`) as one Markdown page: the
+ * `toMarkdown(graph)` — render a manifest (from `inspect(wizard)`) as one Markdown page: the
  * diagram, a table of every step, the facts of each step, the context and event schemas and the
  * analysis warnings. Pure text, so the page can be committed and compared.
  *
@@ -10,11 +10,11 @@ import { samePath } from '../machine/util'
 import { describeSchema, fieldTable } from './markdown-schema'
 import { toMermaid } from './mermaid'
 import { duration } from './mermaid-syntax'
-import type { FlowGraph, FlowGraphEdge, FlowGraphNode, GraphNeed } from './types'
+import type { GraphNeed, Manifest, ManifestEdge, ManifestStep } from './types'
 
 /**
  * Render a manifest as a Markdown page for people and coding agents: a title with the version
- * and fingerprint, the `toMermaid` diagram, then per flow (root first, each child flow under its
+ * and fingerprint, the `toMermaid` diagram, then per wizard (root first, each child wizard under its
  * step) a table of when every step starts, what it does and where it leads, followed by one
  * section per step with its needs, guard, retry, timeout, undo hook, hooks and JSON Schemas.
  * Ends with the context fields, the declared events with the steps that wait for or handle
@@ -22,7 +22,7 @@ import type { FlowGraph, FlowGraphEdge, FlowGraphNode, GraphNeed } from './types
  * described. Deterministic for a given manifest.
  * @public
  */
-export function toMarkdown(graph: FlowGraph): string {
+export function toMarkdown(graph: Manifest): string {
   const lines: string[] = [`# ${graph.name}`, '']
   if (graph.description !== undefined) lines.push(graph.description, '')
   lines.push(
@@ -35,7 +35,7 @@ export function toMarkdown(graph: FlowGraph): string {
     '```',
     '',
   )
-  for (const path of flowPaths(graph)) lines.push(...flowSection(graph, path))
+  for (const path of wizardPaths(graph)) lines.push(...wizardSection(graph, path))
   if (graph.schemas.context !== undefined) {
     lines.push('## Context', '', ...fieldTable(graph.schemas.context), '')
   }
@@ -43,14 +43,14 @@ export function toMarkdown(graph: FlowGraph): string {
   return `${lines.join('\n').trimEnd()}\n`
 }
 
-/** The root flow, then every child flow in node order. */
-function flowPaths(graph: FlowGraph): (readonly string[])[] {
+/** The root wizard, then every child wizard in node order. */
+function wizardPaths(graph: Manifest): (readonly string[])[] {
   const paths: (readonly string[])[] = [[]]
   for (const node of graph.nodes) if (node.child !== undefined) paths.push([...node.path, node.id])
   return paths.filter((path) => graph.nodes.some((node) => samePath(node.path, path)))
 }
 
-function flowSection(graph: FlowGraph, path: readonly string[]): string[] {
+function wizardSection(graph: Manifest, path: readonly string[]): string[] {
   const nodes = graph.nodes.filter((node) => samePath(node.path, path))
   const edges = graph.edges.filter((edge) => samePath(edge.path, path))
   const owner = graph.nodes.find((node) => samePath([...node.path, node.id], path))
@@ -74,7 +74,7 @@ function flowSection(graph: FlowGraph, path: readonly string[]): string[] {
   ]
 }
 
-function stepSection(node: FlowGraphNode, edges: readonly FlowGraphEdge[]): string[] {
+function stepSection(node: ManifestStep, edges: readonly ManifestEdge[]): string[] {
   const facts: string[] = [
     `Starts when: ${startsWhen(node, edges).join('; ')}.`,
     `Then: ${leadsTo(node, edges).join('; ')}.`,
@@ -106,8 +106,8 @@ function stepSection(node: FlowGraphNode, edges: readonly FlowGraphEdge[]): stri
   return lines
 }
 
-function startsWhen(node: FlowGraphNode, edges: readonly FlowGraphEdge[]): string[] {
-  const into = (kind: FlowGraphEdge['kind']): string[] =>
+function startsWhen(node: ManifestStep, edges: readonly ManifestEdge[]): string[] {
+  const into = (kind: ManifestEdge['kind']): string[] =>
     edges.flatMap((edge) =>
       edge.to === node.id && edge.kind === kind && edge.from !== null ? [code(edge.from)] : [],
     )
@@ -131,7 +131,7 @@ function startsWhen(node: FlowGraphNode, edges: readonly FlowGraphEdge[]): strin
   return parts.length > 0 ? parts : ['never, nothing activates it']
 }
 
-function does(node: FlowGraphNode): string {
+function does(node: ManifestStep): string {
   const each = node.each === undefined ? '' : ' for each item'
   if (node.kind === 'view') return 'Collects input from a person'
   if (node.child !== undefined) {
@@ -147,8 +147,8 @@ function does(node: FlowGraphNode): string {
   return 'Routes'
 }
 
-function leadsTo(node: FlowGraphNode, edges: readonly FlowGraphEdge[]): string[] {
-  const out = (kind: FlowGraphEdge['kind']): string[] =>
+function leadsTo(node: ManifestStep, edges: readonly ManifestEdge[]): string[] {
+  const out = (kind: ManifestEdge['kind']): string[] =>
     edges.flatMap((edge) => (edge.from === node.id && edge.kind === kind ? [code(edge.to)] : []))
   const parts: string[] = []
   if (out('next').length > 0) parts.push(list(out('next'), 'and'))
@@ -174,7 +174,7 @@ function needText(need: GraphNeed): string {
   return `the output of ${list(steps, 'and')}`
 }
 
-function retryText(retry: NonNullable<FlowGraphNode['retry']>): string {
+function retryText(retry: NonNullable<ManifestStep['retry']>): string {
   const count = `up to ${retry.retries} ${retry.retries === 1 ? 'retry' : 'retries'} after the first run`
   const backoff =
     retry.backoff === undefined
@@ -185,7 +185,7 @@ function retryText(retry: NonNullable<FlowGraphNode['retry']>): string {
   return `${count}, ${backoff}${retry.when === true ? ', only for errors its `when` accepts' : ''}`
 }
 
-function eventsSection(graph: FlowGraph): string[] {
+function eventsSection(graph: Manifest): string[] {
   const names = Object.keys(graph.schemas.events)
   if (names.length === 0) return []
   const users = (event: string, hook: 'waitFor' | 'on'): string =>
@@ -202,7 +202,7 @@ function eventsSection(graph: FlowGraph): string[] {
   return ['## Events', '', ...table(['Event', 'Payload', 'Completes', 'Also handled by'], rows), '']
 }
 
-function warningsSection(graph: FlowGraph): string[] {
+function warningsSection(graph: Manifest): string[] {
   if (graph.warnings.length === 0) return []
   const rows = graph.warnings.map((warning) => [
     code(warning.code),
@@ -213,7 +213,7 @@ function warningsSection(graph: FlowGraph): string[] {
 }
 
 /** A step id, prefixed with its child path (`fulfil / pick`), unique within the page. */
-function stepName(node: FlowGraphNode): string {
+function stepName(node: ManifestStep): string {
   return [...node.path, node.id].join(' / ')
 }
 

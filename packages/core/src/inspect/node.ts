@@ -10,9 +10,9 @@ import type { CompiledStep, RetryPolicy } from '../authoring/compiled'
 import { isRunAdapter, RUN_ADAPTER } from '../authoring/run-adapter'
 import type { AnyStep } from '../authoring/types'
 import { toJSONSchema } from './json-schema'
-import type { FlowGraphNode, GraphRetry, JSONSchema } from './types'
+import type { GraphRetry, JSONSchema, ManifestStep } from './types'
 
-/** Where a step sits: its flow's path, whether it is an entry, and the flow's default retry. */
+/** Where a step sits: its wizard's path, whether it is an entry, and the wizard's default retry. */
 interface NodeSite {
   readonly path: readonly string[]
   readonly start: boolean
@@ -20,7 +20,7 @@ interface NodeSite {
   readonly retry: RetryPolicy | undefined
 }
 
-export function toNode(step: CompiledStep, raw: unknown, site: NodeSite): FlowGraphNode {
+export function toNode(step: CompiledStep, raw: unknown, site: NodeSite): ManifestStep {
   const record = isStepRecord(raw) ? raw : undefined
   const timeout = step.timeoutMs ?? step.waitTimeout?.afterMs
   const targets = declaredTargets(step)
@@ -73,11 +73,11 @@ export function declaredTargets(step: CompiledStep): readonly string[] | undefin
   return step.next.kind === 'dynamic' ? step.next.targets : undefined
 }
 
-/** `description` / `meta` of a compiled step or flow, when set. */
+/** `description` / `meta` of a compiled step or wizard, when set. */
 export function prose({
   description,
   meta,
-}: Pick<CompiledStep, 'description' | 'meta'>): Pick<FlowGraphNode, 'description' | 'meta'> {
+}: Pick<CompiledStep, 'description' | 'meta'>): Pick<ManifestStep, 'description' | 'meta'> {
   return {
     ...(description !== undefined ? { description } : {}),
     ...(meta !== undefined ? { meta } : {}),

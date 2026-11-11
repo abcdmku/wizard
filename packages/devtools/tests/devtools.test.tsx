@@ -117,7 +117,7 @@ describe('<StepInspector> on its own', () => {
     expect(fact(container, 'status')).toBe('done')
     // explain() comes from `run.child('pack').explain('count')`: the child flow is terminal.
     expect([...container.querySelectorAll('.owd-chip-reason')].map((c) => c.textContent)).toContain(
-      'flow-terminal',
+      'run-terminal',
     )
     expect(container.querySelector('.owd-json-pre')?.textContent).toContain('200') // 100 rows × 2
     run.dispose()

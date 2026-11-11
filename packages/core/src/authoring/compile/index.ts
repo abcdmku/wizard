@@ -1,11 +1,11 @@
 /**
- * `compile(flow)` — turns an inert `Flow` into the `CompiledFlow` the machine and the
+ * `compile(wizard)` — turns an inert `WizardDefinition` into the `CompiledWizard` the machine and the
  * interpreter consume, validating it on the way.
  *
  * Definition problems include unknown refs, dependency cycles, invalid option combinations,
- * step-level or flow-level handler (`on`, `correlate`) for an undeclared event, fields a kind
+ * step-level or wizard-level handler (`on`, `correlate`) for an undeclared event, fields a kind
  * does not accept (per-kind allow-lists, e.g. `input` on a plain step), malformed
- * hooks/policies. The error code is `NESTING_CYCLE` (a flow embeds an ancestor) or
+ * hooks/policies. The error code is `NESTING_CYCLE` (a wizard embeds an ancestor) or
  * `NESTING_TOO_DEEP` (deeper than 8) when such a problem is among them, `DEFINITION_INVALID`
  * otherwise. Nested definition problems are collected together.
  *
@@ -15,69 +15,69 @@
  * for the function form) and `mapError` → `hooks.mapError` (called with `(args.error, args)`);
  * the definition header's `on` / `correlate` → `def.on` / `def.correlate`.
  *
- * Warnings (never thrown; `analyze(flow).warnings`, which `inspect()` reports):
+ * Warnings (never thrown; `analyze(wizard).warnings`, which `inspect()` reports):
  * `UNREACHABLE` (no path from `start` through `next`, `targets`, `needs`, `fallback` or
  * `timeout.next`), `NAV_CYCLE` (a cycle through static `next` / `timeout.next` edges —
  * allowed, reported).
  * Dynamic `next` functions require declared targets, which bound reachability analysis.
  *
- * Flow-step mappers (`context`, `deps`) are compiled RAW: the executor / child bridge parse
+ * Child step mappers (`context`, `deps`) are compiled RAW: the executor / child bridge parse
  * their values through the child's boundaries exactly once, at child creation.
  *
- * Results are cached per flow object. Wizard assembly compiles eagerly.
+ * Results are cached per wizard object. Wizard assembly compiles eagerly.
  *
  * @packageDocumentation
  */
 
 import { WizardError } from '../../errors'
-import type { CompiledFlow } from '../compiled'
-import type { AnyFlow } from '../types'
-import { compileFlow, type NestingProblem } from './flow'
+import type { CompiledWizard } from '../compiled'
+import type { AnyWizardDefinition } from '../types'
 import { describeName } from './shared'
+import { compileWizard, type NestingProblem } from './wizard'
 
 /**
- * A static-analysis warning about a flow (advisory; never thrown).
+ * A static-analysis warning about a wizard (advisory; never thrown).
  * @public
  */
-export interface FlowWarning {
+export interface ManifestWarning {
   readonly code: 'UNREACHABLE' | 'NAV_CYCLE' | 'EXCLUSIVE_JOIN' | 'MULTIPLE_SINKS' | 'NO_SINKS'
   readonly message: string
   /** Step the warning is about. */
   readonly step?: string
-  /** Run path of the flow the step belongs to (`[]` = root). */
+  /** Run path of the wizard the step belongs to (`[]` = root). */
   readonly path: readonly string[]
 }
 
-/** @internal Cached result of analysing one flow object. */
+/** @internal Cached result of analysing one wizard object. */
 export interface Analysis {
-  readonly compiled: CompiledFlow
-  readonly warnings: readonly FlowWarning[]
+  readonly compiled: CompiledWizard
+  readonly warnings: readonly ManifestWarning[]
 }
 
 const cache = new WeakMap<object, Analysis>()
 
 /**
- * Compile (and validate) a flow. Throws `WizardError('DEFINITION_INVALID' | 'NESTING_CYCLE' |
- * 'NESTING_TOO_DEEP')` listing every problem. Cached per flow object.
+ * Compile (and validate) a wizard. Throws `WizardError('DEFINITION_INVALID' | 'NESTING_CYCLE' |
+ * 'NESTING_TOO_DEEP')` listing every problem. Cached per wizard object.
  * @internal
  */
-export function compile(flow: AnyFlow): CompiledFlow {
-  return analyze(flow).compiled
+export function compile(wizard: AnyWizardDefinition): CompiledWizard {
+  return analyze(wizard).compiled
 }
 
-/** @internal Compile + warnings, cached per flow object. */
-export function analyze(flow: AnyFlow): Analysis {
-  const cached = cache.get(flow)
+/** @internal Compile + warnings, cached per wizard object. */
+export function analyze(wizard: AnyWizardDefinition): Analysis {
+  const cached = cache.get(wizard)
   if (cached !== undefined) return cached
   const problems: string[] = []
-  const warnings: FlowWarning[] = []
+  const warnings: ManifestWarning[] = []
   const nesting: NestingProblem[] = []
-  const compiled = compileFlow(flow, { problems, warnings, nesting, path: [], chain: [flow] })
+  const compiled = compileWizard(wizard, { problems, warnings, nesting, path: [], chain: [wizard] })
   if (problems.length > 0) {
     const worst = nesting[0]
     throw new WizardError(
       worst?.code ?? 'DEFINITION_INVALID',
-      `flow '${describeName(flow)}' is invalid:\n- ${problems.join('\n- ')}`,
+      `wizard '${describeName(wizard)}' is invalid:\n- ${problems.join('\n- ')}`,
       {
         issues: problems.map((message) => ({ message })),
         ...(worst !== undefined ? { step: worst.step } : {}),
@@ -85,6 +85,6 @@ export function analyze(flow: AnyFlow): Analysis {
     )
   }
   const analysis: Analysis = { compiled, warnings }
-  cache.set(flow, analysis)
+  cache.set(wizard, analysis)
   return analysis
 }

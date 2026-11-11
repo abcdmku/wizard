@@ -6,7 +6,7 @@
   "persistence": "Snapshots and migrations",
   "durability": "Multi-worker durability",
   "events": "External event routing",
-  "nested": "Nested flows",
+  "nested": "Nested wizards",
   "projections": "Projections and mirrors",
   "operations": "Explain, observe, replay"
 }

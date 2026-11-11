@@ -30,7 +30,7 @@ describe('httpTransport', () => {
       runs: { get: () => run },
       auth,
       scopes: { read: ['orders:read'] },
-      access: { flow: ['read'] },
+      access: { run: ['read'] },
       projection: defineProjection(work, { expose: { steps: { upload: { progress: true } } } }),
     })
     const response = await http.fetch(call('/api/progress/p-1/stream', { token: 'alice' }))
@@ -60,7 +60,7 @@ describe('httpTransport', () => {
       auth,
       projection,
       access: {
-        flow: ['read', 'next'],
+        run: ['read', 'next'],
         steps: { review: ['setInput'] },
         events: ['payment.captured'],
       },

@@ -16,11 +16,11 @@ export type Mutable<T> = { -readonly [K in keyof T]: T[K] }
 export function isStepRecord(value: unknown): value is AnyStep {
   if (!isRecord(value)) return false
   const kind = value.kind
-  return typeof kind === 'string' && (kind === 'step' || kind === 'view' || kind === 'flow')
+  return typeof kind === 'string' && (kind === 'step' || kind === 'view' || kind === 'child')
 }
 
-export function describeName(flow: unknown): string {
-  return isRecord(flow) && typeof flow.name === 'string' ? flow.name : '<unnamed>'
+export function describeName(wizard: unknown): string {
+  return isRecord(wizard) && typeof wizard.name === 'string' ? wizard.name : '<unnamed>'
 }
 
 export const DEFAULT_TTL_MS = 300_000

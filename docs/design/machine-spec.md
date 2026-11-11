@@ -1,6 +1,6 @@
 # Machine specification
 
-This document is normative for `packages/core/src/machine/**`. [Architecture plan](architecture-plan.md) explains the design; [ADR-001](adr/ADR-001-type-strategy.md) explains authoring inference. The command, state, event, effect, and compiled-flow types are the implementation contracts.
+This document is normative for `packages/core/src/machine/**`. [Architecture plan](architecture-plan.md) explains the design; [ADR-001](adr/ADR-001-type-strategy.md) explains authoring inference. The command, state, event, effect, and compiled-wizard types are the implementation contracts.
 
 `env` contains the compiled definition, clock, ids, randomness, and event-id retention. Machine functions describe work; the interpreter executes it.
 
@@ -46,8 +46,8 @@ Entry creates a new step activation, clears stale execution fields, and preserve
 | Event wait | Drain matching buffered events, arm timeout |
 | Sleep | Record and arm an absolute deadline |
 | Routing/join step | Complete with `undefined`, then resolve `next` |
-| Child flow | Map child input/deps, create child, wait for outcome |
-| Per-item child flow | Create one child per snapshotted item |
+| Child wizard | Map child input/deps, create child, wait for outcome |
+| Per-item child wizard | Create one child per snapshotted item |
 
 Successful completion activates normal successors and data consumers. A sink can finish without an explicit final node. The run completes when work has settled and no active or still-reachable work remains.
 
@@ -93,7 +93,7 @@ For `each`:
 7. Complete the step with outputs in input order.
 8. Emit transient `step.progress { done, total }` for completed items.
 
-Per-item child flows obey the same result and retry rules. Item-aware mappers receive `item` and `index`.
+Per-item child wizards obey the same result and retry rules. Item-aware mappers receive `item` and `index`.
 
 ## 5. Events and waits
 
@@ -101,24 +101,24 @@ Public `send` parses the event boundary before machine delivery. Correlation run
 
 Accepted `eventId` values live in the snapshot under bounded TTL and count retention. A duplicate returns a successful duplicate result with no deliveries and emits no new delivery. Defaults are 24 hours and 1000 ids.
 
-Deliver step listeners in activation order, then the flow-level handler. A halt during that delivery stops later listeners and flow-level delivery. Stale delivery tokens also suppress hooks that have not started.
+Deliver step listeners in activation order, then the wizard-level handler. A halt during that delivery stops later listeners and wizard-level delivery. Stale delivery tokens also suppress hooks that have not started.
 
 | Handler | Allowed result |
 |---|---|
 | `waitFor` | Void, keep, done, or fail |
 | View `on` | Void or a declared navigation result |
 | Runnable/child passive `on` | Void |
-| Flow-level `on` | Void or cancellation |
+| Wizard-level `on` | Void or cancellation |
 
 Wait handlers cannot return navigation overrides. Completion follows the step's configured `next`. A wait output is its explicit done value or accepted event payload. Compose a wait followed by runnable work when an event should start a task.
 
-Unmatched events can enter the FIFO inbox with expiry. Entry drains the oldest matching event; a keep-result can permit another drain. Expired entries leave the inbox. A flow-level handler is invoked at original send time, not repeatedly during inbox drains.
+Unmatched events can enter the FIFO inbox with expiry. Entry drains the oldest matching event; a keep-result can permit another drain. Expired entries leave the inbox. A wizard-level handler is invoked at original send time, not repeatedly during inbox drains.
 
 Event waits can have an alternate timeout target. When the deadline passes, mark the wait skipped with reason `timeout` and activate the target. The wait has no output, so its own `next` is not taken, its `exit` hook does not run, and required `needs` on it skip their consumers. Sleep steps have a durable deadline and finish when due. Clear obsolete timers when steps complete, skip, invalidate, or cancel.
 
 ## 6. Failure, fallback, and compensation
 
-A failure under `onFailure: 'halt'` sets run status to `halted` and stops scheduling. Retain completed outputs and errors for operator recovery. Allow recovery, cancellation, events for remaining listeners, draft edits, child commands, and reset under their specific gates. Normal navigation returns `FLOW_HALTED`.
+A failure under `onFailure: 'halt'` sets run status to `halted` and stops scheduling. Retain completed outputs and errors for operator recovery. Allow recovery, cancellation, events for remaining listeners, draft edits, child commands, and reset under their specific gates. Normal navigation returns `RUN_HALTED`.
 
 A runnable, item, or child step with `fallback` uses it after retry exhaustion or child halt/failure. Mark the source skipped with reason `fallback`, retain its error, and activate the fallback. Do not start the run-level halt or compensation policy for that recovered failure.
 
@@ -140,11 +140,11 @@ Invalidation is explicit. It returns completed/failed/skipped work to idle, pres
 
 A child owns its context and dependencies. Map parent input explicitly. Inherit parent services only when they satisfy `RequiredDepsOf<child>`; merge services already bound by `child.provide` into each child creation.
 
-Parent records store child summaries; parent snapshots embed full child snapshots. A completed child supplies the flow step's output. A halted or failed child fails that step unless fallback recovers it.
+Parent records store child summaries; parent snapshots embed full child snapshots. A completed child supplies the child step's output. A halted or failed child fails that step unless fallback recovers it.
 
 Event paths are relative to the observed run. Root observers see descendants through appended step ids; a child observer sees its own events at `[]`. Waiting facts use the same relative path model.
 
-Disposing or cancelling a parent stops children. A child fatal interpreter failure or direct disposal must settle the parent flow step rather than leaving it active forever.
+Disposing or cancelling a parent stops children. A child fatal interpreter failure or direct disposal must settle the parent's child step rather than leaving it active forever.
 
 ## 9. Resume and reset
 

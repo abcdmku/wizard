@@ -1,7 +1,7 @@
 import { createMemoryStore, type RunEvent } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
-import { type Deps, orderWorkflowFlow } from './order-workflow'
+import { type Deps, orderWorkflow } from './order-workflow'
 
 const T0 = 1_000_000
 const KEY = 'tenant-a/orders/o-42'
@@ -64,7 +64,7 @@ function make(options: Failures = {}) {
   const scheduler = createTestScheduler({ now: T0 })
   const store = createMemoryStore()
   const { deps, calls, keys } = fakeDeps(options)
-  const run = orderWorkflowFlow.create(context, {
+  const run = orderWorkflow.create(context, {
     deps,
     instanceId: 'order-o-42',
     correlationId: context.orderId,
@@ -72,12 +72,11 @@ function make(options: Failures = {}) {
     key: KEY,
     scheduler: scheduler,
   })
-  const events: RunEvent<typeof orderWorkflowFlow>[] = []
+  const events: RunEvent<typeof orderWorkflow>[] = []
   run.observe((event) => events.push(event))
-  const eventsOfType = <T extends RunEvent<typeof orderWorkflowFlow>['type']>(type: T) =>
+  const eventsOfType = <T extends RunEvent<typeof orderWorkflow>['type']>(type: T) =>
     events.filter(
-      (event): event is Extract<RunEvent<typeof orderWorkflowFlow>, { type: T }> =>
-        event.type === type,
+      (event): event is Extract<RunEvent<typeof orderWorkflow>, { type: T }> => event.type === type,
     )
   return { run, scheduler, store, calls, keys, events, eventsOfType }
 }
@@ -108,7 +107,7 @@ describe('11 order workflow: tasks, durable retry, event wait, persistence and c
     const saved = await store.get(KEY)
     expect(saved).toMatchObject({
       v: 1,
-      flow: { name: 'order-workflow', version: 1 },
+      wizard: { name: 'order-workflow', version: 1 },
       instanceId: 'order-o-42',
       state: { status: 'done', output: run.getState().output },
     })
@@ -163,11 +162,11 @@ describe('11 order workflow: tasks, durable retry, event wait, persistence and c
       'payments.refund:payment-42:order:o-42:payment-refund',
       'inventory.release:reservation-42:order:o-42:inventory-release',
     ])
-    expect(eventsOfType('flow.compensating')[0]).toMatchObject({
+    expect(eventsOfType('run.compensating')[0]).toMatchObject({
       plan: ['charge', 'reserve'],
       status: 'failed',
     })
-    expect(eventsOfType('flow.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
+    expect(eventsOfType('run.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
     expect(run.getState().steps.charge.status).toBe('compensated')
     expect(run.getState().steps.reserve.status).toBe('compensated')
     run.dispose()

@@ -1,8 +1,8 @@
 import type { AnyWizard, Command, ExposeSpec } from '@openwizard/core'
-import type { FlowGraphNode } from '@openwizard/core/inspect'
-import type { FlowAccess, HTTPAccess } from './http-options'
+import type { ManifestStep } from '@openwizard/core/inspect'
+import type { HTTPAccess, RunAccess } from './http-options'
 
-export const FLOW_COMMAND_TYPES = [
+export const RUN_COMMAND_TYPES = [
   'start',
   'next',
   'back',
@@ -21,19 +21,19 @@ export const STEP_COMMAND_TYPES = [
   'skip',
   'child',
 ] as const
-export type FlowCommandType = (typeof FLOW_COMMAND_TYPES)[number]
+export type RunCommandType = (typeof RUN_COMMAND_TYPES)[number]
 export type StepCommandType = (typeof STEP_COMMAND_TYPES)[number]
 
 const STEP_READS = ['read', 'input', 'output', 'issues', 'error', 'summary'] as const
 type StepRead = (typeof STEP_READS)[number]
 type StepCapability = StepRead | StepCommandType
-const FLOW_CAPABILITIES = [
+const RUN_CAPABILITIES = [
   'create',
   'read',
   'output',
   'progress',
-  ...FLOW_COMMAND_TYPES,
-] as const satisfies readonly FlowAccess[]
+  ...RUN_COMMAND_TYPES,
+] as const satisfies readonly RunAccess[]
 
 /** The routes and projection one `access` declaration unlocks. Nothing is on by default. */
 export interface AccessPlan<F extends AnyWizard> {
@@ -41,24 +41,24 @@ export interface AccessPlan<F extends AnyWizard> {
   readonly readRun: boolean
   readonly readSteps: readonly string[]
   readonly expose: ExposeSpec<F>
-  readonly flowCommands: ReadonlySet<FlowCommandType>
+  readonly runCommands: ReadonlySet<RunCommandType>
   readonly stepCommands: ReadonlyMap<string, ReadonlySet<StepCommandType>>
   readonly events: readonly string[]
 }
 
 /**
- * Check `access` against the flow's steps (from its manifest) and events and resolve what it
- * unlocks. Throws a `TypeError` for anything the flow does not have or the step cannot do.
+ * Check `access` against the wizard's steps (from its manifest) and events and resolve what it
+ * unlocks. Throws a `TypeError` for anything the wizard does not have or the step cannot do.
  */
 export function planAccess<F extends AnyWizard>(
-  steps: ReadonlyMap<string, FlowGraphNode>,
+  steps: ReadonlyMap<string, ManifestStep>,
   events: readonly string[],
   access: HTTPAccess<F>,
 ): AccessPlan<F> {
   if (typeof access !== 'object' || access === null || Array.isArray(access)) {
     throw new TypeError('access must list the exposed capabilities (nothing is exposed by default)')
   }
-  const flowCapabilities = capabilityList(access.flow ?? [], FLOW_CAPABILITIES, 'flow access')
+  const runCapabilities = capabilityList(access.run ?? [], RUN_CAPABILITIES, 'run access')
   const context = stringList(access.context ?? [], 'context access')
   const readSteps: string[] = []
   const stepCommands = new Map<string, ReadonlySet<StepCommandType>>()
@@ -76,8 +76,7 @@ export function planAccess<F extends AnyWizard>(
     const commands = capabilities.filter(isStepCommand)
     if (commands.length > 0) stepCommands.set(step, new Set(commands))
   }
-  const reads = (...values: FlowAccess[]) =>
-    flowCapabilities.some((value) => values.includes(value))
+  const reads = (...values: RunAccess[]) => runCapabilities.some((value) => values.includes(value))
   const expose = {
     context,
     ...(reads('read', 'output') ? { output: true } : {}),
@@ -85,19 +84,19 @@ export function planAccess<F extends AnyWizard>(
     steps: exposedSteps,
   }
   return {
-    create: flowCapabilities.includes('create'),
+    create: runCapabilities.includes('create'),
     readRun: context.length > 0 || reads('read', 'output', 'progress'),
     readSteps,
-    // `ExposeSpec<F>` keys are flow-specific literals; every list above was checked against the flow.
+    // `ExposeSpec<F>` keys are literals of one wizard; every list above was checked against the wizard.
     expose: expose as ExposeSpec<F>,
-    flowCommands: new Set(flowCapabilities.filter(isFlowCommand)),
+    runCommands: new Set(runCapabilities.filter(isRunCommand)),
     stepCommands,
     events: selectedEvents(events, access.events ?? []),
   }
 }
 
 export function hasCommands<F extends AnyWizard>(plan: AccessPlan<F>): boolean {
-  return plan.flowCommands.size > 0 || plan.stepCommands.size > 0
+  return plan.runCommands.size > 0 || plan.stepCommands.size > 0
 }
 
 /** Whether `command` is inside the declared access (event sends need a listed event). */
@@ -108,10 +107,10 @@ export function commandAllowed<F extends AnyWizard>(
   if (command.type === 'send') return plan.events.includes(command.event)
   if (command.type === 'child') return plan.stepCommands.get(command.path[0])?.has('child') === true
   if ('step' in command) return plan.stepCommands.get(command.step)?.has(command.type) === true
-  return plan.flowCommands.has(command.type)
+  return plan.runCommands.has(command.type)
 }
 
-function stepCapabilities(node: FlowGraphNode): readonly StepCapability[] {
+function stepCapabilities(node: ManifestStep): readonly StepCapability[] {
   return [
     'read',
     'output',
@@ -121,7 +120,7 @@ function stepCapabilities(node: FlowGraphNode): readonly StepCapability[] {
     'skip',
     ...(node.kind === 'view' ? (['input', 'go', 'resetInput', 'setInput'] as const) : []),
     ...(node.hooks.includes('run') ? (['retry', 'startStep'] as const) : []),
-    ...(node.kind === 'flow' ? (['summary', 'child'] as const) : []),
+    ...(node.kind === 'child' ? (['summary', 'child'] as const) : []),
   ]
 }
 
@@ -133,7 +132,7 @@ function stepExpose(kind: string, reads: readonly StepRead[]): object {
     ...(on('output') ? { output: true } : {}),
     ...(on('issues') ? { issues: true } : {}),
     ...(on('error') ? { error: true } : {}),
-    ...(kind === 'flow' && on('summary') ? { child: true } : {}),
+    ...(kind === 'child' && on('summary') ? { child: true } : {}),
   }
 }
 
@@ -183,6 +182,6 @@ function isStepCommand(value: StepCapability): value is StepCommandType {
   return (STEP_COMMAND_TYPES as readonly string[]).includes(value)
 }
 
-function isFlowCommand(value: FlowAccess): value is FlowCommandType {
-  return (FLOW_COMMAND_TYPES as readonly string[]).includes(value)
+function isRunCommand(value: RunAccess): value is RunCommandType {
+  return (RUN_COMMAND_TYPES as readonly string[]).includes(value)
 }

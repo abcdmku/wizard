@@ -1,5 +1,5 @@
 /**
- * The manifest fingerprint: a stable hash of a flow's structure (ids, kinds, edges, schemas,
+ * The manifest fingerprint: a stable hash of a wizard's structure (ids, kinds, edges, schemas,
  * waited events, child identities) for drift detection. Independent of declaration order, of
  * prose (labels, descriptions, meta, JSON Schema annotations) and of tuning (retry, timeouts).
  * It is a structure / schema drift signal, NOT a behaviour hash: hooks are functions, so adding
@@ -8,14 +8,14 @@
  */
 
 import { isRecord } from '../record'
-import type { FlowGraph, FlowGraphNode, JSONSchema } from './types'
+import type { JSONSchema, Manifest, ManifestStep } from './types'
 
 /** 16 hex chars; equal for structurally equal manifests. */
 export function fingerprint({
   schemas,
   nodes,
   edges,
-}: Pick<FlowGraph, 'schemas' | 'nodes' | 'edges'>): string {
+}: Pick<Manifest, 'schemas' | 'nodes' | 'edges'>): string {
   const structure = {
     context: stripSchema(schemas.context),
     events: Object.keys(schemas.events)
@@ -28,7 +28,7 @@ export function fingerprint({
 }
 
 /** The drift-relevant facts of a node (no prose, no tuning such as retry or timeouts). */
-function structuralNode(node: FlowGraphNode): unknown {
+function structuralNode(node: ManifestStep): unknown {
   return {
     path: node.path,
     id: node.id,

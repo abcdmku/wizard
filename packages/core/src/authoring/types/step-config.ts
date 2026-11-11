@@ -1,4 +1,4 @@
-/** The runnable/wait/sleep/routing, view and child-flow configs. */
+/** The runnable/wait/sleep/routing, view and child configs. */
 
 import type { RunAdapter } from '../run-adapter'
 import type { Boundary } from './boundary'
@@ -24,7 +24,7 @@ import type {
   ReturnedAdapterError,
   StepOutput,
 } from './step-inference'
-import type { AnyFlow } from './wizard'
+import type { AnyWizardDefinition } from './wizard'
 
 type CheckedNeed = NeedRef & {
   readonly any?: readonly StepLike[]
@@ -140,7 +140,7 @@ export interface ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Nh = never>
   readonly on?: OnHandlers<C, Ev, D, NeedsOutput<Nd>, { readonly next?: Nh | null }>
 }
 export type ChildOutput<CO, OB, Item> = EachOf<Item, IsUnset<OB> extends true ? CO : OB>
-/** `flow(child, config)`: `CIn` / `CO` / `CD` are the child's context input, output and deps. */
+/** `child(childWizard, config)`: `CIn` / `CO` / `CD` are the child's context input, output and deps. */
 export interface ChildConfig<C, Ev, D, CIn, CO, CD, OB, Item, Nd, Nx, Nr, Tg, Fb>
   extends Common<C, D, Nd>,
     Routing<C, D, NoInfer<ChildOutput<CO, OB, Item>>, Nd, Nx, Nr, Tg> {
@@ -159,7 +159,9 @@ export interface ChildConfig<C, Ev, D, CIn, CO, CD, OB, Item, Nd, Nx, Nr, Tg, Fb
   readonly deps?: (args: HookArgsFor<C, D, NeedsOutput<Nd>, Item>) => CD
 }
 /** What a child `deps` mapper returns: the child's remaining deps, optionally overriding provided ones. */
-export type ChildDeps<CF extends AnyFlow> = [NonNullable<CF['~types']>['provided']] extends [never]
+export type ChildDeps<CF extends AnyWizardDefinition> = [
+  NonNullable<CF['~types']>['provided'],
+] extends [never]
   ? DepsOf<CF>
   : RequiredDepsOf<CF> & {
       [K in keyof DepsOf<CF> as K extends NonNullable<CF['~types']>['provided']
@@ -170,7 +172,7 @@ export type ChildDeps<CF extends AnyFlow> = [NonNullable<CF['~types']>['provided
 interface ChildDepsRequired<C, D, Nd, CD, Item> {
   readonly deps: (args: HookArgsFor<C, D, NeedsOutput<Nd>, Item>) => CD
 }
-export type DepsRule<C, D, Nd, Item, CF extends AnyFlow> =
+export type DepsRule<C, D, Nd, Item, CF extends AnyWizardDefinition> =
   {} extends RequiredDepsOf<CF>
     ? unknown
     : [D] extends [RequiredDepsOf<CF>]

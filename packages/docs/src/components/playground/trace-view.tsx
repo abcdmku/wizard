@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { ConsoleEntry, TraceEntry } from './runner'
 
 const TYPE_TONE: Readonly<Record<string, string>> = {
-  'flow.': 'text-neutral-900 dark:text-neutral-100 font-semibold',
+  'run.': 'text-neutral-900 dark:text-neutral-100 font-semibold',
   'transition.rejected': 'text-neutral-900 dark:text-neutral-100',
   'step.failed': 'text-neutral-900 dark:text-neutral-100',
   'step.runFailed': 'text-neutral-900 dark:text-neutral-100',

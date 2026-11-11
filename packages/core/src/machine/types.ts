@@ -1,9 +1,9 @@
 /**
  * The machine contract: three pure functions + an initial-state builder.
  *
- * `MachineEnv` is the only "ambient" input: the compiled flow, id/clock
+ * `MachineEnv` is the only "ambient" input: the compiled wizard, id/clock
  * providers (injectable for deterministic tests) and the run path.
- * Everything else flows through explicit parameters.
+ * Everything else passes through explicit parameters.
  *
  * Determinism rules:
  * - `decide` never mutates its input; a no-op decides no events (and the same state).
@@ -13,14 +13,14 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import type { Message } from './commands'
 import type { Effect } from './effects'
 import type { DomainEvent, DomainEventBody } from './events'
 import type { StepRecord, WizardState } from './state'
 
 export interface MachineEnv {
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   /** Path of this run instance ([] = root). */
   readonly path: readonly string[]
   /** Monotonic wall clock (injectable). */
@@ -66,7 +66,7 @@ export interface Machine {
 
 interface InitialStateOptions {
   readonly instanceId: string
-  /** Context value that already passed the flow's context boundary. */
+  /** Context value that already passed the wizard's context boundary. */
   readonly context: unknown
   readonly now: number
   readonly epoch?: number

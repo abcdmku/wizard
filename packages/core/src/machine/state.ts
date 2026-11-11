@@ -18,9 +18,9 @@
 import type { StepKind } from '../authoring/compiled'
 import type { EachState } from './each-state'
 import type {
-  FlowFailureState,
   InboxEntry,
   Issue,
+  RunFailureState,
   SerializedError,
   StepErrorKind,
   TerminalState,
@@ -30,9 +30,9 @@ import type {
 export type {
   CompensationFailureState,
   CompensationOutcome,
-  FlowFailureState,
   InboxEntry,
   Issue,
+  RunFailureState,
   SerializedError,
   StepErrorKind,
   TerminalState,
@@ -41,7 +41,7 @@ export type {
 
 // ---------------------------------------------------------------------------
 // Statuses (stored). Kind + sub-fields explain what "active" means:
-// view=shown, runnable step=running/retrying, event-driven step=waiting, flow=child running.
+// view=shown, runnable step=running/retrying, event-driven step=waiting, child=child running.
 // ---------------------------------------------------------------------------
 
 export type StepStatus =
@@ -56,7 +56,7 @@ export type StepStatus =
 
 export type RunStatus =
   | 'idle' // created, not started
-  | 'running' // at least one plain or child-flow step is executing
+  | 'running' // at least one plain or child step is executing
   | 'waiting' // nothing executing; waiting for a user (view) or an external event / timer
   | 'halted' // a step failed under `onFailure: 'halt'`; retry / skip / run / compensate / cancel recover it
   | 'done'
@@ -112,7 +112,7 @@ export interface StepRecord {
   readonly input?: unknown
   /**
    * Result of the step: parsed input (view), a `run` result, a resolving event, normalized
-   * routing output, or child output (flow). Map outputs retain the input order.
+   * routing output, or child output (child step). Map outputs retain the input order.
    */
   readonly output?: unknown
   /** Last validation issues (view). Cleared on the next input change. */
@@ -153,7 +153,7 @@ export interface StepRecord {
   readonly entering?: boolean
   /** The `enter` hook already ran for the pending activation (transition `entering` phase); cleared when the step enters. */
   readonly enterDone?: boolean
-  /** Sequence of the most recent completion, used to select natural flow output. */
+  /** Sequence of the most recent completion, used to select natural wizard output. */
   readonly completedSeq?: number
   readonly enteredAt?: number
   readonly exitedAt?: number
@@ -168,7 +168,7 @@ export interface StepRecord {
   readonly pendingActivation: boolean
   /** seq of the arrival that set `pendingActivation` (scheduler picks ready steps in arrival order). */
   readonly arrivedSeq?: number
-  /** Child flow summary (flow steps). The full child snapshot lives in `Snapshot.children`. */
+  /** Child run summary (child steps). The full child snapshot lives in `Snapshot.children`. */
   readonly child?: ChildSummary
   /** Snapshotted map items and their durable results. */
   readonly each?: EachState
@@ -236,7 +236,7 @@ export interface SagaState {
   readonly settling?: readonly string[]
   /** The entry whose `compensate` call is in flight (one at a time). */
   readonly inFlight?: SagaEntryRef
-  /** Set while compensating: the run status `flow.compensated` ends in. */
+  /** Set while compensating: the run status `run.compensated` ends in. */
   readonly outcome?: 'failed' | 'cancelled'
   readonly reason?: string
 }
@@ -255,10 +255,10 @@ export interface WizardState {
   readonly saga: SagaState
   readonly inbox: readonly InboxEntry[]
   readonly timers: Readonly<Record<string, TimerEntry>>
-  /** Flow output once a completing step ran. */
+  /** Wizard output once a completing step ran. */
   readonly output?: unknown
   /** Primary failure retained for a recoverable halt and for compensation results. */
-  readonly failure?: FlowFailureState
+  readonly failure?: RunFailureState
   /** Persisted exact terminal facts; absent in pre-result snapshots. */
   readonly terminal?: TerminalState
   readonly seq: number
@@ -269,7 +269,7 @@ export interface WizardState {
   readonly eventIds?: readonly SeenEventId[]
   /** Increments on every resume so a restarted instance is distinguishable (Mirror frames carry `epoch` + `seq`). */
   readonly epoch: number
-  readonly flow: { readonly name: string; readonly version: number }
+  readonly wizard: { readonly name: string; readonly version: number }
   readonly startedAt: number | null
   readonly updatedAt: number
 }

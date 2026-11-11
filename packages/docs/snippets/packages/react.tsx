@@ -1,8 +1,8 @@
 import type { Run } from '@openwizard/core'
 import { bindReact } from '@openwizard/react'
-import type { signupFlow } from '../learn/form'
+import type { signupWizard } from '../learn/form'
 
-const signup = bindReact<typeof signupFlow>()
+const signup = bindReact<typeof signupWizard>()
 
 function ContactForm() {
   const { status } = signup.useSnapshot()
@@ -32,7 +32,7 @@ function ContactForm() {
   )
 }
 
-export function Signup({ run }: { run: Run<typeof signupFlow> }) {
+export function Signup({ run }: { run: Run<typeof signupWizard> }) {
   return (
     <signup.Provider source={run}>
       <ContactForm />

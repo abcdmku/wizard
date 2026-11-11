@@ -91,7 +91,7 @@ export interface DurableEventOptions {
   readonly correlationId?: string
 }
 
-/** Failure codes of the durable gate itself (not of the flow). @public */
+/** Failure codes of the durable gate itself (not of the run). @public */
 export type DurableRunFailureCode =
   | 'LEASE_LOST'
   | 'CAS_CONFLICT'
@@ -130,7 +130,7 @@ export type DurableRunOpenResult<F extends AnyWizard> =
 /**
  * Result of a deduplicated durable command: `applied` now or `replayed` from
  * the stored result of an earlier call with the same id. `result` is the
- * flow's own `CommandResult`, which may itself be a rejection.
+ * run's own `CommandResult`, which may itself be a rejection.
  *
  * @public
  */
@@ -144,7 +144,7 @@ export type DurableCommandResult =
   | DurableHostFailure
 
 /**
- * Result of a durable event: the flow's `SendResult` (accepted with the
+ * Result of a durable event: the run's `SendResult` (accepted with the
  * committed `version`, `duplicate: true` for a redelivered `eventId`, or the
  * boundary rejection / drop), or a failure of the durable gate.
  *
@@ -198,10 +198,10 @@ export interface DurableRunHost<F extends AnyWizard> {
  * @public
  */
 export async function createDurableRun<F extends AnyWizard>(
-  flow: F,
+  wizard: F,
   options: DurableRunOptions<F>,
 ): Promise<DurableRunOpenResult<F>> {
-  return openDurableRun(flow, { kind: 'create', options })
+  return openDurableRun(wizard, { kind: 'create', options })
 }
 
 /**
@@ -211,8 +211,8 @@ export async function createDurableRun<F extends AnyWizard>(
  * @public
  */
 export async function resumeDurableRun<F extends AnyWizard>(
-  flow: F,
+  wizard: F,
   options: DurableResumeOptions<F>,
 ): Promise<DurableRunOpenResult<F>> {
-  return openDurableRun(flow, { kind: 'resume', options })
+  return openDurableRun(wizard, { kind: 'resume', options })
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { helloFlow } from './hello-flow'
+import { hello } from './hello'
 
-describe('helloFlow', () => {
+describe('hello', () => {
   it('returns a greeting', async () => {
-    const run = helloFlow.create({ name: 'Ada' })
+    const run = hello.create({ name: 'Ada' })
 
     await expect(run.start()).resolves.toMatchObject({ ok: true })
     await expect(run.awaitResult()).resolves.toMatchObject({

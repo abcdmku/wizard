@@ -25,8 +25,8 @@ export function abortCommittedWork(
     ) {
       opts.executor.abort(event.step, event.reason)
       opts.cancelled.set(event.step, { seq: event.seq, reason: event.reason })
-    } else if (event.type === 'flow.reset') {
-      opts.executor.abortAll('flow reset')
+    } else if (event.type === 'run.reset') {
+      opts.executor.abortAll('run reset')
       opts.calls.length = 0
       opts.yielded.length = 0
       opts.timers.clearAll()

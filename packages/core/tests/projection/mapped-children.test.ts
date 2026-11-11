@@ -10,9 +10,9 @@ import { review } from '../mirror/mapped-fixture'
 
 const wizard = defineWizard(
   { name: 'ordered-child-projection', context: boundary.trusted<{ ids: string[] }>() },
-  ({ flow, step, steps }) =>
+  ({ child, step, steps }) =>
     steps({
-      batch: flow(review, {
+      batch: child(review, {
         each: ({ context }) => context.ids,
         key: (id) => id,
         concurrency: 1,

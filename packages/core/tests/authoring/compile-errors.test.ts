@@ -69,9 +69,9 @@ describe('compile validation for JavaScript definitions', () => {
         ),
       ),
     ).toEqual([
-      "on['ghost']: the flow declares no event 'ghost'",
+      "on['ghost']: the wizard declares no event 'ghost'",
       "on['known'] must be a function",
-      "correlate['other']: the flow declares no event 'other'",
+      "correlate['other']: the wizard declares no event 'other'",
       "correlate['known'] must be a function",
       "step 'form': on['ghost']: the wizard declares no event 'ghost'",
       "step 'work': on['known'] must be a function",
@@ -123,7 +123,7 @@ describe('compile validation for JavaScript definitions', () => {
               work: rawStep({ run: () => 1, input: z.number(), canExit: () => true }),
               child: rawStep(
                 { context: () => ({}), waitFor: { ready: () => undefined } },
-                'flow',
+                'child',
                 rawFlow({ end: rawStep({ run: () => true }) }),
               ),
             },
@@ -135,7 +135,7 @@ describe('compile validation for JavaScript definitions', () => {
       "step 'form': 'waitFor' is not an option of a view step",
       "step 'work': 'input' is not an option of a step step",
       "step 'work': 'canExit' is not an option of a step step",
-      "step 'child': 'waitFor' is not an option of a flow step",
+      "step 'child': 'waitFor' is not an option of a child step",
     ])
   })
 
@@ -167,7 +167,7 @@ describe('compile validation for JavaScript definitions', () => {
   })
 
   it('rejects an empty step map', () => {
-    expect(issuesOf(() => compile(rawFlow({})))).toEqual(['flow has no steps'])
+    expect(issuesOf(() => compile(rawFlow({})))).toEqual(['wizard has no steps'])
   })
 
   it.each([0, -1, 1.5, Number.NaN, null])(
@@ -234,7 +234,7 @@ describe('compile validation for JavaScript definitions', () => {
             "step 'work': timeout: invalid duration: '3 weeks' (expected e.g. '250ms', '15s', '15m', '2h', '1d')",
         },
       ])
-      expect(error.message).toContain("flow 'raw' is invalid:")
+      expect(error.message).toContain("wizard 'raw' is invalid:")
       for (const issue of error.issues ?? []) expect(error.message).toContain(`- ${issue.message}`)
     }
   })

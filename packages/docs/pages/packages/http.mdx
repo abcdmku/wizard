@@ -13,7 +13,7 @@ npm install @openwizard/http @openwizard/core
 2. A carrier POSTs a signed `delivered` webhook to `/webhooks/delivery/delivered`.
 3. The receiver verifies the signature, then `resolve` finds the run.
 4. The receiver hashes its identity and `webhook-id` into an event id, so delivery ids from different receivers do not collide.
-5. The flow's event schema validates the payload before the wait handler sees it.
+5. The wizard's event schema validates the payload before the wait handler sees it.
 
 ## Exports
 

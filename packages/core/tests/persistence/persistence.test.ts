@@ -200,7 +200,7 @@ describe('persistence via the run runtime', () => {
     const parent = flow({
       name: 'parent',
       steps: {
-        f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
+        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
         end: { kind: 'step' },
       },
     })
@@ -219,7 +219,7 @@ describe('persistence via the run runtime', () => {
     expect(store.writes.length).toBeGreaterThan(0)
     const last = store.writes.at(-1) as Snapshot
     expect(last.children.f?.state.status).toBe('waiting')
-    expect(((await store.get('root')) as Snapshot).children.f?.flow.name).toBe('child')
+    expect(((await store.get('root')) as Snapshot).children.f?.wizard.name).toBe('child')
   })
 })
 

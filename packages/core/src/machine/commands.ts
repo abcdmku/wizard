@@ -21,7 +21,7 @@ export type Command =
   | { readonly type: 'setInput'; readonly step: string; readonly patch: unknown }
   | { readonly type: 'resetInput'; readonly step: string }
   /**
-   * External event whose payload was ALREADY parsed by the flow's event boundary. `eventId`
+   * External event whose payload was ALREADY parsed by the wizard's event boundary. `eventId`
    * dedupes deliveries: an id the run still remembers is a duplicate and changes nothing.
    */
   | {
@@ -44,11 +44,11 @@ export type Command =
   | { readonly type: 'cancel'; readonly reason?: string }
   | { readonly type: 'compensate'; readonly from?: string; readonly reason?: string }
   | { readonly type: 'reset' }
-  /** Skip a ready or active step that does not complete the flow. */
+  /** Skip a ready or active step that does not complete the run. */
   | { readonly type: 'skip'; readonly step: string; readonly reason?: string }
   /** Explicit invalidation of a done/failed/skipped step (+ transitive `needs` dependents when `cascade`). */
   | { readonly type: 'invalidate'; readonly step: string; readonly cascade?: boolean }
-  /** Address a command to a nested flow. `path` is relative to this run (`['fulfil']`, `['fulfil','payment']`). */
+  /** Address a command to a nested run. `path` is relative to this run (`['fulfil']`, `['fulfil','payment']`). */
   | { readonly type: 'child'; readonly path: readonly string[]; readonly command: Command }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ export interface ResultToken {
   /** Sequence of the event that requested a dynamic view initializer. */
   readonly initialSeq?: number
   /**
-   * Handler calls (`on` / `flowOn`) for the event a `send` delivered: the failed-step count once
+   * Handler calls (`on` / `wizardOn`) for the event a `send` delivered: the failed-step count once
    * that send was decided. The call is dropped unstarted if the delivery stopped since
    * (`deliveryCallStopped`, R6 atomic delivery).
    */
@@ -97,8 +97,8 @@ export type HookName =
   | 'mapError'
   /** Custom idempotency key of an idempotent run. */
   | 'idempotencyKey'
-  /** Flow-level `on[event]` handler (`event.flowDelivered`); the call's `step` is `''` (no step). */
-  | 'flowOn'
+  /** Wizard-level `on[event]` handler (`event.wizardDelivered`); the call's `step` is `''` (no step). */
+  | 'wizardOn'
 
 /** A failure channel produced by a run adapter. @public */
 export type RunFailureKind = 'typed' | 'defect' | 'interrupted'
@@ -145,8 +145,8 @@ export type EffectResult =
       readonly extra?: Readonly<Record<string, unknown>>
     }
   /**
-   * A child flow's public state changed (summary + full snapshot for persistence).
-   * `token` = `{ step, runId }` of the parent flow step when the child was created
+   * A child run's public state changed (summary + full snapshot for persistence).
+   * `token` = `{ step, runId }` of the parent's child step when the child was created
    * (the child bridge echoes it; stale/foreign results are ignored). `summary.seq`
    * must increase between messages. `phase: 'compensated'` = the child finished
    * its own compensation (completes the parent's `compensate` of that step).
@@ -159,7 +159,7 @@ export type EffectResult =
       readonly done?: { readonly output: unknown }
       /**
        * The child ended failed or cancelled. `data` = the child's mapped error data (kept on the
-       * parent step's error); `route` = the step the flow step's `fallback` chose instead of failing.
+       * parent step's error); `route` = the step the child step's `fallback` chose instead of failing.
        */
       readonly failed?: {
         readonly error: SerializedError

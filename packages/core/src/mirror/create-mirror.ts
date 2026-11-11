@@ -27,13 +27,13 @@
  * re-subscribes on the same Mirror object (reconnect, or attach a transport later), so a React
  * tree bound to it never remounts. `initial` seeds the state (a frame rendered on the server).
  *
- * Child flows: `mirror.child(step)` returns a `MirrorChild` — the same command sugar typed by
- * the child flow, every call wrapped as `{ type: 'child', path, command }`.
+ * Children: `mirror.child(step)` returns a `MirrorChild` — the same command sugar typed by
+ * the child wizard, every call wrapped as `{ type: 'child', path, command }`.
  *
  * @packageDocumentation
  */
 
-import type { AnyProjection, Command, ProjectionFlow, ProjectionOutput } from '@openwizard/core'
+import type { AnyProjection, Command, ProjectionOutput, ProjectionWizard } from '@openwizard/core'
 import { describeError } from '../errors'
 import { createIdGenerator, type IdGenerator } from '../interpreter/env'
 import { isPlainObject } from '../machine/util'
@@ -76,7 +76,7 @@ export interface MirrorOptions<P extends AnyProjection> {
  * last applied frame (`null` before the first one).
  * @public
  */
-export interface Mirror<P extends AnyProjection> extends MirrorCommands<ProjectionFlow<P>> {
+export interface Mirror<P extends AnyProjection> extends MirrorCommands<ProjectionWizard<P>> {
   /** Latest projected state with pending drafts merged in (stable identity per change), `null` before the first frame. */
   getSnapshot(): ProjectionOutput<P> | null
   /** Notified after every applied frame, draft change, connection change and on `dispose`; a no-op after `dispose`. */
@@ -86,7 +86,7 @@ export interface Mirror<P extends AnyProjection> extends MirrorCommands<Projecti
    * step a projection explicitly allows through its progress spec,
    * never part of the state. A no-op after `dispose`.
    */
-  observe(listener: (event: StepProgressEvent<ProjectionFlow<P>>) => void): () => void
+  observe(listener: (event: StepProgressEvent<ProjectionWizard<P>>) => void): () => void
   readonly instanceId: string | null
   readonly epoch: number | null
   readonly seq: number | null
@@ -108,7 +108,7 @@ export function createMirror<P extends AnyProjection>(options: MirrorOptions<P>)
   type S = ProjectionOutput<P>
   const ids = options.ids ?? createIdGenerator()
   const listeners = new Set<() => void>()
-  const observers = new Set<(event: StepProgressEvent<ProjectionFlow<P>>) => void>()
+  const observers = new Set<(event: StepProgressEvent<ProjectionWizard<P>>) => void>()
   /** Instance ids the mirror moved away from: their late frames are ignored for good. */
   const retired = new Set<string>()
   /** Pending `setInput` patches by `commandId`, in send order. */
@@ -146,8 +146,8 @@ export function createMirror<P extends AnyProjection>(options: MirrorOptions<P>)
   const progress = (frame: ProgressFrame): void => {
     if (last === null || frame.instanceId !== last.instanceId) return
     if (frame.epoch !== last.epoch || frame.seq < last.seq) return
-    // Typed by the projection's flow on trust, like the frame's projected `state`.
-    each(observers, frame.event as StepProgressEvent<ProjectionFlow<P>>)
+    // Typed by the projection's wizard on trust, like the frame's projected `state`.
+    each(observers, frame.event as StepProgressEvent<ProjectionWizard<P>>)
   }
 
   const receive = (input: Frame<S>): void => {
@@ -206,7 +206,7 @@ export function createMirror<P extends AnyProjection>(options: MirrorOptions<P>)
     notify()
   }
 
-  // Sugar builds untyped (string-id) commands; the public `dispatch` narrows to the projection flow.
+  // Sugar builds untyped (string-id) commands; the public `dispatch` narrows to the projection wizard.
   const dispatch = async (command: Command): Promise<MirrorResult> => {
     if (disposed) return { ok: false, code: 'DISPOSED', message: 'mirror is disposed' }
     if (transport === undefined) {
@@ -294,7 +294,7 @@ export function createMirror<P extends AnyProjection>(options: MirrorOptions<P>)
       return connected
     },
     connect,
-    ...commandSugar<ProjectionFlow<P>>(dispatch, []),
+    ...commandSugar<ProjectionWizard<P>>(dispatch, []),
     dispose() {
       if (disposed) return
       disposed = true

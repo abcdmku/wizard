@@ -1,16 +1,16 @@
-/** Flow, navigation, step, run, and compensation event bodies. @internal */
+/** Run lifecycle, navigation, step, step-run, and compensation event bodies. @internal */
 
 import type { EachEventBody } from './each-events'
 import type { Issue, NavCause, NavPhase, RunStatus, SerializedError } from './state'
 
 export type LifecycleEventBody =
   | EachEventBody
-  // ---- flow lifecycle ------------------------------------------------------
-  | { readonly type: 'flow.started'; readonly start: string }
-  | { readonly type: 'flow.done'; readonly output?: unknown }
-  /** Terminal failure: nothing can recover the run (a halted run emits `flow.halted` instead). */
+  // ---- run lifecycle ------------------------------------------------------
+  | { readonly type: 'run.started'; readonly start: string }
+  | { readonly type: 'run.done'; readonly output?: unknown }
+  /** Terminal failure: nothing can recover the run (a halted run emits `run.halted` instead). */
   | {
-      readonly type: 'flow.failed'
+      readonly type: 'run.failed'
       readonly step?: string
       readonly error: SerializedError
       /** `AUTO_ADVANCE_LOOP`: synchronous `next` hops without an async boundary (absent: `output` failed). */
@@ -20,33 +20,33 @@ export type LifecycleEventBody =
     }
   /** A step failed under `onFailure: 'halt'`: the run stops scheduling until retry / skip / run / compensate / cancel. */
   | {
-      readonly type: 'flow.halted'
+      readonly type: 'run.halted'
       readonly step: string
       readonly error: SerializedError
       /** The runnable step's `mapError` value, when present. */
       readonly data?: unknown
     }
-  /** `status` = the run status `flow.compensated` ends in ('cancelled' when triggered by `cancel`, else 'failed'). */
+  /** `status` = the run status `run.compensated` ends in ('cancelled' when triggered by `cancel`, else 'failed'). */
   | {
-      readonly type: 'flow.compensating'
+      readonly type: 'run.compensating'
       readonly reason?: string
       readonly plan: readonly string[]
       readonly status?: 'failed' | 'cancelled'
     }
   /** `failures` = steps whose compensation failed (empty = every compensation hook succeeded). */
   | {
-      readonly type: 'flow.compensated'
+      readonly type: 'run.compensated'
       readonly failures: readonly string[]
       readonly status: 'failed' | 'cancelled'
     }
-  | { readonly type: 'flow.cancelled'; readonly reason?: string }
+  | { readonly type: 'run.cancelled'; readonly reason?: string }
   | {
-      readonly type: 'flow.resumed'
+      readonly type: 'run.resumed'
       readonly fromSeq: number
       readonly interrupted: readonly string[]
     }
-  | { readonly type: 'flow.reset' }
-  | { readonly type: 'flow.status'; readonly status: RunStatus }
+  | { readonly type: 'run.reset' }
+  | { readonly type: 'run.status'; readonly status: RunStatus }
   // ---- navigation (cursor) -------------------------------------------------
   | {
       readonly type: 'transition.started'
@@ -245,9 +245,9 @@ export type TransitionRejectReason =
   | 'guard-canEnter'
   | 'no-target'
   | 'no-history'
-  | 'flow-terminal'
-  | 'flow-halted'
-  | 'flow-not-started'
-  | 'flow-compensating'
+  | 'run-terminal'
+  | 'run-halted'
+  | 'run-not-started'
+  | 'run-compensating'
   | 'resumed'
   | 'auto-advance-loop'

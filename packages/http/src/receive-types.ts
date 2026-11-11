@@ -8,7 +8,7 @@ export interface StandardWebhookEnvelope<E extends string = string, D = unknown>
   readonly type: E
   /** ISO 8601 time at which the producer created the event. */
   readonly timestamp: string
-  /** Event payload. The flow's event boundary parses it before a handler sees it. */
+  /** Event payload. The wizard's event boundary parses it before a handler sees it. */
   readonly data: D
   /** Optional run key, also the default correlation id. */
   readonly subject?: string
@@ -40,7 +40,7 @@ export interface VerifiedWebhookDelivery<E extends string = string> {
   readonly webhookId: string
   /** Delivery-attempt time from the signed `webhook-timestamp` header. */
   readonly attemptTimestamp: Date
-  /** The verified envelope. `data` stays untrusted until the flow's event boundary parses it. */
+  /** The verified envelope. `data` stays untrusted until the wizard's event boundary parses it. */
   readonly envelope: StandardWebhookEnvelope<E, unknown>
 }
 

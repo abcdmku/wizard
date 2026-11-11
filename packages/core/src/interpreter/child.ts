@@ -1,6 +1,6 @@
 /**
  * Child bridge: turns `child.create` / `child.send` / `child.dispose` effects
- * into nested runtimes for `flow` steps.
+ * into nested runtimes for `child` steps.
  *
  * - The nested runtime is created by an injected factory (the run façade
  *   supplies `createWizardRuntime` / `resumeWizardRuntime`) so this module has
@@ -8,26 +8,26 @@
  * - Child events are forwarded to the parent's `observe()` stream unchanged
  *   (they carry their own `path` + `seq`); on every child commit the bridge
  *   sends `res.child { step, token, summary, done?, failed?, phase? }` to the
- *   parent queue — `token` = the parent flow step's `{ step, runId }` at
+ *   parent queue — `token` = the owning step's `{ step, runId }` at
  *   creation/restore, `done` / `failed` only on the transition into that
  *   status, `phase: 'compensated'` once the child finished its own
- *   compensation (`flow.compensated` / `flow.cancelled`).
- * - Guards: `maxDepth` (default 8) and embedding an ancestor flow → the flow
+ *   compensation (`run.compensated` / `run.cancelled`).
+ * - Guards: `maxDepth` (default 8) and embedding an ancestor wizard → the wizard
  *   step fails (`res.child { failed }` with code `NESTING_TOO_DEEP` /
  *   `NESTING_CYCLE`); the compile step catches the cycle statically as well.
  * - Tree turn: each child gets a `ParentLink`; its hook calls wait while an ancestor has
  *   messages queued, and a child that stops while attached (a fatal error, a direct
- *   `dispose()`) fails the flow step (`res.child { failed }`) instead of leaving it active.
- * - Deps: at creation (and restore) the flow step's RAW `deps` mapper
+ *   `dispose()`) fails the child step (`res.child { failed }`) instead of leaving it active.
+ * - Deps: at creation (and restore) the child step's RAW `deps` mapper
  *   (`hooks.childDeps`) is evaluated once and its value parsed ONCE through the
- *   child flow's `deps` boundary (when it declares one); without a mapper the
+ *   child wizard's `deps` boundary (when it declares one); without a mapper the
  *   parent's deps object is passed through unchanged. A throwing mapper, a
- *   rejecting or asynchronous boundary fails the flow step (`res.child { failed }`).
+ *   rejecting or asynchronous boundary fails the child step (`res.child { failed }`).
  *
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import type { Message, ResultToken } from '../machine/commands'
 import type { RunStatus, SerializedError, WizardState } from '../machine/state'
 import { samePath, setOwn } from '../machine/util'
@@ -57,7 +57,7 @@ const DEFAULT_MAX_DEPTH = 8
 
 interface Attached<H extends ChildHandle> {
   readonly handle: H
-  /** Parent flow step token at creation/restore (echoed on every res.child). */
+  /** Parent's child step token at creation/restore (echoed on every res.child). */
   readonly token: ResultToken
   unobserve: () => void
   unsubscribe: () => void
@@ -82,14 +82,14 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     }
   }
 
-  /** Token of the parent flow step at creation/restore time: `{ step, runId }`. */
+  /** Token of the parent's child step at creation/restore time: `{ step, runId }`. */
   const tokenFor = (step: string): ResultToken =>
     opts.tokenFor?.(step) ?? {
       step,
       runId: opts.getState().steps[step]?.runId ?? 0,
     }
 
-  /** Fail the flow step; `lost` = the attached child that stopped (its token, past its last summary). */
+  /** Fail the child step; `lost` = the attached child that stopped (its token, past its last summary). */
   const fail = (
     step: string,
     error: SerializedError,
@@ -115,7 +115,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     )
   }
 
-  const childDefOf = (step: string): CompiledFlow | undefined => opts.def.steps[step]?.child
+  const childDefOf = (step: string): CompiledWizard | undefined => opts.def.steps[step]?.child
 
   const notify = (step: string, entry: Attached<H>, state: WizardState): void => {
     const childDef = childDefOf(step)
@@ -152,17 +152,17 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     entry.handle.dispose()
   }
 
-  /** A child that stopped while still attached fails its flow step (the step never hangs). */
+  /** A child that stopped while still attached fails its child step (the step never hangs). */
   const lose = (step: string, entry: Attached<H>, error: unknown): void => {
     if (children.get(step) !== entry) return
     children.delete(step)
     detach(entry)
-    const name = entry.handle.getState().flow.name
+    const name = entry.handle.getState().wizard.name
     const reason: SerializedError =
       error === undefined
         ? {
-            name: 'ChildFlowDisposed',
-            message: `child flow '${name}' was disposed`,
+            name: 'ChildRunDisposed',
+            message: `child run of '${name}' was disposed`,
             code: 'CHILD_DISPOSED',
           }
         : toSerializedError(error)
@@ -211,7 +211,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
       // The child finished its own compensation (or was cancelled by the parent's compensate):
       // the next summary carries `phase: 'compensated'` so the parent's unwind can continue.
       if (
-        (event.type === 'flow.compensated' || event.type === 'flow.cancelled') &&
+        (event.type === 'run.compensated' || event.type === 'run.cancelled') &&
         samePath(event.path, childPath)
       ) {
         entry.pendingPhase = 'compensated'
@@ -222,7 +222,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
     return entry
   }
 
-  const childDeps = (step: string, childDef: CompiledFlow, causedBy: number | undefined) =>
+  const childDeps = (step: string, childDef: CompiledWizard, causedBy: number | undefined) =>
     resolveDeps({
       step,
       mapper: opts.def.steps[step]?.hooks.childDeps,
@@ -239,8 +239,8 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
         step,
         {
           name: 'WizardError',
-          code: 'NOT_A_FLOW_STEP',
-          message: `step '${step}' has no child flow`,
+          code: 'NOT_A_CHILD_STEP',
+          message: `step '${step}' has no child wizard`,
         },
         causedBy,
       )
@@ -265,7 +265,7 @@ export function createChildBridge<H extends ChildHandle, P = Snapshot>(
         {
           name: 'WizardError',
           code: 'NESTING_CYCLE',
-          message: `flow '${childDef.name}' embeds one of its ancestors`,
+          message: `wizard '${childDef.name}' embeds one of its ancestors`,
         },
         causedBy,
       )

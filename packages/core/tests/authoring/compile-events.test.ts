@@ -86,7 +86,7 @@ describe('event handler compilation', () => {
       ),
     )
     await expect(async () => def.on?.event?.(hookArgs())).rejects.toThrow(
-      'a flow-level on handler must return void or { cancel: reason }',
+      'a wizard-level on handler must return void or { cancel: reason }',
     )
   })
 

@@ -68,7 +68,7 @@ A plain need requires its producer's output. `{ any: [a, b] }` uses the first co
 
 A module is an ordinary function returning named steps. Spreading modules into the map checks references against the whole graph. Keep distinct keys; object spread overwrites duplicates.
 
-Pass a child Wizard directly to `flow(child, { context })`. The child owns its context and output. Its output becomes the flow step's output, so `welcome` reads `needs.account.email` with the child's type. `welcome` also needs `audit`, only to run after it. Provided child services stay attached to the child. The parent must supply or map the child's remaining required services.
+Pass a child wizard directly to `child(childWizard, { context })`. The child owns its context and output. Its output becomes the child step's output, so `welcome` reads `needs.account.email` with the child's type. `welcome` also needs `audit`, only to run after it. Provided child services stay attached to the child. The parent must supply or map the child's remaining required services.
 
 A dynamic `next` must declare `targets`. Unchosen targets become skipped, which lets joins distinguish an untaken branch from unfinished work. Use a separate `step({ waitFor })` before work that needs an event. A view or runnable step can use `on` for events delivered while it is active.
 

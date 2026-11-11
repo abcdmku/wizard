@@ -73,7 +73,7 @@ export function fireOverdue(b: Batch): void {
 }
 
 /**
- * Resume matrix. `plan(flow.resumed)` re-arms timers and re-issues
+ * Resume matrix. `plan(run.resumed)` re-arms timers and re-issues
  * in-flight hook calls. Overdue timers fire first; then each run interrupted by the restart
  * that is still the same run is re-issued when the step is idempotent (`step.runStarted
  * { resumed: true }`, same attempt/key), else it fails `interrupted`. The ordering covers one
@@ -97,7 +97,7 @@ export function onResume(b: Batch, fromSeq: number): void {
       ? [{ step, runId: r.runId, attempt: r.attempt }]
       : []
   })
-  emit(b, { type: 'flow.resumed', fromSeq, interrupted: runs.map((run) => run.step) })
+  emit(b, { type: 'run.resumed', fromSeq, interrupted: runs.map((run) => run.step) })
   if (s.nav.phase !== 'idle')
     rejectNav(b, 'resumed', { txId: s.nav.txId ?? b.env.id('tx'), deferIdle: true })
   fireOverdue(b)

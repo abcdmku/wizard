@@ -50,7 +50,7 @@ export type Issue = MachineIssue
 export type SerializedError = MachineSerializedError
 
 /**
- * The three step kinds: `step | view | flow`. A plain step runs a hook, waits for an event,
+ * The three step kinds: `step | view | child`. A plain step runs a hook, waits for an event,
  * sleeps until a deadline, or chooses its next steps.
  * @public
  */
@@ -70,7 +70,7 @@ export type RunStatus = MachineRunStatus
 
 /**
  * Retry policy for runnable steps (plain data, so `inspect()` shows it; the retry STATE ; `attempt`, the
- * `retryAt` deadline ; is what persists, the policy is read from the flow): `retries` extra runs
+ * `retryAt` deadline ; is what persists, the policy is read from the wizard): `retries` extra runs
  * after the first failure (`retries: 1` = at most two runs), spaced by `backoff` ; a number is a fixed
  * delay in ms (absent = retry immediately); `'exponential'` waits
  * `min(baseMs * factor^(attempt-1), maxBackoffMs)` (`baseMs` 200, `factor` 2, `maxBackoffMs` 30 000).

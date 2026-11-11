@@ -1,14 +1,14 @@
-/** Resolve child paths and count flow edges rather than item selector segments. */
-import type { CompiledFlow } from '../authoring/compiled'
+/** Resolve child paths and count wizard edges rather than item selector segments. */
+import type { CompiledWizard } from '../authoring/compiled'
 import type { Issue } from '../machine/state'
 
 export function resolveCommandPath(
-  def: CompiledFlow | undefined,
+  def: CompiledWizard | undefined,
   segments: readonly string[],
   path: readonly PropertyKey[],
   issues: Issue[],
   checkIds: boolean,
-): { def: CompiledFlow | undefined; levels: number } | undefined {
+): { def: CompiledWizard | undefined; levels: number } | undefined {
   let target = def
   let levels = 0
   for (let index = 0; index < segments.length; index++) {
@@ -19,14 +19,14 @@ export function resolveCommandPath(
       segment === undefined || !Object.hasOwn(target.steps, segment)
         ? undefined
         : target.steps[segment]
-    if (step === undefined || step.kind !== 'flow' || step.child === undefined) {
+    if (step === undefined || step.kind !== 'child' || step.child === undefined) {
       if (!checkIds) {
         target = undefined
         continue
       }
       issues.push({
         message:
-          step === undefined ? `unknown step '${segment}'` : `'${segment}' is not a flow step`,
+          step === undefined ? `unknown step '${segment}'` : `'${segment}' is not a child step`,
         path: [...path, 'path', index],
       })
       return undefined

@@ -127,15 +127,15 @@ describe('step object references', () => {
 
   it('resumes a separate event wait and starts the child once', async () => {
     let calls = 0
-    const child = defineWizard({ name: 'child', context: z.object({}) }, ({ step, steps }) =>
+    const childWizard = defineWizard({ name: 'child', context: z.object({}) }, ({ step, steps }) =>
       steps({ work: step({ run: () => ++calls }) }),
     )
     const parent = defineWizard(
       { name: 'parent', context: z.object({}), events: { ready: z.boolean() } },
-      ({ step, flow, steps }) =>
+      ({ step, child, steps }) =>
         steps({
           ready: step({ waitFor: { ready: () => ({ done: true }) }, next: 'child' }),
-          child: flow(child, { context: () => ({}) }),
+          child: child(childWizard, { context: () => ({}) }),
         }),
     )
     const run = parent.create({})
@@ -201,7 +201,7 @@ describe('step object references', () => {
   })
 
   it('selects final context after async exits and passes the selected output to a parent', async () => {
-    const child = defineWizard(
+    const childWizard = defineWizard(
       {
         name: 'selected-child',
         context: z.object({ count: z.number() }),
@@ -219,7 +219,7 @@ describe('step object references', () => {
     )
     const parent = defineWizard(
       { name: 'selected-parent', context: z.object({}) },
-      ({ flow, steps }) => steps({ child: flow(child, { context: () => ({ count: 0 }) }) }),
+      ({ child, steps }) => steps({ child: child(childWizard, { context: () => ({ count: 0 }) }) }),
     )
     expect(await parent.run({})).toMatchObject({ status: 'done', output: { total: 42 } })
   })

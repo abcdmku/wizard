@@ -5,7 +5,7 @@
  */
 import { createMemoryStore, type Run } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
-import { type Deps, orderWorkflowFlow } from './order-workflow'
+import { type Deps, orderWorkflow } from './order-workflow'
 
 const orderId = 'o-42'
 const key = `tenant-a/orders/${orderId}`
@@ -40,7 +40,7 @@ const deps: Deps = {
   },
 }
 
-const run: Run<typeof orderWorkflowFlow> = orderWorkflowFlow.create(
+const run: Run<typeof orderWorkflow> = orderWorkflow.create(
   {
     orderId,
     lines: [{ sku: 'book-1', quantity: 2 }],
@@ -78,5 +78,5 @@ await run.send('shipment.ready', {
 await run.save()
 const snapshot = run.getSnapshot()
 console.log('status:', run.getState().status, '| output:', run.getState().output)
-console.log('snapshot:', snapshot.flow, '| key:', key, '| stored keys:', store.keys())
+console.log('snapshot:', snapshot.wizard, '| key:', key, '| stored keys:', store.keys())
 run.dispose()

@@ -1,6 +1,6 @@
 # Step kinds
 
-The `defineWizard` callback provides `step`, `view`, `flow`, and `steps`. Each constructor takes an object configuration. Return `steps(map, { start? })` to assemble the definition.
+The `defineWizard` callback provides `step`, `view`, `child`, and `steps`. Each constructor takes an object configuration. Return `steps(map, { start? })` to assemble the definition.
 
 | Declaration | Purpose |
 |---|---|
@@ -10,7 +10,7 @@ The `defineWizard` callback provides `step`, `view`, `flow`, and `steps`. Each c
 | `step({ sleep })` | Wait until a persisted timer is due |
 | `step({ next, targets? })` | Route or join without a work callback |
 | `view({ input, ...config })` | Collect and validate a draft |
-| `flow(childWizard, config)` | Run a child wizard |
+| `child(childWizard, config)` | Run a child wizard |
 
 ## Run work
 
@@ -89,6 +89,6 @@ For a single result, use a final join with typed `needs`, or select it from cont
 
 ## Views, children, and entry steps
 
-A view stores a draft independently of rendering. See [views and input](/learn/input). Pass the child wizard itself to `flow(childWizard, config)`; its completed output becomes the parent step's output. See [composition](/getting-started#compose-wizards-and-step-modules).
+A view stores a draft independently of rendering. See [views and input](/learn/input). Pass the child wizard itself to `child(childWizard, config)`; its completed output becomes the parent step's output. See [composition](/getting-started#compose-wizards-and-step-modules).
 
 The first map key is the default entry. Choose another with `steps(map, { start: 'load' })`, or start several branches with an array. OpenWizard checks those ids against the map.

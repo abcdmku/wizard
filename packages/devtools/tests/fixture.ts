@@ -32,7 +32,7 @@ export const pipeline = defineWizard(
     deps: boundary.trusted<Deps>(),
     concurrency: 2,
   },
-  ({ step, view, flow, steps }) => {
+  ({ step, view, child, steps }) => {
     const normalize = step({
       run: ({ context }) => ({ normalized: context.rows ?? 0 }),
       next: 'gate',
@@ -70,7 +70,7 @@ export const pipeline = defineWizard(
           timeout: { after: '15m', next: 'rejected' },
           next: 'pack',
         }),
-        pack: flow(packFlow, {
+        pack: child(packFlow, {
           context: ({ context }) => ({ items: context.rows ?? 0 }),
           next: 'review',
         }),

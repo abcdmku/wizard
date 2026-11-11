@@ -28,7 +28,7 @@ describe('scheduler — arrival, gating, ordering', () => {
     )
     const r = h.start()
     expect(r.types).toEqual([
-      'flow.started',
+      'run.started',
       'step.arrived',
       'step.arrived',
       'step.entered',
@@ -189,7 +189,7 @@ describe('scheduler — arrival, gating, ordering', () => {
       }),
     )
     const r = h.start()
-    expect(r.types).toEqual(['flow.started', 'step.arrived', 'step.entered'])
+    expect(r.types).toEqual(['run.started', 'step.arrived', 'step.entered'])
     expect(of(r, 'step.entered')[0]?.enterPending).toBe(true)
     expect(h.rec('t').entering).toBe(true)
     expect(h.pending('run')).toHaveLength(0)
@@ -210,7 +210,7 @@ describe('scheduler — arrival, gating, ordering', () => {
     )
     h.start()
     const r = h.err(h.call('enter'), 'no entry')
-    expect(r.types).toEqual(['step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['step.failed', 'run.halted'])
     expect(h.rec('t').error).toMatchObject({ kind: 'hook', message: 'no entry' })
     expect(h.state.status).toBe('halted')
   })

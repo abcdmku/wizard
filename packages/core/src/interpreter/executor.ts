@@ -7,9 +7,9 @@
  *   `res.err { syncViolation: true }`.
  * - `parseInput` runs the view's `input` boundary over the draft; `run` pipes
  *   the hook value through the optional `output` boundary; `childContext`
- *   pipes the mapped context through the child flow's `context` boundary;
- *   `on` resolves `hooks.on[extra.event]`; `flowOn` resolves the
- *   flow-level `def.on[extra.event]` (no step: the effect's `step` is `''`);
+ *   pipes the mapped context through the child wizard's `context` boundary;
+ *   `on` resolves `hooks.on[extra.event]`; `wizardOn` resolves the
+ *   wizard-level `def.on[extra.event]` (no step: the effect's `step` is `''`);
  *   `mapError` receives the RAW value the failed `run` threw as
  *   `args.error` when it is still known (same step/runId/attempt), else the
  *   serialized form the machine put in `extra`. Every result echoes the effect's
@@ -17,7 +17,7 @@
  * - `timeoutMs` arms a scheduler timer → abort + `res.err { timedOut: true }`.
  *   A `settled` flag guarantees one report per effect (late results after a
  *   timeout are dropped; the machine's token check covers everything else).
- * - `abort(step)` (cancel/compensate/flow-done) aborts the signal but lets the
+ * - `abort(step)` (cancel/compensate/run done) aborts the signal but lets the
  *   hook settle cooperatively — bounded by a grace timer when no `timeoutMs`
  *   is set.
  *
@@ -36,7 +36,7 @@ import {
   toSerializedError,
 } from './errors'
 import { abortCalls } from './executor-abort'
-import { invoke, invokeFlowOn, noop, retryRejected } from './executor-invoke'
+import { invoke, invokeWizardOn, noop, retryRejected } from './executor-invoke'
 import {
   DEFAULT_ABORT_GRACE_MS,
   type Executor,
@@ -228,9 +228,9 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     }
     track(inf)
 
-    // The flow-level handler is routed on the hook name alone (`step` is `''`, not a step id).
-    const flowLevel = effect.hook === 'flowOn'
-    if (stepDef === undefined && !flowLevel) {
+    // The wizard-level handler is routed on the hook name alone (`step` is `''`, not a step id).
+    const wizardLevel = effect.hook === 'wizardOn'
+    if (stepDef === undefined && !wizardLevel) {
       errResult(
         inf,
         new WizardError('UNKNOWN_STEP', `unknown step '${effect.step}'`, { step: effect.step }),
@@ -269,12 +269,12 @@ export function createExecutor(opts: ExecutorOptions): Executor {
         if (inf.updates !== undefined) inf.updates.push(patch)
         else
           opts.send(
-            { type: 'context.patch', patch, ...(flowLevel ? {} : { by: effect.step }) },
+            { type: 'context.patch', patch, ...(wizardLevel ? {} : { by: effect.step }) },
             causedBy,
           )
       },
       progress: (value) => {
-        if (!inf.settled && !flowLevel) opts.progress(effect.step, value)
+        if (!inf.settled && !wizardLevel) opts.progress(effect.step, value)
       },
       extra: { ...effect.extra, ...rawError },
     })
@@ -284,8 +284,8 @@ export function createExecutor(opts: ExecutorOptions): Executor {
     let outcome: unknown
     let then: Then | undefined
     try {
-      outcome = flowLevel
-        ? invokeFlowOn(opts.def, args)
+      outcome = wizardLevel
+        ? invokeWizardOn(opts.def, args)
         : invoke(effect.hook, stepDef as CompiledStep, rec, args)
       then = getThen(outcome)
     } catch (error) {

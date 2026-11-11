@@ -1,17 +1,17 @@
 /**
  * Public types of the React binding's state, records and actions (the hook bindings themselves
- * are in `./binding-types`). Everything is derived from the bind target `T` — a flow
+ * are in `./binding-types`). Everything is derived from the bind target `T` — a wizard
  * (`bindReact<typeof wizard>()`, source = `Run<F>`) or a projection
  * (`bindReact<typeof projection>()`, source = `Mirror<P>`, typed from a type-only import so no
  * server code reaches the client bundle). Named interfaces on purpose (ADR-001 F7): anonymous
- * object types would print the whole flow once per method in hover / `.d.ts` output.
+ * object types would print the whole run once per method in hover / `.d.ts` output.
  *
  * @packageDocumentation
  */
 
 import type {
-  AnyFlow,
   AnyProjection,
+  AnyWizardDefinition,
   Command,
   CommandResult,
   Ctx,
@@ -22,8 +22,8 @@ import type {
   NavResult,
   PayloadInput,
   Progress,
-  ProjectionFlow,
   ProjectionOutput,
+  ProjectionWizard,
   RetryStepId,
   Run,
   RunStepId,
@@ -37,29 +37,29 @@ import type {
 import type { Mirror, MirrorResult } from '@openwizard/core/mirror'
 
 /**
- * What `bindReact<T>()` accepts: a flow (the source is a `Run`) or a projection (the source
+ * What `bindReact<T>()` accepts: a wizard (the source is a `Run`) or a projection (the source
  * is a `Mirror`).
  * @public
  */
-export type BindTarget = AnyFlow | AnyProjection
+export type BindTarget = AnyWizardDefinition | AnyProjection
 
 /**
- * The flow behind a bind target (the projection's flow, or the flow itself).
+ * The wizard behind a bind target (the projection's wizard, or the wizard itself).
  * @public
  */
-export type FlowOf<T extends BindTarget> = T extends AnyProjection
-  ? ProjectionFlow<T>
-  : T extends AnyFlow
+export type WizardOf<T extends BindTarget> = T extends AnyProjection
+  ? ProjectionWizard<T>
+  : T extends AnyWizardDefinition
     ? T
     : never
 
 /**
- * The live object a binding's `Provider` takes: `Run<F>` for a flow, `Mirror<P>` for a projection.
+ * The live object a binding's `Provider` takes: `Run<F>` for a wizard, `Mirror<P>` for a projection.
  * @public
  */
 export type SourceOf<T extends BindTarget> = T extends AnyProjection
   ? Mirror<T>
-  : T extends AnyFlow
+  : T extends AnyWizardDefinition
     ? Run<T>
     : never
 
@@ -70,7 +70,7 @@ export type SourceOf<T extends BindTarget> = T extends AnyProjection
  */
 export type StateOf<T extends BindTarget> = T extends AnyProjection
   ? ProjectionOutput<T>
-  : T extends AnyFlow
+  : T extends AnyWizardDefinition
     ? Snapshot<T>['state']
     : never
 
@@ -97,7 +97,7 @@ export type SendResultOf<T extends BindTarget> = T extends AnyProjection ? Mirro
 
 /**
  * The command methods of the source (`useActions()`) — the same sugar as `Run` / `Mirror`,
- * typed by the flow; one stable object per source. `send` checks the payload against the
+ * typed by the wizard; one stable object per source. `send` checks the payload against the
  * event's schema type (an `unknown` value is accepted and parsed by the event boundary).
  * @public
  */
@@ -105,35 +105,35 @@ export interface Actions<T extends BindTarget> {
   start(): Promise<CommandResultOf<T>>
   next(): Promise<NavResultOf<T>>
   back(): Promise<NavResultOf<T>>
-  go(step: ViewId<FlowOf<T>>): Promise<NavResultOf<T>>
-  setInput<K extends ViewId<FlowOf<T>>>(
+  go(step: ViewId<WizardOf<T>>): Promise<NavResultOf<T>>
+  setInput<K extends ViewId<WizardOf<T>>>(
     step: K,
-    patch: DraftOf<FlowOf<T>, K>,
+    patch: DraftOf<WizardOf<T>, K>,
   ): Promise<CommandResultOf<T>>
-  resetInput(step: ViewId<FlowOf<T>>): Promise<CommandResultOf<T>>
-  send<E extends EventType<FlowOf<T>>, P>(
+  resetInput(step: ViewId<WizardOf<T>>): Promise<CommandResultOf<T>>
+  send<E extends EventType<WizardOf<T>>, P>(
     event: E,
-    payload: P & (unknown extends P ? unknown : PayloadInput<FlowOf<T>, E>),
+    payload: P & (unknown extends P ? unknown : PayloadInput<WizardOf<T>, E>),
     options?: SendOptions,
   ): Promise<SendResultOf<T>>
-  startStep(step: RunStepId<FlowOf<T>>): Promise<CommandResultOf<T>>
+  startStep(step: RunStepId<WizardOf<T>>): Promise<CommandResultOf<T>>
   retry(
-    step: RetryStepId<FlowOf<T>>,
-    options?: { readonly patch?: Partial<Ctx<FlowOf<T>>> },
+    step: RetryStepId<WizardOf<T>>,
+    options?: { readonly patch?: Partial<Ctx<WizardOf<T>>> },
   ): Promise<CommandResultOf<T>>
   cancel(reason?: string): Promise<CommandResultOf<T>>
   startReady(): Promise<CommandResultOf<T>>
   compensate(options?: {
-    readonly from?: StepId<FlowOf<T>>
+    readonly from?: StepId<WizardOf<T>>
     readonly reason?: string
   }): Promise<CommandResultOf<T>>
   reset(): Promise<CommandResultOf<T>>
-  skip(step: StepId<FlowOf<T>>, reason?: string): Promise<CommandResultOf<T>>
+  skip(step: StepId<WizardOf<T>>, reason?: string): Promise<CommandResultOf<T>>
   invalidate(
-    step: StepId<FlowOf<T>>,
+    step: StepId<WizardOf<T>>,
     options?: { readonly cascade?: boolean },
   ): Promise<CommandResultOf<T>>
-  dispatch(command: Command<FlowOf<T>>): Promise<CommandResultOf<T>>
+  dispatch(command: Command<WizardOf<T>>): Promise<CommandResultOf<T>>
 }
 
 /**
@@ -142,7 +142,7 @@ export interface Actions<T extends BindTarget> {
  * the run at call time; they do not subscribe the component.
  * @public
  */
-export interface RunActions<F extends AnyFlow> extends Actions<F> {
+export interface RunActions<F extends AnyWizardDefinition> extends Actions<F> {
   validate(step: ViewId<F>): Promise<readonly Issue[]>
   explain(step: StepId<F>): Explanation<F>
   progress(): Progress
@@ -154,7 +154,7 @@ export interface RunActions<F extends AnyFlow> extends Actions<F> {
  */
 export type ActionsOf<T extends BindTarget> = T extends AnyProjection
   ? Actions<T>
-  : RunActions<FlowOf<T>>
+  : RunActions<WizardOf<T>>
 
 /**
  * The record of step `K` of a state slice `S` (a projected `ClientState` or a run state):
@@ -176,7 +176,7 @@ export type StepRecordIn<S, K extends PropertyKey> = S extends { readonly steps:
  */
 export type StepRecordOf<
   T extends BindTarget,
-  K extends StepId<FlowOf<T>>,
+  K extends StepId<WizardOf<T>>,
 > = T extends AnyProjection
   ? StepRecordIn<StateOf<T>, K>
   : StepRecordIn<StateOf<T>, K> & { readonly phase?: StepPhase }
@@ -185,7 +185,9 @@ export type StepRecordOf<
  * The field names of view `K`'s draft (what `issuesFor(field)` accepts).
  * @public
  */
-export type FieldOf<F extends AnyFlow, K extends StepId<F>> = keyof NonNullable<DraftOf<F, K>> &
+export type FieldOf<F extends AnyWizardDefinition, K extends StepId<F>> = keyof NonNullable<
+  DraftOf<F, K>
+> &
   string
 
 /**
@@ -194,7 +196,11 @@ export type FieldOf<F extends AnyFlow, K extends StepId<F>> = keyof NonNullable<
  * `issues`: always over a Run, over a projection for a view exposed with `issues: true`.
  * @internal
  */
-export type IssuesFor<R, F extends AnyFlow, K extends StepId<F>> = 'issues' extends keyof R
+export type IssuesFor<
+  R,
+  F extends AnyWizardDefinition,
+  K extends StepId<F>,
+> = 'issues' extends keyof R
   ? { readonly issuesFor: (field?: FieldOf<F, K>) => readonly Issue[] }
   : {}
 
@@ -206,15 +212,15 @@ export type IssuesFor<R, F extends AnyFlow, K extends StepId<F>> = 'issues' exte
  * path starts at `field` (only where the record carries `issues`).
  * @public
  */
-export type StepHelpers<T extends BindTarget, K extends StepId<FlowOf<T>>> =
-  K extends ViewId<FlowOf<T>>
+export type StepHelpers<T extends BindTarget, K extends StepId<WizardOf<T>>> =
+  K extends ViewId<WizardOf<T>>
     ? {
         readonly next: () => Promise<NavResultOf<T>>
         readonly back: () => Promise<NavResultOf<T>>
         readonly go: () => Promise<NavResultOf<T>>
-        readonly setInput: (patch: DraftOf<FlowOf<T>, K>) => Promise<CommandResultOf<T>>
+        readonly setInput: (patch: DraftOf<WizardOf<T>, K>) => Promise<CommandResultOf<T>>
         readonly resetInput: () => Promise<CommandResultOf<T>>
-      } & IssuesFor<StepRecordOf<T, K>, FlowOf<T>, K>
+      } & IssuesFor<StepRecordOf<T, K>, WizardOf<T>, K>
     : {}
 
 /**
@@ -222,7 +228,10 @@ export type StepHelpers<T extends BindTarget, K extends StepId<FlowOf<T>>> =
  * (`const { status, phase, input, issuesFor, setInput, next } = ow.useStep('shipping')`).
  * @public
  */
-export type UseStepResult<T extends BindTarget, K extends StepId<FlowOf<T>>> = StepRecordOf<T, K> &
+export type UseStepResult<T extends BindTarget, K extends StepId<WizardOf<T>>> = StepRecordOf<
+  T,
+  K
+> &
   StepHelpers<T, K>
 
 /**
@@ -230,5 +239,5 @@ export type UseStepResult<T extends BindTarget, K extends StepId<FlowOf<T>>> = S
  * @public
  */
 export type CurrentOf<T extends BindTarget> =
-  | { [K in ViewId<FlowOf<T>>]: StepRecordOf<T, K> }[ViewId<FlowOf<T>>]
+  | { [K in ViewId<WizardOf<T>>]: StepRecordOf<T, K> }[ViewId<WizardOf<T>>]
   | null

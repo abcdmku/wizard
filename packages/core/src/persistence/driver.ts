@@ -8,7 +8,7 @@
  *   store acknowledged; `flush()` waits for whatever is pending.
  * - Writes are serialized (a slow store can never let an older snapshot win).
  * - `redact(snapshot)` runs right before `store.set`; `clearOnDone` deletes
- *   the key instead of writing once the flow is `done`.
+ *   the key instead of writing once the run is `done`.
  * - The value is JSON-checked BEFORE `store.set` (`firstNonJson`): a `Map`, class instance,
  *   function, `bigint`, `NaN` or `undefined` array slot anywhere in it — and a `Date` (any
  *   `toJSON()` object) anywhere but where `reviveAt` says a boundary re-parses it on resume —

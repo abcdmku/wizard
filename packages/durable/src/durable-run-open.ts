@@ -45,7 +45,7 @@ function renewalInterval(renew: DurableRunOptions<AnyWizard>['renew'], ttlMs: nu
 }
 
 export async function openDurableRun<F extends AnyWizard>(
-  flow: F,
+  wizard: F,
   request: DurableOpenRequest<F>,
 ): Promise<DurableRunOpenResult<F>> {
   const { options } = request
@@ -237,11 +237,23 @@ export async function openDurableRun<F extends AnyWizard>(
         await options.store.release(currentLease)
         return { ok: false, code: 'RUN_NOT_FOUND' }
       }
-      run = createCoreRun(flow, request.options, beforeEffects, beforeTimer)
+      run = createCoreRun(wizard, request.options, beforeEffects, beforeTimer)
     } else if (request.kind === 'create') {
-      run = resumeCoreRun(flow, request.options, acquired.record.value, beforeEffects, beforeTimer)
+      run = resumeCoreRun(
+        wizard,
+        request.options,
+        acquired.record.value,
+        beforeEffects,
+        beforeTimer,
+      )
     } else {
-      run = resumeCoreRun(flow, request.options, acquired.record.value, beforeEffects, beforeTimer)
+      run = resumeCoreRun(
+        wizard,
+        request.options,
+        acquired.record.value,
+        beforeEffects,
+        beforeTimer,
+      )
     }
   } catch (error) {
     stop()

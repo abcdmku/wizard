@@ -3,10 +3,10 @@ import type {
   DepsOf,
   ErrorOf,
   EventType,
-  FlowOutput,
   InputOf,
   PayloadOf,
   ProjectionScope,
+  WizardOutput,
 } from '@openwizard/core'
 import { describe, expectTypeOf, it } from 'vitest'
 import type {
@@ -26,8 +26,8 @@ describe('intake workflow inference', () => {
     expectTypeOf<Ctx<IntakeFlow>>().toEqualTypeOf<IntakeContext>()
     expectTypeOf<DepsOf<IntakeFlow>>().toEqualTypeOf<IntakeDeps>()
     expectTypeOf<InputOf<IntakeFlow, 'businessProfile'>>().toEqualTypeOf<BusinessProfileInput>()
-    expectTypeOf<FlowOutput<IntakeFlow>>().toMatchTypeOf<IntakeResult>()
-    expectTypeOf<IntakeResult>().toMatchTypeOf<FlowOutput<IntakeFlow>>()
+    expectTypeOf<WizardOutput<IntakeFlow>>().toMatchTypeOf<IntakeResult>()
+    expectTypeOf<IntakeResult>().toMatchTypeOf<WizardOutput<IntakeFlow>>()
     expectTypeOf<EventType<IntakeFlow>>().toEqualTypeOf<'risk.completed' | 'review.decided'>()
     expectTypeOf<PayloadOf<IntakeFlow, 'risk.completed'>>().toEqualTypeOf<RiskCompletedEvent>()
     expectTypeOf<ProjectionScope<typeof applicantProjection>>().toEqualTypeOf<ApplicantViewer>()

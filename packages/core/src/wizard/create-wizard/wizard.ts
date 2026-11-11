@@ -4,9 +4,9 @@
  */
 
 import type {
-  AnyFlow,
-  ChildFlowOf,
+  AnyWizardDefinition,
   ChildStepId,
+  ChildWizardOf,
   ContextInput,
   Ctx,
   DepsOf,
@@ -40,17 +40,17 @@ import type { Command } from './command'
 import type { Explanation, RunEvent, Snapshot } from './state'
 
 /**
- * A live run instance, typed by its flow. Navigation returns `NavResult`, everything else a
+ * A live run instance, typed by its wizard. Navigation returns `NavResult`, everything else a
  * `CommandResult` / `SendResult`; nothing throws for data problems.
  * @public
  */
-export interface Run<F extends AnyFlow> {
+export interface Run<F extends AnyWizardDefinition> {
   /** Instance id (also the default store key). */
   readonly id: string
   /** Increments on every resume. */
   readonly epoch: number
-  /** The flow definition this instance runs. */
-  readonly flow: F
+  /** The wizard definition this instance runs. */
+  readonly wizard: F
   /** Activate the `start` step(s). */
   start(): Promise<CommandResult>
   next(): Promise<NavResult>
@@ -62,7 +62,7 @@ export interface Run<F extends AnyFlow> {
   /** Pure query: the view's `input` boundary + `validate` hook over the current draft. */
   validate(step: ViewId<F>): Promise<readonly Issue[]>
   /**
-   * External event through the flow's event boundary. A typed payload must match the event's
+   * External event through the wizard's event boundary. A typed payload must match the event's
    * schema input; an `unknown` body (a request) is accepted and parsed by the boundary. With an
    * `eventId`, a delivery the run still remembers (`RunOptions.eventIds`) is a duplicate:
    * `{ ok: true, duplicate: true, delivered: [] }` and nothing changes.
@@ -86,7 +86,7 @@ export interface Run<F extends AnyFlow> {
     readonly from?: StepId<F>
     readonly reason?: string
   }): Promise<CommandResult>
-  /** Back to the initial state (`flow.reset`): steps idle, timers cleared, children disposed; the instance id stays. */
+  /** Back to the initial state (`run.reset`): steps idle, timers cleared, children disposed; the instance id stays. */
   reset(): Promise<CommandResult>
   /**
    * Skip a ready or active non-completing step explicitly: it has no output, so a step with a
@@ -103,8 +103,8 @@ export interface Run<F extends AnyFlow> {
    */
   invalidate(step: StepId<F>, options?: { readonly cascade?: boolean }): Promise<CommandResult>
   /**
-   * The one wire door, typed by the flow (`Command<F>`); never throws for data problems.
-   * Untrusted input goes through `parseCommand(flow, input)` first. `expectedVersion` is
+   * The one wire door, typed by the wizard (`Command<F>`); never throws for data problems.
+   * Untrusted input goes through `parseCommand(wizard, input)` first. `expectedVersion` is
    * checked atomically after payload parsing, immediately before the command is applied.
    */
   dispatch(command: Command<F>, options?: DispatchOptions): Promise<CommandResult>
@@ -144,7 +144,7 @@ export interface Run<F extends AnyFlow> {
    * `status: 'unknown'`); safe to call after `dispose()`.
    */
   explain(step: StepId<F>): Explanation<F>
-  /** Pure query over steps that do not complete the flow (`skipped` counts as done). */
+  /** Pure query over steps that do not complete the run (`skipped` counts as done). */
   progress(): Progress
   /** Pure query: the views that are ready or current (where the cursor is or could go). */
   readyViews(): readonly ViewId<F>[]
@@ -155,18 +155,18 @@ export interface Run<F extends AnyFlow> {
   /** Bounded event ring (default 200). */
   log(): readonly RunEvent<F>[]
   /**
-   * Live nested run of a `flow` step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE`). After `dispose()`
+   * Live nested run of a `child` step (throws `NOT_A_CHILD_STEP` / `NOT_ACTIVE`). After `dispose()`
    * it returns the child that was live then, disposed too. Mapped children require an item
    * selector: a number is the input index, a string is the stable item key.
    */
   child<K extends ChildStepId<F>>(
     step: K,
     ...selector: true extends IsEach<F, K> ? [keyOrIndex: number | string] : [keyOrIndex?: never]
-  ): Run<ChildFlowOf<F, K>>
+  ): Run<ChildWizardOf<F, K>>
   /**
    * Client-safe state through a projection defined for this authored wizard or a provided variant — a deny-by-default
    * `expose` projection (`ClientState<F, E>`) or a `select` projection (its return type). A scoped
-   * projection requires its principal as the second argument. A projection for any other flow
+   * projection requires its principal as the second argument. A projection for any other wizard
    * definition throws `WizardError('DEFINITION_INVALID')`.
    */
   project<S, Scope = never>(
@@ -178,17 +178,17 @@ export interface Run<F extends AnyFlow> {
   dispose(): void
 }
 
-type DepsOption<F extends AnyFlow> =
+type DepsOption<F extends AnyWizardDefinition> =
   {} extends RequiredDepsOf<F>
     ? { readonly deps?: Partial<DepsOf<F>> }
     : { readonly deps: RequiredDepsOf<F> & Partial<DepsOf<F>> }
 
 /**
- * `wizard.create` options: the context input (parsed by the flow's context boundary), `deps`
- * (required iff the flow declares a deps boundary), persistence and injectables.
+ * `wizard.create` options: the context input (parsed by the wizard's context boundary), `deps`
+ * (required iff the wizard declares a deps boundary), persistence and injectables.
  * @public
  */
-export type RunOptions<F extends AnyFlow> = {
+export type RunOptions<F extends AnyWizardDefinition> = {
   readonly context: ContextInput<F>
   readonly instanceId?: string
   /**
@@ -248,25 +248,25 @@ export type RunOptions<F extends AnyFlow> = {
 
 /**
  * Snapshot migration (`resume(snapshot, { migrate })`): called with the raw snapshot when its
- * `flow.version` differs from the flow's, and the flow identity (`from`); returns the converted
- * snapshot, which is stamped with the flow's current version and validated like any other
- * (`renameSteps` rewrites renamed step ids). `flow.name` must always match. May return a
+ * `wizard.version` differs from the wizard's, and the wizard identity (`from`); returns the converted
+ * snapshot, which is stamped with the wizard's current version and validated like any other
+ * (`renameSteps` rewrites renamed step ids). `wizard.name` must always match. May return a
  * promise — then only `resumeAsync` accepts it.
  * @public
  */
 export type SnapshotMigration = RuntimeSnapshotMigration
 
 /** The options shared by creation and resume (persistence, injectables, deps). */
-export type SharedOptions<F extends AnyFlow> = Omit<
+export type SharedOptions<F extends AnyWizardDefinition> = Omit<
   RunOptions<F>,
   'context' | 'instanceId' | 'correlationId'
 >
 
 /**
  * `wizard.resume` options: `RunOptions` without `context` / `instanceId` / `correlationId`
- * (they come from the snapshot), plus `migrate` for snapshots of an older flow `version`.
+ * (they come from the snapshot), plus `migrate` for snapshots of an older wizard `version`.
  * @public
  */
-export type ResumeOptions<F extends AnyFlow> = SharedOptions<F> & {
+export type ResumeOptions<F extends AnyWizardDefinition> = SharedOptions<F> & {
   readonly migrate?: SnapshotMigration
 }

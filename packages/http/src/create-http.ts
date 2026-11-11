@@ -5,12 +5,12 @@ import { combineHTTP } from './combine'
 import type { CreateHTTPOptions, HTTPRunAPIOptions, WizardHTTP } from './http-options'
 import { createMemoryIdempotencyStore } from './idempotency'
 import { createSchemaRegistry } from './json-schema'
-import { flowDocs, flowSchemaNames } from './openapi-flow'
 import type { OpenAPITag } from './openapi-types'
+import { wizardDocs, wizardSchemaNames } from './openapi-wizard'
 import { createReceivers } from './receive'
 
 /**
- * Generate the HTTP routes and the OpenAPI 3.1 document of a flow: the run API (`runs`,
+ * Generate the HTTP routes and the OpenAPI 3.1 document of a wizard: the run API (`runs`,
  * `auth` and deny-by-default `access` together) and/or signed receivers (`receive`). The result
  * is framework-neutral: serve `http.fetch` from any `Request → Response` runtime and
  * `http.openAPI(info)` as the document.
@@ -23,7 +23,7 @@ export function createHTTP<F extends AnyWizard, S = unknown, P = unknown>(
   const id = options.id ?? wizard.name
   if (typeof id !== 'string' || id.length === 0)
     throw new TypeError('createHTTP id must not be empty')
-  const docs = flowDocs(wizard, flowSchemaNames(id), createSchemaRegistry())
+  const docs = wizardDocs(wizard, wizardSchemaNames(id), createSchemaRegistry())
   const shared: SharedOptions = {
     idempotency: options.idempotency ?? createMemoryIdempotencyStore(),
     onError: options.onError,

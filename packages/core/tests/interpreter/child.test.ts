@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CompiledFlow } from '../../src/authoring/compiled'
+import type { CompiledWizard } from '../../src/authoring/compiled'
 import type { ChildFactory, ChildHandle } from '../../src/interpreter/child'
 import { createSequentialIds } from '../../src/interpreter/env'
 import {
@@ -26,7 +26,7 @@ interface Handle extends ChildHandle {
 
 /** A child handle backed directly by an interpreter (what the façade does, minus the sugar). */
 function makeHandle(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   path: readonly string[],
   sched: TestScheduler,
@@ -70,7 +70,7 @@ function makeHandle(
 }
 
 function setup(
-  parentDef: CompiledFlow,
+  parentDef: CompiledWizard,
   extra: Partial<InterpreterOptions<Handle>> = {},
   overrides: ToyOverrides = {},
 ) {
@@ -126,24 +126,24 @@ const childDef = (run: () => unknown = () => 'child-out') =>
     },
   })
 
-const parentDef = (child: CompiledFlow, extraSteps: Record<string, any> = {}) =>
+const parentDef = (child: CompiledWizard, extraSteps: Record<string, any> = {}) =>
   flow({
     name: 'parent',
     steps: {
-      f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] }, ...extraSteps.f },
+      f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] }, ...extraSteps.f },
       end: { kind: 'step', hooks: { run: () => undefined } },
     },
   })
 
 describe('child bridge', () => {
-  it('creates the child on child.create, starts it, forwards its events with path, and completes the flow step', () => {
+  it('creates the child on child.create, starts it, forwards its events with path, and completes the run step', () => {
     const child = childDef()
     const { interp, events } = setup(parentDef(child))
     interp.send({ type: 'start' })
 
     const childEvents = events.filter((e) => e.path.length === 1 && e.path[0] === 'f')
     expect(types(childEvents)).toEqual([
-      'flow.started',
+      'run.started',
       'step.arrived',
       'step.entered',
       'step.runStarted',
@@ -154,7 +154,7 @@ describe('child bridge', () => {
       'step.runStarted',
       'step.runSucceeded',
       'step.done',
-      'flow.done',
+      'run.done',
     ])
     // Child events are NOT in the parent's own log ring.
     expect(interp.log().every((e) => e.path.length === 0)).toBe(true)
@@ -169,7 +169,7 @@ describe('child bridge', () => {
     expect(handle?.getState().status).toBe('done')
     expect(handle?.getState().context).toEqual({ tenant: 'acme' })
     expect(Object.keys(interp.childSnapshots())).toEqual(['f'])
-    expect(interp.childSnapshots().f?.flow.name).toBe('child')
+    expect(interp.childSnapshots().f?.wizard.name).toBe('child')
   })
 
   it('an async child keeps the parent running until its result flows back through res.child', async () => {
@@ -260,7 +260,7 @@ describe('child bridge', () => {
     interp.send({ type: 'context.patch', patch: { go: 1 } })
     expect(interp.child('f')?.getState().steps.w?.output).toEqual({ got: 'hi' })
     expect(interp.getState().status).toBe('done')
-    interp.send({ type: 'reset' }) // toy: flow.reset → interpreter disposes children
+    interp.send({ type: 'reset' }) // toy: run.reset → interpreter disposes children
     expect(interp.child('f')).toBeUndefined()
   })
 

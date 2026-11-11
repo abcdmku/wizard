@@ -6,22 +6,22 @@ import {
   type SpanContext,
 } from '@opentelemetry/api'
 import type { AnyWizard, EventType, PayloadInput, Run, SendResult } from '@openwizard/core'
-import { asPath, type EventRecord, type FlowRecord, spanContextOf } from './span-state'
+import { asPath, type EventRecord, type RunRecord, spanContextOf } from './span-state'
 import type { ExternalSendOptions, InstrumentRunOptions } from './types'
 import type { WorkflowSpans } from './workflow-spans'
 
 const EXTERNAL_CONTEXT_KEY = createContextKey('openwizard external event context')
 
 const LIFECYCLE_EVENTS = new Set([
-  'flow.started',
-  'flow.done',
-  'flow.failed',
-  'flow.compensating',
-  'flow.compensated',
-  'flow.cancelled',
-  'flow.resumed',
-  'flow.reset',
-  'flow.status',
+  'run.started',
+  'run.done',
+  'run.failed',
+  'run.compensating',
+  'run.compensated',
+  'run.cancelled',
+  'run.resumed',
+  'run.reset',
+  'run.status',
   'step.runStarted',
   'step.runSucceeded',
   'step.runFailed',
@@ -36,7 +36,7 @@ const LIFECYCLE_EVENTS = new Set([
   'event.buffered',
   'event.expired',
   'event.dropped',
-  'event.flowDelivered',
+  'event.wizardDelivered',
   'event.handlerResultIgnored',
   'event.handlerFailed',
   'child.started',
@@ -68,7 +68,7 @@ export function createExternalEvents<F extends AnyWizard>(
     return pendingExternal.splice(index, 1)[0]?.spanContext
   }
 
-  const recordEvent = (record: FlowRecord | undefined, event: EventRecord): void => {
+  const recordEvent = (record: RunRecord | undefined, event: EventRecord): void => {
     if (!record) return
     const shouldRecord =
       recordEvents !== 'none' && (recordEvents === 'all' || LIFECYCLE_EVENTS.has(event.type))

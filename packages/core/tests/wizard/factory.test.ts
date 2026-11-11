@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { boundary, defineWizard } from '../../src'
+import { boundary, defineWizard, WizardError } from '../../src'
 import { inspect } from '../../src/inspect'
 import { createRun } from '../../src/wizard/create-wizard'
 
 describe('wizard definitions and bound constructors', () => {
-  it('is the flow consumed by inspectors and its own runs', () => {
+  it('is the definition consumed by inspectors and its own runs', () => {
     const wizard = defineWizard(
       { name: 'hello', context: z.object({ name: z.string() }) },
       ({ step, steps }) =>
@@ -15,9 +15,39 @@ describe('wizard definitions and bound constructors', () => {
     expect(wizard.runSync({ name: 'Ada' })).toMatchObject({ status: 'done', output: 'Hello, Ada' })
     expect(() => wizard.runSync({ name: 1 } as never)).toThrow('context rejected')
     const run = wizard.create({ name: 'Ada' })
-    expect(run.flow).toBe(wizard)
-    expect('flow' in wizard).toBe(false)
+    expect(run.wizard).toBe(wizard)
+    expect('wizard' in wizard).toBe(false)
     run.dispose()
+  })
+
+  it('names the wizard on a snapshot and rejects one that names it another way', async () => {
+    const wizard = defineWizard({ name: 'hello', context: z.object({}) }, ({ view, steps }) =>
+      steps({ ask: view({ input: z.object({ name: z.string() }) }) }),
+    )
+    const run = wizard.create({})
+    await run.start()
+    const snapshot = run.getSnapshot()
+    run.dispose()
+    expect(snapshot.wizard).toEqual({ name: 'hello', version: 1 })
+    expect(snapshot.state.wizard).toEqual({ name: 'hello', version: 1 })
+
+    const { wizard: identity, ...envelope } = snapshot
+    const { wizard: _stateIdentity, ...state } = snapshot.state
+    const renamed = { ...envelope, flow: identity, state: { ...state, flow: identity } }
+    const issues = (() => {
+      try {
+        wizard.resume(renamed)
+      } catch (error) {
+        if (error instanceof WizardError && error.code === 'SNAPSHOT_INCOMPATIBLE')
+          return (error.issues ?? []).map((issue) => issue.message)
+        throw error
+      }
+      return []
+    })()
+    expect(issues).toEqual([
+      'wizard: expected { name, version }',
+      'state.wizard: expected { name, version }',
+    ])
   })
 
   it('awaits asynchronous runnable sinks', async () => {
@@ -50,8 +80,8 @@ describe('wizard definitions and bound constructors', () => {
     await internal.start()
     expect(await internal.awaitOutcome()).toMatchObject({ output: 12 })
     internal.dispose()
-    const parent = defineWizard({ name: 'parent', context: z.object({}) }, ({ flow, steps }) =>
-      steps({ price: flow(ready, { context: () => ({}) }) }),
+    const parent = defineWizard({ name: 'parent', context: z.object({}) }, ({ child, steps }) =>
+      steps({ price: child(ready, { context: () => ({}) }) }),
     )
     expect(await parent.run({})).toMatchObject({ output: 12 })
   })

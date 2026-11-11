@@ -3,10 +3,9 @@ import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
 import { createRunFailure, RUN_ADAPTER, type RunAdapter } from '../../src/authoring/run-adapter'
 import type {
-  AnyFlow,
   AnyWizard,
+  AnyWizardDefinition,
   EventType,
-  FlowOutput,
   IsEach,
   JsonValue,
   OutputOf,
@@ -17,6 +16,7 @@ import type {
   RunStepId,
   StepApi,
   ViewId,
+  WizardOutput,
 } from '../../src/authoring/types'
 import { defineWizard } from '../../src/wizard/define-wizard'
 
@@ -85,7 +85,7 @@ const timeoutNeeds = defineWizard(
   },
 )
 expectTypeOf<OutputOf<typeof timeoutNeeds, 'wait'>>().toEqualTypeOf<{ id: string }>()
-expectTypeOf<FlowOutput<typeof timeoutNeeds>>().toEqualTypeOf<string | undefined>()
+expectTypeOf<WizardOutput<typeof timeoutNeeds>>().toEqualTypeOf<string | undefined>()
 
 declare const maybeRun: { run?: () => number }
 declare const maybeOutput: { run: () => string; output?: ReturnType<typeof z.number> }
@@ -215,7 +215,7 @@ optionalServices.create({})
 optionalServices.runSync({})
 const optionalChild = defineWizard(
   { name: 'optional-service-child', context: z.object({}) },
-  ({ flow, steps }) => steps({ child: flow(optionalServices, { context: () => ({}) }) }),
+  ({ child, steps }) => steps({ child: child(optionalServices, { context: () => ({}) }) }),
 )
 optionalChild.create({})
 
@@ -233,13 +233,13 @@ createRunFailure('typed', new Error('down'), { code: 'DOWN' } satisfies JsonValu
 createRunFailure('typed', new Error('down'), new Date())
 
 // Erased readers retain broad ids, while concrete definitions keep literal ids.
-expectTypeOf<EventType<AnyFlow>>().toEqualTypeOf<string>()
-expectTypeOf<ViewId<AnyFlow>>().toEqualTypeOf<string>()
+expectTypeOf<EventType<AnyWizardDefinition>>().toEqualTypeOf<string>()
+expectTypeOf<ViewId<AnyWizardDefinition>>().toEqualTypeOf<string>()
 declare function acceptsHost<F extends AnyWizard>(wizard: F): F
 acceptsHost(transformed)
 acceptsHost(partly)
 // @ts-expect-error the wizard itself is the flow; there is no compatibility property
-transformed.flow
+transformed.wizard
 
 const leaf = defineWizard(
   { name: 'mapped-leaf', context: z.object({ value: z.number() }) },
@@ -247,10 +247,10 @@ const leaf = defineWizard(
 )
 const mappedChildren = defineWizard(
   { name: 'mapped-children', context: z.object({ values: z.array(z.number()) }) },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      one: flow(leaf, { context: () => ({ value: 1 }) }),
-      many: flow(leaf, {
+      one: child(leaf, { context: () => ({ value: 1 }) }),
+      many: child(leaf, {
         each: ({ context }) => context.values,
         key: (_, index) => `item-${index}`,
         context: ({ item }) => ({ value: item }),

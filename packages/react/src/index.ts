@@ -1,6 +1,6 @@
 /**
  * @openwizard/react — the public surface. `bindReact<typeof wizardOrProjection>()` returns a
- * typed `Provider` and hooks over a `Run` (flow) or a `Mirror` (projection); `useRun` owns
+ * typed `Provider` and hooks over a `Run` (wizard) or a `Mirror` (projection); `useRun` owns
  * that source inside a component.
  *
  * @packageDocumentation
@@ -26,7 +26,6 @@ export type {
   CommandResultOf,
   CurrentOf,
   FieldOf,
-  FlowOf,
   NavResultOf,
   RunActions,
   SendResultOf,
@@ -36,5 +35,6 @@ export type {
   StepRecordIn,
   StepRecordOf,
   UseStepResult,
+  WizardOf,
 } from './types'
 export { useRun } from './use-run'

@@ -258,24 +258,24 @@ export const signupFlow = defineWizard(
     context: z.object({ email: z.string() }),
     deps: boundary.trusted<{ log: (m: string) => void }>(),
   },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      notify: flow(notifyWithMail, { context: ({ context }) => ({ to: context.email }) }),
+      notify: child(notifyWithMail, { context: ({ context }) => ({ to: context.email }) }),
     }),
 )
 export const missingDeps = defineWizard(
   { name: 'missing', context: z.object({ email: z.string() }) },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
       // @ts-expect-error ; the parent has no `log`, so a deps mapper is required
-      notify: flow(notifyWithMail, { context: ({ context }) => ({ to: context.email }) }),
+      notify: child(notifyWithMail, { context: ({ context }) => ({ to: context.email }) }),
     }),
 )
 export const perItem = defineWizard(
   { name: 'per-item', context: z.object({ emails: z.array(z.string()) }) },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      notifyAll: flow(notifyWithMail, {
+      notifyAll: child(notifyWithMail, {
         each: ({ context }) => context.emails,
         concurrency: 4,
         context: ({ item }) => ({ to: item }),

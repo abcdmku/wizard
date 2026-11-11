@@ -78,13 +78,13 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
         context: z.object({ raw: z.string() }),
         deps: boundary.trusted<ParentDeps>(),
       },
-      ({ step, flow, steps }) => {
-        const sub = flow(childFlow, {
+      ({ step, child, steps }) => {
+        const sub = child(childFlow, {
           context: ({ context }) => ({ n: context.raw }),
           deps: ({ deps }) => ({ svc: deps.svc, parsed: false }),
           next: 'fallback',
         })
-        const fallback = flow(plainFlow, { context: () => ({ ok: true }), next: 'done' })
+        const fallback = child(plainFlow, { context: () => ({ ok: true }), next: 'done' })
         return steps(
           {
             sub,
@@ -145,9 +145,9 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
     )
     const throwing = defineWizard(
       { name: 'parent', context: boundary.trusted<{ n: number }>() },
-      ({ step, flow, steps }) =>
+      ({ step, child, steps }) =>
         steps({
-          f: flow(childFlow, {
+          f: child(childFlow, {
             context: ({ context }) => ({ n: context.n }),
             deps: () => {
               throw new Error('no deps for you')
@@ -169,9 +169,9 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
 
     const rejecting = defineWizard(
       { name: 'parent', context: boundary.trusted<{ n: number }>() },
-      ({ step, flow, steps }) =>
+      ({ step, child, steps }) =>
         steps({
-          f: flow(childFlow, {
+          f: child(childFlow, {
             context: ({ context }) => ({ n: context.n }),
             deps: () => ({ nope: 1 }) as never,
             next: 'e',
@@ -185,7 +185,7 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
       status: 'failed',
       error: { kind: 'child', code: 'BOUNDARY_REJECTED' },
     })
-    expect(w2.getState().steps.f.error?.message).toContain("deps of child flow 'child' rejected")
+    expect(w2.getState().steps.f.error?.message).toContain("deps of child wizard 'child' rejected")
     expect(w2.getState().context).toEqual({ n: 1 })
     w2.dispose()
   })
@@ -216,9 +216,9 @@ describe('nested flow adapters: context / deps cross the child boundary once', (
         context: boundary.trusted<{ n: number }>(),
         deps: boundary.trusted<{ svc: string }>(),
       },
-      ({ step, flow, steps }) =>
+      ({ step, child, steps }) =>
         steps({
-          f: flow(childFlow, {
+          f: child(childFlow, {
             context: ({ context }) => ({ n: context.n }),
             deps: ({ deps }) => {
               mapperCalls += 1

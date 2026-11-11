@@ -128,7 +128,7 @@ describe('mapped child flows with the real machine', () => {
       status: 'done',
       output: items.map((item, index) => ({ item, index, output: `child:${item}` })),
     })
-    const paths = t.of('flow.started').filter((event) => event.path.length > 0)
+    const paths = t.of('run.started').filter((event) => event.path.length > 0)
     expect(paths.map((event) => event.path)).toEqual([
       ['orders', '0'],
       ['orders', '1'],

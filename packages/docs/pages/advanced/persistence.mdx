@@ -5,7 +5,7 @@ A snapshot saves run state, item results, child snapshots, event buffers, and ab
 ```ts file="packages/docs/snippets/advanced/resume.ts"
 ```
 
-The example creates a run through `approvalFlow.create(input, { store, key })`. It auto-saves committed changes; `save()` waits for the write. Three hours later, `approvalFlow.resume(saved, options)` restores the wait, increments the epoch, and re-arms the 48-hour deadline with 45 hours remaining.
+The example creates a run through `approval.create(input, { store, key })`. It auto-saves committed changes; `save()` waits for the write. Three hours later, `approval.resume(saved, options)` restores the wait, increments the epoch, and re-arms the 48-hour deadline with 45 hours remaining.
 
 ## What a snapshot contains
 
@@ -50,10 +50,10 @@ const resumed = approvalV2.resume(saved, {
     const identity = { name: from.name, version: 2 }
     return {
       ...v1,
-      flow: identity,
+      wizard: identity,
       state: {
         ...v1.state,
-        flow: identity,
+        wizard: identity,
         context: { ...v1.state.context, currency: 'EUR' },
       },
     }
@@ -61,7 +61,7 @@ const resumed = approvalV2.resume(saved, {
 })
 ```
 
-`ApprovalV1Snapshot` is your boundary for the saved v1 format. Parse the unknown input before reading it. Update both the envelope and `state.flow`; normal snapshot validation still runs afterwards. Keep migrations deterministic and test saved fixtures for every supported version.
+`ApprovalV1Snapshot` is your boundary for the saved v1 format. Parse the unknown input before reading it. Update both the envelope and `state.wizard`; normal snapshot validation still runs afterwards. Keep migrations deterministic and test saved fixtures for every supported version.
 
 Use `resumeAsync` for an async migration or async snapshot validation. A synchronous resume does not accept a promise from its migration.
 

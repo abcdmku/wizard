@@ -9,7 +9,7 @@ import projection from '../../assets/diagrams/projection.svg?raw'
 import recovery from '../../assets/diagrams/recovery.svg?raw'
 import runtime from '../../assets/diagrams/runtime.svg?raw'
 import runtimeModel from '../../assets/diagrams/runtime-model.svg?raw'
-import simpleFlow from '../../assets/diagrams/simple-flow.svg?raw'
+import simpleWizard from '../../assets/diagrams/simple-wizard.svg?raw'
 import system from '../../assets/diagrams/system.svg?raw'
 
 const diagrams = {
@@ -24,7 +24,7 @@ const diagrams = {
   recovery,
   runtimeModel,
   runtime,
-  simpleFlow,
+  simpleWizard,
   system,
 } as const
 

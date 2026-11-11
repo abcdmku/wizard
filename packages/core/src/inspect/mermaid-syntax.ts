@@ -3,7 +3,7 @@
  * @internal
  */
 
-import type { FlowGraphNode } from './types'
+import type { ManifestStep } from './types'
 
 const RESERVED = new Set([
   'end',
@@ -69,14 +69,14 @@ export function quote(...lines: readonly string[]): string {
   return `"${safe.join('<br/>')}"`
 }
 
-/** A node declaration's shape around its quoted text: view `[…]`, step `[[…]]`, flow `[/…/]`. */
-export function shape(kind: FlowGraphNode['kind'], text: string): string {
+/** A node declaration's shape around its quoted text: view `[…]`, step `[[…]]`, child `[/…/]`. */
+export function shape(kind: ManifestStep['kind'], text: string): string {
   switch (kind) {
     case 'view':
       return `[${text}]`
     case 'step':
       return `[[${text}]]`
-    case 'flow':
+    case 'child':
       return `[/${text}/]`
   }
 }

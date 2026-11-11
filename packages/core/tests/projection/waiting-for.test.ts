@@ -5,7 +5,7 @@ import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { defineProjection } from '../../src/projection/define-projection'
 import { defineWizard } from '../../src/wizard/define-wizard'
 
-const child = defineWizard(
+const childWizard = defineWizard(
   {
     name: 'waiting-child',
     context: boundary.trusted<{ id: string }>(),
@@ -26,11 +26,11 @@ describe('projection waitingFor', () => {
   it('exposes view, sleep and child event waits as one flat list and omits it by default', async () => {
     const wizard = defineWizard(
       { name: 'waiting-root', context: boundary.trusted<Record<string, never>>() },
-      ({ step, view, flow, steps }) =>
+      ({ step, view, child, steps }) =>
         steps(
           {
             form: view({ input: boundary.trusted<{ note: string }>() }),
-            sub: flow(child, { context: () => ({ id: 'one' }) }),
+            sub: child(childWizard, { context: () => ({ id: 'one' }) }),
             nap: step({ sleep: '1m' }),
           },
           { start: ['form', 'sub', 'nap'] },
@@ -55,7 +55,7 @@ describe('projection waitingFor', () => {
   it('rebases nested projected child waits to that child', async () => {
     const wizard = defineWizard(
       { name: 'waiting-nested', context: boundary.trusted<Record<string, never>>() },
-      ({ flow, steps }) => steps({ sub: flow(child, { context: () => ({ id: 'one' }) }) }),
+      ({ child, steps }) => steps({ sub: child(childWizard, { context: () => ({ id: 'one' }) }) }),
     )
     const run = wizard.create({}, { scheduler: createTestScheduler({ now: 1_000 }) })
     await run.start()
@@ -66,7 +66,7 @@ describe('projection waitingFor', () => {
     expect(run.project(projection).steps.sub.child?.waitingFor).toEqual([
       { kind: 'event', path: [], step: 'approval', events: ['approved'], deadline: 11_000 },
     ])
-    const childProjection = defineProjection(child, { expose: { waitingFor: true } })
+    const childProjection = defineProjection(childWizard, { expose: { waitingFor: true } })
     expect(run.child('sub').project(childProjection).waitingFor).toEqual([
       { kind: 'event', path: [], step: 'approval', events: ['approved'], deadline: 11_000 },
     ])
@@ -76,9 +76,9 @@ describe('projection waitingFor', () => {
   it('includes every live mapped child using its stable item address', async () => {
     const wizard = defineWizard(
       { name: 'waiting-map', context: boundary.trusted<Record<string, never>>() },
-      ({ flow, steps }) =>
+      ({ child, steps }) =>
         steps({
-          batch: flow(child, {
+          batch: child(childWizard, {
             each: () => ['a', 'b'],
             key: (item) => item,
             concurrency: 2,

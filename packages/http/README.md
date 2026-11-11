@@ -13,7 +13,7 @@ import { createBearerScopeProvider, createHTTP } from '@openwizard/http'
 const http = createHTTP(checkout, {
   runs: { get: ({ tenantId, runId }) => findRun(tenantId, runId) },
   auth: createBearerScopeProvider({ verify: verifyToken }),
-  access: { context: ['orderId'], flow: ['read', 'cancel'], events: ['payment.captured'] },
+  access: { context: ['orderId'], run: ['read', 'cancel'], events: ['payment.captured'] },
   receive: { events: ['payment.captured'], secret: pspSecrets, resolve: runForDelivery },
 })
 
@@ -94,15 +94,14 @@ Read the [HTTP package guide](../docs/pages/packages/http.mdx).
 | `CombineHTTPOptions` | interface | Options of `combineHTTP`. | [src](../../packages/http/src/combine.ts#L7) |
 | `CORSOptions` | interface | Cross-origin access for browser clients (a Mirror over `httpTransport`, a SPA calling the run | [src](../../packages/http/src/cors.ts#L6) |
 | `createBearerScopeProvider` | function | Create a scope provider backed by the HTTP `Authorization: Bearer` header. | [src](../../packages/http/src/scopes.ts#L41) |
-| `createHTTP` | function | Generate the HTTP routes and the OpenAPI 3.1 document of a flow: the run API (`runs`, | [src](../../packages/http/src/create-http.ts#L19) |
+| `createHTTP` | function | Generate the HTTP routes and the OpenAPI 3.1 document of a wizard: the run API (`runs`, | [src](../../packages/http/src/create-http.ts#L19) |
 | `CreateHTTPOptions` | type | Options of `createHTTP`: the run API, signed receivers, or both. | [src](../../packages/http/src/http-options.ts#L123) |
 | `createMemoryIdempotencyStore` | function | In-process idempotency store. It only deduplicates within one process: share a database-backed | [src](../../packages/http/src/idempotency.ts#L64) |
 | `createMemoryWebhookStore` | function | Create an in-memory store. Use a durable adapter in production. | [src](../../packages/http/src/outbound-store.ts#L253) |
 | `createOAuth2ScopeProvider` | function | Create an OAuth 2 scope provider whose flows and required scopes appear in OpenAPI. | [src](../../packages/http/src/scopes.ts#L56) |
 | `createWebhookSubscriptions` | function | Outbound webhooks for a declared set of public events: `publish` fans an event out to the | [src](../../packages/http/src/outbound.ts#L28) |
-| `DurableHostFailure` | interface | A refusal of a durable host's own gate (lease, version, dedupe), not of the flow. | [src](../../packages/http/src/run-handle.ts#L11) |
+| `DurableHostFailure` | interface | A refusal of a durable host's own gate (lease, version, dedupe), not of the run. | [src](../../packages/http/src/run-handle.ts#L11) |
 | `DurableRunHandle` | interface | A multi-owner host such as `@openwizard/durable`'s `DurableRunHost`. When `runs` or a | [src](../../packages/http/src/run-handle.ts#L24) |
-| `FlowAccess` | type | Flow capabilities an API can expose. `create` adds `POST <base>`; the reads add `GET <base>/:runId` and its stream. | [src](../../packages/http/src/http-options.ts#L21) |
 | `HTTPAccess` | interface | What the API exposes. Nothing is exposed unless it is listed here. | [src](../../packages/http/src/http-options.ts#L47) |
 | `HTTPErrorBody` | interface | The error body of every generated route. `code` is stable; `message` is for humans; | [src](../../packages/http/src/http.ts#L50) |
 | `HTTPFailureContext` | interface | Where an unexpected failure happened, as reported to `onError`. | [src](../../packages/http/src/http-options.ts#L91) |
@@ -130,7 +129,8 @@ Read the [HTTP package guide](../docs/pages/packages/http.mdx).
 | `OutboundWebhookEvents` | type | The public events subscribers may receive, by name, with the Standard Schema of their data. | [src](../../packages/http/src/outbound-types.ts#L10) |
 | `OutboundWebhookFailureContext` | interface | Unexpected outbound failure reported to an observer. | [src](../../packages/http/src/outbound-types.ts#L266) |
 | `ReceiverOptions` | interface | Signed Standard Webhooks receivers: one `POST <path>/<event>` route per listed event. The | [src](../../packages/http/src/receive-types.ts#L52) |
-| `RunCreation` | interface | Authenticated creation of one run; `input` passed the flow's context boundary. | [src](../../packages/http/src/http-options.ts#L73) |
+| `RunAccess` | type | Run capabilities an API can expose. `create` adds `POST <base>`; the reads add `GET <base>/:runId` and its stream. | [src](../../packages/http/src/http-options.ts#L21) |
+| `RunCreation` | interface | Authenticated creation of one run; `input` passed the wizard's context boundary. | [src](../../packages/http/src/http-options.ts#L73) |
 | `RunDataLayer` | interface | Tenant-scoped run storage behind the generated API. | [src](../../packages/http/src/http-options.ts#L83) |
 | `RunHandle` | type | What a data layer or resolver may return: a live run, or a durable host that owns one. | [src](../../packages/http/src/run-handle.ts#L42) |
 | `RunLookup` | interface | Authenticated lookup of one run. | [src](../../packages/http/src/http-options.ts#L65) |
@@ -176,7 +176,7 @@ Read the [HTTP package guide](../docs/pages/packages/http.mdx).
 | `WebhookSubscriptionView` | type | Subscription data safe to return through the management API. | [src](../../packages/http/src/outbound-types.ts#L51) |
 | `WebhookWorkOptions` | interface | Options for one worker drain. | [src](../../packages/http/src/outbound-types.ts#L340) |
 | `WebhookWorkResult` | interface | Result of one worker drain. | [src](../../packages/http/src/outbound-types.ts#L348) |
-| `WizardHTTP` | interface | Generated routes and documentation for one flow. | [src](../../packages/http/src/http-options.ts#L144) |
+| `WizardHTTP` | interface | Generated routes and documentation for one wizard. | [src](../../packages/http/src/http-options.ts#L144) |
 
 ### `@openwizard/http/client`
 

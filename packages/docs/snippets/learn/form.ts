@@ -1,7 +1,7 @@
 import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const signupFlow = defineWizard(
+export const signupWizard = defineWizard(
   { name: 'signup', context: z.object({}) },
   ({ view, step, steps }) => {
     const contact = view({ input: z.object({ email: z.email() }) })

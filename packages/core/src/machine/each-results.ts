@@ -175,7 +175,7 @@ function recordFailure(
       ? 'timeout'
       : msg.hook === 'mapError' && msg.type === 'res.err' && msg.error.code === 'INVALID_MAP_ERROR'
         ? 'hook'
-        : msg.hook === 'childContext' && def.kind === 'flow'
+        : msg.hook === 'childContext' && def.kind === 'child'
           ? 'child'
           : msg.type === 'res.err'
             ? (msg.failure?.kind ?? mappedKind ?? 'run')

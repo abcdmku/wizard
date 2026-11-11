@@ -8,7 +8,7 @@ A live run belongs to one process. A snapshot records its state so another run o
 1. `first` starts and waits at the `contact` view with a saved draft.
 2. `save()` writes the snapshot under `signup-1` and waits for storage.
 3. `dispose()` frees the old object. The stored snapshot stays.
-4. `signupFlow.resume(snapshot, options)` creates `second` using the same wizard definition.
+4. `signupWizard.resume(snapshot, options)` creates `second` using the same wizard definition.
 5. `second.next()` continues with the draft.
 
 Each resume increments `run.epoch`, which distinguishes new snapshot and mirror frames from those emitted before resume.
@@ -21,7 +21,7 @@ Use the same wizard to resume and supply the services it still needs. Dependenci
 
 ```ts
 const saved = await store.get('signup-1')
-const second = signupFlow.resume(saved, { store })
+const second = signupWizard.resume(saved, { store })
 ```
 
 Resume uses the original absolute timer deadlines. Each run handles overdue timers before recovering its own interrupted work. Finished steps and finished items stay finished; external calls interrupted before their result was saved require idempotent recovery. See [retries and idempotency](/advanced/recovery).
@@ -29,7 +29,7 @@ Resume uses the original absolute timer deadlines. Each run handles overdue time
 ## When snapshots are written
 
 ```ts
-const run = signupFlow.create({}, { instanceId: 'signup-1', store })
+const run = signupWizard.create({}, { instanceId: 'signup-1', store })
 ```
 
 With a `store`, each state change schedules a write. Call `save()` when your next action requires that write to finish. Set `autoSave: 'off'` in run options to write only on `save()`.
@@ -41,9 +41,9 @@ With a `store`, each state change schedules a write. Call `save()` when your nex
 `wizard.run(input)` disposes its live run after reaching an outcome. A `waiting` or `halted` outcome carries the snapshot you need to continue:
 
 ```ts
-const outcome = await signupFlow.run({})
+const outcome = await signupWizard.run({})
 if (outcome.status === 'waiting') {
-  const resumed = signupFlow.resume(outcome.snapshot)
+  const resumed = signupWizard.resume(outcome.snapshot)
   await resumed.setInput('contact', { email: 'grace@example.com' })
   await resumed.next()
   resumed.dispose()

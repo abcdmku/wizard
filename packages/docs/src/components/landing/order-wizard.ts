@@ -1,5 +1,5 @@
 /**
- * The flow behind the landing demo. It runs for real in the browser with `@openwizard/core`:
+ * The wizard behind the landing demo. It runs for real in the browser with `@openwizard/core`:
  * a charge that must not happen twice, a wait for a review event, and a final shipment.
  */
 import { boundary, defineWizard } from '@openwizard/core'
@@ -37,7 +37,7 @@ export function createPayments(onAccepted: (count: number) => void, replyMs = 6_
   }
 }
 
-export const orderFlow = defineWizard(
+export const orderWizard = defineWizard(
   {
     name: 'landing-order',
     context: z.object({
@@ -85,5 +85,5 @@ export const orderFlow = defineWizard(
     ),
 )
 
-export type OrderFlow = typeof orderFlow
+export type OrderWizard = typeof orderWizard
 export const STEP_NAMES = ['validateOrder', 'chargeCard', 'fraudReview', 'fulfillOrder'] as const

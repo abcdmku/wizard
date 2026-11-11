@@ -51,7 +51,7 @@ export function rejectCurrent(
 
 /**
  * The transaction failed. When it was the auto-advance of a non-view step (its `next` threw,
- * rejected or named an unknown step; its `exit` threw), that step fails under the flow's failure
+ * rejected or named an unknown step; its `exit` threw), that step fails under the run's failure
  * policy: a broken route never lets the run finish `done`. A view's transaction is only
  * rejected (the user is still on the view).
  */
@@ -181,12 +181,12 @@ export function startAuto(b: Batch, from: string, override?: string | readonly s
   if (def === undefined) return
   if (override === undefined && def.next.kind === 'none' && def.hooks.exit === undefined) return
   const hops = nextHop(b)
-  // An acyclic flow advances at most once per step between async boundaries: the guard only trips on loops.
+  // An acyclic wizard advances at most once per step between async boundaries: the guard only trips on loops.
   const limit = AUTO_ADVANCE_LIMIT + b.env.def.order.length
   if (hops > limit) {
     const cycle = [...(s.nav.trail ?? []), from].map((id) => `'${id}'`).join(' → ')
     emit(b, {
-      type: 'flow.failed',
+      type: 'run.failed',
       step: from,
       error: {
         name: 'WizardError',

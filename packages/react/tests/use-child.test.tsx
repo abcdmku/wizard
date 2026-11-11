@@ -28,24 +28,24 @@ const fulfilmentFlow = defineWizard(
     name: 'fulfilment',
     context: z.object({ orderId: z.string(), warehouse: z.string().optional() }),
   },
-  ({ view, step, flow, steps }) =>
+  ({ view, step, child, steps }) =>
     steps({
       confirm: view({
         input: z.object({ warehouse: z.string() }),
         exit: ({ output, update }) => update({ warehouse: output.warehouse }),
         next: 'pack',
       }),
-      pack: flow(grandchildFlow, { context: () => ({ sku: 'sku-1' }), next: 'done' }),
+      pack: child(grandchildFlow, { context: () => ({ sku: 'sku-1' }), next: 'done' }),
       done: step({ run: ({ context }) => ({ warehouse: context.warehouse }) }),
     }),
 )
 const orderFlow = defineWizard(
   { name: 'order', context: z.object({ cartId: z.string() }) },
-  ({ view, step, flow, steps }) =>
+  ({ view, step, child, steps }) =>
     steps(
       {
         intro: view({ next: 'fulfil' }),
-        fulfil: flow(fulfilmentFlow, {
+        fulfil: child(fulfilmentFlow, {
           context: ({ context }) => ({ orderId: context.cartId }),
           next: 'end',
         }),
@@ -209,7 +209,7 @@ describe('useChild over a Mirror', () => {
           <Bad />
         </owMirror.Provider>,
       ),
-    ).toThrow(/useChild\('fulfil'\)\.useStep\('confirm'\): the child flow has no state yet/)
+    ).toThrow(/useChild\('fulfil'\)\.useStep\('confirm'\): the child run has no state yet/)
     window.removeEventListener('error', onError)
     expect(bindings.length).toBeGreaterThan(0)
     expect(new Set(bindings).size).toBe(1)

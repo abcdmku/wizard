@@ -2,7 +2,7 @@
  * Run runtime — subscriptions and snapshots, nested flows, dispose, and the sync-commit guarantee for `send()`.
  */
 import { describe, expect, it } from 'vitest'
-import type { CompiledFlow } from '../../src/authoring/compiled'
+import type { CompiledWizard } from '../../src/authoring/compiled'
 import { WizardError } from '../../src/errors'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
@@ -19,7 +19,7 @@ import {
 } from '../helpers/fake-machine'
 
 function make(
-  def: CompiledFlow,
+  def: CompiledWizard,
   opts: Partial<WizardRuntimeOptions> = {},
   overrides: ToyOverrides = {},
 ) {
@@ -58,7 +58,7 @@ describe('run runtime: subscriptions and snapshots', () => {
     const off2 = run.observe((e) => evs.push(e.type))
     await run.start()
     expect(seen).toEqual([3])
-    expect(evs).toEqual(['flow.started', 'step.arrived', 'step.entered'])
+    expect(evs).toEqual(['run.started', 'step.arrived', 'step.entered'])
     off1()
     off2()
     await run.next()
@@ -71,7 +71,7 @@ describe('run runtime: subscriptions and snapshots', () => {
     const s0 = run.getSnapshot()
     expect(s0).toMatchObject({
       v: 1,
-      flow: { name: 'test-flow', version: 1 },
+      wizard: { name: 'test-flow', version: 1 },
       instanceId: 'wiz-1',
       epoch: 0,
       seq: 0,
@@ -105,7 +105,7 @@ describe('run runtime: nested flows', () => {
   const parent = flow({
     name: 'parent',
     steps: {
-      f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
+      f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
       end: { kind: 'step' },
     },
   })
@@ -161,7 +161,7 @@ describe('run runtime: nested flows', () => {
       name: 'parent',
       events: { ping: stringsBoundary('id') },
       steps: {
-        f: { kind: 'flow', child: asyncChild, next: { kind: 'static', targets: ['end'] } },
+        f: { kind: 'child', child: asyncChild, next: { kind: 'static', targets: ['end'] } },
         end: { kind: 'step' },
       },
     })
@@ -169,7 +169,7 @@ describe('run runtime: nested flows', () => {
     // Not started yet: the toy machine rejects (terminal/idle gates live in the parent machine).
     expect(
       await run.dispatch({ type: 'child', path: ['end'], command: { type: 'startReady' } }),
-    ).toMatchObject({ ok: false, code: 'NOT_A_FLOW_STEP' })
+    ).toMatchObject({ ok: false, code: 'NOT_A_CHILD_STEP' })
     expect(
       await run.dispatch({ type: 'child', path: ['f'], command: { type: 'startReady' } }),
     ).toMatchObject({ ok: false, code: 'NOT_ACTIVE' })

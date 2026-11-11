@@ -1,14 +1,14 @@
 /**
- * Graph model: turn a `FlowGraph` (`inspect(flow)`) into the drawable model — one entry marker
- * per flow, a card per step (a `flow` step whose child is in the graph becomes a GROUP that
- * contains the child flow's model), a `?` port per dynamic `next` without declared targets, and
+ * Graph model: turn a `Manifest` (`inspect(wizard)`) into the drawable model — one entry marker
+ * per wizard, a card per step (a `child` step whose child is in the graph becomes a GROUP that
+ * contains the child wizard's model), a `?` port per dynamic `next` without declared targets, and
  * typed edges. Pure and
  * synchronous; the layout engine positions it, `toReactFlow` renders it.
  *
  * @packageDocumentation
  */
 
-import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from '@openwizard/core/inspect'
+import type { Manifest, ManifestEdge, ManifestStep } from '@openwizard/core/inspect'
 import { stepKey } from '../types'
 
 /** Rendered size of a step card. */
@@ -20,29 +20,29 @@ const MARKER_SIZE = 28
 export const GROUP_PADDING = { top: 60, right: 24, bottom: 24, left: 24 } as const
 
 /**
- * Kind of a drawable node: a step card, a group (a `flow` step containing its child flow), a
- * flow's entry marker or the `?` port of a dynamic `next` without declared targets.
+ * Kind of a drawable node: a step card, a group (a `child` step containing its child wizard), a
+ * wizard's entry marker or the `?` port of a dynamic `next` without declared targets.
  * @public
  */
 export type ModelNodeKind = 'step' | 'group' | 'entry' | 'dynamic'
 
 /**
- * Kind of a drawable edge: the `FlowGraph` kinds (`route` = a declared target of a dynamic
+ * Kind of a drawable edge: the `Manifest` kinds (`route` = a declared target of a dynamic
  * `next`) plus `dynamic` (a step → its `?` port when no targets are declared).
  * @public
  */
-export type ModelEdgeKind = FlowGraphEdge['kind'] | 'dynamic'
+export type ModelEdgeKind = ManifestEdge['kind'] | 'dynamic'
 
 /**
  * One drawable node. `key` is unique across nesting levels (`stepKey(path, id)`, `#entry` /
- * `#dyn` suffixes for the markers); `parent` is the group key for nodes inside a child flow.
+ * `#dyn` suffixes for the markers); `parent` is the group key for nodes inside a child wizard.
  * @public
  */
 export interface ModelNode {
   readonly key: string
   readonly kind: ModelNodeKind
   /** The step this node stands for (absent for entry markers). */
-  readonly step?: FlowGraphNode
+  readonly step?: ManifestStep
   readonly path: readonly string[]
   readonly parent?: string
   readonly width: number
@@ -65,7 +65,7 @@ export interface ModelEdge {
 }
 
 /**
- * The drawable model of a `FlowGraph`: nodes (parents before children), edges and the warnings
+ * The drawable model of a `Manifest`: nodes (parents before children), edges and the warnings
  * by step key. Built by `buildGraphModel`, positioned by `layoutGraph`.
  * @public
  */
@@ -80,21 +80,21 @@ const pathId = (path: readonly string[]): string => path.join('/')
 export const entryKey = (path: readonly string[]): string => `${pathId(path)}#entry`
 const dynamicKey = (key: string): string => `${key}#dyn`
 
-/** The group (flow step) key that contains flow `path`, or undefined at the root. */
+/** The group (child step) key that contains wizard `path`, or undefined at the root. */
 function parentOf(path: readonly string[]): string | undefined {
   const last = path[path.length - 1]
   return last === undefined ? undefined : stepKey(path.slice(0, -1), last)
 }
 
 /**
- * Build the drawable model of a `FlowGraph` (`inspect(flow)`): one entry marker per flow, a card
- * per step — a `flow` step whose child flow is in the graph becomes a group containing it — a
+ * Build the drawable model of a `Manifest` (`inspect(wizard)`): one entry marker per wizard, a card
+ * per step — a `child` step whose child wizard is in the graph becomes a group containing it — a
  * `?` port per dynamic `next` without declared targets, and typed, labelled edges. Pure and
  * synchronous.
  * @public
  */
-export function buildGraphModel(graph: FlowGraph): GraphModel {
-  const flowPaths = new Set(graph.nodes.map((n) => pathId(n.path)))
+export function buildGraphModel(graph: Manifest): GraphModel {
+  const wizardPaths = new Set(graph.nodes.map((n) => pathId(n.path)))
   const nodes: ModelNode[] = []
   const edges: ModelEdge[] = []
   const seenPaths = new Set<string>()
@@ -113,7 +113,7 @@ export function buildGraphModel(graph: FlowGraph): GraphModel {
       })
     }
     const key = stepKey(step.path, step.id)
-    const isGroup = step.kind === 'flow' && flowPaths.has(pathId([...step.path, step.id]))
+    const isGroup = step.kind === 'child' && wizardPaths.has(pathId([...step.path, step.id]))
     nodes.push({
       key,
       kind: isGroup ? 'group' : 'step',
@@ -176,7 +176,7 @@ export function buildGraphModel(graph: FlowGraph): GraphModel {
   return { nodes, edges, warnings }
 }
 
-function edgeLabel(edge: FlowGraphEdge, source: FlowGraphNode | undefined): string | undefined {
+function edgeLabel(edge: ManifestEdge, source: ManifestStep | undefined): string | undefined {
   switch (edge.kind) {
     case 'route':
       return 'route'

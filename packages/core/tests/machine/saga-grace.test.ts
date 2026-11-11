@@ -86,7 +86,7 @@ describe('review follow-ups — grace, resume during settle, repeated completion
     expect(h.state.saga.settling).toEqual(['b'])
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
     expect(r.types).toEqual([
-      'flow.resumed',
+      'run.resumed',
       'step.runFailed',
       'timer.cleared',
       'step.compensationStarted',
@@ -154,7 +154,7 @@ describe('review follow-ups — grace, resume during settle, repeated completion
     ])
     h.cmd('next')
     h.err(h.call('run', 'boom'), 'x')
-    expect(of(h.log, 'flow.compensating').at(-1)?.plan).toEqual(['t', 't'])
+    expect(of(h.log, 'run.compensating').at(-1)?.plan).toEqual(['t', 't'])
     const c2 = h.call('compensate')
     expect(c2).toMatchObject({ token: { step: 't', runId: 2 }, extra: { output: 'second' } })
     // a stale result for the other entry is ignored
@@ -171,7 +171,7 @@ describe('review follow-ups — grace, resume during settle, repeated completion
     const c1 = h.call('compensate')
     expect(c1).toMatchObject({ token: { step: 't', runId: 1 }, extra: { output: 'first' } })
     const fin = h.ok(c1)
-    expect(fin.types).toEqual(['step.compensated', 'flow.compensated'])
+    expect(fin.types).toEqual(['step.compensated', 'run.compensated'])
     expect(h.state.saga.compensated).toEqual([
       { step: 't', runId: 2 },
       { step: 't', runId: 1 },
@@ -199,6 +199,6 @@ describe('review follow-ups — grace, resume during settle, repeated completion
     expect(h.child('sub', { status: 'done' }, { done: { output: 1 } }).types).toEqual([])
     expect(h.rec('sub').status).toBe('compensating')
     const done = h.child('sub', { status: 'cancelled' }, { phase: 'compensated' })
-    expect(done.types).toEqual(['step.compensated', 'flow.compensated'])
+    expect(done.types).toEqual(['step.compensated', 'run.compensated'])
   })
 })

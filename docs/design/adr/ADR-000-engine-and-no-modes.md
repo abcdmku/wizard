@@ -28,7 +28,7 @@ The machine describes hook calls, timers, and child work without performing I/O.
 
 State is snapshot-authoritative. Resume loads the snapshot directly. The bounded log supports tracing, devtools, and replay tests; it is not the resume source. Public reads show committed state, including while a durable commit barrier holds a staged batch.
 
-Use three structural kinds, `step`, `view`, and `flow`. A plain step runs a function, maps items, waits for an event, sleeps, or routes through `next`. Policies add retry, fallback, concurrency, or compensation. Data joins and waits on other steps use `needs`. These properties describe behavior without a mode switch.
+Use three structural kinds, `step`, `view`, and `child`. A plain step runs a function, maps items, waits for an event, sleeps, or routes through `next`. Policies add retry, fallback, concurrency, or compensation. Data joins and waits on other steps use `needs`. These properties describe behavior without a mode switch.
 
 ## Consequences
 

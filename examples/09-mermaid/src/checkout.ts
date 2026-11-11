@@ -7,7 +7,7 @@ export interface Deps {
   shipping: { createLabel(orderId: string): Promise<{ trackingId: string }> }
 }
 
-export const fulfilmentFlow = defineWizard(
+export const fulfilment = defineWizard(
   {
     name: 'fulfilment',
     description: 'Creates a shipping label and returns its tracking id.',
@@ -27,7 +27,7 @@ export const fulfilmentFlow = defineWizard(
 )
 
 /** Views, fan-out, a timeout, a join, declared routing and a nested wizard. */
-export const checkoutFlow = defineWizard(
+export const checkout = defineWizard(
   {
     name: 'checkout',
     description: 'Reserves stock, waits for payment while an audit runs, then fulfils or declines.',
@@ -35,7 +35,7 @@ export const checkoutFlow = defineWizard(
     events: { 'payment.captured': z.object({ paymentId: z.string() }) },
     deps: boundary.trusted<Deps>(),
   },
-  ({ step, view, flow, steps }) => {
+  ({ step, view, child, steps }) => {
     const audit = step({ run: async () => ({ audited: true }) })
     const awaitPayment = step({
       waitFor: { 'payment.captured': ({ payload }) => ({ done: payload }) },
@@ -57,7 +57,7 @@ export const checkoutFlow = defineWizard(
           targets: ['fulfil', 'declined'],
           next: ({ needs }) => (needs.payment ? 'fulfil' : 'declined'),
         }),
-        fulfil: flow(fulfilmentFlow, {
+        fulfil: child(fulfilment, {
           context: ({ context }) => ({ orderId: context.cartId }),
           next: 'receipt',
         }),

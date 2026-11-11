@@ -1,7 +1,7 @@
 import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const ingestFlow = defineWizard(
+export const ingest = defineWizard(
   {
     name: 'ingest',
     context: z.object({ enrichment: z.enum(['on', 'off']).default('on') }),

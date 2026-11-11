@@ -100,9 +100,9 @@ it('defaults omitted parent services for optional child bags at creation and res
   )
   const parent = defineWizard(
     { name: 'optional-children', context: z.object({}) },
-    ({ flow, step, steps }) => {
-      const first = flow(trusted, { context: () => ({}) })
-      const second = flow(schema, { context: () => ({}) })
+    ({ child, step, steps }) => {
+      const first = child(trusted, { context: () => ({}) })
+      const second = child(schema, { context: () => ({}) })
       return steps(
         { first, second, join: step({ needs: { first, second }, run: ({ needs }) => needs }) },
         { start: ['first', 'second'] },
@@ -146,7 +146,7 @@ it('preserves explicit undefined root services, inherited declared undefined and
     output: true,
   })
   expect(reads).toBe(1)
-  const child = defineWizard(
+  const childWizard = defineWizard(
     { name: 'undefined-child-services', context: z.object({}), deps: z.undefined() },
     ({ step, view, steps }) =>
       steps({
@@ -156,7 +156,7 @@ it('preserves explicit undefined root services, inherited declared undefined and
   )
   const parent = defineWizard(
     { name: 'undefined-parent-services', context: z.object({}), deps: z.undefined() },
-    ({ flow, steps }) => steps({ child: flow(child, { context: () => ({}) }) }),
+    ({ child, steps }) => steps({ child: child(childWizard, { context: () => ({}) }) }),
   )
   const original = parent.create({}, { deps: undefined })
   await original.start()
@@ -170,8 +170,8 @@ it('preserves explicit undefined root services, inherited declared undefined and
   resumed.dispose()
   const mapped = defineWizard(
     { name: 'mapped-undefined-services', context: z.object({}) },
-    ({ flow, steps }) =>
-      steps({ child: flow(child, { context: () => ({}), deps: () => undefined }) }),
+    ({ child, steps }) =>
+      steps({ child: child(childWizard, { context: () => ({}), deps: () => undefined }) }),
   )
   const mappedRun = mapped.create({})
   await mappedRun.start()
@@ -187,7 +187,7 @@ it('retains scalar dependencies and the undefined default when no dependency bou
   )
   const scalarParent = defineWizard(
     { name: 'scalar-parent-services', context: z.object({}), deps: z.number() },
-    ({ flow, steps }) => steps({ child: flow(scalarChild, { context: () => ({}) }) }),
+    ({ child, steps }) => steps({ child: child(scalarChild, { context: () => ({}) }) }),
   )
   expect(await scalarParent.run({}, { deps: 7 })).toMatchObject({ status: 'done', output: 14 })
   const none = defineWizard({ name: 'no-services', context: z.object({}) }, ({ step, steps }) =>

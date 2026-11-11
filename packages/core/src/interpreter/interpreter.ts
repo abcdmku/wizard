@@ -145,7 +145,7 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
           factory: opts.children.factory,
           ...(opts.children.maxDepth !== undefined ? { maxDepth: opts.children.maxDepth } : {}),
           deps: opts.deps,
-          // A flow step's `deps` mapper sees the same args as any hook (context, parent deps,
+          // A child step's `deps` mapper sees the same args as any hook (context, parent deps,
           // `update` → `context.patch`, a fresh signal).
           hookArgs: (step, causedBy) => {
             return buildHookArgs({
@@ -214,7 +214,7 @@ export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snaps
     timers.clearAll()
     bridge?.disposeAll()
   }
-  /** Owners tear down first: a parent fails its flow step, a host records the live children. */
+  /** Owners tear down first: a parent fails its child step, a host records the live children. */
   const abortRuntime = (error: unknown): void => {
     if (disposed) return
     safely(() => parent?.stopped(error))

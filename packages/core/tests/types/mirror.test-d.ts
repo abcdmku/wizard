@@ -146,7 +146,7 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     // @ts-expect-error `invalidate('typo')`
     mirror.invalidate('typo')
     // The checkout flow has no flow step: `child` accepts nothing.
-    // @ts-expect-error `shipping` is not a flow step
+    // @ts-expect-error `shipping` is not a child step
     mirror.child('shipping')
     // @ts-expect-error unknown step
     mirror.child('typo')
@@ -163,22 +163,22 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
         name: 'fulfilment',
         context: z.object({ orderId: z.string() }),
       },
-      ({ step, view, flow, steps }) =>
+      ({ step, view, child, steps }) =>
         steps({
           label: step({
             run: async () => ({ trackingId: 'x' }),
             next: 'confirm',
           }),
           confirm: view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
-          pack: flow(grandchildFlow, { context: () => ({ sku: 's' }), next: 'done' }),
+          pack: child(grandchildFlow, { context: () => ({ sku: 's' }), next: 'done' }),
           done: step({ next: null }),
         }),
     )
     const orderFlow = defineWizard(
       { name: 'order', context: z.object({ cartId: z.string() }) },
-      ({ step, flow, steps }) =>
+      ({ step, child, steps }) =>
         steps({
-          fulfil: flow(fulfilmentFlow, {
+          fulfil: child(fulfilmentFlow, {
             context: ({ context }) => ({ orderId: context.cartId }),
             next: 'end',
           }),
@@ -208,7 +208,7 @@ describe('Mirror<P>: typed sugar over the projection flow', () => {
     const grand = child.child('pack')
     expectTypeOf(grand).toEqualTypeOf<MirrorChild<typeof grandchildFlow>>()
     expectTypeOf(grand.setInput('pick', { bin: 'b1' })).toEqualTypeOf<Promise<MirrorResult>>()
-    // @ts-expect-error `confirm` is not a flow step of `fulfilment`
+    // @ts-expect-error `confirm` is not a child step of `fulfilment`
     child.child('confirm')
     // A child sender has no state of its own: read it from the mirror's snapshot.
     // @ts-expect-error no getSnapshot on a MirrorChild

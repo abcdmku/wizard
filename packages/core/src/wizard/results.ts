@@ -8,14 +8,14 @@
  */
 
 import type {
-  AnyFlow,
-  ChildFlowOf,
+  AnyWizardDefinition,
   ChildStepId,
+  ChildWizardOf,
   EventType,
-  FlowOutput,
   RunStepId,
   StepId,
   ViewId,
+  WizardOutput,
 } from '../authoring/types'
 import type { WizardErrorCode } from '../errors'
 import type { TransitionRejectReason } from '../machine/events'
@@ -31,7 +31,7 @@ export type CommandResult =
   | { readonly ok: true; readonly seq: number }
   | {
       readonly ok: false
-      readonly code: WizardErrorCode | 'STALE' | 'FLOW_COMPENSATING' | 'FORBIDDEN'
+      readonly code: WizardErrorCode | 'STALE' | 'RUN_COMPENSATING' | 'FORBIDDEN'
       readonly message: string
       readonly step?: string
       readonly issues?: readonly Issue[]
@@ -75,7 +75,7 @@ export type NavResult =
  * the `eventId` was already delivered, nothing changed, `delivered` is empty), rejected by the event boundary
  * (`code: 'BOUNDARY_REJECTED'`, with the boundary's `issues`), or dropped — nothing was waiting
  * for the event and it was not buffered (`code: 'NOT_ACTIVE'`), the machine refused it
- * (`FLOW_TERMINAL` / `FLOW_NOT_STARTED` / `FLOW_COMPENSATING`, …) or the run was disposed
+ * (`RUN_TERMINAL` / `RUN_NOT_STARTED` / `RUN_COMPENSATING`, …) or the run was disposed
  * (`DISPOSED`). Every `{ ok: false }` result carries `code` + `message`, like `CommandResult`;
  * `dispatch({ type: 'send' })` returns the same `code` as a `CommandResult`.
  *
@@ -99,14 +99,14 @@ export type SendResult =
   | {
       readonly ok: false
       readonly reason: 'dropped'
-      readonly code: WizardErrorCode | 'STALE' | 'FLOW_COMPENSATING'
+      readonly code: WizardErrorCode | 'STALE' | 'RUN_COMPENSATING'
       readonly message: string
     }
 
 /** A compensation-hook failure. Its error is serialized because compensation has no `mapError`.
  * @public
  */
-export type CompensationFailure<F extends AnyFlow> = {
+export type CompensationFailure<F extends AnyWizardDefinition> = {
   readonly [K in RunStepId<F>]: {
     readonly step: K
     readonly runId: number
@@ -118,34 +118,34 @@ export type CompensationFailure<F extends AnyFlow> = {
  * least one compensation hook failed (`failures` is non-empty), else `'completed'`.
  * @public
  */
-export interface CompensationSummary<F extends AnyFlow> {
+export interface CompensationSummary<F extends AnyWizardDefinition> {
   readonly outcome: 'completed' | 'partial'
   readonly failures: readonly CompensationFailure<F>[]
 }
 
-/** A failure attributed to one flow step; `error.data` is present only for a mapped run error.
+/** A failure attributed to one step; `error.data` is present only for a mapped run error.
  * @public
  */
-export type StepFailure<F extends AnyFlow> = {
+export type StepFailure<F extends AnyWizardDefinition> = {
   readonly [K in StepId<F>]: {
     readonly kind: 'step'
     readonly step: K
     readonly error: StepErrorOf<F, K>
     readonly compensation?: CompensationSummary<F>
     /**
-     * For a flow step: the child's terminal result when it was retained, or — when a halted
+     * For a child step: the child's terminal result when it was retained, or — when a halted
      * child halted this run — the child's own halted outcome (recover it through `run.child(step)`).
      */
-    readonly child?: [ChildFlowOf<F, K>] extends [never]
+    readonly child?: [ChildWizardOf<F, K>] extends [never]
       ? never
-      : RunResult<ChildFlowOf<F, K>> | RunHalted<ChildFlowOf<F, K>>
+      : RunResult<ChildWizardOf<F, K>> | RunHalted<ChildWizardOf<F, K>>
   }
 }[StepId<F>]
 
 /** The typed failure channel of a terminal run. Unknown thrown values remain serialized/runtime data.
  * @public
  */
-export type FlowFailure<F extends AnyFlow> =
+export type TerminalFailure<F extends AnyWizardDefinition> =
   | StepFailure<F>
   | {
       readonly kind: 'compensation'
@@ -166,9 +166,9 @@ export type FlowFailure<F extends AnyFlow> =
 /** Successful terminal result.
  * @public
  */
-export interface RunDone<F extends AnyFlow> {
+export interface RunDone<F extends AnyWizardDefinition> {
   readonly status: 'done'
-  readonly output: FlowOutput<F>
+  readonly output: WizardOutput<F>
   readonly seq: number
   readonly epoch: number
 }
@@ -176,9 +176,9 @@ export interface RunDone<F extends AnyFlow> {
 /** Failed terminal result: nothing can recover the run (a recoverable halt is `RunHalted`).
  * @public
  */
-export interface RunFailed<F extends AnyFlow> {
+export interface RunFailed<F extends AnyWizardDefinition> {
   readonly status: 'failed'
-  readonly failure: Exclude<FlowFailure<F>, { readonly kind: 'cancelled' }>
+  readonly failure: Exclude<TerminalFailure<F>, { readonly kind: 'cancelled' }>
   readonly seq: number
   readonly epoch: number
 }
@@ -186,9 +186,9 @@ export interface RunFailed<F extends AnyFlow> {
 /** Cancellation is separate from a failed run, including when compensation was attempted.
  * @public
  */
-export interface RunCancelled<F extends AnyFlow> {
+export interface RunCancelled<F extends AnyWizardDefinition> {
   readonly status: 'cancelled'
-  readonly failure: Extract<FlowFailure<F>, { readonly kind: 'cancelled' }>
+  readonly failure: Extract<TerminalFailure<F>, { readonly kind: 'cancelled' }>
   readonly seq: number
   readonly epoch: number
 }
@@ -196,7 +196,7 @@ export interface RunCancelled<F extends AnyFlow> {
 /** One-shot terminal outcome of a `Run`.
  * @public
  */
-export type RunResult<F extends AnyFlow> = RunDone<F> | RunFailed<F> | RunCancelled<F>
+export type RunResult<F extends AnyWizardDefinition> = RunDone<F> | RunFailed<F> | RunCancelled<F>
 
 type WaitEntry<Path, Step, View, Event> =
   | { readonly kind: 'view'; readonly path: Path; readonly step: View }
@@ -214,23 +214,23 @@ type WaitEntry<Path, Step, View, Event> =
  * One thing a run waits on from the outside: a user on a `view`, an external `event` (with the
  * absolute `deadline` of its timeout), or a `sleep` that fires at `deadline`. The list is flat:
  * `path` locates the run — `[]` is this run (ids and event names typed by `F`), `['pay']` the
- * child run of flow step `pay`, or `['pay', '0']` its first mapped item (child ids untyped).
+ * child run of child step `pay`, or `['pay', '0']` its first mapped item (child ids untyped).
  * @public
  */
-export type WaitingFor<F extends AnyFlow> =
+export type WaitingFor<F extends AnyWizardDefinition> =
   | WaitEntry<readonly [], StepId<F>, ViewId<F>, EventType<F>>
   | ([ChildStepId<F>] extends [never]
       ? never
       : WaitEntry<readonly [string, ...string[]], string, string, string>)
 
 /**
- * A run stopped by a failed step under `onFailure: 'halt'`, or by a halted child flow
+ * A run stopped by a failed step under `onFailure: 'halt'`, or by a halted child run
  * (`failure.child` is the child's halted outcome): recover it with `retry` / `skip` /
  * `compensate` / `cancel` (on `run.child(step)` for a child), or persist `snapshot` and `resume`
  * it later.
  * @public
  */
-export interface RunHalted<F extends AnyFlow> {
+export interface RunHalted<F extends AnyWizardDefinition> {
   readonly status: 'halted'
   readonly failure: StepFailure<F>
   readonly snapshot: Snapshot<F>
@@ -244,7 +244,7 @@ export interface RunHalted<F extends AnyFlow> {
  * `resume` it when the input arrives.
  * @public
  */
-export interface RunWaiting<F extends AnyFlow> {
+export interface RunWaiting<F extends AnyWizardDefinition> {
   readonly status: 'waiting'
   readonly waitingFor: readonly WaitingFor<F>[]
   readonly snapshot: Snapshot<F>
@@ -257,7 +257,7 @@ export interface RunWaiting<F extends AnyFlow> {
  * `RunResult`, or the run halted or waiting — never a hang, never a throw for a failed step.
  * @public
  */
-export type RunOutcome<F extends AnyFlow> = RunResult<F> | RunHalted<F> | RunWaiting<F>
+export type RunOutcome<F extends AnyWizardDefinition> = RunResult<F> | RunHalted<F> | RunWaiting<F>
 
 /** Why a lifecycle-sensitive waiter ended before producing its normal result.
  * @public

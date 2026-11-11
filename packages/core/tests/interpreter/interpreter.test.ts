@@ -69,7 +69,7 @@ describe('interpreter: batch atomicity', () => {
     interp.send({ type: 'start' })
     // The very first event of the first batch already sees the whole batch applied
     // (task active with attempt 1, set by the last event of that batch).
-    expect(seen[0]).toEqual({ type: 'flow.started', status: 'active', attempt: 1 })
+    expect(seen[0]).toEqual({ type: 'run.started', status: 'active', attempt: 1 })
     expect(seen.map((s) => s.type)).toContain('step.runSucceeded')
     // Events from the second batch (run result) see the task done.
     const done = seen.find((s) => s.type === 'step.runSucceeded')
@@ -146,7 +146,7 @@ describe('interpreter: sync-commit guarantee', () => {
     expect(err && err.type === 'res.err' ? err.error.code : undefined).toBe('SYNC_VIOLATION')
     expect(interp.getState().steps.t!.status).toBe('failed')
     expect(interp.getState().steps.t!.error?.kind).toBe('sync-violation')
-    expect(types(events)).toContain('flow.failed')
+    expect(types(events)).toContain('run.failed')
   })
 })
 
@@ -176,7 +176,7 @@ describe('interpreter: re-entrancy', () => {
     interp.send({ type: 'start' })
     expect(inputSeenInsideListener).toBeUndefined()
     expect(interp.getState().steps.v!.input).toEqual({ name: 'x' })
-    expect(types(events)).toEqual(['flow.started', 'step.arrived', 'step.entered', 'input.changed'])
+    expect(types(events)).toEqual(['run.started', 'step.arrived', 'step.entered', 'input.changed'])
   })
 
   it('a hook calling update() enqueues context.patch, applied before the hook result', () => {

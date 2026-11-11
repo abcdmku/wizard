@@ -1,5 +1,5 @@
 /**
- * The two small round markers: a flow's entry point (▶, source of the `start` edges) and the
+ * The two small round markers: a wizard's entry point (▶, source of the `start` edges) and the
  * `?` port a dynamic `next` points to (its successors are only known at runtime).
  */
 

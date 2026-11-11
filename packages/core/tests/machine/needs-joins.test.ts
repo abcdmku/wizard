@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CompiledFlow } from '../../src/authoring/compiled'
+import type { CompiledWizard } from '../../src/authoring/compiled'
 import { explain } from '../../src/machine/explain'
 import { needsSatisfied } from '../../src/machine/needs'
 import { progress } from '../../src/machine/selectors'
@@ -15,10 +15,10 @@ import {
 } from '../helpers/fixtures'
 
 function dataFlow(
-  def: CompiledFlow,
-  feeds: CompiledFlow['feeds'],
-  sinks: CompiledFlow['sinks'] = ['join'],
-): CompiledFlow {
+  def: CompiledWizard,
+  feeds: CompiledWizard['feeds'],
+  sinks: CompiledWizard['sinks'] = ['join'],
+): CompiledWizard {
   return { ...def, feeds, sinks }
 }
 
@@ -88,7 +88,7 @@ describe('needs data joins', () => {
         message: "step 'join' waits on 'b', which can no longer complete",
       },
     })
-    expect(of(settled, 'flow.done')).toEqual([])
+    expect(of(settled, 'run.done')).toEqual([])
     expect(h.rec('b')).toMatchObject({ status: 'idle', visitedCount: 0 })
     h.cmd({ type: 'skip', step: 'join' })
     h.step({ type: 'settle' })

@@ -4,10 +4,10 @@
  * delivered the moment the wait step enters.
  */
 import { createTestScheduler } from '@openwizard/core/testing'
-import { checkoutFlow } from './checkout'
+import { checkout } from './checkout'
 
 const scheduler = createTestScheduler({ now: 0 })
-const run = checkoutFlow.create(
+const run = checkout.create(
   { orderId: 'o-1' },
   {
     correlationId: 'o-1', // correlated webhooks for other orders are dropped
@@ -15,7 +15,7 @@ const run = checkoutFlow.create(
   },
 )
 run.observe((event) => {
-  if (event.type.startsWith('event.') || event.type === 'step.done' || event.type === 'flow.done')
+  if (event.type.startsWith('event.') || event.type === 'step.done' || event.type === 'run.done')
     console.log(
       `t=${scheduler.now()}  ${event.type}${'step' in event ? ` ${event.step}` : ''}${'event' in event ? ` (${event.event})` : ''}`,
     )

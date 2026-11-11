@@ -60,25 +60,25 @@ describe('gates: not-started / terminal / compensating', () => {
 
   it('before start: only start/cancel/reset/setInput/resetInput are accepted', () => {
     const h = createHarness(simple())
-    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('flow-not-started')
+    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('run-not-started')
     expect(of(h.cmd({ type: 'send', event: 'x', payload: 1 }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_NOT_STARTED',
+      'RUN_NOT_STARTED',
     )
-    expect(of(h.cmd('startReady'), 'command.rejected')[0]?.code).toBe('FLOW_NOT_STARTED')
+    expect(of(h.cmd('startReady'), 'command.rejected')[0]?.code).toBe('RUN_NOT_STARTED')
     expect(h.cmd({ type: 'setInput', step: 'v', patch: { a: 1 } }).types).toEqual(['input.changed'])
     expect(h.rec('v').input).toEqual({ a: 1 })
-    expect(h.cmd('reset').types).toEqual(['flow.reset'])
+    expect(h.cmd('reset').types).toEqual(['run.reset'])
     h.start()
     expect(of(h.cmd('start'), 'command.rejected')[0]?.code).toBe('INVALID_COMMAND')
   })
 
   it('cancel before start ends the run cancelled', () => {
     const h = createHarness(simple())
-    expect(h.cmd('cancel').types).toEqual(['flow.cancelled'])
+    expect(h.cmd('cancel').types).toEqual(['run.cancelled'])
     expect(h.state.status).toBe('cancelled')
   })
 
-  it('terminal: everything but reset is rejected FLOW_TERMINAL (nav → transition.rejected{flow-terminal})', () => {
+  it('terminal: everything but reset is rejected RUN_TERMINAL (nav → transition.rejected{run-terminal})', () => {
     const h = createHarness(simple())
     h.start()
     h.cmd('next')
@@ -90,12 +90,12 @@ describe('gates: not-started / terminal / compensating', () => {
         r.types[0] === 'transition.rejected'
           ? of(r, 'transition.rejected')[0]?.reason
           : of(r, 'command.rejected')[0]?.code
-      expect(rejected, c).toMatch(/flow-terminal|FLOW_TERMINAL/)
+      expect(rejected, c).toMatch(/run-terminal|RUN_TERMINAL/)
     }
     expect(of(h.cmd({ type: 'setInput', step: 'v', patch: {} }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_TERMINAL',
+      'RUN_TERMINAL',
     )
-    expect(h.cmd('reset').types).toEqual(['flow.reset'])
+    expect(h.cmd('reset').types).toEqual(['run.reset'])
     expect(h.state.status).toBe('idle')
   })
 
@@ -281,10 +281,10 @@ describe('plan sees the post-batch state', () => {
     expect(explain(h.def, h.state, 't')).toMatchObject({
       status: 'compensating',
       phase: 'compensating',
-      reasons: ['flow-compensating'],
+      reasons: ['run-compensating'],
     })
     h.ok(h.call('compensate'))
-    expect(explain(h.def, h.state, 'u').reasons).toEqual(['flow-terminal', 'failed:run'])
+    expect(explain(h.def, h.state, 'u').reasons).toEqual(['run-terminal', 'failed:run'])
   })
 })
 
@@ -303,7 +303,7 @@ describe('selectors and explain', () => {
       }),
     )
     const d = h.def
-    expect(explain(d, h.state, 'a').reasons).toEqual(['flow-not-started', 'not-activated'])
+    expect(explain(d, h.state, 'a').reasons).toEqual(['run-not-started', 'not-activated'])
     expect(explain(d, h.state, 'zzz')).toMatchObject({
       status: 'unknown',
       reasons: ['unknown-step'],
@@ -365,7 +365,7 @@ describe("strict: 'sync' violations", () => {
       durationMs: 0,
       syncViolation: true,
     })
-    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'run.halted'])
     expect(of(r, 'step.runFailed')[0]?.willRetry).toBe(false)
     expect(h.rec('t').error).toMatchObject({ kind: 'sync-violation', code: 'SYNC_VIOLATION' })
     expect(h.state.timers).toEqual({})

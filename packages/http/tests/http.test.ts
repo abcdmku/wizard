@@ -7,7 +7,7 @@ import { auth, call, memoryRuns, orders } from './fixtures/orders'
 
 const access = {
   context: ['orderId'],
-  flow: ['create', 'read', 'cancel'],
+  run: ['create', 'read', 'cancel'],
   steps: { review: ['read', 'setInput'] },
   events: ['payment.captured'],
 } as const
@@ -291,7 +291,7 @@ describe('createHTTP run API', () => {
         },
       },
       auth,
-      access: { flow: ['read'], events: ['payment.captured'] },
+      access: { run: ['read'], events: ['payment.captured'] },
     })
     const send = (body: unknown) =>
       http.fetch(call('/api/orders/o-1/events/payment.captured', { token: 'alice', body }))

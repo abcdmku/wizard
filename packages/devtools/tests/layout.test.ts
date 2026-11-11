@@ -3,7 +3,7 @@
  * isolated nodes), the handle picker and the ELK layout — with the real bundled elkjs, and with a
  * stub engine to see exactly what ELK is asked to lay out.
  */
-import { type FlowGraph, inspect } from '@openwizard/core/inspect'
+import { inspect, type Manifest } from '@openwizard/core/inspect'
 import type { ElkNode } from 'elkjs/lib/elk-api'
 import { describe, expect, it } from 'vitest'
 import { findBackEdges, findIsolated } from '../src/layout/cycles'
@@ -62,7 +62,7 @@ describe('buildGraphModel', () => {
   })
 
   it('draws the declared targets of a dynamic next as `route` edges, with no `?` port', () => {
-    const routed: FlowGraph = {
+    const routed: Manifest = {
       name: 'routed',
       version: 1,
       fingerprint: '0000000000000000',

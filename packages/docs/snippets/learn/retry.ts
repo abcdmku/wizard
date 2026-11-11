@@ -1,7 +1,7 @@
 import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const uploadFlow = defineWizard(
+export const upload = defineWizard(
   { name: 'upload', context: z.object({ fileId: z.string() }) },
   ({ step, steps }) =>
     steps({

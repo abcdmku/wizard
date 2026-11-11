@@ -87,9 +87,9 @@ describe('e2e steps: retry, timeout, retry command', () => {
     ])
     expect(t.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'run', message: 'down' } })
     expect(t.run.getState().status).toBe('halted')
-    expect(t.types()).toContain('flow.halted')
+    expect(t.types()).toContain('run.halted')
     // A halted run accepts recovery commands only.
-    expect(await t.run.next()).toMatchObject({ ok: false, code: 'FLOW_HALTED' })
+    expect(await t.run.next()).toMatchObject({ ok: false, code: 'RUN_HALTED' })
     fail = false
     const retried = t.run.retry('t')
     // The retry command commits synchronously (runStarted); the async run lands later.

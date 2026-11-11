@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { analyze, compile, type FlowWarning } from '../../src/authoring/compile'
-import type { AnyFlow } from '../../src/authoring/types'
+import { analyze, compile, type ManifestWarning } from '../../src/authoring/compile'
+import type { AnyWizardDefinition } from '../../src/authoring/types'
 import { WizardError } from '../../src/errors'
 import { defineWizard } from '../../src/wizard/define-wizard'
 import { rawFlow, rawStep } from './helpers'
 
-function warningsOf(flow: AnyFlow): readonly FlowWarning[] {
+function warningsOf(flow: AnyWizardDefinition): readonly ManifestWarning[] {
   return analyze(flow).warnings
 }
 
@@ -103,13 +103,13 @@ describe('graph warnings', () => {
   })
 
   it('keeps paths on nested warnings and replays warnings on a cached definition', () => {
-    const child = defineWizard({ name: 'child', context: z.object({}) }, ({ step, steps }) =>
+    const childWizard = defineWizard({ name: 'child', context: z.object({}) }, ({ step, steps }) =>
       steps({ a: step({ run: () => true }), lost: step({ run: () => false }) }),
     )
-    const wizard = defineWizard({ name: 'parent', context: z.object({}) }, ({ flow, steps }) =>
-      steps({ child: flow(child, { context: () => ({}) }) }),
+    const wizard = defineWizard({ name: 'parent', context: z.object({}) }, ({ child, steps }) =>
+      steps({ child: child(childWizard, { context: () => ({}) }) }),
     )
-    const unreachable = (flow: AnyFlow) =>
+    const unreachable = (flow: AnyWizardDefinition) =>
       warningsOf(flow).filter((warning) => warning.code === 'UNREACHABLE')
     const expected = [
       {
@@ -126,13 +126,13 @@ describe('graph warnings', () => {
 
 describe('nesting validation', () => {
   it('collects a nesting cycle and independent sibling definition errors', () => {
-    const embedded = rawStep({ context: () => ({}) }, 'flow')
+    const embedded = rawStep({ context: () => ({}) }, 'child')
     const cyclic = rawFlow({
       bad: rawStep({ input: z.string(), next: 'missing' }, 'view'),
       embedded,
       sibling: rawStep(
         { context: () => ({}) },
-        'flow',
+        'child',
         rawFlow({ x: rawStep({ input: z.string(), next: 'ghost' }, 'view') }),
       ),
     })
@@ -157,13 +157,13 @@ describe('nesting validation', () => {
     let current = rawFlow({ end: rawStep({ run: () => true }) }, { name: 'leaf' })
     for (let level = 1; level <= 8; level += 1) {
       current = rawFlow(
-        { child: rawStep({ context: () => ({}) }, 'flow', current) },
+        { child: rawStep({ context: () => ({}) }, 'child', current) },
         { name: `level-${level}` },
       )
     }
     expect(() => compile(current)).not.toThrow()
     const ninth = rawFlow(
-      { child: rawStep({ context: () => ({}) }, 'flow', current) },
+      { child: rawStep({ context: () => ({}) }, 'child', current) },
       { name: 'ninth' },
     )
     try {

@@ -50,12 +50,12 @@ function make(ok = true) {
 }
 
 describe('run.explain()', () => {
-  it('reports flow-not-started before start(), then the cursor view once started', async () => {
+  it('reports run-not-started before start(), then the cursor view once started', async () => {
     const run = make()
     expect(run.explain('form')).toEqual({
       status: 'idle',
       phase: undefined,
-      reasons: ['flow-not-started', 'not-activated'],
+      reasons: ['run-not-started', 'not-activated'],
       candidates: [],
       waitingFor: [],
     })
@@ -118,9 +118,9 @@ describe('run.explain()', () => {
     // A halt failure is recoverable (`retry()`), so the flow is not terminal — only the step is.
     expect(ok.explain('boom')).toMatchObject({
       status: 'failed',
-      reasons: ['flow-halted', 'failed:run'],
+      reasons: ['run-halted', 'failed:run'],
     })
-    expect(ok.explain('end').reasons).toEqual(['flow-halted', 'not-activated'])
+    expect(ok.explain('end').reasons).toEqual(['run-halted', 'not-activated'])
     ok.dispose()
     run.dispose()
   })

@@ -8,7 +8,7 @@ import {
   ShipmentFailedCallbackSchema,
   ShipmentSucceededCallbackSchema,
 } from '@fulfillment/contracts'
-import { boundary, type StepApi, type WizardDefinition } from '@openwizard/core'
+import { boundary, type StepApi, type WizardHeader } from '@openwizard/core'
 import type { z } from 'zod'
 import { FraudReviewedEventSchema, OrderCancelledEventSchema } from './events'
 import type { FulfillmentDependencies } from './gateway'
@@ -58,7 +58,7 @@ export const fulfillmentOptions = {
   },
   unmatchedEvents: { buffer: true, ttl: '30m' },
   onFailure: 'compensate',
-} satisfies WizardDefinition<
+} satisfies WizardHeader<
   FulfillmentContext,
   z.input<typeof FulfillmentContextSchema>,
   FulfillmentEvents,

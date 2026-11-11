@@ -1,11 +1,11 @@
 /**
  * Child summaries: the compact status the parent's step record and Mirrors carry
- * (`ChildSummary`) and the failure a failed or cancelled child reports to its parent flow step.
+ * (`ChildSummary`) and the failure a failed or cancelled child reports to the step that owns it.
  *
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import { deriveRuntimeResult, haltFailure, type RuntimeFailure } from '../machine/run-result'
 import { progress } from '../machine/selectors'
 import type { ChildSummary, SerializedError, WizardState } from '../machine/state'
@@ -15,7 +15,7 @@ import type { ChildSummary, SerializedError, WizardState } from '../machine/stat
  * selector's ratio over the child's definition (completing steps excluded, skipped counts as
  * done, 1 once the child is done).
  */
-export function summarize(state: WizardState, def: CompiledFlow): ChildSummary {
+export function summarize(state: WizardState, def: CompiledWizard): ChildSummary {
   return {
     status: state.status,
     current: state.current,
@@ -55,8 +55,8 @@ export function childFailure(state: WizardState): ChildFailure | undefined {
       return withData(
         failure,
         {
-          name: 'ChildFlowCancelled',
-          message: `child flow '${state.flow.name}' was cancelled${failure.reason === undefined ? '' : `: ${failure.reason}`}`,
+          name: 'ChildRunCancelled',
+          message: `child run of '${state.wizard.name}' was cancelled${failure.reason === undefined ? '' : `: ${failure.reason}`}`,
           code: 'CHILD_CANCELLED',
         },
         undefined,
@@ -72,8 +72,8 @@ function withData(failure: RuntimeFailure, error: SerializedError, data: unknown
 
 function childFailed(state: WizardState): SerializedError {
   return {
-    name: 'ChildFlowFailed',
-    message: `child flow '${state.flow.name}' failed`,
+    name: 'ChildRunFailed',
+    message: `child run of '${state.wizard.name}' failed`,
     code: 'CHILD_FAILED',
   }
 }

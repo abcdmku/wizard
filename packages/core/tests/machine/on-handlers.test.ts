@@ -189,7 +189,7 @@ describe('on — routing to every kind', () => {
     expect(h.ok(h.call('on', 'v'), { next: null }).types).toEqual([])
     h.cmd({ type: 'send', event: 'e', payload: 3 })
     const bad = h.ok(h.call('on', 'v'), { next: 'typo' })
-    expect(bad.types).toEqual(['step.failed', 'flow.halted'])
+    expect(bad.types).toEqual(['step.failed', 'run.halted'])
     expect(of(bad, 'step.failed')[0]).toMatchObject({
       step: 'v',
       kind: 'hook',
@@ -220,7 +220,7 @@ describe('on — routing to every kind', () => {
       error: { message: 'task handler bug' },
     })
     expect(h.rec('t').status).toBe('active')
-    expect(h.err(forW!, 'wait handler bug').types).toEqual(['step.failed', 'flow.halted'])
+    expect(h.err(forW!, 'wait handler bug').types).toEqual(['step.failed', 'run.halted'])
   })
 
   it('a step drains buffered events when it starts (one per drain), then the next after each handler result', () => {

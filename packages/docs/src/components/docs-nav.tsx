@@ -97,7 +97,7 @@ export function DocsNav({
         <FlaskConical aria-hidden="true" />
         <span>
           Try it in the browser
-          <small className="docs-nav-playground-detail">Edit and run a flow</small>
+          <small className="docs-nav-playground-detail">Edit and run a wizard</small>
         </span>
         <ChevronRight aria-hidden="true" />
       </Link>

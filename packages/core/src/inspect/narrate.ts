@@ -12,7 +12,7 @@ import type { DomainEvent } from '../machine/events'
 export const BOOKKEEPING: ReadonlySet<RunEventType> = new Set<RunEventType>([
   'child.command',
   'event.received',
-  'flow.status',
+  'run.status',
   'result.ignored',
   'step.arrived',
   'step.enterCompleted',
@@ -34,27 +34,27 @@ export const BOOKKEEPING: ReadonlySet<RunEventType> = new Set<RunEventType>([
 
 export function narrate(e: DomainEvent, at: (time: number) => string): string {
   switch (e.type) {
-    case 'flow.started':
+    case 'run.started':
       return `run started at ${e.start}`
-    case 'flow.done':
+    case 'run.done':
       return 'run done'
-    case 'flow.failed':
+    case 'run.failed':
       return `run failed${e.step === undefined ? '' : ` at ${e.step}`}: ${e.error.message}${e.code === undefined ? '' : ` (${e.code})`}`
-    case 'flow.halted':
+    case 'run.halted':
       return `run halted at ${e.step}: ${e.error.message} (retry, skip, compensate or cancel)`
-    case 'flow.compensating':
+    case 'run.compensating':
       return `compensating ${list(e.plan)}${e.status === undefined ? '' : ` after the run ${e.status === 'failed' ? 'failed' : 'was cancelled'}`}${e.reason === undefined ? '' : ` (${e.reason})`}`
-    case 'flow.compensated':
+    case 'run.compensated':
       return e.failures.length === 0
         ? 'compensation completed'
         : `compensation partial: ${list(e.failures)} failed`
-    case 'flow.cancelled':
+    case 'run.cancelled':
       return `run cancelled${e.reason === undefined ? '' : ` (${e.reason})`}`
-    case 'flow.resumed':
+    case 'run.resumed':
       return `run resumed from event ${e.fromSeq}${e.interrupted.length === 0 ? '' : `, interrupted: ${list(e.interrupted)}`}`
-    case 'flow.reset':
+    case 'run.reset':
       return 'run reset'
-    case 'flow.status':
+    case 'run.status':
       return `status ${e.status}`
     case 'transition.started':
       return `navigating ${e.from ?? '(start)'} -> ${e.to ?? '?'} (${e.cause})`
@@ -115,9 +115,9 @@ export function narrate(e: DomainEvent, at: (time: number) => string): string {
     case 'step.eachRetryRequested':
       return `${e.step} retrying items ${list(e.indices.map(String))}`
     case 'step.eachChildStarted':
-      return `${e.step} item ${e.index} child flow started`
+      return `${e.step} item ${e.index} child run started`
     case 'step.eachChildSummary':
-      return `${e.step} item ${e.index} child flow ${e.summary.status}`
+      return `${e.step} item ${e.index} child run ${e.summary.status}`
     case 'step.eachChildOutputRequested':
       return `${e.step} item ${e.index} mapping child output`
     case 'step.eachMapErrorStarted':
@@ -152,8 +152,8 @@ export function narrate(e: DomainEvent, at: (time: number) => string): string {
       return `event ${e.event} expired`
     case 'event.dropped':
       return `event ${e.event} dropped (${e.reason})`
-    case 'event.flowDelivered':
-      return `event ${e.event} handled by the flow`
+    case 'event.wizardDelivered':
+      return `event ${e.event} handled by the wizard`
     case 'event.handlerResultIgnored':
       return `${e.step} ignored the result of its ${e.event} handler (${e.reason})`
     case 'event.handlerFailed':
@@ -165,9 +165,9 @@ export function narrate(e: DomainEvent, at: (time: number) => string): string {
     case 'timer.cleared':
       return `timer ${e.timerId} cleared`
     case 'child.started':
-      return `${e.step} child flow started`
+      return `${e.step} child run started`
     case 'child.summary':
-      return `${e.step} child flow ${e.summary.status}`
+      return `${e.step} child run ${e.summary.status}`
     case 'child.command':
       return `${e.step} child command ${e.command.type}`
     case 'persist.failed':

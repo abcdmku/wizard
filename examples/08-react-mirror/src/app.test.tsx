@@ -1,6 +1,6 @@
 /**
  * Headless run of the whole example: the "server" (run + source + serialized loopback), the
- * client Mirror and the React UI, driven through the DOM only. Proves the flow works end to end,
+ * client Mirror and the React UI, driven through the DOM only. Proves the wizard works end to end,
  * that the UI never needs the run, and that no card number ever reaches the run: what
  * crosses `setInput` is the provider token.
  */
@@ -8,8 +8,8 @@ import { createTestScheduler } from '@openwizard/core/testing'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from './App'
+import type { CheckoutDeps } from './checkout'
 import { createClient } from './client'
-import type { CheckoutDeps } from './flow'
 import { startServer } from './server'
 
 afterEach(cleanup)
@@ -107,7 +107,7 @@ describe('08 react + mirror: the UI drives the run through the Mirror only', () 
   it('cancels the order while tasks are running', async () => {
     const log: string[] = []
     const deps = instantDeps(log)
-    // A reserve that never resolves keeps the flow "running" so the cancel button is visible.
+    // A reserve that never resolves keeps the run "running" so the cancel button is visible.
     deps.inventory.reserve = () => new Promise(() => {})
     const { transport, run } = startServer({ deps, delayMs: 0 })
     const mirror = createClient(transport)

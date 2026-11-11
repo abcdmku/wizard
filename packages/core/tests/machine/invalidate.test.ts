@@ -111,7 +111,7 @@ describe('invalidate', () => {
     expect(h.state.current).toBe('a')
   })
 
-  it('running dependents are cancelled first (a step run aborted, a child flow cancelled), then invalidated', () => {
+  it('running dependents are cancelled first (a step run aborted, a child run cancelled), then invalidated', () => {
     const child = flow({ start: 'x', steps: { x: view({ next: 'e' }), e: routingStep() } })
     const h = createHarness(
       flow({

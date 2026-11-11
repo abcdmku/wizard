@@ -45,7 +45,7 @@ function sagaFlow(opts: { failCompensate2?: () => boolean; asyncRun4?: boolean }
 }
 
 describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
-  it('unwinds in reverse completion order [3,2,1] and ends with flow.compensated{failed}', async () => {
+  it('unwinds in reverse completion order [3,2,1] and ends with run.compensated{failed}', async () => {
     const { def, compensated } = sagaFlow()
     const t = e2e(def)
     await t.run.start()
@@ -71,17 +71,17 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
     const order = t.types()
     const started = t.of('step.compensationStarted').map((e) => e.step)
     expect(started).toEqual(['t3', 't2', 't1'])
-    expect(order.indexOf('flow.compensating')).toBeLessThan(
+    expect(order.indexOf('run.compensating')).toBeLessThan(
       order.indexOf('step.compensationStarted'),
     )
-    expect(t.of('flow.compensating')[0]).toMatchObject({
+    expect(t.of('run.compensating')[0]).toMatchObject({
       plan: ['t3', 't2', 't1'],
       status: 'failed',
     })
-    expect(t.of('flow.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
+    expect(t.of('run.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
     // Everything after is rejected as a value.
     expect(await t.run.next()).toMatchObject({ ok: false })
-    expect(await t.run.retry('t4')).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
+    expect(await t.run.retry('t4')).toMatchObject({ ok: false, code: 'RUN_TERMINAL' })
   })
 
   it('a throwing compensate hook is recorded in saga.failures and the unwind continues; compensate({from}) retries only it', async () => {
@@ -99,7 +99,7 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
       step: 't2',
       error: { message: 'undo t2 failed' },
     })
-    expect(t.of('flow.compensated')[0]?.failures.length).toBe(1)
+    expect(t.of('run.compensated')[0]?.failures.length).toBe(1)
     expect(t.run.getState().status).toBe('failed')
 
     // Retry only t2.
@@ -110,11 +110,11 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
     expect(t.of('step.compensationStarted').map((e) => e.step)).toEqual(['t2'])
     expect(t.rec('t2').status).toBe('compensated')
     expect(t.run.getState().saga.failures).toEqual([])
-    expect(t.of('flow.compensated')[0]).toMatchObject({ failures: [] })
+    expect(t.of('run.compensated')[0]).toMatchObject({ failures: [] })
     // Nothing left to compensate → the flow is terminal for further compensate commands.
     expect(await t.run.compensate({ from: 't3' })).toMatchObject({
       ok: false,
-      code: 'FLOW_TERMINAL',
+      code: 'RUN_TERMINAL',
     })
   })
 
@@ -134,7 +134,7 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
     await tick()
     expect(t.run.getState().saga.settling ?? []).toEqual([])
     expect(compensated).toEqual(['t3:r3', 't2', 't1'])
-    expect(t.of('flow.compensated')[0]).toMatchObject({ status: 'cancelled' })
+    expect(t.of('run.compensated')[0]).toMatchObject({ status: 'cancelled' })
     expect(t.run.getState().status).toBe('cancelled')
   })
 })

@@ -1,5 +1,10 @@
 import { describe, expectTypeOf, it } from 'vitest'
-import type { AnyFlow, Flow, FlowOutput, FlowStep } from '../../src/authoring/types'
+import type {
+  AnyWizardDefinition,
+  WizardDefinition,
+  WizardOutput,
+  WizardStep,
+} from '../../src/authoring/types'
 import type { DomainEvent } from '../../src/machine/events'
 import {
   type ChildRunEvent,
@@ -10,27 +15,27 @@ import {
 } from '../../src/wizard/create-wizard'
 import type { CheckoutF, fulfilmentFlow } from './wizard-fixture'
 
-type EventLeafFlow = Flow<
+type EventLeafFlow = WizardDefinition<
   unknown,
   unknown,
   {},
   unknown,
-  { readonly done: FlowStep<'step', { readonly output: { readonly leaf: true } }, 'sink'> },
+  { readonly done: WizardStep<'step', { readonly output: { readonly leaf: true } }, 'sink'> },
   { readonly leaf: true }
 >
-type EventParentFlow<CF extends AnyFlow, K extends string> = Flow<
+type EventParentFlow<CF extends AnyWizardDefinition, K extends string> = WizardDefinition<
   unknown,
   unknown,
   {},
   unknown,
   {
-    readonly [P in K]: FlowStep<
-      'flow',
-      { readonly output: FlowOutput<CF>; readonly child: CF },
+    readonly [P in K]: WizardStep<
+      'child',
+      { readonly output: WizardOutput<CF>; readonly child: CF },
       'sink'
     >
   },
-  FlowOutput<CF>
+  WizardOutput<CF>
 >
 type EventDepth1 = EventParentFlow<EventLeafFlow, 'd1'>
 type EventDepth2 = EventParentFlow<EventDepth1, 'd2'>
@@ -63,7 +68,7 @@ describe('typed RunEvent', () => {
       if (e.type === 'step.done') expectTypeOf(e.step).toEqualTypeOf<Exclude<Ids, 'shipping'>>()
       if (e.type === 'event.received')
         expectTypeOf(e.event).toEqualTypeOf<'payment.captured' | 'payment.failed'>()
-      if (e.type === 'flow.failed') expectTypeOf(e.step).toEqualTypeOf<Ids | undefined>()
+      if (e.type === 'run.failed') expectTypeOf(e.step).toEqualTypeOf<Ids | undefined>()
     })
     // Without narrowing, ids are the exact union across the root and its descendants.
     run.observe((e) => {
@@ -85,7 +90,7 @@ describe('typed RunEvent', () => {
     type Payment = Extract<Events, { type: 'event.received'; event: 'payment.captured' }>
     type ChildStarted = Extract<Events, { type: 'child.started'; step: 'fulfil' }>
     type FulfilmentDone = Extract<Events, { type: 'child.summary'; step: 'fulfil' }>
-    type FulfilmentFlowDone = Extract<RootRunEvent<typeof fulfilmentFlow>, { type: 'flow.done' }>
+    type FulfilmentFlowDone = Extract<RootRunEvent<typeof fulfilmentFlow>, { type: 'run.done' }>
 
     expectTypeOf<Reserved['output']>().toEqualTypeOf<{ reservationId: string }>()
     expectTypeOf<ReserveDone['output']>().toEqualTypeOf<{ reservationId: string } | undefined>()
@@ -133,7 +138,7 @@ describe('typed RunEvent', () => {
       ChildRunEvent<EventDepth8>,
       {
         path: readonly ['d8', 'd7', 'd6', 'd5', 'd4', 'd3', 'd2', 'd1']
-        type: 'flow.done'
+        type: 'run.done'
       }
     >
     expectTypeOf<DeepDone['output']>().toEqualTypeOf<{ readonly leaf: true } | undefined>()

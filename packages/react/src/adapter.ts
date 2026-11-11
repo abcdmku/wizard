@@ -1,7 +1,7 @@
 /**
  * Source adapter: the untyped view of what a `Run` and a `Mirror` share (subscribe /
  * getSnapshot / the command sugar), how each exposes the state the hooks read, how a nested
- * flow's slice is found through indexed projected children or the live Run.child handle,
+ * wizard's slice is found through indexed projected children or the live Run.child handle,
  * where a step's live phase comes from and whether the source is connected.
  * One adapter per source object.
  *
@@ -48,10 +48,10 @@ export interface Adapter {
   subscribe(listener: () => void): () => void
   /** The state the hooks read; `null` while a Mirror has no frame. */
   getState(): RawState | null
-  /** The state slice of a nested flow (`path` of flow-step ids); `null` while it has none. */
+  /** The state slice of a nested run (`path` of child step ids); `null` while it has none. */
   getChildState(path: ChildPath): RawState | null
   /**
-   * The live phase of a step of the flow at `path`: `explain(step).phase` on the run (a Run's
+   * The live phase of a step of the wizard at `path`: `explain(step).phase` on the run (a Run's
    * records do not carry it); `undefined` over a Mirror (its projected records do).
    */
   phaseOf(path: ChildPath, step: string): string | undefined
@@ -109,7 +109,7 @@ function runChild(run: RawRun, path: ChildPath): RawRun | undefined {
     try {
       scope = scope.child(step, index)
     } catch {
-      return undefined // the flow step is not active: no live child, no phase
+      return undefined // the child step is not active: no live child, no phase
     }
   }
   return scope

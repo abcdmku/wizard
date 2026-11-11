@@ -1,10 +1,10 @@
-import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from '@openwizard/core/inspect'
+import type { Manifest, ManifestEdge, ManifestStep } from '@openwizard/core/inspect'
 
 /** Expand mapped child definitions into one selectable group per discovered input index. */
 export function instanceGraph(
-  graph: FlowGraph,
+  graph: Manifest,
   childPaths: readonly (readonly string[])[],
-): FlowGraph {
+): Manifest {
   if (childPaths.length === 0) return graph
   const contexts = new Map<string, readonly (readonly string[])[]>([[JSON.stringify([]), [[]]]])
   const childrenByParent = new Map<string, (readonly string[])[]>()
@@ -14,8 +14,8 @@ export function instanceGraph(
     children.push(path)
     childrenByParent.set(parent, children)
   }
-  const nodes: FlowGraphNode[] = []
-  const starts: FlowGraphEdge[] = []
+  const nodes: ManifestStep[] = []
+  const starts: ManifestEdge[] = []
   for (const node of graph.nodes) {
     const parents = contexts.get(JSON.stringify(node.path)) ?? [node.path]
     const children: (readonly string[])[] = []
@@ -33,7 +33,7 @@ export function instanceGraph(
           children.push(path)
           nodes.push({
             id: index,
-            kind: 'flow',
+            kind: 'child',
             path: prefix,
             label: `item ${index}`,
             hooks: [],
@@ -58,7 +58,7 @@ export function instanceGraph(
 
 /** Strip only mapped indices when matching an instance selection to its static definition. */
 export function definitionPath(
-  graph: FlowGraph,
+  graph: Manifest,
   path: readonly string[],
 ): readonly string[] | undefined {
   const definition: string[] = []

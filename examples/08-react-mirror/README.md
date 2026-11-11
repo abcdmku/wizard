@@ -9,8 +9,8 @@ pnpm --filter example-08-react-mirror check
 
 Read the files in this order:
 
-1. `src/flow.ts` defines the checkout with `defineWizard` and lists the fields its projection exposes.
-2. `src/server.ts` calls `checkoutFlow.create(input, { deps })`, starts the run, and connects its projection to the loopback transport.
+1. `src/checkout.ts` defines the checkout with `defineWizard` and lists the fields its projection exposes.
+2. `src/server.ts` calls `checkoutWizard.create(input, { deps })`, starts the run, and connects its projection to the loopback transport.
 3. `src/client.ts` creates the Mirror from `@openwizard/core/mirror` and binds React to `typeof checkoutClient`.
 4. `src/App.tsx` renders state and sends commands.
 

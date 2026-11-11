@@ -16,7 +16,7 @@ export function Hero() {
       </h1>
       <p className="mt-5 text-[15px] leading-relaxed text-neutral-500 lg:ml-auto lg:max-w-[82%] dark:text-neutral-400">
         Typed workflows that pause for people and webhooks, retry without charging twice, and pick
-        up where they left off after a crash. One flow definition, many runs, plain TypeScript.
+        up where they left off after a crash. One wizard definition, many runs, plain TypeScript.
       </p>
 
       <div className="mt-5 inline-flex items-center gap-3 rounded-lg border border-neutral-200 bg-paper/70 px-4 py-2.5 font-mono text-[13px] text-neutral-500 lg:ml-auto dark:border-neutral-800 dark:bg-ink-2/70 dark:text-neutral-400">

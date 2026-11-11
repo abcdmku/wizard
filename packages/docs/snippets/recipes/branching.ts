@@ -1,7 +1,7 @@
 import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const deliveryFlow = defineWizard(
+export const delivery = defineWizard(
   { name: 'delivery', context: z.object({ speed: z.enum(['standard', 'express']) }) },
   ({ step, steps }) => {
     const standard = step({ run: async () => '3 to 5 days' })

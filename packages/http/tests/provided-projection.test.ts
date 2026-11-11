@@ -15,7 +15,7 @@ it('reads and streams a module projection from a wizard with provided dependenci
     runs: { get: () => run },
     projection: baseProjection,
     scopes: { read: ['orders:read'], command: ['orders:command'] },
-    access: { flow: ['read'], steps: { work: ['startStep'] } },
+    access: { run: ['read'], steps: { work: ['startStep'] } },
   })
   const response = await http.fetch(call('/api/provided-projection/run-1', { token: 'alice' }))
   expect(response.status).toBe(200)
@@ -46,7 +46,7 @@ it('rejects a projection from a separately authored wizard with the same name an
     runs: { get: () => run },
     projection: baseProjection,
     scopes: { read: ['orders:read'] },
-    access: { flow: ['read'] },
+    access: { run: ['read'] },
     onError: (error) => {
       errors.push(error)
     },

@@ -1,9 +1,9 @@
 /**
- * `<FlowGraph>` — the static graph of a flow (`inspect(flow)`) drawn with React Flow after an
+ * `<WizardGraph>` — the static graph of a wizard (`inspect(wizard)`) drawn with React Flow after an
  * ELK layered layout, with the live overlay (`statuses`, `activeStep`) and a selection.
  */
 
-import { type FlowGraph as FlowGraphData, inspect } from '@openwizard/core/inspect'
+import { inspect, type Manifest } from '@openwizard/core/inspect'
 import {
   Background,
   Controls,
@@ -27,7 +27,7 @@ import {
 } from 'react'
 import type { LayoutEngine } from '../layout/elk'
 import type { DevtoolsTheme, GraphInput, GraphSelection, StepStatusMap } from '../types'
-import { FlowEdgeComponent } from './FlowEdge'
+import { GraphEdgeComponent } from './GraphEdge'
 import { definitionPath, instanceGraph } from './instances'
 import { MarkerNodeComponent } from './MarkerNode'
 import { GroupNodeComponent, StepNodeComponent } from './StepNode'
@@ -41,12 +41,12 @@ import {
 import { useGraphLayout } from './use-graph-layout'
 
 /**
- * `<FlowGraph>` props: the graph (`graph` from `inspect(flow)`, or `flow`), the live overlay
+ * `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay
  * (`statuses` keyed by `stepKey`, `activeStep` = the current view's key), a controlled or
  * uncontrolled selection (`selected` / `onSelect`), the theme and an optional layout engine.
  * @public
  */
-export interface FlowGraphProps extends GraphInput {
+export interface WizardGraphProps extends GraphInput {
   /** Key of the current view (`stepKey(path, id)`) — highlighted. */
   readonly activeStep?: string | null
   /** Live statuses / phases by step key (see `collectStatuses`). */
@@ -70,20 +70,20 @@ const NODE_TYPES: NodeTypes = {
   group: GroupNodeComponent,
   marker: MarkerNodeComponent,
 }
-const EDGE_TYPES: EdgeTypes = { flow: FlowEdgeComponent }
+const EDGE_TYPES: EdgeTypes = { graph: GraphEdgeComponent }
 const EMPTY_STATUSES: StepStatusMap = {}
 
 /**
- * The static graph of a flow, laid out with ELK (left → right layers; cycles broken for the
- * layout and drawn as U-turns; nodes no edge touches parked in a right-hand column; child flows
+ * The static graph of a wizard, laid out with ELK (left → right layers; cycles broken for the
+ * layout and drawn as U-turns; nodes no edge touches parked in a right-hand column; child wizards
  * as group nodes) with the live overlay when `statuses` / `activeStep` are given. Click a step
  * to select it (`onSelect`), the pane to clear.
  * @public
  */
-export function FlowGraph(props: FlowGraphProps): ReactElement {
-  const definition: FlowGraphData | undefined = useMemo(
-    () => props.graph ?? (props.flow === undefined ? undefined : inspect(props.flow)),
-    [props.graph, props.flow],
+export function WizardGraph(props: WizardGraphProps): ReactElement {
+  const definition: Manifest | undefined = useMemo(
+    () => props.graph ?? (props.wizard === undefined ? undefined : inspect(props.wizard)),
+    [props.graph, props.wizard],
   )
   const paths = props.childPaths ?? []
   const pathKey = JSON.stringify(paths)
@@ -170,7 +170,7 @@ export function FlowGraph(props: FlowGraphProps): ReactElement {
         nodesConnectable={false}
         elementsSelectable
         deleteKeyCode={null}
-        className="owd-flow"
+        className="owd-canvas"
       >
         <Background gap={24} />
         <Controls showInteractive={false} />
@@ -178,7 +178,7 @@ export function FlowGraph(props: FlowGraphProps): ReactElement {
         <Panel position="top-left">
           <div className="owd-toolbar">
             <span className="owd-title">
-              {graph === undefined ? 'no flow' : `${graph.name} v${graph.version}`}
+              {graph === undefined ? 'no wizard' : `${graph.name} v${graph.version}`}
             </span>
             {graph !== undefined && graph.warnings.length > 0 && (
               <span

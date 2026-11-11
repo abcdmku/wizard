@@ -50,7 +50,7 @@ describe('wait handler lifecycle', () => {
     expect(calls).toBe(1)
     expect(await run.send('tick', { by: 2 })).toMatchObject({
       ok: false,
-      code: 'FLOW_TERMINAL',
+      code: 'RUN_TERMINAL',
     })
     expect(calls).toBe(1)
   })
@@ -102,9 +102,9 @@ describe('wait handler lifecycle', () => {
     const resumed = wizard.resume(snapshot)
     await resumed.whenIdle()
     expect(resumed.log().map((event) => event.type)).toEqual([
-      'flow.resumed',
+      'run.resumed',
       'step.failed',
-      'flow.halted',
+      'run.halted',
     ])
     expect(enterCalls).toBe(2)
     enterGate.resolve()

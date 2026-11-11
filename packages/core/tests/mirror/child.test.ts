@@ -28,22 +28,22 @@ const fulfilmentFlow = defineWizard(
     name: 'fulfilment',
     context: z.object({ orderId: z.string(), warehouse: z.string().optional() }),
   },
-  ({ step, view, flow, steps }) =>
+  ({ step, view, child, steps }) =>
     steps({
       confirm: view({
         input: z.object({ warehouse: z.string() }),
         exit: ({ output, update }) => update({ warehouse: output.warehouse }),
         next: 'pack',
       }),
-      pack: flow(grandchildFlow, { context: () => ({ sku: 'sku-1' }), next: 'done' }),
+      pack: child(grandchildFlow, { context: () => ({ sku: 'sku-1' }), next: 'done' }),
       done: step({ run: ({ context }) => ({ warehouse: context.warehouse }) }),
     }),
 )
 const orderFlow = defineWizard(
   { name: 'order', context: z.object({ cartId: z.string() }) },
-  ({ step, flow, steps }) =>
+  ({ step, child, steps }) =>
     steps({
-      fulfil: flow(fulfilmentFlow, {
+      fulfil: child(fulfilmentFlow, {
         context: ({ context }) => ({ orderId: context.cartId }),
         next: 'end',
       }),

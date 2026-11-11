@@ -221,23 +221,23 @@ const grandchildFlow = defineWizard(
 )
 const fulfilmentFlow = defineWizard(
   { name: 'fulfilment', context: z.object({ orderId: z.string() }) },
-  ({ view, step, flow, steps }) =>
+  ({ view, step, child, steps }) =>
     steps({
       confirm: view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
-      pack: flow(grandchildFlow, { context: () => ({ sku: 's' }), next: 'done' }),
+      pack: child(grandchildFlow, { context: () => ({ sku: 's' }), next: 'done' }),
       done: step({ run: () => ({ tracking: 't' }) }),
     }),
 )
 const orderFlow = defineWizard(
   { name: 'order', context: z.object({ cartId: z.string() }) },
-  ({ step, flow, steps }) =>
+  ({ step, child, steps }) =>
     steps({
       pay: step({ run: async () => ({ chargeId: 'c' }), next: 'fulfil' }),
-      fulfil: flow(fulfilmentFlow, {
+      fulfil: child(fulfilmentFlow, {
         context: ({ context }) => ({ orderId: context.cartId }),
         next: 'ship',
       }),
-      ship: flow(fulfilmentFlow, {
+      ship: child(fulfilmentFlow, {
         context: ({ context }) => ({ orderId: context.cartId }),
         next: 'end',
       }),
@@ -272,7 +272,7 @@ describe('useChild over a projection (Mirror source)', () => {
     >()
     // @ts-expect-error `ship` exposes the summary only (`child: true`), not a slice with steps
     ow.useChild('ship')
-    // @ts-expect-error `pay` is not a flow step
+    // @ts-expect-error `pay` is not a child step
     ow.useChild('pay')
     // @ts-expect-error unknown step
     ow.useChild('typo')
@@ -304,7 +304,7 @@ describe('useChild over a projection (Mirror source)', () => {
     const grand = child.useChild('pack')
     expectTypeOf(grand.useStep('pick').input).toEqualTypeOf<{ bin?: string } | undefined>()
     expectTypeOf(grand.useActions()).toEqualTypeOf<MirrorChild<typeof grandchildFlow>>()
-    // @ts-expect-error `confirm` is not a flow step of `fulfilment`
+    // @ts-expect-error `confirm` is not a child step of `fulfilment`
     child.useChild('confirm')
   })
   it('a nested useChild only accepts grandchildren the projection exposes with a child slice (never types are rejected at compile time)', () => {
@@ -354,7 +354,7 @@ describe('useChild over a flow (Run source)', () => {
       Snapshot<typeof grandchildFlow>['state'] | null
     >()
     expectTypeOf(grand.useStep('pick').input).toEqualTypeOf<{ bin?: string } | undefined>()
-    // @ts-expect-error `pay` is not a flow step
+    // @ts-expect-error `pay` is not a child step
     ow.useChild('pay')
   })
 })

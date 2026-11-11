@@ -1,8 +1,8 @@
-import type { AnyFlow, Run, Snapshot } from '@openwizard/core'
-import { type FlowGraph, inspect } from '@openwizard/core/inspect'
+import type { AnyWizardDefinition, Run, Snapshot } from '@openwizard/core'
+import { inspect, type Manifest } from '@openwizard/core/inspect'
 import { useMemo } from 'react'
 import { runAt } from './child-path'
-import { FlowGraphView, type NodeStateLookup } from './flow-graph'
+import { type NodeStateLookup, WizardGraphView } from './wizard-graph'
 
 export interface StepRef {
   readonly path: readonly string[]
@@ -11,9 +11,9 @@ export interface StepRef {
 
 /** The selected child's snapshot, using public owner/index paths rather than storage keys. */
 export function snapshotAt(
-  run: Run<AnyFlow>,
+  run: Run<AnyWizardDefinition>,
   path: readonly string[],
-): Snapshot<AnyFlow> | undefined {
+): Snapshot<AnyWizardDefinition> | undefined {
   try {
     return runAt(run, path).getSnapshot()
   } catch {
@@ -22,7 +22,7 @@ export function snapshotAt(
 }
 
 /** Live status / phase per node: the root from `getState()` + `explain()`, children from their snapshots. */
-function liveStateLookup(run: Run<AnyFlow>): NodeStateLookup {
+function liveStateLookup(run: Run<AnyWizardDefinition>): NodeStateLookup {
   return (path, id) => {
     if (path.length === 0) {
       const record = run.getState().steps[id]
@@ -37,31 +37,31 @@ function liveStateLookup(run: Run<AnyFlow>): NodeStateLookup {
   }
 }
 
-export function safeInspect(flow: AnyFlow): FlowGraph | { readonly error: string } {
+export function safeInspect(wizard: AnyWizardDefinition): Manifest | { readonly error: string } {
   try {
-    return inspect(flow)
+    return inspect(wizard)
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
 }
 
 interface GraphViewProps {
-  readonly flow: AnyFlow | undefined
-  readonly run: Run<AnyFlow> | undefined
+  readonly wizard: AnyWizardDefinition | undefined
+  readonly run: Run<AnyWizardDefinition> | undefined
   readonly selected: StepRef | null
   readonly onSelect: (ref: StepRef) => void
 }
 
-/** The Graph tab: `inspect(flow)` as a flow graph, nodes coloured by the live run state. */
-export function GraphView({ flow, run, selected, onSelect }: GraphViewProps) {
-  const graph = useMemo(() => (flow ? safeInspect(flow) : null), [flow])
+/** The Graph tab: `inspect(wizard)` as a wizard graph, nodes coloured by the live run state. */
+export function GraphView({ wizard, run, selected, onSelect }: GraphViewProps) {
+  const graph = useMemo(() => (wizard ? safeInspect(wizard) : null), [wizard])
   // The parent re-renders on every batch of events, so the lookup reads fresh statuses each time.
   const liveState = run ? liveStateLookup(run) : undefined
   if (!graph) {
     return (
       <p className="p-4 font-mono text-xs text-neutral-500">
-        Run code that creates a run or exports a flow. Its <code>inspect(flow)</code> graph appears
-        here.
+        Run code that creates a run or exports a wizard. Its <code>inspect(wizard)</code> graph
+        appears here.
       </p>
     )
   }
@@ -70,7 +70,7 @@ export function GraphView({ flow, run, selected, onSelect }: GraphViewProps) {
   }
   return (
     <div className="p-4">
-      <FlowGraphView
+      <WizardGraphView
         graph={graph}
         liveState={liveState}
         selected={selected}

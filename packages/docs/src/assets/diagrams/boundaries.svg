@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 508" role="img" aria-labelledby="boundaries-title boundaries-desc">
   <title id="boundaries-title">Typed data boundaries</title>
-  <desc id="boundaries-desc">Context, view input, event payloads, and resumed snapshots are unknown until a schema parses them. Accepted values enter the typed flow, rejected values come back as issues, and dependencies skip the gate because the application builds them.</desc>
+  <desc id="boundaries-desc">Context, view input, event payloads, and resumed snapshots are unknown until a schema parses them. Accepted values enter the typed wizard, rejected values come back as issues, and dependencies skip the gate because the application builds them.</desc>
   <style>
     svg { --d-paper: #fff; --d-surface: #fafafa; --d-ink: #171717; --d-muted: #737373; --d-line: #d4d4d4; --d-soft: #f5f5f5; --d-inverse: #fff; }
     @media (prefers-color-scheme: dark) { svg { --d-paper: #0a0a0a; --d-surface: #151515; --d-ink: #fafafa; --d-muted: #a3a3a3; --d-line: #404040; --d-soft: #1f1f1f; --d-inverse: #0a0a0a; } }
@@ -62,7 +62,7 @@
   <circle cx="516" cy="430" r="3.75" fill="var(--d-inverse)"/>
 
   <rect class="node" x="644" y="240" width="224" height="80" rx="16"/>
-  <text class="name" x="668" y="276">flow</text>
+  <text class="name" x="668" y="276">wizard</text>
   <text class="cap" x="668" y="300">TYPED VALUES</text>
 
   <rect class="node" x="644" y="390" width="224" height="80" rx="16"/>

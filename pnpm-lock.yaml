@@ -147,7 +147,7 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
 
-  examples/06-nested-flow:
+  examples/06-nested-wizard:
     devDependencies:
       '@openwizard/core':
         specifier: workspace:*

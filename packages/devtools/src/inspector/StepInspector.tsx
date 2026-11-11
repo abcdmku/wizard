@@ -4,7 +4,7 @@
  * the static facts of the graph node (kind, hooks, `needs`, `timeout`, edges).
  */
 
-import type { FlowGraph, FlowGraphNode } from '@openwizard/core/inspect'
+import type { Manifest, ManifestStep } from '@openwizard/core/inspect'
 import { type CSSProperties, type ReactElement, useMemo } from 'react'
 import { definitionPath } from '../graph/instances'
 import { useSourceSnapshot } from '../hooks/use-source'
@@ -15,14 +15,14 @@ import { readStep, type StepReading } from './read-step'
 
 /**
  * `<StepInspector>` props: the `source` (run or Mirror), the `step` id and the run `path`
- * of its flow (`[]` = root), the optional static `graph` for the definition facts.
+ * of its wizard (`[]` = root), the optional static `graph` for the definition facts.
  * @public
  */
 export interface StepInspectorProps {
   readonly source: DevtoolsSource
   readonly step: string
   readonly path?: readonly string[]
-  readonly graph?: FlowGraph
+  readonly graph?: Manifest
   readonly theme?: DevtoolsTheme
   readonly className?: string
   readonly style?: CSSProperties
@@ -198,8 +198,8 @@ function DefinitionSection({
   node,
   graph,
 }: {
-  readonly node: FlowGraphNode
-  readonly graph: FlowGraph
+  readonly node: ManifestStep
+  readonly graph: Manifest
 }): ReactElement {
   const outgoing = graph.edges.filter((e) => e.from === node.id && samePath(e.path, node.path))
   const incoming = graph.edges.filter((e) => e.to === node.id && samePath(e.path, node.path))

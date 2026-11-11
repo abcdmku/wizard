@@ -6,7 +6,7 @@ import {
 } from '@openwizard/durable'
 import { z } from 'zod'
 
-export const durableApprovalFlow = defineWizard(
+export const durableApproval = defineWizard(
   {
     name: 'durable-approval',
     context: z.object({ requestId: z.string() }),
@@ -21,7 +21,7 @@ export const durableApprovalFlow = defineWizard(
 
 export async function demonstrateDurableOwnership() {
   const store = createMemoryDurableStore()
-  const opened = await createDurableRun(durableApprovalFlow, {
+  const opened = await createDurableRun(durableApproval, {
     context: { requestId: 'expense-42' },
     store,
     key: 'approvals/expense-42',
@@ -35,7 +35,7 @@ export async function demonstrateDurableOwnership() {
     expectedVersion: opened.host.version,
   })
   const duplicate = await opened.host.dispatch(startCommand, { commandId: 'request-123' })
-  const competing = await createDurableRun(durableApprovalFlow, {
+  const competing = await createDurableRun(durableApproval, {
     context: { requestId: 'expense-42' },
     store,
     key: 'approvals/expense-42',
@@ -46,6 +46,6 @@ export async function demonstrateDurableOwnership() {
   return { first, duplicate, competing: summarizeOpen(competing) }
 }
 
-function summarizeOpen(result: DurableRunOpenResult<typeof durableApprovalFlow>) {
+function summarizeOpen(result: DurableRunOpenResult<typeof durableApproval>) {
   return result.ok ? { ok: true as const } : result
 }

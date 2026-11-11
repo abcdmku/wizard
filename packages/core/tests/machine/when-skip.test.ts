@@ -147,7 +147,7 @@ describe('when — evaluated at readiness', () => {
     )
     h.start()
     const r = h.err(h.call('when', 't'), 'predicate bug')
-    expect(r.types).toEqual(['step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['step.failed', 'run.halted'])
     expect(h.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'hook' } })
   })
 
@@ -390,7 +390,7 @@ describe('when — evaluated at readiness', () => {
     h.start()
     expect(h.rec('t').when).toBe('pending')
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed'])
+    expect(r.types).toEqual(['run.resumed'])
     expect(r.effects.filter((e) => e.kind === 'call')).toMatchObject([{ hook: 'when', step: 't' }])
   })
 })

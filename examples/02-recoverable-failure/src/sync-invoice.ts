@@ -16,7 +16,7 @@ export type LedgerFailure = {
   attempt: number
 }
 
-export const syncInvoiceFlow = defineWizard(
+export const syncInvoice = defineWizard(
   {
     name: 'sync-invoice',
     description: 'Posts an invoice to the ledger and retries while the ledger is unavailable.',
@@ -49,4 +49,4 @@ export const syncInvoiceFlow = defineWizard(
     ),
 )
 
-export type PostFailure = ErrorOf<typeof syncInvoiceFlow, 'post'>
+export type PostFailure = ErrorOf<typeof syncInvoice, 'post'>

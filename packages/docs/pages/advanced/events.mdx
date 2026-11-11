@@ -15,7 +15,7 @@ On `run.send('payment.captured', payload)`:
 ## Boundaries and correlation
 
 ```ts
-const run = checkoutFlow.create({ orderId: 'o-1' }, { correlationId: 'o-1' })
+const run = checkout.create({ orderId: 'o-1' }, { correlationId: 'o-1' })
 ```
 
 Verify a webhook signature at the HTTP layer before sending its body to the run. The event boundary then checks the payload before any handler reads it. Typed `send()` uses the boundary's input type; an untrusted `unknown` body still goes through runtime validation.
@@ -40,7 +40,7 @@ Use a durable host when workers can race. Core's event-id record prevents duplic
 
 A `waitFor` handler can return `{ done: value }`, `{ keep: true }`, or `{ fail: error }`. A completed wait follows the step's configured `next`; its handler cannot return `{ next }`. Keep routing in the definition so `targets`, inspection, and skip propagation agree.
 
-Views, runnable steps, and child-flow steps can listen through `on`. Compose an event wait followed by a runnable step when the event should start work. A flow-level `on` handler runs after step listeners. If a handler halts the run, the remaining handlers in that delivery do not run.
+Views, runnable steps, and child steps can listen through `on`. Compose an event wait followed by a runnable step when the event should start work. A wizard-level `on` handler runs after step listeners. If a handler halts the run, the remaining handlers in that delivery do not run.
 
 ## Deadlines survive resume
 
@@ -53,4 +53,4 @@ The buffer, correlation id, event-id retention, and absolute deadlines are snaps
 
 On resume, a run fires its overdue deadlines before recovering its own interrupted work or delivering a buffered event. This ordering applies per run; a parent resumes before its children restore.
 
-Next: [Nested flows](/advanced/nested). Related: [events and waiting](/learn/events), [`@openwizard/http`](/packages/http).
+Next: [Nested wizards](/advanced/nested). Related: [events and waiting](/learn/events), [`@openwizard/http`](/packages/http).

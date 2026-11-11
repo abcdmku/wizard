@@ -37,17 +37,17 @@ function runThree(h: ReturnType<typeof createHarness>) {
 }
 
 describe('compensation', () => {
-  it('a step failure with onFailure:compensate unwinds in reverse order, one step at a time, then flow.compensated{failed}', () => {
+  it('a step failure with onFailure:compensate unwinds in reverse order, one step at a time, then run.compensated{failed}', () => {
     const h = createHarness(saga())
     runThree(h)
     const r = h.err(h.call('run', 'boom'), 'kaput')
     expect(r.types).toEqual([
       'step.runFailed',
       'step.failed',
-      'flow.compensating',
+      'run.compensating',
       'step.compensationStarted',
     ])
-    expect(of(r, 'flow.compensating')[0]).toMatchObject({
+    expect(of(r, 'run.compensating')[0]).toMatchObject({
       plan: ['t3', 't2', 't1'],
       status: 'failed',
       reason: 'step-failed:boom',
@@ -64,12 +64,12 @@ describe('compensation', () => {
     })
     expect(h.pending('compensate')).toHaveLength(1)
     // commands are rejected while compensating
-    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('flow-compensating')
+    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('run-compensating')
     expect(of(h.cmd({ type: 'send', event: 'x', payload: {} }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_COMPENSATING',
+      'RUN_COMPENSATING',
     )
     expect(of(h.cmd({ type: 'retry', step: 'boom' }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_COMPENSATING',
+      'RUN_COMPENSATING',
     )
     expect(h.cmd('cancel').types).toEqual([]) // no-op
 
@@ -82,9 +82,9 @@ describe('compensation', () => {
     expect(batch.types).toEqual(['step.compensated', 'step.compensationStarted'])
     const last = h.ok(h.call('compensate'))
     order.push('t1')
-    expect(last.types).toEqual(['step.compensated', 'flow.compensated'])
+    expect(last.types).toEqual(['step.compensated', 'run.compensated'])
     expect(order).toEqual(['t3', 't2', 't1'])
-    expect(of(last, 'flow.compensated')[0]).toEqual(
+    expect(of(last, 'run.compensated')[0]).toEqual(
       expect.objectContaining({ failures: [], status: 'failed' }),
     )
     expect(h.state.status).toBe('failed')
@@ -97,7 +97,7 @@ describe('compensation', () => {
     expect(last.effects.at(-1)).toEqual({ kind: 'persist', reason: 'final' })
     // terminal: even retry is rejected now
     expect(of(h.cmd({ type: 'retry', step: 'boom' }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_TERMINAL',
+      'RUN_TERMINAL',
     )
   })
 
@@ -114,7 +114,7 @@ describe('compensation', () => {
     })
     expect(h.state.saga.failures).toEqual([{ step: 't2', runId: 1 }])
     const done = h.ok(h.call('compensate')) // t1 ok
-    expect(of(done, 'flow.compensated')[0]).toMatchObject({ failures: ['t2'], status: 'failed' })
+    expect(of(done, 'run.compensated')[0]).toMatchObject({ failures: ['t2'], status: 'failed' })
     expect(h.state.status).toBe('failed')
 
     // compensate({from: 't3'}) → not a failure
@@ -123,20 +123,20 @@ describe('compensation', () => {
     )
     // compensate({from: 't2'}) re-runs only t2
     const again = h.cmd({ type: 'compensate', from: 't2' })
-    expect(again.types).toEqual(['flow.compensating', 'step.compensationStarted'])
-    expect(of(again, 'flow.compensating')[0]).toMatchObject({ plan: ['t2'], status: 'failed' })
+    expect(again.types).toEqual(['run.compensating', 'step.compensationStarted'])
+    expect(of(again, 'run.compensating')[0]).toMatchObject({ plan: ['t2'], status: 'failed' })
     expect(h.state.status).toBe('compensating')
     expect(h.state.saga.failures).toEqual([])
     const fin = h.ok(h.call('compensate', 't2'))
-    expect(fin.types).toEqual(['step.compensated', 'flow.compensated'])
-    expect(of(fin, 'flow.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
+    expect(fin.types).toEqual(['step.compensated', 'run.compensated'])
+    expect(of(fin, 'run.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
     expect(h.state.saga.compensated).toEqual([
       { step: 't3', runId: 1 },
       { step: 't1', runId: 1 },
       { step: 't2', runId: 1 },
     ])
     // nothing left to compensate → compensate is rejected as terminal
-    expect(of(h.cmd({ type: 'compensate' }), 'command.rejected')[0]?.code).toBe('FLOW_TERMINAL')
+    expect(of(h.cmd({ type: 'compensate' }), 'command.rejected')[0]?.code).toBe('RUN_TERMINAL')
   })
 
   it('settle phase: running steps are cancelled and the unwind waits for their in-flight results', () => {
@@ -158,8 +158,8 @@ describe('compensation', () => {
     const runB = h.call('run', 'b')
     const r = h.cmd({ type: 'cancel', reason: 'user' })
     // phase 1: settling → a persisted grace timer bounds the wait for aborted runs
-    expect(r.types).toEqual(['flow.compensating', 'step.cancelled', 'timer.scheduled'])
-    expect(of(r, 'flow.compensating')[0]).toMatchObject({ status: 'cancelled', plan: ['a'] })
+    expect(r.types).toEqual(['run.compensating', 'step.cancelled', 'timer.scheduled'])
+    expect(of(r, 'run.compensating')[0]).toMatchObject({ status: 'cancelled', plan: ['a'] })
     expect(of(r, 'step.cancelled')[0]).toMatchObject({ step: 'b', reason: 'user' })
     expect(of(r, 'timer.scheduled')[0]).toMatchObject({
       timerId: 'saga:grace',
@@ -187,7 +187,7 @@ describe('compensation', () => {
     h.ok(h.call('compensate'))
     expect(h.call('compensate').step).toBe('a')
     const fin = h.ok(h.call('compensate'))
-    expect(of(fin, 'flow.compensated')[0]).toMatchObject({ status: 'cancelled' })
+    expect(of(fin, 'run.compensated')[0]).toMatchObject({ status: 'cancelled' })
     expect(h.state.status).toBe('cancelled')
   })
 
@@ -204,14 +204,14 @@ describe('compensation', () => {
     expect(h.rec('t2').status).toBe('cancelled')
   })
 
-  it('cancel without compensable work → step.cancelled for actives + flow.cancelled', () => {
+  it('cancel without compensable work → step.cancelled for actives + run.cancelled', () => {
     const h = createHarness(saga())
     h.start()
     const r = h.cmd({ type: 'cancel', reason: 'bye' })
-    expect(r.types).toEqual(['step.cancelled', 'flow.cancelled'])
-    expect(of(r, 'flow.cancelled')[0]?.reason).toBe('bye')
+    expect(r.types).toEqual(['step.cancelled', 'run.cancelled'])
+    expect(of(r, 'run.cancelled')[0]?.reason).toBe('bye')
     expect(h.state.status).toBe('cancelled')
-    expect(of(h.cmd('cancel'), 'command.rejected')[0]?.code).toBe('FLOW_TERMINAL')
+    expect(of(h.cmd('cancel'), 'command.rejected')[0]?.code).toBe('RUN_TERMINAL')
   })
 
   it('cancel on a halt flow cancels running steps (timers cleared) and ends the flow', () => {
@@ -228,7 +228,7 @@ describe('compensation', () => {
     h.err(h.call('run'), 'x') // retry timer armed
     expect(Object.keys(h.state.timers)).toEqual(['retry:t'])
     const r = h.cmd('cancel')
-    expect(r.types).toEqual(['timer.cleared', 'step.cancelled', 'flow.cancelled'])
+    expect(r.types).toEqual(['timer.cleared', 'step.cancelled', 'run.cancelled'])
     expect(r.effects.map((e) => e.kind)).toEqual(['timer.clear', 'persist'])
     expect(h.state.timers).toEqual({})
     expect(h.rec('t').status).toBe('cancelled')
@@ -239,7 +239,7 @@ describe('compensation', () => {
     const h = createHarness(saga())
     runThree(h)
     const r = h.cmd({ type: 'compensate', reason: 'operator' })
-    expect(of(r, 'flow.compensating')[0]).toMatchObject({
+    expect(of(r, 'run.compensating')[0]).toMatchObject({
       status: 'cancelled',
       reason: 'operator',
       plan: ['t3', 't2', 't1'],
@@ -271,11 +271,11 @@ describe('compensation', () => {
     // a non-terminal child summary is ignored while compensating; the terminal one completes the entry
     expect(h.child('sub', { status: 'compensating' }).types).toEqual([])
     const done = h.child('sub', { status: 'cancelled' })
-    expect(done.types).toEqual(['step.compensated', 'flow.compensated'])
+    expect(done.types).toEqual(['step.compensated', 'run.compensated'])
     expect(h.state.status).toBe('failed')
   })
 
-  it('a step failure with an empty stack still goes through flow.compensating → flow.compensated', () => {
+  it('a step failure with an empty stack still goes through run.compensating → run.compensated', () => {
     const h = createHarness(
       flow({
         start: 'v',
@@ -289,8 +289,8 @@ describe('compensation', () => {
     expect(r.types).toEqual([
       'step.runFailed',
       'step.failed',
-      'flow.compensating',
-      'flow.compensated',
+      'run.compensating',
+      'run.compensated',
     ])
     expect(h.state.status).toBe('failed')
     expect(h.state.saga.stack).toEqual([])

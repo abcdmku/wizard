@@ -59,7 +59,7 @@ describe('04 resume from snapshot', () => {
     expect(await load(store)).toEqual(saved)
     expect(saved).toMatchObject({
       v: 1,
-      flow: { name: 'expense-approval', version: 1 },
+      wizard: { name: 'expense-approval', version: 1 },
       instanceId: 'exp-42',
       epoch: 0,
       state: { status: 'waiting', active: ['awaitDecision'] },
@@ -79,7 +79,7 @@ describe('04 resume from snapshot', () => {
     expect(resumed.epoch).toBe(1) // bumped on every resume
     // Events emitted by the resume itself are in the log (they happened before we could observe).
     expect(resumed.log()[0]).toMatchObject({
-      type: 'flow.resumed',
+      type: 'run.resumed',
       fromSeq: saved.seq,
       interrupted: [],
     })
@@ -163,13 +163,13 @@ describe('04 resume from snapshot', () => {
       scheduler: createTestScheduler({ now: T0 + 60_000 }),
     })
     expect(resumed.epoch).toBe(1)
-    expect(resumed.log()[0]).toMatchObject({ type: 'flow.resumed', interrupted: ['notify'] })
+    expect(resumed.log()[0]).toMatchObject({ type: 'run.resumed', interrupted: ['notify'] })
     expect(resumed.getState().steps.notify).toMatchObject({
       status: 'failed',
       error: { kind: 'interrupted', code: 'INTERRUPTED' },
     })
     expect(resumed.getState().status).toBe('halted')
-    expect(resumed.explain('notify').reasons).toEqual(['flow-halted', 'failed:interrupted'])
+    expect(resumed.explain('notify').reasons).toEqual(['run-halted', 'failed:interrupted'])
 
     // The host decides whether the side effect may run again (make it idempotent!) → retry().
     expect(await resumed.retry('notify')).toMatchObject({ ok: true })
@@ -186,7 +186,7 @@ describe('04 resume from snapshot', () => {
     expect(resumed.getState().output).toBe('rejected by lee')
     resumed.dispose()
   })
-  it('migrates a v1 snapshot into the v2 flow and rejects it without a converter', async () => {
+  it('migrates a v1 snapshot into the v2 wizard and rejects it without a converter', async () => {
     const { deps } = fakeNotifier('instant')
     const first = approval.create(context, { deps, instanceId: 'exp-44' })
     await first.start()
@@ -201,7 +201,7 @@ describe('04 resume from snapshot', () => {
     } catch (error) {
       expect(isWizardError(error) && error.code).toBe('SNAPSHOT_INCOMPATIBLE')
     }
-    // `migrate` runs only when the versions differ; it must return a snapshot of the flow's version.
+    // `migrate` runs only when the versions differ; it must return a snapshot of the wizard's version.
     const seen: unknown[] = []
     const resumed = approvalV2.resume(saved, {
       deps,

@@ -7,17 +7,17 @@
  * @internal
  */
 
-import type { FlowWarning } from '../authoring/compile'
-import type { CompiledFlow, CompiledStep } from '../authoring/compiled'
+import type { ManifestWarning } from '../authoring/compile'
+import type { CompiledStep, CompiledWizard } from '../authoring/compiled'
 import { declaredTargets } from './node'
 
 const ANY = Symbol('any step')
 type Successors = readonly string[] | typeof ANY
 
 export function exclusiveJoinWarnings(
-  def: CompiledFlow,
+  def: CompiledWizard,
   path: readonly string[],
-): readonly FlowWarning[] {
+): readonly ManifestWarning[] {
   const joins = def.order.flatMap((id) => {
     const step = def.steps[id]
     if (step === undefined) return []
@@ -28,7 +28,7 @@ export function exclusiveJoinWarnings(
     return deps.length > 1 ? [{ id, deps }] : []
   })
   if (joins.length === 0) return []
-  const warnings: FlowWarning[] = []
+  const warnings: ManifestWarning[] = []
   const warned = new Set<string>()
   for (const choice of def.order) {
     const step = def.steps[choice]
@@ -81,7 +81,7 @@ function successors(step: CompiledStep): Successors {
 }
 
 /** Steps reachable from `from` without passing through `avoid` (`ANY` reaches everything). */
-function reach(def: CompiledFlow, from: readonly string[], avoid: string): ReadonlySet<string> {
+function reach(def: CompiledWizard, from: readonly string[], avoid: string): ReadonlySet<string> {
   const seen = new Set<string>()
   const queue = from.filter((id) => id !== avoid)
   for (const id of queue) seen.add(id)

@@ -12,8 +12,8 @@ import { isRecord } from '../record'
 type Renames = Readonly<Record<string, string>>
 
 /**
- * Rename step ids in a persisted snapshot (the root flow's steps; a renamed flow step keeps its
- * child snapshot). Use it inside `migrate` after bumping the flow's `version`:
+ * Rename step ids in a persisted snapshot (the root wizard's steps; a renamed child step keeps its
+ * child snapshot). Use it inside `migrate` after bumping the wizard's `version`:
  * `wizard.resume(saved, { migrate: (s) => renameSteps(s, { pay: 'charge' }) })`.
  * The input is not mutated; anything that is not a snapshot is returned unchanged.
  * @public

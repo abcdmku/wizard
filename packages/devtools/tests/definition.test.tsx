@@ -3,7 +3,7 @@ import { inspect } from '@openwizard/core/inspect'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import { z } from 'zod'
-import { FlowGraph, StepInspector } from '../src'
+import { StepInspector, WizardGraph } from '../src'
 
 afterEach(cleanup)
 
@@ -36,7 +36,7 @@ const wizard = defineWizard(
 it('draws data joins and fallback paths, and shows map and sleep facts in the inspector', async () => {
   const graph = inspect(wizard)
   const run = wizard.create({ ids: [1, 2] })
-  const view = render(<FlowGraph graph={graph} />)
+  const view = render(<WizardGraph graph={graph} />)
   await waitFor(() =>
     expect(view.container.querySelector('.owd-edge-label[data-kind="needs"]')?.textContent).toBe(
       'needs doubled',

@@ -8,7 +8,7 @@ import { createMirrorSource } from '../../src/mirror/source'
 import { defineProjection } from '../../src/projection/define-projection'
 import { defineWizard } from '../../src/wizard/define-wizard'
 
-const child = defineWizard(
+const childWizard = defineWizard(
   { name: 'mapped-reporter', context: boundary.trusted<{ id: string }>() },
   ({ step, steps }) =>
     steps({
@@ -22,9 +22,9 @@ const child = defineWizard(
 )
 const wizard = defineWizard(
   { name: 'mapped-progress', context: boundary.trusted<Record<string, never>>() },
-  ({ flow, step, steps }) =>
+  ({ child, step, steps }) =>
     steps({
-      batch: flow(child, {
+      batch: child(childWizard, {
         each: () => ['a/b', 'b'],
         key: (item) => item,
         concurrency: 2,

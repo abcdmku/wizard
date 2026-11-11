@@ -41,9 +41,9 @@ export type IoEventBody =
   | { readonly type: 'event.expired'; readonly event: string; readonly inboxId: string }
   /** `reason`: `'no-listener'`, or `'correlation'` (`correlate[event](payload)` ≠ the run's `correlationId`). */
   | { readonly type: 'event.dropped'; readonly event: string; readonly reason: string }
-  /** Delivered to the flow-level `on[event]` handler (`plan` → `call { hook: 'flowOn' }`), after step deliveries. */
+  /** Delivered to the wizard-level `on[event]` handler (`plan` → `call { hook: 'wizardOn' }`), after step deliveries. */
   | {
-      readonly type: 'event.flowDelivered'
+      readonly type: 'event.wizardDelivered'
       readonly event: string
       readonly inboxId: string
       readonly payload?: unknown
@@ -61,7 +61,7 @@ export type IoEventBody =
     }
   /**
    * An `on[event]` handler threw. Wait handlers fail their step instead; this is
-   * recorded for every other kind (`step`) and for the flow-level handler (no `step`); nothing else changes.
+   * recorded for every other kind (`step`) and for the wizard-level handler (no `step`); nothing else changes.
    */
   | {
       readonly type: 'event.handlerFailed'
@@ -80,7 +80,7 @@ export type IoEventBody =
     }
   | { readonly type: 'timer.fired'; readonly timerId: string }
   | { readonly type: 'timer.cleared'; readonly timerId: string }
-  // ---- nested flows --------------------------------------------------------
+  // ---- nested runs --------------------------------------------------------
   /** `childPath` = the child's run path (`[...path, step]`; `path` is the envelope field). `context` = value returned by `childContext` (input for `child.create`). */
   | {
       readonly type: 'child.started'

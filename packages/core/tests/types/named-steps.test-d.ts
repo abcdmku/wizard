@@ -1,11 +1,11 @@
 import { expectTypeOf } from 'vitest'
 import { z } from 'zod'
-import { defineWizard, type FlowOutput, type OutputOf } from '../../src'
+import { defineWizard, type OutputOf, type WizardOutput } from '../../src'
 
 const wizard = defineWizard(
   { name: 'named', context: z.object({ count: z.number() }), events: { ready: z.boolean() } },
   (constructors) => {
-    expectTypeOf<keyof typeof constructors>().toEqualTypeOf<'step' | 'view' | 'flow' | 'steps'>()
+    expectTypeOf<keyof typeof constructors>().toEqualTypeOf<'step' | 'view' | 'child' | 'steps'>()
     const { step, view, steps } = constructors
     const work = step({ run: ({ context }) => context.count })
     const linked = step({ run: () => 1, targets: [work], next: () => work })
@@ -30,7 +30,7 @@ const selected = defineWizard(
   },
   ({ step, steps }) => steps({ work: step({ run: () => 'intermediate' }) }),
 )
-expectTypeOf<FlowOutput<typeof selected>>().toEqualTypeOf<{ total: number }>()
+expectTypeOf<WizardOutput<typeof selected>>().toEqualTypeOf<{ total: number }>()
 
 defineWizard(
   {

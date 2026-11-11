@@ -6,7 +6,7 @@ import { expect, it } from 'vitest'
 
 it('preserves completed child work when a worker crashes after the first resumed snapshot commit', async () => {
   let loads = 0
-  const child = defineWizard(
+  const childWizard = defineWizard(
     {
       name: 'durable-child-restoration',
       context: boundary.trusted<{ readonly n: number }>(),
@@ -27,7 +27,7 @@ it('preserves completed child work when a worker crashes after the first resumed
   )
   const parent = defineWizard(
     { name: 'durable-parent-restoration', context: boundary.trusted<Record<string, never>>() },
-    ({ flow, steps }) => steps({ sub: flow(child, { context: () => ({ n: 7 }) }) }),
+    ({ child, steps }) => steps({ sub: child(childWizard, { context: () => ({ n: 7 }) }) }),
   )
   const scheduler = createTestScheduler({ now: 0 })
   const base = createMemoryDurableStore({ now: scheduler.now })

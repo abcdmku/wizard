@@ -19,11 +19,11 @@ export const grandchildFlow = defineWizard(
 
 export const fulfilmentFlow = defineWizard(
   { name: 'fulfilment', context: z.object({ orderId: z.string() }) },
-  ({ step, view, flow, steps }) =>
+  ({ step, view, child, steps }) =>
     steps({
       label: step({ run: async () => ({ trackingId: 'x' }), next: 'confirm' }),
       confirm: view({ input: z.object({ ok: z.boolean() }), next: 'pack' }),
-      pack: flow(grandchildFlow, { context: () => ({ sku: 's' }), next: 'done' }),
+      pack: child(grandchildFlow, { context: () => ({ sku: 's' }), next: 'done' }),
       done: step({ run: () => ({ trackingId: 'x' }) }),
     }),
 )
@@ -42,7 +42,7 @@ export const checkoutFlow = defineWizard(
     },
     deps: boundary.trusted<CheckoutDeps>(),
   },
-  ({ view, step, flow, steps }) =>
+  ({ view, step, child, steps }) =>
     steps(
       {
         shipping: view({
@@ -54,7 +54,7 @@ export const checkoutFlow = defineWizard(
           next: 'awaitPayment',
         }),
         awaitPayment: step({ waitFor: { 'payment.captured': () => {} }, next: 'fulfil' }),
-        fulfil: flow(fulfilmentFlow, {
+        fulfil: child(fulfilmentFlow, {
           context: ({ context }) => ({ orderId: context.cartId }),
           next: 'receipt',
         }),

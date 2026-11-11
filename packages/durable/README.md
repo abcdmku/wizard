@@ -71,7 +71,7 @@ Read the [durable runs guide](../docs/pages/packages/durable.mdx).
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `createDurableHost` | function | Host the durable runs of `flow` on `store`: what a multi-worker service would otherwise build | [src](../../packages/durable/src/durable-host.ts#L121) |
+| `createDurableHost` | function | Host the durable runs of `wizard` on `store`: what a multi-worker service would otherwise build | [src](../../packages/durable/src/durable-host.ts#L121) |
 | `createDurableRun` | function | Acquire a durable lease and create or resume a run of the wizard. | [src](../../packages/durable/src/durable-run.ts#L200) |
 | `createHostRegistry` | function | Create a keyed host cache that removes entries only through invalidation, | [src](../../packages/durable/src/host-registry.ts#L74) |
 | `createMemoryDurableStore` | function | In-memory `DurableStore` with synchronous linearization points and JSON | [src](../../packages/durable/src/memory-store.ts#L42) |
@@ -79,15 +79,15 @@ Read the [durable runs guide](../docs/pages/packages/durable.mdx).
 | `DurableCommandResult` | type | Result of a deduplicated durable command: `applied` now or `replayed` from | [src](../../packages/durable/src/durable-run.ts#L137) |
 | `DurableCreateOptions` | type | Per-run creation options of `DurableHost.create`. | [src](../../packages/durable/src/durable-host.ts#L50) |
 | `DurableEventOptions` | interface | Options for an external event. `eventId` is its idempotency key: core records | [src](../../packages/durable/src/durable-run.ts#L89) |
-| `DurableEventResult` | type | Result of a durable event: the flow's `SendResult` (accepted with the | [src](../../packages/durable/src/durable-run.ts#L153) |
-| `DurableHost` | interface | Durable runs of one flow, addressed by key. The host owns each run's lease (renewal, release on | [src](../../packages/durable/src/durable-host.ts#L76) |
+| `DurableEventResult` | type | Result of a durable event: the run's `SendResult` (accepted with the | [src](../../packages/durable/src/durable-run.ts#L153) |
+| `DurableHost` | interface | Durable runs of one wizard, addressed by key. The host owns each run's lease (renewal, release on | [src](../../packages/durable/src/durable-host.ts#L76) |
 | `DurableHostFailure` | interface | The durable gate refused or lost an operation. `actual` is the stored version | [src](../../packages/durable/src/durable-run.ts#L111) |
 | `DurableHostOpenFailure` | type | Why `DurableHost` could not reach a run: open failures plus a disposed host. | [src](../../packages/durable/src/durable-host.ts#L56) |
 | `DurableHostOpenResult` | type | Result of `DurableHost.open` / `create`. A returned handle's `send` and `dispatch` reopen | [src](../../packages/durable/src/durable-host.ts#L65) |
 | `DurableHostOptions` | type | Options of `createDurableHost`: the run options every run shares (scheduler, clock, `redact`, | [src](../../packages/durable/src/durable-host.ts#L39) |
 | `DurableLeaseLossCode` | type | Why a durable host stopped on its own: its lease, snapshot CAS, or a timer claim was lost. | [src](../../packages/durable/src/durable-run-state.ts#L13) |
 | `DurableResumeOptions` | type | Options for resuming an already persisted durable run. | [src](../../packages/durable/src/durable-run.ts#L60) |
-| `DurableRunFailureCode` | type | Failure codes of the durable gate itself (not of the flow). | [src](../../packages/durable/src/durable-run.ts#L95) |
+| `DurableRunFailureCode` | type | Failure codes of the durable gate itself (not of the run). | [src](../../packages/durable/src/durable-run.ts#L95) |
 | `DurableRunHost` | interface | A `Run` plus the lease, CAS, dedupe, and timer gates needed by a | [src](../../packages/durable/src/durable-run.ts#L168) |
 | `DurableRunOpenFailure` | type | Why a durable run could not be opened. A busy key is a value, not an exception. | [src](../../packages/durable/src/durable-run.ts#L120) |
 | `DurableRunOpenResult` | type | Result of opening a durable run. | [src](../../packages/durable/src/durable-run.ts#L126) |

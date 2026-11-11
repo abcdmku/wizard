@@ -22,7 +22,7 @@ const IDLE: RunnerSnapshot = {
   error: null,
   diagnostics: [],
   runs: [],
-  flows: [],
+  wizards: [],
   trace: [],
   console: [],
   version: 0,

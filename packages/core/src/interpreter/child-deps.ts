@@ -1,13 +1,13 @@
 /**
- * A child flow's deps: the flow step's RAW `deps` mapper (`hooks.childDeps`) runs once and its
- * value is parsed ONCE through the child flow's `deps` boundary (when it declares one); without a
+ * A child wizard's deps: the child step's RAW `deps` mapper (`hooks.childDeps`) runs once and its
+ * value is parsed ONCE through the child wizard's `deps` boundary (when it declares one); without a
  * mapper the parent's deps object is passed through unchanged. A throwing mapper, a rejecting or
- * asynchronous boundary is a `SerializedError` for the flow step (never thrown into the drain).
+ * asynchronous boundary is a `SerializedError` for the child step (never thrown into the drain).
  *
  * @internal
  */
 
-import type { CompiledFlow, HookArgs } from '../authoring/compiled'
+import type { CompiledWizard, HookArgs } from '../authoring/compiled'
 import type { SerializedError } from '../machine/state'
 import { toSerializedError } from './errors'
 import { isThenable } from './thenable'
@@ -18,9 +18,9 @@ type DepsResolution =
 
 interface ResolveDepsInput {
   readonly step: string
-  /** The flow step's RAW `deps` mapper, if any. */
+  /** The child step's RAW `deps` mapper, if any. */
   readonly mapper: ((args: HookArgs) => unknown) | undefined
-  readonly childDef: CompiledFlow
+  readonly childDef: CompiledWizard
   /** The parent's deps (passed through when there is no mapper). */
   readonly parentDeps: unknown
   /** A declared parent boundary may intentionally supply undefined. */
@@ -60,7 +60,7 @@ export function resolveDeps(input: ResolveDepsInput): DepsResolution {
     return { ok: false, error: describe(error, `deps boundary of '${childDef.name}' threw`) }
   }
   if (isThenable(result)) {
-    return { ok: false, error: mustBeSync(`deps boundary of child flow '${childDef.name}'`) }
+    return { ok: false, error: mustBeSync(`deps boundary of child wizard '${childDef.name}'`) }
   }
   if (typeof result === 'object' && result !== null && 'ok' in result) {
     if (result.ok === true && 'value' in result) return { ok: true, value: result.value }
@@ -76,7 +76,7 @@ export function resolveDeps(input: ResolveDepsInput): DepsResolution {
         error: {
           name: 'BoundaryError',
           code: 'BOUNDARY_REJECTED',
-          message: `deps of child flow '${childDef.name}' rejected by boundary${detail.length > 0 ? `: ${detail}` : ''}`,
+          message: `deps of child wizard '${childDef.name}' rejected by boundary${detail.length > 0 ? `: ${detail}` : ''}`,
         },
       }
     }
@@ -86,7 +86,7 @@ export function resolveDeps(input: ResolveDepsInput): DepsResolution {
     error: {
       name: 'BoundaryError',
       code: 'BOUNDARY_INVALID_RESULT',
-      message: `deps boundary of child flow '${childDef.name}' returned an invalid result`,
+      message: `deps boundary of child wizard '${childDef.name}' returned an invalid result`,
     },
   }
 }

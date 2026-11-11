@@ -2,8 +2,8 @@
  * The single untyped → typed boundary: the cached `Run<F>` façade around an untyped
  * `WizardRuntime`, and the typed view of a runtime outcome.
  */
-import type { CompiledFlow } from '../../authoring/compiled'
-import type { AnyFlow, ChildFlowOf } from '../../authoring/types'
+import type { CompiledWizard } from '../../authoring/compiled'
+import type { AnyWizardDefinition, ChildWizardOf } from '../../authoring/types'
 import { WizardError } from '../../errors'
 import type { DomainEvent } from '../../machine/events'
 import { applyProjection } from '../../projection/apply-projection'
@@ -14,17 +14,19 @@ import type { RuntimeOutcome } from '../runtime/outcome'
 import type { RunEvent } from './state'
 import type { Run } from './wizard'
 
-/** A runtime outcome of a run of flow `F`, typed by `F`. */
-export function typedOutcome<F extends AnyFlow>(outcome: RuntimeOutcome): RunOutcome<F> {
+/** A runtime outcome of a run of wizard `F`, typed by `F`. */
+export function typedOutcome<F extends AnyWizardDefinition>(
+  outcome: RuntimeOutcome,
+): RunOutcome<F> {
   return outcome as unknown as RunOutcome<F>
 }
 
-const wrappers = new WeakMap<WizardRuntime, Run<AnyFlow>>()
+const wrappers = new WeakMap<WizardRuntime, Run<AnyWizardDefinition>>()
 
-export function wrap<F extends AnyFlow>(
+export function wrap<F extends AnyWizardDefinition>(
   runtime: WizardRuntime,
-  flow: F,
-  def: CompiledFlow,
+  wizard: F,
+  def: CompiledWizard,
 ): Run<F> {
   const existing = wrappers.get(runtime)
   if (existing !== undefined) return existing as unknown as Run<F>
@@ -51,28 +53,32 @@ export function wrap<F extends AnyFlow>(
   const run: Run<F> = {
     ...(forward as unknown as Omit<
       Run<F>,
-      'epoch' | 'flow' | 'child' | 'project' | 'observe' | 'log'
+      'epoch' | 'wizard' | 'child' | 'project' | 'observe' | 'log'
     >),
     get epoch() {
       return runtime.epoch
     },
-    flow,
+    wizard,
     observe: (listener) => runtime.observe((event) => listener(relative(event))),
     log: () => runtime.log().map(relative),
     child: (step, ...[keyOrIndex]) => {
       const childRuntime = runtime.child(step, keyOrIndex)
       const childDef = def.steps[step]?.child
-      const childFlow = (flow.steps as Record<string, { readonly child?: AnyFlow }>)[step]?.child
-      if (childDef === undefined || childFlow === undefined) {
-        throw new WizardError('NOT_A_FLOW_STEP', `'${step}' is not a flow step`, { step })
+      const childWizard = (
+        wizard.steps as Record<string, { readonly child?: AnyWizardDefinition }>
+      )[step]?.child
+      if (childDef === undefined || childWizard === undefined) {
+        throw new WizardError('NOT_A_CHILD_STEP', `'${step}' is not a child step`, { step })
       }
-      return wrap(childRuntime, childFlow, childDef) as unknown as Run<ChildFlowOf<F, typeof step>>
+      return wrap(childRuntime, childWizard, childDef) as unknown as Run<
+        ChildWizardOf<F, typeof step>
+      >
     },
     project: (projection, ...scope) => {
-      if (!sameDefinition(projection.flow, flow)) {
+      if (!sameDefinition(projection.wizard, wizard)) {
         throw new WizardError(
           'DEFINITION_INVALID',
-          `projection was defined for flow '${projection.flow.name}' (a different authored definition), not for this run's flow '${def.name}'`,
+          `projection was defined for wizard '${projection.wizard.name}' (a different authored definition), not for this run's wizard '${def.name}'`,
         )
       }
       return applyProjection(
@@ -84,6 +90,6 @@ export function wrap<F extends AnyFlow>(
       )
     },
   }
-  wrappers.set(runtime, run as unknown as Run<AnyFlow>)
+  wrappers.set(runtime, run as unknown as Run<AnyWizardDefinition>)
   return run
 }

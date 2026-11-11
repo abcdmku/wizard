@@ -94,7 +94,7 @@ describe('static failure fallback', () => {
       error: { message: 'last', kind: 'run', attempt: 2 },
     })
     expect(h.rec('recover').status).toBe('active')
-    expect(h.log.some((event) => event.type === 'flow.compensating')).toBe(false)
+    expect(h.log.some((event) => event.type === 'run.compensating')).toBe(false)
     h.ok(h.call('run', 'recover'), 'recovered')
     h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')

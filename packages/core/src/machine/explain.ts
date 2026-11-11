@@ -3,7 +3,7 @@
  *
  * Pure query over selectors; reason codes are stable strings the façade and
  * devtools can match on:
- * `unknown-step`, `flow-not-started`, `flow-terminal`, `flow-compensating`, `flow-halted`,
+ * `unknown-step`, `run-not-started`, `run-terminal`, `run-compensating`, `run-halted`,
  * `nav-busy`, `not-activated`, `deps-unmet:<id>`, `guard-false:canEnter`,
  * `guard-false:canExit`, `concurrency-limit`, `auto-run-manual`,
  * `failed:<kind>`, `not-current`, `entering`, `retrying`, `when-pending` (
@@ -13,7 +13,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledWizard } from '../authoring/compiled'
 import { unmetNeeds } from './needs'
 import {
   activeRunCount,
@@ -35,16 +35,16 @@ export interface Explanation {
   readonly candidates: readonly string[]
 }
 
-export function explain(def: CompiledFlow, state: WizardState, stepId: string): Explanation {
+export function explain(def: CompiledWizard, state: WizardState, stepId: string): Explanation {
   const rec = state.steps[stepId]
   const candidates = readyViews(def, state).filter((id) => id !== state.current)
   if (rec === undefined)
     return { status: 'unknown', phase: undefined, reasons: ['unknown-step'], candidates }
   const reasons: string[] = []
-  if (state.status === 'idle') reasons.push('flow-not-started')
-  else if (isTerminal(state)) reasons.push('flow-terminal')
-  else if (state.status === 'compensating') reasons.push('flow-compensating')
-  else if (state.status === 'halted') reasons.push('flow-halted')
+  if (state.status === 'idle') reasons.push('run-not-started')
+  else if (isTerminal(state)) reasons.push('run-terminal')
+  else if (state.status === 'compensating') reasons.push('run-compensating')
+  else if (state.status === 'halted') reasons.push('run-halted')
   if (state.nav.phase !== 'idle') reasons.push('nav-busy')
 
   if (rec.status === 'active') {

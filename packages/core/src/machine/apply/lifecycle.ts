@@ -1,5 +1,5 @@
 /**
- * Reducers for the flow-lifecycle events.
+ * Reducers for the run lifecycle events.
  * @internal
  */
 
@@ -8,7 +8,7 @@ import { initialState } from '../initial'
 import { runInFlight } from '../selectors'
 import type {
   CompensationFailureState,
-  FlowFailureState,
+  RunFailureState,
   SagaState,
   SerializedError,
   WizardState,
@@ -19,8 +19,8 @@ import { omit } from '../util'
 import { patchStep, withSaga } from './patch'
 
 /**
- * A `when` predicate in flight for a pending activation belongs to a live flow. Once the
- * flow is done / cancelled / compensating nothing may enter or skip any more, so the in-flight
+ * A `when` predicate in flight for a pending activation belongs to a live run. Once the
+ * run is done / cancelled / compensating nothing may enter or skip any more, so the in-flight
  * token is staled here (its late result is `result.ignored`, resume does not re-issue it).
  */
 function dropPendingWhen(state: WizardState): WizardState {
@@ -32,11 +32,11 @@ function dropPendingWhen(state: WizardState): WizardState {
   return next
 }
 
-export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent): WizardState {
+export function applyLifecycle(env: MachineEnv, state: WizardState, ev: DomainEvent): WizardState {
   switch (ev.type) {
-    case 'flow.started':
+    case 'run.started':
       return { ...state, startedAt: ev.at }
-    case 'flow.done': {
+    case 'run.done': {
       const next = dropPendingWhen(
         ev.output !== undefined ? { ...state, output: ev.output } : state,
       )
@@ -48,8 +48,8 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
         },
       }
     }
-    case 'flow.failed': {
-      const failure: FlowFailureState =
+    case 'run.failed': {
+      const failure: RunFailureState =
         state.failure !== undefined && state.failure.step === ev.step
           ? state.failure
           : {
@@ -61,10 +61,10 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
             }
       return { ...dropPendingWhen(state), failure, terminal: { status: 'failed', failure } }
     }
-    case 'flow.halted':
+    case 'run.halted':
       // `step.failed` just recorded the primary failure; keep it for results and recovery.
       return state
-    case 'flow.compensating': {
+    case 'run.compensating': {
       const settling = state.active.filter((id) => runInFlight(state.steps[id]))
       const retried: ReadonlySet<string> = new Set(ev.plan)
       const saga: SagaState = {
@@ -76,7 +76,7 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
       }
       return dropPendingWhen(withSaga(omit(state, ['terminal']), saga))
     }
-    case 'flow.compensated': {
+    case 'run.compensated': {
       const next = withSaga(state, omit(state.saga, ['settling', 'inFlight']))
       const failures = state.saga.failures.map((ref) => compensationFailure(state, ref))
       const compensation = {
@@ -97,7 +97,7 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
             }
       return { ...next, terminal }
     }
-    case 'flow.cancelled': {
+    case 'run.cancelled': {
       const next = dropPendingWhen(omit(state, ['terminal']))
       return {
         ...next,
@@ -107,10 +107,10 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
         },
       }
     }
-    case 'flow.resumed':
-    case 'flow.status':
+    case 'run.resumed':
+    case 'run.status':
       return state
-    case 'flow.reset': {
+    case 'run.reset': {
       const fresh = initialState(env, {
         instanceId: state.instanceId,
         context: state.context,

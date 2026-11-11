@@ -54,13 +54,13 @@ export function decide(env: MachineEnv, state: WizardState, msg: Message): Decis
 }
 
 const NAV_REJECT: Partial<Record<RejectCode, TransitionRejectReason>> = {
-  FLOW_NOT_STARTED: 'flow-not-started',
-  FLOW_COMPENSATING: 'flow-compensating',
-  FLOW_HALTED: 'flow-halted',
+  RUN_NOT_STARTED: 'run-not-started',
+  RUN_COMPENSATING: 'run-compensating',
+  RUN_HALTED: 'run-halted',
 }
 
 /**
- * An asynchronously settled hook or child flow restarts the auto-advance hop guard (external
+ * An asynchronously settled hook or child run restarts the auto-advance hop guard (external
  * messages reset it in `apply`).
  */
 function isHopBoundary(msg: Message): boolean {
@@ -92,7 +92,7 @@ function decideCommand(b: Batch, cmd: Command): void {
   const code = gate(b, cmd)
   if (code !== undefined) {
     if (cmd.type === 'next' || cmd.type === 'go' || cmd.type === 'back') {
-      rejectNav(b, NAV_REJECT[code] ?? 'flow-terminal')
+      rejectNav(b, NAV_REJECT[code] ?? 'run-terminal')
     } else if (cmd.type === 'cancel' && b.state.status === 'compensating') {
       // no-op by design
     } else {

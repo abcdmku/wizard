@@ -26,13 +26,13 @@ The manifest includes data needs, declared routing targets, fallback edges, and 
 
 | Reason | Meaning |
 |---|---|
-| `flow-not-started` | `start()` has not run |
+| `run-not-started` | `start()` has not run |
 | `not-activated` | No start, edge, or satisfied data need activated this step |
 | `deps-unmet:normalize` | The step needs `normalize`, which has not produced an output yet |
 | `guard-false:canEnter` | The entry guard rejected navigation |
 | `concurrency-limit` | Runnable work is waiting for a slot |
 | `auto-run-manual` | Use `startStep()` or `startReady()` |
-| `flow-halted` | Repair or skip the failed work before continuing |
+| `run-halted` | Repair or skip the failed work before continuing |
 | `failed:interrupted` | Resume found non-idempotent work in flight |
 
 `run.waitingFor()`, `explain().waitingFor`, and a waiting outcome use one flat list. Each entry has `kind: 'view' | 'event' | 'sleep'`, `step`, a relative `path`, and optional event names or deadline. An empty path means this run. Ordinary children use paths such as `['fulfil']`; mapped children include their numeric input index as a string, such as `['batch', '0']`. Progress events use the same public paths.

@@ -56,7 +56,7 @@ interface ItemArgs<Item> {
 }
 /** Run arguments for one item in a mapped runnable step. @public */
 export interface EachRunArgs<C, D, N, Item> extends RunArgs<C, D, N>, ItemArgs<Item> {}
-/** Hook arguments for one item in a mapped child flow. @public */
+/** Hook arguments for one item of a mapped child step. @public */
 interface EachHookArgs<C, D, N, Item> extends HookArgs<C, D, N>, ItemArgs<Item> {}
 /** Step event arguments with a parsed payload and typed needs. @public */
 export interface EventArgs<C, D, P, E, N = {}> extends HookArgs<C, D, N> {
@@ -67,11 +67,11 @@ export type HookArgsFor<C, D, N, Item> =
   IsUnset<Item> extends true ? HookArgs<C, D, N> : EachHookArgs<C, D, N, Item>
 
 /**
- * Flow event arguments with the parsed event payload.
- * A flow-level handler does not belong to one step, so it has no `step`, `needs` or `progress`.
+ * Arguments of a wizard-level `on` handler, with the parsed event payload.
+ * A wizard-level handler does not belong to one step, so it has no `step`, `needs` or `progress`.
  * @public
  */
-export interface FlowOnArgs<C, D, P, E = string>
+export interface WizardOnArgs<C, D, P, E = string>
   extends Omit<HookArgs<C, D>, 'step' | 'needs' | 'progress'> {
   readonly event: E
   readonly payload: P

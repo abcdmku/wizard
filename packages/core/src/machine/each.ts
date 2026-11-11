@@ -82,7 +82,7 @@ export function resumeEach(b: Batch, step: string, original?: EachState): void {
     }
     // A halted map has no live executor after restart. Its unfinished ordinary calls must be
     // eligible for manual retry too, while already completed items remain untouched.
-    if (current.status === 'failed' && def.kind !== 'flow') {
+    if (current.status === 'failed' && def.kind !== 'child') {
       const error = {
         name: 'InterruptedError',
         message: `item ${index} interrupted by a restart`,
@@ -100,12 +100,12 @@ export function resumeEach(b: Batch, step: string, original?: EachState): void {
       continue
     }
     // Children are restored separately. Ordinary maps resume only the unfinished item calls.
-    if (def.kind === 'flow' && item.child !== undefined) {
+    if (def.kind === 'child' && item.child !== undefined) {
       if (item.child.status === 'done' && def.hooks.childOutput !== undefined)
         emit(b, { type: 'step.eachChildOutputRequested', step, index, output: item.output })
       continue
     }
-    if (def.kind === 'flow') {
+    if (def.kind === 'child') {
       emit(b, { type: 'step.eachItemStarted', step, index, attempt: item.attempt, resumed: true })
       continue
     }

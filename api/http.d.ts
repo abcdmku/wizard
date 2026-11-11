@@ -208,7 +208,7 @@ interface CombineHTTPOptions {
 declare function combineHTTP(sources: readonly HTTPSource[], options?: CombineHTTPOptions): HTTPHandler;
 //#endregion
 //#region src/run-handle.d.ts
-/** A refusal of a durable host's own gate (lease, version, dedupe), not of the flow. @public */
+/** A refusal of a durable host's own gate (lease, version, dedupe), not of the run. @public */
 interface DurableHostFailure {
   readonly ok: false;
   readonly code: string;
@@ -299,7 +299,7 @@ interface StandardWebhookEnvelope<E extends string = string, D = unknown> {
   readonly type: E;
   /** ISO 8601 time at which the producer created the event. */
   readonly timestamp: string;
-  /** Event payload. The flow's event boundary parses it before a handler sees it. */
+  /** Event payload. The wizard's event boundary parses it before a handler sees it. */
   readonly data: D;
   /** Optional run key, also the default correlation id. */
   readonly subject?: string;
@@ -325,7 +325,7 @@ interface VerifiedWebhookDelivery<E extends string = string> {
   readonly webhookId: string;
   /** Delivery-attempt time from the signed `webhook-timestamp` header. */
   readonly attemptTimestamp: Date;
-  /** The verified envelope. `data` stays untrusted until the flow's event boundary parses it. */
+  /** The verified envelope. `data` stays untrusted until the wizard's event boundary parses it. */
   readonly envelope: StandardWebhookEnvelope<E, unknown>;
 }
 /**
@@ -350,15 +350,15 @@ interface ReceiverOptions<F extends AnyWizard> {
 }
 //#endregion
 //#region src/http-options.d.ts
-/** Flow capabilities an API can expose. `create` adds `POST <base>`; the reads add `GET <base>/:runId` and its stream. @public */
-type FlowAccess = 'back' | 'cancel' | 'compensate' | 'create' | 'next' | 'output' | 'progress' | 'read' | 'reset' | 'startReady' | 'start';
+/** Run capabilities an API can expose. `create` adds `POST <base>`; the reads add `GET <base>/:runId` and its stream. @public */
+type RunAccess = 'back' | 'cancel' | 'compensate' | 'create' | 'next' | 'output' | 'progress' | 'read' | 'reset' | 'startReady' | 'start';
 /** Capabilities available on a specific step, narrowed by kind and capabilities. @public */
 type StepAccessFor<F extends AnyWizard, K extends StepId<F>> = 'error' | 'invalidate' | 'issues' | 'output' | 'read' | 'skip' | (K extends ViewId<F> ? 'go' | 'input' | 'resetInput' | 'setInput' : never) | (K extends RunStepId<F> ? 'retry' | 'startStep' : never) | (K extends ChildStepId<F> ? 'child' | 'summary' : never);
 /** What the API exposes. Nothing is exposed unless it is listed here. @public */
 interface HTTPAccess<F extends AnyWizard> {
   /** Context keys returned by the run routes. */
   readonly context?: readonly (keyof Ctx<F> & string)[];
-  readonly flow?: readonly FlowAccess[];
+  readonly run?: readonly RunAccess[];
   readonly steps?: { readonly [K in StepId<F>]?: readonly StepAccessFor<F, K>[]; };
   /** Declared events that callers may send through `POST <base>/:runId/events/<event>`. */
   readonly events?: readonly EventType<F>[];
@@ -377,7 +377,7 @@ interface RunLookup<P> {
   readonly principal: P;
   readonly runId: string;
 }
-/** Authenticated creation of one run; `input` passed the flow's context boundary. @public */
+/** Authenticated creation of one run; `input` passed the wizard's context boundary. @public */
 interface RunCreation<F extends AnyWizard, P> {
   readonly request: Request;
   readonly tenantId: string;
@@ -422,9 +422,9 @@ interface HTTPRunAPIOptions<F extends AnyWizard, S, P> {
 type WithoutRunAPI = { readonly [K in keyof HTTPRunAPIOptions<AnyWizard, unknown, unknown>]?: never; };
 /** Options of `createHTTP`: the run API, signed receivers, or both. @public */
 type CreateHTTPOptions<F extends AnyWizard, S, P> = (HTTPRunAPIOptions<F, S, P> | WithoutRunAPI) & {
-  /** Namespace for paths, scopes, schema names and operation ids. Defaults to the flow name. */
+  /** Namespace for paths, scopes, schema names and operation ids. Defaults to the wizard name. */
   readonly id?: string;
-  /** Signed Standard Webhooks receivers for the flow's events. */
+  /** Signed Standard Webhooks receivers for the wizard's events. */
   readonly receive?: ReceiverOptions<F>;
   /**
    * Replays the response of a repeated `Idempotency-Key` or `webhook-id`. Defaults to an
@@ -437,7 +437,7 @@ type CreateHTTPOptions<F extends AnyWizard, S, P> = (HTTPRunAPIOptions<F, S, P> 
   /** Observes unexpected failures; the caller still gets a stable 500. */
   readonly onError?: (error: unknown, context: HTTPFailureContext) => APIMaybePromise<void>;
 };
-/** Generated routes and documentation for one flow. @public */
+/** Generated routes and documentation for one wizard. @public */
 interface WizardHTTP<F extends AnyWizard = AnyWizard> extends HTTPHandler {
   readonly id: string;
   readonly wizard: F;
@@ -445,7 +445,7 @@ interface WizardHTTP<F extends AnyWizard = AnyWizard> extends HTTPHandler {
 //#endregion
 //#region src/create-http.d.ts
 /**
- * Generate the HTTP routes and the OpenAPI 3.1 document of a flow: the run API (`runs`,
+ * Generate the HTTP routes and the OpenAPI 3.1 document of a wizard: the run API (`runs`,
  * `auth` and deny-by-default `access` together) and/or signed receivers (`receive`). The result
  * is framework-neutral: serve `http.fetch` from any `Request → Response` runtime and
  * `http.openAPI(info)` as the document.
@@ -851,5 +851,5 @@ interface SignWebhookInput {
  */
 declare function signWebhook(input: SignWebhookInput): Promise<WebhookSignatureHeaders>;
 //#endregion
-export { type APIMaybePromise, type AnyHTTPResource, type BearerScopeProviderOptions, type CORSOptions, type CombineHTTPOptions, type CreateHTTPOptions, type DurableHostFailure, type DurableRunHandle, type FlowAccess, type HTTPAccess, type HTTPErrorBody, type HTTPFailureContext, type HTTPHandler, type HTTPOperation, type HTTPResourceMethod, type HTTPRunAPIOptions, type HTTPScopes, type HTTPSource, type IdempotencyClaim, type IdempotencyStore, type IdempotentResponse, type JSONSchema, type MemoryIdempotencyStoreOptions, MemoryWebhookStore, type OAuth2ScopeProviderOptions, type OpenAPIContribution, type OpenAPIDocument, type OpenAPIInfo, type OpenAPIOperation, type OpenAPITag, type OutboundWebhookEvent, type OutboundWebhookEventData, type OutboundWebhookEventInput, type OutboundWebhookEvents, type OutboundWebhookFailureContext, type ReceiverOptions, type RunCreation, type RunDataLayer, type RunHandle, type RunLookup, type ScopeAuthorizationContext, type ScopeIdentity, type ScopeProvider, type ScopeProviderDocumentation, type SignWebhookInput, type StandardWebhookEnvelope, type StepAccessFor, type VerifiedWebhookDelivery, type WebhookDelivery, type WebhookDeliveryClaim, type WebhookDeliveryOptions, type WebhookDeliveryOutcome, type WebhookDeliveryQuery, type WebhookDeliverySettlement, type WebhookDeliveryStatus, type WebhookDeliveryView, type WebhookEndpointPolicy, type WebhookEndpointPolicyContext, type WebhookEndpointValidationOptions, type WebhookEnqueueResult, type WebhookIdentifierOptions, type WebhookPublishRejected, type WebhookPublishResult, type WebhookPublished, type WebhookSecret, type WebhookSignatureContext, type WebhookSignatureHeaders, type WebhookStore, type WebhookSubscription, type WebhookSubscriptionAuthorizationContext, type WebhookSubscriptionOperation, type WebhookSubscriptionPatch, type WebhookSubscriptionQuery, type WebhookSubscriptionScopes, type WebhookSubscriptionStatus, type WebhookSubscriptionView, type WebhookSubscriptions, type WebhookSubscriptionsOptions, type WebhookWorkOptions, type WebhookWorkResult, type WizardHTTP, combineHTTP, createBearerScopeProvider, createHTTP, createMemoryIdempotencyStore, createMemoryWebhookStore, createOAuth2ScopeProvider, createWebhookSubscriptions, signWebhook, validateWebhookEndpoint };
+export { type APIMaybePromise, type AnyHTTPResource, type BearerScopeProviderOptions, type CORSOptions, type CombineHTTPOptions, type CreateHTTPOptions, type DurableHostFailure, type DurableRunHandle, type HTTPAccess, type HTTPErrorBody, type HTTPFailureContext, type HTTPHandler, type HTTPOperation, type HTTPResourceMethod, type HTTPRunAPIOptions, type HTTPScopes, type HTTPSource, type IdempotencyClaim, type IdempotencyStore, type IdempotentResponse, type JSONSchema, type MemoryIdempotencyStoreOptions, MemoryWebhookStore, type OAuth2ScopeProviderOptions, type OpenAPIContribution, type OpenAPIDocument, type OpenAPIInfo, type OpenAPIOperation, type OpenAPITag, type OutboundWebhookEvent, type OutboundWebhookEventData, type OutboundWebhookEventInput, type OutboundWebhookEvents, type OutboundWebhookFailureContext, type ReceiverOptions, type RunAccess, type RunCreation, type RunDataLayer, type RunHandle, type RunLookup, type ScopeAuthorizationContext, type ScopeIdentity, type ScopeProvider, type ScopeProviderDocumentation, type SignWebhookInput, type StandardWebhookEnvelope, type StepAccessFor, type VerifiedWebhookDelivery, type WebhookDelivery, type WebhookDeliveryClaim, type WebhookDeliveryOptions, type WebhookDeliveryOutcome, type WebhookDeliveryQuery, type WebhookDeliverySettlement, type WebhookDeliveryStatus, type WebhookDeliveryView, type WebhookEndpointPolicy, type WebhookEndpointPolicyContext, type WebhookEndpointValidationOptions, type WebhookEnqueueResult, type WebhookIdentifierOptions, type WebhookPublishRejected, type WebhookPublishResult, type WebhookPublished, type WebhookSecret, type WebhookSignatureContext, type WebhookSignatureHeaders, type WebhookStore, type WebhookSubscription, type WebhookSubscriptionAuthorizationContext, type WebhookSubscriptionOperation, type WebhookSubscriptionPatch, type WebhookSubscriptionQuery, type WebhookSubscriptionScopes, type WebhookSubscriptionStatus, type WebhookSubscriptionView, type WebhookSubscriptions, type WebhookSubscriptionsOptions, type WebhookWorkOptions, type WebhookWorkResult, type WizardHTTP, combineHTTP, createBearerScopeProvider, createHTTP, createMemoryIdempotencyStore, createMemoryWebhookStore, createOAuth2ScopeProvider, createWebhookSubscriptions, signWebhook, validateWebhookEndpoint };
 //# sourceMappingURL=index.d.ts.map

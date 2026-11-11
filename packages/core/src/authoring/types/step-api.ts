@@ -1,6 +1,6 @@
 /** Pre-bound authoring constructors and checked assembly. */
 import type { CheckSteps, CompactStep, RoleOf } from './assembly'
-import type { ContextInput, FlowOutput } from './extractors'
+import type { ContextInput, WizardOutput } from './extractors'
 import type { EmptyWait, WaitResult } from './handlers'
 import type { JsonValue, MaybePromise, Unset } from './primitives'
 import type { BoundTo, Links, Ref, RefWithin, Returned, Route, StaticNext, Step } from './step'
@@ -28,7 +28,7 @@ import type {
   StepOutput,
   StepProblems,
 } from './step-inference'
-import type { AnyFlow } from './wizard'
+import type { AnyWizardDefinition } from './wizard'
 
 export interface Steps<M> {
   readonly '~steps': M | undefined
@@ -104,8 +104,8 @@ export interface StepApi<C, Ev, D> {
     >,
     BoundTo<C, Ev, D>
   >
-  flow<
-    CF extends AnyFlow,
+  child<
+    CF extends AnyWizardDefinition,
     OB = Unset,
     Item = Unset,
     Nd = {},
@@ -121,7 +121,7 @@ export interface StepApi<C, Ev, D> {
       Ev,
       D,
       ContextInput<CF>,
-      FlowOutput<CF>,
+      WizardOutput<CF>,
       ChildDeps<CF>,
       OB,
       Item,
@@ -134,9 +134,9 @@ export interface StepApi<C, Ev, D> {
       DepsRule<C, D, Nd, Item, CF> &
       OptionKeys<Xk, ChildOption>,
   ): Step<
-    'flow',
+    'child',
     {
-      readonly output: ChildOutput<FlowOutput<CF>, OB, Item>
+      readonly output: ChildOutput<WizardOutput<CF>, OB, Item>
       readonly child: CF
     } & ('each' extends Xk ? { readonly each: true } : {}),
     Links<

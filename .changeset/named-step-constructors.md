@@ -2,7 +2,7 @@
 "@openwizard/core": minor
 ---
 
-Use object configs for `step`, `view`, and child `flow` constructors. Plain steps
+Use object configs for `step`, `view`, and `child` constructors. Plain steps
 run work, wait for events, sleep, or route through `next`. Typed `needs` joins
 activate consumers and expose producer outputs to their hooks. Object references
 work in every edge position and assembly rejects unknown references.

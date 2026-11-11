@@ -24,7 +24,7 @@ import { createWorkflowSpans } from './workflow-spans'
 export type { ExternalSendOptions, InstrumentRunOptions, RunInstrumentation } from './types'
 
 /**
- * Attach OpenTelemetry workflow, step-attempt, compensation, and nested-flow spans to a run.
+ * Attach OpenTelemetry workflow, step-attempt, compensation, and nested run spans to a run.
  *
  * Only stable identifiers, event names, counters, paths, and boolean outcomes are exported.
  * Payloads, outputs, input/context patches, inbox/correlation values, idempotency keys, and
@@ -60,12 +60,12 @@ export function instrumentRun<F extends AnyWizard>(
     if (stopped) return
     const event = incomingEvent as unknown as EventRecord
     const path = asPath(event.path)
-    const record = workflows.ensureFlow(path)
+    const record = workflows.ensureRun(path)
     external.recordEvent(record, event)
     const step = asString(event.step)
 
     switch (event.type) {
-      case 'flow.resumed':
+      case 'run.resumed':
         if (record) {
           const fromSeq = asNumber(event.fromSeq)
           const interrupted = Array.isArray(event.interrupted) ? event.interrupted.length : 0
@@ -95,21 +95,21 @@ export function instrumentRun<F extends AnyWizard>(
       case 'step.compensationFailed':
         if (step) stepSpans.finishCompensation(event, path, step, 'error')
         break
-      case 'flow.done':
+      case 'run.done':
         closePath(path, 'success')
         break
-      case 'flow.failed':
+      case 'run.failed':
         if (record && typeof event.code === 'string')
-          workflows.setAttribute(record.span, 'openwizard.flow.error_code', event.code)
+          workflows.setAttribute(record.span, 'openwizard.run.error_code', event.code)
         closePath(path, 'error')
         break
-      case 'flow.cancelled':
+      case 'run.cancelled':
         closePath(path, 'cancelled')
         break
-      case 'flow.compensated':
+      case 'run.compensated':
         closePath(path, safeOutcome(event.outcome) === 'failed' ? 'error' : 'cancelled')
         break
-      case 'flow.reset':
+      case 'run.reset':
         closePath(path, 'reset')
         stepSpans.reset(path)
         break
@@ -173,7 +173,7 @@ export function instrumentRun<F extends AnyWizard>(
   }
 
   // Create a context callers can inject before run.start().
-  workflows.ensureFlow([])
+  workflows.ensureRun([])
   try {
     unsubscribe = run.observe(observeEvent)
   } catch (error) {

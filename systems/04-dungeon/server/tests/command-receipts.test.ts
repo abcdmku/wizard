@@ -198,10 +198,10 @@ describe('durable command receipts', () => {
     const world = runtime.state()
     const legacy = {
       ...snapshot,
-      flow: { ...snapshot.flow, version: 1 },
+      wizard: { ...snapshot.wizard, version: 1 },
       state: {
         ...snapshot.state,
-        flow: { ...snapshot.state.flow, version: 1 },
+        wizard: { ...snapshot.state.wizard, version: 1 },
         context: {
           world,
           commandResults: { legacy: { ok: true } },
@@ -211,9 +211,9 @@ describe('durable command receipts', () => {
     }
     const migrated = migrateDungeonSnapshot(legacy, { name: dungeonFlow.name, version: 1 })
     expect(migrated).toMatchObject({
-      flow: { name: dungeonFlow.name, version: dungeonFlow.version },
+      wizard: { name: dungeonFlow.name, version: dungeonFlow.version },
       state: {
-        flow: { name: dungeonFlow.name, version: dungeonFlow.version },
+        wizard: { name: dungeonFlow.name, version: dungeonFlow.version },
         context: { world },
       },
     })

@@ -11,7 +11,7 @@ export interface InstrumentRunOptions {
   readonly parentContext?: Context
   /** Context (or span context) from an earlier process/epoch. It becomes a span link. */
   readonly resumeContext?: Context | SpanContext
-  /** Trace child flows observed through this run. Defaults to `true`. */
+  /** Trace child runs observed through this run. Defaults to `true`. */
   readonly children?: boolean
   /** Event detail recorded on workflow spans. Defaults to `'lifecycle'`. */
   readonly recordEvents?: 'none' | 'lifecycle' | 'all'

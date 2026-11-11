@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CompiledFlow, CompiledStep } from '../../src/authoring/compiled'
+import type { CompiledStep, CompiledWizard } from '../../src/authoring/compiled'
 import { createHarness, of, replay, trusted } from '../helpers/fixtures'
 
 type Step = Omit<CompiledStep, 'id'>
@@ -8,7 +8,7 @@ function fixture(
   steps: Readonly<Record<string, Step>>,
   start: readonly string[],
   sinks: readonly string[],
-): CompiledFlow {
+): CompiledWizard {
   return {
     name: 'wait-results',
     version: 1,
@@ -196,7 +196,7 @@ describe('wait handler results and context updates', () => {
       ],
       value: { done: 'accepted' },
     })
-    expect(result.types).toEqual(['context.changed', 'step.failed', 'flow.halted'])
+    expect(result.types).toEqual(['context.changed', 'step.failed', 'run.halted'])
     expect(h.state.context).toEqual({ phase: 'updating' })
     expect(h.state.status).toBe('halted')
     expect(h.rec('waiting').output).toBeUndefined()

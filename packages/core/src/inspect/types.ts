@@ -1,13 +1,13 @@
 /**
- * The wizard manifest: what `inspect(flow)` returns. One JSON-serializable document describing a
- * flow and its child flows (structure, prose, JSON Schemas, warnings) that feeds docs pages,
+ * The wizard manifest: what `inspect(wizard)` returns. One JSON-serializable document describing a
+ * wizard and its child wizards (structure, prose, JSON Schemas, warnings) that feeds docs pages,
  * Mermaid, devtools, OpenAPI and SDK generators.
  *
  * @packageDocumentation
  */
 
 import type { StepKind } from '@openwizard/core'
-import type { FlowWarning } from '../authoring/compile'
+import type { ManifestWarning } from '../authoring/compile'
 import type { JsonValue } from '../authoring/types/primitives'
 
 /**
@@ -17,7 +17,7 @@ import type { JsonValue } from '../authoring/types/primitives'
 export type JSONSchema = Readonly<Record<string, unknown>>
 
 /**
- * Retry facts of a runnable step (the step's own policy, else the flow's default).
+ * Retry facts of a runnable step (the step's own policy, else the wizard's default).
  * `when: true` marks a retry predicate (a function, so not part of the manifest).
  * @public
  */
@@ -45,12 +45,12 @@ export interface GraphEach {
 }
 
 /**
- * One step of the graph. `path` is the run path of the flow the step belongs to
+ * One step of the graph. `path` is the run path of the wizard the step belongs to
  * (`[]` = root, `['fulfil']` = inside the child of step `fulfil`), so ids never collide across
  * nesting levels.
  * @public
  */
-export interface FlowGraphNode {
+export interface ManifestStep {
   readonly id: string
   readonly kind: StepKind
   readonly label?: string
@@ -59,7 +59,7 @@ export interface FlowGraphNode {
   readonly path: readonly string[]
   /**
    * Hooks the step defines, by their AUTHORING names (`enter`, `run`, `when`, `mapError`,
-   * `on:payment.captured`, `waitFor:payment.captured`, a flow step's `context` / `deps` / `output`
+   * `on:payment.captured`, `waitFor:payment.captured`, a child step's `context` / `deps` / `output`
    * mappers, or a runnable step's `idempotencyKey` function).
    */
   readonly hooks: readonly string[]
@@ -80,7 +80,7 @@ export interface FlowGraphNode {
   readonly dynamicNext?: true
   /** Declared targets of a dynamic `next` (also listed as `route` edges). */
   readonly targets?: readonly string[]
-  /** The step is an entry point of its flow. */
+  /** The step is an entry point of its wizard. */
   readonly start?: true
   /** JSON Schema of the draft a view accepts (input side of its `input` boundary). */
   readonly input?: JSONSchema
@@ -90,19 +90,19 @@ export interface FlowGraphNode {
   readonly waitsFor?: readonly string[]
   /** A sink: no normal static successor and no consumers pulling its output. */
   readonly completes?: true
-  /** The step declares `compensate` (undone in reverse order when the flow compensates). */
+  /** The step declares `compensate` (undone in reverse order when the run compensates). */
   readonly compensable?: true
   readonly retry?: GraphRetry
-  /** Name and version of the child flow of a `flow` step (its nodes carry `path: [...path, id]`). */
+  /** Name and version of the child wizard of a `child` step (its nodes carry `path: [...path, id]`). */
   readonly child?: { readonly name: string; readonly version: number }
 }
 
 /**
- * A static edge between two steps of the same flow (`path`). `start` edges have no `from`;
+ * A static edge between two steps of the same wizard (`path`). `start` edges have no `from`;
  * `route` edges are the declared targets of a dynamic `next`.
  * @public
  */
-export interface FlowGraphEdge {
+export interface ManifestEdge {
   readonly from: string | null
   readonly to: string
   readonly kind: 'next' | 'route' | 'needs' | 'fallback' | 'timeout' | 'start'
@@ -115,10 +115,10 @@ export interface FlowGraphEdge {
 
 /**
  * The wizard manifest: identity, prose, JSON Schemas, nodes and edges (recursively for child
- * flows) and analysis warnings.
+ * wizards) and analysis warnings.
  * @public
  */
-export interface FlowGraph {
+export interface Manifest {
   readonly name: string
   readonly version: number
   readonly description?: string
@@ -135,7 +135,7 @@ export interface FlowGraph {
     readonly context?: JSONSchema
     readonly events: Readonly<Record<string, JSONSchema | undefined>>
   }
-  readonly nodes: readonly FlowGraphNode[]
-  readonly edges: readonly FlowGraphEdge[]
-  readonly warnings: readonly FlowWarning[]
+  readonly nodes: readonly ManifestStep[]
+  readonly edges: readonly ManifestEdge[]
+  readonly warnings: readonly ManifestWarning[]
 }

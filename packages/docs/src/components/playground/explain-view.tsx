@@ -1,20 +1,20 @@
-import type { AnyFlow, Explanation, Run } from '@openwizard/core'
-import type { FlowGraph } from '@openwizard/core/inspect'
+import type { AnyWizardDefinition, Explanation, Run } from '@openwizard/core'
+import type { Manifest } from '@openwizard/core/inspect'
 import { useMemo } from 'react'
 import { runAt } from './child-path'
 import { stringify } from './format'
 import { type StepRef, safeInspect, snapshotAt } from './graph-view'
 
 interface ExplainViewProps {
-  readonly run: Run<AnyFlow> | undefined
+  readonly run: Run<AnyWizardDefinition> | undefined
   readonly selected: StepRef | null
   readonly onSelect: (ref: StepRef) => void
 }
 
-type StepExplanation = Explanation<AnyFlow> & { readonly note?: string }
+type StepExplanation = Explanation<AnyWizardDefinition> & { readonly note?: string }
 
 /** `run.explain(step)` for the root, `run.child(...).explain(step)` down a path when the child is live. */
-function explainAt(run: Run<AnyFlow>, ref: StepRef): StepExplanation {
+function explainAt(run: Run<AnyWizardDefinition>, ref: StepRef): StepExplanation {
   try {
     return runAt(run, ref.path).explain(ref.id)
   } catch (error) {
@@ -42,9 +42,9 @@ const list = (values: readonly string[]) => (values.length === 0 ? '[]' : values
 
 /** The Explain tab: pick a step, read `{ status, phase, reasons, candidates }` — plus progress and ready views. */
 export function ExplainView({ run, selected, onSelect }: ExplainViewProps) {
-  const graph = useMemo<FlowGraph | null>(() => {
+  const graph = useMemo<Manifest | null>(() => {
     if (!run) return null
-    const result = safeInspect(run.flow)
+    const result = safeInspect(run.wizard)
     return 'error' in result ? null : result
   }, [run])
   // Computed on every render: the parent re-renders after each batch of events.
@@ -109,7 +109,7 @@ export function ExplainView({ run, selected, onSelect }: ExplainViewProps) {
       </ul>
       <div className="overflow-auto px-4 py-2">
         <dl>
-          <Row label="flow" value={`${live.status} · current ${live.current ?? '—'}`} />
+          <Row label="run" value={`${live.status} · current ${live.current ?? '—'}`} />
           <Row
             label="progress"
             value={`${live.progress.done}/${live.progress.total} (${Math.round(live.progress.ratio * 100)}%)`}

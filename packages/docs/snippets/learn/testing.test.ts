@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { signupFlow } from './form'
+import { signupWizard } from './form'
 
-describe('signupFlow', () => {
+describe('signupWizard', () => {
   it('rejects an invalid email', async () => {
-    const run = signupFlow.create({})
+    const run = signupWizard.create({})
     await run.start()
     await run.setInput('contact', { email: 'not-an-email' })
 

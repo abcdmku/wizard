@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
 import { compile } from '../../src/authoring/compile'
-import type { CompiledFlow } from '../../src/authoring/compiled'
+import type { CompiledWizard } from '../../src/authoring/compiled'
 import { initialState } from '../../src/machine'
 import type { StepRecord, WizardState } from '../../src/machine/state'
 import { applyProjection } from '../../src/projection/apply-projection'
@@ -30,7 +30,7 @@ const flow = defineWizard(
     name: 'root',
     context: z.object({ cartId: z.string(), total: z.number(), secret: z.string() }),
   },
-  ({ step, view, flow, steps }) =>
+  ({ step, view, child, steps }) =>
     steps(
       {
         form: view({ input: z.object({ address: z.string() }), next: 'reserve' }),
@@ -38,7 +38,7 @@ const flow = defineWizard(
           run: async () => ({ reservationId: 'r' }),
           next: 'sub',
         }),
-        sub: flow(childFlow, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
+        sub: child(childFlow, { context: () => ({ n: 1, childSecret: 's' }), next: 'done' }),
         done: step({ run: () => ({ receipt: 1 }) }),
       },
       { start: 'form' },
@@ -46,7 +46,7 @@ const flow = defineWizard(
 )
 const def = compile(flow)
 function stateOf(
-  d: CompiledFlow,
+  d: CompiledWizard,
   context: unknown,
   patch: (state: WizardState) => Partial<WizardState>,
   instanceId = 'wiz-1',
@@ -109,7 +109,7 @@ describe('applyProjection', () => {
       steps: {
         form: { id: 'form', kind: 'view', status: 'active', phase: 'waiting', attempt: 0 },
         reserve: { id: 'reserve', kind: 'step', status: 'failed', attempt: 2 },
-        sub: { id: 'sub', kind: 'flow', status: 'active', phase: 'running', attempt: 0 },
+        sub: { id: 'sub', kind: 'child', status: 'active', phase: 'running', attempt: 0 },
         done: { id: 'done', kind: 'step', status: 'idle', attempt: 0 },
       },
     })
@@ -165,7 +165,7 @@ describe('applyProjection', () => {
     expect('child' in applyProjection(projection, fresh, def).steps.sub).toBe(false)
   })
   it('projects an exposed child from its snapshot (recursively, deny-by-default inside)', () => {
-    const childDef = def.steps.sub?.child as CompiledFlow
+    const childDef = def.steps.sub?.child as CompiledWizard
     const childState = stateOf(
       childDef,
       { n: 1, childSecret: 's' },
@@ -182,7 +182,7 @@ describe('applyProjection', () => {
     )
     const childSnapshot: Snapshot = {
       v: 1,
-      flow: { name: 'child', version: 1 },
+      wizard: { name: 'child', version: 1 },
       instanceId: 'child-1',
       epoch: 0,
       seq: 3,

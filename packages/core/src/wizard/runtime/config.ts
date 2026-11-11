@@ -5,7 +5,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import { parseDuration } from '../../authoring/duration'
 import { describeError, WizardError } from '../../errors'
 import {
@@ -79,7 +79,7 @@ function isClock(value: object): value is Clock & object {
 }
 
 export function machineEnv(
-  def: CompiledFlow,
+  def: CompiledWizard,
   path: readonly string[],
   env: RuntimeEnv,
 ): MachineEnv {

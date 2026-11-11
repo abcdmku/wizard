@@ -3,7 +3,7 @@
  */
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import type { FlowOutput, Issue, Progress, SerializedError } from '../../src/authoring/types'
+import type { Issue, Progress, SerializedError, WizardOutput } from '../../src/authoring/types'
 import { createMirror } from '../../src/mirror/create-mirror'
 import { createMirrorSource, type MirrorSource } from '../../src/mirror/source'
 import type { Transport } from '../../src/mirror/transport'
@@ -44,7 +44,7 @@ const checkoutFlow = defineWizard(
     }),
     events: { 'payment.captured': z.object({ paymentId: z.string() }) },
   },
-  ({ step, view, flow, steps }) =>
+  ({ step, view, child, steps }) =>
     steps(
       {
         shipping: view({
@@ -55,7 +55,7 @@ const checkoutFlow = defineWizard(
           run: async () => ({ reservationId: 'r' }),
           next: 'fulfil',
         }),
-        fulfil: flow(fulfilmentFlow, {
+        fulfil: child(fulfilmentFlow, {
           context: ({ context }) => ({ orderId: context.cartId }),
           next: 'receipt',
         }),
@@ -123,7 +123,7 @@ describe('case 12: ClientState<F, expose>', () => {
     >()
     expectTypeOf<ClientCheckout['current']>().toEqualTypeOf<'shipping' | null>()
     expectTypeOf<ClientCheckout['output']>().toEqualTypeOf<
-      FlowOutput<typeof checkoutFlow> | undefined
+      WizardOutput<typeof checkoutFlow> | undefined
     >()
     expectTypeOf<ClientCheckout['seq']>().toEqualTypeOf<number>()
     expectTypeOf<ClientCheckout['instanceId']>().toEqualTypeOf<string>()
@@ -163,7 +163,7 @@ describe('case 12: ClientState<F, expose>', () => {
         }),
         events: { 'payment.captured': z.object({ paymentId: z.string() }) },
       },
-      ({ step, view, flow, steps }) =>
+      ({ step, view, child, steps }) =>
         steps(
           {
             shipping: view({
@@ -174,7 +174,7 @@ describe('case 12: ClientState<F, expose>', () => {
               run: async () => ({ reservationId: 'r' }),
               next: 'fulfil',
             }),
-            fulfil: flow(fulfilmentFlow, {
+            fulfil: child(fulfilmentFlow, {
               context: ({ context }) => ({ orderId: context.cartId }),
               next: 'receipt',
             }),
@@ -187,7 +187,7 @@ describe('case 12: ClientState<F, expose>', () => {
     const run = {} as Run<typeof checkoutFlow>
     // Compiles (structural types) — `run.project` throws DEFINITION_INVALID at runtime.
     run.project(twinProjection)
-    expectTypeOf(twinProjection.flow).toEqualTypeOf<typeof twin>()
+    expectTypeOf(twinProjection.wizard).toEqualTypeOf<typeof twin>()
   })
 })
 const mappedFlow = defineWizard(
@@ -257,7 +257,7 @@ describe('projections: progress, error data, select', () => {
       total: number
       done: boolean
     }>()
-    expectTypeOf(summary.flow).toEqualTypeOf<typeof checkoutFlow>()
+    expectTypeOf(summary.wizard).toEqualTypeOf<typeof checkoutFlow>()
     expectTypeOf(summary).toMatchTypeOf<AnyProjection>()
     // The Run / MirrorSource / Mirror carry T.
     const run = {} as Run<typeof checkoutFlow>

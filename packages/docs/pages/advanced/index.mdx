@@ -12,11 +12,11 @@ These pages cover what happens when a run stops halfway, waits longer than one p
 | Saved state came from older code | [Snapshots and migrations](/advanced/persistence) |
 | Two workers loaded the same run | [Multi-worker durability](/advanced/durability) |
 | A webhook arrived early or for another run | [External event routing](/advanced/events) |
-| A stage deserves its own run and snapshot | [Nested flows](/advanced/nested) |
+| A stage deserves its own run and snapshot | [Nested wizards](/advanced/nested) |
 | A browser needs a safe subset of state | [Projections and mirrors](/advanced/projections) |
 | An operator asks why a step is stuck | [Explain, observe, replay](/advanced/operations) |
 
-## All of them in one flow
+## All of them in one wizard
 
 The order example uses idempotent runnable steps, exponential retry, typed error data, compensation, a correlated webhook, and a persisted 24-hour timeout in one wizard:
 

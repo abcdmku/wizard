@@ -37,8 +37,8 @@ describe('steps with an idempotency key', () => {
     h.fire('retry:a')
     expect(h.rec('a')).toMatchObject({ attempt: 2, idempotencyKey: 'inst-1:a:1' })
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'step.runStarted', 'step.failed', 'flow.halted'])
-    expect(of(r, 'flow.resumed')[0]?.interrupted).toEqual(['a', 'b'])
+    expect(r.types).toEqual(['run.resumed', 'step.runStarted', 'step.failed', 'run.halted'])
+    expect(of(r, 'run.resumed')[0]?.interrupted).toEqual(['a', 'b'])
     expect(of(r, 'step.runStarted')[0]).toEqual(
       expect.objectContaining({
         step: 'a',
@@ -77,7 +77,7 @@ describe('steps with an idempotency key', () => {
     )
     const r = h.start()
     expect(r.types).toEqual([
-      'flow.started',
+      'run.started',
       'step.arrived',
       'step.entered',
       'step.idempotencyKeyRequested',
@@ -88,7 +88,7 @@ describe('steps with an idempotency key', () => {
     expect(k.extra).toEqual({ attempt: 1 })
     // a resume while the key is being computed re-issues the key call, not the run
     const res = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(res.types).toEqual(['flow.resumed'])
+    expect(res.types).toEqual(['run.resumed'])
     expect(res.effects.filter((e) => e.kind === 'call').map((e) => e.hook)).toEqual([
       'idempotencyKey',
     ])
@@ -127,7 +127,7 @@ describe('steps with an idempotency key', () => {
     )
     const g = createHarness(h.def)
     g.start()
-    expect(g.err(g.call('idempotencyKey'), 'no key').types).toEqual(['step.failed', 'flow.halted'])
+    expect(g.err(g.call('idempotencyKey'), 'no key').types).toEqual(['step.failed', 'run.halted'])
   })
 })
 
@@ -168,7 +168,7 @@ describe('mapError', () => {
     const m2 = h.call('mapError', 't')
     expect(m2.extra).toMatchObject({ timedOut: true, attempt: 2 })
     const failed = h.ok(m2, { retryable: false })
-    expect(failed.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
+    expect(failed.types).toEqual(['step.runFailed', 'step.failed', 'run.halted'])
     expect(of(failed, 'step.failed')[0]).toMatchObject({
       kind: 'timeout',
       data: { retryable: false },
@@ -191,7 +191,7 @@ describe('mapError', () => {
     h.start()
     h.err(h.call('run'), 'boom')
     const r = h.err(h.call('mapError'), 'mapper bug')
-    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'run.halted'])
     expect(of(r, 'step.failed')[0]).toMatchObject({ error: { message: 'boom' } })
     expect(of(r, 'step.failed')[0]).not.toHaveProperty('data')
     expect(h.rec('t').error).not.toHaveProperty('data')
@@ -238,7 +238,7 @@ describe('replay(log) == state — every event kind', () => {
     h.ok(h.call('on', 'a'), undefined)
     h.cmd({ type: 'send', event: 'note', payload: { id: 'other' } }) // dropped: correlation
     h.cmd({ type: 'send', event: 'note', payload: { id: 'me' } }) // flow-level only
-    h.ok(h.call('flowOn'), undefined)
+    h.ok(h.call('wizardOn'), undefined)
     h.cmd('next') // a → opt(when) + work(key)
     h.ok(h.call('when', 'opt'), false)
     h.ok(h.call('idempotencyKey', 'work'), 'w')
@@ -262,7 +262,7 @@ describe('replay(log) == state — every event kind', () => {
     const seen = new Set(h.log.map((e) => e.type))
     for (const t of [
       'event.dropped',
-      'event.flowDelivered',
+      'event.wizardDelivered',
       'event.handlerResultIgnored',
       'step.whenStarted',
       'step.whenEvaluated',

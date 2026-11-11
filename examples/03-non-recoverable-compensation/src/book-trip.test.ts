@@ -1,6 +1,6 @@
 import type { RunEvent } from '@openwizard/core'
 import { describe, expect, it } from 'vitest'
-import { bookTripFlow, type Deps } from './book-trip'
+import { bookTrip, type Deps } from './book-trip'
 
 /** Synchronous in-memory suppliers that record every call in order. */
 function fakeSuppliers(options: { hotelCancelFailures?: number } = {}) {
@@ -46,12 +46,12 @@ function fakeSuppliers(options: { hotelCancelFailures?: number } = {}) {
 }
 
 function make(deps: Deps) {
-  const run = bookTripFlow.create({ tripId: 'T1', total: 900 }, { deps })
-  const events: RunEvent<typeof bookTripFlow>[] = []
+  const run = bookTrip.create({ tripId: 'T1', total: 900 }, { deps })
+  const events: RunEvent<typeof bookTrip>[] = []
   run.observe((event) => events.push(event))
   const eventsOfType = <T extends RunEvent['type']>(type: T) =>
     events.filter(
-      (event): event is Extract<RunEvent<typeof bookTripFlow>, { type: T }> => event.type === type,
+      (event): event is Extract<RunEvent<typeof bookTrip>, { type: T }> => event.type === type,
     )
   return { run, events, eventsOfType }
 }
@@ -96,7 +96,7 @@ describe('03 compensation: onFailure "compensate"', () => {
     expect(state.saga.failures).toEqual([])
 
     // The events: the plan is announced first, then one started/compensated pair per entry.
-    expect(eventsOfType('flow.compensating')[0]).toMatchObject({
+    expect(eventsOfType('run.compensating')[0]).toMatchObject({
       plan: ['reserveCar', 'reserveHotel', 'reserveFlight'],
       status: 'failed',
     })
@@ -110,20 +110,20 @@ describe('03 compensation: onFailure "compensate"', () => {
       'reserveHotel',
       'reserveFlight',
     ])
-    expect(eventsOfType('flow.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
+    expect(eventsOfType('run.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
     const types = events.map((event) => event.type)
-    expect(types.indexOf('step.failed')).toBeLessThan(types.indexOf('flow.compensating'))
-    expect(types.indexOf('flow.compensating')).toBeLessThan(
+    expect(types.indexOf('step.failed')).toBeLessThan(types.indexOf('run.compensating'))
+    expect(types.indexOf('run.compensating')).toBeLessThan(
       types.indexOf('step.compensationStarted'),
     )
-    expect(types.at(-1)).toBe('flow.compensated')
+    expect(types.at(-1)).toBe('run.compensated')
 
-    // A compensated flow is terminal: every further command is rejected as a value.
+    // A compensated run is terminal: every further command is rejected as a value.
     expect(run.explain('charge')).toMatchObject({
       status: 'failed',
-      reasons: ['flow-terminal', 'failed:run'],
+      reasons: ['run-terminal', 'failed:run'],
     })
-    expect(await run.retry('charge')).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
+    expect(await run.retry('charge')).toMatchObject({ ok: false, code: 'RUN_TERMINAL' })
     expect(await run.next()).toMatchObject({ ok: false })
     run.dispose()
   })
@@ -148,7 +148,7 @@ describe('03 compensation: onFailure "compensate"', () => {
       step: 'reserveHotel',
       error: { message: 'hotel desk offline' },
     })
-    expect(eventsOfType('flow.compensated')[0]).toMatchObject({
+    expect(eventsOfType('run.compensated')[0]).toMatchObject({
       failures: ['reserveHotel'],
       status: 'failed',
     })
@@ -163,11 +163,11 @@ describe('03 compensation: onFailure "compensate"', () => {
     ])
     expect(run.getState().steps.reserveHotel.status).toBe('compensated')
     expect(run.getState().saga.failures).toEqual([])
-    expect(eventsOfType('flow.compensated')[0]).toMatchObject({ failures: [] })
+    expect(eventsOfType('run.compensated')[0]).toMatchObject({ failures: [] })
     // Nothing left to compensate → terminal for further compensate commands too.
     expect(await run.compensate({ from: 'reserveCar' })).toMatchObject({
       ok: false,
-      code: 'FLOW_TERMINAL',
+      code: 'RUN_TERMINAL',
     })
     run.dispose()
   })

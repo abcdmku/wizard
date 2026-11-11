@@ -73,12 +73,12 @@ export function routeEvent(b: Batch, cmd: Extract<Command, { type: 'send' }>): v
   for (const to of targets) {
     emit(b, { type: 'event.delivered', event, to, inboxId, payload })
   }
-  const flowHandled = b.env.def.on?.[event] !== undefined
+  const wizardHandled = b.env.def.on?.[event] !== undefined
   const busyView = busyViewListener(b, event)
-  if (flowHandled) emit(b, { type: 'event.flowDelivered', event, inboxId, payload })
-  if (targets.length > 0 || (flowHandled && !busyView)) return
+  if (wizardHandled) emit(b, { type: 'event.wizardDelivered', event, inboxId, payload })
+  if (targets.length > 0 || (wizardHandled && !busyView)) return
   const policy = b.env.def.policies.unmatchedEvents
-  // Nothing (or only the flow) handled it: buffer per policy — always when a busy view would have.
+  // Nothing (or only the wizard) handled it: buffer per policy — always when a busy view would have.
   if (policy.buffer || busyView) {
     const expiresAt = b.env.now() + policy.ttlMs
     emit(b, { type: 'event.buffered', event, inboxId, expiresAt, payload })

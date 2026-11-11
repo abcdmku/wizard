@@ -8,7 +8,7 @@ npm install @openwizard/core zod
 
 ## Define once, create many runs
 
-`defineWizard(options, ({ step, view, flow, steps }) => steps(map))` returns a wizard with typed step ids, event payloads, services, and outputs. The wizard is the flow definition, so adapters and child-flow constructors take it directly.
+`defineWizard(options, ({ step, view, child, steps }) => steps(map))` returns a wizard with typed step ids, event payloads, services, and outputs. The wizard is the definition, so adapters and the `child` constructor take it directly.
 
 Use `wizard.create(input, options?)` for a live run that your application will drive. Use `wizard.run(input, options?)` to start and get a done, failed, cancelled, halted, or waiting outcome. A waiting or halted outcome includes the snapshot for `wizard.resume(snapshot, options?)`.
 
@@ -26,13 +26,13 @@ Use `wizard.create(input, options?)` for a live run that your application will d
 
 ## Model the work and data
 
-`step({ run })` executes work. `step({ each, run })` maps work over items and keeps results in input order. `step({ waitFor })` waits for an external event; `step({ sleep })` waits for a persisted deadline. `view({ input })` collects input. `flow(childWizard, { context })` composes another wizard.
+`step({ run })` executes work. `step({ each, run })` maps work over items and keeps results in input order. `step({ waitFor })` waits for an external event; `step({ sleep })` waits for a persisted deadline. `view({ input })` collects input. `child(childWizard, { context })` composes another wizard.
 
 `next` activates successors. `needs` joins typed producer outputs and activates the consumer when they settle. The [graphs guide](/advanced/graphs) explains how these rules handle fan-out, fan-in, and exclusive branches.
 
 A wait with `timeout: { after, next }` is skipped when its deadline wins, and `timeout.next` runs. A step that needs the wait's output is skipped with it; declare the need as `{ optional: wait }` in a step that must run either way.
 
-Mapped child flows keep one child per input item. Select a live child with `run.child('batch', 0)` or its exact stable key. Mirrors select mapped children by numeric input index. Retrying the mapped flow keeps finished item results.
+Mapped child steps keep one child per input item. Select a live child with `run.child('batch', 0)` or its exact stable key. Mirrors select mapped children by numeric input index. Retrying the mapped wizard keeps finished item results.
 
 ## Own a live run
 

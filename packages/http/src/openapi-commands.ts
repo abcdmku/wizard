@@ -1,21 +1,21 @@
 import type { AnyWizard } from '@openwizard/core'
 import { toJSONSchema } from '@openwizard/core/inspect'
 import {
-  FLOW_COMMAND_TYPES,
-  type FlowCommandType,
+  RUN_COMMAND_TYPES,
+  type RunCommandType,
   STEP_COMMAND_TYPES,
   type StepCommandType,
 } from './access'
 import { partialSchema } from './json-schema'
 import { pascalCase } from './naming'
-import { type FlowDocs, registerDraft } from './openapi-flow'
 import type { JSONSchema } from './openapi-types'
+import { registerDraft, type WizardDocs } from './openapi-wizard'
 
-const DESCRIPTIONS: { readonly [K in FlowCommandType | StepCommandType]: string } = {
+const DESCRIPTIONS: { readonly [K in RunCommandType | StepCommandType]: string } = {
   start: 'Activate the start step(s).',
   next: 'Validate the current view and move forward.',
   back: 'Return to the previous view (its draft is kept).',
-  startReady: 'Start ready steps of a manual flow.',
+  startReady: 'Start ready steps of a manual wizard.',
   cancel: 'Cancel the run.',
   compensate: 'Run compensation hooks in reverse order.',
   reset: 'Return the run to its initial state.',
@@ -31,7 +31,7 @@ const DESCRIPTIONS: { readonly [K in FlowCommandType | StepCommandType]: string 
 
 /** Commands exposed by one API. */
 interface CommandSelection {
-  readonly flow: ReadonlySet<FlowCommandType>
+  readonly run: ReadonlySet<RunCommandType>
   readonly steps: ReadonlyMap<string, ReadonlySet<StepCommandType>>
 }
 
@@ -39,22 +39,22 @@ interface CommandSelection {
  * Register one named variant per exposed command type and the `<Prefix>Command` union over
  * them, discriminated by `type`.
  */
-export function registerCommands(docs: FlowDocs<AnyWizard>, selection: CommandSelection): void {
+export function registerCommands(docs: WizardDocs<AnyWizard>, selection: CommandSelection): void {
   const mapping: Record<string, string> = {}
-  const add = (type: FlowCommandType | StepCommandType, fields: CommandFields) => {
+  const add = (type: RunCommandType | StepCommandType, fields: CommandFields) => {
     const name = `${docs.names.prefix}${pascalCase(type)}Command`
     docs.registry.ref(name, commandObject(type, fields))
     mapping[type] = `#/components/schemas/${name}`
   }
-  for (const type of FLOW_COMMAND_TYPES) {
-    if (selection.flow.has(type)) add(type, flowCommandFields(type, [...docs.steps.keys()]))
+  for (const type of RUN_COMMAND_TYPES) {
+    if (selection.run.has(type)) add(type, runCommandFields(type, [...docs.steps.keys()]))
   }
   for (const type of STEP_COMMAND_TYPES) {
     const steps = [...selection.steps].filter(([, types]) => types.has(type)).map(([step]) => step)
     if (steps.length > 0) add(type, stepCommandFields(docs, type, steps))
   }
   docs.registry.ref(docs.names.command, {
-    description: `A command for a run of ${docs.flow.name}, selected by \`type\`.`,
+    description: `A command for a run of ${docs.wizard.name}, selected by \`type\`.`,
     oneOf: Object.values(mapping).map(($ref) => ({ $ref })),
     discriminator: { propertyName: 'type', mapping },
   })
@@ -65,7 +65,7 @@ interface CommandFields {
   readonly required: readonly string[]
 }
 
-function flowCommandFields(type: FlowCommandType, steps: readonly string[]): CommandFields {
+function runCommandFields(type: RunCommandType, steps: readonly string[]): CommandFields {
   const reason = { type: 'string', description: 'Recorded with the command.' }
   if (type === 'cancel') return { properties: { reason }, required: [] }
   if (type === 'compensate') {
@@ -81,7 +81,7 @@ function flowCommandFields(type: FlowCommandType, steps: readonly string[]): Com
 }
 
 function stepCommandFields(
-  docs: FlowDocs<AnyWizard>,
+  docs: WizardDocs<AnyWizard>,
   type: StepCommandType,
   steps: readonly string[],
 ): CommandFields {
@@ -90,7 +90,7 @@ function stepCommandFields(
       properties: {
         path: {
           type: 'array',
-          description: `Flow step ids from this run down to the target run; the first is one of: ${steps.join(', ')}.`,
+          description: `Child step ids from this run down to the target run; the first is one of: ${steps.join(', ')}.`,
           items: { type: 'string' },
           minItems: 1,
           maxItems: 8,
@@ -125,7 +125,7 @@ function stepCommandFields(
       properties: {
         step,
         patch: {
-          ...partialSchema(toJSONSchema(docs.flow.context, 'output') ?? {}),
+          ...partialSchema(toJSONSchema(docs.wizard.context, 'output') ?? {}),
           description: 'Context values applied before retrying the failed step.',
         },
       },
@@ -135,7 +135,7 @@ function stepCommandFields(
   return { properties: { step }, required: ['step'] }
 }
 
-function commandObject(type: FlowCommandType | StepCommandType, fields: CommandFields): JSONSchema {
+function commandObject(type: RunCommandType | StepCommandType, fields: CommandFields): JSONSchema {
   return {
     type: 'object',
     description: DESCRIPTIONS[type],

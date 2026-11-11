@@ -161,7 +161,7 @@ describe('e2e persistence with the real machine', () => {
     const saved = (await store.get('k')) as Snapshot
     expect(saved).toMatchObject({
       v: 1,
-      flow: { name: 'persist', version: 1 },
+      wizard: { name: 'persist', version: 1 },
       seq: t.run.getState().seq,
     })
     const nav = t.run.next()

@@ -42,10 +42,10 @@ const upload = reporting('upload', 50)
 const scan = reporting('scan', 75)
 const batchFlow = defineWizard(
   { name: 'batch', context: boundary.trusted<Record<string, never>>() },
-  ({ step, flow, steps }) =>
+  ({ step, child, steps }) =>
     steps(
       {
-        sub: flow(scan.flow, { context: () => ({}), next: 'end' }),
+        sub: child(scan.flow, { context: () => ({}), next: 'end' }),
         end: step({ run: () => 'ok' }),
       },
       { start: 'sub' },

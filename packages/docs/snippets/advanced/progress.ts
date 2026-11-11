@@ -12,9 +12,9 @@ const upload = defineWizard({ name: 'upload', context: z.object({}) }, ({ step, 
   }),
 )
 
-const job = defineWizard({ name: 'job', context: z.object({}) }, ({ step, flow, steps }) =>
+const job = defineWizard({ name: 'job', context: z.object({}) }, ({ step, child, steps }) =>
   steps({
-    nested: flow(upload, { context: () => ({}), next: 'work' }),
+    nested: child(upload, { context: () => ({}), next: 'work' }),
     work: step({
       run: ({ progress }) => {
         progress({ phase: 'indexing' })

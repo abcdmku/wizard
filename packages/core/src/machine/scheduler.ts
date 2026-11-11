@@ -53,7 +53,7 @@ export function clearStepTimers(b: Batch, step: string): void {
 
 /**
  * Nothing new may enter: terminal, compensating, not started, or halted by a failed step of this
- * run (a run halted only because a child flow halted keeps scheduling its other branches).
+ * run (a run halted only because a child run halted keeps scheduling its other branches).
  */
 export function schedulingFrozen(b: Batch): boolean {
   const s = b.state.status
@@ -139,7 +139,7 @@ export function startKind(b: Batch, step: string): void {
       }
       break
     default:
-      // A view waits for the cursor. A child flow starts through `plan`.
+      // A view waits for the cursor. A child run starts through `plan`.
       break
   }
   // A listening step drains its inbox on start (views: once `nav` is idle, see `onNavIdle`).

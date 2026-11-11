@@ -1,12 +1,12 @@
 /**
  * The UI. Every component reads and writes ONLY through the hooks of `checkout` (a Mirror behind a
- * Provider). Nothing here imports the run, the flow module or the server.
+ * Provider). Nothing here imports the run, the wizard module or the server.
  */
 import type { Issue } from '@openwizard/core'
 import type { Mirror } from '@openwizard/core/mirror'
 import { type ReactNode, useId, useState } from 'react'
+import type { checkoutClient } from './checkout'
 import { checkout } from './client'
-import type { checkoutClient } from './flow'
 import { tokenizeCard } from './payments'
 
 export function App({ mirror }: { mirror: Mirror<typeof checkoutClient> }) {

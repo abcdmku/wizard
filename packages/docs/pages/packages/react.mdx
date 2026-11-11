@@ -9,7 +9,7 @@ npm install @openwizard/react react
 ```tsx file="packages/docs/snippets/packages/react.tsx"
 ```
 
-1. `bindReact<typeof signupFlow>()` binds the wizard itself, so hooks know its context, step ids, inputs, and outputs.
+1. `bindReact<typeof signupWizard>()` binds the wizard itself, so hooks know its context, step ids, inputs, and outputs.
 2. `Provider` receives one stable source and makes it available to the hooks below it.
 3. `useSnapshot()` re-renders on every commit and reads the whole visible state.
 4. `useStep('contact')` returns that step's record plus `setInput`, `next`, `back`, `go`, and `resetInput`, and re-renders only when that step changes.
@@ -26,7 +26,7 @@ npm install @openwizard/react react
 | `useCurrent()` | The current view step's record, or `null` |
 | `useStep(id)` | One typed step record with bound helpers |
 | `useSelector(fn, isEqual?)` | A derived value; re-renders when it changes |
-| `useActions()` | Command methods, including retry of mapped child flows |
+| `useActions()` | Command methods, including retry of mapped child steps |
 | `useChild(step)` / `useChild(mappedStep, index)` | Hooks scoped to an ordinary child or one mapped input item |
 | `useConnection()` | Mirror binding only; reads connection state for offline UI |
 

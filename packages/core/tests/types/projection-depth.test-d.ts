@@ -13,32 +13,32 @@ const leafCtx = boundary.trusted<{ n: number }>()
 export const deep0 = defineWizard({ name: 'deep0', context: leafCtx }, ({ step, view, steps }) =>
   steps({ v: view({ next: 'end' }), end: step({ run: ({ context }) => context.n }) }),
 )
-export const deep1 = defineWizard({ name: 'deep1', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep0, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deep1 = defineWizard({ name: 'deep1', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep0, { context: ({ context }) => ({ n: context.n }) }) }),
 )
-export const deep2 = defineWizard({ name: 'deep2', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep1, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deep2 = defineWizard({ name: 'deep2', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep1, { context: ({ context }) => ({ n: context.n }) }) }),
 )
-export const deep3 = defineWizard({ name: 'deep3', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep2, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deep3 = defineWizard({ name: 'deep3', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep2, { context: ({ context }) => ({ n: context.n }) }) }),
 )
-export const deep4 = defineWizard({ name: 'deep4', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep3, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deep4 = defineWizard({ name: 'deep4', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep3, { context: ({ context }) => ({ n: context.n }) }) }),
 )
-export const deep5 = defineWizard({ name: 'deep5', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep4, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deep5 = defineWizard({ name: 'deep5', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep4, { context: ({ context }) => ({ n: context.n }) }) }),
 )
-export const deep6 = defineWizard({ name: 'deep6', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep5, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deep6 = defineWizard({ name: 'deep6', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep5, { context: ({ context }) => ({ n: context.n }) }) }),
 )
-export const deep7 = defineWizard({ name: 'deep7', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep6, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deep7 = defineWizard({ name: 'deep7', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep6, { context: ({ context }) => ({ n: context.n }) }) }),
 )
-export const deep8 = defineWizard({ name: 'deep8', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep7, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deep8 = defineWizard({ name: 'deep8', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep7, { context: ({ context }) => ({ n: context.n }) }) }),
 )
-export const deepReal = defineWizard({ name: 'deepReal', context: leafCtx }, ({ flow, steps }) =>
-  steps({ child: flow(deep8, { context: ({ context }) => ({ n: context.n }) }) }),
+export const deepReal = defineWizard({ name: 'deepReal', context: leafCtx }, ({ child, steps }) =>
+  steps({ child: child(deep8, { context: ({ context }) => ({ n: context.n }) }) }),
 )
 
 type ExposeChild<Inner> = {

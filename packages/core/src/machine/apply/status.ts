@@ -4,28 +4,32 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import { childActivity } from '../child-activity'
 import type { DomainEvent } from '../events'
 import { isEventStep } from '../selectors'
 import type { RunStatus, WizardState } from '../state'
 import { stepIndex } from '../step-index'
 
-export function deriveStatus(def: CompiledFlow, state: WizardState, event: DomainEvent): RunStatus {
+export function deriveStatus(
+  def: CompiledWizard,
+  state: WizardState,
+  event: DomainEvent,
+): RunStatus {
   switch (event.type) {
-    case 'flow.done':
+    case 'run.done':
       return 'done'
-    case 'flow.compensated':
+    case 'run.compensated':
       return event.status
-    case 'flow.cancelled':
+    case 'run.cancelled':
       return 'cancelled'
-    case 'flow.failed':
+    case 'run.failed':
       return 'failed'
-    case 'flow.halted':
+    case 'run.halted':
       return 'halted'
-    case 'flow.compensating':
+    case 'run.compensating':
       return 'compensating'
-    case 'flow.reset':
+    case 'run.reset':
       return 'idle'
     default:
       break
@@ -39,7 +43,7 @@ export function deriveStatus(def: CompiledFlow, state: WizardState, event: Domai
 }
 
 /** Status from the active steps: running > halted child > waiting (views, waits, waiting children). */
-function activityStatus(def: CompiledFlow, state: WizardState): RunStatus {
+function activityStatus(def: CompiledWizard, state: WizardState): RunStatus {
   let waiting = false
   let childHalted = false
   for (const id of state.active) {
@@ -52,7 +56,7 @@ function activityStatus(def: CompiledFlow, state: WizardState): RunStatus {
     switch (rec.kind) {
       case 'step':
         return 'running'
-      case 'flow': {
+      case 'child': {
         const child = childActivity(rec)
         if (child === 'halted') childHalted = true
         else if (child === 'waiting') waiting = true

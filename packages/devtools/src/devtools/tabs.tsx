@@ -4,11 +4,11 @@
  */
 
 import type { RunEvent } from '@openwizard/core'
-import { type FlowGraph as FlowGraphData, traceLine } from '@openwizard/core/inspect'
+import { type Manifest, traceLine } from '@openwizard/core/inspect'
 import { type ChangeEvent, type ReactElement, useMemo } from 'react'
 import { EventLog } from '../events/EventLog'
-import { FlowGraph } from '../graph/FlowGraph'
 import { definitionPath, instanceGraph } from '../graph/instances'
+import { WizardGraph } from '../graph/WizardGraph'
 import { StepInspector } from '../inspector/StepInspector'
 import { collectStatuses } from '../status'
 import type { ReplayState, ReplayWindowStore } from '../timeline/replay-window'
@@ -24,7 +24,7 @@ import {
 
 export interface Shared {
   readonly source: DevtoolsSource
-  readonly graph: FlowGraphData | undefined
+  readonly graph: Manifest | undefined
   readonly selection: GraphSelection | null
   readonly setSelection: (selection: GraphSelection | null) => void
   readonly selectedSeq: number | null
@@ -50,13 +50,13 @@ export function GraphTab({ shared }: { readonly shared: Shared }): ReactElement 
   if (shared.graph === undefined) {
     return (
       <Note>
-        no graph to draw — pass `flow` (or `graph`, from inspect(flow)) to the panel; a run source
-        brings its own.
+        no graph to draw — pass `wizard` (or `graph`, from inspect(wizard)) to the panel; a run
+        source brings its own.
       </Note>
     )
   }
   return (
-    <FlowGraph
+    <WizardGraph
       graph={shared.graph}
       statuses={overlay.statuses}
       childPaths={overlay.childPaths}

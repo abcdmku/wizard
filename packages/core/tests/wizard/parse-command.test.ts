@@ -13,10 +13,10 @@ const leafFlow = defineWizard(
 )
 const midFlow = defineWizard(
   { name: 'mid', context: boundary.trusted() },
-  ({ view, flow, step, steps }) =>
+  ({ view, child, step, steps }) =>
     steps({
       g: view({ input: z.object({}), next: 'h' }),
-      h: flow(leafFlow, { context: () => ({}), next: 'end' }),
+      h: child(leafFlow, { context: () => ({}), next: 'end' }),
       end: step({ run: () => undefined }),
     }),
 )
@@ -26,11 +26,11 @@ const flow = defineWizard(
     context: boundary.trusted<{ n: number }>(),
     events: { e: z.object({ id: z.number() }) },
   },
-  ({ view, step, flow, steps }) =>
+  ({ view, step, child, steps }) =>
     steps({
       a: view({ input: z.object({ x: z.number(), list: z.array(z.unknown()) }), next: 't' }),
       t: step({ run: async () => 1, next: 'f' }),
-      f: flow(midFlow, { context: () => ({}), next: 'v' }),
+      f: child(midFlow, { context: () => ({}), next: 'v' }),
       v: view({ input: z.object({}), next: 'x' }),
       x: step({ run: () => undefined }),
     }),
@@ -112,13 +112,13 @@ describe('parseCommand(flow, input)', () => {
       parseCommand(flow, { type: 'child', path: ['a'], command: { type: 'next' } }),
     ).toMatchObject({
       ok: false,
-      issues: [{ message: "'a' is not a flow step", path: ['path', 0] }],
+      issues: [{ message: "'a' is not a child step", path: ['path', 0] }],
     })
     expect(
       parseCommand(flow, { type: 'child', path: ['f', 'g'], command: { type: 'next' } }),
     ).toMatchObject({
       ok: false,
-      issues: [{ message: "'g' is not a flow step", path: ['path', 1] }],
+      issues: [{ message: "'g' is not a child step", path: ['path', 1] }],
     })
     expect(
       parseCommand(flow, { type: 'child', path: ['f'], command: { type: 'go', step: 'a' } }),

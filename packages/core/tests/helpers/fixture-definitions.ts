@@ -1,16 +1,15 @@
 /**
  * Compiled fixtures shared by machine, interpreter and runtime tests.
  *
- * - `flow({...})` plus ordinary, view, and child-flow helpers build `CompiledFlow`
+ * - `flow({...})` plus ordinary, view, and child-flow helpers build `CompiledWizard`
  *   literals with tiny hooks (no authoring layer involved).
  */
 
 import type {
-  CompiledFlow,
   CompiledStep,
+  CompiledWizard,
   EachSpec,
   ExposeSpec,
-  FlowOnHandlerResult,
   Hook,
   NeedSpec,
   NextRef,
@@ -18,6 +17,7 @@ import type {
   RetryPolicy,
   RuntimeBoundary,
   StepKind,
+  WizardOnHandlerResult,
 } from '../../src/authoring/compiled'
 
 // ---------------------------------------------------------------------------
@@ -179,8 +179,8 @@ export const routingStep = (cfg: RouteStepCfg = {}): StepSpec => {
   return base('step', { ...cfg, ...(dynamicNext !== undefined ? { dynamicNext } : {}) }, {})
 }
 
-export const flowStep = (child: CompiledFlow, cfg: FlowStepCfg = {}): StepSpec => ({
-  ...base('flow', cfg, {
+export const flowStep = (child: CompiledWizard, cfg: FlowStepCfg = {}): StepSpec => ({
+  ...base('child', cfg, {
     childContext: cfg.context ?? (() => ({})),
     ...(cfg.deps !== undefined ? { childDeps: cfg.deps } : {}),
     ...(cfg.output !== undefined ? { childOutput: cfg.output } : {}),
@@ -203,15 +203,15 @@ export interface FlowCfg {
   readonly version?: number
   readonly start: string | readonly string[]
   readonly steps: Readonly<Record<string, StepSpec>>
-  readonly policies?: Partial<CompiledFlow['policies']>
+  readonly policies?: Partial<CompiledWizard['policies']>
   readonly events?: Readonly<Record<string, RuntimeBoundary>>
   /** Flow-level `on[event]` handlers. */
-  readonly on?: Readonly<Record<string, Hook<FlowOnHandlerResult>>>
+  readonly on?: Readonly<Record<string, Hook<WizardOnHandlerResult>>>
   /** Correlation extractors. */
   readonly correlate?: Readonly<Record<string, (payload: unknown) => string | undefined>>
 }
 
-export function flow(cfg: FlowCfg): CompiledFlow {
+export function flow(cfg: FlowCfg): CompiledWizard {
   const order = Object.keys(cfg.steps)
   const steps: Record<string, CompiledStep> = {}
   for (const id of order) steps[id] = { id, ...(cfg.steps[id] as StepSpec) }
@@ -239,7 +239,7 @@ export function flow(cfg: FlowCfg): CompiledFlow {
 }
 
 /** Pull activation and sink output use the same edges as the compiler. */
-export function needFeeds(steps: Readonly<Record<string, CompiledStep>>): CompiledFlow['feeds'] {
+export function needFeeds(steps: Readonly<Record<string, CompiledStep>>): CompiledWizard['feeds'] {
   const feeds: Record<string, string[]> = {}
   for (const [id, step] of Object.entries(steps)) {
     for (const need of Object.values(step.needs ?? {})) {

@@ -1,7 +1,7 @@
 import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const helloFlow = defineWizard(
+export const hello = defineWizard(
   {
     name: 'hello',
     description: 'Greets a person by name.',

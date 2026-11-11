@@ -39,12 +39,12 @@ describe('run outcomes', () => {
   })
 
   it('lists own and child outside waits flat in every outcome/query', async () => {
-    const child = defineWizard({ name: 'child', context: z.object({}) }, ({ view, steps }) =>
+    const childWizard = defineWizard({ name: 'child', context: z.object({}) }, ({ view, steps }) =>
       steps({ ask: view({ input: z.object({}) }) }),
     )
     const parent = defineWizard(
       { name: 'parent', context: z.object({}), events: { approved: z.object({}) } },
-      ({ step, flow, steps }) =>
+      ({ step, child, steps }) =>
         steps(
           {
             approval: step({
@@ -52,7 +52,7 @@ describe('run outcomes', () => {
               timeout: { after: '1h', next: 'end' },
               next: 'end',
             }),
-            sub: flow(child, { context: () => ({}), next: 'end' }),
+            sub: child(childWizard, { context: () => ({}), next: 'end' }),
             end: step({ run: () => undefined }),
           },
           { start: ['approval', 'sub'] },
@@ -139,15 +139,15 @@ describe('run outcomes', () => {
   })
 
   it('returns all indexed child waits with the item index in their paths', async () => {
-    const child = defineWizard(
+    const childWizard = defineWizard(
       { name: 'item', context: z.object({ id: z.number() }) },
       ({ view, steps }) => steps({ ask: view({ input: z.object({}) }) }),
     )
     const parent = defineWizard(
       { name: 'items', context: z.object({ ids: z.array(z.number()) }) },
-      ({ flow, steps }) =>
+      ({ child, steps }) =>
         steps({
-          items: flow(child, {
+          items: child(childWizard, {
             each: ({ context }) => context.ids,
             context: ({ item }) => ({ id: item }),
           }),

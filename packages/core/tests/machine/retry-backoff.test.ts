@@ -55,7 +55,7 @@ describe('retry / backoff / timeout', () => {
     expect(delays).toEqual([200, 400, 500])
     // attempt 4 fails for good
     const last = h.err(h.call('run', 't'), 'final failure')
-    expect(last.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
+    expect(last.types).toEqual(['step.runFailed', 'step.failed', 'run.halted'])
     expect(of(last, 'step.runFailed')[0]?.willRetry).toBe(false)
     expect(h.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'run', attempt: 4 } })
     expect(h.state.status).toBe('halted')
@@ -122,7 +122,7 @@ describe('retry / backoff / timeout', () => {
     const call = h.call('run')
     expect(call.timeoutMs).toBe(50)
     const r = h.err(call, 'timed out', { timedOut: true })
-    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
+    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'run.halted'])
     expect(of(r, 'step.failed')[0]?.kind).toBe('timeout')
     expect(h.rec('t').error?.kind).toBe('timeout')
   })
@@ -135,8 +135,8 @@ describe('retry / backoff / timeout', () => {
     h.err(h.call('run'), 'nope')
     expect(h.state.status).toBe('halted')
     // navigation and startReady are rejected while halted; recovery commands are not
-    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('flow-halted')
-    expect(of(h.cmd('startReady'), 'command.rejected')[0]?.code).toBe('FLOW_HALTED')
+    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('run-halted')
+    expect(of(h.cmd('startReady'), 'command.rejected')[0]?.code).toBe('RUN_HALTED')
     expect(of(h.cmd({ type: 'retry', step: 'end' }), 'command.rejected')[0]?.code).toBe(
       'NOT_RUNNABLE',
     )
@@ -261,7 +261,7 @@ describe('sink completion', () => {
     const r = h.ok(fo, { total: 1 })
     expect(r.types).toEqual(['step.runSucceeded', 'step.done'])
     const settled = h.step({ type: 'settle' })
-    expect(settled.types).toEqual(['flow.done'])
+    expect(settled.types).toEqual(['run.done'])
     expect(h.state.output).toEqual({ total: 1 })
     expect(h.rec('end').output).toEqual({ total: 1 })
     expect(settled.effects.at(-1)).toEqual({ kind: 'persist', reason: 'final' })

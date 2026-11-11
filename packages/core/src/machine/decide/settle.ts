@@ -1,5 +1,5 @@
 /**
- * `settle` (sent by the interpreter once a drained run has nothing in flight): finish the flow
+ * `settle` (sent by the interpreter once a drained run has nothing in flight): finish the run
  * with its output, or fail a join that can never run (`DEPS_UNREACHABLE`).
  * @internal
  */
@@ -20,7 +20,7 @@ export function onSettle(b: Batch): void {
   if (stuck !== undefined) failStuckJoin(b, stuck)
 }
 
-/** `flow.done` with the selector's value, else the output of the last completed sink. */
+/** `run.done` with the selector's value, else the output of the last completed sink. */
 function finish(b: Batch): void {
   const state = b.state
   let last: StepRecord | undefined
@@ -34,12 +34,12 @@ function finish(b: Batch): void {
       b.env.def.output === undefined ? last?.output : b.env.def.output({ context: state.context })
     if (output !== null && typeof output === 'object' && 'then' in output) {
       Promise.resolve(output).catch(() => {})
-      throw new Error('Flow output selectors must be synchronous; perform async work in a step')
+      throw new Error('Wizard output selectors must be synchronous; perform async work in a step')
     }
-    emit(b, { type: 'flow.done', ...(output === undefined ? {} : { output }) })
+    emit(b, { type: 'run.done', ...(output === undefined ? {} : { output }) })
   } catch (error) {
     emit(b, {
-      type: 'flow.failed',
+      type: 'run.failed',
       error: {
         name: 'OutputError',
         message: describeError(error),
@@ -48,7 +48,7 @@ function finish(b: Batch): void {
   }
 }
 
-/** The join fails under the flow's failure policy; `skip(join)` lets the run finish without it. */
+/** The join fails under the run's failure policy; `skip(join)` lets the run finish without it. */
 function failStuckJoin(b: Batch, { step, deps, routers }: StuckJoin): void {
   const quoted = (ids: readonly string[]) => ids.map((id) => `'${id}'`).join(', ')
   const routed = routers.length > 0 ? `; ${quoted(routers)} routed elsewhere` : ''

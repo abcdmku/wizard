@@ -1,11 +1,11 @@
 import type { AnyWizard, ExposeSpec, ProjectionDefinition } from '@openwizard/core'
-import { type FlowGraph, type FlowGraphNode, inspect, toJSONSchema } from '@openwizard/core/inspect'
+import { inspect, type Manifest, type ManifestStep, toJSONSchema } from '@openwizard/core/inspect'
 import { isRecord, partialSchema, pickProperties, refTo, type SchemaRegistry } from './json-schema'
 import { pascalCase } from './naming'
 import type { JSONSchema } from './openapi-types'
 
-/** Component names of one API, prefixed with its id so several flows share a document. */
-export interface FlowSchemaNames {
+/** Component names of one API, prefixed with its id so several wizards share a document. */
+export interface WizardSchemaNames {
   readonly prefix: string
   readonly input: string
   readonly run: string
@@ -17,7 +17,7 @@ export interface FlowSchemaNames {
   state(step: string): string
 }
 
-export function flowSchemaNames(id: string): FlowSchemaNames {
+export function wizardSchemaNames(id: string): WizardSchemaNames {
   const prefix = pascalCase(id, 'Run')
   return {
     prefix,
@@ -33,26 +33,26 @@ export function flowSchemaNames(id: string): FlowSchemaNames {
 }
 
 /**
- * Everything the OpenAPI builders read about one flow: the core manifest (`inspect`) for step
+ * Everything the OpenAPI builders read about one wizard: the core manifest (`inspect`) for step
  * kinds, prose and JSON Schemas, the component names, and the registry they fill.
  */
-export interface FlowDocs<F extends AnyWizard> {
-  readonly flow: F
+export interface WizardDocs<F extends AnyWizard> {
+  readonly wizard: F
   readonly description: string | undefined
-  readonly steps: ReadonlyMap<string, FlowGraphNode>
-  readonly schemas: FlowGraph['schemas']
-  readonly names: FlowSchemaNames
+  readonly steps: ReadonlyMap<string, ManifestStep>
+  readonly schemas: Manifest['schemas']
+  readonly names: WizardSchemaNames
   readonly registry: SchemaRegistry
 }
 
-export function flowDocs<F extends AnyWizard>(
-  flow: F,
-  names: FlowSchemaNames,
+export function wizardDocs<F extends AnyWizard>(
+  wizard: F,
+  names: WizardSchemaNames,
   registry: SchemaRegistry,
-): FlowDocs<F> {
-  const graph = inspect(flow)
+): WizardDocs<F> {
+  const graph = inspect(wizard)
   return {
-    flow,
+    wizard,
     description: graph.description,
     steps: new Map(
       graph.nodes.filter((node) => node.path.length === 0).map((node) => [node.id, node]),
@@ -63,18 +63,18 @@ export function flowDocs<F extends AnyWizard>(
   }
 }
 
-/** The context input accepted by `wizard.create`, from the flow's context boundary. */
-export function registerInput(docs: FlowDocs<AnyWizard>): void {
+/** The context input accepted by `wizard.create`, from the wizard's context boundary. */
+export function registerInput(docs: WizardDocs<AnyWizard>): void {
   docs.registry.ref(
     docs.names.input,
     withDescription(
       docs.schemas.context ?? {},
-      docs.description ?? `The context that creates a run of ${docs.flow.name}.`,
+      docs.description ?? `The context that creates a run of ${docs.wizard.name}.`,
     ),
   )
 }
 
-export function registerPayload(docs: FlowDocs<AnyWizard>, event: string): JSONSchema {
+export function registerPayload(docs: WizardDocs<AnyWizard>, event: string): JSONSchema {
   const schema = docs.schemas.events[event] ?? {}
   return docs.registry.ref(
     docs.names.payload(event),
@@ -83,7 +83,7 @@ export function registerPayload(docs: FlowDocs<AnyWizard>, event: string): JSONS
 }
 
 /** Partial view input (a draft patch), for `setInput` and exposed view inputs. */
-export function registerDraft(docs: FlowDocs<AnyWizard>, step: string): JSONSchema {
+export function registerDraft(docs: WizardDocs<AnyWizard>, step: string): JSONSchema {
   const schema = partialSchema(docs.steps.get(step)?.input ?? {})
   return docs.registry.ref(
     docs.names.draft(step),
@@ -96,24 +96,24 @@ export function registerDraft(docs: FlowDocs<AnyWizard>, step: string): JSONSche
  * shape is its mapper's and is documented as an open object.
  */
 export function registerRun<F extends AnyWizard>(
-  docs: FlowDocs<F>,
+  docs: WizardDocs<F>,
   expose: ExposeSpec<F> | ExposeSpec<ProjectionDefinition<F>> | undefined,
 ): void {
-  const { flow, names, registry } = docs
+  const { wizard, names, registry } = docs
   if (expose === undefined) {
     registry.ref(names.run, {
       type: 'object',
-      description: `State projected from a run of ${flow.name}.`,
+      description: `State projected from a run of ${wizard.name}.`,
     })
     return
   }
   const steps = [...docs.steps.keys()]
   const views = steps.filter((step) => docs.steps.get(step)?.kind === 'view')
   const exposed = new Map<string, unknown>(Object.entries(expose.steps ?? {}))
-  const context = pickProperties(toJSONSchema(flow.context, 'output'), expose.context ?? [])
+  const context = pickProperties(toJSONSchema(wizard.context, 'output'), expose.context ?? [])
   registry.ref(names.run, {
     type: 'object',
-    description: docs.description ?? `Client state of a run of ${flow.name}.`,
+    description: docs.description ?? `Client state of a run of ${wizard.name}.`,
     required: [
       'instanceId',
       'epoch',
@@ -143,7 +143,7 @@ export function registerRun<F extends AnyWizard>(
         ),
       }),
       ...(expose.output === true
-        ? { output: { description: 'Flow output once the run is done.' } }
+        ? { output: { description: 'Wizard output once the run is done.' } }
         : {}),
       ...(expose.progress === true ? { progress: refTo('Progress') } : {}),
     },
@@ -152,7 +152,7 @@ export function registerRun<F extends AnyWizard>(
 
 /** Discriminated union (on `id`) of the readable steps' states: the step-read response. */
 export function registerStepState<F extends AnyWizard>(
-  docs: FlowDocs<F>,
+  docs: WizardDocs<F>,
   expose: ExposeSpec<F> | ExposeSpec<ProjectionDefinition<F>> | undefined,
   steps: readonly string[],
 ): void {
@@ -168,7 +168,7 @@ export function registerStepState<F extends AnyWizard>(
   })
 }
 
-function registerState(docs: FlowDocs<AnyWizard>, step: string, exposed: unknown): JSONSchema {
+function registerState(docs: WizardDocs<AnyWizard>, step: string, exposed: unknown): JSONSchema {
   const on = (key: string) =>
     isRecord(exposed) && exposed[key] !== undefined && exposed[key] !== false
   const node = docs.steps.get(step)

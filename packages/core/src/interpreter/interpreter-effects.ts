@@ -71,7 +71,7 @@ export function createEffectDispatcher<H extends ChildHandle, P>(
               error: {
                 name: 'WizardError',
                 code: 'CHILD_UNSUPPORTED',
-                message: 'nested flows are not enabled on this interpreter',
+                message: 'child runs are not enabled on this interpreter',
               },
             },
           },

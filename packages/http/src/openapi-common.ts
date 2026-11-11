@@ -35,7 +35,7 @@ const STEP_PHASE = {
   compensating: 0,
 } as const satisfies Record<StepPhase, 0>
 
-/** Component schemas every OpenWizard API shares, independent of the flow. */
+/** Component schemas every OpenWizard API shares, independent of the wizard. */
 export const COMMON_SCHEMAS: { readonly [name: string]: JSONSchema } = {
   Error: {
     type: 'object',

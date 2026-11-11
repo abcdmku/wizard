@@ -31,7 +31,7 @@ export interface StepReading {
   readonly missing?: string
 }
 
-/** Read step `id` of the flow at `path` from `source` and its current `snapshot`. */
+/** Read step `id` of the wizard at `path` from `source` and its current `snapshot`. */
 export function readStep(
   source: DevtoolsSource,
   snapshot: unknown,
@@ -52,7 +52,7 @@ function readRunStep(
   const node = snapshotAtPath(snapshot, path)
   const scope = runAtPath(run, path)
   if (node === undefined)
-    return { id, path, missing: `child flow at '${path.join('/')}' is not live` }
+    return { id, path, missing: `child run at '${path.join('/')}' is not live` }
   const record = (node.state.steps as Readonly<Record<string, unknown>>)[id]
   if (typeof record !== 'object' || record === null)
     return { id, path, missing: `unknown step '${id}'` }
@@ -80,7 +80,7 @@ function readProjectedStep(snapshot: unknown, path: readonly string[], id: strin
       return {
         id,
         path,
-        missing: `the projection does not expose the child flow at '${path.join('/')}'`,
+        missing: `the projection does not expose the child run at '${path.join('/')}'`,
       }
     }
     state = child

@@ -8,12 +8,12 @@ Hook progress reaches Mirrors.
   delivers the same `step.progress` event that `run.observe()` delivers locally, so one handler
   works for both. The event never enters frame state, snapshots or the log.
 - Progress is deny-by-default and opt-in per step: `steps: { upload: { progress: true } }`. A
-  child flow's steps opt in inside its nested `child` spec. The run-level `expose.progress: true`
+  child wizard's steps opt in inside its nested `child` spec. The run-level `expose.progress: true`
   still only adds the `{ done, total, ratio }` summary to the state. Select projections opt in
   with `progress: { upload: true, sub: { child: { scan: true } } }`; omitting the map forwards
   no progress events. Mapped child events follow the same explicit nested exposure.
 - A source over a child run (`createMirrorSource(run.child('sub'), childProjection)`) forwards
-  that child's progress with paths relative to the child flow.
+  that child's progress with paths relative to the child wizard.
 - `createMirror({ onListenerError })` and `createMirrorSource(..., { onListenerError })`: as on a run,
   a subscriber or observer that throws
   no longer stops the other listeners or the transport; the error goes to `onListenerError`

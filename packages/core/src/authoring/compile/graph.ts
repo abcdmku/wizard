@@ -1,10 +1,10 @@
 /**
- * Graph analysis of a flow: dependency cycles (definition problems), navigation cycles and
+ * Graph analysis of a wizard: dependency cycles (definition problems), navigation cycles and
  * unreachable steps (warnings).
  * @internal
  */
 
-import type { FlowWarning } from './index'
+import type { ManifestWarning } from './index'
 
 export class StepGraph {
   private readonly nextEdges = new Map<string, Set<string>>()
@@ -32,7 +32,7 @@ export class StepGraph {
   }
 
   /** Cycles through static `next` / `timeout.next` edges: allowed (loops), reported as advice. */
-  warnNavigationCycles(path: readonly string[], out: FlowWarning[]): void {
+  warnNavigationCycles(path: readonly string[], out: ManifestWarning[]): void {
     for (const cycle of findCycles(this.ids, (id) => [...(this.nextEdges.get(id) ?? [])])) {
       out.push({
         code: 'NAV_CYCLE',
@@ -44,7 +44,7 @@ export class StepGraph {
   }
 
   /** Steps with no path from start through normal, alternate or data activation edges. */
-  warnUnreachable(start: readonly string[], path: readonly string[], out: FlowWarning[]): void {
+  warnUnreachable(start: readonly string[], path: readonly string[], out: ManifestWarning[]): void {
     const reached = new Set<string>()
     const queue = start.filter((s) => this.ids.includes(s))
     for (const s of queue) reached.add(s)

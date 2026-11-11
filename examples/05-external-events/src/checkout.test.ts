@@ -1,7 +1,7 @@
 import { parseCommand, type RunEvent } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
-import { checkoutFlow } from './checkout'
+import { checkout } from './checkout'
 
 const MINUTE = 60_000
 const T0 = 1_000_000
@@ -9,18 +9,18 @@ const T0 = 1_000_000
 function make() {
   const scheduler = createTestScheduler({ now: T0 })
   // `correlationId` = the order id: correlated events for another order are dropped.
-  const run = checkoutFlow.create(
+  const run = checkout.create(
     { orderId: 'o-1' },
     {
       correlationId: 'o-1',
       scheduler: scheduler,
     },
   )
-  const events: RunEvent<typeof checkoutFlow>[] = []
+  const events: RunEvent<typeof checkout>[] = []
   run.observe((event) => events.push(event))
   const eventsOfType = <T extends RunEvent['type']>(type: T) =>
     events.filter(
-      (event): event is Extract<RunEvent<typeof checkoutFlow>, { type: T }> => event.type === type,
+      (event): event is Extract<RunEvent<typeof checkout>, { type: T }> => event.type === type,
     )
   return { run, scheduler, events, eventsOfType }
 }
@@ -167,7 +167,7 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     ).toMatchObject({ ok: false, code: 'BOUNDARY_REJECTED' })
     // Typed send calls reject unknown names at compile time. Decode unknown wire data first.
     expect(
-      parseCommand(checkoutFlow, {
+      parseCommand(checkout, {
         type: 'send',
         event: 'payment.refunded',
         payload: {},
@@ -208,7 +208,7 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     run.dispose()
   })
 
-  it('lets a flow-level order.cancelled handler cancel from any step', async () => {
+  it('lets a wizard-level order.cancelled handler cancel from any step', async () => {
     const { run, eventsOfType } = make()
     await run.start() // the cursor is on the review view, no wait step listens
     expect(await run.send('order.cancelled', { orderId: 'o-1', reason: 'customer' })).toMatchObject(
@@ -216,9 +216,9 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
         ok: true,
       },
     )
-    expect(eventsOfType('flow.cancelled').length).toBe(1)
+    expect(eventsOfType('run.cancelled').length).toBe(1)
     expect(run.getState().status).toBe('cancelled')
-    // Later webhooks bounce off a terminal flow (a value, not a throw).
+    // Later webhooks bounce off a terminal run (a value, not a throw).
     expect(await run.send('payment.captured', goodBody)).toMatchObject({ ok: false })
     run.dispose()
   })

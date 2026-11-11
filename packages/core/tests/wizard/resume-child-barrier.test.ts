@@ -8,11 +8,13 @@ it('includes the full restored child tree in the first resume commit', async () 
       form: view({ input: z.object({ answer: z.string() }), initial: { answer: 'saved' } }),
     }),
   )
-  const child = defineWizard({ name: 'child-resume', context: z.object({}) }, ({ flow, steps }) =>
-    steps({ nested: flow(leaf, { context: () => ({}) }) }),
+  const childWizard = defineWizard(
+    { name: 'child-resume', context: z.object({}) },
+    ({ child, steps }) => steps({ nested: child(leaf, { context: () => ({}) }) }),
   )
-  const parent = defineWizard({ name: 'parent-resume', context: z.object({}) }, ({ flow, steps }) =>
-    steps({ child: flow(child, { context: () => ({}) }) }),
+  const parent = defineWizard(
+    { name: 'parent-resume', context: z.object({}) },
+    ({ child, steps }) => steps({ child: child(childWizard, { context: () => ({}) }) }),
   )
   const source = parent.create({})
   await source.start()
@@ -26,7 +28,7 @@ it('includes the full restored child tree in the first resume commit', async () 
   const resumed = parent.resume(persisted, {
     beforeEffects: ({ snapshot, events }) => {
       commits.push(snapshot)
-      if (events.some((event) => event.type === 'flow.resumed')) return gate
+      if (events.some((event) => event.type === 'run.resumed')) return gate
     },
   })
   expect(commits).toHaveLength(1)
@@ -49,13 +51,15 @@ it('includes the full restored child tree in the first resume commit', async () 
 })
 
 it('rejects a missing live mapped child snapshot before executing recovery', async () => {
-  const child = defineWizard(
+  const childWizard = defineWizard(
     { name: 'mapped-wait', context: z.object({}), events: { done: z.string() } },
     ({ step, steps }) =>
       steps({ wait: step({ waitFor: { done: ({ payload }) => ({ done: payload }) } }) }),
   )
-  const parent = defineWizard({ name: 'mapped-parent', context: z.object({}) }, ({ flow, steps }) =>
-    steps({ map: flow(child, { each: () => [1], context: () => ({}) }) }),
+  const parent = defineWizard(
+    { name: 'mapped-parent', context: z.object({}) },
+    ({ child, steps }) =>
+      steps({ map: child(childWizard, { each: () => [1], context: () => ({}) }) }),
   )
   const run = parent.create({})
   await run.start()
@@ -68,7 +72,7 @@ it('rejects a missing live mapped child snapshot before executing recovery', asy
 })
 
 it('attaches every sibling before a dependency mapper failure can commit', async () => {
-  const child = defineWizard(
+  const childWizard = defineWizard(
     {
       name: 'restore-deps-child',
       context: z.object({}),
@@ -83,17 +87,17 @@ it('attaches every sibling before a dependency mapper failure can commit', async
       context: z.object({}),
       deps: boundary.trusted<{ blocked: boolean }>(),
     },
-    ({ flow, steps }) =>
+    ({ child, steps }) =>
       steps(
         {
-          a: flow(child, {
+          a: child(childWizard, {
             context: () => ({}),
             deps: ({ deps }) => {
               if (deps.blocked) throw new Error('dependency temporarily unavailable')
               return deps
             },
           }),
-          b: flow(child, { context: () => ({}) }),
+          b: child(childWizard, { context: () => ({}) }),
         },
         { start: ['a', 'b'] },
       ),

@@ -1,7 +1,7 @@
 /**
  * `initialState` — the state of a run instance before `start`.
  *
- * Every step of the compiled flow gets an idle record so `steps[id]` is always
+ * Every step of the compiled wizard gets an idle record so `steps[id]` is always
  * defined for known ids (the machine never has to guard against missing records
  * for ids that came from `def`).
  *
@@ -49,7 +49,7 @@ export const initialState: InitialState = (env, opts) => {
     instanceId: opts.instanceId,
     ...(opts.correlationId !== undefined ? { correlationId: opts.correlationId } : {}),
     epoch: opts.epoch ?? 0,
-    flow: { name: env.def.name, version: env.def.version },
+    wizard: { name: env.def.name, version: env.def.version },
     startedAt: null,
     updatedAt: opts.now,
   }

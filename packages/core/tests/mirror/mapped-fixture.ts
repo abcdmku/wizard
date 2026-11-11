@@ -27,9 +27,9 @@ export const review = defineWizard(
 
 export const reviews = defineWizard(
   { name: 'mapped-reviews', context: boundary.trusted<{ ids: string[] }>() },
-  ({ flow, steps }) =>
+  ({ child, steps }) =>
     steps({
-      batch: flow(review, {
+      batch: child(review, {
         each: ({ context }) => context.ids,
         key: (id) => id,
         concurrency: 2,

@@ -30,7 +30,7 @@ it.each([
     })
     const http = createHTTP(orders, {
       auth,
-      access: { flow: ['create'], context: ['orderId'] },
+      access: { run: ['create'], context: ['orderId'] },
       idempotency: store,
       runs: {
         get: () => undefined,

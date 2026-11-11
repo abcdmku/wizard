@@ -72,14 +72,14 @@ export function planEachEvent(
             env.def.steps[rec.id]?.hooks.idempotencyKey !== undefined &&
               item.idempotencyKey === undefined
               ? 'idempotencyKey'
-              : rec.kind === 'flow'
+              : rec.kind === 'child'
                 ? 'childContext'
                 : 'run',
           ),
         )
       break
     case 'step.eachItemKeyed':
-      out.push(itemCall(env, state, rec, ev.index, rec.kind === 'flow' ? 'childContext' : 'run'))
+      out.push(itemCall(env, state, rec, ev.index, rec.kind === 'child' ? 'childContext' : 'run'))
       break
     case 'step.eachMapErrorStarted':
       out.push(

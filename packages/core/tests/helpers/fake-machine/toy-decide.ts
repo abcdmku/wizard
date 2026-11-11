@@ -25,7 +25,7 @@ export function toyDecide(
         type: 'command.rejected',
         command: msg as Command,
         reason: 'flow is terminal',
-        code: 'FLOW_TERMINAL',
+        code: 'RUN_TERMINAL',
       },
     ]
   }
@@ -42,7 +42,7 @@ export function toyDecide(
         ]
       }
       const first = env.def.start[0]!
-      const out: DomainEventBody[] = [{ type: 'flow.started', start: first }]
+      const out: DomainEventBody[] = [{ type: 'run.started', start: first }]
       for (const id of env.def.start) out.push(...enterEvents(env, S, id, null))
       return out
     }
@@ -53,7 +53,7 @@ export function toyDecide(
             type: 'command.rejected',
             command: msg,
             reason: 'not started',
-            code: 'FLOW_NOT_STARTED',
+            code: 'RUN_NOT_STARTED',
           },
         ]
       }
@@ -180,24 +180,24 @@ export function toyDecide(
         reason: msg.reason ?? 'cancelled',
       }))
       out.push({
-        type: 'flow.cancelled',
+        type: 'run.cancelled',
         ...(msg.reason !== undefined ? { reason: msg.reason } : {}),
       })
       return out
     }
     case 'reset':
-      return [{ type: 'flow.reset' }]
+      return [{ type: 'run.reset' }]
     case 'child': {
       // Parent FIFO route: accepted child commands become child.command → plan child.send.
       const step = msg.path[0]
       const rec = step === undefined ? undefined : S.steps[step]
-      if (rec === undefined || rec.kind !== 'flow') {
+      if (rec === undefined || rec.kind !== 'child') {
         return [
           {
             type: 'command.rejected',
             command: msg,
-            reason: 'not-a-flow-step',
-            code: 'NOT_A_FLOW_STEP',
+            reason: 'not-a-child-step',
+            code: 'NOT_A_CHILD_STEP',
           },
         ]
       }
@@ -226,7 +226,7 @@ export function toyDecide(
         },
       ]
     case 'resume':
-      return [{ type: 'flow.resumed', fromSeq: msg.fromSeq, interrupted: [] }]
+      return [{ type: 'run.resumed', fromSeq: msg.fromSeq, interrupted: [] }]
     case 'timer.fired': {
       const out: DomainEventBody[] = [{ type: 'timer.fired', timerId: msg.timerId }]
       if (msg.timerId.startsWith('wait:')) {
@@ -256,7 +256,7 @@ export function toyDecide(
       } else if (msg.failed !== undefined) {
         out.push({ type: 'step.failed', step: msg.step, error: msg.failed.error, kind: 'child' })
         out.push({
-          type: 'flow.failed',
+          type: 'run.failed',
           step: msg.step,
           error: msg.failed.error,
         })
@@ -310,14 +310,14 @@ export function toyDecide(
               ...(msg.timedOut ? { timedOut: true } : {}),
             },
             { type: 'step.failed', step: stepId, error: msg.error, kind },
-            { type: 'flow.failed', step: stepId, error: msg.error },
+            { type: 'run.failed', step: stepId, error: msg.error },
           ]
         }
         case 'on': {
           if (msg.type === 'res.err') {
             return [
               { type: 'step.failed', step: stepId, error: msg.error, kind: 'hook' },
-              { type: 'flow.failed', step: stepId, error: msg.error },
+              { type: 'run.failed', step: stepId, error: msg.error },
             ]
           }
           // OnHandlerResult: `{ keep: true }` stays waiting; `{ done }` is the step output.

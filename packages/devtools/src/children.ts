@@ -22,7 +22,7 @@ export function snapshotChildren(snapshot: SnapshotLike): readonly ChildSnapshot
   for (const [address, child] of Object.entries(snapshot.children)) {
     if (child === undefined) continue
     if (Object.hasOwn(snapshot.state.steps, address)) {
-      if (snapshot.state.steps[address]?.kind === 'flow')
+      if (snapshot.state.steps[address]?.kind === 'child')
         children.push({ step: address, snapshot: child })
       continue
     }
@@ -44,7 +44,7 @@ export function snapshotChildren(snapshot: SnapshotLike): readonly ChildSnapshot
       const record = Object.hasOwn(snapshot.state.steps, step)
         ? snapshot.state.steps[step]
         : undefined
-      if (record?.kind === 'flow' && record.each?.keys[index] === decodeURIComponent(encodedKey))
+      if (record?.kind === 'child' && record.each?.keys[index] === decodeURIComponent(encodedKey))
         children.push({ step, index, snapshot: child })
     } catch {
       // Malformed encoded addresses cannot select a child.
@@ -68,7 +68,7 @@ function childAt(
   return childCache.get(snapshot)?.byPath.get(JSON.stringify([step, index]))
 }
 
-/** Follow public paths. An index is consumed only when the stored owner is a mapped flow. */
+/** Follow public paths. An index is consumed only when the stored owner is a mapped wizard. */
 export function snapshotAtPath(
   snapshot: SnapshotLike,
   path: readonly string[],
@@ -78,7 +78,7 @@ export function snapshotAtPath(
     const step = path[position]
     if (step === undefined || node === undefined) return undefined
     const mapped: boolean =
-      node.state.steps[step]?.kind === 'flow' && node.state.steps[step]?.each !== undefined
+      node.state.steps[step]?.kind === 'child' && node.state.steps[step]?.each !== undefined
     const rawIndex: string | undefined = mapped ? path[++position] : undefined
     if (mapped && (rawIndex === undefined || !/^(0|[1-9]\d*)$/.test(rawIndex))) return undefined
     const index: number | undefined = rawIndex === undefined ? undefined : Number(rawIndex)
@@ -98,7 +98,7 @@ export function runAtPath(
     const step = path[position]
     if (step === undefined || node === undefined) return undefined
     const mapped: boolean =
-      node.state.steps[step]?.kind === 'flow' && node.state.steps[step]?.each !== undefined
+      node.state.steps[step]?.kind === 'child' && node.state.steps[step]?.each !== undefined
     const rawIndex: string | undefined = mapped ? path[++position] : undefined
     if (mapped && (rawIndex === undefined || !/^(0|[1-9]\d*)$/.test(rawIndex))) return undefined
     const index: number | undefined = rawIndex === undefined ? undefined : Number(rawIndex)

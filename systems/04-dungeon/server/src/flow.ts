@@ -159,17 +159,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export const migrateDungeonSnapshot: SnapshotMigration = (snapshot, from) => {
   if (from.name !== dungeonFlow.name || from.version !== 1 || !isRecord(snapshot)) return snapshot
-  const flow = snapshot.flow
+  const wizard = snapshot.wizard
   const state = snapshot.state
-  if (!isRecord(flow) || !isRecord(state) || !isRecord(state.flow)) return snapshot
+  if (!isRecord(wizard) || !isRecord(state) || !isRecord(state.wizard)) return snapshot
   const context = state.context
   if (!isRecord(context) || !('world' in context)) return snapshot
   return {
     ...snapshot,
-    flow: { ...flow, version: dungeonFlow.version },
+    wizard: { ...wizard, version: dungeonFlow.version },
     state: {
       ...state,
-      flow: { ...state.flow, version: dungeonFlow.version },
+      wizard: { ...state.wizard, version: dungeonFlow.version },
       context: { world: context.world },
     },
   }

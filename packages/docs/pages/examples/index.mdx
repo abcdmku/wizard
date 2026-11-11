@@ -1,6 +1,6 @@
 # Runnable examples
 
-Every example is a small package under `examples/<name>` with a flow, a runner, and a test.
+Every example is a small package under `examples/<name>` with a wizard, a runner, and a test.
 
 Run one from the repository root:
 
@@ -18,7 +18,7 @@ pnpm --filter example-01-happy-path check
 
 | Example | What it shows | Try it |
 |---|---|---|
-| `01-happy-path` | The smallest flow and run | [Playground](/playground?example=01-happy-path) |
+| `01-happy-path` | The smallest wizard and run | [Playground](/playground?example=01-happy-path) |
 | `02-recoverable-failure` | Timed retries, then a manual `retry()` | [Playground](/playground?example=02-recoverable-failure) |
 | `04-resume-from-snapshot` | Save, dispose, resume, continue | [Playground](/playground?example=04-resume-from-snapshot) |
 | `05-external-events` | Validate, correlate, buffer, deliver events | [Playground](/playground?example=05-external-events) |
@@ -28,18 +28,18 @@ pnpm --filter example-01-happy-path check
 | Example | What it shows | Try it |
 |---|---|---|
 | `03-non-recoverable-compensation` | Undo completed work after a later task fails | [Playground](/playground?example=03-non-recoverable-compensation) |
-| `06-nested-flow` | Parent and child runs | [Playground](/playground?example=06-nested-flow) |
+| `06-nested-wizard` | Parent and child runs | [Playground](/playground?example=06-nested-wizard) |
 | `07-dag-pipeline` | Parallel runnable steps and a join | [Playground](/playground?example=07-dag-pipeline) |
 | `08-react-mirror` | React over a projected browser mirror | Run locally |
-| `09-mermaid` | A flow rendered as Mermaid text | [Playground](/playground?example=09-mermaid) |
+| `09-mermaid` | A wizard rendered as Mermaid text | [Playground](/playground?example=09-mermaid) |
 | `10-devtools` | Inspect a live run in React | Run locally |
-| `11-order-workflow` | Several production features in one order flow | [Playground](/playground?example=11-order-workflow) |
+| `11-order-workflow` | Several production features in one order wizard | [Playground](/playground?example=11-order-workflow) |
 | `12-pulumi-infrastructure` | Bind deployment resources with Pulumi | Run locally |
 | `13-deployment-artifacts` | Host artifacts for several providers | Run locally |
 
 ## How to read one
 
-Open the flow file first, then `main.ts`, then the test. Example 11 combines the most features; the [advanced overview](/advanced) explains each one before you read it.
+Open the wizard file first, then `main.ts`, then the test. Example 11 combines the most features; the [advanced overview](/advanced) explains each one before you read it.
 
 ## Larger systems
 

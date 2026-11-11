@@ -1,6 +1,6 @@
 /** Type contracts for the child-runtime bridge. @internal */
 
-import type { CompiledFlow, HookArgs } from '../authoring/compiled'
+import type { CompiledWizard, HookArgs } from '../authoring/compiled'
 import type { Command, Message } from '../machine/commands'
 import type { DomainEvent } from '../machine/events'
 import type { WizardState } from '../machine/state'
@@ -21,7 +21,7 @@ export interface ChildHandle {
 /**
  * A child interpreter's link to the run that embeds it. Its hook calls wait while an ancestor
  * still has messages queued (so a parent `cancel` that a listener queued lands first),
- * and a child that stops on its own (a fatal error, or a direct `dispose()`) fails the flow step.
+ * and a child that stops on its own (a fatal error, or a direct `dispose()`) fails the child step.
  */
 export interface ParentLink {
   /** True while the parent or one of its ancestors has messages queued. */
@@ -34,7 +34,7 @@ export interface ParentLink {
 
 export interface ChildCreateArgs {
   readonly step: string
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   /** Child context input, already parsed by the child's context boundary. */
   readonly context: unknown
   /** Mapped and parsed child deps, or the parent's deps. */
@@ -47,7 +47,7 @@ export interface ChildCreateArgs {
 /** A prepared child resume plan. The bridge never looks inside `plan`. */
 export interface ChildRestoreArgs<P> {
   readonly step: string
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   readonly plan: P
   readonly deps: unknown
   readonly path: readonly string[]
@@ -61,7 +61,7 @@ export interface ChildFactory<H extends ChildHandle, P = Snapshot> {
 }
 
 export interface ChildBridgeOptions<H extends ChildHandle, P = Snapshot> {
-  readonly def: CompiledFlow
+  readonly def: CompiledWizard
   readonly path: readonly string[]
   readonly ancestors: readonly object[]
   readonly factory: ChildFactory<H, P>

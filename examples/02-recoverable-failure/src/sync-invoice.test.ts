@@ -1,7 +1,7 @@
 import type { RunEvent } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
-import { type Deps, type PostFailure, syncInvoiceFlow } from './sync-invoice'
+import { type Deps, type PostFailure, syncInvoice } from './sync-invoice'
 
 /** A ledger that fails its first `failures` calls (mutable, so a test can "repair" it), then succeeds. */
 function fakeLedger(options: { failures: number }) {
@@ -25,13 +25,12 @@ const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 function make(deps: Deps) {
   const scheduler = createTestScheduler({ now: 1_000 }) // doubles as the clock
-  const run = syncInvoiceFlow.create({ invoiceId: 'INV-7', amount: 120 }, { deps, scheduler })
-  const events: RunEvent<typeof syncInvoiceFlow>[] = []
+  const run = syncInvoice.create({ invoiceId: 'INV-7', amount: 120 }, { deps, scheduler })
+  const events: RunEvent<typeof syncInvoice>[] = []
   run.observe((event) => events.push(event))
   const eventsOfType = <T extends RunEvent['type']>(type: T) =>
     events.filter(
-      (event): event is Extract<RunEvent<typeof syncInvoiceFlow>, { type: T }> =>
-        event.type === type,
+      (event): event is Extract<RunEvent<typeof syncInvoice>, { type: T }> => event.type === type,
     )
   return { run, scheduler, events, eventsOfType }
 }
@@ -104,7 +103,7 @@ describe('02 recoverable failure: exponential retry through the test scheduler',
       scheduler.advance(ms)
       await settle()
     }
-    // 4 runs (1 + 3 retries), then the step fails for good and the flow halts.
+    // 4 runs (1 + 3 retries), then the step fails for good and the run halts.
     expect(state.calls).toBe(4)
     expect(eventsOfType('step.runFailed').map((event) => [event.attempt, event.willRetry])).toEqual(
       [
@@ -118,7 +117,7 @@ describe('02 recoverable failure: exponential retry through the test scheduler',
       1_200, 1_600, 2_400,
     ])
     expect(eventsOfType('step.failed')[0]).toMatchObject({ step: 'post', kind: 'run' })
-    expect(eventsOfType('flow.halted')[0]).toMatchObject({
+    expect(eventsOfType('run.halted')[0]).toMatchObject({
       step: 'post',
       error: { message: 'ledger unavailable (call 4)' },
     })
@@ -134,11 +133,11 @@ describe('02 recoverable failure: exponential retry through the test scheduler',
     expect(run.getState().status).toBe('halted')
     expect(run.explain('post')).toMatchObject({
       status: 'failed',
-      reasons: ['flow-halted', 'failed:run'],
+      reasons: ['run-halted', 'failed:run'],
     })
 
     // A halted run is recoverable: navigation is rejected as a value, retry() is accepted.
-    expect(await run.next()).toMatchObject({ ok: false, code: 'FLOW_HALTED' })
+    expect(await run.next()).toMatchObject({ ok: false, code: 'RUN_HALTED' })
     state.failures = 0 // the ledger is back
     const retried = run.retry('post')
     // The retry command commits synchronously (attempt counter reset); the async run lands later.

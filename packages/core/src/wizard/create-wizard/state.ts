@@ -5,15 +5,14 @@
  */
 
 import type {
-  AnyFlow,
-  ChildFlowOf,
+  AnyWizardDefinition,
   ChildStepId,
+  ChildWizardOf,
   ContextInput,
   Ctx,
   DraftOf,
   ErrorOf,
   EventType,
-  FlowOutput,
   IsEach,
   KindOf,
   OutputOf,
@@ -21,6 +20,7 @@ import type {
   RunStepId,
   StepId,
   ViewId,
+  WizardOutput,
 } from '../../authoring/types'
 import type { Explanation as MachineExplanation } from '../../machine'
 import type { DomainEvent } from '../../machine/events'
@@ -33,7 +33,10 @@ import type { Command } from './command'
  * `kind`, `at`, `attempt?`, `issues?` and — for a runnable step with `mapError` — `data` (`ErrorOf<F, K>`).
  * @public
  */
-export type StepErrorOf<F extends AnyFlow, K extends StepId<F>> = Omit<StepError, 'data'> & {
+export type StepErrorOf<F extends AnyWizardDefinition, K extends StepId<F>> = Omit<
+  StepError,
+  'data'
+> & {
   readonly data?: ErrorOf<F, K>
 }
 
@@ -43,7 +46,7 @@ export type StepErrorOf<F extends AnyFlow, K extends StepId<F>> = Omit<StepError
  * else (status, attempt, guards, timers…) is shared.
  * @public
  */
-export type StepState<F extends AnyFlow, K extends StepId<F>> = Omit<
+export type StepState<F extends AnyWizardDefinition, K extends StepId<F>> = Omit<
   StepRecord,
   'id' | 'kind' | 'input' | 'output' | 'error'
 > & {
@@ -55,7 +58,7 @@ export type StepState<F extends AnyFlow, K extends StepId<F>> = Omit<
 }
 
 /** Typed view of `WizardState`. */
-type StateOf<F extends AnyFlow> = Omit<
+type StateOf<F extends AnyWizardDefinition> = Omit<
   WizardState,
   'current' | 'active' | 'context' | 'steps' | 'history' | 'failedStep' | 'output'
 > & {
@@ -65,48 +68,53 @@ type StateOf<F extends AnyFlow> = Omit<
   readonly steps: { readonly [K in StepId<F>]: StepState<F, K> }
   readonly history: readonly ViewId<F>[]
   readonly failedStep?: StepId<F>
-  readonly output?: FlowOutput<F>
+  readonly output?: WizardOutput<F>
 }
 
 /**
  * The versioned, JSON-safe snapshot of a run (what `getSnapshot()` returns, what a `Store`
  * persists and what `wizard.resume` accepts). `state` is the typed view of the run state;
- * `children` hold the snapshots of live child flows keyed by flow-step id.
+ * `children` hold the snapshots of live child runs keyed by child step id.
  * @public
  */
-type SnapshotDefinition<Types extends AnyFlow['~types']> = Omit<AnyFlow, '~types'> & {
+type SnapshotDefinition<Types extends AnyWizardDefinition['~types']> = Omit<
+  AnyWizardDefinition,
+  '~types'
+> & {
   readonly '~types': Types
 }
 
-/** Snapshot typing depends only on definition facts, so a wizard and its Flow have the same snapshot. @public */
-export type Snapshot<F extends AnyFlow> = SnapshotFields<SnapshotDefinition<F['~types']>>
+/** Snapshot typing depends only on definition facts, so a wizard and its `WizardDefinition` have the same snapshot. @public */
+export type Snapshot<F extends AnyWizardDefinition> = SnapshotFields<
+  SnapshotDefinition<F['~types']>
+>
 
-interface SnapshotFields<F extends AnyFlow> {
+interface SnapshotFields<F extends AnyWizardDefinition> {
   readonly v: 1
-  readonly flow: { readonly name: string; readonly version: number }
+  readonly wizard: { readonly name: string; readonly version: number }
   readonly instanceId: string
   readonly epoch: number
   readonly seq: number
   readonly savedAt: number
   readonly state: StateOf<F>
-  readonly children: { readonly [K in ChildStepId<F>]?: Snapshot<ChildFlowOf<F, K>> }
+  readonly children: { readonly [K in ChildStepId<F>]?: Snapshot<ChildWizardOf<F, K>> }
 }
 
-type RetypeStep<T, F extends AnyFlow> = T extends { readonly step: string }
+type RetypeStep<T, F extends AnyWizardDefinition> = T extends { readonly step: string }
   ? Omit<T, 'step'> & { readonly step: StepId<F> }
   : 'step' extends keyof T
     ? Omit<T, 'step'> & { readonly step?: StepId<F> }
     : T
-type RetypeEvent<T, F extends AnyFlow> = T extends { readonly event: string }
+type RetypeEvent<T, F extends AnyWizardDefinition> = T extends { readonly event: string }
   ? Omit<T, 'event'> & { readonly event: EventType<F> }
   : T
 
-type StepOutputId<F extends AnyFlow> =
+type StepOutputId<F extends AnyWizardDefinition> =
   string extends StepId<F> ? string : Exclude<StepId<F>, ViewId<F>>
 
 type StepOutputEvent<
   T,
-  F extends AnyFlow,
+  F extends AnyWizardDefinition,
   K extends StepOutputId<F> = StepOutputId<F>,
 > = K extends unknown
   ? Omit<T, 'step' | 'output'> & {
@@ -115,39 +123,57 @@ type StepOutputEvent<
     }
   : never
 
-type RunOutputEvent<T, F extends AnyFlow, K extends RunStepId<F> = RunStepId<F>> = K extends unknown
+type RunOutputEvent<
+  T,
+  F extends AnyWizardDefinition,
+  K extends RunStepId<F> = RunStepId<F>,
+> = K extends unknown
   ? Omit<T, 'step' | 'output'> & {
       readonly step: K
       readonly output: OutputOf<F, K>
     }
   : never
 
-type ViewOutputEvent<T, F extends AnyFlow, K extends ViewId<F> = ViewId<F>> = K extends unknown
+type ViewOutputEvent<
+  T,
+  F extends AnyWizardDefinition,
+  K extends ViewId<F> = ViewId<F>,
+> = K extends unknown
   ? Omit<T, 'step' | 'output'> & {
       readonly step: K
       readonly output: OutputOf<F, K>
     }
   : never
 
-type StepErrorEvent<T, F extends AnyFlow, K extends StepId<F> = StepId<F>> = K extends unknown
+type StepErrorEvent<
+  T,
+  F extends AnyWizardDefinition,
+  K extends StepId<F> = StepId<F>,
+> = K extends unknown
   ? Omit<T, 'step' | 'data'> & {
       readonly step: K
       readonly data?: ErrorOf<F, K>
     }
   : never
 
-type RunErrorEvent<T, F extends AnyFlow, K extends RunStepId<F> = RunStepId<F>> = K extends unknown
+type RunErrorEvent<
+  T,
+  F extends AnyWizardDefinition,
+  K extends RunStepId<F> = RunStepId<F>,
+> = K extends unknown
   ? Omit<T, 'step' | 'data'> & {
       readonly step: K
       readonly data?: ErrorOf<F, K>
     }
   : never
 
-type RunStepEvent<T, F extends AnyFlow, K extends RunStepId<F> = RunStepId<F>> = K extends unknown
-  ? Omit<T, 'step'> & { readonly step: K }
-  : never
+type RunStepEvent<
+  T,
+  F extends AnyWizardDefinition,
+  K extends RunStepId<F> = RunStepId<F>,
+> = K extends unknown ? Omit<T, 'step'> & { readonly step: K } : never
 
-type FlowFailedEvent<T, F extends AnyFlow, K extends StepId<F> = StepId<F>> =
+type RunFailedEvent<T, F extends AnyWizardDefinition, K extends StepId<F> = StepId<F>> =
   | (K extends unknown
       ? Omit<T, 'step' | 'data'> & {
           readonly step: K
@@ -158,7 +184,7 @@ type FlowFailedEvent<T, F extends AnyFlow, K extends StepId<F> = StepId<F>> =
 
 type EventPayloadEvent<
   T,
-  F extends AnyFlow,
+  F extends AnyWizardDefinition,
   Optional extends boolean,
   E extends EventType<F> = EventType<F>,
 > = E extends unknown
@@ -167,54 +193,56 @@ type EventPayloadEvent<
         : { readonly payload: PayloadOf<F, E> })
   : never
 
-type InputChangedEvent<T, F extends AnyFlow, K extends ViewId<F> = ViewId<F>> = K extends unknown
-  ? Omit<T, 'step'> & { readonly step: K }
-  : never
+type InputChangedEvent<
+  T,
+  F extends AnyWizardDefinition,
+  K extends ViewId<F> = ViewId<F>,
+> = K extends unknown ? Omit<T, 'step'> & { readonly step: K } : never
 
 type ChildStartedEvent<
   T,
-  F extends AnyFlow,
+  F extends AnyWizardDefinition,
   P extends readonly string[],
   K extends ChildStepId<F> = ChildStepId<F>,
 > = K extends unknown
   ? Omit<T, 'step' | 'childPath' | 'context'> & {
       readonly step: K
       readonly childPath: readonly [...P, K]
-      readonly context: ContextInput<ChildFlowOf<F, K>>
+      readonly context: ContextInput<ChildWizardOf<F, K>>
     }
   : never
 
 type ChildSummaryEvent<
   T,
-  F extends AnyFlow,
+  F extends AnyWizardDefinition,
   K extends ChildStepId<F> = ChildStepId<F>,
 > = K extends unknown
   ? Omit<T, 'step' | 'done' | 'summary'> & {
       readonly step: K
       readonly summary: Omit<ChildSummary, 'current'> & {
-        readonly current: ViewId<ChildFlowOf<F, K>> | null
+        readonly current: ViewId<ChildWizardOf<F, K>> | null
       }
-      readonly done?: { readonly output: FlowOutput<ChildFlowOf<F, K>> }
+      readonly done?: { readonly output: WizardOutput<ChildWizardOf<F, K>> }
     }
   : never
 
 type ChildCommandEvent<
   T,
-  F extends AnyFlow,
+  F extends AnyWizardDefinition,
   K extends ChildStepId<F> = ChildStepId<F>,
 > = K extends unknown
   ? Omit<T, 'step' | 'command'> & {
       readonly step: K
-      readonly command: Command<ChildFlowOf<F, K>>
+      readonly command: Command<ChildWizardOf<F, K>>
     }
   : never
 
-type TypedFlowEvent<T, F extends AnyFlow, P extends readonly string[]> = T extends {
-  readonly type: 'flow.done'
+type TypedRunEvent<T, F extends AnyWizardDefinition, P extends readonly string[]> = T extends {
+  readonly type: 'run.done'
 }
-  ? Omit<T, 'output'> & { readonly output?: FlowOutput<F> }
-  : T extends { readonly type: 'flow.failed' }
-    ? FlowFailedEvent<T, F>
+  ? Omit<T, 'output'> & { readonly output?: WizardOutput<F> }
+  : T extends { readonly type: 'run.failed' }
+    ? RunFailedEvent<T, F>
     : T extends { readonly type: 'step.done' }
       ? StepOutputEvent<T, F>
       : T extends { readonly type: 'step.runSucceeded' }
@@ -241,7 +269,7 @@ type TypedFlowEvent<T, F extends AnyFlow, P extends readonly string[]> = T exten
                           readonly type:
                             | 'event.buffered'
                             | 'event.delivered'
-                            | 'event.flowDelivered'
+                            | 'event.wizardDelivered'
                             | 'event.received'
                         }
                       ? EventPayloadEvent<T, F, false>
@@ -259,8 +287,8 @@ type WithPath<T, P extends readonly string[]> = T extends unknown
   ? Omit<T, 'path'> & { readonly path: P }
   : never
 
-type FlowEventAtPath<F extends AnyFlow, P extends readonly string[]> = WithPath<
-  TypedFlowEvent<DomainEvent, F, P>,
+type RunEventAtPath<F extends AnyWizardDefinition, P extends readonly string[]> = WithPath<
+  TypedRunEvent<DomainEvent, F, P>,
   P
 >
 
@@ -272,11 +300,14 @@ type UntypedChildRunEvent<P extends readonly string[]> = WithPath<
   readonly [...P, string, ...string[]]
 >
 
-type ChildPath<F extends AnyFlow, K extends ChildStepId<F>, P extends readonly string[]> =
-  true extends IsEach<F, K> ? readonly [...P, K, `${number}`] : readonly [...P, K]
+type ChildPath<
+  F extends AnyWizardDefinition,
+  K extends ChildStepId<F>,
+  P extends readonly string[],
+> = true extends IsEach<F, K> ? readonly [...P, K, `${number}`] : readonly [...P, K]
 
 type ChildRunEventCandidates<
-  F extends AnyFlow,
+  F extends AnyWizardDefinition,
   P extends readonly string[],
   Depth extends RunEventDepth,
 > = Depth extends 0
@@ -285,60 +316,77 @@ type ChildRunEventCandidates<
     ? UntypedChildRunEvent<P>
     : {
         [K in ChildStepId<F>]:
-          | FlowEventAtPath<ChildFlowOf<F, K>, ChildPath<F, K, P>>
-          | ChildRunEventAt<ChildFlowOf<F, K>, ChildPath<F, K, P>, PreviousRunEventDepth[Depth]>
+          | RunEventAtPath<ChildWizardOf<F, K>, ChildPath<F, K, P>>
+          | ChildRunEventAt<ChildWizardOf<F, K>, ChildPath<F, K, P>, PreviousRunEventDepth[Depth]>
       }[ChildStepId<F>]
 
-type ChildRunEventAt<F extends AnyFlow, P extends readonly string[], Depth extends RunEventDepth> =
-  ChildRunEventCandidates<F, P, Depth> extends infer Event extends DomainEvent ? Event : never
+type ChildRunEventAt<
+  F extends AnyWizardDefinition,
+  P extends readonly string[],
+  Depth extends RunEventDepth,
+> = ChildRunEventCandidates<F, P, Depth> extends infer Event extends DomainEvent ? Event : never
 
 /**
- * A domain event of the run's OWN flow (`path` is `[]`), typed by the flow: `step` is a
+ * A domain event of the run itself (`path` is `[]`), typed by its wizard: `step` is a
  * `StepId<F>`, `event` an `EventType<F>`.
  * @public
  */
-export type RootRunEvent<F extends AnyFlow = AnyFlow> = FlowEventAtPath<F, readonly []>
+export type RootRunEvent<F extends AnyWizardDefinition = AnyWizardDefinition> = RunEventAtPath<
+  F,
+  readonly []
+>
 
 /**
- * A domain event forwarded from a child flow (`path.length > 0`). `path` identifies the child
- * flow that emitted it; step ids, event names and payloads come from that flow. Typing follows
- * nested flows to the runtime's maximum depth of eight. `AnyFlow` keeps string ids and unknown
+ * A domain event forwarded from a child run (`path.length > 0`). `path` identifies the child
+ * run that emitted it; step ids, event names and payloads come from its wizard. Typing follows
+ * nested wizards to the runtime's maximum depth of eight. `AnyWizardDefinition` keeps string ids and unknown
  * payloads. Narrow a `RunEvent<F>` with `isChildEvent(event)`.
  * @public
  */
-export type ChildRunEvent<F extends AnyFlow = AnyFlow> = ChildRunEventAt<F, readonly [], 8>
+export type ChildRunEvent<F extends AnyWizardDefinition = AnyWizardDefinition> = ChildRunEventAt<
+  F,
+  readonly [],
+  8
+>
 
 /**
- * A domain event of a run (`observe()` / `log()`): either an event of its own flow, typed by
- * `F` (`RootRunEvent<F>`, `path: []`), or one forwarded from a child flow
+ * A domain event of a run (`observe()` / `log()`): either an event of the run itself, typed by
+ * `F` (`RootRunEvent<F>`, `path: []`), or one forwarded from a child run
  * (`ChildRunEvent<F>`, `path: [step, …]`). TypeScript does not narrow on
  * `event.path.length`; use `isChildEvent(event)` to split the two.
  * @public
  */
-export type RunEvent<F extends AnyFlow = AnyFlow> = RootRunEvent<F> | ChildRunEvent<F>
+export type RunEvent<F extends AnyWizardDefinition = AnyWizardDefinition> =
+  | RootRunEvent<F>
+  | ChildRunEvent<F>
 
 /** Name of any event emitted by an OpenWizard run. @public */
 export type RunEventType = DomainEvent['type']
 
 /**
- * True for events forwarded from a child flow (`event.path.length > 0`); narrows a
+ * True for events forwarded from a child run (`event.path.length > 0`); narrows a
  * `RunEvent<F>` to `ChildRunEvent<F>` (and, in the other branch, to `RootRunEvent<F>`).
  * @public
  */
-export function isChildEvent<F extends AnyFlow>(event: RunEvent<F>): event is ChildRunEvent<F> {
+export function isChildEvent<F extends AnyWizardDefinition>(
+  event: RunEvent<F>,
+): event is ChildRunEvent<F> {
   return event.path.length > 0
 }
 
 /**
  * Result of `run.explain(step)`: the step's stored `status` (`'unknown'` for an unknown id),
  * its live `phase` (`undefined` when it has none), stable `reasons` codes explaining why it is
- * (not) where you expect (`flow-not-started`, `nav-busy`, `not-activated`, `deps-unmet:<id>`,
+ * (not) where you expect (`run-not-started`, `nav-busy`, `not-activated`, `deps-unmet:<id>`,
  * `guard-false:canEnter`, `concurrency-limit`, `auto-run-manual`, `failed:<kind>`,
  * `not-current`, `entering`, `retrying`, …), the ready views the cursor could move to, and
  * what the run waits on from the outside (`run.waitingFor()`).
  * @public
  */
-export type Explanation<F extends AnyFlow = AnyFlow> = Omit<MachineExplanation, 'candidates'> & {
+export type Explanation<F extends AnyWizardDefinition = AnyWizardDefinition> = Omit<
+  MachineExplanation,
+  'candidates'
+> & {
   readonly candidates: readonly ViewId<F>[]
   readonly waitingFor: readonly WaitingFor<F>[]
 }

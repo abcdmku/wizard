@@ -1,5 +1,5 @@
 /**
- * `@openwizard/http`: a flow's HTTP API, signed webhook receivers and outbound callbacks as
+ * `@openwizard/http`: a wizard's HTTP API, signed webhook receivers and outbound callbacks as
  * framework-neutral `fetch` handlers with an OpenAPI 3.1 document. The browser client lives in
  * `@openwizard/http/client`, the Nitro adapter in `@openwizard/http/nitro`.
  *
@@ -27,11 +27,11 @@ export type {
 } from './http'
 export type {
   CreateHTTPOptions,
-  FlowAccess,
   HTTPAccess,
   HTTPFailureContext,
   HTTPRunAPIOptions,
   HTTPScopes,
+  RunAccess,
   RunCreation,
   RunDataLayer,
   RunLookup,

@@ -43,7 +43,7 @@ describe('e2e nav: view → runnable step → completing step (all sync)', () =>
     expect(t.run.getState().current).toBe('form')
     expect(t.run.getState().status).toBe('waiting')
     // The cursor rule enters the only ready view through a (hookless) transaction.
-    expect(t.types().slice(0, 2)).toEqual(['flow.started', 'step.arrived'])
+    expect(t.types().slice(0, 2)).toEqual(['run.started', 'step.arrived'])
     expect(t.types().slice(-2)).toEqual(['step.entered', 'transition.committed'])
     expect(t.of('transition.committed')[0]).toMatchObject({
       from: null,
@@ -121,7 +121,7 @@ describe('e2e nav: view → runnable step → completing step (all sync)', () =>
       'step.runStarted',
       'step.runSucceeded',
       'step.done',
-      'flow.done',
+      'run.done',
     ])
     expect(t.rec('form')).toMatchObject({ status: 'done', output: { name: 'ada' } })
     expect(t.rec('work')).toMatchObject({
@@ -134,10 +134,10 @@ describe('e2e nav: view → runnable step → completing step (all sync)', () =>
     // Terminal: further commands are rejected as values, never thrown.
     expect(await t.run.next()).toMatchObject({
       ok: false,
-      reason: 'flow-terminal',
-      code: 'FLOW_TERMINAL',
+      reason: 'run-terminal',
+      code: 'RUN_TERMINAL',
     })
-    expect(await t.run.setInput('form', {})).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
+    expect(await t.run.setInput('form', {})).toMatchObject({ ok: false, code: 'RUN_TERMINAL' })
     // The batches: start(1) + setInput(1) + next chain (all in one drain: 3 batches).
     expect(t.run.log().at(-1)?.seq).toBe(t.run.getState().seq)
   })

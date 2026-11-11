@@ -38,14 +38,14 @@ createHTTP(orders, { runs, auth })
 
 // Old run command names are absent from the access contract.
 // @ts-expect-error startReady is the flow command
-createHTTP(orders, { runs, auth, access: { flow: ['runReady'] } })
+createHTTP(orders, { runs, auth, access: { run: ['runReady'] } })
 // @ts-expect-error startStep is the step command
 createHTTP(orders, { runs, auth, access: { steps: { ship: ['run'] } } })
 
 // The data layer sees the scope provider's principal.
 createHTTP(orders, {
   auth,
-  access: { flow: ['read'] },
+  access: { run: ['read'] },
   runs: {
     get: ({ principal }) => {
       expectTypeOf(principal).toEqualTypeOf<Principal>()
@@ -64,7 +64,7 @@ const withDeps = defineWizard(
 expectTypeOf<RequiredDepsOf<typeof withDeps>>().toEqualTypeOf<{}>()
 const providedHTTP = createHTTP(withDeps, {
   auth,
-  access: { flow: ['create'] },
+  access: { run: ['create'] },
   runs: { get: () => undefined, create: ({ input }) => withDeps.create(input) },
 })
 expectTypeOf(providedHTTP.wizard).toEqualTypeOf<typeof withDeps>()
@@ -73,7 +73,7 @@ const moduleBound = baseWizard.provide({ prefix: 'bound' })
 const projectedHTTP = createHTTP(moduleBound, {
   auth,
   projection: baseProjection,
-  access: { flow: ['read'] },
+  access: { run: ['read'] },
   runs: { get: () => moduleBound.create({ orderId: 'o-1' }) },
 })
 expectTypeOf(projectedHTTP.wizard).toEqualTypeOf<typeof moduleBound>()
@@ -89,7 +89,7 @@ const differentContext = defineWizard(
 )
 createHTTP(differentContext, {
   auth,
-  access: { flow: ['read'] },
+  access: { run: ['read'] },
   runs: { get: () => differentContext.create({ total: 1 }) },
   // @ts-expect-error providing dependencies cannot make a projection compatible with different data
   projection: baseProjection,

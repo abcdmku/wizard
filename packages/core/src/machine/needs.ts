@@ -5,7 +5,7 @@
  * edge) activates it, and its needs only hold it. Every other step with needs is activated by
  * its producers.
  */
-import type { CompiledFlow, NeedSpec } from '../authoring/compiled'
+import type { CompiledWizard, NeedSpec } from '../authoring/compiled'
 import type { Batch } from './batch'
 import { emit } from './batch'
 import type { StepRecord, WizardState } from './state'
@@ -22,12 +22,12 @@ function satisfied(need: NeedSpec, state: WizardState): boolean {
   })
 }
 
-export function needsSatisfied(def: CompiledFlow, state: WizardState, id: string): boolean {
+export function needsSatisfied(def: CompiledWizard, state: WizardState, id: string): boolean {
   return Object.values(def.steps[id]?.needs ?? {}).every((need) => satisfied(need, state))
 }
 
 /** Missing producer ids, shared by readiness explanations and unreachable-join errors. */
-export function unmetNeeds(def: CompiledFlow, state: WizardState, id: string): readonly string[] {
+export function unmetNeeds(def: CompiledWizard, state: WizardState, id: string): readonly string[] {
   const missing = new Set<string>()
   for (const need of Object.values(def.steps[id]?.needs ?? {})) {
     if (satisfied(need, state)) continue
@@ -40,7 +40,7 @@ export function unmetNeeds(def: CompiledFlow, state: WizardState, id: string): r
 
 /** A skipped required producer has no output. Optional needs still accept that completion. */
 function needsSkipReason(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   id: string,
 ): 'needs-skipped' | undefined {
@@ -61,10 +61,10 @@ interface Graph {
   readonly routed: ReadonlySet<string>
 }
 
-const graphs = new WeakMap<CompiledFlow, Graph>()
+const graphs = new WeakMap<CompiledWizard, Graph>()
 
 /** Alternate edges count as possible arrivals, but are never followed by skip propagation. */
-function graph(def: CompiledFlow): Graph {
+function graph(def: CompiledWizard): Graph {
   let cached = graphs.get(def)
   if (cached !== undefined) return cached
   const successors = new Map<string, readonly string[]>()
@@ -188,7 +188,7 @@ export function synchronizeNeeds(b: Batch): void {
         needsSkipReason(b.env.def, b.state, event.step) !== undefined
       )
         emit(b, { type: 'step.skipped', step: event.step, reason: 'needs-skipped' })
-    } else if (event.type === 'flow.resumed') {
+    } else if (event.type === 'run.resumed') {
       for (const id of b.env.def.order) {
         const record = b.state.steps[id]
         if (record?.status === 'done' || record?.status === 'skipped') activateFeeds(b, id)

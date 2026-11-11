@@ -55,7 +55,7 @@ describe('child dependency boundaries', () => {
       error: {
         name: 'BoundaryError',
         code: 'BOUNDARY_REJECTED',
-        message: "deps of child flow 'test' rejected by boundary: service is required",
+        message: "deps of child wizard 'test' rejected by boundary: service is required",
       },
     })
   })

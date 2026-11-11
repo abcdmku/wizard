@@ -153,7 +153,7 @@ export function createCommands(ctx: RuntimeContext): Commands {
     const eventId = options?.eventId
     const boundary = def.events[event]
     if (boundary === undefined) {
-      throw new WizardError('UNKNOWN_EVENT', `flow '${def.name}' declares no event '${event}'`)
+      throw new WizardError('UNKNOWN_EVENT', `wizard '${def.name}' declares no event '${event}'`)
     }
     const routed = after(boundary.parse(payload), (parsed): MaybePromise<SendResult> => {
       if (ctx.disposed) return DROPPED_DISPOSED

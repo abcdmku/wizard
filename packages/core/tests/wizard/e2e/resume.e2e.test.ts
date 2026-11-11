@@ -1,6 +1,6 @@
 /**
  * (f) resume with the real machine: snapshot during `waitFor` (deadline + inbox) →
- * `resumeWizardRuntime` on a fresh runtime → epoch + 1, `flow.resumed`, inbox
+ * `resumeWizardRuntime` on a fresh runtime → epoch + 1, `run.resumed`, inbox
  * drained before the overdue timer fires; snapshot mid-running-task →
  * `step.failed{kind:'interrupted'}` → `retry` works; nested children restored;
  * a missing child snapshot is re-created through the childContext pipeline.
@@ -47,7 +47,7 @@ describe('e2e resume', () => {
     // Resume much later: deadlines are absolute, so the overdue timeout fires in the resume batch.
     const b = e2eResume(def, snap1, { now: 5_000 })
     expect(b.run.epoch).toBe(1)
-    expect(b.run.log()[0]).toMatchObject({ type: 'flow.resumed', fromSeq: (snap1 as any).seq })
+    expect(b.run.log()[0]).toMatchObject({ type: 'run.resumed', fromSeq: (snap1 as any).seq })
     expect(b.rec('w')).toMatchObject({ status: 'skipped', skipReason: 'timeout' })
     expect(b.rec('ok')).toMatchObject({ status: 'skipped', skipReason: 'not-taken' })
     expect(b.run.getState().output).toBe('expired')
@@ -111,7 +111,7 @@ describe('e2e resume', () => {
     a.run.dispose()
 
     const b = e2eResume(def, snap)
-    expect(b.of('flow.resumed')[0]).toMatchObject({ interrupted: ['t'] })
+    expect(b.of('run.resumed')[0]).toMatchObject({ interrupted: ['t'] })
     expect(b.rec('t')).toMatchObject({
       status: 'failed',
       error: { kind: 'interrupted', code: 'INTERRUPTED' },
@@ -184,7 +184,7 @@ describe('e2e resume', () => {
     expect(b.run.getState().status).toBe('done')
     expect(b.run.getState().output).toBe('child done')
 
-    // Missing child snapshot: the parent forgets the summary → plan(flow.resumed) calls childContext again.
+    // Missing child snapshot: the parent forgets the summary → plan(run.resumed) calls childContext again.
     const d = e2eResume(parent, roundTrip({ ...snap, children: {} }))
     expect(contextCalls).toBe(2)
     expect(d.of('child.started')[0]).toMatchObject({ step: 'f', context: { n: 2 } })

@@ -137,15 +137,15 @@ describe('map result persistence', () => {
   })
 
   it('revives schema context in each child snapshot using the indexed child address', async () => {
-    const child = defineWizard(
+    const childWizard = defineWizard(
       { name: 'each-date-child', context: z.object({ since: z.coerce.date() }) },
       ({ view, steps }) => steps({ gate: view({ input: z.object({ approved: z.boolean() }) }) }),
     )
     const wizard = defineWizard(
       { name: 'each-date-parent', context: z.object({}) },
-      ({ flow, steps }) =>
+      ({ child, steps }) =>
         steps({
-          stamp: flow(child, {
+          stamp: child(childWizard, {
             each: () => [0, 1],
             key: (item) => `date/${item}`,
             context: ({ item }) => ({ since: new Date(1_700_000_000_000 + item) }),

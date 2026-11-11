@@ -1,6 +1,6 @@
 /**
  * Effect results (`res.ok` / `res.err`) → events: token checks first, then the transaction
- * (`nav.ts`), the compensation entry (`saga.ts`), the flow-level handler or the step-level hook.
+ * (`nav.ts`), the compensation entry (`saga.ts`), the wizard-level handler or the step-level hook.
  * @internal
  */
 
@@ -42,8 +42,8 @@ export function ignore(
 /** Token checks first, then route to the transaction or the step-level handler. */
 export function onResult(b: Batch, msg: ResultMsg): void {
   const { token } = msg
-  if (msg.hook === 'flowOn') {
-    onFlowHandlerResult(b, msg)
+  if (msg.hook === 'wizardOn') {
+    onWizardHandlerResult(b, msg)
     return
   }
   const r = rec(b, token.step)
@@ -96,12 +96,12 @@ function handlerCancelled(msg: ResultMsg): boolean {
 }
 
 /**
- * Flow-level `on[event]` result. `{ cancel: reason }` cancels the flow like the
+ * Wizard-level `on[event]` result. `{ cancel: reason }` cancels the run like the
  * `cancel` command (compensation policy applies); a throw is recorded as `event.handlerFailed`.
- * Stale once the flow is idle again (reset), terminal or compensating, or when the runtime
+ * Stale once the run is idle again (reset), terminal or compensating, or when the runtime
  * aborted the call.
  */
-function onFlowHandlerResult(b: Batch, msg: ResultMsg): void {
+function onWizardHandlerResult(b: Batch, msg: ResultMsg): void {
   const s = b.state
   if (
     s.status === 'idle' ||
@@ -163,7 +163,7 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
       return onSleepResult(b, msg)
     case 'when':
       // Only meaningful while the predicate is in flight for a pending activation
-      // of a live flow (a terminal / compensating flow schedules nothing: the result is stale).
+      // of a live run (a terminal / compensating run schedules nothing: the result is stale).
       if (r.status === 'active' || r.when !== 'pending' || !r.pendingActivation) return false
       if (isTerminal(b.state) || b.state.status === 'compensating') return false
       if (!ok) fail('hook')
@@ -223,13 +223,13 @@ function onStepResult(b: Batch, msg: ResultMsg): boolean {
       return true
     }
     case 'childContext':
-      if (def.kind !== 'flow' || r.status !== 'active' || r.entering === true) return false
+      if (def.kind !== 'child' || r.status !== 'active' || r.entering === true) return false
       if (ok)
         emit(b, { type: 'child.started', step, childPath: [...b.env.path, step], context: value })
       else fail('hook')
       return true
     case 'childOutput':
-      if (def.kind !== 'flow' || r.status !== 'active') return false
+      if (def.kind !== 'child' || r.status !== 'active') return false
       if (ok) completeStep(b, step, value)
       else fail('hook')
       return true

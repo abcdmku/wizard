@@ -1,7 +1,7 @@
 import { createDurableHost, createMemoryDurableStore } from '@openwizard/durable'
-import { helloFlow } from '../../../../examples/01-happy-path/src/hello-flow'
+import { hello } from '../../../../examples/01-happy-path/src/hello'
 
-const host = createDurableHost(helloFlow, {
+const host = createDurableHost(hello, {
   store: createMemoryDurableStore(),
   ownerId: 'worker-a',
 })

@@ -3,12 +3,12 @@ import { WizardError } from '../errors'
 import { isRecord } from '../record'
 import { compile } from './compile'
 import { resolveReferences } from './references'
-import type { AnyFlow } from './types'
+import type { AnyWizardDefinition } from './types'
 
 const assembly = Symbol('wizard assembly')
 
 /** Public typing belongs to defineWizard; this boundary validates JavaScript callers too. */
-export function buildFlow(options: unknown, build: (api: never) => unknown): AnyFlow {
+export function buildWizard(options: unknown, build: (api: never) => unknown): AnyWizardDefinition {
   const invalid = (message: string): never => {
     throw new WizardError('DEFINITION_INVALID', message, { issues: [{ message }] })
   }
@@ -29,7 +29,7 @@ export function buildFlow(options: unknown, build: (api: never) => unknown): Any
   const api = {
     step: (config: unknown) => record('step', config),
     view: (config: unknown) => record('view', config),
-    flow: (child: unknown, config: unknown) => record('flow', config, child),
+    child: (wizard: unknown, config: unknown) => record('child', config, wizard),
     steps: (map: unknown, startOptions?: unknown) => {
       if (!isRecord(map)) invalid('steps() requires an object of steps')
       if (startOptions !== undefined && !isRecord(startOptions))
@@ -40,12 +40,12 @@ export function buildFlow(options: unknown, build: (api: never) => unknown): Any
   const built = build(api as never)
   if (!isRecord(built) || (built as Record<PropertyKey, unknown>)[assembly] !== true)
     return invalid('wizard build must return steps(map, { start? })')
-  const flow = {
+  const wizard = {
     ...options,
     '~types': undefined,
     steps: resolveReferences(built['~steps']),
     ...(built.start !== undefined ? { start: built.start } : {}),
-  } as unknown as AnyFlow
-  compile(flow)
-  return flow
+  } as unknown as AnyWizardDefinition
+  compile(wizard)
+  return wizard
 }

@@ -1,19 +1,23 @@
 import { boundary } from '../../src/authoring/boundary'
 import type { HookArgs } from '../../src/authoring/compiled'
-import type { AnyFlow } from '../../src/authoring/types'
+import type { AnyWizardDefinition } from '../../src/authoring/types'
 import { WizardError } from '../../src/errors'
 
 /** Explicit untyped boundary for definitions supplied by JavaScript callers. */
-export function rawFlow(steps: unknown, extra: Record<string, unknown> = {}): AnyFlow {
+export function rawFlow(steps: unknown, extra: Record<string, unknown> = {}): AnyWizardDefinition {
   return {
     name: 'raw',
     context: boundary.trusted(),
     steps,
     ...extra,
-  } as unknown as AnyFlow
+  } as unknown as AnyWizardDefinition
 }
 
-export function rawStep(config: Record<string, unknown>, kind = 'step', child?: AnyFlow) {
+export function rawStep(
+  config: Record<string, unknown>,
+  kind = 'step',
+  child?: AnyWizardDefinition,
+) {
   return { kind, config, ...(child === undefined ? {} : { child }) }
 }
 

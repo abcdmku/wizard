@@ -3,7 +3,7 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../../authoring/compiled'
+import type { CompiledWizard } from '../../authoring/compiled'
 import type { DomainEvent } from '../events'
 import { awaitingWhen, cursorInitiated, depsSatisfied, isExplicitCause } from '../selectors'
 import type { NavState, WizardState } from '../state'
@@ -32,7 +32,7 @@ function idleNav(nav: NavState): NavState {
  * Same admission rule as `cursorTarget` (a background auto-advance never steals the cursor).
  */
 function pendingCursor(
-  def: CompiledFlow,
+  def: CompiledWizard,
   state: WizardState,
   targets: readonly string[],
   from: string | null,

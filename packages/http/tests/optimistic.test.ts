@@ -47,7 +47,7 @@ async function pendingEvent() {
     auth,
     runs: { get: () => run },
     scopes: { command: ['orders:command'] },
-    access: { events: ['ping'], flow: ['cancel'], steps: { form: ['setInput'] } },
+    access: { events: ['ping'], run: ['cancel'], steps: { form: ['setInput'] } },
   })
   const wire = {
     commandId: 'slow',

@@ -12,7 +12,7 @@ import {
   trace,
 } from '@opentelemetry/api'
 import type { AnyWizard, Run } from '@openwizard/core'
-import { type FlowRecord, isUnderPath, type Outcome, pathKey, spanContextOf } from './span-state'
+import { isUnderPath, type Outcome, pathKey, type RunRecord, spanContextOf } from './span-state'
 import type { InstrumentRunOptions } from './types'
 
 export function createWorkflowSpans<F extends AnyWizard>(
@@ -24,7 +24,7 @@ export function createWorkflowSpans<F extends AnyWizard>(
   const includeChildren = options.children !== false
   // Observed paths are dynamic; core validates child(step) before returning it.
   const root = run as unknown as Run<AnyWizard>
-  const flowRecords = new Map<string, FlowRecord>()
+  const runRecords = new Map<string, RunRecord>()
   const instanceAttribute = (id: string): string | undefined => {
     const choice = options.instanceId ?? 'raw'
     if (choice === 'none') return undefined
@@ -50,11 +50,11 @@ export function createWorkflowSpans<F extends AnyWizard>(
     return current
   }
 
-  const flowAttributes = (path: readonly string[], source: Run<AnyWizard>): Attributes => {
-    const version = source.flow.version ?? 1
+  const runAttributes = (path: readonly string[], source: Run<AnyWizard>): Attributes => {
+    const version = source.wizard.version ?? 1
     const attributes: Attributes = {
-      'openwizard.flow.name': source.flow.name,
-      'openwizard.flow.version': version,
+      'openwizard.wizard.name': source.wizard.name,
+      'openwizard.wizard.version': version,
       'openwizard.path': [...path],
       'openwizard.epoch': source.epoch,
     }
@@ -65,7 +65,7 @@ export function createWorkflowSpans<F extends AnyWizard>(
 
   const parentContextFor = (path: readonly string[]): Context => {
     if (path.length === 0) return options.parentContext ?? context.active()
-    const parent = flowRecords.get(pathKey(path.slice(0, -1)))
+    const parent = runRecords.get(pathKey(path.slice(0, -1)))
     return parent?.spanContext ?? options.parentContext ?? context.active()
   }
 
@@ -103,19 +103,19 @@ export function createWorkflowSpans<F extends AnyWizard>(
     }
   }
 
-  const stateFor = (path: readonly string[]): FlowRecord | undefined => {
+  const stateFor = (path: readonly string[]): RunRecord | undefined => {
     if (!includeChildren && path.length > 0) return undefined
     const effectivePath = includeChildren ? path : []
-    return flowRecords.get(pathKey(effectivePath))
+    return runRecords.get(pathKey(effectivePath))
   }
 
-  const ensureFlow = (path: readonly string[]): FlowRecord | undefined => {
+  const ensureRun = (path: readonly string[]): RunRecord | undefined => {
     const effectivePath = includeChildren ? [...path] : []
     const key = pathKey(effectivePath)
-    const existing = flowRecords.get(key)
+    const existing = runRecords.get(key)
     if (existing && !existing.ended) return existing
 
-    if (effectivePath.length > 0) ensureFlow(effectivePath.slice(0, -1))
+    if (effectivePath.length > 0) ensureRun(effectivePath.slice(0, -1))
     const source = runAt(effectivePath) ?? root
     const parent = parentContextFor(effectivePath)
     const links: Link[] = []
@@ -137,7 +137,7 @@ export function createWorkflowSpans<F extends AnyWizard>(
     const spanOptions: SpanOptions = {
       kind: SpanKind.INTERNAL,
       attributes: {
-        ...flowAttributes(effectivePath, source),
+        ...runAttributes(effectivePath, source),
         ...(options.resumeContext !== undefined || source.epoch > 0
           ? { 'openwizard.resumed': true }
           : {}),
@@ -147,13 +147,13 @@ export function createWorkflowSpans<F extends AnyWizard>(
     try {
       const span = tracer.startSpan('openwizard.workflow', spanOptions, parent)
       const spanContext = trace.setSpan(parent, span)
-      const record: FlowRecord = {
+      const record: RunRecord = {
         path: effectivePath,
         span,
         spanContext,
         ended: false,
       }
-      flowRecords.set(key, record)
+      runRecords.set(key, record)
       return record
     } catch (error) {
       report(error)
@@ -163,17 +163,17 @@ export function createWorkflowSpans<F extends AnyWizard>(
 
   const closePath = (path: readonly string[], outcome: Outcome): void => {
     const effectivePath = includeChildren ? path : []
-    for (const record of flowRecords.values()) {
+    for (const record of runRecords.values()) {
       if (isUnderPath(record.path, effectivePath) && !record.ended) {
         record.ended = true
-        setAttribute(record.span, 'openwizard.flow.outcome', outcome)
+        setAttribute(record.span, 'openwizard.run.outcome', outcome)
         endSpan(record.span, outcome)
       }
     }
   }
 
   const stop = (): void => {
-    for (const record of [...flowRecords.values()].reverse()) {
+    for (const record of [...runRecords.values()].reverse()) {
       if (!record.ended) {
         record.ended = true
         endSpan(record.span, 'detached')
@@ -186,12 +186,12 @@ export function createWorkflowSpans<F extends AnyWizard>(
     tracer,
     includeChildren,
     runAt,
-    flowAttributes,
+    runAttributes,
     addLink,
     setAttribute,
     endSpan,
     stateFor,
-    ensureFlow,
+    ensureRun,
     closePath,
     stop,
   }

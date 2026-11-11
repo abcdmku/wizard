@@ -10,7 +10,7 @@ interface InstrumentRunOptions {
   readonly parentContext?: Context;
   /** Context (or span context) from an earlier process/epoch. It becomes a span link. */
   readonly resumeContext?: Context | SpanContext;
-  /** Trace child flows observed through this run. Defaults to `true`. */
+  /** Trace child runs observed through this run. Defaults to `true`. */
   readonly children?: boolean;
   /** Event detail recorded on workflow spans. Defaults to `'lifecycle'`. */
   readonly recordEvents?: 'none' | 'lifecycle' | 'all';
@@ -50,7 +50,7 @@ interface RunInstrumentation<F extends AnyWizard> {
 //#endregion
 //#region src/index.d.ts
 /**
- * Attach OpenTelemetry workflow, step-attempt, compensation, and nested-flow spans to a run.
+ * Attach OpenTelemetry workflow, step-attempt, compensation, and nested run spans to a run.
  *
  * Only stable identifiers, event names, counters, paths, and boolean outcomes are exported.
  * Payloads, outputs, input/context patches, inbox/correlation values, idempotency keys, and

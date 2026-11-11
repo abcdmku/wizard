@@ -30,7 +30,7 @@ it. Its needs hold it and never start it. Before, a target with needs started as
 producers finished, even when the router chose another branch, and a `not-taken` target came
 back to life when a producer finished later.
 
-Also removed, because only `dependsOn` used them: the `dependsOn` field of `FlowGraphNode`, the
+Also removed, because only `dependsOn` used them: the `dependsOn` field of `ManifestStep`, the
 `dependsOn` edge kind, its Mermaid and devtools labels, and the `NEVER_ACTIVATES` warning. A step
 whose producers cannot be reached is reported as `UNREACHABLE`. The reason code
 `deps-unmet:<id>` and the error `DEPS_UNREACHABLE` stay and now always refer to a need.

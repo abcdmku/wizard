@@ -4,9 +4,9 @@ The main entry exports authoring, runs, outcomes, persistence, and projections. 
 
 ## `defineWizard(options, build)`
 
-The build callback receives `{ step, view, flow, steps }` and returns `steps(map, { start? })`. It runs once when you define the wizard. Context, event payloads, services, step ids, and outputs are inferred.
+The build callback receives `{ step, view, child, steps }` and returns `steps(map, { start? })`. It runs once when you define the wizard. Context, event payloads, services, step ids, and outputs are inferred.
 
-A wizard is the flow definition. Pass it directly to `inspect(wizard)`, `defineProjection(wizard, ...)`, `flow(childWizard, ...)`, `createDurableHost(wizard, ...)`, and `createHTTP(wizard, ...)`.
+A wizard is the definition. Pass it directly to `inspect(wizard)`, `defineProjection(wizard, ...)`, `child(childWizard, ...)`, `createDurableHost(wizard, ...)`, and `createHTTP(wizard, ...)`.
 
 | Wizard method | Contract |
 |---|---|
@@ -31,7 +31,7 @@ A wizard is the flow definition. Pass it directly to `inspect(wizard)`, `defineP
 | `events` | Payload boundary for each named event |
 | `deps` | Services boundary, often `boundary.trusted<Deps>()` |
 | `output` | Optional synchronous selector `({ context }) => value` |
-| `on` | Flow-level handlers for declared events |
+| `on` | Wizard-level handlers for declared events |
 | `correlate` | Extract a correlation id from each event's payload |
 | `onFailure` | `'halt'` by default, or `'compensate'` |
 | `retry`, `autoRun`, `concurrency` | Default retry policy, `'ready'` or `'manual'` execution, work limit |
@@ -53,7 +53,7 @@ Every constructor takes an object configuration.
 | `step({ sleep, ...options })` | `undefined` after a durable timer expires |
 | `step({ next, ...options })` | `undefined`; routing or join without a work callback |
 | `view({ input, ...options })` | Validated view input |
-| `flow(childWizard, { context, ...options })` | Child wizard output; an array with `each` |
+| `child(childWizard, { context, ...options })` | Child wizard output; an array with `each` |
 
 Common options are `next`, `targets`, `needs`, `when`, `enter`, `exit`, `on`, `label`, `description`, and JSON `meta`. `waitFor` belongs to a wait step; compose a wait and a runnable step when an event should trigger work.
 
@@ -77,7 +77,7 @@ Declare inline `mapError` before `retry` when its `when` callback reads inferred
 
 For a mapped step, `each` snapshots its items when the step starts. `run` receives `item` and `index`; outputs stay in input order even when work completes out of order. Finished item results persist, so resuming or retrying the step keeps them.
 
-`retry(step, { patch? })` accepts runnable steps and mapped child-flow steps, typed by `RetryStepId`. It keeps finished map items and retries failed work. `startStep` accepts only `RunStepId`; it does not start a child-flow step.
+`retry(step, { patch? })` accepts runnable steps and mapped child step steps, typed by `RetryStepId`. It keeps finished map items and retries failed work. `startStep` accepts only `RunStepId`; it does not start a child step.
 
 A fallback marks the failed source step skipped with reason `fallback`, retains its error, and activates the alternate target. Each completed saga entry gets its own compensation `idempotencyKey`, stable across undo retries and resume. The forward call and its undo have distinct keys.
 
@@ -137,11 +137,11 @@ Commands return success or failure values. Navigation returns `NavResult`; event
 | Current work | `whenIdle()`, `explain(step)`, `waitingFor()`, `progress()`, `readyViews()` |
 | Events | `observe(listener)`, `log()` |
 | Children and clients | `child(step)` or `child(mappedStep, keyOrIndex)`, `project(projection, scope?)` |
-| Persistence and identity | `save()`, `id`, `epoch`, `flow` |
+| Persistence and identity | `save()`, `id`, `epoch`, `wizard` |
 
-`run.flow` references the wizard that created the run. `awaitResult()` waits for a terminal result. `awaitOutcome()` also resolves at a recoverable halt or a view/event wait and keeps the live run open. `whenIdle()` waits for the current command drain and persistence barriers, not future timers or unfinished asynchronous hooks.
+`run.wizard` references the wizard that created the run. `awaitResult()` waits for a terminal result. `awaitOutcome()` also resolves at a recoverable halt or a view/event wait and keeps the live run open. `whenIdle()` waits for the current command drain and persistence barriers, not future timers or unfinished asynchronous hooks.
 
-`waitingFor()` is a flat list of `{ kind: 'view' | 'event' | 'sleep', path, step, events?, deadline? }`. An empty path describes this run; a child path names its containing flow steps. Mapped items add their input index as a string, for example `['batch', '0']`. Observed child events use the same paths. `expose.waitingFor: true` includes the flat list in a projection.
+`waitingFor()` is a flat list of `{ kind: 'view' | 'event' | 'sleep', path, step, events?, deadline? }`. An empty path describes this run; a child path names its containing child steps. Mapped items add their input index as a string, for example `['batch', '0']`. Observed child events use the same paths. `expose.waitingFor: true` includes the flat list in a projection.
 
 An ordinary child uses `run.child('fulfil')`. A mapped child requires an input index or exact stable key, such as `run.child('batch', 0)` or `run.child('batch', 'order-42')`. String selectors are keys, so `'0'` selects the key `'0'`, while `0` selects the first input item. These methods return the selected live child run.
 
@@ -155,7 +155,7 @@ A projection works with its authored Wizard and chained `provide` variants. Sepa
 
 For an expose projection, `expose.steps.work.progress: true` allows that step's transient progress events. Nested child steps need their own child spec. `expose.progress: true` adds only the `{ done, total, ratio }` summary to projected state.
 
-For a mapped child flow, `child: true` exposes a readonly array of child summaries. A nested `child` exposure spec produces a readonly array of projected child states. Both arrays follow input order and use `null` for items without child state. Ordinary child flows expose one summary or projected state.
+For a mapped child step, `child: true` exposes a readonly array of child summaries. A nested `child` exposure spec produces a readonly array of projected child states. Both arrays follow input order and use `null` for items without child state. Ordinary child wizards expose one summary or projected state.
 
 Import `createMirrorSource`, `createMirror`, `parseWireCommand`, and `parseFrame` from `@openwizard/core/mirror`. Snapshot frames carry projected state; progress frames carry a `step.progress` event and no state. See [projections and mirrors](/advanced/projections).
 
@@ -178,7 +178,7 @@ A run callback can return or await an adapter. This lets the callback infer `ite
 | `Ctx<F>`, `ContextInput<F>`, `DepsOf<F>`, `RequiredDepsOf<F>` | Parsed context, creation input, full services, remaining required services |
 | `StepId<F>`, `ViewId<F>`, `RunStepId<F>`, `RetryStepId<F>` | All steps, views, runnable steps, and retryable steps |
 | `InputOf<F, K>`, `OutputOf<F, K>`, `ErrorOf<F, K>` | Input, output, and JSON error data of one step |
-| `FlowOutput<F>` | Selector output or inferred sink output |
+| `WizardOutput<F>` | Selector output or inferred sink output |
 | `Run<F>`, `Snapshot<F>`, `RunEvent<F>` | Live run, saved state, and observed events |
 | `RunResult<F>`, `RunOutcome<F>`, `WaitingFor<F>` | Terminal result, parked or terminal outcome, wait description |
 | `DispatchOptions` | Optional `{ expectedVersion: { epoch, seq } }` concurrency guard |

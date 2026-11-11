@@ -19,14 +19,14 @@ export interface Processed {
   readonly disposed: boolean
 }
 
-type ResultCode = WizardErrorCode | 'STALE' | 'FLOW_COMPENSATING'
+type ResultCode = WizardErrorCode | 'STALE' | 'RUN_COMPENSATING'
 
 const RESULT_CODES: ReadonlySet<string> = new Set<ResultCode>([
   'UNKNOWN_STEP',
   'UNKNOWN_EVENT',
   'NOT_A_VIEW',
   'NOT_RUNNABLE',
-  'NOT_A_FLOW_STEP',
+  'NOT_A_CHILD_STEP',
   'NOT_ACTIVE',
   'NOT_REACHABLE',
   'NAV_BUSY',
@@ -35,9 +35,9 @@ const RESULT_CODES: ReadonlySet<string> = new Set<ResultCode>([
   'INVALID_INPUT',
   'BOUNDARY_REJECTED',
   'GUARD_BLOCKED',
-  'FLOW_TERMINAL',
-  'FLOW_HALTED',
-  'FLOW_NOT_STARTED',
+  'RUN_TERMINAL',
+  'RUN_HALTED',
+  'RUN_NOT_STARTED',
   'INVALID_COMMAND',
   'SYNC_VIOLATION',
   'SNAPSHOT_INCOMPATIBLE',
@@ -47,7 +47,7 @@ const RESULT_CODES: ReadonlySet<string> = new Set<ResultCode>([
   'DISPOSED',
   'CANCELLED',
   'STALE',
-  'FLOW_COMPENSATING',
+  'RUN_COMPENSATING',
 ])
 
 function isResultCode(code: string): code is ResultCode {
@@ -57,7 +57,7 @@ function isResultCode(code: string): code is ResultCode {
 /** A `WizardErrorCode` carried by a serialized hook error (e.g. `SYNC_VIOLATION`), if recognized. */
 function wizardCodeOf(error: SerializedError): WizardErrorCode | undefined {
   const code = error.code
-  if (code === undefined || !isResultCode(code) || code === 'STALE' || code === 'FLOW_COMPENSATING')
+  if (code === undefined || !isResultCode(code) || code === 'STALE' || code === 'RUN_COMPENSATING')
     return undefined
   return code
 }
@@ -93,7 +93,7 @@ export function rejectedNavResult(rejected: RejectedResult): NavResult {
   return {
     ok: false,
     reason: reasonForCode(rejected.code),
-    code: rejected.code === 'FLOW_COMPENSATING' ? 'INVALID_COMMAND' : rejected.code,
+    code: rejected.code === 'RUN_COMPENSATING' ? 'INVALID_COMMAND' : rejected.code,
     message: rejected.message,
     ...(rejected.step !== undefined ? { step: rejected.step } : {}),
     ...(rejected.issues !== undefined ? { issues: rejected.issues } : {}),
@@ -124,10 +124,10 @@ const NAV_CODE: Readonly<Record<TransitionRejectReason, WizardErrorCode>> = {
   'guard-canEnter': 'GUARD_BLOCKED',
   'no-target': 'NO_TARGET',
   'no-history': 'NO_HISTORY',
-  'flow-terminal': 'FLOW_TERMINAL',
-  'flow-halted': 'FLOW_HALTED',
-  'flow-not-started': 'FLOW_NOT_STARTED',
-  'flow-compensating': 'INVALID_COMMAND',
+  'run-terminal': 'RUN_TERMINAL',
+  'run-halted': 'RUN_HALTED',
+  'run-not-started': 'RUN_NOT_STARTED',
+  'run-compensating': 'INVALID_COMMAND',
   resumed: 'INVALID_COMMAND',
   'auto-advance-loop': 'INVALID_COMMAND',
 }
@@ -141,10 +141,10 @@ const CODE_REASON: Readonly<Partial<Record<ResultCode, TransitionRejectReason>>>
   GUARD_BLOCKED: 'guard-canEnter',
   NO_TARGET: 'no-target',
   NO_HISTORY: 'no-history',
-  FLOW_TERMINAL: 'flow-terminal',
-  FLOW_HALTED: 'flow-halted',
-  FLOW_NOT_STARTED: 'flow-not-started',
-  FLOW_COMPENSATING: 'flow-compensating',
+  RUN_TERMINAL: 'run-terminal',
+  RUN_HALTED: 'run-halted',
+  RUN_NOT_STARTED: 'run-not-started',
+  RUN_COMPENSATING: 'run-compensating',
   UNKNOWN_STEP: 'not-a-view',
 }
 
@@ -220,7 +220,7 @@ export const DROPPED_DISPOSED: SendResult = {
 }
 
 /**
- * The `SendResult` of a routed event: who handled it (steps, buffer, flow-level handler), a
+ * The `SendResult` of a routed event: who handled it (steps, buffer, wizard-level handler), a
  * duplicate delivery (the machine emits nothing for a remembered `eventId`), or why not.
  */
 export function sendResult(
@@ -237,16 +237,16 @@ export function sendResult(
   }
   const delivered: string[] = []
   let buffered = false
-  let flowHandled = false
+  let wizardHandled = false
   let dropped: string | undefined
   for (const ev of processed.batch) {
     if (ev.type === 'event.delivered' && ev.event === event) delivered.push(ev.to)
     else if (ev.type === 'event.buffered' && ev.event === event) buffered = true
-    else if (ev.type === 'event.flowDelivered' && ev.event === event) flowHandled = true
+    else if (ev.type === 'event.wizardDelivered' && ev.event === event) wizardHandled = true
     else if (ev.type === 'event.dropped' && ev.event === event) dropped = ev.reason
   }
-  // A flow-level handler counts as handled (`delivered` lists step ids only).
-  if (delivered.length > 0 || buffered || flowHandled)
+  // A wizard-level handler counts as handled (`delivered` lists step ids only).
+  if (delivered.length > 0 || buffered || wizardHandled)
     return { ok: true, delivered, buffered, seq: processed.seq }
   return {
     ok: false,

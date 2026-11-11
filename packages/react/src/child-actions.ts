@@ -3,7 +3,7 @@
  * source's `dispatch` as `{ type: 'child', path, command }`. Memoised per (source, path).
  *
  * A `Mirror` carries the same sugar (`mirror.child(step)`), a `Run` does not (its `child(step)`
- * is the live child run, absent until the flow step starts), so both sources go through this one.
+ * is the live child run, absent until the child step starts), so both sources go through this one.
  *
  * @internal
  */

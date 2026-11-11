@@ -150,10 +150,10 @@ describe('e2e — idempotency-key crash-resume and migrate', () => {
     const s = snapshot as { flow: object; state: { steps: Record<string, unknown> } }
     return {
       ...s,
-      flow: { name: 'mig', version: 2 },
+      wizard: { name: 'mig', version: 2 },
       state: {
         ...s.state,
-        flow: { name: 'mig', version: 2 },
+        wizard: { name: 'mig', version: 2 },
         steps: {
           ...s.state.steps,
           b: {
@@ -188,14 +188,14 @@ describe('e2e — idempotency-key crash-resume and migrate', () => {
       },
     })
     expect(from).toEqual([{ name: 'mig', version: 1 }])
-    expect(w2.getState().flow).toEqual({ name: 'mig', version: 2 })
+    expect(w2.getState().wizard).toEqual({ name: 'mig', version: 2 })
     expect(w2.getState().current).toBe('a')
     expect(w2.epoch).toBe(1)
     expect(await w2.next()).toMatchObject({ ok: true, to: 'b' })
     // the migrated snapshot is stamped with the flow's version: an identity migrate is enough
     // when the new version only adds steps (they resume idle)
     const w3 = resumeWizardRuntime(v2, snap, { ...opts(), migrate: (s) => s })
-    expect(w3.getState().flow).toEqual({ name: 'mig', version: 2 })
+    expect(w3.getState().wizard).toEqual({ name: 'mig', version: 2 })
     expect(w3.getState().steps.b).toMatchObject({ status: 'idle' })
     w3.dispose()
     // a name mismatch never migrates
@@ -245,9 +245,9 @@ describe('e2e — idempotency-key crash-resume and migrate', () => {
         return upgrade(s)
       },
     })
-    expect(w2.getState().flow.version).toBe(2)
+    expect(w2.getState().wizard.version).toBe(2)
     const w3 = await resumeWizardRuntimeAsync(v2, snap, { ...opts(), migrate: upgrade })
-    expect(w3.getState().flow.version).toBe(2)
+    expect(w3.getState().wizard.version).toBe(2)
     await expect(
       resumeWizardRuntimeAsync(v2, snap, {
         ...opts(),
@@ -264,6 +264,6 @@ describe('e2e — idempotency-key crash-resume and migrate', () => {
       },
     })
     expect(called).toBe(0)
-    expect(same.getState().flow.version).toBe(2)
+    expect(same.getState().wizard.version).toBe(2)
   })
 })
