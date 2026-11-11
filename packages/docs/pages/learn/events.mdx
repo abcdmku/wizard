@@ -8,7 +8,7 @@ A `step({ waitFor })` pauses until another system reports back, such as a webhoo
 1. `events` declares `approved` with a payload schema.
 2. `start()` enters `waitForApproval`. The run is `waiting`.
 3. `send('approved', { by: 'Grace' })` checks the payload and calls the active handler.
-4. The handler updates context and completes the wait. The step follows `next: 'done'`.
+4. The handler completes the wait with `payload.by` as its output. `done` needs the wait, so it starts and reads that value.
 
 Returning nothing from a wait handler completes the step with the payload as output. Return `{ done: value }` to select another output, `{ keep: true }` to keep waiting, or `{ fail: 'reason' }` to fail the wait. Handlers do not return a routing target; put `next` on the step.
 
@@ -31,21 +31,20 @@ An invalid body returns `BOUNDARY_REJECTED`. The handler never receives it and t
 ## Timeouts and delays
 
 ```ts
-awaitDecision: step({
-  waitFor: {
-    'approval.decided': ({ payload, update }) => {
-      update({ decision: payload })
-      return { done: payload }
-    },
-  },
+const awaitDecision = step({
+  waitFor: { 'approval.decided': ({ payload }) => ({ done: payload }) },
   timeout: { after: '48h', next: 'expired' },
-  next: 'route',
-}),
+})
+const route = step({
+  needs: { decision: awaitDecision },
+  targets: ['approved', 'rejected'],
+  next: ({ needs }) => (needs.decision.approved ? 'approved' : 'rejected'),
+})
 ```
 
 The deadline is absolute. If the process stops after three hours, resume leaves 45 hours on the original deadline. If it resumes after that deadline, the timeout fires before an event can complete the wait.
 
-At timeout the wait is skipped with reason `timeout` and `expired` starts. `route` does not start, and the wait's `exit` hook does not run. A step that reads the payload through a plain `needs` is skipped with the wait, so its hooks always receive a payload. A step that must run on both paths declares the need as `{ optional: awaitDecision }` and receives `undefined` after a timeout.
+At timeout the wait is skipped with reason `timeout` and `expired` starts. The wait's `exit` hook does not run. `route` reads the payload through a plain `needs`, so it is skipped with the wait and its hooks always receive a payload. A step that must run on both paths declares the need as `{ optional: awaitDecision }` and receives `undefined` after a timeout.
 
 For a delay without an external event, use `step({ sleep: '10m', next: 'checkAgain' })`. The sleep deadline also survives restart. A convenience `wizard.run()` keeps waiting through pure sleep timers and retry backoff; it returns a snapshot when input from a person or external system is needed.
 

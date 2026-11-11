@@ -8,6 +8,7 @@ export const DeploymentRequest = z.object({
 export const deploymentProbe = defineWizard(
   {
     name: 'deployment-probe',
+    description: 'Accepts a request id and echoes it, to prove a deployed build can run a wizard.',
     context: DeploymentRequest,
   },
   ({ step, steps }) =>

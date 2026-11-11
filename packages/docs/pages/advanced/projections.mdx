@@ -5,7 +5,7 @@ A projection chooses which run data a client receives. A mirror keeps a versione
 ```ts file="packages/docs/snippets/advanced/projection.ts"
 ```
 
-This projection sends base run and step facts, the `payment` validation issues, `context.total`, and the final output. It omits `cartId`, `paymentToken`, and the payment draft. Base facts include run id, epoch, sequence, status, current view, and each step's id, kind, status, phase, and attempt.
+This projection sends base run and step facts, the `payment` validation issues, `context.total`, and the final output. It omits `cartId` and the payment draft, which holds the token. Base facts include run id, epoch, sequence, status, current view, and each step's id, kind, status, phase, and attempt.
 
 `input: true` exposes the whole selected draft, including any token fields. Use `select` to return only `last4` when the UI needs that field without the token.
 

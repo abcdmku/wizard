@@ -4,11 +4,8 @@ import { z } from 'zod'
 export const checkoutFlow = defineWizard(
   {
     name: 'checkout',
-    context: z.object({
-      orderId: z.string(),
-      paymentId: z.string().optional(),
-      declineReason: z.string().optional(),
-    }),
+    description: 'Waits for the payment provider to capture or decline the payment for an order.',
+    context: z.object({ orderId: z.string() }),
     // Every input-event payload passes through its boundary before a handler sees it.
     events: {
       'payment.captured': z.object({
@@ -31,31 +28,35 @@ export const checkoutFlow = defineWizard(
     // Unmatched events wait in a FIFO inbox for up to ten minutes.
     unmatchedEvents: { buffer: true, ttl: '10m' },
   },
-  ({ step, view, steps }) =>
-    steps(
-      {
-        // This view lets the demo send payment before the wait step starts.
-        review: view({ input: z.object({}), initial: {}, next: 'awaitPayment' }),
-        awaitPayment: step({
-          waitFor: {
-            'payment.captured': ({ payload, update }) => {
-              update({ paymentId: payload.paymentId })
-              return { done: payload }
-            },
-            'payment.failed': ({ payload, update }) => {
-              update({ declineReason: payload.reason })
-              return { done: payload }
-            },
-          },
-          timeout: { after: '30m', next: 'expired' },
-          // Wait handlers complete the wait. This declared route selects the next step.
-          targets: ['paid', 'declined'],
-          next: ({ context }) => (context.declineReason === undefined ? 'paid' : 'declined'),
-        }),
-        paid: step({ run: ({ context }) => `paid (${context.paymentId})` }),
-        declined: step({ run: ({ context }) => `declined: ${context.declineReason}` }),
-        expired: step({ run: () => 'expired: no payment within 30 minutes' }),
+  ({ step, view, steps }) => {
+    // This view lets the demo send payment before the wait step starts.
+    const review = view({ input: z.object({}), initial: {}, next: 'awaitPayment' })
+    const awaitPayment = step({
+      description: 'Waits for the provider. Its output is the payload of whichever event arrived.',
+      waitFor: {
+        'payment.captured': ({ payload }) => ({ done: payload }),
+        'payment.failed': ({ payload }) => ({ done: payload }),
       },
-      { start: 'review' },
-    ),
+      timeout: { after: '30m', next: 'expired' },
+      // Wait handlers complete the wait. This declared route selects the next step.
+      targets: ['paid', 'declined'],
+      next: ({ output }) => ('reason' in output ? 'declined' : 'paid'),
+    })
+    // Both endings need the wait. Its output is one of two payloads, so each ending narrows it.
+    const paid = step({
+      needs: { payment: awaitPayment },
+      run: ({ needs }) =>
+        'paymentId' in needs.payment ? `paid (${needs.payment.paymentId})` : 'paid',
+    })
+    const declined = step({
+      needs: { payment: awaitPayment },
+      run: ({ needs }) =>
+        'reason' in needs.payment ? `declined: ${needs.payment.reason}` : 'declined',
+    })
+    const expired = step({
+      description: 'Ends the run when no payment event arrived in time.',
+      run: () => 'expired: no payment within 30 minutes',
+    })
+    return steps({ review, awaitPayment, paid, declined, expired }, { start: 'review' })
+  },
 )

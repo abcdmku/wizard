@@ -1,15 +1,8 @@
 import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-export const signup = defineWizard(
-  { name: 'signup', context: z.object({ email: z.string().default('') }) },
-  ({ view, steps }) =>
-    steps({
-      contact: view({
-        input: z.object({ email: z.email() }),
-        exit: ({ output, update }) => update({ email: output.email }),
-      }),
-    }),
+export const signup = defineWizard({ name: 'signup', context: z.object({}) }, ({ view, steps }) =>
+  steps({ contact: view({ input: z.object({ email: z.email() }) }) }),
 )
 
 export async function submitSignup(email: string) {

@@ -3,18 +3,18 @@ import type { Mirror } from '@openwizard/core/mirror'
 import { z } from 'zod'
 
 const review = defineWizard(
-  {
-    name: 'review',
-    context: z.object({ orderId: z.string(), approved: z.boolean().default(false) }),
-    output: ({ context }) => ({ orderId: context.orderId, approved: context.approved }),
-  },
-  ({ view, steps }) =>
-    steps({
-      decision: view({
-        input: z.object({ approved: z.boolean() }),
-        exit: ({ output, update }) => update({ approved: output.approved }),
+  { name: 'review', context: z.object({ orderId: z.string() }) },
+  ({ view, step, steps }) => {
+    const decision = view({ input: z.object({ approved: z.boolean() }) })
+    const result = step({
+      needs: { decision },
+      run: ({ context, needs }) => ({
+        orderId: context.orderId,
+        approved: needs.decision.approved,
       }),
-    }),
+    })
+    return steps({ decision, result })
+  },
 )
 
 export const reviews = defineWizard(

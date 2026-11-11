@@ -11,6 +11,7 @@ export interface Deps {
 export const bookTripFlow = defineWizard(
   {
     name: 'book-trip',
+    description: 'Reserves a flight, a hotel and a car, then charges. A failure undoes them.',
     context: z.object({ tripId: z.string(), total: z.number().positive() }),
     deps: boundary.trusted<Deps>(),
     // A terminal task failure compensates completed steps in reverse completion order.

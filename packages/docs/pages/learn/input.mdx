@@ -1,6 +1,6 @@
 # Views and input
 
-A `view` pauses the run at a form. It stores a draft, validates it when your application moves on, and supplies the accepted value to `exit`. Copy the fields later steps need into context there, or pass the view's output to a consumer through `needs`.
+A `view` pauses the run at a form. It stores a draft and validates it when your application moves on. The accepted value is the view's output, and a later step reads it through `needs`.
 
 ```ts file="packages/docs/snippets/learn/form.ts"
 ```
@@ -10,8 +10,8 @@ A `view` pauses the run at a form. It stores a draft, validates it when your app
 
 1. `start()` enters `contact`. Status is `waiting` and `state.current` is `'contact'`.
 2. `setInput('contact', patch)` shallow-merges the patch into the draft and clears issues for changed fields.
-3. `next()` parses the whole draft with `input`. On success the parsed value becomes the step's output, `exit` runs, and the run follows `next`.
-4. The final step reads the accepted data and completes.
+3. `next()` parses the whole draft with `input`. On success the parsed value becomes the step's output, and `done`, which needs it, starts.
+4. `done` reads the accepted email from `needs.contact` and completes.
 
 `setInput()` stores the draft. `next()` attempts to leave the view.
 
@@ -26,17 +26,19 @@ if (!moved.ok && moved.reason === 'validation') {
 }
 ```
 
-The run stays on the view, `exit` does not run, and nothing reaches context. Render the issues and let the user edit the draft. `run.validate('contact')` checks without trying to move. `canEnter` and `canExit` can also refuse navigation.
+The run stays on the view, `exit` does not run, and no later step starts. Render the issues and let the user edit the draft. `run.validate('contact')` checks without trying to move. `canEnter` and `canExit` can also refuse navigation.
 
 ## Draft and context are separate
 
-The draft belongs to the view while it is edited. Context holds data shared with later steps. Copy accepted fields in `exit`:
+The draft belongs to the view while it is edited. Once `next()` accepts it, the parsed value is the view's output. A later step reads it with `needs: { contact }`, typed by the `input` schema.
+
+Context holds facts known when the run is created. A view can still change one in `exit`, for example a field that a [projection](/advanced/projections) sends to the client:
 
 ```ts
-exit: ({ output, update }) => update({ email: output.email }),
+exit: ({ output, update }) => update({ express: output.express }),
 ```
 
-`back()` preserves the draft and does not run the view's `exit` hook. If a later step needs the view's accepted output directly, reference the view in `needs: { contact }`.
+`back()` preserves the draft and does not run the view's `exit` hook.
 
 ## Initial drafts
 

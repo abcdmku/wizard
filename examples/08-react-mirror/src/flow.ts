@@ -3,7 +3,7 @@
  * imports) runs on the server; the client only ever imports the TYPE of `checkoutClient`
  * (see client.ts).
  *
- * view `shipping` → view `payment` → step `reserve` → step `charge` → receipt output
+ * view `shipping` → view `payment` → step `reserve` → step `charge` → step `receipt`
  */
 import { boundary, defineProjection, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
@@ -22,80 +22,77 @@ export interface CheckoutDeps {
 export const checkoutFlow = defineWizard(
   {
     name: 'checkout',
+    description: 'Collects shipping and payment, reserves stock, charges, and returns a receipt.',
     version: 1,
-    output: ({ context }) => ({
-      customer: context.customer ?? '',
-      total: context.total,
-      express: context.express,
-      reservationId: context.reservationId ?? '',
-      chargeId: context.chargeId ?? '',
-    }),
     context: z.object({
       cartId: z.string(),
       total: z.number().positive(),
+      /** The client reads this through the projection, so the shipping view keeps it current. */
       express: z.boolean().default(false),
-      customer: z.string().optional(),
-      /** Opaque token from the payment view; the card number never enters the run at all. */
-      paymentToken: z.string().optional(),
-      reservationId: z.string().optional(),
-      chargeId: z.string().optional(),
     }),
     deps: boundary.trusted<CheckoutDeps>(), // trusted: constructed by the server, never from the wire
     onFailure: 'compensate',
   },
-  ({ step, view, steps }) =>
-    steps(
-      {
-        shipping: view({
-          label: 'Shipping',
-          input: z.object({
-            name: z.string().min(2, 'Name needs at least 2 characters'),
-            address: z.string().min(5, 'Address needs at least 5 characters'),
-            express: z.boolean().default(false),
-          }),
-          initial: { name: '', address: '' }, // draft (INPUT side) the client starts from
-          exit: ({ output, update }) => update({ customer: output.name, express: output.express }),
-          next: 'payment',
-        }),
-        payment: view({
-          label: 'Payment',
-          // The draft holds the provider's token (+ last4 for display), never the card number: the
-          // UI tokenises with the provider SDK BEFORE `setInput` (see App.tsx / payments.ts).
-          input: z.object({
-            paymentToken: z.string().regex(/^tok_/, 'Tokenise the card first'),
-            last4: z.string().regex(/^\d{4}$/),
-          }),
-          exit: ({ output, update }) => update({ paymentToken: output.paymentToken }),
-          next: 'reserve',
-        }),
-        reserve: step({
-          run: ({ context, deps }) => deps.inventory.reserve(context.cartId),
-          label: 'Reserve stock',
-          // One retry, 400 ms after the first failure.
-          retry: { retries: 1, backoff: 400 },
-          exit: ({ output, update }) => update({ reservationId: output.reservationId }),
-          compensate: () => {
-            /* release the reservation in a real system */
-          },
-          next: 'charge',
-        }),
-        charge: step({
-          run: ({ context, deps }) =>
-            deps.payments.charge(context.paymentToken ?? '', context.total),
-          label: 'Charge card',
-          exit: ({ output, update }) => update({ chargeId: output.chargeId }),
-        }),
+  ({ step, view, steps }) => {
+    const shipping = view({
+      label: 'Shipping',
+      input: z.object({
+        name: z.string().min(2, 'Name needs at least 2 characters'),
+        address: z.string().min(5, 'Address needs at least 5 characters'),
+        express: z.boolean().default(false),
+      }),
+      initial: { name: '', address: '' }, // draft (INPUT side) the client starts from
+      exit: ({ output, update }) => update({ express: output.express }),
+      next: 'payment',
+    })
+    const payment = view({
+      label: 'Payment',
+      // The draft holds the provider's token (+ last4 for display), never the card number: the
+      // UI tokenises with the provider SDK BEFORE `setInput` (see App.tsx / payments.ts).
+      input: z.object({
+        paymentToken: z.string().regex(/^tok_/, 'Tokenise the card first'),
+        last4: z.string().regex(/^\d{4}$/),
+      }),
+      next: 'reserve',
+    })
+    const reserve = step({
+      run: ({ context, deps }) => deps.inventory.reserve(context.cartId),
+      label: 'Reserve stock',
+      // One retry, 400 ms after the first failure.
+      retry: { retries: 1, backoff: 400 },
+      compensate: () => {
+        /* release the reservation in a real system */
       },
-      { start: 'shipping' },
-    ),
+    })
+    const charge = step({
+      description: 'Charges the token from the payment view once the stock is reserved.',
+      // The reserve need holds the charge back. The payment need supplies the token, typed.
+      needs: { payment, reserve },
+      run: ({ context, deps, needs }) =>
+        deps.payments.charge(needs.payment.paymentToken, context.total),
+      label: 'Charge card',
+    })
+    const receipt = step({
+      description: 'Joins the earlier outputs into the receipt, which is the wizard output.',
+      needs: { shipping, reserve, charge },
+      run: ({ context, needs }) => ({
+        customer: needs.shipping.name,
+        total: context.total,
+        express: needs.shipping.express,
+        reservationId: needs.reserve.reservationId,
+        chargeId: needs.charge.chargeId,
+      }),
+    })
+    return steps({ shipping, payment, reserve, charge, receipt }, { start: 'shipping' })
+  },
 )
 
 /**
  * Deny-by-default projection = the client's whole view of the run. Only what is listed
  * crosses the wire: the two view drafts (the payment draft is a token + last4) and their
  * validation issues, the two tasks' sanitized errors, two context fields and the flow output
- * (the receipt). `cartId`, `reservationId`, `chargeId` and the task outputs never do. Base
- * facts (`id` / `kind` / `status` / `phase` / `attempt` per step, `current`, `status`) always do.
+ * (the receipt). `cartId` and the step outputs never do. Base facts (`id` / `kind` / `status` /
+ * `phase` / `attempt` per step, `current`, `status`) always do.
  */
 export const checkoutClient = defineProjection(checkoutFlow, {
   expose: {

@@ -143,7 +143,7 @@ describe('04 resume from snapshot', () => {
     expect(await resumed.send('approval.decided', { approved: true, by: 'kim' })).toMatchObject({
       ok: false,
     })
-    expect(resumed.getState().context.decision).toBeUndefined()
+    expect(resumed.getState().steps.awaitDecision.output).toBeUndefined()
     resumed.dispose()
   })
 

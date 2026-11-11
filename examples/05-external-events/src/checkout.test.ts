@@ -43,7 +43,7 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     expect(rejected.issues.map((issue) => issue.path)).toEqual([['paymentId'], ['amount']])
     expect(eventsOfType('event.rejected')[0]).toMatchObject({ event: 'payment.captured' })
     expect(run.getState().steps.awaitPayment.status).toBe('active') // nothing changed
-    expect(run.getState().context.paymentId).toBeUndefined()
+    expect(run.getState().steps.awaitPayment.output).toBeUndefined()
 
     // A good one is delivered to the listening wait step; the handler ran; the step completed.
     const delivered = await run.send('payment.captured', goodBody, { correlationId: 'wh-77' })
@@ -57,7 +57,7 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
       event: 'payment.captured',
       to: 'awaitPayment',
     })
-    expect(run.getState().context.paymentId).toBe('pay_1')
+    expect(run.getState().steps.paid).toMatchObject({ status: 'done', output: 'paid (pay_1)' })
     expect(run.getState().steps.awaitPayment).toMatchObject({
       status: 'done',
       output: {
@@ -91,7 +91,7 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     })
     expect(run.getState().inbox).toHaveLength(1)
     expect(scheduler.pending()).toBe(1) // one TTL timer per buffered entry
-    expect(run.getState().context.paymentId).toBeUndefined()
+    expect(run.getState().steps.awaitPayment.output).toBeUndefined()
 
     // The user finishes the review 2 minutes later: the wait enters and drains the inbox first.
     scheduler.advance(2 * MINUTE)

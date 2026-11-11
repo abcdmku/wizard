@@ -8,19 +8,13 @@ function auditSteps<C, Ev, D>({ step }: StepApi<C, Ev, D>) {
   return { audit: step({ run: () => 'recorded' }) }
 }
 
-export const onboarding = defineWizard(
-  {
-    name: 'onboarding',
-    context: z.object({ email: z.string().default('') }),
-    output: ({ context }) => context.email,
-  },
-  (api) =>
-    api.steps({
-      signup: api.flow(signup, {
-        context: () => ({}),
-        exit: ({ output, update }) => update({ email: output.email }),
-        next: 'audit',
-      }),
-      ...auditSteps(api),
-    }),
-)
+export const onboarding = defineWizard({ name: 'onboarding', context: z.object({}) }, (api) => {
+  const account = api.flow(signup, { context: () => ({}), next: 'audit' })
+  const auditing = auditSteps(api)
+  // `welcome` needs the audit only to run after it. The child's output arrives typed.
+  const welcome = api.step({
+    needs: { account, audit: auditing.audit },
+    run: ({ needs }) => needs.account.email,
+  })
+  return api.steps({ signup: account, ...auditing, welcome })
+})

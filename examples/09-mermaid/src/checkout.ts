@@ -10,37 +10,35 @@ export interface Deps {
 export const fulfilmentFlow = defineWizard(
   {
     name: 'fulfilment',
-    context: z.object({ orderId: z.string(), trackingId: z.string().optional() }),
+    description: 'Creates a shipping label and returns its tracking id.',
+    context: z.object({ orderId: z.string() }),
     deps: boundary.trusted<Deps>(),
   },
-  ({ step, steps }) =>
-    steps({
-      label: step({
-        run: ({ context, deps }) => deps.shipping.createLabel(context.orderId),
-        exit: ({ output, update }) => update({ trackingId: output.trackingId }),
-        next: 'done',
-      }),
-      done: step({ run: ({ context }) => ({ trackingId: context.trackingId }) }),
-    }),
+  ({ step, steps }) => {
+    const label = step({
+      run: ({ context, deps }) => deps.shipping.createLabel(context.orderId),
+    })
+    const done = step({
+      needs: { label },
+      run: ({ needs }) => ({ trackingId: needs.label.trackingId }),
+    })
+    return steps({ label, done })
+  },
 )
 
 /** Views, fan-out, a timeout, a join, declared routing and a nested wizard. */
 export const checkoutFlow = defineWizard(
   {
     name: 'checkout',
-    context: z.object({ cartId: z.string(), paymentId: z.string().optional() }),
+    description: 'Reserves stock, waits for payment while an audit runs, then fulfils or declines.',
+    context: z.object({ cartId: z.string() }),
     events: { 'payment.captured': z.object({ paymentId: z.string() }) },
     deps: boundary.trusted<Deps>(),
   },
   ({ step, view, flow, steps }) => {
     const audit = step({ run: async () => ({ audited: true }) })
     const awaitPayment = step({
-      waitFor: {
-        'payment.captured': ({ payload, update }) => {
-          update({ paymentId: payload.paymentId })
-          return { done: payload }
-        },
-      },
+      waitFor: { 'payment.captured': ({ payload }) => ({ done: payload }) },
       timeout: { after: '15m', next: 'expired' },
     })
     return steps(

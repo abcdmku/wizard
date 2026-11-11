@@ -8,6 +8,7 @@ export interface BatchDeps {
 export const batch = defineWizard(
   {
     name: 'convert-batch',
+    description: 'Converts each item, two at a time, and returns the sum of the results.',
     context: z.object({ items: z.array(z.object({ id: z.string(), value: z.number() })) }),
     deps: boundary.trusted<BatchDeps>(),
   },

@@ -38,7 +38,7 @@ describe('09 mermaid: toMermaid(inspect(flow))', () => {
         '    fulfil__done[["done"]]',
         '    fulfil___start((" "))',
         '    fulfil___start --> fulfil__label',
-        '    fulfil__label --> fulfil__done',
+        '    fulfil__label -->|"needs: label"| fulfil__done',
         '  end',
         '  fulfil -.->|"child"| fulfil___flow',
       ].join('\n'),

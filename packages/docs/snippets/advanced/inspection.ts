@@ -2,16 +2,12 @@ import { defineWizard, type RunEvent, replay } from '@openwizard/core'
 import { z } from 'zod'
 
 export const inspectProfileFlow = defineWizard(
-  { name: 'inspect-profile', context: z.object({ email: z.string().optional() }) },
-  ({ view, step, steps }) =>
-    steps({
-      contact: view({
-        input: z.object({ email: z.email() }),
-        exit: ({ output, update }) => update({ email: output.email }),
-        next: 'done',
-      }),
-      done: step({ run: ({ context }) => context.email }),
-    }),
+  { name: 'inspect-profile', context: z.object({}) },
+  ({ view, step, steps }) => {
+    const contact = view({ input: z.object({ email: z.email() }) })
+    const done = step({ needs: { contact }, run: ({ needs }) => needs.contact.email })
+    return steps({ contact, done })
+  },
 )
 
 export async function inspectProfileRun() {

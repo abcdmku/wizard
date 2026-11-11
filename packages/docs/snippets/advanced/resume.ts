@@ -8,19 +8,21 @@ export const approvalFlow = defineWizard(
   {
     name: 'approval',
     version: 1,
-    context: z.object({ requestId: z.string(), approvedBy: z.string().optional() }),
+    context: z.object({ requestId: z.string() }),
     events: { approved: z.object({ by: z.string() }) },
   },
-  ({ step, steps }) =>
-    steps({
-      awaitDecision: step({
-        waitFor: { approved: ({ payload, update }) => update({ approvedBy: payload.by }) },
-        timeout: { after: '48h', next: 'expired' },
-        next: 'approved',
-      }),
-      approved: step({ run: ({ context }) => `approved by ${context.approvedBy}` }),
-      expired: step({ run: () => 'expired: nobody decided within 48h' }),
-    }),
+  ({ step, steps }) => {
+    const awaitDecision = step({
+      waitFor: { approved: ({ payload }) => ({ done: payload.by }) },
+      timeout: { after: '48h', next: 'expired' },
+    })
+    const approved = step({
+      needs: { by: awaitDecision },
+      run: ({ needs }) => `approved by ${needs.by}`,
+    })
+    const expired = step({ run: () => 'expired: nobody decided within 48h' })
+    return steps({ awaitDecision, approved, expired })
+  },
 )
 
 export async function saveAndResume() {

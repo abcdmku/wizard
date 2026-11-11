@@ -7,7 +7,7 @@ pnpm --filter example-07-dag-pipeline start
 pnpm --filter example-07-dag-pipeline check
 ```
 
-Read `src/pipeline.ts` for `needs`, optional results, declared branch targets and a concurrency limit. A need activates its consumer and gives every hook the producer's output. An optional need waits for the producer to settle and supplies `undefined` when it was skipped, so disabled enrichment does not skip the join.
+Read `src/pipeline.ts` for `needs`, optional results, declared branch targets and a concurrency limit. A need activates its consumer and gives every hook the producer's output. An optional need waits for the producer to settle and supplies `undefined` when it was skipped, so disabled enrichment does not skip the join. Context holds only the source name and the enrichment switch; every result is a step output.
 
 `src/main.ts` prints the static graph and advances the virtual clock as each branch finishes. The tests also cover manual task control with `startReady()` and skipping a running enrichment task.
 

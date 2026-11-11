@@ -19,6 +19,7 @@ export type LedgerFailure = {
 export const syncInvoiceFlow = defineWizard(
   {
     name: 'sync-invoice',
+    description: 'Posts an invoice to the ledger and retries while the ledger is unavailable.',
     context: z.object({ invoiceId: z.string(), amount: z.number().positive() }),
     deps: boundary.trusted<Deps>(), // the host supplies these services
   },

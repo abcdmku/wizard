@@ -10,19 +10,18 @@ type Services = {
 export const customer = defineWizard(
   {
     name: 'customer',
-    output: ({ context }) => ({ id: context.id, name: context.name }),
-    context: z.object({ id: z.string(), name: z.string().default('') }),
+    context: z.object({ id: z.string() }),
     deps: boundary.trusted<Services>(),
     onFailure: 'compensate',
   },
   ({ step, steps }) =>
     steps({
       lookup: step({
-        run: async ({ context, deps }) => deps.lookup(context.id),
-        exit: ({ output, update, deps }) => {
-          update({ name: output.name })
-          deps.log(`Loaded ${output.name}`)
+        run: async ({ context, deps }) => {
+          const { name } = await deps.lookup(context.id)
+          return { id: context.id, name }
         },
+        exit: ({ output, deps }) => deps.log(`Loaded ${output.name}`),
       }),
     }),
 )

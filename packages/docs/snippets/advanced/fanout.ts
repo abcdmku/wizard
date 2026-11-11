@@ -4,32 +4,26 @@ import { z } from 'zod'
 export const ingestFlow = defineWizard(
   {
     name: 'ingest',
-    context: z.object({
-      rows: z.number().int().default(0),
-      enrichment: z.enum(['on', 'off']).default('on'),
-    }),
+    context: z.object({ enrichment: z.enum(['on', 'off']).default('on') }),
     concurrency: 2,
   },
   ({ step, steps }) => {
-    const normalize = step({ run: async ({ context }) => ({ normalized: context.rows }) })
-    const enrich = step({
-      run: async ({ context }) => ({ enriched: context.rows }),
-      when: ({ context }) => context.enrichment === 'on',
+    const fetch = step({ run: async () => ({ rows: 100 }) })
+    // Both branches need the fetched rows, so they start together once `fetch` is done.
+    const normalize = step({
+      needs: { fetch },
+      run: async ({ needs }) => ({ normalized: needs.fetch.rows }),
     })
-    // The gate waits for both branches. The optional need lets it run when enrich is skipped.
-    const gate = step({ needs: { normalize, enrich: { optional: enrich } }, next: 'done' })
-    return steps(
-      {
-        fetch: step({
-          run: async ({ update }) => update({ rows: 100 }),
-          next: ['normalize', 'enrich'],
-        }),
-        normalize,
-        enrich,
-        gate,
-        done: step({ run: ({ context }) => `stored ${context.rows} rows` }),
-      },
-      { start: 'fetch' },
-    )
+    const enrich = step({
+      needs: { fetch },
+      when: ({ context }) => context.enrichment === 'on',
+      run: async ({ needs }) => ({ enriched: needs.fetch.rows }),
+    })
+    // The join waits for both branches. The optional need lets it run when enrich is skipped.
+    const done = step({
+      needs: { normalize, enrich: { optional: enrich } },
+      run: ({ needs }) => `stored ${needs.normalize.normalized} rows`,
+    })
+    return steps({ fetch, normalize, enrich, done })
   },
 )

@@ -10,12 +10,11 @@ export interface Deps {
 export const fulfilmentFlow = defineWizard(
   {
     name: 'fulfilment',
-    output: ({ context }) => ({ tracking: context.tracking }),
+    description: 'Lets a person pick a warehouse, then ships the order from it.',
     // The parent supplies orderId; the child's boundary fills the default warehouse.
     context: z.object({
       orderId: z.string(),
       warehouse: z.enum(['east', 'west']).default('east'),
-      tracking: z.string().optional(),
     }),
     deps: boundary.trusted<Deps>(),
   },
@@ -23,16 +22,14 @@ export const fulfilmentFlow = defineWizard(
     steps(
       {
         pick: view({
+          description: 'Replaces the default warehouse with the one the person picked.',
           input: z.object({ warehouse: z.enum(['east', 'west']) }),
           exit: ({ output, update }) => update({ warehouse: output.warehouse }),
           next: 'ship',
         }),
+        // The last step's result, the tracking number, is the child's output.
         ship: step({
-          run: async ({ context, deps, update }) => {
-            const { tracking } = await deps.carrier.ship(context.orderId, context.warehouse)
-            update({ tracking })
-            return { tracking }
-          },
+          run: ({ context, deps }) => deps.carrier.ship(context.orderId, context.warehouse),
         }),
       },
       { start: 'pick' },
@@ -42,31 +39,25 @@ export const fulfilmentFlow = defineWizard(
 export const orderFlow = defineWizard(
   {
     name: 'order',
-    context: z.object({
-      orderId: z.string(),
-      amount: z.number().positive(),
-      tracking: z.string().optional(),
-    }),
+    description: 'Charges an order, runs fulfilment as a child wizard, and returns a receipt.',
+    context: z.object({ orderId: z.string(), amount: z.number().positive() }),
     deps: boundary.trusted<Deps>(),
   },
-  ({ step, flow, steps }) =>
-    steps(
-      {
-        pay: step({
-          run: ({ context, deps }) => deps.payments.charge(context.orderId, context.amount),
-          next: 'fulfil',
-        }),
-        // Matching dependency types let the child reuse the parent's services.
-        // Parent observers see child events at path ['fulfil']; child observers see path [].
-        fulfil: flow(fulfilmentFlow, {
-          context: ({ context }) => ({ orderId: context.orderId }),
-          exit: ({ output, update }) => update({ tracking: output.tracking }),
-          next: 'receipt',
-        }),
-        receipt: step({
-          run: ({ context }) => ({ orderId: context.orderId, tracking: context.tracking }),
-        }),
-      },
-      { start: 'pay' },
-    ),
+  ({ step, flow, steps }) => {
+    const pay = step({
+      run: ({ context, deps }) => deps.payments.charge(context.orderId, context.amount),
+      next: 'fulfil',
+    })
+    // Matching dependency types let the child reuse the parent's services.
+    // Parent observers see child events at path ['fulfil']; child observers see path [].
+    const fulfil = flow(fulfilmentFlow, {
+      description: 'Runs the fulfilment wizard. Its output is the child output.',
+      context: ({ context }) => ({ orderId: context.orderId }),
+    })
+    const receipt = step({
+      needs: { fulfil },
+      run: ({ context, needs }) => ({ orderId: context.orderId, tracking: needs.fulfil.tracking }),
+    })
+    return steps({ pay, fulfil, receipt }, { start: 'pay' })
+  },
 )

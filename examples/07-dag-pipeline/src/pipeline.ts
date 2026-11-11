@@ -13,12 +13,10 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
   return defineWizard(
     {
       name: 'ingest-pipeline',
+      description:
+        'Ingests rows, normalizes and enriches them in parallel, then stores or quarantines them.',
       context: z.object({
         source: z.string(),
-        rows: z.number().int().nonnegative().default(0),
-        normalized: z.number().int().nonnegative().optional(),
-        enriched: z.number().int().nonnegative().optional(),
-        quality: z.number().min(0).max(1).default(0),
         enrichment: z.enum(['on', 'off']).default('on'),
       }),
       deps: boundary.trusted<Deps>(),
@@ -28,32 +26,22 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
     },
     ({ step, steps }) => {
       const ingest = step({
-        run: ({ context, deps, update }) => {
-          const { rows } = deps.source.fetch(context.source)
-          update({ rows })
-          return { rows }
-        },
+        description: 'Fetches the source and reports how many rows it holds.',
+        run: ({ context, deps }) => deps.source.fetch(context.source),
       })
       // needs activates a consumer and supplies its typed producer output.
       // Ingest does not need explicit next edges to start both branches.
       const normalize = step({
         needs: { ingest },
-        run: async ({ needs, deps, update }) => {
-          const { normalized } = await deps.normalizer.run(needs.ingest.rows)
-          update({ normalized })
-          return { normalized }
-        },
+        run: ({ needs, deps }) => deps.normalizer.run(needs.ingest.rows),
       })
       const enrich = step({
         needs: { ingest },
         when: ({ context }) => context.enrichment === 'on',
-        run: async ({ needs, deps, update }) => {
-          const { enriched, quality } = await deps.enricher.run(needs.ingest.rows)
-          update({ enriched, quality })
-          return { enriched, quality }
-        },
+        run: ({ needs, deps }) => deps.enricher.run(needs.ingest.rows),
       })
       const gate = step({
+        description: 'Stores the batch unless enrichment ran and scored below 0.8.',
         // Optional needs wait for the producer to settle and return undefined if it was skipped.
         // A plain enrich need would skip this join when enrichment is disabled.
         needs: { normalize, enrichment: { optional: enrich } },
@@ -63,23 +51,27 @@ export function definePipeline(policies: { concurrency: number; autoRun?: 'ready
             ? 'persist'
             : 'quarantine',
       })
-      return steps(
-        {
-          ingest,
-          normalize,
-          enrich,
-          gate,
-          persist: step({
-            run: ({ context, deps }) =>
-              deps.warehouse.write({
-                normalized: context.normalized ?? 0,
-                enriched: context.enriched ?? 0,
-              }),
-            next: 'done',
+      // The gate starts persist or quarantine. Their needs supply the branch results.
+      const persist = step({
+        needs: { normalize, enrichment: { optional: enrich } },
+        run: ({ needs, deps }) =>
+          deps.warehouse.write({
+            normalized: needs.normalize.normalized,
+            enriched: needs.enrichment?.enriched ?? 0,
           }),
-          quarantine: step({ run: ({ context }) => `quarantined (quality ${context.quality})` }),
-          done: step({ run: ({ context }) => `stored ${context.rows} rows` }),
-        },
+      })
+      const quarantine = step({
+        description: 'Reports the quality score that kept the batch out of the warehouse.',
+        needs: { enrichment: { optional: enrich } },
+        run: ({ needs }) => `quarantined (quality ${needs.enrichment?.quality ?? 0})`,
+      })
+      const done = step({
+        description: 'Reports the stored row count. It is skipped when persist is skipped.',
+        needs: { ingest, persist },
+        run: ({ needs }) => `stored ${needs.ingest.rows} rows`,
+      })
+      return steps(
+        { ingest, normalize, enrich, gate, persist, quarantine, done },
         { start: 'ingest' },
       )
     },

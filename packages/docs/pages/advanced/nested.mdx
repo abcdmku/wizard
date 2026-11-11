@@ -5,7 +5,7 @@ A `flow(childWizard, options)` step runs a child wizard with its own run id, con
 ```ts file="examples/06-nested-flow/src/order.ts"
 ```
 
-Here `pay` completes before `fulfil` starts a child run. The `context` mapper produces the child's input, which its boundary parses. Once the child finishes, its output becomes the parent step's output. An `exit` hook can copy selected data into the parent context.
+Here `pay` completes before `fulfil` starts a child run. The `context` mapper produces the child's input, which its boundary parses. Once the child finishes, its output becomes the parent step's output. `receipt` needs `fulfil`, so it reads the tracking number as `needs.fulfil.tracking`.
 
 ## Context and dependencies
 

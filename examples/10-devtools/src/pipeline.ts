@@ -16,81 +16,68 @@ export interface Deps {
 export const pipeline = defineWizard(
   {
     name: 'ingest-pipeline',
+    description:
+      'Ingests rows, normalizes and enriches them, then stores them once a person approves.',
     version: 2,
     context: z.object({
       source: z.string(),
-      rows: z.number().int().nonnegative().default(0),
-      normalized: z.number().int().nonnegative().optional(),
-      enriched: z.number().int().nonnegative().optional(),
-      quality: z.number().min(0).max(1).default(0),
       enrichment: z.enum(['on', 'off']).default('on'),
-      approvedBy: z.string().optional(),
     }),
     events: { 'review.approved': z.object({ by: z.string().min(1) }) },
     deps: boundary.trusted<Deps>(),
     concurrency: 2,
   },
   ({ step, steps }) => {
+    const ingest = step({
+      description: 'Fetches the source and reports how many rows it holds.',
+      run: ({ context, deps }) => deps.source.fetch(context.source),
+      retry: { retries: 2, backoff: 800 },
+    })
     const normalize = step({
-      run: async ({ context, deps, update }) => {
-        const { normalized } = await deps.normalizer.run(context.rows)
-        update({ normalized })
-        return { normalized }
-      },
+      needs: { ingest },
+      run: ({ needs, deps }) => deps.normalizer.run(needs.ingest.rows),
     })
     const enrich = step({
-      run: async ({ context, deps, update }) => {
-        const { enriched, quality } = await deps.enricher.run(context.rows)
-        update({ enriched, quality })
-        return { enriched, quality }
-      },
+      needs: { ingest },
+      run: ({ needs, deps }) => deps.enricher.run(needs.ingest.rows),
       when: ({ context }) => context.enrichment === 'on',
       retry: { retries: 1, backoff: 1_200 }, // the fake enricher fails once → `retrying` in the graph
     })
+    const gate = step({
+      description: 'Asks for approval unless enrichment ran and scored below 0.8.',
+      // The optional need lets the gate run when enrichment is switched off and skipped.
+      needs: { normalize, enrich: { optional: enrich } },
+      targets: ['approve', 'quarantine'],
+      next: ({ context, needs }) =>
+        context.enrichment === 'off' || (needs.enrich?.quality ?? 0) >= 0.8
+          ? 'approve'
+          : 'quarantine',
+    })
+    const approve = step({
+      description: 'Waits two minutes for a reviewer. Its output names who approved.',
+      waitFor: { 'review.approved': ({ payload }) => ({ done: payload }) },
+      timeout: { after: '2m', next: 'quarantine' },
+    })
+    // A timed-out approval is skipped, so persist and done, which need it, are skipped too.
+    const persist = step({
+      needs: { approve, normalize, enrich: { optional: enrich } },
+      run: ({ needs, deps }) =>
+        deps.warehouse.write({
+          normalized: needs.normalize.normalized,
+          enriched: needs.enrich?.enriched ?? 0,
+        }),
+    })
+    const quarantine = step({
+      description: 'Reports the quality score of a batch that was not stored.',
+      needs: { enrich: { optional: enrich } },
+      run: ({ needs }) => `quarantined (quality ${needs.enrich?.quality ?? 0})`,
+    })
+    const done = step({
+      needs: { ingest, approve, persist },
+      run: ({ needs }) => `stored ${needs.ingest.rows} rows, approved by ${needs.approve.by}`,
+    })
     return steps(
-      {
-        ingest: step({
-          run: ({ context, deps, update }) => {
-            const { rows } = deps.source.fetch(context.source)
-            update({ rows })
-            return { rows }
-          },
-          retry: { retries: 2, backoff: 800 },
-          next: ['normalize', 'enrich'],
-        }),
-        normalize,
-        enrich,
-        gate: step({
-          // The optional need lets the gate run when enrichment is switched off and skipped.
-          needs: { normalize, enrich: { optional: enrich } },
-          targets: ['approve', 'quarantine'],
-          next: ({ context }) =>
-            context.enrichment === 'off' || context.quality >= 0.8 ? 'approve' : 'quarantine',
-        }),
-        approve: step({
-          waitFor: {
-            'review.approved': ({ payload, update }) => {
-              update({ approvedBy: payload.by })
-              return { done: payload }
-            },
-          },
-          timeout: { after: '2m', next: 'quarantine' },
-          next: 'persist',
-        }),
-        persist: step({
-          run: ({ context, deps }) =>
-            deps.warehouse.write({
-              normalized: context.normalized ?? 0,
-              enriched: context.enriched ?? 0,
-            }),
-          next: 'done',
-        }),
-        quarantine: step({ run: ({ context }) => `quarantined (quality ${context.quality})` }),
-        done: step({
-          run: ({ context }) =>
-            `stored ${context.rows} rows, approved by ${context.approvedBy ?? '?'}`,
-        }),
-      },
+      { ingest, normalize, enrich, gate, approve, persist, quarantine, done },
       { start: 'ingest' },
     )
   },

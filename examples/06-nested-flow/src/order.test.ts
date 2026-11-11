@@ -84,7 +84,10 @@ describe('06 nested flow: order.flow(child, { context })', () => {
       output: { tracking: 'TRK-WEST-o-1' },
       child: { status: 'done', progress: 1 },
     })
-    expect(run.getState().context.tracking).toBe('TRK-WEST-o-1')
+    expect(run.getState().steps.receipt).toMatchObject({
+      status: 'done',
+      output: { tracking: 'TRK-WEST-o-1' },
+    })
     expect(run.getState().status).toBe('done')
     expect(run.getState().output).toEqual({ orderId: 'o-1', tracking: 'TRK-WEST-o-1' })
     expect(events.filter((event) => event.path.length === 0).map((event) => event.type)).toContain(

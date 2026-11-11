@@ -1,13 +1,13 @@
 # Graphs and parallel work
 
-Use `next` to start branches and `needs` to join them. A need waits for another step and passes its output to the step that declared it. These two links let the same wizard mix navigation and background work.
+Use `needs` to fan out from a step and to join the branches again. A need waits for another step and passes its output to the step that declared it. `next` starts a step that reads nothing from its predecessor. These two links let the same wizard mix navigation and background work.
 
 ```ts file="packages/docs/snippets/advanced/fanout.ts"
 ```
 
 <Diagram name="graph" />
 
-In this example, `fetch` activates `normalize` and `enrich`. `gate` needs both, so it starts once `normalize` is done and `enrich` is done or skipped. Neither branch points `next` at the gate. With `concurrency: 2`, the run can execute both run functions together.
+In this example, `normalize` and `enrich` both need `fetch`. They start together once it is done and read its row count. `done` needs both branches, so it starts once `normalize` is done and `enrich` is done or skipped. No step declares `next`. With `concurrency: 2`, the run can execute both run functions together.
 
 ## Join typed outputs with `needs`
 

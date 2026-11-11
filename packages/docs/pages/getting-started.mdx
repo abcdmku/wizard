@@ -28,9 +28,9 @@ The returned Wizard is the definition itself. Pass it directly to `inspect(wizar
 ```ts file="packages/docs/snippets/learn/factory-form.ts"
 ```
 
-`create(input)` validates starting context and returns an idle Run. `start()` enters `contact`. `setInput` merges a draft; `next()` validates it and follows the edge only after validation succeeds. Invalid input produces `ok: false` with issues.
+`create(input)` validates starting context and returns an idle Run. `start()` enters `contact`. `setInput` merges a draft; `next()` validates it and leaves the view only after validation succeeds. Invalid input produces `ok: false` with issues.
 
-The view's `exit` receives parsed `output`. Here, `output.email` is a string and `update` commits it to context. `go`, `setInput`, and `child` accept only appropriate step IDs.
+The parsed draft is the view's output. `contact` is the only step, so `{ email: string }` is also the wizard's result. `go`, `setInput`, and `child` accept only appropriate step IDs.
 
 Keep a live Run while a user edits input or a server waits for an event. Dispose it when its owner unmounts or shuts down. [React](/packages/react) supplies subscriptions without adding UI code to the definition.
 
@@ -39,7 +39,7 @@ Keep a live Run while a user edits input or a server waits for an event. Dispose
 ```ts file="packages/docs/snippets/learn/factory-services.ts"
 ```
 
-`step({ run, ...options })` infers the awaited return value. It accepts retry, timeout, compensation, error mapping, and fallback. The wizard's `output: ({ context }) => ...` selector computes its final result after work and exit hooks finish. This selector is synchronous.
+`step({ run, ...options })` infers the awaited return value. It accepts retry, timeout, compensation, error mapping, and fallback. `lookup` is the only step, so its return value is the wizard's result, and its `exit` hook logs that value. A wizard with several endings can pick its result with an `output: ({ context }) => ...` selector in the options. That selector is synchronous and runs after work and exit hooks finish.
 
 Put database clients and other services in `deps`. They never enter snapshots. `provide` returns a new Wizard and tracks the keys it supplies. Providing only `log` leaves `lookup` required. Providing both lets this example call `run` without a deps option.
 
@@ -68,7 +68,7 @@ A plain need requires its producer's output. `{ any: [a, b] }` uses the first co
 
 A module is an ordinary function returning named steps. Spreading modules into the map checks references against the whole graph. Keep distinct keys; object spread overwrites duplicates.
 
-Pass a child Wizard directly to `flow(child, { context })`. The child owns its context and output. The parent's `exit` receives the child output after the child finishes. Provided child services stay attached to the child. The parent must supply or map the child's remaining required services.
+Pass a child Wizard directly to `flow(child, { context })`. The child owns its context and output. Its output becomes the flow step's output, so `welcome` reads `needs.account.email` with the child's type. `welcome` also needs `audit`, only to run after it. Provided child services stay attached to the child. The parent must supply or map the child's remaining required services.
 
 A dynamic `next` must declare `targets`. Unchosen targets become skipped, which lets joins distinguish an untaken branch from unfinished work. Use a separate `step({ waitFor })` before work that needs an event. A view or runnable step can use `on` for events delivered while it is active.
 

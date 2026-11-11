@@ -4,17 +4,12 @@ import { z } from 'zod'
 export const projectedCheckoutFlow = defineWizard(
   {
     name: 'projected-checkout',
-    context: z.object({
-      cartId: z.string(),
-      total: z.number(),
-      paymentToken: z.string().optional(),
-    }),
+    context: z.object({ cartId: z.string(), total: z.number() }),
   },
   ({ view, step, steps }) =>
     steps({
       payment: view({
         input: z.object({ paymentToken: z.string(), last4: z.string() }),
-        exit: ({ output, update }) => update({ paymentToken: output.paymentToken }),
         next: 'receipt',
       }),
       receipt: step({ run: ({ context }) => ({ total: context.total }) }),

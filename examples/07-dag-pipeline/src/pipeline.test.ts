@@ -69,7 +69,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
       graph.edges
         .filter((edge) => edge.from === 'ingest' && edge.kind === 'needs')
         .map((edge) => edge.to),
-    ).toEqual(['normalize', 'enrich'])
+    ).toEqual(['normalize', 'enrich', 'done']) // done reads the row count
     expect(graph.warnings.map((warning) => warning.code)).toEqual(['MULTIPLE_SINKS'])
 
     await run.start() // ingest (sync) → fan-out → both branches start at once
@@ -110,14 +110,10 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
       status: 'done',
       output: { batchId: 'b-1' },
     })
-    expect(run.getState().context).toEqual({
-      source: 'crm-export',
-      rows: 100,
-      normalized: 100,
-      enriched: 100,
-      quality: 0.9,
-      enrichment: 'on',
-    })
+    // Context keeps the facts the run was created with. Each result is its step's output.
+    expect(run.getState().context).toEqual({ source: 'crm-export', enrichment: 'on' })
+    expect(run.getState().steps.ingest.output).toEqual({ rows: 100 })
+    expect(run.getState().steps.enrich.output).toEqual({ enriched: 100, quality: 0.9 })
     expect(run.getState().status).toBe('done')
     expect(run.getState().output).toBe('stored 100 rows')
 
@@ -239,7 +235,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     scheduler.advance(500)
     await settle()
     expect(run.getState().steps.enrich.status).toBe('skipped')
-    expect(run.getState().context.enriched).toBeUndefined()
+    expect(run.getState().steps.enrich.output).toBeUndefined()
     expect(run.progress()).toEqual({ done: 7, total: 7, ratio: 1 })
     run.dispose()
   })

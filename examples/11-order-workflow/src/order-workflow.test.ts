@@ -98,7 +98,7 @@ describe('11 order workflow: tasks, durable retry, event wait, persistence and c
 
     const delivered = await run.send('shipment.ready', ready)
     expect(delivered).toMatchObject({ ok: true, delivered: ['awaitShipment'] })
-    expect(run.getState().context).toMatchObject({ shipmentId: 'ship-42' })
+    expect(run.getState().steps.awaitShipment.output).toMatchObject({ shipmentId: 'ship-42' })
     expect(run.getState().status).toBe('done')
     expect(run.getState().output).toBe(
       'order o-42 shipped (ship-42; https://carrier.example/track/ship-42)',

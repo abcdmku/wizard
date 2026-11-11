@@ -4,22 +4,16 @@ import { z } from 'zod'
 const approval = defineWizard(
   {
     name: 'approval',
-    context: z.object({ approvedBy: z.string().optional() }),
+    context: z.object({}),
     events: { approved: z.object({ by: z.string() }) },
   },
-  ({ step, steps }) =>
-    steps({
-      waitForApproval: step({
-        waitFor: {
-          approved: ({ payload, update }) => {
-            update({ approvedBy: payload.by })
-            return { done: payload.by }
-          },
-        },
-        next: 'done',
-      }),
-      done: step({ run: ({ context }) => context.approvedBy }),
-    }),
+  ({ step, steps }) => {
+    const waitForApproval = step({
+      waitFor: { approved: ({ payload }) => ({ done: payload.by }) },
+    })
+    const done = step({ needs: { waitForApproval }, run: ({ needs }) => needs.waitForApproval })
+    return steps({ waitForApproval, done })
+  },
 )
 
 const run = approval.create({})
