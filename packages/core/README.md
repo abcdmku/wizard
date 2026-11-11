@@ -20,7 +20,7 @@ const result = hello.runSync({ name: 'Ada' }) // { status: 'done', output: 'Hell
 
 Coding agents: read `AGENTS.md` in this package before you write or change a wizard.
 
-Read the [core reference](../docs/pages/packages/core.mdx).
+Read the [core reference](https://abcdmku.github.io/wizard/reference/core).
 
 ## Exports
 
