@@ -72,7 +72,7 @@ export interface ModelEdge {
 export interface GraphModel {
   readonly nodes: readonly ModelNode[]
   readonly edges: readonly ModelEdge[]
-  /** Warnings by step key (`UNREACHABLE`, `NAV_CYCLE`, `EXCLUSIVE_JOIN`). */
+  /** Warnings by step key (`UNREACHABLE`, `NAV_CYCLE`, `EXCLUSIVE_JOIN`, `SKIPPED_NEED`). */
   readonly warnings: Readonly<Record<string, readonly string[]>>
 }
 
