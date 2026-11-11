@@ -45,3 +45,8 @@ body {
 :where(.dark code[data-theme*=" "] span) {
   color: var(--shiki-dark);
 }
+
+/* ---------- Pagefind ---------- */
+mark {
+  @apply rounded-sm bg-neutral-200 px-0.5 text-inherit dark:bg-neutral-700;
+}

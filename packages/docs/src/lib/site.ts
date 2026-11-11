@@ -9,7 +9,7 @@ export const site = {
   repositoryUrl: `https://github.com/${repository}`,
   editBase: `https://github.com/${repository}/blob/main/packages/docs`,
   npmUrl: 'https://www.npmjs.com/package/@openwizard/core',
-  installCommand: 'npm i @openwizard/core',
+  installCommand: 'npm install @openwizard/core zod',
 } as const
 
 /** Prefix a site-absolute path with the deployment base (`/typedoc/` → `/wizard/typedoc/` on Pages). */
