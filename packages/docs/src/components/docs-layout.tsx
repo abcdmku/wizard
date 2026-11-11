@@ -149,7 +149,7 @@ export function DocsLayout({
             <details className="docs-mobile-toc">
               <summary>
                 On this page
-                <span>{items.length}</span>
+                <span className="docs-mobile-toc-count">{items.length}</span>
               </summary>
               <Toc items={items} activeId={activeId} showTitle={false} />
             </details>
