@@ -51,7 +51,7 @@ function makeDeferredTaskFlow(tasks: Array<() => void>, beforeTask?: () => Promi
                 tasks.push(resolve)
               })
             },
-            idempotent: true,
+            idempotencyKey: true,
             next: 'done',
           }),
           done: step({ next: null }),

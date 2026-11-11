@@ -38,7 +38,7 @@ export function compileRunStep(s: Rec, step: Build, hooks: Hooks, problem: Probl
   hookField(s.compensate, 'compensate', problem, (h) => {
     hooks.compensate = (args) => (h as Hook<void>)({ ...args, reason: args.reason ?? undefined })
   })
-  const idempotent = s.idempotent
+  const idempotent = s.idempotencyKey
   if (idempotent !== undefined) {
     if (idempotent === true) step.idempotent = true
     else if (typeof idempotent === 'function') {
@@ -51,7 +51,7 @@ export function compileRunStep(s: Rec, step: Build, hooks: Hooks, problem: Probl
           return key
         })
     } else if (idempotent !== false) {
-      problem("'idempotent' must be true, false or a function returning the key")
+      problem("'idempotencyKey' must be true, false or a function returning the key")
     }
   }
   hookField(s.mapError, 'mapError', problem, (h) => {

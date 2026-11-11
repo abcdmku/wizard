@@ -60,7 +60,7 @@ export const orderFlow = defineWizard(
           run: ({ context, deps, idempotencyKey }) =>
             deps.payments.charge(context.orderId, context.amount, { idempotencyKey }),
           // Resume reruns this task with the same key after a crash.
-          idempotent: ({ context }) => `order:${context.orderId}:charge`,
+          idempotencyKey: ({ context }) => `order:${context.orderId}:charge`,
           exit: ({ output, update }) => update({ chargeId: output.chargeId }),
           next: 'fraudReview',
         }),

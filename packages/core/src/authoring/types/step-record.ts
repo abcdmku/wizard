@@ -25,7 +25,7 @@ export interface StepRecordConfig {
   readonly retry?: RetryPolicy<never>
   readonly timeout?: Duration | { readonly after: Duration; readonly next: Ref }
   readonly compensate?: (args: never) => unknown
-  readonly idempotent?: boolean | ((args: never) => string)
+  readonly idempotencyKey?: boolean | ((args: never) => string)
   readonly mapError?: (error: unknown, args: never) => unknown
   readonly fallback?: Ref
   readonly waitFor?: Readonly<Record<string, (args: never) => unknown>>

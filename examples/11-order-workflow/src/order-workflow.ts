@@ -70,7 +70,7 @@ export const orderWorkflowFlow = defineWizard(
         reserve: step({
           run: ({ context, deps, idempotencyKey }) =>
             deps.inventory.reserve(context.orderId, context.lines, { idempotencyKey }),
-          idempotent: ({ context }) => `order:${context.orderId}:inventory-reserve`,
+          idempotencyKey: ({ context }) => `order:${context.orderId}:inventory-reserve`,
           compensate: ({ context, deps, output }) =>
             deps.inventory.release(output.reservationId, {
               idempotencyKey: `order:${context.orderId}:inventory-release`,
@@ -93,7 +93,7 @@ export const orderWorkflowFlow = defineWizard(
             backoff: 'exponential',
             when: (error) => error.code === 'PAYMENT_UNAVAILABLE',
           },
-          idempotent: ({ context }) => `order:${context.orderId}:payment-charge`,
+          idempotencyKey: ({ context }) => `order:${context.orderId}:payment-charge`,
           compensate: ({ context, deps, output }) =>
             deps.payments.refund(output.paymentId, {
               idempotencyKey: `order:${context.orderId}:payment-refund`,
@@ -103,7 +103,7 @@ export const orderWorkflowFlow = defineWizard(
         requestShipment: step({
           run: ({ context, deps, idempotencyKey }) =>
             deps.fulfilment.request(context.orderId, { idempotencyKey }),
-          idempotent: ({ context }) => `order:${context.orderId}:fulfilment-request`,
+          idempotencyKey: ({ context }) => `order:${context.orderId}:fulfilment-request`,
           next: 'awaitShipment',
         }),
         awaitShipment: step({

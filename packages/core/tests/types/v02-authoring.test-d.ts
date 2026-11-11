@@ -83,7 +83,7 @@ export const wizard = defineWizard(
     })
     step({
       run: async () => 1,
-      idempotent: (args) => {
+      idempotencyKey: (args) => {
         expectTypeOf(args).toEqualTypeOf<RunArgs<Context, Deps>>()
         return args.context.id
       },
@@ -91,11 +91,11 @@ export const wizard = defineWizard(
     step({
       run: () => 1,
       // @ts-expect-error the idempotency key must be a string
-      idempotent: () => 42,
+      idempotencyKey: () => 42,
     })
     view({
       // @ts-expect-error idempotent applies only to runnable steps
-      idempotent: true,
+      idempotencyKey: true,
     })
     step({
       run: () => 1,
@@ -121,7 +121,7 @@ export const wizard = defineWizard(
         post: step({
           run: ({ deps, context }) => deps.ledger.post(context.id),
           on: { 'note.added': ({ payload, update }) => update({ note: payload.text }) },
-          idempotent: ({ context, attempt }) => `${context.id}#${attempt}`,
+          idempotencyKey: ({ context, attempt }) => `${context.id}#${attempt}`,
           mapError: (error, args): LedgerFailure => {
             expectTypeOf(error).toEqualTypeOf<unknown>()
             expectTypeOf(args).toEqualTypeOf<RunArgs<Context, Deps>>()
@@ -136,7 +136,7 @@ export const wizard = defineWizard(
         plain: step({
           run: async () => 1,
           mapError: async () => ({ reason: 'x' }),
-          idempotent: true,
+          idempotencyKey: true,
           next: 'route',
         }),
         route: step({ next: 'done', when: () => true, on: { 'note.added': () => {} } }),

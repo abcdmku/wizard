@@ -48,7 +48,7 @@ const FIELDS: Readonly<Record<string, readonly string[]>> = {
     'retry',
     'timeout',
     'compensate',
-    'idempotent',
+    'idempotencyKey',
     'mapError',
     'fallback',
   ],

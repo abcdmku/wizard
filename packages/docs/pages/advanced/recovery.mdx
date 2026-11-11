@@ -45,9 +45,9 @@ For an `each` step, every item follows the retry policy independently. Exhausted
 
 <Diagram name="recovery" />
 
-The worker can die after the ledger applies a request but before the run records its result. Mark `idempotent: true` only when reissuing that request is safe. A runnable hook receives `idempotencyKey`; pass it to the service that performs the side effect. Retries and interrupted-work recovery reuse the key. A custom `idempotent` function can derive the service's key.
+The worker can die after the ledger applies a request but before the run records its result. Mark `idempotencyKey: true` only when reissuing that request is safe. A runnable hook receives `idempotencyKey`; pass it to the service that performs the side effect. Retries and interrupted-work recovery reuse the key. A custom `idempotencyKey` function can derive the service's key.
 
-Without `idempotent`, resume marks an interrupted runnable step failed with `kind: 'interrupted'`. Check the remote system before retrying. Saving snapshots or deduplicating inbound commands cannot close the crash window around a remote call.
+Without `idempotencyKey`, resume marks an interrupted runnable step failed with `kind: 'interrupted'`. Check the remote system before retrying. Saving snapshots or deduplicating inbound commands cannot close the crash window around a remote call.
 
 ## Continue through a fallback
 

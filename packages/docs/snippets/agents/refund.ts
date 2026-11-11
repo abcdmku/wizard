@@ -53,7 +53,7 @@ export const refund = defineWizard(
         const { refundId } = await deps.payments.refund(context.orderId, amount, { idempotencyKey })
         return { refundId, amount, approvedBy: needs.approval.by }
       },
-      idempotent: ({ context }) => `refund:${context.orderId}`,
+      idempotencyKey: ({ context }) => `refund:${context.orderId}`,
       retry: { retries: 2, backoff: 'exponential' },
     })
     return steps(

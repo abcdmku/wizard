@@ -626,7 +626,7 @@ interface StepRecordConfig {
     readonly next: Ref;
   };
   readonly compensate?: (args: never) => unknown;
-  readonly idempotent?: boolean | ((args: never) => string);
+  readonly idempotencyKey?: boolean | ((args: never) => string);
   readonly mapError?: (error: unknown, args: never) => unknown;
   readonly fallback?: Ref;
   readonly waitFor?: Readonly<Record<string, (args: never) => unknown>>;
@@ -870,7 +870,7 @@ type IdRefs<X> = Extract<X, string>;
 type ObjRefs<X> = Extract<X, StepLike>;
 type HasSuccessor<Nx, Tg> = [Extract<StaticNext<Nx>, Ref> | Tg] extends [never] ? false : true;
 type Behaviors<Xk> = Extract<Xk, 'run' | 'waitFor' | 'sleep'>;
-type RunOnly<Xk> = Extract<Xk, 'retry' | 'compensate' | 'mapError' | 'idempotent' | 'output' | 'fallback' | 'each'>;
+type RunOnly<Xk> = Extract<Xk, 'retry' | 'compensate' | 'mapError' | 'idempotencyKey' | 'output' | 'fallback' | 'each'>;
 type IsUnion<U, A = U> = U extends unknown ? ([A] extends [U] ? false : true) : never;
 /** Option combinations a step config cannot have (read from the keys it was written with). */
 type StepProblems<Xk, To> = (true extends IsUnion<Behaviors<Xk>> ? 'a step has one behavior: `run`, `waitFor` or `sleep`' : never) | ('run' extends Xk ? never : [RunOnly<Xk>] extends [never] ? never : `\`${RunOnly<Xk> & string}\` only applies to a step with \`run\``) | ('each' extends Xk ? never : [Extract<Xk, 'key' | 'concurrency'>] extends [never] ? never : '`key` / `concurrency` need `each`') | ([To] extends [never] ? never : 'waitFor' extends Xk ? never : '`timeout: { after, next }` is only valid on a waitFor step');
@@ -2747,7 +2747,12 @@ interface StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, Dp, To, 
     readonly next: To;
   };
   readonly compensate?: (args: CompensateArgs<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, NeedsOutput<Nd>>) => unknown;
-  readonly idempotent?: boolean | ((args: RunArgs<C, D, NeedsOutput<Nd>>) => string);
+  /**
+   * Marks the step safe to run again after a crash. `true` passes `run` a key built from the
+   * run, step and attempt ids; a function returns your own key. `run` reads it as
+   * `idempotencyKey` and hands it to the service that must not act twice.
+   */
+  readonly idempotencyKey?: boolean | ((args: RunArgs<C, D, NeedsOutput<Nd>>) => string);
   readonly mapError?: (error: unknown, args: RunArgs<C, D, NeedsOutput<Nd>>) => MaybePromise<Em>;
   /** When the step fails for good it is skipped (`fallback`) and the run continues here. */
   readonly fallback?: Fb;

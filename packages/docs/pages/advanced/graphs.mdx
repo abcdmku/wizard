@@ -59,7 +59,7 @@ This quote chooses one provider and joins its output through an any-need. The op
 
 `each` snapshots the items when the step starts and returns results in input order, even when calls finish out of order. `concurrency` bounds the number of item calls. A `key: (item, index) => string` can name items; keys must be unique.
 
-Completed item results live in the snapshot. Resume keeps those results and recovers interrupted items according to `idempotent`. Each item follows `retry`; if one exhausts its retries, the step fails while keeping completed results. `run.retry('fetch')` retries failed items. Every completed item emits transient `step.progress` with `{ done, total }`.
+Completed item results live in the snapshot. Resume keeps those results and recovers interrupted items according to `idempotencyKey`. Each item follows `retry`; if one exhausts its retries, the step fails while keeping completed results. `run.retry('fetch')` retries failed items. Every completed item emits transient `step.progress` with `{ done, total }`.
 
 ## Manual execution and invalidation
 

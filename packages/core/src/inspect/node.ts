@@ -90,7 +90,6 @@ const AUTHORING_NAMES: Readonly<Record<string, string>> = {
   childContext: 'context',
   childDeps: 'deps',
   childOutput: 'output',
-  idempotencyKey: 'idempotent',
 }
 
 function hookNames(step: CompiledStep, record: AnyStep | undefined): string[] {

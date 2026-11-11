@@ -69,7 +69,7 @@ interface FlowGraphNode {
   /**
    * Hooks the step defines, by their AUTHORING names (`enter`, `run`, `when`, `mapError`,
    * `on:payment.captured`, `waitFor:payment.captured`, a flow step's `context` / `deps` / `output`
-   * mappers, or a runnable step's `idempotent` key function).
+   * mappers, or a runnable step's `idempotencyKey` function).
    */
   readonly hooks: readonly string[];
   readonly dependsOn?: {

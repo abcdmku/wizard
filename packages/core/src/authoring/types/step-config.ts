@@ -102,7 +102,12 @@ export interface StepConfig<
   readonly compensate?: (
     args: CompensateArgs<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, NeedsOutput<Nd>>,
   ) => unknown
-  readonly idempotent?: boolean | ((args: RunArgs<C, D, NeedsOutput<Nd>>) => string)
+  /**
+   * Marks the step safe to run again after a crash. `true` passes `run` a key built from the
+   * run, step and attempt ids; a function returns your own key. `run` reads it as
+   * `idempotencyKey` and hands it to the service that must not act twice.
+   */
+  readonly idempotencyKey?: boolean | ((args: RunArgs<C, D, NeedsOutput<Nd>>) => string)
   readonly mapError?: (error: unknown, args: RunArgs<C, D, NeedsOutput<Nd>>) => MaybePromise<Em>
   /** When the step fails for good it is skipped (`fallback`) and the run continues here. */
   readonly fallback?: Fb

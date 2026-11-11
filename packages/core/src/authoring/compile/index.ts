@@ -11,7 +11,7 @@
  *
  * `on` compiles for every kind. The machine applies the result contract: `keep` / `done` / `fail`
  * for `waitFor`, `{ next }` for views, `void` elsewhere, anything else `event.handlerResultIgnored`);
- * `when` → `hooks.when`; a runnable step's `idempotent` → `idempotent: true` (+ `hooks.idempotencyKey`
+ * `when` → `hooks.when`; a runnable step's `idempotencyKey` → `idempotencyKey: true` (+ `hooks.idempotencyKey`
  * for the function form) and `mapError` → `hooks.mapError` (called with `(args.error, args)`);
  * the definition header's `on` / `correlate` → `def.on` / `def.correlate`.
  *

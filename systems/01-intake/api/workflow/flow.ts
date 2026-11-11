@@ -60,7 +60,7 @@ export const intakeFlow = defineWizard(
             return deps.prefill(context.applicationId, context.consent, idempotencyKey)
           },
           output: PrefillResultSchema,
-          idempotent: ({ context }) => `prefill:${context.applicationId}`,
+          idempotencyKey: ({ context }) => `prefill:${context.applicationId}`,
           exit: ({ output, update }) => update({ prefill: output }),
           next: 'businessProfile',
           dependsOn: ['consent'],
@@ -134,7 +134,7 @@ export const intakeFlow = defineWizard(
           run: ({ context, deps, idempotencyKey }) =>
             deps.enqueueRisk(context.applicationId, buildRiskInput(context), idempotencyKey),
           output: z.string().min(1),
-          idempotent: ({ context }) =>
+          idempotencyKey: ({ context }) =>
             `risk:${context.applicationId}:${context.changeRequestCount}`,
           exit: ({ output, update }) => update({ riskJobId: output }),
           next: 'awaitRisk',

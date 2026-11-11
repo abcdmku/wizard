@@ -130,7 +130,7 @@ export type HasSuccessor<Nx, Tg> = [Extract<StaticNext<Nx>, Ref> | Tg] extends [
 export type Behaviors<Xk> = Extract<Xk, 'run' | 'waitFor' | 'sleep'>
 export type RunOnly<Xk> = Extract<
   Xk,
-  'retry' | 'compensate' | 'mapError' | 'idempotent' | 'output' | 'fallback' | 'each'
+  'retry' | 'compensate' | 'mapError' | 'idempotencyKey' | 'output' | 'fallback' | 'each'
 >
 export type IsUnion<U, A = U> = U extends unknown ? ([A] extends [U] ? false : true) : never
 /** Option combinations a step config cannot have (read from the keys it was written with). */

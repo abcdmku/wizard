@@ -227,7 +227,7 @@ describe('compiled execution contracts', () => {
             seen.push(error, args.attempt)
             return { code: 'DOWN' }
           },
-          idempotent: () => '',
+          idempotencyKey: () => '',
         }),
       }),
     )

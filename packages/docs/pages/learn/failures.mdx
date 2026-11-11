@@ -71,7 +71,7 @@ A retry can call an outside service twice. A crash can also happen between the s
 charge: step({
   run: ({ context, deps, idempotencyKey }) =>
     deps.payments.charge(context.orderId, context.total, { idempotencyKey }),
-  idempotent: ({ context }) => `order:${context.orderId}:charge`,
+  idempotencyKey: ({ context }) => `order:${context.orderId}:charge`,
   next: 'done',
 }),
 ```

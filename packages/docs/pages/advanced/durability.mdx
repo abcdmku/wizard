@@ -48,7 +48,7 @@ If a claim expires or is evicted, an old request must not complete or release it
 
 The host installs a core commit barrier. It writes staged state under the fence before newly planned runnable hooks, child work, or timers begin. Public readers continue to see committed state while that write is pending. A failed commit stops the local run before its new effects execute.
 
-The state commit still cannot transact with a remote service. A worker can crash after the service applies a request and before its result reaches the snapshot. Mark safe-to-repeat work `idempotent` and send its stable key to that service.
+The state commit still cannot transact with a remote service. A worker can crash after the service applies a request and before its result reaches the snapshot. Mark safe-to-repeat work `idempotencyKey` and send its stable key to that service.
 
 ## Recover command results after a crash
 

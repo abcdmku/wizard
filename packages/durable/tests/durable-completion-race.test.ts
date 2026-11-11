@@ -76,7 +76,7 @@ function createFlow(taskGate: Promise<void>) {
               await taskGate
               return 'worked'
             },
-            idempotent: true,
+            idempotencyKey: true,
             next: 'done',
           }),
           done: step({ next: null }),

@@ -19,7 +19,7 @@ export function createDeliverySteps(step: FulfillmentStep) {
         return accepted
       },
       retry: { retries: 3, backoff: 'exponential' },
-      idempotent: ({ context }) => `order:${context.orderId}:capture-payment`,
+      idempotencyKey: ({ context }) => `order:${context.orderId}:capture-payment`,
       mapError: (error, { attempt }) => mappedFailure(error, attempt),
       compensate: async ({ context, deps }) => {
         const resourceId = context.paymentCapture.id
@@ -95,7 +95,7 @@ export function createDeliverySteps(step: FulfillmentStep) {
         return accepted
       },
       retry: { retries: 3, backoff: 'exponential' },
-      idempotent: ({ context }) => `order:${context.orderId}:create-shipment`,
+      idempotencyKey: ({ context }) => `order:${context.orderId}:create-shipment`,
       mapError: (error, { attempt }) => mappedFailure(error, attempt),
       compensate: ({ context, deps, output }) =>
         deps.gateway.cancelShipment({

@@ -18,7 +18,7 @@ export function createReadinessSteps(step: FulfillmentStep) {
           idempotencyKey,
         }),
       retry: { retries: 3, backoff: 'exponential' },
-      idempotent: ({ context }) => `order:${context.orderId}:authorize-payment`,
+      idempotencyKey: ({ context }) => `order:${context.orderId}:authorize-payment`,
       mapError: (error, { attempt }) => mappedFailure(error, attempt),
       compensate: async ({ context, deps }) => {
         if (context.paymentCapture.id !== undefined) return
@@ -79,7 +79,7 @@ export function createReadinessSteps(step: FulfillmentStep) {
           idempotencyKey,
         }),
       retry: { retries: 3, backoff: 'exponential' },
-      idempotent: ({ context }) => `order:${context.orderId}:reserve-inventory`,
+      idempotencyKey: ({ context }) => `order:${context.orderId}:reserve-inventory`,
       mapError: (error, { attempt }) => mappedFailure(error, attempt),
       compensate: async ({ context, deps }) => {
         const resourceId = context.inventoryReservation.id

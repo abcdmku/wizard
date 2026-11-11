@@ -207,7 +207,7 @@ export function makeDeliveryFlow(runtime: ManagedRuntime.ManagedRuntime<Delivery
       steps({
         assignment: step({
           run: assignment,
-          idempotent: true,
+          idempotencyKey: true,
           retry: retryPolicy,
           output: receiptBoundary,
           next: 'pickup',
@@ -235,13 +235,13 @@ export function makeDeliveryFlow(runtime: ManagedRuntime.ManagedRuntime<Delivery
         }),
         scoreInitial: step({
           run: scoreInitial,
-          idempotent: true,
+          idempotencyKey: true,
           output: scoreBoundary,
           next: 'actInitial',
         }),
         actInitial: step({
           run: actInitial,
-          idempotent: true,
+          idempotencyKey: true,
           retry: retryPolicy,
           output: receiptsBoundary,
           next: 'initialRoute',
@@ -259,13 +259,13 @@ export function makeDeliveryFlow(runtime: ManagedRuntime.ManagedRuntime<Delivery
         }),
         rescore: step({
           run: rescore,
-          idempotent: true,
+          idempotencyKey: true,
           output: scoreBoundary,
           next: 'react',
         }),
         react: step({
           run: reactToEscalation,
-          idempotent: true,
+          idempotencyKey: true,
           retry: retryPolicy,
           output: receiptsBoundary,
           next: 'escalationRoute',
@@ -315,7 +315,7 @@ export function makeDeliveryFlow(runtime: ManagedRuntime.ManagedRuntime<Delivery
               }),
             { mapError: mapActionFailure },
           ),
-          idempotent: true,
+          idempotencyKey: true,
           retry: retryPolicy,
           output: receiptBoundary,
           next: 'done',

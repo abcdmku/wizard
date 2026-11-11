@@ -19,7 +19,7 @@ it('preserves completed child work when a worker crashes after the first resumed
             loads += 1
             return `loaded:${context.n}`
           },
-          idempotent: true,
+          idempotencyKey: true,
           next: 'wait',
         }),
         wait: step({ waitFor: { finish: ({ payload }) => ({ done: payload.n }) } }),

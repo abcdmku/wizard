@@ -36,7 +36,7 @@ export function compileBehaviors(
     'output',
     'retry',
     'compensate',
-    'idempotent',
+    'idempotencyKey',
     'mapError',
     'fallback',
     'each',
