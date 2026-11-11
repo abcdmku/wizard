@@ -14,7 +14,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import { shipmentSucceeded } from './support/fulfillment'
 import { auth, integrationReady, parseBody, requestJson, route, tokens } from './support/http'
-import { localstack } from './support/localstack'
+import { localstack, setVisibilityTimeout } from './support/localstack'
 import { rawCallback, signedHeaders } from './support/webhook'
 
 const execFileAsync = promisify(execFile)
@@ -214,14 +214,7 @@ describe.skipIf(!integrationReady)('Compose restart recovery', () => {
     try {
       // Keep this restart drill repeatable after an interrupted local run leaves an invisible item.
       await localstack(['sqs', 'purge-queue', '--queue-url', inventoryUrl])
-      await localstack([
-        'sqs',
-        'set-queue-attributes',
-        '--queue-url',
-        inventoryUrl,
-        '--attributes',
-        JSON.stringify({ VisibilityTimeout: '1' }),
-      ])
+      await setVisibilityTimeout(inventoryUrl, 1)
       const created = await createOrder(retryInput)
       await restartOrchestrator()
       const recovered = await waitForStatus(created.id, 'fraud_review')
