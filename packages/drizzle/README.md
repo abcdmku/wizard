@@ -27,7 +27,7 @@ Read the [Drizzle reference](../docs/pages/packages/drizzle.mdx).
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `DrizzleDurableStoreOptions` | interface | Options shared by the Drizzle durable-store adapters. | [src](../../packages/drizzle/src/store-types.ts#L12) |
+| `DrizzleDurableStoreOptions` | interface | Options shared by the Drizzle durable-store adapters. | [src](../../packages/drizzle/src/store-types.ts#L4) |
 
 ### `@openwizard/drizzle/pg`
 
