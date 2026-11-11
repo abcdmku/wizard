@@ -37,7 +37,7 @@ A dynamic `next` requires `targets`. Its return type is constrained to that list
 
 A `needs` entry takes a previously created step object. Plain needs supply that step's output, any-needs supply the first completed alternative's output, and optional needs supply an output or `undefined`.
 
-Every consumer hook receives the inferred needs map. This replaces untyped sibling-output lookup inside hooks. `dependsOn` remains a control gate and does not supply data or activate the consumer.
+Every consumer hook receives the inferred needs map. This replaces untyped sibling-output lookup inside hooks. A step that only waits for another step declares the same need and ignores the value.
 
 A timed wait is skipped when its deadline expires, so a timeout adds nothing to its `OutputOf`. A required need on the wait skips the consumer, and an optional need supplies `undefined`.
 

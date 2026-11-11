@@ -8,7 +8,6 @@
 import type {
   CompiledFlow,
   CompiledStep,
-  DepsSpec,
   EachSpec,
   ExposeSpec,
   FlowOnHandlerResult,
@@ -48,7 +47,6 @@ interface CommonCfg {
   readonly targets?: readonly string[]
   readonly needs?: Readonly<Record<string, NeedSpec>>
   readonly fallback?: string
-  readonly dependsOn?: DepsSpec | readonly string[]
   readonly canEnter?: Hook<boolean>
   readonly canExit?: Hook<boolean>
   readonly enter?: Hook<void>
@@ -109,10 +107,18 @@ function nextOf(cfg: CommonCfg): CompiledStep['next'] {
   return { kind: 'static', targets: typeof cfg.next === 'string' ? [cfg.next] : [...cfg.next] }
 }
 
-function depsOf(d: CommonCfg['dependsOn']): DepsSpec | undefined {
-  if (d === undefined) return undefined
-  return Array.isArray(d) ? { all: [...d] } : (d as DepsSpec)
-}
+/** One plain need per producer, keyed by its id: the consumer waits for every output. */
+export const needAll = (...producers: string[]): Record<string, NeedSpec> =>
+  Object.fromEntries(producers.map((id) => [id, { kind: 'all', steps: [id] }]))
+
+/** One optional need per producer: the consumer waits for each to settle and runs if it skipped. */
+export const needOptional = (...producers: string[]): Record<string, NeedSpec> =>
+  Object.fromEntries(producers.map((id) => [id, { kind: 'optional', steps: [id] }]))
+
+/** One `any` need: the consumer waits for the first producer that completes. */
+export const needAny = (...producers: string[]): Record<string, NeedSpec> => ({
+  first: { kind: 'any', steps: producers },
+})
 
 function base(
   kind: StepKind,
@@ -120,11 +126,9 @@ function base(
   hooks: CompiledStep['hooks'],
   eventDriven = false,
 ): StepSpec {
-  const deps = depsOf(cfg.dependsOn)
   return {
     kind,
     next: nextOf(cfg),
-    ...(deps !== undefined ? { dependsOn: deps } : {}),
     ...(cfg.needs !== undefined ? { needs: cfg.needs } : {}),
     ...(cfg.fallback !== undefined ? { fallback: cfg.fallback } : {}),
     ...(cfg.label !== undefined ? { label: cfg.label } : {}),

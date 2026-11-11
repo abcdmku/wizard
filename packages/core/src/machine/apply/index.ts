@@ -4,7 +4,7 @@
  * `updatedAt` and `seq` after EVERY event.
  *
  * `apply` never emits events and never looks at hooks; it only reads the
- * compiled flow for structural facts (kind, dependsOn, initial input, which
+ * compiled flow for structural facts (kind, needs, initial input, which
  * steps have a `compensate` hook).
  *
  * @internal

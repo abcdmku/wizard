@@ -221,8 +221,8 @@ export type LifecycleEventBody =
     }
 
 /**
- * Why a step failed for good (stored as `StepError.kind`). `guard`: its `dependsOn` gate can
- * never open (`DEPS_UNREACHABLE`).
+ * Why a step failed for good (stored as `StepError.kind`). `guard`: its `needs` can never be
+ * met (`DEPS_UNREACHABLE`).
  */
 export type StepFailureKind =
   | 'run'

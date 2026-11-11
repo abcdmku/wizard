@@ -46,8 +46,17 @@ const flow = defineWizard(
     deps: boundary.trusted<Deps>(),
     concurrency: 2,
   },
-  ({ step, view, flow: childFlow, steps }) =>
-    steps(
+  ({ step, view, flow: childFlow, steps }) => {
+    const normalize = step({
+      run: ({ context }) => ({ normalized: context.rows ?? 0 }),
+      next: 'gate',
+    })
+    const enrich = step({
+      run: ({ update }) => update({ quality: 0.9 }),
+      when: ({ context }) => (context.rows ?? 0) > 0,
+      next: 'gate',
+    })
+    return steps(
       {
         form: view({
           input: z.object({ name: z.string().min(1) }),
@@ -64,17 +73,10 @@ const flow = defineWizard(
           retry: { retries: 2, backoff: 100 },
           next: ['normalize', 'enrich'],
         }),
-        normalize: step({
-          run: ({ context }) => ({ normalized: context.rows ?? 0 }),
-          next: 'gate',
-        }),
-        enrich: step({
-          run: ({ update }) => update({ quality: 0.9 }),
-          when: ({ context }) => (context.rows ?? 0) > 0,
-          next: 'gate',
-        }),
+        normalize,
+        enrich,
         gate: step({
-          dependsOn: ['normalize', 'enrich'],
+          needs: { normalize, enrich: { optional: enrich } },
           next: ({ context }) => (context.quality >= 0.8 ? 'awaitPayment' : 'rejected'),
           targets: ['awaitPayment', 'rejected'],
         }),
@@ -96,7 +98,8 @@ const flow = defineWizard(
         done: step({ run: ({ context }) => `stored ${context.rows ?? 0} rows` }),
       },
       { start: 'form' },
-    ),
+    )
+  },
 )
 
 const context = { order: 'o-1' }

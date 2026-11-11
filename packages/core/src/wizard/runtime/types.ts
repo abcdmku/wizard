@@ -131,7 +131,7 @@ export interface WizardRuntime {
   reset(): Promise<CommandResult>
   /** Skip a ready or active step that does not complete the flow. */
   skip(step: string, reason?: string): Promise<CommandResult>
-  /** §9.3: a done/failed/skipped step returns to idle; `cascade` (default true) follows `dependsOn` dependents. */
+  /** §9.3: a done/failed/skipped step returns to idle; `cascade` (default true) follows `needs` dependents. */
   invalidate(step: string, options?: { readonly cascade?: boolean }): Promise<CommandResult>
   /**
    * §9.1: connect an external event source: `source(send)` subscribes and returns a

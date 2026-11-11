@@ -67,10 +67,6 @@ function collect(
       for (const to of step.next.targets) edges.push({ from: id, to, kind: 'next', path })
     }
     for (const to of declaredTargets(step) ?? []) edges.push({ from: id, to, kind: 'route', path })
-    if (step.dependsOn !== undefined) {
-      const list = 'all' in step.dependsOn ? step.dependsOn.all : step.dependsOn.any
-      for (const dep of list) edges.push({ from: dep, to: id, kind: 'dependsOn', path })
-    }
     for (const [alias, need] of Object.entries(step.needs ?? {})) {
       for (const from of need.steps)
         edges.push({ from, to: id, kind: 'needs', alias, mode: need.kind, path })

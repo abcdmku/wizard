@@ -20,21 +20,23 @@ describe('toMermaid', () => {
       context: z.object({ cartId: z.string(), paymentId: z.string().optional() }),
       events: { 'payment.captured': z.object({ paymentId: z.string() }) },
     },
-    ({ step, view, flow, steps }) =>
-      steps(
+    ({ step, view, flow, steps }) => {
+      const reserve = step({
+        run: async () => ({ reservationId: 'r' }),
+        next: ['awaitPayment', 'audit'],
+        retry: { retries: 3 },
+        compensate: () => {},
+      })
+      const audit = step({ run: async () => 1, next: 'route', when: () => true, timeout: '30s' })
+      return steps(
         {
           shipping: view({
             label: 'Shipping address',
             input: z.object({ address: z.string() }),
             next: 'reserve',
           }),
-          reserve: step({
-            run: async () => ({ reservationId: 'r' }),
-            next: ['awaitPayment', 'audit'],
-            retry: { retries: 3 },
-            compensate: () => {},
-          }),
-          audit: step({ run: async () => 1, next: 'route', when: () => true, timeout: '30s' }),
+          reserve,
+          audit,
           awaitPayment: step({
             waitFor: {
               'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
@@ -43,7 +45,7 @@ describe('toMermaid', () => {
             next: 'route',
           }),
           route: step({
-            dependsOn: ['reserve', 'audit'],
+            needs: { reserve, audit: { optional: audit } },
             next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined'),
             targets: ['fulfil', 'declined'],
           }),
@@ -56,7 +58,8 @@ describe('toMermaid', () => {
           expired: step({ next: null }),
         },
         { start: 'shipping' },
-      ),
+      )
+    },
   )
 
   it('draws a titled flowchart with join labels, timeouts, events, declared route targets and a child flow', () => {
@@ -80,11 +83,11 @@ describe('toMermaid', () => {
         '  shipping --> reserve',
         '  reserve --> awaitPayment',
         '  reserve --> audit',
-        '  audit -->|"dependsOn"| route',
+        '  audit -->|"needs: audit (optional)"| route',
         '  awaitPayment --> route',
         '  route -.->|"route"| fulfil',
         '  route -.->|"route"| declined',
-        '  reserve -->|"dependsOn"| route',
+        '  reserve -->|"needs: reserve"| route',
         '  fulfil --> receipt',
         '  awaitPayment -.->|"timeout 15m"| expired',
         '  _event__payment_captured>"payment.captured"] -.-> awaitPayment',
@@ -100,24 +103,27 @@ describe('toMermaid', () => {
     )
   })
 
-  it('quotes the `dependsOn (any)` label (unquoted parentheses break the Mermaid parser) and keeps sanitised ids unique', () => {
+  it('quotes the `needs: first (any)` label (unquoted parentheses break the Mermaid parser) and keeps sanitised ids unique', () => {
     const weird = defineWizard(
       { name: 'weird', context: boundary.trusted<{}>() },
-      ({ step, view, steps }) =>
-        steps(
+      ({ step, view, steps }) => {
+        const dashed = step({ run: async () => 1, next: ['end', 'a_b'] })
+        const underscored = step({ run: async () => 1, timeout: '2500ms', next: 'end' })
+        return steps(
           {
-            'a-b': step({ run: async () => 1, next: ['end', 'a_b'] }),
-            a_b: step({ run: async () => 1, timeout: '2500ms', next: 'end' }),
+            'a-b': dashed,
+            a_b: underscored,
             '1st': step({
               run: async () => 1,
-              dependsOn: { any: ['a-b', 'a_b'] },
+              needs: { first: { any: [dashed, underscored] } },
               next: 'say "hi"',
             }),
             'say "hi"': view({ input: boundary.trusted<{}>(), next: 'end' }),
             end: step({ next: null }),
           },
-          { start: ['a-b', '1st'] },
-        ),
+          { start: 'a-b' },
+        )
+      },
     )
     expect(toMermaid(inspect(weird))).toBe(
       [
@@ -132,13 +138,12 @@ describe('toMermaid', () => {
         '  end_[["end"]]',
         '  _start((" "))',
         '  _start --> a_b',
-        '  _start --> n_1st',
         '  a_b --> end_',
         '  a_b --> a_b_2',
         '  a_b_2 --> end_',
         '  n_1st --> say__hi_',
-        '  a_b -->|"dependsOn (any)"| n_1st',
-        '  a_b_2 -->|"dependsOn (any)"| n_1st',
+        '  a_b -->|"needs: first (any)"| n_1st',
+        '  a_b_2 -->|"needs: first (any)"| n_1st',
         '  say__hi_ --> end_',
       ].join('\n'),
     )

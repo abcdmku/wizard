@@ -58,8 +58,8 @@ Default output is the output of the last completed sink. A sink has no normal su
 Activation and gating are distinct.
 
 - `start` and `next` push activation.
-- `dependsOn` gates existing activation. An all-gate accepts every producer in done or skipped state; an any-gate accepts one.
-- `needs` gates and activates a consumer through producer settlement. It supplies typed outputs to every hook.
+- `needs` gates a consumer and supplies typed outputs to every hook. Producer settlement also activates the consumer, with one exception.
+- A declared target of a function `next` is routed. Only that choice, or another push edge, activates it. Its needs gate it and never activate it, so a target that was not chosen stays `not-taken` when its producers finish, before or after the choice.
 - `when` runs once the candidate is eligible. False skips it before entry.
 - The concurrency budget delays runnable work. Views and event waits do not consume runnable slots.
 - `autoRun: 'manual'` leaves ready work for `startStep` or `startReady`.
@@ -70,9 +70,9 @@ Activation and gating are distinct.
 | `any` | First producer done, preserving that selected output | All producers skipped skips the consumer |
 | `optional` | Producer settled | No propagation; missing output is `undefined` |
 
-Non-chosen declared targets skip with reason `not-taken`. Static descendants skip when every static predecessor skipped. Required data-need skips use `needs-skipped`. Skips do not invoke the step's `exit` and do count toward completion summaries.
+Non-chosen declared targets skip with reason `not-taken`. Static descendants skip when every static predecessor skipped. A descendant with needs is exempt and decides from its needs, unless it is routed: a routed step skips with `not-taken` once every step that could push to it has skipped. Required data-need skips use `needs-skipped`. A later producer output can revive a `needs-skipped` consumer that is not routed. It never revives a `not-taken` one. Skips do not invoke the step's `exit` and do count toward completion summaries.
 
-When a quiescent join cannot satisfy a dependency that can no longer activate, fail it with `DEPS_UNREACHABLE`, naming the dependency and excluding router when known. Inspection warns about all-gates over mutually exclusive targets.
+When a quiescent join cannot satisfy a dependency that can no longer activate, fail it with `DEPS_UNREACHABLE`, naming the dependency and excluding router when known. Inspection warns about plain needs over mutually exclusive targets.
 
 ## 4. Runnable work, retry, and item state
 
@@ -167,7 +167,7 @@ Selectors for phase, readiness, view candidates, explanations, and progress summ
 Machine tests use plain definitions, deterministic environments, and literal expected events/state. Runtime tests call the API as applications do. Keep focused regressions for these contracts:
 
 - Navigation validation, veto, atomic source checks, back without exit, and cancellation during a transaction.
-- Fan-out, data needs, control-only gates, exclusive branches, skip propagation, and unreachable joins.
+- Fan-out, data needs, routed targets held by their needs, exclusive branches, skip propagation, and unreachable joins.
 - Retry deadlines, typed mapped failures, fallback, compensation order, and partial undo failures.
 - Item concurrency, ordered results, finished-result retention, failed-item retry, and large collections.
 - Event boundaries, bounded deduplication, correlation, FIFO buffering, atomic halt, and overdue resume.

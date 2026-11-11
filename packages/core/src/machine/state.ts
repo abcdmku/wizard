@@ -161,8 +161,8 @@ export interface StepRecord {
   readonly endedAt?: number
   readonly visitedCount: number
   /**
-   * Set when `start` or a completed predecessor's `next` arrives here while the
-   * step is not active; cleared when the step enters. Together with `dependsOn`
+   * Set when `start`, a completed predecessor's `next` or a finished `needs` producer arrives
+   * here while the step is not active; cleared when the step enters. Together with `needs`
    * gating this is the readiness rule: `ready = pendingActivation && depsSatisfied`.
    */
   readonly pendingActivation: boolean

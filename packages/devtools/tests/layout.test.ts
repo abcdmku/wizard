@@ -30,12 +30,16 @@ describe('buildGraphModel', () => {
     expect(keys.indexOf('pack')).toBeLessThan(keys.indexOf('pack/count'))
   })
 
-  it('labels activation, control, data, routing and timeout edges', () => {
+  it('labels activation, data, routing and timeout edges', () => {
     expect(edge(`start:${entryKey([])}->form`)?.kind).toBe('start')
     expect(edge('next:ingest->normalize')?.kind).toBe('next')
-    expect(edge('dependsOn:normalize->gate')).toMatchObject({
-      kind: 'dependsOn',
-      label: 'dependsOn',
+    expect(edge('needs:normalize->gate')).toMatchObject({
+      kind: 'needs',
+      label: 'needs normalize',
+    })
+    expect(edge('needs:enrich->gate')).toMatchObject({
+      kind: 'needs',
+      label: 'needs enrich (optional)',
     })
     expect(edge('timeout:awaitPayment->rejected')).toMatchObject({
       kind: 'timeout',

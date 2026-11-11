@@ -14,6 +14,7 @@
  */
 
 import type { CompiledFlow } from '../authoring/compiled'
+import { unmetNeeds } from './needs'
 import {
   activeRunCount,
   awaitingWhen,
@@ -24,7 +25,6 @@ import {
   ready,
   readyViews,
   type StepPhase,
-  unmetDeps,
 } from './selectors'
 import type { StepStatus, WizardState } from './state'
 
@@ -61,7 +61,7 @@ export function explain(def: CompiledFlow, state: WizardState, stepId: string): 
   ) {
     if (!rec.pendingActivation) reasons.push('not-activated')
     if (rec.status === 'skipped') reasons.push(`skipped:${rec.skipReason ?? 'unknown'}`)
-    for (const dep of unmetDeps(def, state, stepId)) reasons.push(`deps-unmet:${dep}`)
+    for (const dep of unmetNeeds(def, state, stepId)) reasons.push(`deps-unmet:${dep}`)
     if (eligible(def, state, stepId) && awaitingWhen(def, state, stepId))
       reasons.push('when-pending')
     if (ready(def, state, stepId)) {

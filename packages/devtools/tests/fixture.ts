@@ -32,8 +32,17 @@ export const pipeline = defineWizard(
     deps: boundary.trusted<Deps>(),
     concurrency: 2,
   },
-  ({ step, view, flow, steps }) =>
-    steps(
+  ({ step, view, flow, steps }) => {
+    const normalize = step({
+      run: ({ context }) => ({ normalized: context.rows ?? 0 }),
+      next: 'gate',
+    })
+    const enrich = step({
+      run: ({ update }) => update({ quality: 0.9 }),
+      when: ({ context }) => (context.rows ?? 0) > 0,
+      next: 'gate',
+    })
+    return steps(
       {
         form: view({
           input: z.object({ name: z.string().min(1) }),
@@ -49,17 +58,10 @@ export const pipeline = defineWizard(
           retry: { retries: 2, backoff: 100 },
           next: ['normalize', 'enrich'],
         }),
-        normalize: step({
-          run: ({ context }) => ({ normalized: context.rows ?? 0 }),
-          next: 'gate',
-        }),
-        enrich: step({
-          run: ({ update }) => update({ quality: 0.9 }),
-          when: ({ context }) => (context.rows ?? 0) > 0,
-          next: 'gate',
-        }),
+        normalize,
+        enrich,
         gate: step({
-          dependsOn: ['normalize', 'enrich'],
+          needs: { normalize, enrich: { optional: enrich } },
           targets: ['awaitPayment', 'rejected'],
           next: ({ context }) => (context.quality >= 0.8 ? 'awaitPayment' : 'rejected'),
         }),
@@ -80,7 +82,8 @@ export const pipeline = defineWizard(
         orphan: step({ run: () => undefined }),
       },
       { start: 'form' },
-    ),
+    )
+  },
 )
 
 export const context = { source: 'crm' }

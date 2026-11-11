@@ -49,7 +49,6 @@ export function resolveReferences(value: unknown): unknown {
       const config = step.config
       const location = (field: string) => `step '${id}' ${field}`
       const next = config.next
-      const deps = config.dependsOn
       const needs = config.needs
       const on = config.on
       return [
@@ -78,15 +77,6 @@ export function resolveReferences(value: unknown): unknown {
                     ...config.timeout,
                     next: target(config.timeout.next, location('timeout.next')),
                   },
-                }
-              : {}),
-            ...(deps !== undefined
-              ? {
-                  dependsOn: Array.isArray(deps)
-                    ? target(deps, location('dependsOn'))
-                    : isRecord(deps) && deps.any !== undefined
-                      ? { ...deps, any: target(deps.any, location('dependsOn.any')) }
-                      : deps,
                 }
               : {}),
             ...(isRecord(needs)

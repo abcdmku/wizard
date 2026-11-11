@@ -160,11 +160,12 @@ describe('persistence: JSON-checked before every store write', () => {
         output: z.object({ id: z.string(), createdAt: z.coerce.date() }),
         next: 'gate',
       })
+      const gate = view({ input: z.object({ ok: z.literal(true) }), next: 'end' })
       return steps(
         {
           save,
-          gate: view({ input: z.object({ ok: z.literal(true) }), next: 'end' }),
-          end: step({ needs: { save }, dependsOn: ['gate'], run: ({ needs }) => needs.save }),
+          gate,
+          end: step({ needs: { save, gate }, run: ({ needs }) => needs.save }),
         },
         { start: 'save' },
       )

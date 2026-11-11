@@ -63,8 +63,10 @@ export interface FlowGraphNode {
    * mappers, or a runnable step's `idempotencyKey` function).
    */
   readonly hooks: readonly string[]
-  readonly dependsOn?: { readonly all: readonly string[] } | { readonly any: readonly string[] }
-  /** Named output dependencies. Their `needs` edges both gate and activate this step. */
+  /**
+   * Named output dependencies. Their `needs` edges gate this step. They also activate it,
+   * unless a `route` edge points here: then only the routing step does.
+   */
   readonly needs?: Readonly<Record<string, GraphNeed>>
   /** One run or child per snapshotted item, with outputs in item order. */
   readonly each?: GraphEach
@@ -103,7 +105,7 @@ export interface FlowGraphNode {
 export interface FlowGraphEdge {
   readonly from: string | null
   readonly to: string
-  readonly kind: 'next' | 'route' | 'dependsOn' | 'needs' | 'fallback' | 'timeout' | 'start'
+  readonly kind: 'next' | 'route' | 'needs' | 'fallback' | 'timeout' | 'start'
   /** The named dependency carried by a `needs` edge. */
   readonly alias?: string
   /** Skip and gating rule for a `needs` edge. */

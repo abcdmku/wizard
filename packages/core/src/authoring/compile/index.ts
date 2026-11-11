@@ -16,8 +16,9 @@
  * the definition header's `on` / `correlate` → `def.on` / `def.correlate`.
  *
  * Warnings (never thrown; `compile(flow, { onWarning })`, reused by `inspect()`):
- * `UNREACHABLE` (no path from `start`), `NEVER_ACTIVATES` (`dependsOn` but no incoming edge),
- * `NAV_CYCLE` (a cycle through static `next` / `timeout.next` edges — allowed, reported).
+ * `UNREACHABLE` (no path from `start` through `next`, `targets`, `needs`, `fallback` or
+ * `timeout.next`), `NAV_CYCLE` (a cycle through static `next` / `timeout.next` edges —
+ * allowed, reported).
  * Dynamic `next` functions require declared targets, which bound reachability analysis.
  *
  * Flow-step mappers (`context`, `deps`) are compiled RAW: the executor / child bridge parse
@@ -39,13 +40,7 @@ import { describeName } from './shared'
  * @public
  */
 export interface FlowWarning {
-  readonly code:
-    | 'UNREACHABLE'
-    | 'NEVER_ACTIVATES'
-    | 'NAV_CYCLE'
-    | 'EXCLUSIVE_JOIN'
-    | 'MULTIPLE_SINKS'
-    | 'NO_SINKS'
+  readonly code: 'UNREACHABLE' | 'NAV_CYCLE' | 'EXCLUSIVE_JOIN' | 'MULTIPLE_SINKS' | 'NO_SINKS'
   readonly message: string
   /** Step the warning is about. */
   readonly step?: string

@@ -24,7 +24,7 @@ export const fulfilmentFlow = defineWizard(
     }),
 )
 
-/** Views, fan-out, a timeout, a control join, declared routing and a nested wizard. */
+/** Views, fan-out, a timeout, a join, declared routing and a nested wizard. */
 export const checkoutFlow = defineWizard(
   {
     name: 'checkout',
@@ -32,30 +32,32 @@ export const checkoutFlow = defineWizard(
     events: { 'payment.captured': z.object({ paymentId: z.string() }) },
     deps: boundary.trusted<Deps>(),
   },
-  ({ step, view, flow, steps }) =>
-    steps(
+  ({ step, view, flow, steps }) => {
+    const audit = step({ run: async () => ({ audited: true }) })
+    const awaitPayment = step({
+      waitFor: {
+        'payment.captured': ({ payload, update }) => {
+          update({ paymentId: payload.paymentId })
+          return { done: payload }
+        },
+      },
+      timeout: { after: '15m', next: 'expired' },
+    })
+    return steps(
       {
         shipping: view({ input: z.object({ address: z.string().min(1) }), next: 'reserve' }),
         reserve: step({
           run: ({ context, deps }) => deps.inventory.reserve(context.cartId),
           next: ['awaitPayment', 'audit'],
         }),
-        audit: step({ run: async () => ({ audited: true }), next: 'route' }),
-        awaitPayment: step({
-          waitFor: {
-            'payment.captured': ({ payload, update }) => {
-              update({ paymentId: payload.paymentId })
-              return { done: payload }
-            },
-          },
-          timeout: { after: '15m', next: 'expired' },
-          next: 'route',
-        }),
+        audit,
+        awaitPayment,
         route: step({
-          // dependsOn gates a pushed activation; needs would also supply typed data.
-          dependsOn: ['awaitPayment', 'audit'],
+          // The route waits for both branches. The optional need lets it run after the payment
+          // wait times out, when there is no payment to read.
+          needs: { audit, payment: { optional: awaitPayment } },
           targets: ['fulfil', 'declined'],
-          next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined'),
+          next: ({ needs }) => (needs.payment ? 'fulfil' : 'declined'),
         }),
         fulfil: flow(fulfilmentFlow, {
           context: ({ context }) => ({ orderId: context.cartId }),
@@ -66,5 +68,6 @@ export const checkoutFlow = defineWizard(
         expired: step({ run: () => undefined }),
       },
       { start: 'shipping' },
-    ),
+    )
+  },
 )

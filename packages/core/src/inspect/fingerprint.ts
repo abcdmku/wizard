@@ -32,7 +32,6 @@ function structuralNode(node: FlowGraphNode): unknown {
     path: node.path,
     id: node.id,
     kind: node.kind,
-    dependsOn: node.dependsOn ?? null,
     needs: node.needs ?? null,
     each: node.each !== undefined,
     sleep: node.sleep !== undefined,

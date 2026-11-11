@@ -8,6 +8,7 @@ import {
   eventStep,
   flow,
   flowStep,
+  needAll,
   of,
   replay,
   routingStep,
@@ -204,7 +205,7 @@ describe('on — routing to every kind', () => {
         steps: {
           t: runStep({ on: { e: on }, next: 'end' }),
           w: eventStep({ on: { e: on }, next: 'end' }),
-          end: routingStep({ dependsOn: ['t', 'w'] }),
+          end: routingStep({ needs: needAll('t', 'w') }),
         },
       }),
     )

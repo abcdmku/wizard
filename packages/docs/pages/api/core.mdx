@@ -55,7 +55,7 @@ Every constructor takes an object configuration.
 | `view({ input, ...options })` | Validated view input |
 | `flow(childWizard, { context, ...options })` | Child wizard output; an array with `each` |
 
-Common options are `next`, `targets`, `needs`, `dependsOn`, `when`, `enter`, `exit`, `on`, `label`, `description`, and JSON `meta`. `waitFor` belongs to a wait step; compose a wait and a runnable step when an event should trigger work.
+Common options are `next`, `targets`, `needs`, `when`, `enter`, `exit`, `on`, `label`, `description`, and JSON `meta`. `waitFor` belongs to a wait step; compose a wait and a runnable step when an event should trigger work.
 
 A `waitFor` handler returns `{ done: value }` to resolve with that value, `{ keep: true }` to keep listening, or `{ fail: message }` to fail the step. Returning nothing resolves with the validated event payload. Put routing on the step's `next`; wait-handler results do not contain `next`.
 
@@ -86,12 +86,11 @@ A fallback marks the failed source step skipped with reason `fallback`, retains 
 | Option | Meaning |
 |---|---|
 | `next` | Push activation to one or several successors |
-| `dependsOn` | Gate execution; does not activate the step |
 | `needs` | Typed data join that both gates and activates the consumer |
 
-`needs` aliases reference step objects created earlier in the callback. `needs: { price }` provides `needs.price` with that step's output type. `{ any: [a, b] }` uses the first completed output. `{ optional: a }` waits for `a` to settle and supplies its output or `undefined`. A skipped required need skips its consumer; optional needs do not propagate skips.
+`needs` aliases reference step objects created earlier in the callback. `needs: { price }` provides `needs.price` with that step's output type. `{ any: [a, b] }` uses the first completed output. `{ optional: a }` waits for `a` to settle and supplies its output or `undefined`. A skipped required need skips its consumer; optional needs do not propagate skips. A step listed in the `targets` of a function `next` is the exception to activation. Only that function starts it, and its needs hold it until they are met.
 
-References in `next`, `targets`, `dependsOn`, and `fallback` accept step ids or step objects. A function `next` requires `targets` and must return a listed target, an array of listed targets, or `null`. Non-chosen targets become skipped. An unreachable control join fails with `DEPS_UNREACHABLE` instead of waiting forever. See [graphs](/advanced/graphs) for branching and joins.
+References in `next`, `targets`, and `fallback` accept step ids or step objects. A function `next` requires `targets` and must return a listed target, an array of listed targets, or `null`. Non-chosen targets become skipped. A join whose needs can no longer be met fails with `DEPS_UNREACHABLE` instead of waiting forever. See [graphs](/advanced/graphs) for branching and joins.
 
 Hooks receive typed `context`, `deps`, and `needs`. `update(patch)` merges context; `update(current => patch)` applies the function to the latest committed context. Runnable hooks also receive `attempt`, a stable `idempotencyKey`, `signal`, and `progress(value)`. Progress events are transient and do not enter snapshots or the persisted log.
 

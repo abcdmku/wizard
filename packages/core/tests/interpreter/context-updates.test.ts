@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { HookArgs } from '../../src/authoring/compiled'
-import { flow, runStep } from '../helpers/fixtures'
+import { flow, needAll, runStep } from '../helpers/fixtures'
 import { e2e } from '../wizard/e2e/harness'
 
 type Ctx = { readonly ran: readonly string[] }
@@ -18,7 +18,7 @@ const fanOut = (branch: (args: HookArgs) => unknown) =>
       a: runStep({ run: ({ update }) => update({ ran: ['a'] }), next: ['b', 'c'] }),
       b: runStep({ run: branch, next: 'd' }),
       c: runStep({ run: branch, next: 'd' }),
-      d: runStep({ run: (args) => ran(args), dependsOn: ['b', 'c'] }),
+      d: runStep({ run: (args) => ran(args), needs: needAll('b', 'c') }),
     },
   })
 

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { available, explain, phase, progress, ready } from '../../src/machine/index'
-import { createHarness, eventStep, flow, of, routingStep, runStep, view } from '../helpers/fixtures'
+import {
+  createHarness,
+  eventStep,
+  flow,
+  needAll,
+  of,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 describe('deriveStatus table', () => {
   it('idle → waiting (view) → running (task) → waiting (wait) → done', () => {
@@ -287,7 +296,7 @@ describe('selectors and explain', () => {
         steps: {
           a: view({ next: ['t', 'b', 'c'] }),
           t: runStep({ retry: { retries: 1, backoff: 10 } }),
-          b: view({ dependsOn: ['t'], canEnter: () => true, next: 'end' }),
+          b: view({ needs: needAll('t'), canEnter: () => true, next: 'end' }),
           c: view({ next: 'end' }),
           end: routingStep(),
         },

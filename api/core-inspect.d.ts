@@ -14,7 +14,7 @@ type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
  * @public
  */
 interface FlowWarning {
-  readonly code: 'UNREACHABLE' | 'NEVER_ACTIVATES' | 'NAV_CYCLE' | 'EXCLUSIVE_JOIN' | 'MULTIPLE_SINKS' | 'NO_SINKS';
+  readonly code: 'UNREACHABLE' | 'NAV_CYCLE' | 'EXCLUSIVE_JOIN' | 'MULTIPLE_SINKS' | 'NO_SINKS';
   readonly message: string;
   /** Step the warning is about. */
   readonly step?: string;
@@ -72,12 +72,10 @@ interface FlowGraphNode {
    * mappers, or a runnable step's `idempotencyKey` function).
    */
   readonly hooks: readonly string[];
-  readonly dependsOn?: {
-    readonly all: readonly string[];
-  } | {
-    readonly any: readonly string[];
-  };
-  /** Named output dependencies. Their `needs` edges both gate and activate this step. */
+  /**
+   * Named output dependencies. Their `needs` edges gate this step. They also activate it,
+   * unless a `route` edge points here: then only the routing step does.
+   */
   readonly needs?: Readonly<Record<string, GraphNeed>>;
   /** One run or child per snapshotted item, with outputs in item order. */
   readonly each?: GraphEach;
@@ -118,7 +116,7 @@ interface FlowGraphNode {
 interface FlowGraphEdge {
   readonly from: string | null;
   readonly to: string;
-  readonly kind: 'next' | 'route' | 'dependsOn' | 'needs' | 'fallback' | 'timeout' | 'start';
+  readonly kind: 'next' | 'route' | 'needs' | 'fallback' | 'timeout' | 'start';
   /** The named dependency carried by a `needs` edge. */
   readonly alias?: string;
   /** Skip and gating rule for a `needs` edge. */
@@ -189,7 +187,7 @@ declare function toMarkdown(graph: FlowGraph): string;
  * `[…]`, step `[[…]]`, flow `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
  * retries, run timeout, `compensable`), a start circle per flow, solid `next` edges, dashed
  * `route` edges to declared targets (a dashed edge to `?` when targets are undeclared),
- * `dependsOn` and named `needs` labels on joins (merged with activation edges),
+ * named `needs` labels on joins (merged with activation edges),
  * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child flow
  * in a `subgraph` titled with its flow name. Deterministic for a given manifest.
  * @public

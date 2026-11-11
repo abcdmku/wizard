@@ -113,24 +113,19 @@ function startsWhen(node: FlowGraphNode, edges: readonly FlowGraphEdge[]): strin
   const parts: string[] = []
   if (node.start === true) parts.push('its wizard starts')
   if (into('next').length > 0) parts.push(`${list(into('next'), 'or')} finishes`)
-  // A need activates its consumer, so the producers below are both gate and trigger.
   if (into('route').length > 0) parts.push(`${list(into('route'), 'or')} routes here`)
   if (into('timeout').length > 0) parts.push(`${list(into('timeout'), 'or')} times out`)
   if (into('fallback').length > 0) parts.push(`${list(into('fallback'), 'or')} fails for good`)
+  // A need activates its consumer, so its producers are both gate and trigger. A routed step
+  // is the exception: only the route starts it, and its needs hold it.
+  const hold = into('route').length > 0 ? 'only after ' : ''
   for (const need of Object.values(node.needs ?? {})) {
     const steps = need.steps.map(code)
     parts.push(
       need.kind === 'any'
-        ? `the first of ${list(steps, 'or')} finishes`
-        : `${list(steps, 'and')} ${verb(need.kind === 'optional' ? 'settle' : 'finish', steps.length)}`,
+        ? `${hold}the first of ${list(steps, 'or')} finishes`
+        : `${hold}${list(steps, 'and')} ${verb(need.kind === 'optional' ? 'settle' : 'finish', steps.length)}`,
     )
-  }
-  if (node.dependsOn !== undefined) {
-    const gate =
-      'any' in node.dependsOn
-        ? `one of ${list(node.dependsOn.any.map(code), 'or')}`
-        : list(node.dependsOn.all.map(code), 'and')
-    parts.push(`held until ${gate} is done`)
   }
   return parts.length > 0 ? parts : ['never, nothing activates it']
 }

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { createHarness, flow, flowStep, of, routingStep, runStep, view } from '../helpers/fixtures'
+import {
+  createHarness,
+  flow,
+  flowStep,
+  needAll,
+  of,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 describe('routing', () => {
   const routed = () =>
@@ -309,7 +318,7 @@ describe('review follow-ups — child result freshness, halt with a running chil
             a: runStep({ next: 'end' }),
             b: runStep({ next: 'end' }),
             sub: flowStep(child, { next: 'end' }),
-            end: routingStep({ dependsOn: ['a', 'b', 'sub'] }),
+            end: routingStep({ needs: needAll('a', 'b', 'sub') }),
           },
         }),
       )

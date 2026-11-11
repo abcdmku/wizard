@@ -13,7 +13,7 @@ Zod 4 and ArkType work; other boundaries give `undefined`), and per step `waitsF
 `compensable`, `retry`, `child` and declared `targets`, drawn as `route` edges. `fingerprint`
 detects structure and schema drift. It is not a behaviour hash: hook bodies, `when` guards, retry
 and timeouts do not change it. A new `EXCLUSIVE_JOIN` warning flags an AND-join over alternative
-branches. `toMermaid` output now parses with Mermaid: quoted edge labels (`dependsOn (any)`), a
+branches. `toMermaid` output now parses with Mermaid: quoted edge labels (`needs: first (any)`), a
 title, step labels, event nodes, and child subgraphs titled with the child flow name.
 
 Every entry of `@openwizard/core` shares one runtime, so `inspect()` accepts flows built with

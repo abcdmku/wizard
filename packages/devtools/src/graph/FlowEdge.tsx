@@ -1,6 +1,6 @@
 /**
  * The one edge component: shape from `edgePath`, stroke / dash by edge kind (`next` solid,
- * `route` dashed, `dependsOn` dashed, `needs` solid, `fallback` dashed, `timeout` dotted,
+ * `route` dashed, `needs` solid, `fallback` dashed, `timeout` dotted,
  * `start` thin, `dynamic` dashed to the `?`
  * port), an arrow head per edge and a label chip when the model gave one.
  */
@@ -16,7 +16,6 @@ const STYLE: Readonly<
 > = {
   next: { stroke: 'var(--owd-edge)', width: 2 },
   route: { stroke: 'var(--owd-edge)', width: 2, dash: '6 4' },
-  dependsOn: { stroke: 'var(--owd-warn)', width: 2, dash: '7 4' },
   needs: { stroke: 'var(--owd-success)', width: 2 },
   fallback: { stroke: 'var(--owd-accent-2)', width: 2, dash: '7 4' },
   timeout: { stroke: 'var(--owd-accent-2)', width: 2, dash: '2 4' },
@@ -36,7 +35,7 @@ function FlowEdgeView(props: EdgeProps<DevtoolsEdge>): ReactElement {
     targetPosition: props.targetPosition,
     selfLoop: props.source === props.target,
     forward: props.source < props.target,
-    bulge: kind === 'dependsOn' || kind === 'needs',
+    bulge: kind === 'needs',
   })
   const markerId = `owd-arrow-${props.id}`
   const label = props.data?.label

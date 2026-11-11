@@ -1,7 +1,7 @@
 /**
  * `<StepInspector>` — one step in detail: the stored record (status, phase, attempt, timers,
  * error, input / output as JSON), `run.explain(step)` (reasons and cursor candidates) and
- * the static facts of the graph node (kind, hooks, `dependsOn`, `timeout`, edges).
+ * the static facts of the graph node (kind, hooks, `needs`, `timeout`, edges).
  */
 
 import type { FlowGraph, FlowGraphNode } from '@openwizard/core/inspect'
@@ -210,16 +210,6 @@ function DefinitionSection({
         <Fact name="kind" value={node.kind} />
         <Fact name="label" value={node.label} />
         <Fact name="hooks" value={node.hooks.length === 0 ? '—' : node.hooks.join(', ')} />
-        <Fact
-          name="dependsOn"
-          value={
-            node.dependsOn === undefined
-              ? undefined
-              : 'all' in node.dependsOn
-                ? node.dependsOn.all.join(', ')
-                : `any of ${node.dependsOn.any.join(', ')}`
-          }
-        />
         <Fact
           name="timeout"
           value={node.timeout === undefined ? undefined : formatMs(node.timeout)}

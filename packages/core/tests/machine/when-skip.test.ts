@@ -3,20 +3,30 @@
  */
 import { describe, expect, it } from 'vitest'
 import { explain, phase, ready } from '../../src/machine/index'
-import { createHarness, flow, of, replay, routingStep, runStep, view } from '../helpers/fixtures'
+import {
+  createHarness,
+  flow,
+  needAll,
+  needOptional,
+  of,
+  replay,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const yes = () => true
 const on = () => undefined
 
 describe('when — evaluated at readiness', () => {
-  it('false skips the step: step.whenStarted → call when → step.whenEvaluated{ok:false} + step.skipped{when}; deps satisfied, next arrived (auto), cursor never lands on it', () => {
+  it('false skips the step: step.whenStarted → call when → step.whenEvaluated{ok:false} + step.skipped{when}; optional needs satisfied, next arrived (auto), cursor never lands on it', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
           a: view({ next: 'b' }),
           b: view({ when: yes, exit: on, next: 'c' }),
-          c: view({ dependsOn: ['b'], next: 'end' }),
+          c: view({ needs: needOptional('b'), next: 'end' }),
           end: routingStep(),
         },
       }),
@@ -43,7 +53,7 @@ describe('when — evaluated at readiness', () => {
     expect(of(s, 'step.skipped')[0]).toMatchObject({ step: 'b', reason: 'when' })
     expect(of(s, 'transition.started')[0]).toMatchObject({ from: 'b', cause: 'auto' })
     expect(of(s, 'transition.started')[0]).not.toHaveProperty('to')
-    // b's exit hook never ran; c (dependsOn b) is satisfied and became current
+    // b's exit hook never ran; c (optional need on b) is satisfied and became current
     expect(h.pending('exit')).toHaveLength(0)
     expect(h.rec('b')).toMatchObject({ status: 'skipped', skipReason: 'when' })
     expect(h.rec('b').when).toBeUndefined()
@@ -107,7 +117,7 @@ describe('when — evaluated at readiness', () => {
             },
             next: 'join',
           }),
-          join: runStep({ dependsOn: ['t1', 'opt'], next: 'end' }),
+          join: runStep({ needs: { ...needAll('t1'), ...needOptional('opt') }, next: 'end' }),
           end: routingStep(),
         },
         policies: { concurrency: 1 },
@@ -171,7 +181,7 @@ describe('when — evaluated at readiness', () => {
     const stop = createHarness(
       flow({
         start: ['t', 'v'],
-        steps: { t: runStep({ when: yes }), v: view(), end: routingStep({ dependsOn: ['t'] }) },
+        steps: { t: runStep({ when: yes }), v: view(), end: routingStep() },
       }),
     )
     stop.start()
@@ -188,8 +198,8 @@ describe('when — evaluated at readiness', () => {
           a: view({ next: ['b', 'c'] }),
           b: view({ when: yes, next: 'end' }),
           c: view({ next: 'end' }),
-          // A skipped b satisfies the join's control gate.
-          end: routingStep({ dependsOn: ['b', 'c'] }),
+          // An optional need lets the join run after b is skipped.
+          end: routingStep({ needs: needOptional('b', 'c') }),
         },
       }),
     )
@@ -251,8 +261,8 @@ describe('when — evaluated at readiness', () => {
           start: ['t', 'opt'],
           steps: {
             t: runStep({ compensate: on, next: 'end' }),
-            opt: runStep({ when: yes, dependsOn: ['t'], next: 'end' }),
-            end: routingStep({ dependsOn: ['t', 'opt'] }),
+            opt: runStep({ when: yes, needs: needAll('t'), next: 'end' }),
+            end: routingStep({ needs: { ...needAll('t'), ...needOptional('opt') } }),
           },
           ...(policies !== undefined ? { policies } : {}),
         }),
@@ -283,7 +293,7 @@ describe('when — evaluated at readiness', () => {
     // Cancel.
     const cancelled = make()
     cancelled.start()
-    expect(cancelled.rec('opt').when).toBeUndefined() // not eligible yet (dependsOn t)
+    expect(cancelled.rec('opt').when).toBeUndefined() // not eligible yet (needs t)
     cancelled.ok(cancelled.call('run', 't'), 1) // opt eligible → when asked; end pending
     const whenCancelled = cancelled.call('when', 'opt')
     cancelled.cmd({ type: 'cancel', reason: 'stop' })
@@ -313,7 +323,7 @@ describe('when — evaluated at readiness', () => {
           b: view({ when: yes, next: 'end' }),
           c: view({ next: 'end' }),
           t: runStep({ next: 'end' }),
-          end: routingStep({ dependsOn: ['b', 'c', 't'] }),
+          end: routingStep({ needs: needAll('b', 'c', 't') }),
         },
       }),
     )

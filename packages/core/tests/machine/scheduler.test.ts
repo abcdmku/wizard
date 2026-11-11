@@ -3,7 +3,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import { explain } from '../../src/machine/index'
-import { createHarness, flow, of, routingStep, runStep } from '../helpers/fixtures'
+import {
+  createHarness,
+  flow,
+  needAll,
+  needAny,
+  of,
+  routingStep,
+  runStep,
+} from '../helpers/fixtures'
 
 describe('scheduler — arrival, gating, ordering', () => {
   it('start with several entry steps arrives at each; ready tasks enter in arrival order and run in parallel', () => {
@@ -13,7 +21,7 @@ describe('scheduler — arrival, gating, ordering', () => {
         steps: {
           t1: runStep({ next: 'join' }),
           t2: runStep({ next: 'join' }),
-          join: runStep({ dependsOn: ['t1', 't2'], next: 'end' }),
+          join: runStep({ needs: needAll('t1', 't2'), next: 'end' }),
           end: routingStep(),
         },
       }),
@@ -40,14 +48,14 @@ describe('scheduler — arrival, gating, ordering', () => {
     })
   })
 
-  it('dependsOn (all): the join is arrived by the first completion but only enters when every dep is done', () => {
+  it('plain needs: the join is arrived by the first completion but only enters when every producer is done', () => {
     const h = createHarness(
       flow({
         start: ['t1', 't2'],
         steps: {
           t1: runStep({ next: 'join' }),
           t2: runStep({ next: 'join' }),
-          join: runStep({ dependsOn: ['t1', 't2'], next: 'end' }),
+          join: runStep({ needs: needAll('t1', 't2'), next: 'end' }),
           end: routingStep(),
         },
       }),
@@ -63,14 +71,14 @@ describe('scheduler — arrival, gating, ordering', () => {
     expect(h.pending('run', 'join')).toHaveLength(1)
   })
 
-  it('dependsOn (any): the join enters as soon as one dep is done', () => {
+  it('any need: the join enters as soon as one producer is done', () => {
     const h = createHarness(
       flow({
         start: ['t1', 't2'],
         steps: {
           t1: runStep({ next: 'join' }),
           t2: runStep({ next: 'join' }),
-          join: runStep({ dependsOn: { any: ['t1', 't2'] }, next: 'end' }),
+          join: runStep({ needs: needAny('t1', 't2'), next: 'end' }),
           end: routingStep(),
         },
       }),
@@ -80,23 +88,27 @@ describe('scheduler — arrival, gating, ordering', () => {
     expect(h.rec('join').status).toBe('active')
   })
 
-  it('a step with dependsOn but no arrival never activates when its deps complete (activation only by arrival)', () => {
+  it('a routed step is not activated when its needs complete (activation only by its router)', () => {
     const h = createHarness(
       flow({
-        start: 't1',
+        start: ['t1', 'route'],
         steps: {
-          t1: runStep({ next: 'end' }),
-          orphan: runStep({ dependsOn: ['t1'] }),
+          t1: runStep(),
+          route: routingStep({ decide: () => 'end', targets: ['held', 'end'] }),
+          held: runStep({ needs: needAll('t1') }),
           end: routingStep(),
         },
       }),
     )
     h.start()
     h.ok(h.call('run', 't1'), 1)
+    expect(h.rec('held')).toMatchObject({ status: 'idle', pendingActivation: false })
+    expect(explain(h.def, h.state, 'held').reasons).toEqual(['not-activated'])
+    h.ok(h.call('next', 'route'), 'end')
     h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
-    expect(h.rec('orphan')).toMatchObject({ status: 'idle', pendingActivation: false })
-    expect(explain(h.def, h.state, 'orphan').reasons).toContain('not-activated')
+    expect(h.rec('held')).toMatchObject({ status: 'skipped', skipReason: 'not-taken' })
+    expect(h.pending('run', 'held')).toHaveLength(0)
   })
 
   it('concurrency budget: extra ready tasks stay pending and are picked in arrivedSeq order when a slot frees', () => {
@@ -107,7 +119,7 @@ describe('scheduler — arrival, gating, ordering', () => {
           t1: runStep({ next: 'end' }),
           t2: runStep({ next: 'end' }),
           t3: runStep({ next: 'end' }),
-          end: routingStep({ dependsOn: ['t1', 't2', 't3'] }),
+          end: routingStep({ needs: needAll('t1', 't2', 't3') }),
         },
         policies: { concurrency: 2 },
       }),
@@ -134,7 +146,7 @@ describe('scheduler — arrival, gating, ordering', () => {
           t1: runStep({ next: 'end' }),
           t2: runStep({ next: 'end' }),
           t3: runStep({ next: 'end' }),
-          end: routingStep({ dependsOn: ['t1', 't2', 't3'] }),
+          end: routingStep({ needs: needAll('t1', 't2', 't3') }),
         },
         policies: { autoRun: 'manual', concurrency: 1 },
       }),

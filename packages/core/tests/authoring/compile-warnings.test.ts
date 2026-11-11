@@ -13,22 +13,22 @@ function warningsOf(flow: AnyFlow): FlowWarning[] {
 }
 
 describe('graph warnings', () => {
-  it('distinguishes an unreachable step from a control gate that will never activate', () => {
+  it('reports an unreachable step and a step whose only producer is unreachable', () => {
     const wizard = defineWizard(
       { name: 'warnings', context: z.object({}) },
-      ({ step, view, steps }) =>
-        steps({
-          a: view({ input: z.string(), next: 'b' }),
+      ({ step, view, steps }) => {
+        const a = view({ input: z.string(), next: 'b' })
+        const orphan = view({ input: z.string(), next: 'b' })
+        return steps({
+          a,
           b: step({ run: () => true }),
-          orphan: view({ input: z.string(), next: 'b' }),
-          gated: step({ run: () => 1, dependsOn: ['a'], next: 'b' }),
-        }),
+          orphan,
+          fed: step({ run: () => 1, needs: { orphan } }),
+          pulled: step({ run: () => 2, needs: { a } }),
+        })
+      },
     )
-    expect(
-      warningsOf(wizard).filter((warning) =>
-        ['UNREACHABLE', 'NEVER_ACTIVATES'].includes(warning.code),
-      ),
-    ).toEqual([
+    expect(warningsOf(wizard).filter((warning) => warning.code === 'UNREACHABLE')).toEqual([
       {
         code: 'UNREACHABLE',
         message: "step 'orphan' is not reachable from start",
@@ -36,10 +36,9 @@ describe('graph warnings', () => {
         path: [],
       },
       {
-        code: 'NEVER_ACTIVATES',
-        message:
-          "step 'gated' declares dependsOn but has no incoming next/start edge, so it can never activate",
-        step: 'gated',
+        code: 'UNREACHABLE',
+        message: "step 'fed' is not reachable from start",
+        step: 'fed',
         path: [],
       },
     ])
@@ -67,7 +66,7 @@ describe('graph warnings', () => {
     )
     expect(
       warningsOf(wizard)
-        .filter((warning) => ['UNREACHABLE', 'NEVER_ACTIVATES'].includes(warning.code))
+        .filter((warning) => warning.code === 'UNREACHABLE')
         .map((warning) => warning.step),
     ).toEqual(['orphan'])
   })

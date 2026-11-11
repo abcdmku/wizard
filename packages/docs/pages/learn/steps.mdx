@@ -55,7 +55,7 @@ return steps({ profile, orders, dashboard }, { start: ['profile', 'orders'] })
 | `winner: { any: [first, second] }` | The first completed output, typed as the union of producer outputs | The consumer skips only if all listed producers skip |
 | `extra: { optional: extraStep }` | The output or `undefined` | The consumer can continue once the producer settles |
 
-`needs` takes step objects so it can infer their outputs. `dependsOn` takes ids or objects and only checks completion. `dependsOn: [first, second]` gates on both, while `{ any: [first, second] }` gates on either. A skipped step satisfies this control gate. Supply an activation through `start` or `next` when using `dependsOn` alone.
+`needs` takes step objects so it can infer their outputs. A step can need another step only to wait for it and ignore the value. One case differs. A step listed in the `targets` of a function `next` starts only when that function returns it, and its needs hold it until they are met. See [graphs](/advanced/graphs#hold-a-chosen-branch).
 
 ## Wait for events or time
 

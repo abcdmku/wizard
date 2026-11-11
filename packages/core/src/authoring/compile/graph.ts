@@ -8,7 +8,7 @@ import type { FlowWarning } from './index'
 
 export class StepGraph {
   private readonly nextEdges = new Map<string, Set<string>>()
-  private readonly depEdges = new Map<string, readonly string[]>()
+  private readonly needEdges = new Map<string, readonly string[]>()
 
   constructor(private readonly ids: readonly string[]) {}
 
@@ -20,14 +20,14 @@ export class StepGraph {
     }
     for (const t of to) set.add(t)
   }
-  dependsOn(step: string, deps: readonly string[]): void {
-    this.depEdges.set(step, deps)
+  needs(step: string, producers: readonly string[]): void {
+    this.needEdges.set(step, producers)
   }
 
-  /** Simple cycles over `dependsOn` edges (each reported once, in discovery order). */
+  /** Simple cycles over `needs` edges (each reported once, in discovery order). */
   dependencyCycles(): readonly (readonly string[])[] {
     return findCycles(this.ids, (id) =>
-      (this.depEdges.get(id) ?? []).filter((d) => this.depEdges.has(d) || d === id),
+      (this.needEdges.get(id) ?? []).filter((d) => this.needEdges.has(d) || d === id),
     )
   }
 
@@ -59,12 +59,9 @@ export class StepGraph {
     }
     for (const id of this.ids) {
       if (reached.has(id)) continue
-      const gated = this.depEdges.has(id)
       out.push({
-        code: gated ? 'NEVER_ACTIVATES' : 'UNREACHABLE',
-        message: gated
-          ? `step '${id}' declares dependsOn but has no incoming next/start edge, so it can never activate`
-          : `step '${id}' is not reachable from start`,
+        code: 'UNREACHABLE',
+        message: `step '${id}' is not reachable from start`,
         step: id,
         path,
       })

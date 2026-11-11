@@ -67,9 +67,7 @@ Policies such as retry, concurrency, `when`, fallback, and compensation modify t
 
 `next` pushes activation to its targets. An array starts several branches. Dynamic `next` requires declared `targets`, and both types and runtime enforce membership.
 
-`dependsOn` is a control gate. All or any of its producers must be done or skipped, but the gate does not activate the consumer and supplies no hook data.
-
-`needs` is a typed data join and an activation edge. A plain reference waits for its output; `{ any: [...] }` uses the first completed producer; `{ optional: producer }` waits for settlement and returns output or `undefined`. Every hook receives the resolved `needs` values.
+`needs` is a typed data join and an activation edge. It is the only gate: a step that waits for another without reading its output declares the same need and ignores the value. A declared target of a dynamic `next` is activated by that choice alone, and its needs hold it. A plain reference waits for its output; `{ any: [...] }` uses the first completed producer; `{ optional: producer }` waits for settlement and returns output or `undefined`. Every hook receives the resolved `needs` values.
 
 A skipped required producer skips its consumer with `needs-skipped`. An any-need skips only if every candidate skips. Optional needs do not propagate skips.
 

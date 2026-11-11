@@ -3,6 +3,7 @@ import {
   createHarness,
   eventStep,
   flow,
+  needAll,
   of,
   replay,
   routingStep,
@@ -99,7 +100,7 @@ describe('wait — routing', () => {
         steps: {
           w1: eventStep({ on: { ping: on }, next: 'end' }),
           w2: eventStep({ on: { ping: on }, next: 'end' }),
-          end: routingStep({ dependsOn: ['w1', 'w2'] }),
+          end: routingStep({ needs: needAll('w1', 'w2') }),
         },
       }),
     )

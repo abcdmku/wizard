@@ -39,10 +39,10 @@ gift: step({
 }),
 ```
 
-If `when` returns false, the step skips and follows its ordinary `next`. A skipped step satisfies a `dependsOn` control gate, while a plain `needs` reference propagates the skip to its consumer.
+If `when` returns false, the step skips and follows its ordinary `next`. A plain `needs` reference propagates the skip to its consumer. An optional need lets the consumer run and read `undefined`.
 
 ## Keep routing pure
 
 Choose the path from data the run already has. Put database or HTTP calls in runnable steps so retries and errors belong to the operation that can fail.
 
-[Graphs](/advanced/graphs) covers branches, typed joins, and control gates.
+[Graphs](/advanced/graphs) covers branches, typed joins, and holding a chosen branch until other work finishes.

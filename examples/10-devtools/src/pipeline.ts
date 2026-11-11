@@ -30,8 +30,24 @@ export const pipeline = defineWizard(
     deps: boundary.trusted<Deps>(),
     concurrency: 2,
   },
-  ({ step, steps }) =>
-    steps(
+  ({ step, steps }) => {
+    const normalize = step({
+      run: async ({ context, deps, update }) => {
+        const { normalized } = await deps.normalizer.run(context.rows)
+        update({ normalized })
+        return { normalized }
+      },
+    })
+    const enrich = step({
+      run: async ({ context, deps, update }) => {
+        const { enriched, quality } = await deps.enricher.run(context.rows)
+        update({ enriched, quality })
+        return { enriched, quality }
+      },
+      when: ({ context }) => context.enrichment === 'on',
+      retry: { retries: 1, backoff: 1_200 }, // the fake enricher fails once → `retrying` in the graph
+    })
+    return steps(
       {
         ingest: step({
           run: ({ context, deps, update }) => {
@@ -42,26 +58,11 @@ export const pipeline = defineWizard(
           retry: { retries: 2, backoff: 800 },
           next: ['normalize', 'enrich'],
         }),
-        normalize: step({
-          run: async ({ context, deps, update }) => {
-            const { normalized } = await deps.normalizer.run(context.rows)
-            update({ normalized })
-            return { normalized }
-          },
-          next: 'gate',
-        }),
-        enrich: step({
-          run: async ({ context, deps, update }) => {
-            const { enriched, quality } = await deps.enricher.run(context.rows)
-            update({ enriched, quality })
-            return { enriched, quality }
-          },
-          when: ({ context }) => context.enrichment === 'on',
-          retry: { retries: 1, backoff: 1_200 }, // the fake enricher fails once → `retrying` in the graph
-          next: 'gate',
-        }),
+        normalize,
+        enrich,
         gate: step({
-          dependsOn: ['normalize', 'enrich'],
+          // The optional need lets the gate run when enrichment is switched off and skipped.
+          needs: { normalize, enrich: { optional: enrich } },
           targets: ['approve', 'quarantine'],
           next: ({ context }) =>
             context.enrichment === 'off' || context.quality >= 0.8 ? 'approve' : 'quarantine',
@@ -91,7 +92,8 @@ export const pipeline = defineWizard(
         }),
       },
       { start: 'ingest' },
-    ),
+    )
+  },
 )
 
 /** Fake services that take real time (so the graph animates); `enricher` fails the first call. */

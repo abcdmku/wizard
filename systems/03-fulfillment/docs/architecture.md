@@ -110,8 +110,8 @@ modules so those modules share the context, dependency, and event types.
 `fulfillmentFlow.resume(snapshot, { deps })` restores one. Projections and the
 durable registry consume that same wizard.
 
-Static `next` edges activate the parallel branches. `dependsOn` gates the
-readiness join until both branch-completion nodes settle. Fraud review returns
+Static `next` edges activate the parallel branches. The readiness join `needs`
+both branch-completion nodes, so it waits until both are done. Fraud review returns
 `{ done: decision }`; its `next` callback reads the updated context and chooses
 one of the declared `targets`. Timeout edges lead to explicit failure steps.
 The final `complete` step returns the order and shipment IDs as its run output.

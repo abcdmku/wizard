@@ -21,8 +21,14 @@ describe('inspect', () => {
       events: { ping: boundary.trusted<{ n: number }>(), pong: boundary.trusted() },
       output: () => undefined,
     },
-    ({ step, view, flow, steps }) =>
-      steps(
+    ({ step, view, flow, steps }) => {
+      const reserve = step({
+        run: async () => 1,
+        timeout: '5s',
+        compensate: () => {},
+        next: 'route',
+      })
+      return steps(
         {
           form: view({
             label: 'Form',
@@ -31,7 +37,7 @@ describe('inspect', () => {
             exit: () => {},
             next: ['reserve', 'wait'],
           }),
-          reserve: step({ run: async () => 1, timeout: '5s', compensate: () => {}, next: 'route' }),
+          reserve,
           wait: step({
             waitFor: { ping: () => {}, pong: () => {} },
             timeout: { after: '1m', next: 'expired' },
@@ -40,14 +46,15 @@ describe('inspect', () => {
           route: step({ next: () => 'sub', targets: ['sub'] }),
           sub: flow(child, {
             context: () => ({ n: 1 }),
-            dependsOn: ['reserve'],
+            needs: { reserve },
             next: 'done',
           }),
           done: step({ run: () => 1 }),
           expired: step({ next: null }),
         },
         { start: 'form' },
-      ),
+      )
+    },
   )
 
   it('describes every step: kind, label, hooks, schemas, waits, compensation, child flow (recursing with path)', () => {
@@ -98,7 +105,7 @@ describe('inspect', () => {
         kind: 'flow',
         path: [],
         hooks: ['context'], // authoring name (compiled: childContext)
-        dependsOn: { all: ['reserve'] },
+        needs: { reserve: { kind: 'all', steps: ['reserve'] } },
         child: { name: 'child', version: 2 },
       },
       { id: 'done', kind: 'step', path: [], hooks: ['run'], completes: true },
@@ -109,7 +116,7 @@ describe('inspect', () => {
     ])
   })
 
-  it('lists start/next/timeout/dependsOn edges per flow path', () => {
+  it('lists start/next/route/timeout/needs edges per flow path', () => {
     const graph = inspect(wizard)
     expect(graph.edges).toEqual([
       { from: null, to: 'form', kind: 'start', path: [] },
@@ -120,7 +127,7 @@ describe('inspect', () => {
       { from: 'wait', to: 'expired', kind: 'timeout', path: [] },
       { from: 'route', to: 'sub', kind: 'route', path: [] },
       { from: 'sub', to: 'done', kind: 'next', path: [] },
-      { from: 'reserve', to: 'sub', kind: 'dependsOn', path: [] },
+      { from: 'reserve', to: 'sub', kind: 'needs', alias: 'reserve', mode: 'all', path: [] },
       { from: null, to: 'work', kind: 'start', path: ['sub'] },
       { from: 'work', to: 'end', kind: 'next', path: ['sub'] },
     ])

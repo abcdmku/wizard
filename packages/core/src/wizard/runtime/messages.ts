@@ -46,7 +46,7 @@ export function rejectionMessage(reason: string, command: Command): string {
     case 'when-pending':
       return `${step} is waiting for its when() predicate`
     case 'not-ready':
-      return `${step} is not ready: it has not been reached yet or its dependsOn steps are not done`
+      return `${step} is not ready: it has not been reached yet or the steps it needs are not done`
     case 'not-failed':
       return `${step} has not failed; retry(step) re-runs a failed step only`
     case 'completing-step':

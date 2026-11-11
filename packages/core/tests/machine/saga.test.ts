@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { createHarness, flow, flowStep, of, routingStep, runStep, view } from '../helpers/fixtures'
+import {
+  createHarness,
+  flow,
+  flowStep,
+  needAll,
+  of,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const comp = () => undefined
 
@@ -138,7 +147,7 @@ describe('compensation', () => {
           a: runStep({ compensate: comp, next: 'end' }),
           b: runStep({ compensate: comp, next: 'end' }),
           c: runStep({ next: 'end' }),
-          end: routingStep({ dependsOn: ['a', 'b'] }),
+          end: routingStep({ needs: needAll('a', 'b') }),
         },
         policies: { onFailure: 'compensate' },
       }),

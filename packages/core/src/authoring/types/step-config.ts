@@ -31,14 +31,16 @@ type CheckedNeed = NeedRef & {
   readonly optional?: StepLike
 }
 
-export interface Common<C, D, Nd, Dp> {
+export interface Common<C, D, Nd> {
   readonly label?: string
   readonly description?: string
   readonly meta?: Readonly<Record<string, JsonValue>>
-  /** Typed data join: activates once every need is done; hooks get `needs` typed. */
+  /**
+   * Typed data join: the step waits until every need is done, and hooks get `needs` typed.
+   * Finished producers start the step, unless a function `next` lists it in `targets`: then it
+   * starts only when chosen.
+   */
   readonly needs?: Nd & { readonly [A in keyof Nd]: CheckedNeed }
-  /** Control gate only (does not activate). */
-  readonly dependsOn?: readonly Dp[] | { readonly any: readonly Dp[] }
   readonly when?: (args: HookArgs<C, D, NeedsOutput<Nd>>) => MaybePromise<boolean>
   readonly enter?: (args: EnterArgs<C, D, NeedsOutput<Nd>>) => unknown
 }
@@ -66,12 +68,11 @@ export interface StepConfig<
   Nr,
   Tg,
   Fb,
-  Dp,
   To,
   H,
   Xk,
   Wk extends PropertyKey = never,
-> extends Common<C, D, Nd, Dp>,
+> extends Common<C, D, Nd>,
     Routing<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, Nd, Nx, Nr, Tg> {
   readonly exit?: (
     args: ExitArgs<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, NeedsOutput<Nd>>,
@@ -121,8 +122,8 @@ export interface StepConfig<
   /** Durable timer: completes when due (survives restarts). */
   readonly sleep?: Duration | ((args: HookArgs<C, D, NeedsOutput<Nd>>) => Duration)
 }
-export interface ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Dp, Nh = never>
-  extends Common<C, D, Nd, Dp>,
+export interface ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Nh = never>
+  extends Common<C, D, Nd>,
     Routing<C, D, NoInfer<O>, Nd, Nx, Nr, Tg> {
   /** Draft boundary: hooks see the OUTPUT side, `setInput` / `initial` the INPUT side. */
   readonly input?: Boundary<O, I>
@@ -140,8 +141,8 @@ export interface ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Dp, Nh = never>
 }
 export type ChildOutput<CO, OB, Item> = EachOf<Item, IsUnset<OB> extends true ? CO : OB>
 /** `flow(child, config)`: `CIn` / `CO` / `CD` are the child's context input, output and deps. */
-export interface ChildConfig<C, Ev, D, CIn, CO, CD, OB, Item, Nd, Nx, Nr, Tg, Fb, Dp>
-  extends Common<C, D, Nd, Dp>,
+export interface ChildConfig<C, Ev, D, CIn, CO, CD, OB, Item, Nd, Nx, Nr, Tg, Fb>
+  extends Common<C, D, Nd>,
     Routing<C, D, NoInfer<ChildOutput<CO, OB, Item>>, Nd, Nx, Nr, Tg> {
   /** Builds the child's context input (per item with `each`). */
   readonly context: (args: HookArgsFor<C, D, NeedsOutput<Nd>, Item>) => CIn
@@ -210,7 +211,6 @@ export type StepOption = keyof StepConfig<
   unknown,
   unknown,
   unknown,
-  unknown,
   unknown
 >
 export type ViewOption = keyof ViewConfig<
@@ -223,11 +223,9 @@ export type ViewOption = keyof ViewConfig<
   unknown,
   unknown,
   unknown,
-  unknown,
   unknown
 >
 export type ChildOption = keyof ChildConfig<
-  unknown,
   unknown,
   unknown,
   unknown,

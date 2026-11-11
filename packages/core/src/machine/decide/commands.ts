@@ -183,7 +183,7 @@ const INVALIDATABLE: ReadonlySet<string> = new Set(['done', 'failed', 'skipped']
 
 /**
  * §10.3: `invalidate{step, cascade = true}` — a done/failed/skipped step returns to idle
- * (`step.invalidated { cause: 'command' }`); with `cascade`, every transitive `dependsOn`
+ * (`step.invalidated { cause: 'command' }`); with `cascade`, every transitive `needs`
  * dependent that is done/failed/skipped follows (`cause: 'cascade'`), running dependents are
  * cancelled first. Never automatic; active steps (the current view included) are rejected.
  */
@@ -216,7 +216,7 @@ export function cmdInvalidate(b: Batch, cmd: Extract<Command, { type: 'invalidat
   schedule(b)
 }
 
-/** Transitive `dependsOn` dependents of `step`, in declaration order (excluding `step`). */
+/** Transitive `needs` dependents of `step`, in declaration order (excluding `step`). */
 function dependents(b: Batch, step: string): readonly string[] {
   const def = b.env.def
   const found = new Set<string>([step])
@@ -225,12 +225,8 @@ function dependents(b: Batch, step: string): readonly string[] {
     grew = false
     for (const id of def.order) {
       if (found.has(id)) continue
-      const deps = def.steps[id]?.dependsOn
-      const list = [
-        ...(deps === undefined ? [] : 'all' in deps ? deps.all : deps.any),
-        ...Object.values(def.steps[id]?.needs ?? {}).flatMap((need) => need.steps),
-      ]
-      if (list.some((d) => found.has(d))) {
+      const producers = Object.values(def.steps[id]?.needs ?? {}).flatMap((need) => need.steps)
+      if (producers.some((producer) => found.has(producer))) {
         found.add(id)
         grew = true
       }

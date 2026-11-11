@@ -20,7 +20,7 @@ const explanation = run.explain('contact')
 
 `inspect` reads the wizard's graph without creating a run. `toMarkdown` turns it into one page with the diagram, a table of every step, each step's needs and policies, the schemas, and the warnings. The page is the same for the same definition, so you can commit it and fail a build when it drifts.
 
-The manifest includes data needs, control gates, declared routing targets, fallback edges, and warnings such as exclusive-branch AND-joins or ambiguous default output.
+The manifest includes data needs, declared routing targets, fallback edges, and warnings such as a join that needs every exclusive branch or an ambiguous default output.
 
 `explain(step)` reads live state. It emits no events and starts no work, even after disposal. It returns stored status, live phase, ready view candidates, blocking reasons, and `waitingFor`.
 
@@ -28,7 +28,7 @@ The manifest includes data needs, control gates, declared routing targets, fallb
 |---|---|
 | `flow-not-started` | `start()` has not run |
 | `not-activated` | No start, edge, or satisfied data need activated this step |
-| `deps-unmet:normalize` | A control gate or data need is still unmet |
+| `deps-unmet:normalize` | The step needs `normalize`, which has not produced an output yet |
 | `guard-false:canEnter` | The entry guard rejected navigation |
 | `concurrency-limit` | Runnable work is waiting for a slot |
 | `auto-run-manual` | Use `startStep()` or `startReady()` |

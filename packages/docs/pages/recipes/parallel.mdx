@@ -14,7 +14,7 @@ Start independent work together, then join its outputs with `needs`.
 
 <Diagram name="parallel" />
 
-Use `needs` when the join consumes outputs. Use `dependsOn` for a completion gate when the step gets its data elsewhere. `dependsOn` alone does not activate a join; it also needs an entry in `start` or an incoming `next`.
+A join can also need a step only to wait for it. Declare the need and ignore its value.
 
 ## Use the first completed result
 

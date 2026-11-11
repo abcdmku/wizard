@@ -54,12 +54,8 @@ const formatMs = (ms: number): string =>
         ? `${ms / 1000}s`
         : `${ms}ms`
 
-function edgeLabel({ edge, from, to }: LaidOutEdge): string | null {
+function edgeLabel({ edge, from }: LaidOutEdge): string | null {
   if (edge.kind === 'route') return 'route'
-  if (edge.kind === 'dependsOn') {
-    const spec = to.node.dependsOn
-    return spec && 'any' in spec ? 'dependsOn (any)' : 'dependsOn'
-  }
   if (edge.kind === 'needs') {
     const alias = edge.alias ? ` ${edge.alias}` : ''
     const mode = edge.mode && edge.mode !== 'all' ? ` (${edge.mode})` : ''

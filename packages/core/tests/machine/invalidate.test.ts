@@ -7,6 +7,7 @@ import {
   eventStep,
   flow,
   flowStep,
+  needAll,
   of,
   replay,
   routingStep,
@@ -22,11 +23,11 @@ const dag = () =>
     steps: {
       a: view({ next: 'load' }),
       load: runStep({ compensate: on, next: 'b' }),
-      b: view({ dependsOn: ['load'], next: ['t1', 't2'] }),
-      t1: runStep({ dependsOn: ['load'], next: 'join' }),
+      b: view({ needs: needAll('load'), next: ['t1', 't2'] }),
+      t1: runStep({ needs: needAll('load', 'b'), next: 'join' }),
       t2: runStep({ next: 'join' }),
-      join: runStep({ dependsOn: ['t1', 't2'], next: 'c' }),
-      c: view({ dependsOn: ['join'], next: 'end' }),
+      join: runStep({ needs: needAll('t1', 't2'), next: 'c' }),
+      c: view({ needs: needAll('join'), next: 'end' }),
       end: routingStep(),
     },
   })
@@ -69,7 +70,7 @@ describe('invalidate', () => {
     expect(replay(h)).toEqual(h.state)
   })
 
-  it('cascade (default): every transitive dependsOn dependent that is done/failed/skipped is invalidated too (cause cascade), the current view included when it depends', () => {
+  it('cascade (default): every transitive needs dependent that is done/failed/skipped is invalidated too (cause cascade), the current view included when it depends', () => {
     const h = toC()
     const r = h.cmd({ type: 'invalidate', step: 'load' })
     // dependents of load: b (view, done), t1 (done) → join (done) → c (active, current) — t2 does not depend on load
@@ -117,9 +118,9 @@ describe('invalidate', () => {
         start: 'seed',
         steps: {
           seed: runStep({ next: ['t', 'f'] }),
-          t: runStep({ dependsOn: ['seed'] }),
-          f: flowStep(child, { dependsOn: ['seed'] }),
-          end: routingStep({ dependsOn: ['t', 'f'] }),
+          t: runStep({ needs: needAll('seed') }),
+          f: flowStep(child, { needs: needAll('seed') }),
+          end: routingStep({ needs: needAll('t', 'f') }),
         },
       }),
     )

@@ -13,7 +13,7 @@ import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from './types'
  * `[…]`, step `[[…]]`, flow `[/…/]`, plus a line of tags: `may skip` for a `when` guard,
  * retries, run timeout, `compensable`), a start circle per flow, solid `next` edges, dashed
  * `route` edges to declared targets (a dashed edge to `?` when targets are undeclared),
- * `dependsOn` and named `needs` labels on joins (merged with activation edges),
+ * named `needs` labels on joins (merged with activation edges),
  * dashed `timeout` and `fallback` edges, event nodes feeding waits, and every child flow
  * in a `subgraph` titled with its flow name. Deterministic for a given manifest.
  * @public
@@ -125,11 +125,8 @@ function links(group: Group): Link[] {
 
 function pairLink(group: Group, { from, to, kinds }: Pair): Link {
   const route = kinds.has('route') && !kinds.has('next')
-  const spec = group.nodes.find((n) => n.id === to)?.dependsOn
   const parts: string[] = []
   if (route) parts.push('route')
-  if (kinds.has('dependsOn'))
-    parts.push(spec !== undefined && 'any' in spec ? 'dependsOn (any)' : 'dependsOn')
   if (kinds.has('needs')) {
     const needs = group.nodes.find((node) => node.id === to)?.needs ?? {}
     for (const [alias, need] of Object.entries(needs)) {

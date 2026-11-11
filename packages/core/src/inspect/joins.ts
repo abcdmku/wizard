@@ -1,6 +1,6 @@
 /**
- * `EXCLUSIVE_JOIN`: an AND-join (`dependsOn: [...]` or required `needs`) over alternative branches
- * of one choice, so at most one of them runs. Choices are a dynamic `next` with declared
+ * `EXCLUSIVE_JOIN`: a join with a plain need on alternative branches of one choice. At most one
+ * of them runs, so the join is always skipped. Choices are a dynamic `next` with declared
  * `targets` (each target is an alternative) and an event wait with `timeout` (its `next` vs its
  * `timeout.next`). A dynamic `next` without declared targets may reach any step, which keeps the
  * analysis silent (no false positives).
@@ -21,11 +21,11 @@ export function exclusiveJoinWarnings(
   const joins = def.order.flatMap((id) => {
     const step = def.steps[id]
     if (step === undefined) return []
-    const needs = Object.values(step.needs ?? {}).flatMap((n) => (n.kind === 'all' ? n.steps : []))
-    const control =
-      step.dependsOn !== undefined && 'all' in step.dependsOn ? step.dependsOn.all : []
-    const deps = [...new Set([...control, ...needs])]
-    return deps.length > 1 ? [{ id, deps, needs: needs.length > 0 }] : []
+    const required = Object.values(step.needs ?? {}).flatMap((need) =>
+      need.kind === 'all' ? need.steps : [],
+    )
+    const deps = [...new Set(required)]
+    return deps.length > 1 ? [{ id, deps }] : []
   })
   if (joins.length === 0) return []
   const warnings: FlowWarning[] = []
@@ -42,14 +42,14 @@ export function exclusiveJoinWarnings(
       const hits = reaches.flatMap((r, i) => (r.has(id) ? [i] : []))
       return hits.length === 1 ? hits[0] : undefined
     }
-    for (const { id: join, deps, needs } of joins) {
+    for (const { id: join, deps } of joins) {
       if (warned.has(join)) continue
       const exclusive = deps.filter((dep) => branchOf(dep) !== undefined)
       if (new Set(exclusive.map(branchOf)).size < 2) continue
       warned.add(join)
       warnings.push({
         code: 'EXCLUSIVE_JOIN',
-        message: `step '${join}' ${needs ? 'needs' : 'depends on'} all of ${exclusive.map((d) => `'${d}'`).join(', ')}, which are alternative branches of '${choice}' (only one runs); use ${needs ? 'needs: { result: { any: [...] } }' : 'dependsOn: { any: [...] }'} or join after the branches merge`,
+        message: `step '${join}' needs all of ${exclusive.map((d) => `'${d}'`).join(', ')}, which are alternative branches of '${choice}' (only one runs); use needs: { result: { any: [...] } } or join after the branches merge`,
         step: join,
         path,
       })

@@ -1,10 +1,9 @@
 /**
- * Policy fields: durations, the `RetryPolicy` shape (shared by the DSL and the machine) and
- * `dependsOn` specs.
+ * Policy fields: durations and the `RetryPolicy` shape (shared by the DSL and the machine).
  * @internal
  */
 
-import type { DepsSpec, RetryPolicy } from '../compiled'
+import type { RetryPolicy } from '../compiled'
 import { parseDuration } from '../duration'
 import type { Duration } from '../types'
 import { isRecord, type Mutable } from './shared'
@@ -79,18 +78,4 @@ export function compileRetry(
     else problem(`${what}.when must be a function (error) => boolean`)
   }
   return out
-}
-
-export function toDepsSpec(deps: unknown): DepsSpec | undefined {
-  if (Array.isArray(deps) && deps.every((d) => typeof d === 'string'))
-    return { all: [...(deps as string[])] }
-  if (
-    isRecord(deps) &&
-    Object.keys(deps).length === 1 &&
-    Array.isArray(deps.any) &&
-    deps.any.every((d: unknown) => typeof d === 'string')
-  ) {
-    return { any: [...(deps.any as string[])] }
-  }
-  return undefined
 }

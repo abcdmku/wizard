@@ -28,7 +28,6 @@ const COMMON = [
   'next',
   'targets',
   'needs',
-  'dependsOn',
   'when',
   'enter',
   'exit',

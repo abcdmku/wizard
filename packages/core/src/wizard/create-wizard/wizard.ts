@@ -72,7 +72,7 @@ export interface Run<F extends AnyFlow> {
     payload: unknown extends P ? P : PayloadInput<F, E>,
     options?: { readonly correlationId?: string; readonly eventId?: string },
   ): Promise<SendResult>
-  /** Run one ready runnable step now (`autoRun: 'manual'` or gated by `dependsOn`). */
+  /** Run one ready runnable step now (`autoRun: 'manual'`). */
   startStep(step: RunStepId<F>): Promise<CommandResult>
   /** Re-run a failed runnable step (`attempt` resets); `patch` is merged into the context first. */
   retry(
@@ -89,15 +89,16 @@ export interface Run<F extends AnyFlow> {
   /** Back to the initial state (`flow.reset`): steps idle, timers cleared, children disposed; the instance id stays. */
   reset(): Promise<CommandResult>
   /**
-   * Skip a ready or active non-completing step explicitly: it counts as done for `dependsOn`
-   * and its `next` targets are arrived; an active run is
-   * cancelled first; a view must be ready or current (the current view exits without validation).
+   * Skip a ready or active non-completing step explicitly: it has no output, so a step with a
+   * plain need on it is skipped too and an optional need reads `undefined`; its `next` targets
+   * are arrived; an active run is cancelled first; a view must be ready or current (the current
+   * view exits without validation).
    */
   skip(step: StepId<F>, reason?: string): Promise<CommandResult>
   /**
    * Return a `done` / `failed` / `skipped` step to `idle` (`step.invalidated`): a view keeps its
    * draft, the output moves to `previousOutput`, and with `cascade` (default `true`) every
-   * transitive `dependsOn` dependent that is done / failed / skipped follows (running ones are
+   * transitive `needs` dependent that is done / failed / skipped follows (running ones are
    * cancelled). Never automatic; rejected for an active step or the current view (`INVALID_COMMAND`).
    */
   invalidate(step: StepId<F>, options?: { readonly cascade?: boolean }): Promise<CommandResult>

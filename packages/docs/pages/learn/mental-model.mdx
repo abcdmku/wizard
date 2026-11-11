@@ -46,10 +46,9 @@ await run.start()
 | `next: otherStep` | Activates that step when this one finishes |
 | `next: [first, second]` | Activates several branches |
 | `needs: { profile: loadProfile }` | Activates when `loadProfile` finishes and gives hooks its typed output as `needs.profile` |
-| `dependsOn: [loadProfile]` | Gates a step that already has an activation; it does not activate the step or pass its output |
 | `when: predicate` | Skips the activated step if the predicate returns false |
 
-A function `next` must declare `targets`, the step ids or objects it may return. Targets the function does not select become `skipped`. For a data join over exclusive branches, use an `any` or `optional` need. A plain need propagates a skipped producer to its consumer.
+A function `next` must declare `targets`, the step ids or objects it may return. Targets the function does not select become `skipped`. A target starts only when the function selects it, so a need on a target holds it and never starts it. For a data join over exclusive branches, use an `any` or `optional` need. A plain need propagates a skipped producer to its consumer.
 
 `run.explain('step')` explains why a step is blocked. `run.waitingFor()` lists views, event waits, and sleep deadlines, including waits in children. See [graphs and parallel work](/advanced/graphs) for larger graphs.
 

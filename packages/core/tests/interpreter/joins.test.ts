@@ -1,14 +1,14 @@
 /**
- * D5: a join whose deps can no longer complete never hangs the run: once nothing else can move,
- * it fails `DEPS_UNREACHABLE` (naming the deps and the routing step that went elsewhere), and
+ * D5: a join whose needs can no longer complete never hangs the run: once nothing else can move,
+ * it fails `DEPS_UNREACHABLE` (naming the producers and the routing step that went elsewhere), and
  * `skip(join)` lets the run finish.
  */
 import { describe, expect, it } from 'vitest'
-import { flow, routeStep, runStep } from '../helpers/fixtures'
+import { flow, needAll, needOptional, routeStep, runStep } from '../helpers/fixtures'
 import { e2e } from '../wizard/e2e/harness'
 
 describe('branch joins', () => {
-  it('completes a control join when a declared branch was not taken', async () => {
+  it('completes a join with optional needs when a declared branch was not taken', async () => {
     const def = flow({
       start: 'decide',
       steps: {
@@ -18,7 +18,7 @@ describe('branch joins', () => {
         },
         a: runStep({ run: () => 'A', next: 'join' }),
         b: runStep({ run: () => 'B', next: 'join' }),
-        join: runStep({ run: () => 'joined', dependsOn: ['a', 'b'] }),
+        join: runStep({ run: () => 'joined', needs: needOptional('a', 'b') }),
       },
     })
     const t = e2e(def)
@@ -35,7 +35,7 @@ describe('branch joins', () => {
         decide: routeStep({ decide: () => 'a' }),
         a: runStep({ run: () => 'A', next: 'join' }),
         b: runStep({ run: () => 'B', next: 'join' }),
-        join: runStep({ run: () => 'joined', dependsOn: ['a', 'b'] }),
+        join: runStep({ run: () => 'joined', needs: needAll('a', 'b') }),
       },
     })
     const t = e2e(def)

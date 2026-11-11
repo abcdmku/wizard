@@ -27,7 +27,7 @@ describe('compile validation for JavaScript definitions', () => {
               a: rawStep({
                 run: () => 1,
                 next: ['b', 'missing-next'],
-                dependsOn: ['missing-dependency'],
+                needs: { gone: 'missing-need' },
                 fallback: 'missing-fallback',
               }),
               b: rawStep({
@@ -42,7 +42,7 @@ describe('compile validation for JavaScript definitions', () => {
       ),
     ).toEqual([
       "step 'a': next: unknown step 'missing-next'",
-      "step 'a': dependsOn: unknown step 'missing-dependency'",
+      "step 'a': needs.gone: unknown step 'missing-need'",
       "step 'a': fallback: unknown step 'missing-fallback'",
       "step 'b': timeout.next: unknown step 'missing-timeout'",
       "step 'route': targets: unknown step 'missing-target'",
@@ -148,16 +148,6 @@ describe('compile validation for JavaScript definitions', () => {
       "step 'work': targets must contain at least one step",
     ],
     [
-      'dependsOn',
-      { run: () => 1, dependsOn: [] },
-      "step 'work': dependsOn must contain at least one step",
-    ],
-    [
-      'dependsOn.any',
-      { run: () => 1, dependsOn: { any: [] } },
-      "step 'work': dependsOn must contain at least one step",
-    ],
-    [
       'needs.any',
       { run: () => 1, needs: { first: { any: [] } } },
       "step 'work': needs.first.any must contain at least one step",
@@ -214,14 +204,14 @@ describe('compile validation for JavaScript definitions', () => {
     ])
   })
 
-  it('reports needs and dependsOn cycles, including mixed cycles and self dependencies', () => {
+  it('reports needs cycles, including any-needs and self dependencies', () => {
     expect(
       issuesOf(() =>
         compile(
           rawFlow({
-            a: rawStep({ run: () => 1, dependsOn: ['b'] }),
+            a: rawStep({ run: () => 1, needs: { b: 'b' } }),
             b: rawStep({ run: () => 1, needs: { c: 'c' } }),
-            c: rawStep({ run: () => 1, dependsOn: { any: ['a'] } }),
+            c: rawStep({ run: () => 1, needs: { first: { any: ['a'] } } }),
             self: rawStep({ run: () => 1, needs: { self: 'self' } }),
           }),
         ),

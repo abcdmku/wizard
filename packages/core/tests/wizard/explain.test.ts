@@ -17,13 +17,15 @@ const flow = defineWizard(
     context: boundary.trusted<{ ok: boolean }>(),
     autoRun: 'ready',
   },
-  ({ step, view, steps }) =>
-    steps(
+  ({ step, view, steps }) => {
+    const a = view({ next: 'join' })
+    const b = view({ canEnter: ({ context }) => context.ok, next: 'join' })
+    return steps(
       {
         form: view({ input: z.object({ name: z.string() }), next: ['a', 'b'] }),
-        a: view({ next: 'join' }),
-        b: view({ canEnter: ({ context }) => context.ok, next: 'join' }),
-        join: step({ run: () => 'joined', dependsOn: ['a', 'b'], next: 'boom' }),
+        a,
+        b,
+        join: step({ run: () => 'joined', needs: { a, b }, next: 'boom' }),
         boom: step({
           run: () => {
             throw new Error('nope')
@@ -33,7 +35,8 @@ const flow = defineWizard(
         end: step({ next: null }),
       },
       { start: 'form' },
-    ),
+    )
+  },
 )
 
 function make(ok = true) {

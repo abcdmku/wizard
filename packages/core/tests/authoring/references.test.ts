@@ -14,12 +14,11 @@ describe('step identity resolution', () => {
         const other = step({ run: () => 2 })
         return steps(
           {
-            work: step({ run: () => 1, next: end, fallback: other, dependsOn: [other] }),
+            work: step({ run: () => 1, next: end, fallback: other }),
             route: step({ next: () => end, targets: [end, other] }),
             wait: step({
               waitFor: { ready: () => ({ done: true }) },
               timeout: { after: '1m', next: end },
-              dependsOn: { any: [other, 'work'] },
             }),
             join: step({
               needs: { value: end, chosen: { any: [end, other] }, maybe: { optional: other } },
@@ -35,10 +34,8 @@ describe('step identity resolution', () => {
     const def = compile(wizard)
     expect(def.steps.work?.next).toEqual({ kind: 'static', targets: ['end'] })
     expect(def.steps.work?.fallback).toBe('other')
-    expect(def.steps.work?.dependsOn).toEqual({ all: ['other'] })
     expect(def.steps.route?.next).toEqual({ kind: 'dynamic', targets: ['end', 'other'] })
     expect(def.steps.wait?.waitTimeout).toEqual({ afterMs: 60_000, next: 'end' })
-    expect(def.steps.wait?.dependsOn).toEqual({ any: ['other', 'work'] })
     expect(def.steps.join?.needs).toEqual({
       value: { kind: 'all', steps: ['end'] },
       chosen: { kind: 'any', steps: ['end', 'other'] },
@@ -63,40 +60,31 @@ describe('step identity resolution', () => {
     expect(await def.steps.async?.hooks.next?.(hookArgs())).toBe('end')
   })
 
-  it.each([
-    'next',
-    'targets',
-    'dependsOn',
-    'dependsOn.any',
-    'fallback',
-    'timeout.next',
-    'needs',
-    'needs.any',
-    'needs.optional',
-  ])('rejects an orphan object in %s', (position) => {
-    const orphan = rawStep({ run: () => 1 })
-    const options: Record<string, Record<string, unknown>> = {
-      next: { next: orphan },
-      targets: { next: () => null, targets: [orphan] },
-      dependsOn: { dependsOn: [orphan] },
-      'dependsOn.any': { dependsOn: { any: [orphan] } },
-      fallback: { fallback: orphan },
-      'timeout.next': {
-        waitFor: { e: () => ({ done: true }) },
-        timeout: { after: '1m', next: orphan },
-      },
-      needs: { needs: { value: orphan } },
-      'needs.any': { needs: { value: { any: [orphan] } } },
-      'needs.optional': { needs: { value: { optional: orphan } } },
-    }
-    const flow = rawFlow({ work: rawStep(options[position] ?? {}) })
-    const location = position.startsWith('needs')
-      ? position.replace('needs', 'needs.value')
-      : position
-    expect(() => resolveReferences(flow.steps)).toThrow(
-      `step 'work' ${location}: a step reference must belong to this wizard under exactly one ID`,
-    )
-  })
+  it.each(['next', 'targets', 'fallback', 'timeout.next', 'needs', 'needs.any', 'needs.optional'])(
+    'rejects an orphan object in %s',
+    (position) => {
+      const orphan = rawStep({ run: () => 1 })
+      const options: Record<string, Record<string, unknown>> = {
+        next: { next: orphan },
+        targets: { next: () => null, targets: [orphan] },
+        fallback: { fallback: orphan },
+        'timeout.next': {
+          waitFor: { e: () => ({ done: true }) },
+          timeout: { after: '1m', next: orphan },
+        },
+        needs: { needs: { value: orphan } },
+        'needs.any': { needs: { value: { any: [orphan] } } },
+        'needs.optional': { needs: { value: { optional: orphan } } },
+      }
+      const flow = rawFlow({ work: rawStep(options[position] ?? {}) })
+      const location = position.startsWith('needs')
+        ? position.replace('needs', 'needs.value')
+        : position
+      expect(() => resolveReferences(flow.steps)).toThrow(
+        `step 'work' ${location}: a step reference must belong to this wizard under exactly one ID`,
+      )
+    },
+  )
 
   it('rejects a reference whose object is registered under two ids', () => {
     const shared = rawStep({ run: () => 1 })

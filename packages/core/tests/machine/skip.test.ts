@@ -6,6 +6,8 @@ import {
   createHarness,
   eventStep,
   flow,
+  needAll,
+  needOptional,
   of,
   replay,
   routingStep,
@@ -24,12 +26,12 @@ describe('skip command', () => {
         v: view({ canExit: yes, exit: on, next: ['t', 'w'] }),
         t: runStep({ next: 'join' }),
         w: eventStep({ on: { e: on }, timeout: { afterMs: 1_000, next: 'join' }, next: 'join' }),
-        join: runStep({ dependsOn: ['t', 'w'], next: 'end' }),
+        join: runStep({ needs: needOptional('t', 'w'), next: 'end' }),
         end: routingStep(),
       },
     })
 
-  it('an active task is cancelled first (run aborted, late result ignored), then skipped; deps count it as done', () => {
+  it('an active task is cancelled first (run aborted, late result ignored), then skipped; optional needs count it as settled', () => {
     const h = createHarness(dag())
     h.start()
     h.cmd('next')
@@ -57,7 +59,7 @@ describe('skip command', () => {
     const s = h.cmd({ type: 'skip', step: 'w' })
     expect(s.types.slice(0, 3)).toEqual(['timer.cleared', 'step.cancelled', 'step.skipped'])
     expect(h.state.timers['wait:w']).toBeUndefined()
-    expect(h.rec('join').status).toBe('active') // both deps "done"
+    expect(h.rec('join').status).toBe('active') // both optional needs settled
     h.ok(h.call('run', 'join'), 1)
     h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
@@ -72,7 +74,7 @@ describe('skip command', () => {
           t1: runStep({ next: 'end' }),
           t2: runStep({ next: 'end' }),
           later: runStep({ next: 'end' }),
-          end: routingStep({ dependsOn: ['t1', 't2'] }),
+          end: routingStep({ needs: { ...needAll('t1'), ...needOptional('t2') } }),
         },
         policies: { concurrency: 1 },
       }),
@@ -159,7 +161,7 @@ describe('skip command', () => {
           slow: runStep({ next: 'w2' }),
           w: view({ canExit: yes, next: 'end' }),
           w2: view({ next: 'end' }),
-          end: routingStep({ dependsOn: ['w', 'w2'] }),
+          end: routingStep({ needs: needAll('w', 'w2') }),
         },
       }),
     )

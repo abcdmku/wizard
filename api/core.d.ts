@@ -94,7 +94,7 @@ type Command$1 = {
   readonly step: string;
   readonly reason?: string;
 } |
-/** Explicit invalidation of a done/failed/skipped step (+ transitive `dependsOn` dependents when `cascade`). */
+/** Explicit invalidation of a done/failed/skipped step (+ transitive `needs` dependents when `cascade`). */
 {
   readonly type: 'invalidate';
   readonly step: string;
@@ -251,8 +251,8 @@ interface StepRecord {
   readonly endedAt?: number;
   readonly visitedCount: number;
   /**
-   * Set when `start` or a completed predecessor's `next` arrives here while the
-   * step is not active; cleared when the step enters. Together with `dependsOn`
+   * Set when `start`, a completed predecessor's `next` or a finished `needs` producer arrives
+   * here while the step is not active; cleared when the step enters. Together with `needs`
    * gating this is the readiness rule: `ready = pendingActivation && depsSatisfied`.
    */
   readonly pendingActivation: boolean;
@@ -609,9 +609,6 @@ interface StepRecordConfig {
   readonly description?: string;
   readonly meta?: Readonly<Record<string, JsonValue>>;
   readonly needs?: Readonly<Record<string, unknown>>;
-  readonly dependsOn?: readonly Ref[] | {
-    readonly any: readonly Ref[];
-  };
   readonly when?: (args: never) => unknown;
   readonly enter?: (args: never) => unknown;
   readonly exit?: (args: never) => unknown;
@@ -1246,8 +1243,8 @@ type LifecycleEventBody = EachEventBody | {
   readonly error: SerializedError$1;
 };
 /**
- * Why a step failed for good (stored as `StepError.kind`). `guard`: its `dependsOn` gate can
- * never open (`DEPS_UNREACHABLE`).
+ * Why a step failed for good (stored as `StepError.kind`). `guard`: its `needs` can never be
+ * met (`DEPS_UNREACHABLE`).
  */
 type StepFailureKind = 'run' | 'typed' | 'defect' | 'timeout' | 'hook' | 'guard' | 'child' | 'sync-violation' | 'interrupted';
 type TransitionRejectReason = 'nav-busy' | 'not-a-view' | 'not-active' | 'not-reachable' | 'validation' | 'guard-canExit' | 'guard-canEnter' | 'no-target' | 'no-history' | 'flow-terminal' | 'flow-halted' | 'flow-not-started' | 'flow-compensating' | 'resumed' | 'auto-advance-loop';
@@ -2330,7 +2327,7 @@ interface Run<F extends AnyFlow> {
     readonly correlationId?: string;
     readonly eventId?: string;
   }): Promise<SendResult>;
-  /** Run one ready runnable step now (`autoRun: 'manual'` or gated by `dependsOn`). */
+  /** Run one ready runnable step now (`autoRun: 'manual'`). */
   startStep(step: RunStepId<F>): Promise<CommandResult>;
   /** Re-run a failed runnable step (`attempt` resets); `patch` is merged into the context first. */
   retry(step: RetryStepId<F>, options?: {
@@ -2346,15 +2343,16 @@ interface Run<F extends AnyFlow> {
   /** Back to the initial state (`flow.reset`): steps idle, timers cleared, children disposed; the instance id stays. */
   reset(): Promise<CommandResult>;
   /**
-   * Skip a ready or active non-completing step explicitly: it counts as done for `dependsOn`
-   * and its `next` targets are arrived; an active run is
-   * cancelled first; a view must be ready or current (the current view exits without validation).
+   * Skip a ready or active non-completing step explicitly: it has no output, so a step with a
+   * plain need on it is skipped too and an optional need reads `undefined`; its `next` targets
+   * are arrived; an active run is cancelled first; a view must be ready or current (the current
+   * view exits without validation).
    */
   skip(step: StepId<F>, reason?: string): Promise<CommandResult>;
   /**
    * Return a `done` / `failed` / `skipped` step to `idle` (`step.invalidated`): a view keeps its
    * draft, the output moves to `previousOutput`, and with `cascade` (default `true`) every
-   * transitive `dependsOn` dependent that is done / failed / skipped follows (running ones are
+   * transitive `needs` dependent that is done / failed / skipped follows (running ones are
    * cancelled). Never automatic; rejected for an active step or the current view (`INVALID_COMMAND`).
    */
   invalidate(step: StepId<F>, options?: {
@@ -2715,16 +2713,16 @@ type CheckedNeed = NeedRef & {
   readonly any?: readonly StepLike[];
   readonly optional?: StepLike;
 };
-interface Common<C, D, Nd, Dp> {
+interface Common<C, D, Nd> {
   readonly label?: string;
   readonly description?: string;
   readonly meta?: Readonly<Record<string, JsonValue>>;
-  /** Typed data join: activates once every need is done; hooks get `needs` typed. */
+  /**
+   * Typed data join: the step waits until every need is done, and hooks get `needs` typed.
+   * Finished producers start the step, unless a function `next` lists it in `targets`: then it
+   * starts only when chosen.
+   */
   readonly needs?: Nd & { readonly [A in keyof Nd]: CheckedNeed; };
-  /** Control gate only (does not activate). */
-  readonly dependsOn?: readonly Dp[] | {
-    readonly any: readonly Dp[];
-  };
   readonly when?: (args: HookArgs<C, D, NeedsOutput<Nd>>) => MaybePromise<boolean>;
   readonly enter?: (args: EnterArgs<C, D, NeedsOutput<Nd>>) => unknown;
 }
@@ -2737,7 +2735,7 @@ interface Routing<C, D, O, Nd, Nx, Nr, Tg> {
   /** Every id a function `next` may return; untaken targets are skipped (`not-taken`). */
   readonly targets?: readonly Tg[];
 }
-interface StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, Dp, To, H, Xk, Wk extends PropertyKey = never> extends Common<C, D, Nd, Dp>, Routing<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, Nd, Nx, Nr, Tg> {
+interface StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, To, H, Xk, Wk extends PropertyKey = never> extends Common<C, D, Nd>, Routing<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, Nd, Nx, Nr, Tg> {
   readonly exit?: (args: ExitArgs<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, NeedsOutput<Nd>>) => unknown;
   readonly on?: OnHandlers<C, Ev, D, NeedsOutput<Nd>>;
   readonly run?: ((args: 'each' extends Xk ? EachRunArgs<C, D, NeedsOutput<Nd>, Item> : RunArgs<C, D, NeedsOutput<Nd>>) => R | NoInfer<RunAdapter<C, D, unknown, Ea & JsonValue>>) | RunAdapter<C, D, R, Ea & JsonValue, 'each' extends Xk ? EachRunArgs<C, D, NeedsOutput<Nd>, Item> : RunArgs<C, D, NeedsOutput<Nd>>>;
@@ -2769,7 +2767,7 @@ interface StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, Dp, To, 
   /** Durable timer: completes when due (survives restarts). */
   readonly sleep?: Duration | ((args: HookArgs<C, D, NeedsOutput<Nd>>) => Duration);
 }
-interface ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Dp, Nh = never> extends Common<C, D, Nd, Dp>, Routing<C, D, NoInfer<O>, Nd, Nx, Nr, Tg> {
+interface ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Nh = never> extends Common<C, D, Nd>, Routing<C, D, NoInfer<O>, Nd, Nx, Nr, Tg> {
   /** Draft boundary: hooks see the OUTPUT side, `setInput` / `initial` the INPUT side. */
   readonly input?: Boundary<O, I>;
   readonly initial?: NoInfer<Partial<I>> | ((args: {
@@ -2787,7 +2785,7 @@ interface ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Dp, Nh = never> extends Com
 }
 type ChildOutput<CO, OB, Item> = EachOf<Item, IsUnset<OB> extends true ? CO : OB>;
 /** `flow(child, config)`: `CIn` / `CO` / `CD` are the child's context input, output and deps. */
-interface ChildConfig<C, Ev, D, CIn, CO, CD, OB, Item, Nd, Nx, Nr, Tg, Fb, Dp> extends Common<C, D, Nd, Dp>, Routing<C, D, NoInfer<ChildOutput<CO, OB, Item>>, Nd, Nx, Nr, Tg> {
+interface ChildConfig<C, Ev, D, CIn, CO, CD, OB, Item, Nd, Nx, Nr, Tg, Fb> extends Common<C, D, Nd>, Routing<C, D, NoInfer<ChildOutput<CO, OB, Item>>, Nd, Nx, Nr, Tg> {
   /** Builds the child's context input (per item with `each`). */
   readonly context: (args: HookArgsFor<C, D, NeedsOutput<Nd>, Item>) => CIn;
   readonly each?: (args: HookArgs<C, D, NeedsOutput<Nd>>) => readonly Item[];
@@ -2809,9 +2807,9 @@ interface ChildDepsRequired<C, D, Nd, CD, Item> {
 type DepsRule<C, D, Nd, Item, CF extends AnyFlow> = {} extends RequiredDepsOf<CF> ? unknown : [D] extends [RequiredDepsOf<CF>] ? unknown : ChildDepsRequired<C, D, Nd, ChildDeps<CF>, Item>;
 /** Records which options a config literal was written with (`Xk`); unknown keys stay excess errors. */
 type OptionKeys<Xk, Known extends PropertyKey> = { readonly [P in Xk & Known]?: unknown; } & { readonly [P in Xk & Known & ('run' | 'waitFor' | 'sleep' | 'input' | 'each' | 'output' | 'needs' | 'next' | 'targets')]: unknown; };
-type StepOption = keyof StepConfig<unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
-type ViewOption = keyof ViewConfig<unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
-type ChildOption = keyof ChildConfig<unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
+type StepOption = keyof StepConfig<unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
+type ViewOption = keyof ViewConfig<unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
+type ChildOption = keyof ChildConfig<unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
 //#endregion
 //#region src/authoring/types/step-api.d.ts
 interface Steps<M> {
@@ -2820,19 +2818,19 @@ interface Steps<M> {
 /** Constructors pre-bound to a wizard's context `C`, events `Ev` and deps `D`. */
 /** Constructors bound to one context, event map and dependency type. @public */
 interface StepApi<C, Ev, D> {
-  step<R = any, OB = Unset, Em extends JsonValue | Unset = Unset, Ea extends JsonValue = never, Item = any, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Fb extends Ref = never, Dp extends Ref = never, To extends Ref = never, H extends { readonly [E in Wk]?: (...args: never[]) => MaybePromise<WaitResult>; } = {}, Wk extends string = never, Xk extends string = never>(config: StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, Dp, To, H, Xk, Wk> & OptionKeys<Xk, StepOption>): Step<'step', RunFacts<StepOutput<R, OB, Item, H, Ev, Xk>, ErrorFor<Em, Ea | ReturnedAdapterError<R>>, 'run' extends Xk ? true : false> & ('each' extends Xk ? {
+  step<R = any, OB = Unset, Em extends JsonValue | Unset = Unset, Ea extends JsonValue = never, Item = any, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Fb extends Ref = never, To extends Ref = never, H extends { readonly [E in Wk]?: (...args: never[]) => MaybePromise<WaitResult>; } = {}, Wk extends string = never, Xk extends string = never>(config: StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, To, H, Xk, Wk> & OptionKeys<Xk, StepOption>): Step<'step', RunFacts<StepOutput<R, OB, Item, H, Ev, Xk>, ErrorFor<Em, Ea | ReturnedAdapterError<R>>, 'run' extends Xk ? true : false> & ('each' extends Xk ? {
     readonly each: true;
-  } : {}), Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | Dp | To>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | Dp | To>, Nd, Tg | Fb | To, HasSuccessor<Nx, Tg>, StepProblems<Xk, To> | ReturnedAdapterProblem<R, C, D, Nd, Item, Xk> | RoutingProblem<Xk, Nx, Nr, Tg> | EmptyWait<Xk, Wk>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
-  view<I = never, O = [I] extends [never] ? undefined : I, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Dp extends Ref = never, Nh extends Ref = never, Xk extends string = never>(config: ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Dp, Nh> & OptionKeys<Xk, ViewOption>): Step<'view', {
+  } : {}), Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>, Nd, Tg | Fb | To, HasSuccessor<Nx, Tg>, StepProblems<Xk, To> | ReturnedAdapterProblem<R, C, D, Nd, Item, Xk> | RoutingProblem<Xk, Nx, Nr, Tg> | EmptyWait<Xk, Wk>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
+  view<I = never, O = [I] extends [never] ? undefined : I, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Nh extends Ref = never, Xk extends string = never>(config: ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Nh> & OptionKeys<Xk, ViewOption>): Step<'view', {
     readonly input: I;
     readonly output: O;
-  }, Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Dp | Nh>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Dp | Nh>, Nd, Tg | Nh, HasSuccessor<Nx, Tg>, RoutingProblem<Xk, Nx, Nr, Tg>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
-  flow<CF extends AnyFlow, OB = Unset, Item = Unset, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Fb extends Ref = never, Dp extends Ref = never, Xk extends string = never>(child: CF, config: ChildConfig<C, Ev, D, ContextInput<CF>, FlowOutput<CF>, ChildDeps<CF>, OB, Item, Nd, Nx, Nr, Tg, Fb, Dp> & DepsRule<C, D, Nd, Item, CF> & OptionKeys<Xk, ChildOption>): Step<'flow', {
+  }, Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>, Nd, Tg | Nh, HasSuccessor<Nx, Tg>, RoutingProblem<Xk, Nx, Nr, Tg>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
+  flow<CF extends AnyFlow, OB = Unset, Item = Unset, Nd = {}, Nx extends Ref | null = never, Tg extends Ref = never, Nr extends RefWithin<Tg> = never, Fb extends Ref = never, Xk extends string = never>(child: CF, config: ChildConfig<C, Ev, D, ContextInput<CF>, FlowOutput<CF>, ChildDeps<CF>, OB, Item, Nd, Nx, Nr, Tg, Fb> & DepsRule<C, D, Nd, Item, CF> & OptionKeys<Xk, ChildOption>): Step<'flow', {
     readonly output: ChildOutput<FlowOutput<CF>, OB, Item>;
     readonly child: CF;
   } & ('each' extends Xk ? {
     readonly each: true;
-  } : {}), Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | Dp>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | Dp>, Nd, Tg | Fb, HasSuccessor<Nx, Tg>, RoutingProblem<Xk, Nx, Nr, Tg>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
+  } : {}), Links<IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>, ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>, Nd, Tg | Fb, HasSuccessor<Nx, Tg>, RoutingProblem<Xk, Nx, Nr, Tg>, 'when' extends Xk ? true : false, Route<Returned<Nr, Tg>, Tg>>, BoundTo<C, Ev, D>>;
   /**
    * Assemble the wizard. Every reference, need, target and binding is checked here; a bad step
    * gets a diagnostic on its own property. `start` defaults to the first step.

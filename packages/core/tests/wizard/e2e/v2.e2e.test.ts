@@ -11,6 +11,8 @@ import {
   flow,
   flowStep,
   guard,
+  needAll,
+  needOptional,
   routingStep,
   runStep,
   view,
@@ -152,10 +154,10 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
       steps: {
         a: view({ next: 'load' }),
         load: runStep({ run: () => 'loaded', next: 'b' }),
-        b: view({ dependsOn: ['load'], next: ['t1', 't2'] }),
-        t1: runStep({ run: () => 't1', dependsOn: ['load'], next: 'c' }),
+        b: view({ needs: needAll('load'), next: ['t1', 't2'] }),
+        t1: runStep({ run: () => 't1', needs: needAll('load', 'b'), next: 'c' }),
         t2: runStep({ run: () => new Promise(() => {}), next: 'c' }),
-        c: view({ dependsOn: ['t1', 't2'], next: 'end' }),
+        c: view({ needs: { ...needAll('t1'), ...needOptional('t2') }, next: 'end' }),
         end: routingStep(),
       },
     })
@@ -174,7 +176,7 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
     expect(t.run.readyViews()).toEqual([])
     expect(await t.run.skip('t2', 'too slow')).toMatchObject({ ok: true })
     expect(t.rec('t2')).toMatchObject({ status: 'skipped', skipReason: 'command' })
-    expect(t.run.getState().current).toBe('c') // deps satisfied → cursor moved
+    expect(t.run.getState().current).toBe('c') // needs satisfied → cursor moved
     expect(t.run.progress()).toEqual({ done: 5, total: 7, ratio: 5 / 7 }) // skipped counts
     // invalidate: active/current rejected, done cascades
     expect(await t.run.invalidate('c')).toMatchObject({
@@ -188,7 +190,7 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
     expect(t.rec('b').status).toBe('idle')
     expect(t.rec('t1').status).toBe('idle')
     expect(t.rec('c').status).toBe('idle') // cancelled + invalidated (it depended transitively)
-    expect(t.rec('t2').status).toBe('skipped') // no dependsOn on load
+    expect(t.rec('t2').status).toBe('skipped') // does not need load
     expect(t.run.getState().current).toBeNull()
     expect(t.run.progress()).toEqual({ done: 2, total: 7, ratio: 2 / 7 })
     // cascade: false leaves dependents alone
@@ -258,7 +260,7 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
           next: 'join',
         }),
         async: runStep({ when: () => Promise.resolve(false), run: () => 'ran', next: 'join' }),
-        join: runStep({ dependsOn: ['sync', 'async'], run: () => 'j', next: 'end' }),
+        join: runStep({ needs: needOptional('sync', 'async'), run: () => 'j', next: 'end' }),
         end: routingStep(),
       },
     })

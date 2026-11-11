@@ -1,7 +1,6 @@
-/** Resolve normal, alternate, control and data edges. @internal */
+/** Resolve normal, alternate and data edges. @internal */
 import type { NeedSpec, NextRef } from '../compiled'
 import { asHook } from './hooks'
-import { toDepsSpec } from './policies'
 import { isRecord, type Rec } from './shared'
 import type { Problem, StepBuild, StepCtx, StepHooks } from './steps'
 
@@ -50,22 +49,11 @@ export function compileEdges(
   if (targets !== undefined && typeof c.next !== 'function')
     problem("'targets' requires a function 'next'")
 
-  const dependencies: string[] = []
-  if (c.dependsOn !== undefined) {
-    const spec = toDepsSpec(c.dependsOn)
-    if (spec === undefined)
-      problem("'dependsOn' must be an array of references or { any: references }")
-    else {
-      const list = 'all' in spec ? spec.all : spec.any
-      idsOf(list, 'dependsOn', problem, sc.ids)
-      step.dependsOn = spec
-      dependencies.push(...list)
-    }
-  }
   if (c.needs !== undefined) {
     if (!isRecord(c.needs)) problem("'needs' must be an object of step references")
     else {
       const needs: Record<string, NeedSpec> = Object.create(null)
+      const producers: string[] = []
       if (Object.keys(c.needs).length === 0) problem("'needs' must contain at least one dependency")
       for (const [alias, ref] of Object.entries(c.needs)) {
         let mode: NeedSpec['kind'] = 'all'
@@ -87,13 +75,13 @@ export function compileEdges(
         const list = idsOf(value, `needs.${alias}${mode === 'any' ? '.any' : ''}`, problem, sc.ids)
         if (list === undefined) continue
         needs[alias] = { kind: mode, steps: list }
-        dependencies.push(...list)
+        producers.push(...list)
         for (const producer of list) sc.graph.edges(producer, [id])
       }
       step.needs = needs
+      if (producers.length > 0) sc.graph.needs(id, producers)
     }
   }
-  if (dependencies.length > 0) sc.graph.dependsOn(id, dependencies)
   if (c.fallback !== undefined) {
     if (typeof c.fallback !== 'string') problem("'fallback' must be a step reference")
     else {

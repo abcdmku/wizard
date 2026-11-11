@@ -10,26 +10,26 @@ export const ingestFlow = defineWizard(
     }),
     concurrency: 2,
   },
-  ({ step, steps }) =>
-    steps(
+  ({ step, steps }) => {
+    const normalize = step({ run: async ({ context }) => ({ normalized: context.rows }) })
+    const enrich = step({
+      run: async ({ context }) => ({ enriched: context.rows }),
+      when: ({ context }) => context.enrichment === 'on',
+    })
+    // The gate waits for both branches. The optional need lets it run when enrich is skipped.
+    const gate = step({ needs: { normalize, enrich: { optional: enrich } }, next: 'done' })
+    return steps(
       {
         fetch: step({
           run: async ({ update }) => update({ rows: 100 }),
           next: ['normalize', 'enrich'],
         }),
-        normalize: step({
-          run: async ({ context }) => ({ normalized: context.rows }),
-          next: 'gate',
-        }),
-        enrich: step({
-          run: async ({ context }) => ({ enriched: context.rows }),
-          when: ({ context }) => context.enrichment === 'on',
-          next: 'gate',
-        }),
-        // dependsOn gates an already-activated node; skipped dependencies satisfy this gate.
-        gate: step({ dependsOn: ['normalize', 'enrich'], next: 'done' }),
+        normalize,
+        enrich,
+        gate,
         done: step({ run: ({ context }) => `stored ${context.rows} rows` }),
       },
       { start: 'fetch' },
-    ),
+    )
+  },
 )

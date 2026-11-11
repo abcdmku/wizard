@@ -97,35 +97,6 @@ describe('needs data joins', () => {
     expect(replay(h)).toEqual(h.state)
   })
 
-  it('keeps control gates independent of needs activation', () => {
-    const h = createHarness(
-      dataFlow(
-        flow({
-          start: ['data', 'control'],
-          steps: {
-            data: runStep(),
-            control: runStep(),
-            join: {
-              ...runStep({ dependsOn: ['control'] }),
-              needs: {
-                data: { kind: 'all', steps: ['data'] },
-              },
-            },
-            controlOnly: runStep({ dependsOn: ['control'] }),
-          },
-        }),
-        { data: ['join'] },
-      ),
-    )
-    h.start()
-    h.ok(h.call('run', 'data'), 'data')
-    expect(h.rec('join')).toMatchObject({ status: 'idle', pendingActivation: true })
-    expect(explain(h.def, h.state, 'join').reasons).toEqual(['deps-unmet:control'])
-    h.ok(h.call('run', 'control'))
-    expect(h.rec('join').status).toBe('active')
-    expect(h.rec('controlOnly')).toMatchObject({ status: 'idle', pendingActivation: false })
-  })
-
   it('skips required consumers transitively when a producer is skipped', () => {
     const h = createHarness(
       dataFlow(

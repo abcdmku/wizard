@@ -49,13 +49,12 @@ export interface StepApi<C, Ev, D> {
     Tg extends Ref = never,
     Nr extends RefWithin<Tg> = never,
     Fb extends Ref = never,
-    Dp extends Ref = never,
     To extends Ref = never,
     H extends { readonly [E in Wk]?: (...args: never[]) => MaybePromise<WaitResult> } = {},
     Wk extends string = never,
     Xk extends string = never,
   >(
-    config: StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, Dp, To, H, Xk, Wk> &
+    config: StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, To, H, Xk, Wk> &
       OptionKeys<Xk, StepOption>,
   ): Step<
     'step',
@@ -66,8 +65,8 @@ export interface StepApi<C, Ev, D> {
     > &
       ('each' extends Xk ? { readonly each: true } : {}),
     Links<
-      IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | Dp | To>,
-      ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | Dp | To>,
+      IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>,
+      ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | To>,
       Nd,
       Tg | Fb | To,
       HasSuccessor<Nx, Tg>,
@@ -87,17 +86,16 @@ export interface StepApi<C, Ev, D> {
     Nx extends Ref | null = never,
     Tg extends Ref = never,
     Nr extends RefWithin<Tg> = never,
-    Dp extends Ref = never,
     Nh extends Ref = never,
     Xk extends string = never,
   >(
-    config: ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Dp, Nh> & OptionKeys<Xk, ViewOption>,
+    config: ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Nh> & OptionKeys<Xk, ViewOption>,
   ): Step<
     'view',
     { readonly input: I; readonly output: O },
     Links<
-      IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Dp | Nh>,
-      ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Dp | Nh>,
+      IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>,
+      ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Nh>,
       Nd,
       Tg | Nh,
       HasSuccessor<Nx, Tg>,
@@ -116,7 +114,6 @@ export interface StepApi<C, Ev, D> {
     Tg extends Ref = never,
     Nr extends RefWithin<Tg> = never,
     Fb extends Ref = never,
-    Dp extends Ref = never,
     Xk extends string = never,
   >(
     child: CF,
@@ -133,8 +130,7 @@ export interface StepApi<C, Ev, D> {
       Nx,
       Nr,
       Tg,
-      Fb,
-      Dp
+      Fb
     > &
       DepsRule<C, D, Nd, Item, CF> &
       OptionKeys<Xk, ChildOption>,
@@ -145,8 +141,8 @@ export interface StepApi<C, Ev, D> {
       readonly child: CF
     } & ('each' extends Xk ? { readonly each: true } : {}),
     Links<
-      IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | Dp>,
-      ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb | Dp>,
+      IdRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>,
+      ObjRefs<StaticNext<Nx> | Returned<Nr, Tg> | Tg | Fb>,
       Nd,
       Tg | Fb,
       HasSuccessor<Nx, Tg>,

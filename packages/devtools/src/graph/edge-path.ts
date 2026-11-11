@@ -18,7 +18,7 @@ export interface EdgeGeometry {
   readonly selfLoop: boolean
   /** Different curvature for the two directions of a bidirectional pair. */
   readonly forward: boolean
-  /** Bulge more (a `dependsOn` edge next to the `next` edge of the same pair stays visible). */
+  /** Bulge more (a `needs` edge next to the `next` edge of the same pair stays visible). */
   readonly bulge?: boolean
 }
 

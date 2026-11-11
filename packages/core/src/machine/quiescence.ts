@@ -7,7 +7,8 @@
  */
 
 import type { CompiledFlow } from '../authoring/compiled'
-import { depsSatisfied, unmetDeps } from './selectors'
+import { unmetNeeds } from './needs'
+import { depsSatisfied } from './selectors'
 import type { WizardState } from './state'
 import { stepIndex } from './step-index'
 
@@ -33,7 +34,7 @@ export function canFinish(_def: CompiledFlow, state: WizardState): boolean {
   )
 }
 
-/** A join that can never enter: its unmet deps, and the routing steps that decided against them. */
+/** A join that can never enter: its unmet needs, and the routing steps that decided against them. */
 export interface StuckJoin {
   readonly step: string
   readonly deps: readonly string[]
@@ -41,9 +42,9 @@ export interface StuckJoin {
 }
 
 /**
- * Quiescent, yet every activated step waits on control or data dependencies that nothing can complete any
- * more: the first such join in arrival order (undefined = not stuck). `routers` are the decided
- * steps whose declared `targets` named one of those deps.
+ * Quiescent, yet every activated step waits on needs that nothing can complete any more: the
+ * first such join in arrival order (undefined = not stuck). `routers` are the decided steps
+ * whose declared `targets` named one of those producers.
  */
 export function stuckJoin(def: CompiledFlow, state: WizardState): StuckJoin | undefined {
   const index = stepIndex(state.steps)
@@ -51,7 +52,7 @@ export function stuckJoin(def: CompiledFlow, state: WizardState): StuckJoin | un
   if (index.pending.some((id) => depsSatisfied(def, state, id))) return undefined
   const step = index.pending[0]
   if (step === undefined) return undefined
-  const deps = unmetDeps(def, state, step)
+  const deps = unmetNeeds(def, state, step)
   const routers = def.order.filter((id) => {
     const next = def.steps[id]?.next
     const status = state.steps[id]?.status

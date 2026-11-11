@@ -52,12 +52,11 @@ Put database clients and other services in `deps`. They never enter snapshots. `
 
 Create producers first, then refer to their step objects in `needs`. The join starts when both producers finish, even though neither declares a `next` edge to it. `needs.loadProfile` and `needs.loadOrders` have their producer's output types.
 
-These options answer different questions:
+Two options link steps:
 
 | Option | Meaning |
 |---|---|
 | `next` | Activate the named step or steps after this step finishes |
-| `dependsOn` | Gate a step that another edge already activated |
 | `needs` | Wait for typed producer data and activate the consumer |
 
 A plain need requires its producer's output. `{ any: [a, b] }` uses the first completed producer's output. `{ optional: a }` permits a skipped producer and supplies `undefined`. A skipped required need skips its consumer; an any need skips only if all alternatives skip. Read [graphs](/advanced/graphs) for branch joins and item maps.

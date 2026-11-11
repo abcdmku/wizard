@@ -3,7 +3,17 @@
  * plus a `replay(log) == state` fixture exercising the new events. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, flow, of, replay, routingStep, runStep, view } from '../helpers/fixtures'
+import {
+  createHarness,
+  flow,
+  needAll,
+  needOptional,
+  of,
+  replay,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const key = () => 'k'
 const map = () => ({})
@@ -16,7 +26,7 @@ describe('idempotent tasks', () => {
         steps: {
           a: runStep({ idempotent: true, retry: { retries: 2, backoff: 10 }, next: 'end' }),
           b: runStep({ next: 'end' }),
-          end: routingStep({ dependsOn: ['a', 'b'] }),
+          end: routingStep({ needs: needAll('a', 'b') }),
         },
       }),
     )
@@ -216,8 +226,8 @@ describe('replay(log) == state — v0.2 fixture', () => {
             on: { progress: on },
             next: 'join',
           }),
-          join: runStep({ dependsOn: ['opt', 'work'], next: 'b' }),
-          b: view({ dependsOn: ['join'], next: 'end' }),
+          join: runStep({ needs: { ...needOptional('opt'), ...needAll('work') }, next: 'b' }),
+          b: view({ needs: needAll('join'), next: 'end' }),
           end: routingStep(),
         },
       }),

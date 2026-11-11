@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { HookArgs } from '../../src/authoring/compiled'
 import { apply, initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
-import { createEnv, flow, runStep } from '../helpers/fixtures'
+import { createEnv, flow, needAll, runStep } from '../helpers/fixtures'
 import { e2e } from '../wizard/e2e/harness'
 
 describe('published versions', () => {
@@ -18,7 +18,7 @@ describe('published versions', () => {
         a: runStep({ run: () => 1, next: ['b', 'c'] }),
         b: runStep({ run: async () => 2, next: 'd' }),
         c: runStep({ run: () => 3, next: 'd' }),
-        d: runStep({ run: () => 4, dependsOn: ['b', 'c'] }),
+        d: runStep({ run: () => 4, needs: needAll('b', 'c') }),
       },
     })
     const t = e2e(def)

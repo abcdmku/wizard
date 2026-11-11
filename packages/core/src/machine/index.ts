@@ -36,7 +36,6 @@ export {
   readyViews,
   runInFlight,
   type StepPhase,
-  unmetDeps,
   viewsAwaitingWhen,
 } from './selectors'
 export type { Decision, InitialState, InitialStateOptions, Machine, MachineEnv } from './types'

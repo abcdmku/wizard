@@ -1,4 +1,10 @@
-/** Data-join gates, pull activation, and propagation of unavailable branch outputs. */
+/**
+ * Data-join gates, pull activation, and propagation of unavailable branch outputs.
+ *
+ * A step named in the `targets` of a function `next` is routed: that choice (or another explicit
+ * edge) activates it, and its needs only hold it. Every other step with needs is activated by
+ * its producers.
+ */
 import type { CompiledFlow, NeedSpec } from '../authoring/compiled'
 import type { Batch } from './batch'
 import { emit } from './batch'
@@ -51,6 +57,8 @@ interface Graph {
   readonly successors: ReadonlyMap<string, readonly string[]>
   readonly predecessors: ReadonlyMap<string, readonly string[]>
   readonly starts: ReadonlySet<string>
+  /** Declared targets of a function `next`. */
+  readonly routed: ReadonlySet<string>
 }
 
 const graphs = new WeakMap<CompiledFlow, Graph>()
@@ -61,14 +69,15 @@ function graph(def: CompiledFlow): Graph {
   if (cached !== undefined) return cached
   const successors = new Map<string, readonly string[]>()
   const predecessors = new Map<string, string[]>()
+  const routed = new Set<string>()
   for (const id of def.order) {
     const step = def.steps[id]
     if (step === undefined) continue
     const next = step.next.kind === 'none' ? [] : (step.next.targets ?? [])
     successors.set(id, next)
+    if (step.next.kind === 'dynamic') for (const target of next) routed.add(target)
     const arrivals = new Set([
       ...next,
-      ...(def.feeds?.[id] ?? []),
       ...(step.fallback === undefined ? [] : [step.fallback]),
       ...(step.waitTimeout === undefined ? [] : [step.waitTimeout.next]),
     ])
@@ -78,7 +87,7 @@ function graph(def: CompiledFlow): Graph {
       predecessors.set(target, previous)
     }
   }
-  cached = { successors, predecessors, starts: new Set(def.start) }
+  cached = { successors, predecessors, starts: new Set(def.start), routed }
   graphs.set(def, cached)
   return cached
 }
@@ -103,15 +112,14 @@ function updateConsumers(b: Batch, seeds: readonly Affected[]): void {
     const { producer, cascade } = affected
     for (const id of def.feeds?.[producer] ?? []) {
       const record = b.state.steps[id]
-      const revive =
-        record?.status === 'skipped' &&
-        (record.skipReason === 'needs-skipped' || record.skipReason === 'not-taken')
+      const revive = record?.status === 'skipped' && record.skipReason === 'needs-skipped'
       if (record === undefined || (!inactive(record) && !revive)) continue
       if (needsSkipReason(def, b.state, id) !== undefined) {
         if (!inactive(record)) continue
         emit(b, { type: 'step.skipped', step: id, reason: 'needs-skipped' })
         queue.push({ producer: id, cascade })
       } else if (
+        !facts.routed.has(id) &&
         !record.pendingActivation &&
         (record.status === 'idle' || (revive && needsSatisfied(def, b.state, id)))
       ) {
@@ -123,11 +131,12 @@ function updateConsumers(b: Batch, seeds: readonly Affected[]): void {
     if (!cascade) continue
     for (const id of facts.successors.get(producer) ?? []) {
       // A pull join decides from its needs, including optional producers. It is not owned
-      // solely by the branch that also happens to have an explicit edge to it.
+      // solely by the branch that also happens to have an explicit edge to it. A routed step is
+      // owned by the steps that can choose it.
       if (
         !inactive(b.state.steps[id]) ||
         facts.starts.has(id) ||
-        def.steps[id]?.needs !== undefined
+        (def.steps[id]?.needs !== undefined && !facts.routed.has(id))
       )
         continue
       const predecessors = facts.predecessors.get(id) ?? []

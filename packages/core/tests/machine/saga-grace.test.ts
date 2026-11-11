@@ -2,7 +2,16 @@
  * Saga (§5.2 / plan §8.5) — grace period, resume during settle, repeated completions and timeouts.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, flow, flowStep, of, routingStep, runStep, view } from '../helpers/fixtures'
+import {
+  createHarness,
+  flow,
+  flowStep,
+  needAll,
+  of,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const comp = () => undefined
 
@@ -37,7 +46,7 @@ describe('review follow-ups — grace, resume during settle, repeated completion
       steps: {
         a: runStep({ compensate: comp, next: 'end' }),
         b: runStep({ compensate: comp, next: 'end' }),
-        end: routingStep({ dependsOn: ['a', 'b'] }),
+        end: routingStep({ needs: needAll('a', 'b') }),
       },
       policies: { onFailure: 'compensate', compensationGraceMs: 5_000 },
     })

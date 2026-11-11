@@ -148,30 +148,33 @@ describe('inspect manifest', () => {
     })
   })
 
-  it('warns EXCLUSIVE_JOIN when an AND-join waits for both outcomes of an event timeout', () => {
+  it('warns EXCLUSIVE_JOIN when a join needs both outcomes of an event timeout', () => {
     const wizard = defineWizard(
       {
         name: 'join',
         context: boundary.trusted<{}>(),
         events: { paid: boundary.trusted() },
       },
-      ({ step, steps }) =>
-        steps({
+      ({ step, steps }) => {
+        const paid = step({ run: async () => 1 })
+        const expired = step({ run: async () => 1 })
+        return steps({
           wait: step({
             waitFor: { paid: () => {} },
             timeout: { after: '1h', next: 'expired' },
             next: 'paid',
           }),
-          paid: step({ run: async () => 1, next: 'join' }),
-          expired: step({ run: async () => 1, next: 'join' }),
-          join: step({ run: async () => 1, dependsOn: ['paid', 'expired'] }),
-        }),
+          paid,
+          expired,
+          join: step({ run: async () => 1, needs: { paid, expired } }),
+        })
+      },
     )
     expect(inspect(wizard).warnings).toEqual([
       {
         code: 'EXCLUSIVE_JOIN',
         message:
-          "step 'join' depends on all of 'paid', 'expired', which are alternative branches of 'wait' (only one runs); use dependsOn: { any: [...] } or join after the branches merge",
+          "step 'join' needs all of 'paid', 'expired', which are alternative branches of 'wait' (only one runs); use needs: { result: { any: [...] } } or join after the branches merge",
         step: 'join',
         path: [],
       },

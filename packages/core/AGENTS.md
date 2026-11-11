@@ -45,10 +45,11 @@ There are three constructors. The options you pass decide what a step does.
 | `needs: { extra: { optional: a } }` | The step runs even if the producer was skipped. The value may be `undefined` |
 | `next: 'ship'` | The next step shares no data with this one |
 | `next: fn` with `targets: [...]` | The step chooses a branch. Targets it does not return are skipped |
-| `dependsOn: ['audit']` | Hold a step that `next` or `start` already activates. It passes no data |
 | `when: fn` | Skip the step when the function returns false |
 
 Create producers before the steps that need them, so `needs` can refer to the step objects.
+
+A step can need another step only to wait for it and ignore the value. A step listed in `targets` starts only when the function `next` returns it. Its needs hold it until they are met and never start it.
 
 ## Rules
 
@@ -153,5 +154,5 @@ run.dispose()
 
 - Run the type checker. Unknown step ids, a missing `targets`, and a wrong `needs` type are compile errors.
 - Import the module. A broken definition throws `WizardError` with code `DEFINITION_INVALID` and lists every problem.
-- Read `inspect(wizard).warnings`. The codes are `UNREACHABLE`, `NEVER_ACTIVATES`, `NAV_CYCLE`, `EXCLUSIVE_JOIN`, `MULTIPLE_SINKS` and `NO_SINKS`. `MULTIPLE_SINKS` means the output depends on which branch finished last, so add an `output` selector to the wizard options.
+- Read `inspect(wizard).warnings`. The codes are `UNREACHABLE`, `NAV_CYCLE`, `EXCLUSIVE_JOIN`, `MULTIPLE_SINKS` and `NO_SINKS`. `MULTIPLE_SINKS` means the output depends on which branch finished last, so add an `output` selector to the wizard options.
 - Test time with `createTestScheduler()` from `@openwizard/core/testing`. Pass it as `scheduler` and call `advance(ms)` to fire retries, sleeps and timeouts.

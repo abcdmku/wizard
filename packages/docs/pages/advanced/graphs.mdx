@@ -1,13 +1,13 @@
 # Graphs and parallel work
 
-Use `next` to start branches, `needs` to join their outputs, and `dependsOn` to wait for work without reading its output. These rules let the same wizard mix navigation and background work.
+Use `next` to start branches and `needs` to join them. A need waits for another step and passes its output to the step that declared it. These two links let the same wizard mix navigation and background work.
 
 ```ts file="packages/docs/snippets/advanced/fanout.ts"
 ```
 
 <Diagram name="graph" />
 
-In this example, `fetch` activates `normalize` and `enrich`. Both point to `gate`, so the gate has an activation edge as well as a control gate. `dependsOn` holds it until both branches are `done` or `skipped`. With `concurrency: 2`, the run can execute both run functions together.
+In this example, `fetch` activates `normalize` and `enrich`. `gate` needs both, so it starts once `normalize` is done and `enrich` is done or skipped. Neither branch points `next` at the gate. With `concurrency: 2`, the run can execute both run functions together.
 
 ## Join typed outputs with `needs`
 
@@ -24,15 +24,22 @@ Create producers before the consumer so its hooks receive their output types:
 | `needs: { result: { any: [a, b] } }` | First producer completes | Union of producer outputs | Consumer skips only if all producers skip |
 | `needs: { result: { optional: producer } }` | Producer settles | Output or `undefined` | Consumer receives `undefined` |
 
-A plain need requires a step object, not an id string. References in `next`, `targets`, `dependsOn`, and `fallback` accept either spelling. Optional needs change data availability; producer failures still follow their failure policy.
+A plain need requires a step object, not an id string. References in `next`, `targets`, and `fallback` accept either spelling. Optional needs change data availability; producer failures still follow their failure policy.
 
 An event wait that times out is a skipped producer, with reason `timeout`. The table applies to it: a plain need skips the consumer, an `any` need waits for another producer, and an optional need supplies `undefined`.
 
-## `dependsOn` gates activation
+## Wait without reading the output
 
-`dependsOn: [a, b]` waits until both are `done` or `skipped`. `{ any: [a, b] }` waits until one is. It supplies no hook data and does not start the consumer. Activate that consumer with `next` or include it in `start`.
+A need is also how a step waits for work whose result it does not use. Declare the need and ignore the value:
 
-A false `when` skips a branch. A control gate can still run; a consumer with a required `needs` value skips because there is no value to read. Choose the gate based on whether the consumer needs that result.
+```ts
+const audit = step({ run: ({ deps }) => deps.audit.record() })
+const publish = step({ needs: { audit }, run: ({ deps }) => deps.site.publish() })
+```
+
+A false `when` skips a branch. A consumer with a plain need on that branch skips too, because there is no value to read. If the consumer should run anyway, make the need optional with `needs: { audit: { optional: audit } }`.
+
+A step with needs starts from its needs alone. A static `next` that points at it is a second way to start it and does not hold it back. To make the step wait for that predecessor, add the predecessor as a need.
 
 ## Declare branch targets
 
@@ -45,12 +52,21 @@ choose: step({
 
 A function `next` requires `targets`. Its return type and its runtime result must stay within that list. An invalid or throwing selector fails the step under the wizard's failure policy.
 
-The runtime skips unchosen targets with `not-taken`, then propagates that skip along static edges when every predecessor was skipped. Required needs propagate skips too. `inspect(wizard)` warns about an AND-join over exclusive targets. If a blocked dependency can no longer activate, the join fails with `DEPS_UNREACHABLE` instead of waiting forever.
+The runtime skips unchosen targets with `not-taken`, then propagates that skip along static edges when every predecessor was skipped. Required needs propagate skips too. `inspect(wizard)` warns with `EXCLUSIVE_JOIN` when one step has plain needs on several exclusive targets, because that step can never run. If a blocked dependency can no longer activate, the join fails with `DEPS_UNREACHABLE` instead of waiting forever.
 
 This quote chooses one provider and joins its output through an any-need. The optional backup value is `undefined` when that branch was skipped:
 
 ```ts file="packages/docs/snippets/advanced/patterns.ts" lines="1-22"
 ```
+
+## Hold a chosen branch
+
+A step listed in `targets` starts only when the function `next` returns it. Its needs do not start it. They hold it until their producers finish:
+
+```ts file="packages/docs/snippets/advanced/held-branch.ts"
+```
+
+`ship` runs once `route` has picked it and `audit` is done, in either order. If `route` picks `cancel`, `ship` is skipped with `not-taken` and stays skipped when the audit arrives later.
 
 ## Map over a collection
 

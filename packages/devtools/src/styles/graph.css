@@ -182,10 +182,6 @@
   font-size: 10px;
   white-space: nowrap;
 }
-.owd-edge-label[data-kind="dependsOn"] {
-  color: var(--owd-warn);
-  border-color: var(--owd-warn);
-}
 .owd-edge-label[data-kind="needs"] {
   color: var(--owd-success);
   border-color: var(--owd-success);

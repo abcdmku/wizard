@@ -10,7 +10,6 @@ export interface StepRecordConfig {
   readonly description?: string
   readonly meta?: Readonly<Record<string, JsonValue>>
   readonly needs?: Readonly<Record<string, unknown>>
-  readonly dependsOn?: readonly Ref[] | { readonly any: readonly Ref[] }
   readonly when?: (args: never) => unknown
   readonly enter?: (args: never) => unknown
   readonly exit?: (args: never) => unknown

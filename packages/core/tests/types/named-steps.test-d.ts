@@ -9,7 +9,7 @@ const wizard = defineWizard(
     const { step, view, steps } = constructors
     const work = step({ run: ({ context }) => context.count })
     const linked = step({ run: () => 1, targets: [work], next: () => work })
-    const form = view({ targets: [linked], next: () => linked, dependsOn: [work] })
+    const form = view({ targets: [linked], next: () => linked, needs: { work } })
     return steps({ form, linked, work })
   },
 )

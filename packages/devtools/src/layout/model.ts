@@ -72,7 +72,7 @@ export interface ModelEdge {
 export interface GraphModel {
   readonly nodes: readonly ModelNode[]
   readonly edges: readonly ModelEdge[]
-  /** Warnings by step key (`UNREACHABLE`, `NEVER_ACTIVATES`, `NAV_CYCLE`). */
+  /** Warnings by step key (`UNREACHABLE`, `NAV_CYCLE`, `EXCLUSIVE_JOIN`). */
   readonly warnings: Readonly<Record<string, readonly string[]>>
 }
 
@@ -154,7 +154,7 @@ export function buildGraphModel(graph: FlowGraph): GraphModel {
     let key = base
     for (let n = 2; used.has(key); n += 1) key = `${base}#${n}`
     used.add(key)
-    const label = edgeLabel(edge, byKey.get(source), byKey.get(target))
+    const label = edgeLabel(edge, byKey.get(source))
     edges.push({
       key,
       source,
@@ -176,18 +176,10 @@ export function buildGraphModel(graph: FlowGraph): GraphModel {
   return { nodes, edges, warnings }
 }
 
-function edgeLabel(
-  edge: FlowGraphEdge,
-  source: FlowGraphNode | undefined,
-  target: FlowGraphNode | undefined,
-): string | undefined {
+function edgeLabel(edge: FlowGraphEdge, source: FlowGraphNode | undefined): string | undefined {
   switch (edge.kind) {
     case 'route':
       return 'route'
-    case 'dependsOn':
-      return target?.dependsOn !== undefined && 'any' in target.dependsOn
-        ? 'dependsOn (any)'
-        : 'dependsOn'
     case 'needs': {
       const mode = edge.mode === undefined || edge.mode === 'all' ? '' : ` (${edge.mode})`
       return `needs${edge.alias === undefined ? '' : ` ${edge.alias}`}${mode}`

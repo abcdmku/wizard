@@ -2,7 +2,7 @@
  * Navigation pipeline (§1) — dynamic `next`, `go` reachability and `back`.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, flow, of, routingStep, runStep, view } from '../helpers/fixtures'
+import { createHarness, flow, needAll, of, routingStep, runStep, view } from '../helpers/fixtures'
 
 const linear = () =>
   flow({
@@ -198,7 +198,7 @@ describe('nav pipeline — dynamic next, go, back', () => {
         steps: {
           a: view({ next: ['t', 'b'] }),
           t: runStep(),
-          b: view({ dependsOn: ['t'], next: 'end' }),
+          b: view({ needs: needAll('t'), next: 'end' }),
           end: routingStep(),
         },
       }),

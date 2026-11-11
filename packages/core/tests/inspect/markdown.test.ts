@@ -58,7 +58,7 @@ describe('toMarkdown', () => {
         '',
         'Takes a cart from a shipping address to a shipped order.',
         '',
-        'Wizard `checkout`, version 1, fingerprint `fdb332e1690d47eb`.',
+        'Wizard `checkout`, version 1, fingerprint `eaffe112a6e9b85c`.',
         '',
         '## Diagram',
         '',
@@ -190,5 +190,29 @@ describe('toMarkdown', () => {
         '',
       ].join('\n'),
     )
+  })
+
+  it('says that a routed step starts from its router and is only held by its needs', () => {
+    const dispatch = defineWizard(
+      { name: 'dispatch', context: z.object({ urgent: z.boolean() }), output: () => 'sent' },
+      ({ step, steps }) => {
+        const audit = step({ run: () => 'clean' })
+        const route = step({
+          targets: ['ship', 'hold'],
+          next: ({ context }) => (context.urgent ? 'ship' : 'hold'),
+        })
+        const ship = step({ needs: { audit }, run: ({ needs }) => needs.audit })
+        const hold = step({ run: () => 'held' })
+        const report = step({ needs: { audit }, run: ({ needs }) => needs.audit })
+        return steps({ audit, route, ship, hold, report }, { start: ['audit', 'route'] })
+      },
+    )
+    const page = toMarkdown(inspect(dispatch))
+    expect(page).toContain(
+      '| `ship` | step | `route` routes here; only after `audit` finishes | Runs work |',
+    )
+    expect(page).toContain('| `report` | step | `audit` finishes | Runs work |')
+    expect(page).toContain('  route -.->|"route"| ship')
+    expect(page).toContain('  audit -->|"needs: audit"| ship')
   })
 })

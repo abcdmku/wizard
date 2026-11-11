@@ -49,8 +49,6 @@ export interface RetryPolicy {
   readonly when?: (error: unknown) => boolean
 }
 
-export type DepsSpec = { readonly all: readonly string[] } | { readonly any: readonly string[] }
-
 export interface NeedSpec {
   readonly kind: 'all' | 'any' | 'optional'
   readonly steps: readonly string[]
@@ -116,7 +114,8 @@ export interface CompiledStep {
   /** Author metadata (`meta` on the step config), JSON only. */
   readonly meta?: Readonly<Record<string, JsonValue>>
   /**
-   * Data joins imply gating and activation. Control-only `dependsOn` stays separate.
+   * Data joins gate the step. They also activate it, unless a function `next` declares it as a
+   * target: then only that choice does.
    */
   readonly needs?: Readonly<Record<string, NeedSpec>>
   /** Snapshotted map source, item identity and maximum simultaneous items. */
@@ -138,7 +137,6 @@ export interface CompiledStep {
         readonly targets?: readonly string[]
       }
     | { readonly kind: 'none' }
-  readonly dependsOn?: DepsSpec
   readonly input?: RuntimeBoundary
   readonly initial?: unknown
   readonly output?: RuntimeBoundary

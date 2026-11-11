@@ -37,7 +37,6 @@ export function toNode(step: CompiledStep, raw: unknown, site: NodeSite): FlowGr
     ...prose(step),
     path: site.path,
     hooks: hookNames(step, record),
-    ...(step.dependsOn !== undefined ? { dependsOn: step.dependsOn } : {}),
     ...(step.needs !== undefined ? { needs: step.needs } : {}),
     ...(step.each !== undefined
       ? {

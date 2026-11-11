@@ -46,7 +46,7 @@ export type Command =
   | { readonly type: 'reset' }
   /** Skip a ready or active step that does not complete the flow. */
   | { readonly type: 'skip'; readonly step: string; readonly reason?: string }
-  /** Explicit invalidation of a done/failed/skipped step (+ transitive `dependsOn` dependents when `cascade`). */
+  /** Explicit invalidation of a done/failed/skipped step (+ transitive `needs` dependents when `cascade`). */
   | { readonly type: 'invalidate'; readonly step: string; readonly cascade?: boolean }
   /** Address a command to a nested flow. `path` is relative to this run (`['fulfil']`, `['fulfil','payment']`). */
   | { readonly type: 'child'; readonly path: readonly string[]; readonly command: Command }

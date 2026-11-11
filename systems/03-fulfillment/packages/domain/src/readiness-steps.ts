@@ -3,6 +3,8 @@ import { failFromContext, workflowFailure as failure } from './workflow-helpers'
 import type { FulfillmentStep } from './workflow-options'
 
 export function createReadinessSteps(step: FulfillmentStep) {
+  const paymentBranchComplete = step({ next: 'readinessJoin' })
+  const inventoryBranchComplete = step({ next: 'readinessJoin' })
   return {
     begin: step({
       next: ['requestPaymentAuthorization', 'requestInventoryReservation'],
@@ -68,7 +70,7 @@ export function createReadinessSteps(step: FulfillmentStep) {
         }),
       next: 'paymentBranchComplete',
     }),
-    paymentBranchComplete: step({ next: 'readinessJoin' }),
+    paymentBranchComplete,
     requestInventoryReservation: step({
       run: ({ context, deps, idempotencyKey }) =>
         deps.gateway.reserveInventory({
@@ -128,9 +130,9 @@ export function createReadinessSteps(step: FulfillmentStep) {
         }),
       next: 'inventoryBranchComplete',
     }),
-    inventoryBranchComplete: step({ next: 'readinessJoin' }),
+    inventoryBranchComplete,
     readinessJoin: step({
-      dependsOn: ['paymentBranchComplete', 'inventoryBranchComplete'],
+      needs: { paymentBranchComplete, inventoryBranchComplete },
       next: 'readinessGate',
     }),
     readinessGate: step({

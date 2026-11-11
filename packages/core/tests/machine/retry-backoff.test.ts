@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Message } from '../../src/machine/commands'
 import { machine } from '../../src/machine/index'
-import { createHarness, flow, of, routingStep, runStep, view } from '../helpers/fixtures'
+import { createHarness, flow, needAll, of, routingStep, runStep, view } from '../helpers/fixtures'
 
 const machineDecide = (h: ReturnType<typeof createHarness>, msg: Message) =>
   machine.decide(h.env, h.state, msg)
@@ -160,7 +160,7 @@ describe('retry / backoff / timeout', () => {
         steps: {
           a: runStep({ next: 'c' }),
           b: runStep({ next: 'c' }),
-          c: runStep({ dependsOn: ['a', 'b'], next: 'end' }),
+          c: runStep({ needs: needAll('a', 'b'), next: 'end' }),
           end: routingStep(),
         },
       }),

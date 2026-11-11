@@ -13,7 +13,7 @@
 
 import type { CompiledFlow, CompiledStep } from '../authoring/compiled'
 import { childActivity } from './child-activity'
-import { needsSatisfied, unmetNeeds } from './needs'
+import { needsSatisfied } from './needs'
 import type { NavCause, NavState, SagaEntryRef, StepRecord, WizardState } from './state'
 import { stepIndex } from './step-index'
 
@@ -65,10 +65,6 @@ function memo(state: WizardState): Memo {
 // Readiness (§3.1)
 // ---------------------------------------------------------------------------
 
-function isComplete(rec: StepRecord | undefined): boolean {
-  return rec !== undefined && (rec.status === 'done' || rec.status === 'skipped')
-}
-
 export function isRunnableStep(def: CompiledStep | undefined): def is CompiledStep & {
   readonly kind: 'step'
   readonly hooks: CompiledStep['hooks'] & {
@@ -99,30 +95,14 @@ export function isRoutingStep(
   )
 }
 
-/** Control deps accept done/skipped; data needs require outputs or an optional skip. */
+/** The step's needs are met: every producer has an output, or an optional one settled. */
 export function depsSatisfied(def: CompiledFlow, state: WizardState, id: string): boolean {
   const m = memo(state)
   const cached = m.deps.get(id)
   if (cached !== undefined) return cached
-  const deps = def.steps[id]?.dependsOn
-  let ok = needsSatisfied(def, state, id)
-  if (deps !== undefined) {
-    if ('all' in deps) ok = ok && deps.all.every((d) => isComplete(state.steps[d]))
-    else ok = ok && deps.any.some((d) => isComplete(state.steps[d]))
-  }
+  const ok = needsSatisfied(def, state, id)
   m.deps.set(id, ok)
   return ok
-}
-
-/** Ids of unmet dependencies (for `explain`). */
-export function unmetDeps(def: CompiledFlow, state: WizardState, id: string): readonly string[] {
-  const deps = def.steps[id]?.dependsOn
-  const needs = unmetNeeds(def, state, id)
-  if (deps === undefined) return needs
-  const list = 'all' in deps ? deps.all : deps.any
-  const unmet = list.filter((d) => !isComplete(state.steps[d]))
-  if ('any' in deps && unmet.length < list.length) return needs
-  return [...new Set([...unmet, ...needs])]
 }
 
 /**

@@ -235,7 +235,7 @@ interface ModelEdge {
 interface GraphModel {
   readonly nodes: readonly ModelNode[];
   readonly edges: readonly ModelEdge[];
-  /** Warnings by step key (`UNREACHABLE`, `NEVER_ACTIVATES`, `NAV_CYCLE`). */
+  /** Warnings by step key (`UNREACHABLE`, `NAV_CYCLE`, `EXCLUSIVE_JOIN`). */
   readonly warnings: Readonly<Record<string, readonly string[]>>;
 }
 /**

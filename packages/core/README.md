@@ -10,7 +10,7 @@ Start with the [authoring guide](../docs/pages/getting-started.mdx). It contains
 
 `defineWizard(options, ({ step, view, flow, steps }) => steps(map))` returns the Wizard itself. Pass it directly to adapters, inspection, projections, and durable hosts. `wizard.create(input)` returns a live Run; `wizard.run(input)` returns a terminal, halted, or waiting outcome and disposes that execution. Use the outcome's snapshot to resume a parked run.
 
-`needs` passes typed producer outputs and activates a consumer after its inputs settle. `next` activates successors. `dependsOn` gates a step another edge activated. `provide(deps)` returns a new Wizard; `RequiredDepsOf` describes services its callers still need to supply.
+`needs` passes typed producer outputs and activates a consumer after its inputs settle. `next` activates successors. `provide(deps)` returns a new Wizard; `RequiredDepsOf` describes services its callers still need to supply.
 
 Coding agents: read `AGENTS.md` in this package before writing or changing a wizard. `toMarkdown(inspect(wizard))` prints any wizard as one page.
 
@@ -96,7 +96,7 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 | `replay` | function | Fold `events` (a `log()` slice or anything captured with `observe()`, in `seq` order) with the | [src](../../packages/core/src/replay.ts#L53) |
 | `ReplayOptions` | type | `replay` options. Either `context` (the context INPUT the run was created with, parsed | [src](../../packages/core/src/replay.ts#L33) |
 | `RequiredDepsOf` | type | The dependencies still required when creating or resuming a run. | [src](../../packages/core/src/authoring/types/extractors.ts#L17) |
-| `ResumeOptions` | type | `wizard.resume` options: `RunOptions` without `context` / `instanceId` / `correlationId` | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L269) |
+| `ResumeOptions` | type | `wizard.resume` options: `RunOptions` without `context` / `instanceId` / `correlationId` | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L270) |
 | `RetryPolicy` | interface | Retry policy for runnable steps (plain data, so `inspect()` shows it; the retry STATE ; `attempt`, the | [src](../../packages/core/src/authoring/types/primitives.ts#L79) |
 | `RetryStepId` | type | The ids of runnable steps and mapped child flows that can retry failed items. | [src](../../packages/core/src/authoring/types/extractors.ts#L87) |
 | `RootRunEvent` | type | A domain event of the run's OWN flow (`path` is `[]`), typed by the flow: `step` is a | [src](../../packages/core/src/wizard/create-wizard/state.ts#L300) |
@@ -116,7 +116,7 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 | `RunHalted` | interface | A run stopped by a failed step under `onFailure: 'halt'`, or by a halted child flow | [src](../../packages/core/src/wizard/results.ts#L233) |
 | `RunLifecycleCode` | type | Why a lifecycle-sensitive waiter ended before producing its normal result. | [src](../../packages/core/src/wizard/results.ts#L265) |
 | `RunLifecycleError` | class | Rejection from a lifecycle-sensitive wait. `awaitResult()` rejects on reset or disposal; | [src](../../packages/core/src/wizard/results.ts#L273) |
-| `RunOptions` | type | `wizard.create` options: the context input (parsed by the flow's context boundary), `deps` | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L190) |
+| `RunOptions` | type | `wizard.create` options: the context input (parsed by the flow's context boundary), `deps` | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L191) |
 | `RunOutcome` | type | What `run.awaitOutcome()`, `wizard.run()` and `wizard.runSync()` return: a terminal | [src](../../packages/core/src/wizard/results.ts#L260) |
 | `RunResult` | type | One-shot terminal outcome of a `Run`. | [src](../../packages/core/src/wizard/results.ts#L199) |
 | `RunStatus` | type | Status of a run instance, including recoverable `halted` and terminal `failed`. | [src](../../packages/core/src/authoring/types/primitives.ts#L69) |
@@ -128,7 +128,7 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 | `SerializedError` | type | A serializable error (`name`, `message`, optional `code`) ; never carries a stack. | [src](../../packages/core/src/authoring/types/primitives.ts#L50) |
 | `SetInputCommand` | type | `setInput` correlated per view: `step: K` with `patch: DraftOf<F, K>`. | [src](../../packages/core/src/wizard/create-wizard/command.ts#L39) |
 | `Snapshot` | type | Snapshot typing depends only on definition facts, so a wizard and its Flow have the same snapshot. | [src](../../packages/core/src/wizard/create-wizard/state.ts#L82) |
-| `SnapshotMigration` | type | Snapshot migration (`resume(snapshot, { migrate })`): called with the raw snapshot when its | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L256) |
+| `SnapshotMigration` | type | Snapshot migration (`resume(snapshot, { migrate })`): called with the raw snapshot when its | [src](../../packages/core/src/wizard/create-wizard/wizard.ts#L257) |
 | `Step` | interface | A constructor record with authored config and inference facts. | [src](../../packages/core/src/authoring/types/step.ts#L80) |
 | `StepApi` | interface | Constructors bound to one context, event map and dependency type. | [src](../../packages/core/src/authoring/types/step-api.ts#L38) |
 | `StepErrorOf` | type | A step's stored error typed by the step: `SerializedError` (`name`, `message`, `code?`) plus | [src](../../packages/core/src/wizard/create-wizard/state.ts#L36) |
@@ -164,10 +164,10 @@ Import inspectors from `@openwizard/core/inspect`, browser mirrors and wire type
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `FlowGraph` | interface | The wizard manifest: identity, prose, JSON Schemas, nodes and edges (recursively for child | [src](../../packages/core/src/inspect/types.ts#L119) |
-| `FlowGraphEdge` | interface | A static edge between two steps of the same flow (`path`). `start` edges have no `from`; | [src](../../packages/core/src/inspect/types.ts#L103) |
+| `FlowGraph` | interface | The wizard manifest: identity, prose, JSON Schemas, nodes and edges (recursively for child | [src](../../packages/core/src/inspect/types.ts#L121) |
+| `FlowGraphEdge` | interface | A static edge between two steps of the same flow (`path`). `start` edges have no `from`; | [src](../../packages/core/src/inspect/types.ts#L105) |
 | `FlowGraphNode` | interface | One step of the graph. `path` is the run path of the flow the step belongs to | [src](../../packages/core/src/inspect/types.ts#L53) |
-| `FlowWarning` | interface | A static-analysis warning about a flow (advisory; never thrown). | [src](../../packages/core/src/authoring/compile/index.ts#L41) |
+| `FlowWarning` | interface | A static-analysis warning about a flow (advisory; never thrown). | [src](../../packages/core/src/authoring/compile/index.ts#L42) |
 | `formatTrace` | function | A readable trace, one line per event: time relative to the first event, `[child/path]` for | [src](../../packages/core/src/inspect/trace.ts#L54) |
 | `GraphEach` | interface | Map execution facts. Item selectors and key functions remain hooks. | [src](../../packages/core/src/inspect/types.ts#L41) |
 | `GraphNeed` | interface | A named pull dependency. Optional needs activate a consumer without propagating skips. | [src](../../packages/core/src/inspect/types.ts#L35) |
