@@ -97,6 +97,7 @@
   },
   "devDependencies": {
     "@openwizard/core": "workspace:*",
+    "@openwizard/store-kit": "workspace:*",
     "vitest": "^4.1.10"
   }
 }
