@@ -1,21 +1,21 @@
 import { type CommitInput, type CommitResult, DurableStoreError } from '@openwizard/durable/store'
-import { readNow } from './store-configuration'
-import { normalizeCommitInput } from './store-input'
-import type { Configuration, DrizzleDurableRepository, SnapshotCommit } from './store-types'
 import {
   compareVersion,
   isCompletableDedupe,
   isCompletableTimer,
-  isCurrentLease,
   isOpenClaim,
+  normalizeCommitInput,
+  readNow,
+  type StoreConfiguration,
   sameVersion,
   serializeJson,
-  versionFromRow,
-} from './store-values'
+} from '@openwizard/store-kit'
+import type { DrizzleDurableRepository, SnapshotCommit } from './store-types'
+import { isCurrentLease, timerClaimView, versionFromRow } from './store-values'
 
 export async function commit(
   repository: DrizzleDurableRepository,
-  configuration: Configuration,
+  configuration: StoreConfiguration,
   input: CommitInput,
 ): Promise<CommitResult> {
   const normalized = normalizeCommitInput(input)
@@ -119,7 +119,7 @@ export async function commit(
       }
 
       for (const completion of normalized.completeTimers) {
-        const timer = await run.readTimer(completion.timerId)
+        const timer = timerClaimView(await run.readTimer(completion.timerId))
         if (!isCompletableTimer(timer, completion, normalized.lease.fence)) {
           return { ok: false, code: 'TIMER_CLAIM_LOST' }
         }

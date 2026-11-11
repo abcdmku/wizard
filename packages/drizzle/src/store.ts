@@ -1,7 +1,7 @@
 import type { DurableStore } from '@openwizard/durable/store'
+import { makeStoreConfiguration, readLimit, readNow } from '@openwizard/store-kit'
 import { claimDedupe, claimTimer } from './store-claims'
 import { commit } from './store-commit'
-import { makeConfiguration, readLimit, readNow } from './store-configuration'
 import { acquireLease, readRecord, releaseLease, renewLease } from './store-lease'
 import type { DrizzleDurableRepository, DrizzleDurableStoreOptions } from './store-types'
 
@@ -19,7 +19,7 @@ export function createDrizzleDurableStore(
   repository: DrizzleDurableRepository,
   options: DrizzleDurableStoreOptions = {},
 ): DurableStore {
-  const configuration = makeConfiguration(options)
+  const configuration = makeStoreConfiguration(options)
 
   return {
     leaseTtlMs: configuration.leaseTtlMs,

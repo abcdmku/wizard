@@ -7,14 +7,20 @@ import type {
   RenewLeaseResult,
 } from '@openwizard/durable/store'
 import { DurableStoreError } from '@openwizard/durable/store'
-import { readNow, readTtl } from './store-configuration'
-import { normalizeLease, requireIdentifier } from './store-input'
-import type { Configuration, DrizzleDurableRepository } from './store-types'
-import { hasLiveLease, isCurrentLease, nextCounter, recordFromRow } from './store-values'
+import {
+  nextCounter,
+  normalizeLease,
+  readNow,
+  readTtl,
+  requireIdentifier,
+  type StoreConfiguration,
+} from '@openwizard/store-kit'
+import type { DrizzleDurableRepository } from './store-types'
+import { hasLiveLease, isCurrentLease, recordFromRow } from './store-values'
 
 export async function acquireLease(
   repository: DrizzleDurableRepository,
-  configuration: Configuration,
+  configuration: StoreConfiguration,
   key: string,
   ownerId: string,
   leaseOptions: LeaseOptions | undefined,
@@ -65,7 +71,7 @@ export async function readRecord(
 
 export async function renewLease(
   repository: DrizzleDurableRepository,
-  configuration: Configuration,
+  configuration: StoreConfiguration,
   lease: Lease,
   leaseOptions: LeaseOptions | undefined,
 ): Promise<RenewLeaseResult> {
@@ -89,7 +95,7 @@ export async function renewLease(
 
 export async function releaseLease(
   repository: DrizzleDurableRepository,
-  configuration: Configuration,
+  configuration: StoreConfiguration,
   lease: Lease,
 ): Promise<ReleaseLeaseResult> {
   const checkedLease = normalizeLease(lease)

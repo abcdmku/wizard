@@ -170,7 +170,11 @@ describe('normalizeCommitInput', () => {
       'INVALID_ARGUMENT',
       'dedupe digest must be a non-empty string',
     ],
-    [{ ...record, completeTimers: [null] }, 'INVALID_ARGUMENT', 'timer completion must be an object'],
+    [
+      { ...record, completeTimers: [null] },
+      'INVALID_ARGUMENT',
+      'timer completion must be an object',
+    ],
     [
       {
         ...record,
@@ -217,7 +221,10 @@ describe('normalizeDedupeClaimInput', () => {
     [null, 'INVALID_ARGUMENT'],
     [{ lease, id: '', digest: 'd' }, 'INVALID_ARGUMENT'],
     [{ lease, id: 'cmd-1' }, 'INVALID_ARGUMENT'],
-    [{ lease, id: 'cmd-1', digest: 'd', expectedVersion: { epoch: 0, seq: -1 } }, 'INVALID_VERSION'],
+    [
+      { lease, id: 'cmd-1', digest: 'd', expectedVersion: { epoch: 0, seq: -1 } },
+      'INVALID_VERSION',
+    ],
   ])('rejects %j', (value, code) => {
     expect(thrown(() => normalizeDedupeClaimInput(untyped(value))).code).toBe(code)
   })

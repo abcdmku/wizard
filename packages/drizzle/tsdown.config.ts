@@ -9,6 +9,9 @@ const shared: UserConfig = {
   minify: false,
   treeshake: true,
   external: ['@openwizard/durable', 'drizzle-orm'],
+  // `@openwizard/store-kit` is a private workspace package: its source is inlined into every
+  // entry that imports it, so the published package never names it.
+  noExternal: ['@openwizard/store-kit'],
 }
 
 // One build per entry: a shared build splits `store.ts` into a hashed chunk and the emitted
