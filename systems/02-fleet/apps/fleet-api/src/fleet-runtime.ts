@@ -9,8 +9,8 @@ import type {
 import { Clock, Effect, Layer, ManagedRuntime, Option } from 'effect'
 import type { FleetRepositoryShape } from './database/index.js'
 import { DeliveryEffects } from './delivery-effects.js'
-import { type DeliveryFlow, makeDeliveryFlow } from './delivery-flow.js'
 import { ActionFailure } from './delivery-model.js'
+import { type DeliveryWizard, makeDeliveryWizard } from './delivery-wizard.js'
 import { makeDeliveryDispatchProjection } from './dispatch-projection.js'
 import {
   dispatchDeliverySignal,
@@ -60,17 +60,17 @@ export function makeFleetRuntime(
   const runtime = ManagedRuntime.make(
     Layer.merge(deliveryEffects, Layer.succeed(Clock.Clock, effectClock)),
   )
-  const flow = makeDeliveryFlow(runtime)
-  const projection = makeDeliveryDispatchProjection(flow)
+  const wizard = makeDeliveryWizard(runtime)
+  const projection = makeDeliveryDispatchProjection(wizard)
   const registry = createDeliveryRuntimeRegistry<
-    DeliveryFlow,
+    DeliveryWizard,
     RuntimeSignal,
     InterventionRequest,
     Viewer,
     FleetDurableResult,
     FleetDurableResult
   >({
-    flow,
+    wizard,
     store: durableStore,
     scheduler,
     clock,
@@ -136,5 +136,5 @@ export function makeFleetRuntime(
     intervene: (host, _identity, request, viewer) =>
       dispatchIntervention(host, request, viewer, clock.now()),
   })
-  return { clock, flow, projection, registry, runtime }
+  return { clock, wizard, projection, registry, runtime }
 }

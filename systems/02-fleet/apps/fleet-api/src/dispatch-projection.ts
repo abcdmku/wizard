@@ -1,9 +1,9 @@
 import { boundary, defineProjection, type ProjectionOutput } from '@openwizard/core'
 import type { Viewer } from '@openwizard/fleet-shared'
-import type { DeliveryFlow } from './delivery-flow'
+import type { DeliveryWizard } from './delivery-wizard'
 
-export function makeDeliveryDispatchProjection(flow: DeliveryFlow) {
-  return defineProjection(flow, {
+export function makeDeliveryDispatchProjection(wizard: DeliveryWizard) {
+  return defineProjection(wizard, {
     scope: boundary.trusted<Viewer>(),
     select: ({ state, scope }) => {
       const context = state.context

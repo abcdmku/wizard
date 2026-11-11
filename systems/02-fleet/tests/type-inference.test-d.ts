@@ -29,24 +29,24 @@ import {
   type DeliveryEffects,
   makeDeliveryEffectsLayer,
 } from '../apps/fleet-api/src/delivery-effects'
-import { makeDeliveryFlow } from '../apps/fleet-api/src/delivery-flow'
 import type {
   ActionCommand,
   ActionReceipt,
   DeliveryContext,
   InterventionEvent,
 } from '../apps/fleet-api/src/delivery-model'
+import { makeDeliveryWizard } from '../apps/fleet-api/src/delivery-wizard'
 
 const runtime = ManagedRuntime.make(
   makeDeliveryEffectsLayer((command: ActionCommand) =>
     Effect.succeed<ActionReceipt>({ action: command.action, recordedAtMs: 0 }),
   ),
 )
-const deliveryFlow = makeDeliveryFlow(runtime)
+const deliveryWizard = makeDeliveryWizard(runtime)
 
-expectTypeOf<ContextInput<typeof deliveryFlow>>().toEqualTypeOf<DeliveryContext>()
-expectTypeOf<Ctx<typeof deliveryFlow>>().toEqualTypeOf<DeliveryContext>()
-expectTypeOf<EventType<typeof deliveryFlow>>().toEqualTypeOf<
+expectTypeOf<ContextInput<typeof deliveryWizard>>().toEqualTypeOf<DeliveryContext>()
+expectTypeOf<Ctx<typeof deliveryWizard>>().toEqualTypeOf<DeliveryContext>()
+expectTypeOf<EventType<typeof deliveryWizard>>().toEqualTypeOf<
   | 'assigned'
   | 'pickupConfirmed'
   | 'telemetry'
@@ -56,18 +56,18 @@ expectTypeOf<EventType<typeof deliveryFlow>>().toEqualTypeOf<
   | 'approval'
   | 'cancelled'
 >()
-expectTypeOf<PayloadOf<typeof deliveryFlow, 'intervention'>>().toEqualTypeOf<InterventionEvent>()
-expectTypeOf<InputOf<typeof deliveryFlow, 'assignment'>>().toEqualTypeOf<never>()
-expectTypeOf<OutputOf<typeof deliveryFlow, 'assignment'>>().toEqualTypeOf<ActionReceipt>()
-expectTypeOf<ErrorOf<typeof deliveryFlow, 'assignment'>>().toEqualTypeOf<{
+expectTypeOf<PayloadOf<typeof deliveryWizard, 'intervention'>>().toEqualTypeOf<InterventionEvent>()
+expectTypeOf<InputOf<typeof deliveryWizard, 'assignment'>>().toEqualTypeOf<never>()
+expectTypeOf<OutputOf<typeof deliveryWizard, 'assignment'>>().toEqualTypeOf<ActionReceipt>()
+expectTypeOf<ErrorOf<typeof deliveryWizard, 'assignment'>>().toEqualTypeOf<{
   code: string
   message: string
 }>()
-expectTypeOf<DepsOf<typeof deliveryFlow>>().toEqualTypeOf<EffectDeps<DeliveryEffects>>()
-expectTypeOf<RequiredDepsOf<typeof deliveryFlow>>().toEqualTypeOf<{}>()
-expectTypeOf<Command<typeof deliveryFlow>>().toMatchTypeOf<{ readonly type: string }>()
+expectTypeOf<DepsOf<typeof deliveryWizard>>().toEqualTypeOf<EffectDeps<DeliveryEffects>>()
+expectTypeOf<RequiredDepsOf<typeof deliveryWizard>>().toEqualTypeOf<{}>()
+expectTypeOf<Command<typeof deliveryWizard>>().toMatchTypeOf<{ readonly type: string }>()
 
-const scopedProjection = defineProjection(deliveryFlow, {
+const scopedProjection = defineProjection(deliveryWizard, {
   scope: boundary.trusted<Viewer>(),
   select: ({ state, scope }) =>
     scope.tenantId.length > 0 ? { deliveryId: state.context.deliveryId } : { deliveryId: '' },
