@@ -37,10 +37,11 @@ it('draws data joins and fallback paths, and shows map and sleep facts in the in
   const graph = inspect(wizard)
   const run = wizard.create({ ids: [1, 2] })
   const view = render(<WizardGraph graph={graph} />)
-  await waitFor(() =>
-    expect(view.container.querySelector('.owd-edge-label[data-kind="needs"]')?.textContent).toBe(
-      'needs doubled',
-    ),
+  await waitFor(
+    () =>
+      expect(view.container.querySelector('.owd-edge-label[data-kind="needs"]')?.textContent).toBe(
+        'needs doubled',
+      ),
     // The first layout can take longer than the default second on a slow CI host.
     { timeout: 10_000 },
   )
