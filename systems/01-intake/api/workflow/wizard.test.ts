@@ -1,3 +1,4 @@
+import { inspect } from '@openwizard/core/inspect'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import {
@@ -7,10 +8,11 @@ import {
   type Viewer,
 } from '../../shared/index.js'
 import { authorizeIntakeCommand } from './access.js'
-import { intakeFlow } from './flow.js'
 import { changeRequestTarget } from './invalidation.js'
+import { migrateIntakeSnapshot } from './migration.js'
 import type { IntakeDeps } from './ports.js'
 import { applicantProjection, reviewerProjection } from './projections.js'
+import { intakeWizard } from './wizard.js'
 
 const context: IntakeContext = {
   applicationId: 'app-1',
@@ -53,14 +55,14 @@ const reviewer: Viewer = {
 }
 
 function makeRun() {
-  return intakeFlow.create(context, {
+  return intakeWizard.create(context, {
     deps,
     scheduler: createTestScheduler({ now: 1_000 }),
     instanceId: 'intake-1',
   })
 }
 
-async function reachRiskWait() {
+async function reachReview() {
   const run = makeRun()
   await run.start()
   await run.setInput('consent', {
@@ -107,13 +109,18 @@ async function reachRiskWait() {
     ],
   })
   await run.next()
+  return run
+}
+
+async function reachRiskWait() {
+  const run = await reachReview()
   await run.setInput('review', { confirmed: true, signatureName: 'Ada Lovelace' })
   await run.next()
   await run.awaitOutcome()
   return run
 }
 
-describe('conditional intake flow', () => {
+describe('conditional intake wizard', () => {
   it('initializes the profile from durable prefill and takes the incorporated branch', async () => {
     const run = makeRun()
     await run.start()
@@ -209,7 +216,7 @@ describe('conditional intake flow', () => {
 
     expect(run.getState().current).toBe('standardFinancials')
     expect(run.getState().steps.beneficialOwners.status).toBe('skipped')
-    expect(run.getState().context.eligibility?.path).toBe('standard')
+    expect(run.getState().steps.eligibility.output?.path).toBe('standard')
     run.dispose()
   })
 
@@ -295,9 +302,140 @@ describe('conditional intake flow', () => {
     await run.awaitOutcome()
 
     expect(run.getState().steps.awaitRisk.status).toBe('active')
-    expect(run.getState().context.riskJobId).toBe('risk:app-1:1')
+    expect(run.getState().steps.queueRisk.output).toBe('risk:app-1:1')
     expect(run.getState().steps.queueRisk.runId).toBe(2)
+
+    const second = {
+      outcome: 'manual-review' as const,
+      score: 61,
+      reasons: ['A reviewer must confirm the updated revenue.'],
+      completedAt: '2026-08-23T10:06:00.000Z',
+    }
+    await run.send('risk.completed', { ...second, jobId: 'risk:app-1:0' })
+    expect(run.getState().steps.awaitRisk.status).toBe('active')
+    await run.send('risk.completed', { ...second, jobId: 'risk:app-1:1' })
+    await run.awaitOutcome()
+    expect(run.getState().steps.manualReview.status).toBe('active')
+    await run.send('review.decided', {
+      decision: 'approve',
+      reviewerId: 'reviewer-1',
+      reason: 'The updated revenue supports the request.',
+      requestedFields: [],
+      decidedAt: '2026-08-23T10:07:00.000Z',
+    })
+    await run.awaitOutcome()
+    expect(run.getState().status).toBe('done')
+    expect(run.getState().output).toEqual({
+      applicationId: 'app-1',
+      decision: 'approved',
+      source: 'reviewer',
+    })
+    expect(run.getState().context).toEqual({
+      ...context,
+      changeRequestCount: 1,
+      result: run.getState().output,
+      prefill,
+      documents: run.getState().steps.documents.output,
+      review: run.getState().steps.review.output,
+    })
     run.dispose()
+  })
+
+  it('queues risk only after the review is signed again when an earlier answer changes', async () => {
+    const run = await reachReview()
+    expect(run.getState().current).toBe('review')
+    await run.back()
+    expect(run.getState().current).toBe('documents')
+    await run.setInput('documents', {
+      documents: [
+        {
+          id: 'doc-2',
+          name: 'updated-accounts.pdf',
+          category: 'financial',
+          sizeBytes: 2_048,
+          uploadedAt: '2026-08-23T10:02:30.000Z',
+        },
+      ],
+    })
+    await run.next()
+    await run.whenIdle()
+    expect(run.getState().current).toBe('review')
+    expect(['idle', 'skipped']).toContain(run.getState().steps.queueRisk.status)
+
+    for (const view of ['documents', 'standardFinancials', 'beneficialOwners', 'businessProfile']) {
+      await run.back()
+      expect(run.getState().current).toBe(view)
+    }
+    await run.setInput('businessProfile', { annualRevenue: 700_000 })
+    expect(await run.invalidate('eligibility')).toMatchObject({ ok: true })
+    await run.next()
+    expect(run.getState().current).toBe('beneficialOwners')
+    await run.next()
+    await run.awaitOutcome()
+    expect(run.getState().current).toBe('standardFinancials')
+    await run.next()
+    expect(run.getState().current).toBe('documents')
+    await run.next()
+    await run.whenIdle()
+    expect(run.getState().current).toBe('review')
+    expect(['idle', 'skipped']).toContain(run.getState().steps.queueRisk.status)
+
+    await run.setInput('review', { confirmed: true, signatureName: 'Ada Lovelace' })
+    await run.next()
+    await run.awaitOutcome()
+    expect(run.getState().steps.awaitRisk.status).toBe('active')
+    expect(run.getState().steps.queueRisk.output).toBe('risk:app-1:0')
+    run.dispose()
+  })
+
+  it('passes every hand-off through needs and declares what each step is for', () => {
+    const manifest = inspect(intakeWizard)
+    expect(manifest.description).toContain('grant application')
+    expect(manifest.nodes.filter((node) => node.description === undefined)).toEqual([])
+    expect(manifest.warnings.map((warning) => warning.code).sort()).toEqual([
+      ...Array.from({ length: 8 }, () => 'NAV_CYCLE'),
+    ])
+  })
+
+  it('resumes a version 1 snapshot that still carries hook-written context', async () => {
+    const run = await reachRiskWait()
+    const snapshot = run.getSnapshot()
+    const state = run.getState()
+    run.dispose()
+    const legacy = {
+      ...snapshot,
+      wizard: { ...snapshot.wizard, version: 1 },
+      state: {
+        ...snapshot.state,
+        wizard: { ...snapshot.state.wizard, version: 1 },
+        context: {
+          ...snapshot.state.context,
+          consent: state.steps.consent.output,
+          businessProfile: state.steps.businessProfile.output,
+          beneficialOwners: state.steps.beneficialOwners.output,
+          eligibility: state.steps.eligibility.output,
+          standardFinancials: state.steps.standardFinancials.output,
+          riskJobId: state.steps.queueRisk.output,
+        },
+      },
+    }
+    expect(() => intakeWizard.resume(legacy, { deps })).toThrow()
+    const resumed = intakeWizard.resume(legacy, { deps, migrate: migrateIntakeSnapshot })
+    expect(resumed.getState().context).toEqual(state.context)
+    await resumed.send('risk.completed', {
+      jobId: 'risk:app-1:0',
+      outcome: 'rejected',
+      score: 12,
+      reasons: ['The request exceeds the supported amount.'],
+      completedAt: '2026-08-23T10:03:00.000Z',
+    })
+    await resumed.awaitOutcome()
+    expect(resumed.getState().output).toEqual({
+      applicationId: 'app-1',
+      decision: 'rejected',
+      source: 'automatic',
+    })
+    resumed.dispose()
   })
 
   it('returns no application data for a cross-tenant scope', async () => {

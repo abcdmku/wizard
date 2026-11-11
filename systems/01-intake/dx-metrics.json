@@ -9,7 +9,7 @@
   "typecheckMs": 10719,
   "filesTouched": [
     "shared/forms.ts",
-    "api/workflow/flow.ts",
+    "api/workflow/wizard.ts",
     "web/src/forms/OwnersForm.tsx",
     "web/src/routes/applicant.tsx",
     "tests/transport.integration.test.ts",

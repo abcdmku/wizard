@@ -10,7 +10,7 @@ import {
 import type { ApplicantStep } from '../domain/steps'
 import { useApplication, useApplicationCommand, useApplicationEvents } from './use-intake-api'
 
-export function useApplicationFlow(applicationId: string) {
+export function useApplicationWizard(applicationId: string) {
   const navigate = useNavigate()
   const applicationQuery = useApplication(applicationId)
   const command = useApplicationCommand(applicationId)

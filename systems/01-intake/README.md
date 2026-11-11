@@ -69,7 +69,7 @@ flowchart LR
   A[Applicant browser] --> WEB[web :4300]
   R[Reviewer browser] --> WEB
   WEB -->|REST + SSE, Bearer + X-Tenant-Id| API[API :4310]
-  API --> WF[OpenWizard intake flow]
+  API --> WF[OpenWizard intake wizard]
   API --> DB[(Postgres :5432)]
   WF --> DB
   WF -->|risk-review job| W[review-worker :4320]
@@ -85,11 +85,26 @@ opening a run, and the projection removes private applicant data, reviewer
 notes, raw documents, and risk-provider payloads.
 
 The workflow is one `defineWizard(options, ({ step, view, steps }) => steps(...))`
-definition in `api/workflow/flow.ts`. Pass `intakeFlow` directly to projections
-and durable hosts. Local callers use `intakeFlow.create(context, { deps })`.
+definition in `api/workflow/wizard.ts`. Pass `intakeWizard` directly to projections
+and durable hosts. Local callers use `intakeWizard.create(context, { deps })`.
 Dynamic `next` functions declare `targets`, so the run marks unused branches
 as skipped. An explicit output selector keeps the final application result
 typed as `IntakeResult` across the approval and rejection branches.
+
+Steps pass data to each other with `needs`: `queueRisk` reads
+`needs.businessProfile`, `needs.eligibility` and `needs.documents`, and
+`awaitRisk` reads the job id as `needs.riskJobId`. The context holds the
+application identity and four values that no `needs` can carry:
+
+| Context field | Why it is not a `needs` |
+| --- | --- |
+| `prefill`, `documents`, `review` | A view's `initial` hook receives only the context. These seed the business profile draft and restore the last submission when a draft is reset |
+| `result` | The wizard's `output` selector receives only the context, so the finishing step stores its output there |
+| `changeRequestCount` | A counter across reviewer loops. It numbers the risk job of each resubmission |
+
+Version 1 of the wizard copied every step output into the context.
+`migrateIntakeSnapshot` in `api/workflow/migration.ts` drops those copies, so
+the registry resumes a run saved by version 1.
 
 ## HTTP contract
 
@@ -136,7 +151,7 @@ the worker resumes the persisted job; it does not create a second risk result.
 The integration suite covers malformed/authenticated requests, stale commands,
 SSE framing and sequence ordering, tenant isolation, projection leaks, durable
 rows, worker completion, and restart recovery. The browser suite drives the
-same flow through semantic labels rather than implementation-specific CSS.
+same journey through semantic labels rather than implementation-specific CSS.
 
 ### DX audit
 
@@ -159,7 +174,7 @@ The registry also relies on cache, single-flight, generation, and shutdown
 state in `@openwizard/durable`; those helpers are not counted in this row.
 Intake retains lookup, auth, retry, metadata, invalidation, and projection.
 These counts are kept here so the drill stays reviewable; `dx-metrics.json`
-records the flow LOC and timed typecheck evidence.
+records the wizard LOC and timed typecheck evidence.
 
 ## Troubleshooting
 

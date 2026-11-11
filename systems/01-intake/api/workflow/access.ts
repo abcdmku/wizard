@@ -1,11 +1,11 @@
 import type { Command } from '@openwizard/core'
 import type { Viewer } from '../../shared/index.js'
-import type { IntakeFlow } from './flow.js'
 import type { IntakeState } from './status.js'
+import type { IntakeWizard } from './wizard.js'
 
 export interface IntakeAuthorizationArgs {
   readonly state: IntakeState
-  readonly command: Command<IntakeFlow>
+  readonly command: Command<IntakeWizard>
   readonly scope: Viewer
 }
 

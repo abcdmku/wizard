@@ -1,13 +1,13 @@
 import type { DurableRunHost } from '@openwizard/durable'
 import type { ApplicationView, Viewer } from '../../shared/index.js'
 import type { ApplicationRecord } from '../db/index.js'
-import { applicantProjection, type IntakeFlow, reviewerProjection } from '../workflow/index.js'
+import { applicantProjection, type IntakeWizard, reviewerProjection } from '../workflow/index.js'
 
 export type ApplicationProjectionResult =
   | { readonly ok: false; readonly code: 'FORBIDDEN'; readonly message: string }
   | { readonly ok: true; readonly application: ApplicationView }
 
-type ApplicationProjectionHost = Pick<DurableRunHost<IntakeFlow>, 'run' | 'version'>
+type ApplicationProjectionHost = Pick<DurableRunHost<IntakeWizard>, 'run' | 'version'>
 
 export function projectApplication(
   host: ApplicationProjectionHost,

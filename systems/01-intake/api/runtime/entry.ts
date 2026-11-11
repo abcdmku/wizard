@@ -1,10 +1,10 @@
 import type { DurableRunHost } from '@openwizard/durable'
 import type { ApplicationRecord, ApplicationRepository } from '../db/index.js'
-import type { IntakeFlow } from '../workflow/index.js'
+import type { IntakeWizard } from '../workflow/index.js'
 
 export interface RuntimeEntry {
   readonly key: string
-  readonly host: DurableRunHost<IntakeFlow>
+  readonly host: DurableRunHost<IntakeWizard>
   application: ApplicationRecord
   unsubscribeLifecycle: () => void
   metadataTail: Promise<void>

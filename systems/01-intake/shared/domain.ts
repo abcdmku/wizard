@@ -8,17 +8,7 @@ import {
   TenantIdSchema,
   TimestampSchema,
 } from './common.js'
-import {
-  AppealInputSchema,
-  BeneficialOwnersInputSchema,
-  BusinessProfileInputSchema,
-  ConsentInputSchema,
-  DocumentsInputSchema,
-  HardshipEvidenceInputSchema,
-  LegalStructureSchema,
-  ReviewInputSchema,
-  StandardFinancialsInputSchema,
-} from './forms.js'
+import { DocumentsInputSchema, LegalStructureSchema, ReviewInputSchema } from './forms.js'
 
 export const PreviousApplicationSchema = z
   .object({ legalName: z.string(), requestedAmount: z.number(), submittedAt: TimestampSchema })
@@ -83,30 +73,6 @@ export const ReviewDecidedEventSchema = z
   .strict()
 export type ReviewDecidedEvent = z.infer<typeof ReviewDecidedEventSchema>
 
-export const IntakeContextSchema = z
-  .object({
-    applicationId: ApplicationIdSchema,
-    tenantId: TenantIdSchema,
-    applicantId: ApplicantIdSchema,
-    applicantName: z.string().min(1),
-    consent: ConsentInputSchema.optional(),
-    prefill: PrefillResultSchema.optional(),
-    businessProfile: BusinessProfileInputSchema.optional(),
-    beneficialOwners: BeneficialOwnersInputSchema.optional(),
-    eligibility: EligibilityResultSchema.optional(),
-    standardFinancials: StandardFinancialsInputSchema.optional(),
-    hardshipEvidence: HardshipEvidenceInputSchema.optional(),
-    appeal: AppealInputSchema.optional(),
-    documents: DocumentsInputSchema.optional(),
-    review: ReviewInputSchema.optional(),
-    riskJobId: z.string().optional(),
-    risk: RiskCompletedEventSchema.optional(),
-    reviewerDecision: ReviewDecidedEventSchema.optional(),
-    changeRequestCount: z.number().int().nonnegative().default(0),
-  })
-  .strict()
-export type IntakeContext = z.infer<typeof IntakeContextSchema>
-
 export const IntakeResultSchema = z
   .object({
     applicationId: ApplicationIdSchema,
@@ -115,3 +81,23 @@ export const IntakeResultSchema = z
   })
   .strict()
 export type IntakeResult = z.infer<typeof IntakeResultSchema>
+
+export const IntakeContextSchema = z
+  .object({
+    applicationId: ApplicationIdSchema,
+    tenantId: TenantIdSchema,
+    applicantId: ApplicantIdSchema,
+    applicantName: z.string().min(1),
+    // Draft seeds. A view's `initial` reads only the context, so these three stay here.
+    // Every other hand-off between steps goes through `needs`.
+    prefill: PrefillResultSchema.optional(),
+    documents: DocumentsInputSchema.optional(),
+    review: ReviewInputSchema.optional(),
+    // Written by the sink that finishes the run. The wizard's `output` selector reads only the
+    // context, and the selector keeps the result typed across both branches.
+    result: IntakeResultSchema.optional(),
+    // How many times a reviewer asked for changes. Each one starts a new risk job.
+    changeRequestCount: z.number().int().nonnegative().default(0),
+  })
+  .strict()
+export type IntakeContext = z.infer<typeof IntakeContextSchema>

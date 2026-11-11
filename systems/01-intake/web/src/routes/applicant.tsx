@@ -30,7 +30,7 @@ import {
 import { type ApplicantStep, isApplicantStep, progressSteps } from '../domain/steps'
 import { OwnersForm } from '../forms/OwnersForm'
 import { ReviewConfirmForm } from '../forms/ReviewConfirmForm'
-import { useApplicationFlow } from '../hooks/use-application-flow'
+import { useApplicationWizard } from '../hooks/use-application-wizard'
 import { useApplication } from '../hooks/use-intake-api'
 import { ApplicantBasicStep } from './applicant-basic'
 import { ResultView, RiskView } from './applicant-outcomes'
@@ -158,21 +158,21 @@ function ApplicantStepPage({
   applicationId: string
   step: ApplicantStep
 }) {
-  const flow = useApplicationFlow(applicationId)
-  const application = flow.applicationQuery.data
+  const wizard = useApplicationWizard(applicationId)
+  const application = wizard.applicationQuery.data
 
   useEffect(() => {
     if (!application) return
     const current = currentApplicantStep(application)
-    if (current !== step) void flow.navigateTo(current, true)
-  }, [application, flow, step])
+    if (current !== step) void wizard.navigateTo(current, true)
+  }, [application, wizard, step])
 
-  if (flow.applicationQuery.isPending) return <LoadingCard />
-  if (flow.applicationQuery.error) {
+  if (wizard.applicationQuery.isPending) return <LoadingCard />
+  if (wizard.applicationQuery.error) {
     return (
       <ErrorCard
-        error={flow.applicationQuery.error}
-        onRetry={() => void flow.applicationQuery.refetch()}
+        error={wizard.applicationQuery.error}
+        onRetry={() => void wizard.applicationQuery.refetch()}
       />
     )
   }
@@ -180,8 +180,8 @@ function ApplicantStepPage({
 
   const current = currentApplicantStep(application)
   if (current !== step) return <LoadingCard>Opening the current step...</LoadingCard>
-  const submitError = flow.command.error ? errorMessage(flow.command.error) : undefined
-  const save = flow.saveAndContinue
+  const submitError = wizard.command.error ? errorMessage(wizard.command.error) : undefined
+  const save = wizard.saveAndContinue
   let content: ReactNode
 
   if (step === 'consent' || step === 'business' || step === 'documents') {
@@ -189,7 +189,7 @@ function ApplicantStepPage({
       <ApplicantBasicStep
         application={application}
         step={step}
-        onBack={flow.goBack}
+        onBack={wizard.goBack}
         onSave={save}
         {...(submitError ? { submitError } : {})}
       />
@@ -202,7 +202,7 @@ function ApplicantStepPage({
     )
     content = (
       <OwnersForm
-        onBack={flow.goBack}
+        onBack={wizard.goBack}
         onSubmit={(values) => save('beneficialOwners', values)}
         {...(ownersInput ? { initialValue: ownersInput } : {})}
         {...(submitError ? { submitError } : {})}
@@ -212,7 +212,7 @@ function ApplicantStepPage({
     content = (
       <EligibilityStep
         application={application}
-        onBack={flow.goBack}
+        onBack={wizard.goBack}
         onSave={save}
         {...(submitError ? { submitError } : {})}
       />
@@ -221,8 +221,8 @@ function ApplicantStepPage({
     content = (
       <ApplicantReview
         application={application}
-        edit={(target) => void flow.edit(target)}
-        onBack={flow.goBack}
+        edit={(target) => void wizard.edit(target)}
+        onBack={wizard.goBack}
         onSubmit={(values) => save('review', values)}
         submitError={submitError}
       />
@@ -231,8 +231,8 @@ function ApplicantStepPage({
     content = (
       <RiskView
         application={application}
-        streamError={flow.stream.error}
-        streamStatus={flow.stream.status}
+        streamError={wizard.stream.error}
+        streamStatus={wizard.stream.status}
       />
     )
   } else {

@@ -6,10 +6,11 @@ import {
   type HostOpenContext,
   type HostOpenResult,
   type HostRegistryOpenResult,
+  resumeDurableRun,
 } from '@openwizard/durable'
 import type { ReviewerCommand, ReviewerViewer, Viewer } from '../../shared/index.js'
 import { type ApplicationRecord, intakeRunKey } from '../db/index.js'
-import { authorizeIntakeCommand, intakeFlow } from '../workflow/index.js'
+import { authorizeIntakeCommand, intakeWizard, migrateIntakeSnapshot } from '../workflow/index.js'
 import { canAccessApplication, disposed, forbidden, notFound } from './access.js'
 import { coreCommandInput } from './commands.js'
 import { type RuntimeEntry, settleEntryMetadata, trackEntry } from './entry.js'
@@ -55,13 +56,7 @@ export function createIntakeRuntimeRegistry(
   ): Promise<HostOpenResult<RuntimeEntry, RuntimeFailure>> {
     const application = identity.application
     if (application === undefined) return notFound(identity.applicationId)
-    const opened = await createDurableRun(intakeFlow, {
-      context: {
-        applicationId: application.id,
-        tenantId: application.tenantId,
-        applicantId: application.applicantId,
-        applicantName: application.applicantName,
-      },
+    const hostOptions = {
       deps: options.deps,
       store: options.durableStore,
       key: intakeRunKey(application.tenantId, application.id),
@@ -70,7 +65,23 @@ export function createIntakeRuntimeRegistry(
       renew: { everyMs: options.renewEveryMs ?? DEFAULT_RENEW_EVERY_MS },
       ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
       onLeaseLost: context.invalidate,
+    }
+    // Resume first: only a resume takes `migrate`, which a run saved by version 1 needs.
+    let opened = await resumeDurableRun(intakeWizard, {
+      ...hostOptions,
+      migrate: migrateIntakeSnapshot,
     })
+    if (!opened.ok && opened.code === 'RUN_NOT_FOUND') {
+      opened = await createDurableRun(intakeWizard, {
+        ...hostOptions,
+        context: {
+          applicationId: application.id,
+          tenantId: application.tenantId,
+          applicantId: application.applicantId,
+          applicantName: application.applicantName,
+        },
+      })
+    }
     if (!opened.ok) {
       if (opened.code === 'LEASE_BUSY') {
         return {
@@ -134,7 +145,7 @@ export function createIntakeRuntimeRegistry(
     async dispatch(applicationId, viewer, command) {
       const entry = await find(applicationId, viewer)
       if (isFailure(entry)) return entry
-      const parsed = parseCommand(intakeFlow, coreCommandInput(command))
+      const parsed = parseCommand(intakeWizard, coreCommandInput(command))
       if (!parsed.ok) {
         return {
           ok: false,

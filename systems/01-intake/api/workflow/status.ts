@@ -1,9 +1,9 @@
 import type { Snapshot } from '@openwizard/core'
 import type { ApplicationStatus } from '../../shared/index.js'
-import type { IntakeFlow } from './flow.js'
 import { statusForCurrentStep } from './routing.js'
+import type { IntakeWizard } from './wizard.js'
 
-export type IntakeState = Snapshot<IntakeFlow>['state']
+export type IntakeState = Snapshot<IntakeWizard>['state']
 
 export function applicationStatus(state: IntakeState): ApplicationStatus {
   if (state.status === 'cancelled') return 'cancelled'
@@ -28,7 +28,7 @@ export function applicationStatus(state: IntakeState): ApplicationStatus {
     return 'awaiting-reviewer'
   }
   if (
-    state.context.reviewerDecision?.decision === 'request-changes' &&
+    state.steps.manualReview.output?.decision === 'request-changes' &&
     state.current === 'documents'
   ) {
     return 'changes-requested'

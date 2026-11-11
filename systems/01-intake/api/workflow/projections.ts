@@ -6,10 +6,13 @@ import {
   type StepState,
 } from '@openwizard/core'
 import type { ApplicantViewer, ReviewerViewer } from '../../shared/index.js'
-import { type IntakeFlow, intakeFlow } from './flow.js'
 import { applicationStatus, type IntakeState } from './status.js'
+import { type IntakeWizard, intakeWizard } from './wizard.js'
 
-function safeStep<K extends StepId<IntakeFlow>>(step: StepState<IntakeFlow, K>, input?: unknown) {
+function safeStep<K extends StepId<IntakeWizard>>(
+  step: StepState<IntakeWizard, K>,
+  input?: unknown,
+) {
   const issues = step.issues?.map((issue) => ({
     message: issue.message,
     path: (issue.path ?? []).map((part) => {
@@ -70,19 +73,19 @@ function projectedSteps(state: IntakeState, audience: 'applicant' | 'reviewer') 
 }
 
 function safeContext(state: IntakeState) {
-  const profile = state.context.businessProfile
-  const decision = state.context.reviewerDecision
+  const profile = state.steps.businessProfile.output
+  const decision = state.steps.manualReview.output
   return {
     applicantName: state.context.applicantName,
     ...(profile?.legalName === undefined ? {} : { legalName: profile.legalName }),
     ...(profile?.legalStructure === undefined ? {} : { legalStructure: profile.legalStructure }),
     ...(profile?.requestedAmount === undefined ? {} : { requestedAmount: profile.requestedAmount }),
-    ...(state.context.eligibility?.path === undefined
+    ...(state.steps.eligibility.output?.path === undefined
       ? {}
-      : { eligibilityPath: state.context.eligibility.path }),
-    ...(state.context.risk?.outcome === undefined
+      : { eligibilityPath: state.steps.eligibility.output.path }),
+    ...(state.steps.awaitRisk.output?.outcome === undefined
       ? {}
-      : { riskOutcome: state.context.risk.outcome }),
+      : { riskOutcome: state.steps.awaitRisk.output.outcome }),
     ...(decision?.decision === 'request-changes' ? { changeRequestReason: decision.reason } : {}),
     documentCount: state.context.documents?.documents.length ?? 0,
   }
@@ -101,7 +104,7 @@ function workflowSummary(state: IntakeState, audience: 'applicant' | 'reviewer')
   }
 }
 
-export const applicantProjection = defineProjection(intakeFlow, {
+export const applicantProjection = defineProjection(intakeWizard, {
   scope: boundary.trusted<ApplicantViewer>(),
   select: ({ state, scope }) => {
     if (
@@ -110,7 +113,7 @@ export const applicantProjection = defineProjection(intakeFlow, {
     ) {
       return { access: 'forbidden' as const }
     }
-    const decision = state.context.reviewerDecision
+    const decision = state.steps.manualReview.output
     return {
       access: 'granted' as const,
       role: 'applicant' as const,
@@ -119,13 +122,13 @@ export const applicantProjection = defineProjection(intakeFlow, {
       status: applicationStatus(state),
       workflow: workflowSummary(state, 'applicant'),
       forms: {
-        consent: state.context.consent,
-        businessProfile: state.context.businessProfile,
-        beneficialOwners: state.context.beneficialOwners,
-        eligibilityPath: state.context.eligibility?.path,
-        standardFinancials: state.context.standardFinancials,
-        hardshipEvidence: state.context.hardshipEvidence,
-        appeal: state.context.appeal,
+        consent: state.steps.consent.output,
+        businessProfile: state.steps.businessProfile.output,
+        beneficialOwners: state.steps.beneficialOwners.output,
+        eligibilityPath: state.steps.eligibility.output?.path,
+        standardFinancials: state.steps.standardFinancials.output,
+        hardshipEvidence: state.steps.hardshipEvidence.output,
+        appeal: state.steps.appeal.output,
         documents: state.context.documents,
         review: state.context.review,
       },
@@ -142,13 +145,13 @@ export const applicantProjection = defineProjection(intakeFlow, {
   },
 })
 
-export const reviewerProjection = defineProjection(intakeFlow, {
+export const reviewerProjection = defineProjection(intakeWizard, {
   scope: boundary.trusted<ReviewerViewer>(),
   select: ({ state, scope }) => {
     if (scope.tenantId !== state.context.tenantId) {
       return { access: 'forbidden' as const }
     }
-    const reviewerDecision = state.context.reviewerDecision
+    const reviewerDecision = state.steps.manualReview.output
     return {
       access: 'granted' as const,
       role: 'reviewer' as const,
@@ -157,8 +160,8 @@ export const reviewerProjection = defineProjection(intakeFlow, {
       applicantName: state.context.applicantName,
       status: applicationStatus(state),
       workflow: workflowSummary(state, 'reviewer'),
-      riskJobId: state.context.riskJobId,
-      risk: state.context.risk,
+      riskJobId: state.steps.queueRisk.output,
+      risk: state.steps.awaitRisk.output,
       reviewerDecision:
         reviewerDecision === undefined
           ? undefined
