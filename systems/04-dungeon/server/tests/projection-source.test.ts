@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createInitialWorld,
   createPlayerSource,
-  dungeonFlow,
+  dungeonWizard,
   type PlayerSource,
 } from '../src/index.js'
 
@@ -29,20 +29,20 @@ const viewer = (playerId: string): Viewer => ({
   sessionId: `session:${playerId}`,
 })
 
-const sourceSeed = (run: Run<typeof dungeonFlow>) => {
+const sourceSeed = (run: Run<typeof dungeonWizard>) => {
   const state = run.getState()
   return { world: state.context.world, sequence: state.seq, epoch: state.epoch }
 }
 
-const runs: Run<typeof dungeonFlow>[] = []
+const runs: Run<typeof dungeonWizard>[] = []
 
 afterEach(() => {
   for (const run of runs.splice(0)) run.dispose()
   vi.restoreAllMocks()
 })
 
-const openRun = async (): Promise<Run<typeof dungeonFlow>> => {
-  const run = dungeonFlow.create(
+const openRun = async (): Promise<Run<typeof dungeonWizard>> => {
+  const run = dungeonWizard.create(
     {
       world: createInitialWorld(PARTY_ID, 42, roster),
       commandResults: {},
@@ -54,13 +54,13 @@ const openRun = async (): Promise<Run<typeof dungeonFlow>> => {
   )
   runs.push(run)
   const started = await run.start()
-  if (!started.ok) throw new Error(`dungeon flow did not start: ${started.code}`)
+  if (!started.ok) throw new Error(`dungeon wizard did not start: ${started.code}`)
   await run.whenIdle()
   return run
 }
 
 const send = async (
-  run: Run<typeof dungeonFlow>,
+  run: Run<typeof dungeonWizard>,
   event: Parameters<typeof run.send>[0],
   payload: unknown,
 ): Promise<void> => {

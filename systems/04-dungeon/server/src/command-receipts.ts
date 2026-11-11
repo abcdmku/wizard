@@ -1,13 +1,13 @@
 import type { DurableRunHost } from '@openwizard/durable'
 import type { DurableStore, Version } from '@openwizard/durable/store'
 import type { CommandFailureCode, DomainResult, PlayerCommand } from './domain.js'
+import { authorizePlayerCommand } from './server.js'
 import {
   commandResultKey,
-  type DungeonFlowContext,
-  type dungeonFlow,
+  type DungeonWizardContext,
+  type dungeonWizard,
   type RecentCommandReceipt,
-} from './flow.js'
-import { authorizePlayerCommand } from './server.js'
+} from './wizard.js'
 
 const RECEIPT_FORMAT = 'openwizard.dungeon.command-receipt/v1'
 
@@ -19,7 +19,7 @@ interface StoredCommandReceipt {
 
 interface ExecuteCommandReceiptOptions {
   readonly store: DurableStore
-  readonly host: DurableRunHost<typeof dungeonFlow>
+  readonly host: DurableRunHost<typeof dungeonWizard>
   readonly playerId: string
   readonly commandId: string
   readonly expectedVersion?: Version
@@ -106,15 +106,15 @@ export const commandDigest = (playerId: string, command: PlayerCommand): string 
 }
 
 const receiptId = (key: string): string => `dungeon-command:${key}`
-const contextOf = (host: DurableRunHost<typeof dungeonFlow>): DungeonFlowContext =>
+const contextOf = (host: DurableRunHost<typeof dungeonWizard>): DungeonWizardContext =>
   host.run.getState().context
 
-const isSettled = (host: DurableRunHost<typeof dungeonFlow>): boolean => {
+const isSettled = (host: DurableRunHost<typeof dungeonWizard>): boolean => {
   const snapshot = host.run.getSnapshot()
   return snapshot.epoch === host.version.epoch && snapshot.seq === host.version.seq
 }
 
-const hasCoherentActiveWait = (host: DurableRunHost<typeof dungeonFlow>): boolean => {
+const hasCoherentActiveWait = (host: DurableRunHost<typeof dungeonWizard>): boolean => {
   const state = host.run.getState()
   if (state.status !== 'waiting' || state.nav.phase !== 'idle' || state.active.length !== 1) {
     return false
@@ -132,7 +132,7 @@ const hasCoherentActiveWait = (host: DurableRunHost<typeof dungeonFlow>): boolea
 }
 
 const recentFor = (
-  host: DurableRunHost<typeof dungeonFlow>,
+  host: DurableRunHost<typeof dungeonWizard>,
   key: string,
 ): RecentCommandReceipt | undefined => {
   const recent = contextOf(host).lastCommandReceipt
@@ -147,7 +147,7 @@ const storedValue = (receipt: RecentCommandReceipt): StoredCommandReceipt => ({
 
 const completeReceipt = async (
   store: DurableStore,
-  host: DurableRunHost<typeof dungeonFlow>,
+  host: DurableRunHost<typeof dungeonWizard>,
   receipt: RecentCommandReceipt,
   claimId: string,
 ): Promise<boolean> => {
@@ -272,7 +272,7 @@ export async function executeCommandReceipt(
 
 export async function repairLastCommandReceipt(
   store: DurableStore,
-  host: DurableRunHost<typeof dungeonFlow>,
+  host: DurableRunHost<typeof dungeonWizard>,
 ): Promise<boolean> {
   if (!isSettled(host) || !hasCoherentActiveWait(host)) return false
   const recent = contextOf(host).lastCommandReceipt

@@ -20,7 +20,7 @@ imports, types, comments, and blank lines.
 | Fast internal tick path | `PartyRuntime.tick`, `src/runtime.ts:202-220` | 19 |
 | Scoped projection and shared conversion cache | `src/projection.ts` | 233 |
 | Durable viewer-scoped source | `src/player-source.ts` | 65 |
-| Dungeon workflow | `src/flow.ts` | 165 |
+| Dungeon workflow | `src/wizard.ts` | 165 |
 | Browser session transport | `../web/src/network/session.ts` | 89 |
 
 Handwritten glue blocks longer than 20 lines:

@@ -9,7 +9,7 @@ Record one run with:
 
 | Field | What to measure |
 | --- | --- |
-| wizardLoc | Measured LOC in workflow/room transition glue (`server/src/flow.ts`) |
+| wizardLoc | Measured LOC in workflow/room transition glue (`server/src/wizard.ts`) |
 | workaroundHelpers | Helpers added only to work around missing types |
 | casts | Type assertions added by the drill |
 | explicitGenerics | Explicit generic arguments added by the drill |

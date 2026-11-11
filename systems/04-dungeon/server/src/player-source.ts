@@ -2,8 +2,8 @@ import { type Run, WizardError } from '@openwizard/core'
 import type { SnapshotFrame } from '@openwizard/core/mirror'
 import type { PlayerProjection, Viewer } from '@wizard/dungeon-shared'
 import type { WorldState } from './domain.js'
-import type { dungeonFlow } from './flow.js'
 import { projectState } from './projection.js'
+import type { dungeonWizard } from './wizard.js'
 
 export interface PlayerSourceSeed {
   readonly world: WorldState
@@ -17,7 +17,7 @@ export interface PlayerSource {
 }
 
 const projectFrame = (
-  run: Run<typeof dungeonFlow>,
+  run: Run<typeof dungeonWizard>,
   viewer: Viewer,
   seed: PlayerSourceSeed,
 ): SnapshotFrame<PlayerProjection> => ({
@@ -29,7 +29,7 @@ const projectFrame = (
 })
 
 export const createPlayerSource = (
-  run: Run<typeof dungeonFlow>,
+  run: Run<typeof dungeonWizard>,
   viewer: Viewer,
   durableSeed: PlayerSourceSeed,
 ): PlayerSource => {

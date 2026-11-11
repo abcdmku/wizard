@@ -50,7 +50,7 @@ describe('dungeon wire boundaries', () => {
     expect(ClientMessageSchema.safeParse({ type: 'command' }).success).toBe(false)
   })
 
-  it('keeps Viewer immutable and validates party scope before authentication enters the flow', () => {
+  it('keeps Viewer immutable and validates party scope before authentication reaches the run', () => {
     const parsed = ViewerSchema.parse(viewer)
     expect(Object.isFrozen(parsed)).toBe(true)
     expect(ViewerSchema.safeParse({ ...viewer, token: 'private-token' }).success).toBe(false)
