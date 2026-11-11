@@ -3,30 +3,31 @@ import type { CompiledWizard } from '../../src/authoring/compiled'
 import { WizardError } from '../../src/errors'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import type { Effect } from '../../src/machine/effects'
 import type { DomainEvent } from '../../src/machine/events'
+import { initialState, machine } from '../../src/machine/index'
 import { createMemoryStore } from '../../src/persistence/memory-store'
 import { prepareResume, resumeWizardRuntime } from '../../src/wizard/resume'
 import { createWizardRuntime, type ResumeWizardRuntimeOptions } from '../../src/wizard/runtime'
 import type { Snapshot } from '../../src/wizard/snapshot'
 import {
-  boundary,
-  createToyMachine,
+  eventStep,
   flow,
-  initialState,
+  flowStep,
+  parsing,
+  runStep,
   stringsBoundary,
-  type ToyOverrides,
-  types,
-} from '../helpers/fake-machine'
+  view,
+} from '../helpers/fixtures'
+import { types } from '../interpreter/harness'
 
 const roundTrip = (snap: Snapshot): unknown => JSON.parse(JSON.stringify(snap))
 
-function baseOpts(
-  overrides: ToyOverrides = {},
-): ResumeWizardRuntimeOptions & { sched: ReturnType<typeof createTestScheduler> } {
+function baseOpts(): ResumeWizardRuntimeOptions & {
+  sched: ReturnType<typeof createTestScheduler>
+} {
   const sched = createTestScheduler({ now: 5_000 })
   return {
-    machine: createToyMachine(overrides),
+    machine,
     initialState,
     scheduler: sched,
     ids: createSequentialIds(),
@@ -37,10 +38,11 @@ function baseOpts(
 const twoViews = flow({
   name: 'nav',
   events: { ping: stringsBoundary('id') },
+  start: 'a',
   steps: {
-    a: { kind: 'view', input: stringsBoundary('name'), next: { kind: 'static', targets: ['b'] } },
-    b: { kind: 'view', next: { kind: 'static', targets: ['end'] } },
-    end: { kind: 'step' },
+    a: view({ input: stringsBoundary('name'), next: 'b' }),
+    b: view({ next: 'end' }),
+    end: runStep(),
   },
 })
 
@@ -48,6 +50,7 @@ async function running(def: CompiledWizard = twoViews) {
   const o = baseOpts()
   const run = createWizardRuntime(def, { ...o, context: { tenant: 't' }, instanceId: 'orig' })
   await run.start()
+  await run.setInput('a', { name: 'x' })
   await run.next()
   return { run, snap: run.getSnapshot(), o }
 }
@@ -90,14 +93,14 @@ describe('resumeWizardRuntime', () => {
   it('re-runs boundaries: context and view outputs are parsed and substituted', async () => {
     const def = flow({
       name: 'nav',
-      context: boundary((v) => ({ ok: true, value: { ...(v as object), normalized: true } })),
+      context: parsing((v) => ({ ok: true, value: { ...(v as object), normalized: true } })),
+      start: 'a',
       steps: {
-        a: {
-          kind: 'view',
-          input: boundary((v) => ({ ok: true, value: { ...(v as object), trimmed: true } })),
-          next: { kind: 'static', targets: ['b'] },
-        },
-        b: { kind: 'view', next: { kind: 'static', targets: [] } },
+        a: view({
+          input: parsing((v) => ({ ok: true, value: { ...(v as object), trimmed: true } })),
+          next: 'b',
+        }),
+        b: view(),
       },
     })
     const { snap } = await running(def)
@@ -155,20 +158,18 @@ describe('resumeWizardRuntime', () => {
     ])
     const asyncDef = {
       ...twoViews,
-      context: boundary((v) => Promise.resolve({ ok: true, value: v }) as any),
+      context: parsing((v) => Promise.resolve({ ok: true, value: v }) as any),
     }
     expect(resumeErr(asyncDef, snap).issues?.map((i) => i.message)).toEqual([
       'context: async boundaries are not supported by resume() (use resumeAsync())',
     ])
   })
 
-  it('re-arms persisted timers through the interpreter when the machine plans them on resume', async () => {
+  it('re-arms persisted timers through the interpreter on resume', async () => {
     const def = flow({
       name: 'nav',
-      steps: {
-        w: { kind: 'step', hooks: { waitFor: {} }, waitTimeout: { afterMs: 1_000, next: 'end' } },
-        end: { kind: 'step' },
-      },
+      start: 'w',
+      steps: { w: eventStep({ on: {}, timeout: { afterMs: 1_000, next: 'end' } }), end: runStep() },
     })
     const o = baseOpts()
     const run = createWizardRuntime(def, { ...o, context: {}, instanceId: 'w' })
@@ -177,24 +178,8 @@ describe('resumeWizardRuntime', () => {
     expect(Object.keys(snap.state.timers)).toEqual(['wait:w'])
     run.dispose()
 
-    // `plan` re-arms every `S.timers` entry on run.resumed (overdue → now).
-    const o2 = baseOpts({
-      plan: (env, S, batch, base) => {
-        const out: Effect[] = [...base()]
-        for (const ev of batch) {
-          if (ev.type !== 'run.resumed') continue
-          for (const [timerId, t] of Object.entries(S.timers)) {
-            out.push({
-              kind: 'timer.set',
-              timerId,
-              at: Math.max(t.at, env.now()),
-              fire: { type: 'timer.fired', timerId },
-            })
-          }
-        }
-        return out
-      },
-    })
+    // The machine re-arms every persisted timer on run.resumed (overdue → now).
+    const o2 = baseOpts()
     o2.sched.advance(400) // 5_400: 600ms remain
     const resumed = resumeWizardRuntime(def, roundTrip(snap), o2)
     expect(o2.sched.pending()).toBe(1)
@@ -208,21 +193,21 @@ describe('resumeWizardRuntime', () => {
     let resolveChild: (v: unknown) => void = () => {}
     const child = flow({
       name: 'child',
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: { run: () => new Promise((r) => (resolveChild = r)) },
-          next: { kind: 'static', targets: ['cend'] },
-        },
-        cend: { kind: 'step' },
+        // Idempotent: resume issues the interrupted run again, so the child keeps running.
+        t: runStep({
+          run: () => new Promise((r) => (resolveChild = r)),
+          idempotent: true,
+          next: 'cend',
+        }),
+        cend: runStep(),
       },
     })
     const parent = flow({
       name: 'parent',
-      steps: {
-        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'step' },
-      },
+      start: 'f',
+      steps: { f: flowStep(child, { next: 'end' }), end: runStep() },
     })
     const o = baseOpts()
     const run = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
@@ -245,15 +230,13 @@ describe('resumeWizardRuntime', () => {
   })
 
   it('an active flow step with no persisted child has its summary stripped so the machine re-creates it', async () => {
-    // (The re-creation itself — plan(run.resumed) → childContext → child.create — is proven
-    // against the real machine in e2e-resume.test.ts; the toy machine only emits run.resumed.)
-    const child = flow({ name: 'child', steps: { w: { kind: 'step', hooks: { waitFor: {} } } } })
+    // (The re-creation itself — plan(run.resumed) → childContext → child.create — is covered by
+    // the e2e resume suite.)
+    const child = flow({ name: 'child', start: 'w', steps: { w: eventStep({ on: {} }) } })
     const parent = flow({
       name: 'parent',
-      steps: {
-        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'step' },
-      },
+      start: 'f',
+      steps: { f: flowStep(child, { next: 'end' }), end: runStep() },
     })
     const o = baseOpts()
     const run = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
@@ -278,18 +261,17 @@ describe('resumeWizardRuntime', () => {
     let contextParses = 0
     const child = flow({
       name: 'child',
-      context: boundary((v) => {
+      context: parsing((v) => {
         contextParses += 1
         return { ok: true, value: v }
       }),
-      steps: { w: { kind: 'step', hooks: { waitFor: {} } } },
+      start: 'w',
+      steps: { w: eventStep({ on: {} }) },
     })
     const parent = flow({
       name: 'parent',
-      steps: {
-        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'step' },
-      },
+      start: 'f',
+      steps: { f: flowStep(child, { next: 'end' }), end: runStep() },
     })
     const o = baseOpts()
     const run = createWizardRuntime(parent, { ...o, context: {}, instanceId: 'p' })
@@ -306,13 +288,14 @@ describe('resumeWizardRuntime', () => {
     let calls = 0
     const flaky = flow({
       name: 'child',
-      context: boundary((v) => {
+      context: parsing((v) => {
         calls += 1
         return calls === 1
           ? { ok: true, value: v }
           : { ok: false, issues: [{ message: 'second call' }] }
       }),
-      steps: { w: { kind: 'step', hooks: { waitFor: {} } } },
+      start: 'w',
+      steps: { w: eventStep({ on: {} }) },
     })
     const parent2 = {
       ...parent,

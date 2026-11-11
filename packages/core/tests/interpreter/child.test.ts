@@ -63,10 +63,7 @@ function makeHandle(
   }
 }
 
-function setup(
-  parentDef: CompiledWizard,
-  extra: Partial<InterpreterOptions<Handle>> = {},
-) {
+function setup(parentDef: CompiledWizard, extra: Partial<InterpreterOptions<Handle>> = {}) {
   const sched = createTestScheduler({ now: 500 })
   const ids = createSequentialIds()
   const env = { clock: sched, scheduler: sched, ids }

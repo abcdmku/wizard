@@ -7,8 +7,8 @@ import { createExecutor } from '../../src/interpreter/executor'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { Message } from '../../src/machine/commands'
 import type { CallEffect } from '../../src/machine/effects'
-import type { WizardState } from '../../src/machine/state'
 import { initialState } from '../../src/machine/index'
+import type { WizardState } from '../../src/machine/state'
 import { createEnv, eventStep, flow, runStep } from '../helpers/fixtures'
 
 function harness(

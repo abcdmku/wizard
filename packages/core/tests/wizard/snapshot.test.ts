@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
 import { type Snapshot, toSnapshot, validateSnapshot } from '../../src/wizard/snapshot'
-import { initialState } from '../../src/machine/index'
 import { createEnv, flow, flowStep, runStep, trusted, view } from '../helpers/fixtures'
 
 const child = flow({ name: 'child', start: 'c', steps: { c: view() } })

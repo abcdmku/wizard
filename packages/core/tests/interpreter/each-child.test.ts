@@ -14,9 +14,9 @@ import {
 import type { Command, Message } from '../../src/machine/commands'
 import { createEachState, eachOutputs, updateEachItem } from '../../src/machine/each-state'
 import type { DomainEvent } from '../../src/machine/events'
+import { initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
 import { type Snapshot, toSnapshot } from '../../src/wizard/snapshot'
-import { initialState } from '../../src/machine/index'
 import { flow, flowStep, runStep, trusted } from '../helpers/fixtures'
 
 interface Handle extends ChildHandle {
@@ -100,7 +100,7 @@ function setup(keys = ['one', 'two'], extraSteps: Parameters<typeof flow>[0]['st
     start: 'mapped',
     steps: {
       mapped: flowStep(childWithDeps, {
-        deps: function (args) {
+        deps: (args) => {
           mappedArgs.push(args)
           return { ...Object(args.deps), item: args.item, index: args.index }
         },
