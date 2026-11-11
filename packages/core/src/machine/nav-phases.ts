@@ -110,7 +110,8 @@ function enterPhase(b: Batch, phase: NavPhase, targets?: readonly string[]): Pha
       return (b.state.nav.pendingSteps?.length ?? 0) > 0 ? 'wait' : 'continue'
     case 'exiting':
       phaseEvent(b, phase)
-      // A skipped `from` never entered: its `exit` hook does not run.
+      // A skipped `from` produced no output (`when`, `skip`, `fallback`, a wait timeout): its
+      // `exit` hook does not run.
       return fromDef?.hooks.exit !== undefined && rec(b, from ?? '')?.status !== 'skipped'
         ? 'wait'
         : 'continue'

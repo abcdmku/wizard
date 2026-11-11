@@ -45,7 +45,7 @@ awaitDecision: step({
 
 The deadline is absolute. If the process stops after three hours, resume leaves 45 hours on the original deadline. If it resumes after that deadline, the timeout fires before an event can complete the wait.
 
-At timeout the wait completes with output `undefined` and activates `expired`. Its `OutputOf` type includes `undefined`, and that type reaches consumers through `needs`. Check the value before reading payload fields, even when the need is a plain step reference.
+At timeout the wait is skipped with reason `timeout` and `expired` starts. `route` does not start, and the wait's `exit` hook does not run. A step that reads the payload through a plain `needs` is skipped with the wait, so its hooks always receive a payload. A step that must run on both paths declares the need as `{ optional: awaitDecision }` and receives `undefined` after a timeout.
 
 For a delay without an external event, use `step({ sleep: '10m', next: 'checkAgain' })`. The sleep deadline also survives restart. A convenience `wizard.run()` keeps waiting through pure sleep timers and retry backoff; it returns a snapshot when input from a person or external system is needed.
 

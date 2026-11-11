@@ -98,6 +98,10 @@ export interface StepConfig<
   readonly concurrency?: number
   readonly output?: Boundary<OB, unknown>
   readonly retry?: RetryPolicy<NoInfer<RetryError<Em, Ea | ReturnedAdapterError<R>>>>
+  /**
+   * With `run`, a deadline for each attempt. With `waitFor`, `{ after, next }`: when no event
+   * completes the wait in time, the wait is skipped (`timeout`) and the run continues at `next`.
+   */
   readonly timeout?: Duration | { readonly after: Duration; readonly next: To }
   readonly compensate?: (
     args: CompensateArgs<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, NeedsOutput<Nd>>,

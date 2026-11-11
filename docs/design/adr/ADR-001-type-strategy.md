@@ -39,7 +39,7 @@ A `needs` entry takes a previously created step object. Plain needs supply that 
 
 Every consumer hook receives the inferred needs map. This replaces untyped sibling-output lookup inside hooks. `dependsOn` remains a control gate and does not supply data or activate the consumer.
 
-A timed wait can finish with `undefined` when its deadline expires. Its `OutputOf` includes that value, and a consumer's typed need must handle it even when the need itself is required.
+A timed wait is skipped when its deadline expires, so a timeout adds nothing to its `OutputOf`. A required need on the wait skips the consumer, and an optional need supplies `undefined`.
 
 `BoundTo` is invariant in context, events, and deps. A step from a different binding cannot enter a map merely because one context is a structural subset of another.
 

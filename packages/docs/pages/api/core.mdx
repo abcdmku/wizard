@@ -49,7 +49,7 @@ Every constructor takes an object configuration.
 |---|---|
 | `step({ run, ...options })` | Callback or adapter result, including an adapter returned by the callback |
 | `step({ each, run, concurrency?, key?, ...options })` | Item results in input order |
-| `step({ waitFor, timeout?, ...options })` | Resolving handler value or payload; includes `undefined` with a timeout |
+| `step({ waitFor, timeout?, ...options })` | Resolving handler value or payload |
 | `step({ sleep, ...options })` | `undefined` after a durable timer expires |
 | `step({ next, ...options })` | `undefined`; routing or join without a work callback |
 | `view({ input, ...options })` | Validated view input |
@@ -59,19 +59,19 @@ Common options are `next`, `targets`, `needs`, `dependsOn`, `when`, `enter`, `ex
 
 A `waitFor` handler returns `{ done: value }` to resolve with that value, `{ keep: true }` to keep listening, or `{ fail: message }` to fail the step. Returning nothing resolves with the validated event payload. Put routing on the step's `next`; wait-handler results do not contain `next`.
 
-When a wait's timeout expires, the step completes with `undefined` and activates `timeout.next`. Its `OutputOf` includes `undefined`, so a `needs` consumer must handle that value even for a required need.
+When a wait's timeout expires, the step is skipped with reason `timeout` and `timeout.next` is activated. Its `next` is not taken and its `exit` hook does not run. A timeout adds nothing to its `OutputOf`: a required `needs` on the wait skips its consumer, and `{ optional: wait }` supplies `undefined`.
 
 | Work-specific option | Contract |
 |---|---|
 | `output` | Validate a runnable step's result |
-| `retry` | `{ attempts, backoff?, baseMs?, factor?, maxBackoffMs?, jitter?, when? }` |
+| `retry` | `{ retries, backoff?, baseMs?, factor?, maxBackoffMs?, jitter?, when? }` |
 | `timeout` | Runnable deadline; waits use `{ after, next }` |
 | `fallback` | Alternate step to activate after retries are exhausted |
 | `idempotencyKey`, `compensate`, `mapError` | Interrupted-work recovery, undo callback, JSON error data |
 | View options | `input`, `initial`, `validate`, `canEnter`, `canExit` |
 | Child options | `context`, `deps`, `output`, `each`, `concurrency`, `key` |
 
-`retry.attempts` counts retries after the first call. `jitter` is between 0 and 1. `retry.when` receives the mapped error when `mapError` is present. Durations are milliseconds or strings such as `'250ms'`, `'15m'`, `'2h'`, and `'1d'`.
+`retry.retries` is the number of extra calls after the first one fails. `jitter` is between 0 and 1. `retry.when` receives the mapped error when `mapError` is present. Durations are milliseconds or strings such as `'250ms'`, `'15m'`, `'2h'`, and `'1d'`.
 
 Declare inline `mapError` before `retry` when its `when` callback reads inferred mapped fields. A reusable mapper with typed parameters supports either property order.
 

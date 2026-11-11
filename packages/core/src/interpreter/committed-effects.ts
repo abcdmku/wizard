@@ -21,7 +21,7 @@ export function abortCommittedWork(
       opts.executor.abortTransaction(event.txId, event.error.message)
     } else if (
       event.type === 'step.cancelled' ||
-      (event.type === 'step.skipped' && event.reason === 'fallback')
+      (event.type === 'step.skipped' && (event.reason === 'fallback' || event.reason === 'timeout'))
     ) {
       opts.executor.abort(event.step, event.reason)
       opts.cancelled.set(event.step, { seq: event.seq, reason: event.reason })

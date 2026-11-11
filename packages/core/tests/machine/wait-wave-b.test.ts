@@ -133,7 +133,7 @@ describe('Wave B waits', () => {
     expect(h.state.timers).toEqual({})
   })
 
-  it('a timeout follows its alternate edge with undefined output', () => {
+  it('a timeout skips the wait and follows its alternate edge', () => {
     const h = createHarness(
       fixture(
         { waiting: { ...wait, waitTimeout: { afterMs: 500, next: 'expired' } }, expired: view },
@@ -144,8 +144,13 @@ describe('Wave B waits', () => {
     h.start()
     h.clock.advance(500)
     const expired = h.fire('wait:waiting')
-    expect(of(expired, 'step.done')[0]).toMatchObject({ step: 'waiting', next: 'expired' })
-    expect(h.rec('waiting').output).toBeUndefined()
+    expect(of(expired, 'step.skipped')[0]).toMatchObject({
+      step: 'waiting',
+      reason: 'timeout',
+      next: 'expired',
+    })
+    expect(of(expired, 'step.done')).toEqual([])
+    expect(h.rec('waiting')).toMatchObject({ status: 'skipped', skipReason: 'timeout' })
     expect(h.rec('expired').status).toBe('active')
     expect(h.state.timers).toEqual({})
   })

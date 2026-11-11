@@ -26,7 +26,7 @@ Create producers before the consumer so its hooks receive their output types:
 
 A plain need requires a step object, not an id string. References in `next`, `targets`, `dependsOn`, and `fallback` accept either spelling. Optional needs change data availability; producer failures still follow their failure policy.
 
-An event wait with a timeout can complete with `undefined`. That value reaches even a plain need; handle it in the consumer. Required needs propagate a skipped producer, not a completed producer whose output is `undefined`.
+An event wait that times out is a skipped producer, with reason `timeout`. The table applies to it: a plain need skips the consumer, an `any` need waits for another producer, and an optional need supplies `undefined`.
 
 ## `dependsOn` gates activation
 

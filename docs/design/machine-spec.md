@@ -114,7 +114,7 @@ Wait handlers cannot return navigation overrides. Completion follows the step's 
 
 Unmatched events can enter the FIFO inbox with expiry. Entry drains the oldest matching event; a keep-result can permit another drain. Expired entries leave the inbox. A flow-level handler is invoked at original send time, not repeatedly during inbox drains.
 
-Event waits can have an alternate timeout target. Sleep steps have a durable deadline and finish when due. Clear obsolete timers when steps complete, skip, invalidate, or cancel.
+Event waits can have an alternate timeout target. When the deadline passes, mark the wait skipped with reason `timeout` and activate the target. The wait has no output, so its own `next` is not taken, its `exit` hook does not run, and required `needs` on it skip their consumers. Sleep steps have a durable deadline and finish when due. Clear obsolete timers when steps complete, skip, invalidate, or cancel.
 
 ## 6. Failure, fallback, and compensation
 

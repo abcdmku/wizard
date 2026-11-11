@@ -59,7 +59,7 @@ Create producers before the steps that need them, so `needs` can refer to the st
 5. Commands return values. Check `ok` on `next`, `setInput` and `send`, and check `status` on a result before reading `output`.
 6. An external call can repeat after a crash. Pass `idempotencyKey` from the run arguments to any service that charges, sends or books.
 7. `retry: { retries: 2 }` allows two more runs after the first one fails, three in total.
-8. A wait with a `timeout` completes with `undefined` when it times out. A step that needs its output must handle `undefined`.
+8. A wait that times out is skipped, so a step that needs its output is skipped too. A step that must run anyway declares the need as `{ optional: wait }` and handles `undefined`.
 9. Call `run.dispose()` when you are done with a run from `wizard.create`. `wizard.run(input)` creates, runs and disposes in one call.
 
 ## Example

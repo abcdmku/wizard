@@ -44,7 +44,7 @@ Views, runnable steps, and child-flow steps can listen through `on`. Compose an 
 
 ## Deadlines survive resume
 
-An event wait can declare `timeout: { after: '30m', next: 'expired' }`. That is an alternate route if the event never completes the wait. On timeout the wait completes with output `undefined`; its output type includes that possibility. A `needs` consumer must handle the missing value even when it uses a plain required reference, because the wait completed rather than skipped.
+An event wait can declare `timeout: { after: '30m', next: 'expired' }`. That is an alternate route if the event never completes the wait. On timeout the wait is skipped with reason `timeout`, so its output type never includes `undefined`. A step with a plain `needs` on the wait is skipped with it. A step that should run on both routes declares the need as optional and checks for `undefined`:
 
 ```ts file="packages/docs/snippets/advanced/timed-needs.ts"
 ```

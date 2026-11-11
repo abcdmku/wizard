@@ -3,8 +3,9 @@
 import type { Batch } from './batch'
 import { emit, rec, stepDef } from './batch'
 import type { Command } from './commands'
-import { completeStep, startEventTransition } from './nav'
-import { clearStepTimers, failStep, inboxTimerId, waitTimerId } from './scheduler'
+import { completeStep, startAuto, startEventTransition } from './nav'
+import { activateFeeds, propagateSkipped } from './needs'
+import { clearStepTimers, failStep, inboxTimerId, schedule, waitTimerId } from './scheduler'
 import { isEventStep } from './selectors'
 import type { InboxEntry, SerializedError } from './state'
 import { unknownTarget } from './util'
@@ -255,9 +256,17 @@ export function onHandlerError(
   drainInbox(b, step)
 }
 
-/** `waitTimeout` timer fired for an active event-driven step. */
+/**
+ * `waitTimeout` timer fired for an active event-driven step. The wait produced no output, so it
+ * is skipped (`timeout`): steps that need it follow, its `next` is not taken and `timeout.next`
+ * arrives instead.
+ */
 export function onWaitTimeout(b: Batch, step: string): void {
-  const def = stepDef(b, step)
-  if (def?.waitTimeout === undefined) return
-  completeStep(b, step, undefined, def.waitTimeout.next)
+  const next = stepDef(b, step)?.waitTimeout?.next
+  if (next === undefined) return
+  emit(b, { type: 'step.skipped', step, reason: 'timeout', next })
+  activateFeeds(b, step)
+  propagateSkipped(b, [step])
+  startAuto(b, step, next)
+  schedule(b)
 }

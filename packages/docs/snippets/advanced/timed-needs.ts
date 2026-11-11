@@ -11,11 +11,11 @@ export const approval = defineWizard(
   ({ step, steps }) => {
     const decision = step({
       waitFor: { decided: ({ payload }) => ({ done: payload.accepted }) },
-      next: 'summary',
       timeout: { after: '1s', next: 'summary' },
     })
     const summary = step({
-      needs: { decision },
+      // A plain `needs: { decision }` would skip this step when the wait times out.
+      needs: { decision: { optional: decision } },
       run: ({ needs }) =>
         needs.decision === undefined ? 'expired' : needs.decision ? 'approved' : 'rejected',
     })
@@ -29,7 +29,7 @@ export async function expireApproval() {
   try {
     await run.start()
     clock.advance(1_000)
-    return await run.awaitResult()
+    return { result: await run.awaitResult(), decision: run.getState().steps.decision }
   } finally {
     run.dispose()
   }

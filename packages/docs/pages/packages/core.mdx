@@ -30,7 +30,7 @@ Use `wizard.create(input, options?)` for a live run that your application will d
 
 `next` activates successors. `dependsOn` gates a step that another edge activated. `needs` joins typed producer outputs and activates the consumer when they settle. The [graphs guide](/advanced/graphs) explains how these rules handle fan-out, fan-in, and exclusive branches.
 
-A wait with `timeout: { after, next }` can complete with `undefined` when its deadline wins. Its typed output includes that case, so downstream `needs` consumers must handle it.
+A wait with `timeout: { after, next }` is skipped when its deadline wins, and `timeout.next` runs. A step that needs the wait's output is skipped with it; declare the need as `{ optional: wait }` in a step that must run either way.
 
 Mapped child flows keep one child per input item. Select a live child with `run.child('batch', 0)` or its exact stable key. Mirrors select mapped children by numeric input index. Retrying the mapped flow keeps finished item results.
 

@@ -73,7 +73,7 @@ approval: step({
 
 A `waitFor` handler can return `{ done: value }`, `{ keep: true }`, or `{ fail: 'reason' }`. Returning nothing completes the wait with the event payload as output. Wait handlers do not return `next`; declare routing on the step.
 
-A timeout completes the wait with output `undefined` and activates its timeout target. The wait's `OutputOf` type includes `undefined`; hooks consuming it through `needs` must check for that value, even with a plain need.
+When the deadline passes with no event, the wait is skipped with reason `timeout` and its timeout target starts. The wait has no output, so `publish` does not start and a step with a plain `needs` on the wait is skipped too. A step that must run either way declares `needs: { approval: { optional: approval } }` and reads `undefined` after a timeout.
 
 Compose an event wait followed by a runnable, view, or child step. Those steps keep ordinary `on` handlers for events received while active. See [events and waiting](/learn/events).
 

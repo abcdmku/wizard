@@ -103,7 +103,7 @@ export type LifecycleEventBody =
       readonly to: string | null
       readonly direction: 'forward' | 'back'
     }
-  /** `next` = auto-advance target override (`waitFor` result or event timeout). */
+  /** `next` = the targets the `next` function of a routing step chose. */
   | {
       readonly type: 'step.done'
       readonly step: string
@@ -120,7 +120,9 @@ export type LifecycleEventBody =
     }
   /**
    * `reason`: `'when'`, `'command'`, `'not-taken'` (a routing decision chose another declared
-   * target) or `'fallback'` (a failed child flow's `fallback` routed to `next` instead).
+   * target), `'needs-skipped'` (a step it needs was skipped), `'fallback'` (the step failed for
+   * good; `error` keeps the failure and the run continues at `next`) or `'timeout'` (a wait's
+   * deadline passed with no event; the run continues at `next`).
    */
   | {
       readonly type: 'step.skipped'

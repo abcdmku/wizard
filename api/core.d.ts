@@ -212,7 +212,10 @@ interface StepRecord {
   readonly previousOutput?: unknown;
   /** An explicit invalidation remains pending until the step is activated again. */
   readonly invalidated?: true;
-  /** Why the step was skipped (`'when'` | `'command'`). */
+  /**
+   * Why the step was skipped: `'when'`, `'command'`, `'not-taken'`, `'needs-skipped'`,
+   * `'fallback'` or `'timeout'`.
+   */
   readonly skipReason?: string;
   /** Attempt counter for the current run (1-based while running; 0 when idle). */
   readonly attempt: number;
@@ -848,7 +851,7 @@ type WaitOutput<H, Ev> = { [E in keyof H]: E extends keyof Ev ? H[E] extends ((.
  * every step that `needs` this one.
  */
 type StepEach<Xk, O> = 'each' extends Xk ? O[] : O;
-type StepOutput<R, OB, _Item, H, Ev, Xk> = IsUnset<OB> extends false ? StepEach<Xk, OB> : 'run' extends Xk ? StepEach<Xk, RunOutput<R>> : [keyof H] extends [never] ? 'waitFor' extends Xk ? any : undefined : WaitOutput<H, Ev> | ('timeout' extends Xk ? undefined : never);
+type StepOutput<R, OB, _Item, H, Ev, Xk> = IsUnset<OB> extends false ? StepEach<Xk, OB> : 'run' extends Xk ? StepEach<Xk, RunOutput<R>> : [keyof H] extends [never] ? 'waitFor' extends Xk ? any : undefined : WaitOutput<H, Ev>;
 type ErrorFor<Em, Ea> = IsUnset<Em> extends true ? Ea : Em;
 type RetryError<Em, Ea> = [ErrorFor<Em, Ea>] extends [never] ? unknown : ErrorFor<Em, Ea>;
 type AdapterErrorChannel<V> = V extends {
@@ -1109,7 +1112,7 @@ type LifecycleEventBody = EachEventBody | {
   readonly to: string | null;
   readonly direction: 'forward' | 'back';
 } |
-/** `next` = auto-advance target override (`waitFor` result or event timeout). */
+/** `next` = the targets the `next` function of a routing step chose. */
 {
   readonly type: 'step.done';
   readonly step: string;
@@ -1126,7 +1129,9 @@ type LifecycleEventBody = EachEventBody | {
 } |
 /**
  * `reason`: `'when'`, `'command'`, `'not-taken'` (a routing decision chose another declared
- * target) or `'fallback'` (a failed child flow's `fallback` routed to `next` instead).
+ * target), `'needs-skipped'` (a step it needs was skipped), `'fallback'` (the step failed for
+ * good; `error` keeps the failure and the run continues at `next`) or `'timeout'` (a wait's
+ * deadline passed with no event; the run continues at `next`).
  */
 {
   readonly type: 'step.skipped';
@@ -2742,6 +2747,10 @@ interface StepConfig<C, Ev, D, R, OB, Em, Ea, Item, Nd, Nx, Nr, Tg, Fb, Dp, To, 
   readonly concurrency?: number;
   readonly output?: Boundary<OB, unknown>;
   readonly retry?: RetryPolicy<NoInfer<RetryError<Em, Ea | ReturnedAdapterError<R>>>>;
+  /**
+   * With `run`, a deadline for each attempt. With `waitFor`, `{ after, next }`: when no event
+   * completes the wait in time, the wait is skipped (`timeout`) and the run continues at `next`.
+   */
   readonly timeout?: Duration | {
     readonly after: Duration;
     readonly next: To;

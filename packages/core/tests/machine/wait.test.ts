@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { createHarness, eventStep, flow, of, routingStep, view } from '../helpers/fixtures'
+import {
+  createHarness,
+  eventStep,
+  flow,
+  of,
+  replay,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const on = () => undefined
 
@@ -262,7 +271,7 @@ describe('wait — inbox drain, TTL, timeout', () => {
     expect(h.rec('w').status).toBe('active')
   })
 
-  it('wait timeout: stores a deadline, completes with undefined output and advances to timeout.next', () => {
+  it('wait timeout: stores a deadline, skips the wait and advances to timeout.next', () => {
     const h = createHarness(waiting({ timeout: { afterMs: 1_000, next: 'expired' } }))
     const r = h.start()
     expect(r.types).toEqual(['flow.started', 'step.arrived', 'step.entered', 'timer.scheduled'])
@@ -276,16 +285,75 @@ describe('wait — inbox drain, TTL, timeout', () => {
     expect(r.effects.map((e) => e.kind)).toEqual(['timer.set', 'persist'])
     h.clock.advance(1_000)
     const fired = h.fire('wait:w')
-    expect(fired.types.slice(0, 2)).toEqual(['timer.fired', 'step.done'])
-    expect(of(fired, 'step.done')[0]).toMatchObject({
-      next: 'expired',
-    })
-    expect(of(fired, 'step.done')[0]?.output).toBeUndefined()
+    expect(fired.types.slice(0, 2)).toEqual(['timer.fired', 'step.skipped'])
+    expect(of(fired, 'step.skipped')[0]).toEqual(
+      expect.objectContaining({ step: 'w', reason: 'timeout', next: 'expired' }),
+    )
+    expect(of(fired, 'step.done').map((e) => e.step)).toEqual(['expired'])
+    expect(h.rec('w')).toMatchObject({ status: 'skipped', skipReason: 'timeout' })
+    expect(h.rec('w').deadline).toBeUndefined()
     expect(h.rec('expired').status).toBe('done')
-    expect(h.rec('end').status).toBe('idle')
+    expect(h.rec('end')).toMatchObject({ status: 'skipped', skipReason: 'not-taken' })
     h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(h.state.timers).toEqual({})
+  })
+
+  it('a timeout whose target is also the next of the wait still runs that step', () => {
+    const h = createHarness(
+      flow({
+        start: 'w',
+        steps: {
+          w: eventStep({
+            on: { paid: on },
+            next: 'end',
+            timeout: { afterMs: 1_000, next: 'end' },
+          }),
+          end: runStep(),
+        },
+      }),
+    )
+    h.start()
+    h.clock.advance(1_000)
+    h.fire('wait:w')
+    expect(h.rec('w')).toMatchObject({ status: 'skipped', skipReason: 'timeout' })
+    expect(h.rec('end').status).toBe('active')
+    h.ok(h.call('run', 'end'), 'late')
+    h.step({ type: 'settle' })
+    expect(h.state).toMatchObject({ status: 'done', output: 'late' })
+    expect(replay(h)).toEqual(h.state)
+  })
+
+  it('a timeout during a transition takes timeout.next once navigation is idle', () => {
+    const h = createHarness(
+      flow({
+        start: ['v', 'w'],
+        steps: {
+          v: view({ canExit: () => true, next: 'after' }),
+          w: eventStep({
+            on: { paid: on },
+            exit: () => undefined,
+            next: 'end',
+            timeout: { afterMs: 1_000, next: 'expired' },
+          }),
+          after: view(),
+          expired: runStep(),
+          end: routingStep(),
+        },
+      }),
+    )
+    h.start()
+    h.cmd('next')
+    expect(h.state.nav.phase).toBe('canExit')
+    h.clock.advance(1_000)
+    const fired = h.fire('wait:w')
+    expect(fired.types).toEqual(['timer.fired', 'step.skipped', 'step.skipped'])
+    expect(h.state.nav.deferred).toEqual([{ step: 'w', to: 'expired' }])
+    h.ok(h.call('canExit'), true)
+    expect(h.state.nav.deferred).toBeUndefined()
+    expect(h.rec('expired').status).toBe('active')
+    expect(h.pending('exit')).toEqual([])
+    expect(replay(h)).toEqual(h.state)
   })
 
   it('completing a wait clears its timeout timer (timer.cleared → timer.clear)', () => {

@@ -92,9 +92,9 @@ describe('04 resume from snapshot', () => {
     expect(resumed.getState().status).toBe('waiting')
     sched2.advance(1)
     expect(resumed.getState().steps.awaitDecision).toMatchObject({
-      status: 'done',
+      status: 'skipped',
+      skipReason: 'timeout',
     })
-    expect(resumed.getState().steps.awaitDecision.output).toBeUndefined()
     expect(resumed.getState().status).toBe('done')
     expect(resumed.getState().output).toBe('expired: nobody decided within 48h')
     expect(

@@ -63,7 +63,11 @@ describe('10 devtools: the page drives the pipeline and the panel follows', () =
       expect(run.getState().status).toBe('done')
       expect(run.getState().output).toBe('quarantined (quality 0.9)')
       expect(run.getState().steps.quarantine.status).toBe('done')
-      expect(run.getState().steps.persist.status).toBe('idle')
+      expect(run.getState().steps.approve).toMatchObject({
+        status: 'skipped',
+        skipReason: 'timeout',
+      })
+      expect(run.getState().steps.persist.status).toBe('skipped')
     } finally {
       run.dispose()
     }

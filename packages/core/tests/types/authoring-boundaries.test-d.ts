@@ -6,6 +6,7 @@ import type {
   AnyFlow,
   AnyWizard,
   EventType,
+  FlowOutput,
   IsEach,
   JsonValue,
   OutputOf,
@@ -67,17 +68,24 @@ const timeoutNeeds = defineWizard(
       join: step({
         needs: { wait },
         run: ({ needs }) => {
+          expectTypeOf(needs.wait).toEqualTypeOf<{ id: string }>()
+          return needs.wait.id.toUpperCase()
+        },
+      }),
+      expired: step({
+        needs: { wait: { optional: wait } },
+        run: ({ needs }) => {
           expectTypeOf(needs.wait).toEqualTypeOf<{ id: string } | undefined>()
-          // @ts-expect-error the wait can complete with no value when its deadline expires
+          // @ts-expect-error an optional need is undefined when the wait timed out
           needs.wait.id.toUpperCase()
           return needs.wait?.id ?? 'expired'
         },
       }),
-      expired: step({ run: () => 'expired' }),
     })
   },
 )
-expectTypeOf<OutputOf<typeof timeoutNeeds, 'wait'>>().toEqualTypeOf<{ id: string } | undefined>()
+expectTypeOf<OutputOf<typeof timeoutNeeds, 'wait'>>().toEqualTypeOf<{ id: string }>()
+expectTypeOf<FlowOutput<typeof timeoutNeeds>>().toEqualTypeOf<string | undefined>()
 
 declare const maybeRun: { run?: () => number }
 declare const maybeOutput: { run: () => string; output?: ReturnType<typeof z.number> }

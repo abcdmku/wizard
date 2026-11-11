@@ -204,7 +204,7 @@ assert<Equal<EventType<typeof approval>, 'approved' | 'rejected'>>()
 assert<
   Equal<
     OutputOf<typeof approval, 'wait'>,
-    { decision: 'approved'; by: string } | { decision: 'rejected'; by: string } | undefined
+    { decision: 'approved'; by: string } | { decision: 'rejected'; by: string }
   >
 >()
 export async function s7(run: Run<typeof approval>) {

@@ -48,8 +48,8 @@ describe('e2e resume', () => {
     const b = e2eResume(def, snap1, { now: 5_000 })
     expect(b.run.epoch).toBe(1)
     expect(b.run.log()[0]).toMatchObject({ type: 'flow.resumed', fromSeq: (snap1 as any).seq })
-    expect(b.rec('w').status).toBe('done')
-    expect(b.rec('w').output).toBeUndefined()
+    expect(b.rec('w')).toMatchObject({ status: 'skipped', skipReason: 'timeout' })
+    expect(b.rec('ok')).toMatchObject({ status: 'skipped', skipReason: 'not-taken' })
     expect(b.run.getState().output).toBe('expired')
     expect(b.sched.pending()).toBe(0)
 
@@ -84,8 +84,7 @@ describe('e2e resume', () => {
     d.run.dispose()
     const e = e2eResume(def, inboxSnap, { now: 5_000 })
     expect(e.of('event.delivered')).toEqual([])
-    expect(e.rec('w').status).toBe('done')
-    expect(e.rec('w').output).toBeUndefined()
+    expect(e.rec('w')).toMatchObject({ status: 'skipped', skipReason: 'timeout' })
     expect(e.run.getState().output).toBe('expired')
   })
 

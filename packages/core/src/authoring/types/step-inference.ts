@@ -72,7 +72,7 @@ export type StepOutput<R, OB, _Item, H, Ev, Xk> =
           ? // biome-ignore lint/suspicious/noExplicitAny: failure-mode only (see above)
             any
           : undefined
-        : WaitOutput<H, Ev> | ('timeout' extends Xk ? undefined : never)
+        : WaitOutput<H, Ev>
 export type ErrorFor<Em, Ea> = IsUnset<Em> extends true ? Ea : Em
 export type RetryError<Em, Ea> = [ErrorFor<Em, Ea>] extends [never] ? unknown : ErrorFor<Em, Ea>
 

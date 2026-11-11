@@ -122,7 +122,10 @@ export interface StepRecord {
   readonly previousOutput?: unknown
   /** An explicit invalidation remains pending until the step is activated again. */
   readonly invalidated?: true
-  /** Why the step was skipped (`'when'` | `'command'`). */
+  /**
+   * Why the step was skipped: `'when'`, `'command'`, `'not-taken'`, `'needs-skipped'`,
+   * `'fallback'` or `'timeout'`.
+   */
   readonly skipReason?: string
   /** Attempt counter for the current run (1-based while running; 0 when idle). */
   readonly attempt: number
