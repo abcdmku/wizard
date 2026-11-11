@@ -27,10 +27,7 @@ export function applicationStatus(state: IntakeState): ApplicationStatus {
   if (state.steps.manualReview.status === 'active' || state.steps.manualRoute.status === 'active') {
     return 'awaiting-reviewer'
   }
-  if (
-    state.steps.manualReview.output?.decision === 'request-changes' &&
-    state.current === 'documents'
-  ) {
+  if (state.context.changeRequest !== undefined && state.current === 'documents') {
     return 'changes-requested'
   }
   return statusForCurrentStep(state.current)

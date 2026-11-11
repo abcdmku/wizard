@@ -94,17 +94,18 @@ typed as `IntakeResult` across the approval and rejection branches.
 Steps pass data to each other with `needs`: `queueRisk` reads
 `needs.businessProfile`, `needs.eligibility` and `needs.documents`, and
 `awaitRisk` reads the job id as `needs.riskJobId`. The context holds the
-application identity and four values that no `needs` can carry:
+application identity and the values that no `needs` can carry:
 
 | Context field | Why it is not a `needs` |
 | --- | --- |
 | `prefill`, `documents`, `review` | A view's `initial` hook receives only the context. These seed the business profile draft and restore the last submission when a draft is reset |
 | `result` | The wizard's `output` selector receives only the context, so the finishing step stores its output there |
 | `changeRequestCount` | A counter across reviewer loops. It numbers the risk job of each resubmission |
+| `changeRequest` | The reviewer's open request for changes. Saving a corrected draft invalidates the review step and clears its output, and the projections must keep showing the request. The next approval or rejection clears it |
 
 Version 1 of the wizard copied every step output into the context.
-`migrateIntakeSnapshot` in `api/workflow/migration.ts` drops those copies, so
-the registry resumes a run saved by version 1.
+`migrateIntakeSnapshot` in `api/workflow/migration.ts` drops those copies and
+keeps an open change request, so the registry resumes a run saved by version 1.
 
 ## HTTP contract
 

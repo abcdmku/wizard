@@ -167,9 +167,15 @@ export const intakeWizard = defineWizard(
       needs: { riskRoute },
       waitFor: {
         'review.decided': ({ payload, update }) => {
-          if (payload.decision === 'request-changes') {
-            update((current) => ({ changeRequestCount: current.changeRequestCount + 1 }))
-          }
+          const { reason, requestedFields, decidedAt } = payload
+          update((current) =>
+            payload.decision === 'request-changes'
+              ? {
+                  changeRequest: { reason, requestedFields, decidedAt },
+                  changeRequestCount: current.changeRequestCount + 1,
+                }
+              : { changeRequest: undefined },
+          )
           return { done: payload }
         },
       },

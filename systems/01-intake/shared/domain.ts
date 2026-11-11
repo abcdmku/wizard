@@ -82,6 +82,13 @@ export const IntakeResultSchema = z
   .strict()
 export type IntakeResult = z.infer<typeof IntakeResultSchema>
 
+export const ChangeRequestSchema = ReviewDecidedEventSchema.pick({
+  reason: true,
+  requestedFields: true,
+  decidedAt: true,
+}).strict()
+export type ChangeRequest = z.infer<typeof ChangeRequestSchema>
+
 export const IntakeContextSchema = z
   .object({
     applicationId: ApplicationIdSchema,
@@ -96,6 +103,9 @@ export const IntakeContextSchema = z
     // Written by the sink that finishes the run. The wizard's `output` selector reads only the
     // context, and the selector keeps the result typed across both branches.
     result: IntakeResultSchema.optional(),
+    // The reviewer's open request for changes. It is kept here because editing a draft
+    // invalidates the review step and its output. The next approval or rejection clears it.
+    changeRequest: ChangeRequestSchema.optional(),
     // How many times a reviewer asked for changes. Each one starts a new risk job.
     changeRequestCount: z.number().int().nonnegative().default(0),
   })

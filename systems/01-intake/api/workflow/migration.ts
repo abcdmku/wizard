@@ -20,13 +20,19 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * Lets a run saved by version 1 continue. Every removed context field was a copy of the output
- * of the step that wrote it, so the migration only drops the copies.
+ * of the step that wrote it, so the migration drops the copies. It keeps an open change
+ * request, which version 2 stores as `changeRequest`.
  */
 export const migrateIntakeSnapshot: SnapshotMigration = (snapshot, from) => {
   if (from.name !== intakeWizard.name || from.version !== 1 || !isRecord(snapshot)) return snapshot
   const state = snapshot.state
   if (!isRecord(state) || !isRecord(state.context)) return snapshot
-  const context = { ...state.context }
+  const context: Record<string, unknown> = { ...state.context }
+  const decision = context.reviewerDecision
+  if (isRecord(decision) && decision.decision === 'request-changes') {
+    const { reason, requestedFields, decidedAt } = decision
+    context.changeRequest = { reason, requestedFields, decidedAt }
+  }
   for (const key of HOOK_WRITTEN_CONTEXT_V1) delete context[key]
   return { ...snapshot, state: { ...state, context } }
 }

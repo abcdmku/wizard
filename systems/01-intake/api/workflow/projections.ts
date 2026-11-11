@@ -73,8 +73,8 @@ function projectedSteps(state: IntakeState, audience: 'applicant' | 'reviewer') 
 }
 
 function safeContext(state: IntakeState) {
-  const profile = state.steps.businessProfile.output
-  const decision = state.steps.manualReview.output
+  const profile = submittedProfile(state)
+  const changeRequest = state.context.changeRequest
   return {
     applicantName: state.context.applicantName,
     ...(profile?.legalName === undefined ? {} : { legalName: profile.legalName }),
@@ -86,9 +86,18 @@ function safeContext(state: IntakeState) {
     ...(state.steps.awaitRisk.output?.outcome === undefined
       ? {}
       : { riskOutcome: state.steps.awaitRisk.output.outcome }),
-    ...(decision?.decision === 'request-changes' ? { changeRequestReason: decision.reason } : {}),
+    ...(changeRequest === undefined ? {} : { changeRequestReason: changeRequest.reason }),
     documentCount: state.context.documents?.documents.length ?? 0,
   }
+}
+
+/**
+ * The business profile as last submitted. A reopened profile has no output until it is
+ * submitted again, so its saved draft stands in: it starts as the last submission.
+ */
+function submittedProfile(state: IntakeState) {
+  const step = state.steps.businessProfile
+  return step.output ?? (step.visitedCount > 1 ? step.input : undefined)
 }
 
 function workflowSummary(state: IntakeState, audience: 'applicant' | 'reviewer') {
@@ -113,7 +122,7 @@ export const applicantProjection = defineProjection(intakeWizard, {
     ) {
       return { access: 'forbidden' as const }
     }
-    const decision = state.steps.manualReview.output
+    const changeRequest = state.context.changeRequest
     return {
       access: 'granted' as const,
       role: 'applicant' as const,
@@ -132,15 +141,7 @@ export const applicantProjection = defineProjection(intakeWizard, {
         documents: state.context.documents,
         review: state.context.review,
       },
-      ...(decision?.decision === 'request-changes'
-        ? {
-            changeRequest: {
-              reason: decision.reason,
-              requestedFields: decision.requestedFields,
-              decidedAt: decision.decidedAt,
-            },
-          }
-        : {}),
+      ...(changeRequest === undefined ? {} : { changeRequest }),
     }
   },
 })
@@ -151,7 +152,13 @@ export const reviewerProjection = defineProjection(intakeWizard, {
     if (scope.tenantId !== state.context.tenantId) {
       return { access: 'forbidden' as const }
     }
-    const reviewerDecision = state.steps.manualReview.output
+    // Editing a draft invalidates the review step, so an open change request stands in.
+    const changeRequest = state.context.changeRequest
+    const reviewerDecision =
+      state.steps.manualReview.output ??
+      (changeRequest === undefined
+        ? undefined
+        : { decision: 'request-changes' as const, ...changeRequest })
     return {
       access: 'granted' as const,
       role: 'reviewer' as const,
