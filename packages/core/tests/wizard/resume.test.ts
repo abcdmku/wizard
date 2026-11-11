@@ -4,7 +4,6 @@ import { WizardError } from '../../src/errors'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { DomainEvent } from '../../src/machine/events'
-import { initialState, machine } from '../../src/machine/index'
 import { createMemoryStore } from '../../src/persistence/memory-store'
 import { prepareResume, resumeWizardRuntime } from '../../src/wizard/resume'
 import { createWizardRuntime, type ResumeWizardRuntimeOptions } from '../../src/wizard/runtime'
@@ -27,8 +26,6 @@ function baseOpts(): ResumeWizardRuntimeOptions & {
 } {
   const sched = createTestScheduler({ now: 5_000 })
   return {
-    machine,
-    initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     sched,

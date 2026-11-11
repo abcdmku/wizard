@@ -6,7 +6,6 @@ import type { HookArgs } from '../../../src/authoring/compiled'
 import { WizardError } from '../../../src/errors'
 import { createSequentialIds } from '../../../src/interpreter/env'
 import { createTestScheduler } from '../../../src/interpreter/test-scheduler'
-import { initialState, machine } from '../../../src/machine/index'
 import { createMemoryStore } from '../../../src/persistence/memory-store'
 import { resumeWizardRuntime, resumeWizardRuntimeAsync } from '../../../src/wizard/resume'
 import { createWizardRuntime } from '../../../src/wizard/runtime'
@@ -141,8 +140,6 @@ describe('e2e — idempotency-key crash-resume and migrate', () => {
     steps: { a: view({ next: 'b' }), b: view({ next: 'end' }), end: routingStep() },
   })
   const opts = () => ({
-    machine,
-    initialState,
     scheduler: createTestScheduler({ now: 1 }),
     ids: createSequentialIds(),
   })

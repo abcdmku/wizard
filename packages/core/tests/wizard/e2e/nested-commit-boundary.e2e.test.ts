@@ -4,9 +4,7 @@
  * aborted runtime takes its children down with it (or fails its parent's flow step).
  */
 
-import { describe, expect, it } from 'vitest'
-import { machine } from '../../../src/machine/index'
-import type { Machine } from '../../../src/machine/types'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flow, flowStep, runStep, view } from '../../helpers/fixtures'
 import { e2e, e2eResume } from './harness'
 
@@ -23,13 +21,27 @@ const picking = flow({
   steps: { pick: view({ next: 'ship' }), ship: view() },
 })
 
-/** The real machine, except `decide` throws for `msg` in the run at `depth`. */
-const throwingAt = (depth: number, type: string, error: Error): Machine => ({
-  ...machine,
-  decide: (env, state, msg) => {
-    if (env.path.length === depth && msg.type === type) throw error
-    return machine.decide(env, state, msg)
-  },
+/** When set, the machine's `decide` throws `error` for a `type` message in the run at `depth`. */
+const fault = vi.hoisted(() => ({
+  at: undefined as { depth: number; type: string; error: Error } | undefined,
+}))
+
+vi.mock('../../../src/machine/decide', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../../src/machine/decide')>()
+  const decide: typeof real.decide = (env, state, msg) => {
+    const at = fault.at
+    if (at !== undefined && env.path.length === at.depth && msg.type === at.type) throw at.error
+    return real.decide(env, state, msg)
+  }
+  return { ...real, decide }
+})
+
+const throwingAt = (depth: number, type: string, error: Error): void => {
+  fault.at = { depth, type, error }
+}
+
+afterEach(() => {
+  fault.at = undefined
 })
 
 describe('commit boundary across nested flows', () => {
@@ -122,10 +134,8 @@ describe('commit boundary across nested flows', () => {
     const snapshot = first.run.getSnapshot()
     first.run.dispose()
 
-    const resumed = e2eResume(checkout(child), snapshot, {
-      machine: throwingAt(0, 'resume', new Error('clock unavailable')),
-      onListenerError: () => {},
-    })
+    throwingAt(0, 'resume', new Error('clock unavailable'))
+    const resumed = e2eResume(checkout(child), snapshot, { onListenerError: () => {} })
 
     expect(resumed.run.isDisposed()).toBe(true)
     expect(log).toEqual(['ship'])
@@ -151,9 +161,10 @@ describe('commit boundary across nested flows', () => {
     'fails the flow step when its child aborts while processing %s',
     async (type) => {
       const failure = new Error('decide exploded')
-      const options = { machine: throwingAt(1, type, failure), onListenerError: () => {} }
+      const options = { onListenerError: () => {} }
       let t = e2e(checkout(picking), type === 'cancel' ? options : {})
       await t.run.start()
+      throwingAt(1, type, failure)
 
       if (type === 'cancel') {
         await expect(t.run.child('fulfil').cancel()).resolves.toMatchObject({ code: 'DISPOSED' })

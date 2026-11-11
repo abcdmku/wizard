@@ -6,7 +6,7 @@ import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { Message } from '../../src/machine/commands'
 import type { Effect } from '../../src/machine/effects'
 import type { DomainEvent } from '../../src/machine/events'
-import { initialState, machine } from '../../src/machine/index'
+import { initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
 import type { MachineEnv } from '../../src/machine/types'
 import { flow, runStep } from '../helpers/fixtures'
@@ -26,7 +26,6 @@ export function setup(
   const processed: Array<{ msg: Message; batch: readonly DomainEvent[] }> = []
   const interp = createInterpreter({
     def,
-    machine,
     path: [],
     env,
     initialState: initialState(menv, { instanceId: 'w1', context, now: sched.now() }),

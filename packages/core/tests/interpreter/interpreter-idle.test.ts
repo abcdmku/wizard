@@ -6,7 +6,7 @@ import {
   type InterpreterOptions,
 } from '../../src/interpreter/interpreter'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import { initialState, machine } from '../../src/machine/index'
+import { initialState } from '../../src/machine/index'
 import type { MachineEnv } from '../../src/machine/types'
 import { eventStep, flow, runStep, view } from '../helpers/fixtures'
 
@@ -47,7 +47,6 @@ function setup(
   }
   const interp = createInterpreter({
     def,
-    machine,
     path: [],
     env,
     initialState: initialState(machineEnv, {

@@ -11,7 +11,6 @@ import type { ExpectedVersion } from './version-guard'
 
 export interface InterpreterOptions<H extends ChildHandle = ChildHandle, P = Snapshot> {
   readonly def: CompiledWizard
-  readonly machine: import('../machine/types').Machine
   readonly path: readonly string[]
   readonly env: RuntimeEnv
   readonly initialState: WizardState

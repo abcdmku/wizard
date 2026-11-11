@@ -18,7 +18,6 @@ import type { CompiledWizard, RuntimeBoundary } from '../../authoring/compiled'
 import type { AnyWizardDefinition } from '../../authoring/types'
 import { WizardError } from '../../errors'
 import { isThenable } from '../../interpreter/thenable'
-import { initialState, machine } from '../../machine'
 import type { RunOutcome } from '../results'
 import { resumeWizardRuntime, resumeWizardRuntimeAsync } from '../resume'
 import {
@@ -207,7 +206,7 @@ function prepareResume<F extends AnyWizardDefinition>(
 
 /** Snapshot every shared public option once, including inherited and non-enumerable values. */
 function runtimeOptions<F extends AnyWizardDefinition>(options: SharedOptions<F>) {
-  const out: Record<string, unknown> = { machine, initialState }
+  const out: Record<string, unknown> = {}
   for (const key of [
     'store',
     'key',

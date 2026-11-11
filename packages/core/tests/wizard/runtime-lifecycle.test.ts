@@ -7,7 +7,6 @@ import { WizardError } from '../../src/errors'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { DomainEvent } from '../../src/machine/events'
-import { initialState, machine } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
 import { createWizardRuntime, type WizardRuntimeOptions } from '../../src/wizard/runtime'
 import { eventStep, flow, flowStep, runStep, stringsBoundary, view } from '../helpers/fixtures'
@@ -17,8 +16,6 @@ function make(def: CompiledWizard, opts: Partial<WizardRuntimeOptions> = {}) {
   const sched = createTestScheduler({ now: 1_000 })
   const run = createWizardRuntime(def, {
     context: { tenant: 't1' },
-    machine,
-    initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     instanceId: 'wiz-1',

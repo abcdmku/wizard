@@ -97,7 +97,6 @@ export function createContext(
   const tx = createTxTracker(() => ctx.disposed)
   const interp = createInterpreter<WizardRuntime, ResumePlan>({
     def,
-    machine: cfg.machine,
     path: init.path,
     env,
     initialState: init.state,

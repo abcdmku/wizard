@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { DomainEvent } from '../../src/machine/events'
-import { initialState, machine } from '../../src/machine/index'
 import { createWizardRuntime } from '../../src/wizard/runtime'
 import { createHarness, flow, of, view } from '../helpers/fixtures'
 
@@ -133,8 +132,6 @@ describe('navigation cancellation', () => {
       })
       const run = createWizardRuntime(def, {
         context: {},
-        machine,
-        initialState,
         scheduler: createTestScheduler(),
       })
       const events: DomainEvent[] = []

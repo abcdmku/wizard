@@ -3,7 +3,7 @@ import { createSequentialIds } from '../../src/interpreter/env'
 import { createInterpreter } from '../../src/interpreter/interpreter'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { Message } from '../../src/machine/commands'
-import { initialState, machine } from '../../src/machine/index'
+import { initialState } from '../../src/machine/index'
 import { eventStep, flow, runStep, trusted } from '../helpers/fixtures'
 
 it('identifies the queue message that caused each durable barrier batch', () => {
@@ -13,7 +13,6 @@ it('identifies the queue message that caused each durable barrier batch', () => 
   const messages: Message[] = []
   const interpreter = createInterpreter({
     def,
-    machine,
     path: [],
     env: { clock: scheduler, scheduler, ids },
     initialState: initialState(
@@ -54,7 +53,6 @@ it('commits a synchronous wait update and completion in one durable batch', () =
   const barriers: Array<{ phase: unknown; wait: string; events: string[] }> = []
   const interpreter = createInterpreter({
     def,
-    machine,
     path: [],
     env: { clock: scheduler, scheduler, ids },
     initialState: initialState(

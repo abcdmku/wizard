@@ -9,7 +9,7 @@ import {
 } from '../../src/interpreter/interpreter'
 import { createTestScheduler, type TestScheduler } from '../../src/interpreter/test-scheduler'
 import type { DomainEvent } from '../../src/machine/events'
-import { initialState, machine } from '../../src/machine/index'
+import { initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
 import { toSnapshot } from '../../src/wizard/snapshot'
 import { eventStep, flow, flowStep, runStep } from '../helpers/fixtures'
@@ -32,7 +32,6 @@ function makeHandle(
   const eventListeners = new Set<(e: DomainEvent) => void>()
   const interp: Interpreter<Handle> = createInterpreter<Handle>({
     def,
-    machine,
     path,
     env: { clock: sched, scheduler: sched, ids },
     initialState: state,
@@ -92,7 +91,6 @@ function setup(parentDef: CompiledWizard, extra: Partial<InterpreterOptions<Hand
   const menv = { def: parentDef, path: [], now: () => sched.now(), id: (p: string) => ids.id(p) }
   const interp = createInterpreter<Handle>({
     def: parentDef,
-    machine,
     path: [],
     env,
     initialState: initialState(menv, {
@@ -310,7 +308,6 @@ describe('child bridge', () => {
     const menv = { def, path: [], now: () => sched.now(), id: (p: string) => ids.id(p) }
     const interp = createInterpreter({
       def,
-      machine,
       path: [],
       env: { clock: sched, scheduler: sched, ids },
       initialState: initialState(menv, { instanceId: 'p', context: {}, now: 0 }),

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import { initialState, machine } from '../../src/machine/index'
 import { createPersistenceDriver } from '../../src/persistence/driver'
 import { createMemoryStore } from '../../src/persistence/memory-store'
 import type { Store } from '../../src/persistence/store'
@@ -44,8 +43,6 @@ function make(opts: Partial<WizardRuntimeOptions> & { store: Store }) {
   const sched = createTestScheduler({ now: 100 })
   const run = createWizardRuntime(twoViews, {
     context: { secret: 'hunter2', tenant: 't' },
-    machine,
-    initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     instanceId: 'w1',
@@ -180,8 +177,6 @@ describe('persistence via the run runtime', () => {
     const sched = createTestScheduler()
     const run = createWizardRuntime(twoViews, {
       context: {},
-      machine,
-      initialState,
       scheduler: sched,
     })
     await expect(run.save()).resolves.toBeUndefined()
@@ -205,8 +200,6 @@ describe('persistence via the run runtime', () => {
     const sched = createTestScheduler()
     const run = createWizardRuntime(parent, {
       context: {},
-      machine,
-      initialState,
       scheduler: sched,
       store,
       key: 'root',

@@ -6,6 +6,7 @@
  * Synchronous results stay in the current drain. Any drain failure aborts the runtime.
  * @internal
  */
+import { machine } from '../machine'
 import type { Message } from '../machine/commands'
 import type { CallEffect, PersistReason } from '../machine/effects'
 import type { DomainEvent } from '../machine/events'
@@ -46,7 +47,7 @@ interface QueuedCall {
 export function createInterpreter<H extends ChildHandle = ChildHandle, P = Snapshot>(
   opts: InterpreterOptions<H, P>,
 ): Interpreter<H, P> {
-  const { def, machine, path, env } = opts
+  const { def, path, env } = opts
   const logSize = Math.max(0, opts.logSize ?? DEFAULT_LOG_SIZE)
   const versions = createStepVersions()
   /** The machine's live state; `published` is the immutable view of its last committed batch. */

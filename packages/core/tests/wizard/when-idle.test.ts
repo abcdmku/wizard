@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { compile } from '../../src/authoring/compile'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import { initialState, machine } from '../../src/machine'
 import { createRun, type RunEvent, RunLifecycleError } from '../../src/wizard/create-wizard'
 import { defineWizard } from '../../src/wizard/define-wizard'
 import { createWizardRuntime } from '../../src/wizard/runtime'
@@ -163,8 +162,6 @@ describe('Run.whenIdle', () => {
     const errors: unknown[] = []
     const run = createWizardRuntime(compile(eventFlow), {
       context: { ticks: 0 },
-      machine,
-      initialState,
       beforeEffects: ({ events }) =>
         events.some((event) => event.type === 'event.received') ? gate.promise : undefined,
       onListenerError: (error) => errors.push(error),
@@ -191,8 +188,6 @@ describe('Run.whenIdle', () => {
       let run: ReturnType<typeof createWizardRuntime>
       run = createWizardRuntime(compile(eventFlow), {
         context: { ticks: 0 },
-        machine,
-        initialState,
         beforeEffects: () => {
           waiting = run.whenIdle()
           return hostileBarrier(mode, failure)
