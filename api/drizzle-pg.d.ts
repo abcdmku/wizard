@@ -1,7 +1,15 @@
-import { t as DrizzleDurableStoreOptions } from "./store-CtbU3mHI.js";
 import { TablesRelationalConfig } from "drizzle-orm";
 import { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import { DurableStore } from "@openwizard/durable";
+import { DurableStore, RetentionPolicy } from "@openwizard/durable/store";
+//#region src/store-types.d.ts
+/** Options shared by the Drizzle durable-store adapters. @public */
+interface DrizzleDurableStoreOptions {
+  readonly now?: () => number;
+  readonly leaseTtlMs?: number;
+  readonly timerClaimTtlMs?: number;
+  readonly retention?: RetentionPolicy;
+}
+//#endregion
 //#region src/pg.d.ts
 /** Controls the table names created by `definePgDurableSchema`. @public */
 interface PgDurableSchemaOptions {
@@ -197,25 +205,6 @@ declare function definePgDurableSchema(options?: PgDurableSchemaOptions): {
         identity: undefined;
         generated: undefined;
       }, {}, {}>;
-      kind: import("drizzle-orm/pg-core").PgColumn<{
-        name: "kind";
-        tableName: "dedupe";
-        dataType: "string";
-        columnType: "PgText";
-        data: "command" | "event";
-        driverParam: string;
-        notNull: true;
-        hasDefault: false;
-        isPrimaryKey: false;
-        isAutoincrement: false;
-        hasRuntimeDefault: false;
-        enumValues: [string, ...string[]];
-        baseColumn: never;
-        identity: undefined;
-        generated: undefined;
-      }, {}, {
-        $type: "command" | "event";
-      }>;
       dedupeId: import("drizzle-orm/pg-core").PgColumn<{
         name: "dedupe_id";
         tableName: "dedupe";
@@ -255,7 +244,7 @@ declare function definePgDurableSchema(options?: PgDurableSchemaOptions): {
         tableName: "dedupe";
         dataType: "string";
         columnType: "PgText";
-        data: "pending" | "completed";
+        data: "pending" | "applied" | "completed";
         driverParam: string;
         notNull: true;
         hasDefault: false;
@@ -267,7 +256,7 @@ declare function definePgDurableSchema(options?: PgDurableSchemaOptions): {
         identity: undefined;
         generated: undefined;
       }, {}, {
-        $type: "pending" | "completed";
+        $type: "pending" | "applied" | "completed";
       }>;
       claimId: import("drizzle-orm/pg-core").PgColumn<{
         name: "claim_id";

@@ -3,7 +3,6 @@
  * The parent pays, then hands over to the child fulfilment flow; every child event is printed
  * with its path.
  */
-import { createRun } from '@openwizard/core'
 import { type Deps, orderFlow } from './order'
 
 const deps: Deps = {
@@ -11,7 +10,7 @@ const deps: Deps = {
   carrier: { ship: async (orderId, warehouse) => ({ tracking: `TRK-${warehouse}-${orderId}` }) },
 }
 
-const run = createRun(orderFlow, { context: { orderId: 'o-1', amount: 30 }, deps })
+const run = orderFlow.create({ orderId: 'o-1', amount: 30 }, { deps })
 run.observe((event) => {
   if (['step.entered', 'step.done', 'child.started', 'flow.done'].includes(event.type)) {
     const path = event.path.length === 0 ? '(root)' : event.path.join('/')

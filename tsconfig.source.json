@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Resolves every @openwizard/* import to package SOURCE. Extended by the root tsconfig.json and by each package's tsconfig.test.json (vitest typecheck); vitest.config.ts derives its runtime aliases from these paths. Never extend it from a package build tsconfig: tsdown would inline workspace types into the emitted declarations.",
+  "compilerOptions": {
+    "rootDir": ".",
+    "paths": {
+      "@openwizard/core": ["./packages/core/src/index.ts"],
+      "@openwizard/core/testing": ["./packages/core/src/testing.ts"],
+      "@openwizard/core/inspect": ["./packages/core/src/inspect/index.ts"],
+      "@openwizard/core/mirror": ["./packages/core/src/mirror/index.ts"],
+      "@openwizard/durable": ["./packages/durable/src/index.ts"],
+      "@openwizard/durable/store": ["./packages/durable/src/store.ts"],
+      "@openwizard/durable/testing": ["./packages/durable/src/testing.ts"],
+      "@openwizard/drizzle": ["./packages/drizzle/src/index.ts"],
+      "@openwizard/drizzle/pg": ["./packages/drizzle/src/pg.ts"],
+      "@openwizard/drizzle/sqlite": ["./packages/drizzle/src/sqlite.ts"],
+      "@openwizard/react": ["./packages/react/src/index.ts"],
+      "@openwizard/devtools": ["./packages/devtools/src/index.ts"],
+      "@openwizard/effect": ["./packages/effect/src/index.ts"],
+      "@openwizard/opentelemetry": ["./packages/opentelemetry/src/index.ts"],
+      "@openwizard/http": ["./packages/http/src/index.ts"],
+      "@openwizard/http/client": ["./packages/http/src/client.ts"],
+      "@openwizard/http/nitro": ["./packages/http/src/nitro.ts"]
+    }
+  }
+}

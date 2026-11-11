@@ -1,16 +1,24 @@
 import { Link } from '@tanstack/react-router'
 import type { MDXComponents } from 'mdx/types'
 import { type ComponentPropsWithoutRef, useRef } from 'react'
+import { withBase } from '../../lib/site'
 import { Badge, Callout, Step, Steps, Tab, Tabs } from './blocks'
 import { CopyButton } from './copy-button'
 import { Diagram } from './diagram'
 
-/** Site-absolute links navigate client-side (and get the deployment base); others are plain anchors. */
+/** Docs routes navigate client-side; generated files use base-prefixed ordinary anchors. */
 function MdxAnchor({ href, children, className, title }: ComponentPropsWithoutRef<'a'>) {
   if (typeof href === 'string' && href.startsWith('/') && !href.startsWith('//')) {
     const [pathAndQuery = '', hash] = href.split('#')
     const [path = '', query] = pathAndQuery.split('?')
     const slug = path.replace(/^\/+/, '').replace(/\/+$/, '')
+    if (slug === 'typedoc' || slug.startsWith('typedoc/') || slug.startsWith('pagefind/')) {
+      return (
+        <a href={withBase(href)} className={className} title={title}>
+          {children}
+        </a>
+      )
+    }
     const shared = { className, title, ...(hash ? { hash } : {}) }
     if (slug === 'playground') {
       const search = Object.fromEntries(new URLSearchParams(query ?? ''))

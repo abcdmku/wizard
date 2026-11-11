@@ -1,7 +1,7 @@
 /**
- * Public types of `@openwizard/devtools`. The components accept a live `FlowRun` or a `Mirror`
- * through STRUCTURAL source types (`FlowRunSource` / `MirrorSource`) so any typed
- * `FlowRun<F>` / `Mirror<P>` fits without a cast, and read the flow's static graph as the
+ * Public types of `@openwizard/devtools`. The components accept a live `Run` or a `Mirror`
+ * through STRUCTURAL source types (`RunSource` / `MirrorSource`) so any typed
+ * `Run<F>` / `Mirror<P>` fits without a cast, and read the flow's static graph as the
  * `FlowGraph` `inspect(flow)` returns.
  *
  * @packageDocumentation
@@ -10,12 +10,12 @@
 import type {
   AnyFlow,
   Explanation,
-  FlowGraph,
   RunEvent,
   Snapshot,
   StepKind,
   StepStatus,
 } from '@openwizard/core'
+import type { FlowGraph } from '@openwizard/core/inspect'
 
 /**
  * Colour scheme of the devtools: `'system'` follows `prefers-color-scheme`, the others force it
@@ -42,7 +42,7 @@ export interface StepStatusInfo {
 
 /**
  * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root flow,
- * `'fulfil/pick'` for step `pick` of the child flow of `fulfil`). Built with
+ * `'fulfil/pick'` for an ordinary child or `'batch/0/pick'` for a mapped child). Built with
  * `collectStatuses()` from a run snapshot or a projected (`ClientState`) state, or by hand.
  * @public
  */
@@ -51,6 +51,7 @@ export type StepStatusMap = Readonly<Record<string, StepStatusInfo>>
 /**
  * What a graph click reports: the step `id`, the run `path` of its flow and the combined
  * `key` (`stepKey(path, id)`).
+ * Mapped children carry their input index after the owning step, e.g. `['batch', '0']`.
  * @public
  */
 export interface GraphSelection {
@@ -70,7 +71,7 @@ export function stepKey(path: readonly string[], id: string): string {
 
 /**
  * A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by
- * flow-step id. `FlowRun.getSnapshot()` of any flow returns one.
+ * flow-step id. `Run.getSnapshot()` of any flow returns one.
  * @public
  */
 export interface SnapshotLike {
@@ -79,12 +80,12 @@ export interface SnapshotLike {
 }
 
 /**
- * The structural view of a `FlowRun` the devtools read (`FlowRun<F>` of any flow satisfies it):
+ * The structural view of a `Run` the devtools read (`Run<F>` of any flow satisfies it):
  * identity, the flow, state / snapshot, the two subscriptions, the bounded log, `explain` and
  * the live child handles.
  * @public
  */
-export interface FlowRunSource {
+export interface RunSource {
   readonly id: string
   readonly flow: AnyFlow
   getState(): Snapshot<AnyFlow>['state']
@@ -93,8 +94,8 @@ export interface FlowRunSource {
   observe(listener: (event: RunEvent) => void): () => void
   log(): readonly RunEvent[]
   explain(step: string): Explanation
-  /** Live child of an active flow step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE` otherwise). */
-  child(step: string): FlowRunSource
+  /** Live child, optionally selected by mapped item key or index. Throws when it is not live. */
+  child(step: string, keyOrIndex?: number | string): Pick<RunSource, 'explain' | 'child'>
 }
 
 /**
@@ -114,17 +115,18 @@ export interface MirrorSource {
 }
 
 /**
- * What the components accept as `source`: a live `FlowRun` or a `Mirror`.
+ * What the components accept as `source`: a live `Run` or a `Mirror`.
  * @public
  */
-export type DevtoolsSource = FlowRunSource | MirrorSource
+export type DevtoolsSource = RunSource | MirrorSource
 
 /**
- * True for a `FlowRunSource` (it has `observe` / `log` / `explain`); false for a Mirror.
+ * True for a `RunSource` (it has `getState` / `log` / `explain`); false for a Mirror (which
+ * also has `observe`).
  * @public
  */
-export function isFlowRunSource(source: DevtoolsSource): source is FlowRunSource {
-  return 'observe' in source && typeof source.observe === 'function'
+export function isRunSource(source: DevtoolsSource): source is RunSource {
+  return 'getState' in source && typeof source.getState === 'function'
 }
 
 /**
@@ -183,16 +185,3 @@ export interface GraphInput {
   readonly graph?: FlowGraph
   readonly flow?: AnyFlow
 }
-
-/**
- * One node of a `FlowGraph` (`inspect(flow).nodes[i]`): id, kind, path, hooks, `dependsOn`,
- * `timeout`, `dynamicNext`, `start`.
- * @public
- */
-export type FlowGraphNode = FlowGraph['nodes'][number]
-
-/**
- * One edge of a `FlowGraph` (`inspect(flow).edges[i]`): `from` (`null` for `start`), `to`, kind, path.
- * @public
- */
-export type FlowGraphEdge = FlowGraph['edges'][number]

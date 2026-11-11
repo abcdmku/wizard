@@ -1,4 +1,4 @@
-import { defineFlow } from '@openwizard/core'
+import { defineWizard } from '@openwizard/core'
 import {
   createDurableRun,
   createMemoryDurableStore,
@@ -6,19 +6,18 @@ import {
 } from '@openwizard/durable'
 import { z } from 'zod'
 
-const approval = defineFlow({
-  name: 'durable-approval',
-  context: z.object({ requestId: z.string() }),
-  events: { approved: z.object({ by: z.string() }) },
-})
-
-export const durableApprovalFlow = approval.steps({
-  wait: approval.wait({
-    on: { approved: () => undefined },
-    next: 'done',
-  }),
-  done: approval.final(),
-})
+export const durableApprovalFlow = defineWizard(
+  {
+    name: 'durable-approval',
+    context: z.object({ requestId: z.string() }),
+    events: { approved: z.object({ by: z.string() }) },
+  },
+  ({ step, steps }) =>
+    steps({
+      wait: step({ waitFor: { approved: () => undefined }, next: 'done' }),
+      done: step({ run: () => undefined }),
+    }),
+)
 
 export async function demonstrateDurableOwnership() {
   const store = createMemoryDurableStore()
@@ -28,7 +27,6 @@ export async function demonstrateDurableOwnership() {
     key: 'approvals/expense-42',
     ownerId: 'worker-a',
   })
-
   if (!opened.ok) throw new Error(opened.code)
 
   const startCommand = { type: 'start' } as const

@@ -1,70 +1,67 @@
-# How a flow becomes a running workflow
+# Flows and runs
 
-Suppose your application signs up a user. It collects an email, creates an account, and reports success. OpenWizard separates the reusable description of that work from each live attempt to perform it.
+A wizard is a typed definition of steps and their links. A run is one execution with its own context, input drafts, and step records. Store its snapshot to continue after a process restart.
 
-That separation gives you four pieces to keep track of: a flow definition, a run, its steps, and its context. They have different jobs.
+<Diagram name="runtimeModel" />
 
-## A flow defines the possible work
+Commands, external events, and timers change the recorded state. OpenWizard uses that state to decide which work starts next. A pending promise belongs to the live process; its completed result belongs to the snapshot.
 
-A flow is a reusable definition. It contains named steps and the links that tell OpenWizard what may run next.
+## Definition and instance
 
-```text
-collectEmail -> sendEmail -> done
-```
+`defineWizard(options, ({ step, view, flow, steps }) => steps(map))` builds the definition once. The wizard itself is the flow accepted by inspectors and integrations, so use `inspect(order)`, `createDurableHost(order, options)`, or `flow(order, config)`.
 
-A flow also defines the schema for its starting context and, when needed, its external events and dependencies. Calling `defineFlow()` and `steps()` creates an inert definition object. It does not start any work.
-
-Your application normally defines a flow once in a module and imports it wherever it needs to create or resume a run.
-
-## A run is one live attempt
-
-A run is one execution of a flow. Ten users going through the same signup flow create ten separate runs. One user can finish while another is still entering an email.
+Create a run when you have input for one execution:
 
 ```ts
-const run = createRun(signupFlow, {
-  context: { userId: 'user-42' },
-})
+const run = order.create(
+  { orderId: 'o-42', total: 42 },
+  { deps: { payments }, instanceId: 'order-o-42' },
+)
 
 await run.start()
 ```
 
-`createRun()` checks the starting context and creates an idle run. `start()` activates the flow's starting step. The run then owns its state, timers, event listeners, step outputs, and saved snapshot.
+- `steps(map, { start })` assembles step references and chooses the entry steps. Invalid references and dependency cycles fail at definition time.
+- `wizard.create(input, options?)` checks starting context and returns a `Run<typeof wizard>`.
+- `deps` supplies services such as database clients. Snapshots never store them. `wizard.provide({ payments })` binds services to a new wizard for its runs and integrations.
+- `run.start()` activates the entry steps. `next` and `needs` decide which steps activate after that.
 
-Use the run object to send commands such as `next()`, `send()`, `retry()`, or `cancel()`. Use `getState()` when your server or UI needs to know what is happening now.
+## What a run records
 
-## Steps describe each stage
+`run.getState()` returns the current state. `run.getSnapshot()` wraps it in a versioned JSON envelope for storage.
 
-A step is one named stage of the work. For example, `collectEmail` can pause for user input, `sendEmail` can call an email service, and `done` can return the flow's final output.
+| Fact | Used for |
+|---|---|
+| Context | Typed data shared by this run's steps |
+| Step records | Status, attempt, input, output, and error per step |
+| Timers | Sleep, retry, wait timeout, and event-buffer deadlines as absolute times |
+| Buffered events | Valid events that arrived before a listener was active |
+| Compensation stack | Completed work and the outputs its undo hooks need |
+| Child runs | Snapshots of nested runs |
 
-Each step has an id such as `collectEmail`. Links such as `next: 'sendEmail'` form a graph. OpenWizard also uses step ids in state, commands, event logs, and TypeScript types. A misspelled id in a flow definition fails validation instead of becoming a broken route at runtime.
+## How a step becomes ready
 
-A step's output belongs to that step. For example, the result of `sendEmail` is available at `state.steps.sendEmail.output` after the task succeeds.
+| Declaration | Effect |
+|---|---|
+| `next: otherStep` | Activates that step when this one finishes |
+| `next: [first, second]` | Activates several branches |
+| `needs: { profile: loadProfile }` | Activates when `loadProfile` finishes and gives hooks its typed output as `needs.profile` |
+| `dependsOn: [loadProfile]` | Gates a step that already has an activation; it does not activate the step or pass its output |
+| `when: predicate` | Skips the activated step if the predicate returns false |
 
-## Context carries shared data
+A function `next` must declare `targets`, the step ids or objects it may return. Targets the function does not select become `skipped`. For a data join over exclusive branches, use an `any` or `optional` need. A plain need propagates a skipped producer to its consumer.
 
-Context is data shared by all steps in one run.
+`run.explain('step')` explains why a step is blocked. `run.waitingFor()` lists views, event waits, and sleep deadlines, including waits in children. See [graphs and parallel work](/advanced/graphs) for larger graphs.
+
+## Save and resume
 
 ```ts
-{ userId: 'user-42', email: 'ada@example.com' }
+const saved = await store.get('order-o-42')
+const resumed = order.resume(saved, { deps: { payments }, store })
 ```
 
-Every step can read context. A hook can call `update()` to shallow-merge changed fields into it. Use context for values that later steps need, such as a user id or email address.
+Resume checks the snapshot against the wizard and restores its children. Each run fires its overdue timers before recovering its own interrupted work. Completed work stays completed; interrupted external calls need an idempotency policy. The [save and resume](/learn/persistence) page covers storage.
 
-Do not use context for a temporary form draft or a service client. A view owns its draft until validation succeeds. Service clients belong in `deps`, where they stay outside saved state.
+## Next
 
-Keep context JSON-safe if you plan to save the run. Strings, numbers, booleans, arrays, plain objects, and `null` survive a snapshot. Database clients and class instances do not.
-
-## Follow one run through the pieces
-
-For a signup flow, the lifecycle looks like this:
-
-1. The application imports the reusable `signupFlow` definition.
-2. It calls `createRun(signupFlow, { context: {} })` for one user.
-3. `start()` enters the `collectEmail` step and the run waits.
-4. The user supplies a valid email. The step copies it into the run's context and links to `sendEmail`.
-5. The `sendEmail` task runs and stores its own output.
-6. The `done` step creates the final result and changes the run status to `done`.
-
-The definition says what can happen. The run records what has happened for one attempt.
-
-Next, learn [what each step kind does to a live run](/learn/steps).
+[Step kinds](/learn/steps) shows which declarations run work, collect input, wait, and route.

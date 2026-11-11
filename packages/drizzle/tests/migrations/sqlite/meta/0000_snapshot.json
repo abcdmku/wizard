@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d1404527-891b-4628-a13c-d581d027728f",
+  "id": "389448ac-0034-4da6-a840-1e885cb7d4e8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "test_wizard_dedupe": {
@@ -9,13 +9,6 @@
       "columns": {
         "run_key": {
           "name": "run_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -104,9 +97,9 @@
         }
       },
       "compositePrimaryKeys": {
-        "test_wizard_dedupe_run_key_kind_dedupe_id_pk": {
-          "columns": ["run_key", "kind", "dedupe_id"],
-          "name": "test_wizard_dedupe_run_key_kind_dedupe_id_pk"
+        "test_wizard_dedupe_run_key_dedupe_id_pk": {
+          "columns": ["run_key", "dedupe_id"],
+          "name": "test_wizard_dedupe_run_key_dedupe_id_pk"
         }
       },
       "uniqueConstraints": {},

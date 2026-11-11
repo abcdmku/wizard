@@ -1,6 +1,6 @@
 import { Context, Span, SpanContext, Tracer } from "@opentelemetry/api";
-import { AnyFlow, EventType, FlowRun, SendResult } from "@openwizard/core";
-//#region src/index.d.ts
+import { AnyWizard, EventType, PayloadInput, Run, SendResult } from "@openwizard/core";
+//#region src/types.d.ts
 type InstanceIdOption = 'raw' | 'none' | ((id: string) => string | undefined);
 /** Options for `instrumentRun`. @public */
 interface InstrumentRunOptions {
@@ -25,11 +25,13 @@ interface InstrumentRunOptions {
 interface ExternalSendOptions {
   /** The workflow's normal correlation id, if the caller needs to supply one. */
   readonly correlationId?: string;
+  /** Delivery id preserved by the run for event deduplication. */
+  readonly eventId?: string;
   /** Extracted request/message context to link to `event.received`. */
   readonly context?: Context;
 }
 /** Handle returned by `instrumentRun`. @public */
-interface RunInstrumentation<F extends AnyFlow> {
+interface RunInstrumentation<F extends AnyWizard> {
   /** Stop observing and finish open spans. Calling this more than once is safe. */
   stop(): void;
   /** Return the workflow/task span for a path, if it has been created. */
@@ -43,17 +45,19 @@ interface RunInstrumentation<F extends AnyFlow> {
   /** Run a callback with an incoming context marked as an external-event context. */
   withExternalContext<T>(incoming: Context, fn: () => T): T;
   /** Send an external event and optionally associate its incoming trace context. */
-  send<E extends EventType<F>>(event: E, payload: unknown, options?: ExternalSendOptions): Promise<SendResult>;
+  send<E extends EventType<F>, P>(event: E, payload: unknown extends P ? P : PayloadInput<F, E>, options?: ExternalSendOptions): Promise<SendResult>;
 }
+//#endregion
+//#region src/index.d.ts
 /**
  * Attach OpenTelemetry workflow, task-attempt, compensation, and nested-flow spans to a run.
  *
  * Only stable identifiers, event names, counters, paths, and boolean outcomes are exported.
  * Payloads, outputs, input/context patches, inbox/correlation values, idempotency keys, and
- * error messages are intentionally never copied to spans.
+ * error messages are never copied to spans.
  * @public
  */
-declare function instrumentRun<F extends AnyFlow>(run: FlowRun<F>, options?: InstrumentRunOptions): RunInstrumentation<F>;
+declare function instrumentRun<F extends AnyWizard>(run: Run<F>, options?: InstrumentRunOptions): RunInstrumentation<F>;
 //#endregion
-export { ExternalSendOptions, InstrumentRunOptions, RunInstrumentation, instrumentRun };
+export { type ExternalSendOptions, type InstrumentRunOptions, type RunInstrumentation, instrumentRun };
 //# sourceMappingURL=index.d.ts.map

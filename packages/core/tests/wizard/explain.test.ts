@@ -6,39 +6,44 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import { defineFlow } from '../../src/authoring/define-flow'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import { createRun, type Explanation } from '../../src/wizard/create-wizard'
+import type { Explanation } from '../../src/wizard/create-wizard'
+import { defineWizard } from '../../src/wizard/define-wizard'
 
-const explain = defineFlow({
-  name: 'explain',
-  context: boundary.trusted<{ ok: boolean }>(),
-  autoRun: 'ready',
-})
-const flow = explain.steps(
+const flow = defineWizard(
   {
-    form: explain.view({ input: z.object({ name: z.string() }), next: ['a', 'b'] }),
-    a: explain.view({ next: 'join' }),
-    b: explain.view({ canEnter: ({ context }) => context.ok, next: 'join' }),
-    join: explain.task(() => 'joined', { dependsOn: ['a', 'b'], next: 'boom' }),
-    boom: explain.task(
-      () => {
-        throw new Error('nope')
-      },
-      { next: 'end' },
-    ),
-    end: explain.final(),
+    name: 'explain',
+    context: boundary.trusted<{ ok: boolean }>(),
+    autoRun: 'ready',
   },
-  { start: 'form' },
+  ({ step, view, steps }) =>
+    steps(
+      {
+        form: view({ input: z.object({ name: z.string() }), next: ['a', 'b'] }),
+        a: view({ next: 'join' }),
+        b: view({ canEnter: ({ context }) => context.ok, next: 'join' }),
+        join: step({ run: () => 'joined', dependsOn: ['a', 'b'], next: 'boom' }),
+        boom: step({
+          run: () => {
+            throw new Error('nope')
+          },
+          next: 'end',
+        }),
+        end: step({ next: null }),
+      },
+      { start: 'form' },
+    ),
 )
 
 function make(ok = true) {
-  return createRun(flow, {
-    context: { ok },
-    scheduler: createTestScheduler({ now: 1_000 }),
-    ids: createSequentialIds(),
-  })
+  return flow.create(
+    { ok },
+    {
+      scheduler: createTestScheduler({ now: 1_000 }),
+      ids: createSequentialIds(),
+    },
+  )
 }
 
 describe('run.explain()', () => {
@@ -49,6 +54,7 @@ describe('run.explain()', () => {
       phase: undefined,
       reasons: ['flow-not-started', 'not-activated'],
       candidates: [],
+      waitingFor: [],
     })
     await run.start()
     const explained: Explanation<typeof flow> = run.explain('form')
@@ -105,10 +111,13 @@ describe('run.explain()', () => {
     await ok.next() // form → [a, b]; cursor on a
     await ok.next() // a → join (gated on b); cursor moves to b (only ready view)
     await ok.next() // b → join runs → boom fails (halt)
-    expect(ok.getState().status).toBe('failed')
+    expect(ok.getState().status).toBe('halted')
     // A halt failure is recoverable (`retry()`), so the flow is not terminal — only the step is.
-    expect(ok.explain('boom')).toMatchObject({ status: 'failed', reasons: ['failed:run'] })
-    expect(ok.explain('end').reasons).toEqual(['not-activated'])
+    expect(ok.explain('boom')).toMatchObject({
+      status: 'failed',
+      reasons: ['flow-halted', 'failed:run'],
+    })
+    expect(ok.explain('end').reasons).toEqual(['flow-halted', 'not-activated'])
     ok.dispose()
     run.dispose()
   })
@@ -121,6 +130,7 @@ describe('run.explain()', () => {
       phase: undefined,
       reasons: ['unknown-step'],
       candidates: [],
+      waitingFor: [{ kind: 'view', path: [], step: 'form' }],
     })
     run.dispose()
     expect(run.explain('form').status).toBe('active')

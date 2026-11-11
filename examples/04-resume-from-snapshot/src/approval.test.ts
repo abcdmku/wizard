@@ -1,13 +1,8 @@
-import {
-  createMemoryStore,
-  createRun,
-  isWizardError,
-  resumeRun,
-  type Snapshot,
-} from '@openwizard/core'
+import { createMemoryStore, isWizardError } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { approval, approvalV2, type Deps } from './approval'
+import { addCurrency } from './migrate'
 
 const HOUR = 3_600_000
 const T0 = 1_700_000_000_000 // "now" of the first process (any epoch ms)
@@ -31,12 +26,10 @@ function fakeNotifier(mode: 'instant' | 'hang') {
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 const context = { requestId: '42', amount: 1_250 }
 
-async function load(
-  store: ReturnType<typeof createMemoryStore>,
-): Promise<Snapshot<typeof approval>> {
+async function load(store: ReturnType<typeof createMemoryStore>): Promise<unknown> {
   const saved = await store.get(KEY)
   if (saved === null) throw new Error(`nothing stored under ${KEY}`)
-  return saved as Snapshot<typeof approval> // a store returns `unknown`; resumeRun re-validates it
+  return saved // resume validates the untrusted store value
 }
 
 describe('04 resume from snapshot', () => {
@@ -46,8 +39,7 @@ describe('04 resume from snapshot', () => {
 
     // Process 1 ─────────────────────────────────────────────────────────────────────────
     const sched1 = createTestScheduler({ now: T0 })
-    const first = createRun(approval, {
-      context,
+    const first = approval.create(context, {
       deps,
       instanceId: 'exp-42',
       store,
@@ -63,7 +55,8 @@ describe('04 resume from snapshot', () => {
       deadline: T0 + 48 * HOUR, // absolute: it survives the crash below
     })
     await first.save() // auto-save already wrote; save() makes the test deterministic
-    const saved = await load(store)
+    const saved = first.getSnapshot()
+    expect(await load(store)).toEqual(saved)
     expect(saved).toMatchObject({
       v: 1,
       flow: { name: 'expense-approval', version: 1 },
@@ -76,7 +69,7 @@ describe('04 resume from snapshot', () => {
 
     // Process 2, three hours later ──────────────────────────────────────────────────────
     const sched2 = createTestScheduler({ now: T0 + 3 * HOUR })
-    const resumed = resumeRun(approval, await store.get(KEY), {
+    const resumed = approval.resume(await load(store), {
       deps,
       store,
       key: KEY,
@@ -100,8 +93,8 @@ describe('04 resume from snapshot', () => {
     sched2.advance(1)
     expect(resumed.getState().steps.awaitDecision).toMatchObject({
       status: 'done',
-      output: { event: 'timeout' },
     })
+    expect(resumed.getState().steps.awaitDecision.output).toBeUndefined()
     expect(resumed.getState().status).toBe('done')
     expect(resumed.getState().output).toBe('expired: nobody decided within 48h')
     expect(
@@ -117,7 +110,7 @@ describe('04 resume from snapshot', () => {
 
     // A snapshot is plain data: the SAME saved snapshot can be resumed again, e.g. by a replica
     // that receives the decision in time.
-    const replica = resumeRun(approval, saved, {
+    const replica = approval.resume(saved, {
       deps,
       scheduler: createTestScheduler({ now: T0 + 1 * HOUR }),
     })
@@ -130,18 +123,42 @@ describe('04 resume from snapshot', () => {
     replica.dispose()
   })
 
-  it('marks an interrupted task failed on resume and recovers when it is retried', async () => {
+  it('takes an overdue timeout on resume before a late decision can satisfy the wait', async () => {
+    const { deps } = fakeNotifier('instant')
+    const first = approval.create(context, {
+      deps,
+      scheduler: createTestScheduler({ now: T0 }),
+    })
+    await first.start()
+    await settle()
+    const saved = first.getSnapshot()
+    first.dispose()
+
+    const resumed = approval.resume(saved, {
+      deps,
+      scheduler: createTestScheduler({ now: T0 + 49 * HOUR }),
+    })
+    expect(resumed.getState().status).toBe('done')
+    expect(resumed.getState().output).toBe('expired: nobody decided within 48h')
+    expect(await resumed.send('approval.decided', { approved: true, by: 'kim' })).toMatchObject({
+      ok: false,
+    })
+    expect(resumed.getState().context.decision).toBeUndefined()
+    resumed.dispose()
+  })
+
+  it('fails an interrupted task on resume, halting the run, and recovers when it is retried', async () => {
     const { deps, state } = fakeNotifier('hang')
     const sched1 = createTestScheduler({ now: T0 })
-    const first = createRun(approval, { context, deps, instanceId: 'exp-43', scheduler: sched1 })
+    const first = approval.create(context, { deps, instanceId: 'exp-43', scheduler: sched1 })
     await first.start()
     expect(first.getState().steps.notify).toMatchObject({ status: 'active', attempt: 1 })
     // What a store would hold at this moment (JSON round trip = what any database does).
-    const snapshot = JSON.parse(JSON.stringify(first.getSnapshot())) as unknown
+    const snapshot: unknown = JSON.parse(JSON.stringify(first.getSnapshot()))
     first.dispose() // crash while the notifier call is in flight
 
     state.mode = 'instant'
-    const resumed = resumeRun(approval, snapshot, {
+    const resumed = approval.resume(snapshot, {
       deps,
       scheduler: createTestScheduler({ now: T0 + 60_000 }),
     })
@@ -151,8 +168,8 @@ describe('04 resume from snapshot', () => {
       status: 'failed',
       error: { kind: 'interrupted', code: 'INTERRUPTED' },
     })
-    expect(resumed.getState().status).toBe('failed')
-    expect(resumed.explain('notify').reasons).toEqual(['failed:interrupted'])
+    expect(resumed.getState().status).toBe('halted')
+    expect(resumed.explain('notify').reasons).toEqual(['flow-halted', 'failed:interrupted'])
 
     // The host decides whether the side effect may run again (make it idempotent!) → retry().
     expect(await resumed.retry('notify')).toMatchObject({ ok: true })
@@ -171,36 +188,26 @@ describe('04 resume from snapshot', () => {
   })
   it('migrates a v1 snapshot into the v2 flow and rejects it without a converter', async () => {
     const { deps } = fakeNotifier('instant')
-    const first = createRun(approval, { context, deps, instanceId: 'exp-44' })
+    const first = approval.create(context, { deps, instanceId: 'exp-44' })
     await first.start()
     await settle() // waiting for the decision
-    const saved = JSON.parse(JSON.stringify(first.getSnapshot())) as unknown
+    const saved: unknown = JSON.parse(JSON.stringify(first.getSnapshot()))
     first.dispose()
 
     // The deploy that ships v2 finds v1 snapshots in the store.
     try {
-      resumeRun(approvalV2, saved, { deps })
+      approvalV2.resume(saved, { deps })
       expect.unreachable()
     } catch (error) {
       expect(isWizardError(error) && error.code).toBe('SNAPSHOT_INCOMPATIBLE')
     }
     // `migrate` runs only when the versions differ; it must return a snapshot of the flow's version.
     const seen: unknown[] = []
-    const resumed = resumeRun(approvalV2, saved, {
+    const resumed = approvalV2.resume(saved, {
       deps,
       migrate: (snapshot, from) => {
         seen.push(from)
-        const previous = snapshot as Snapshot<typeof approval>
-        const flow = { name: previous.flow.name, version: 2 }
-        return {
-          ...previous,
-          flow, // the envelope …
-          state: {
-            ...previous.state,
-            flow,
-            context: { ...previous.state.context, currency: 'EUR' },
-          }, // … and the state
-        }
+        return addCurrency(snapshot)
       },
     })
     expect(seen).toEqual([{ name: 'expense-approval', version: 1 }])

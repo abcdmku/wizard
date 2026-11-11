@@ -1,5 +1,5 @@
 /**
- * `@openwizard/react` — `bindReact()` and the typed hooks over a `FlowRun` or a `Mirror`.
+ * `@openwizard/react` provides `bindReact()` and typed hooks over a `Run` or a `Mirror`.
  * @module @openwizard/react
  */
 export * from '@openwizard/react'

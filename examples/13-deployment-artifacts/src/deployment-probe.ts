@@ -1,23 +1,29 @@
-import { createRun, defineFlow } from '@openwizard/core'
+import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
 export const DeploymentRequest = z.object({
   requestId: z.string().min(1),
 })
 
-const deploymentProbe = defineFlow({
-  name: 'deployment-probe',
-  context: DeploymentRequest,
-})
-
-export const deploymentProbeFlow = deploymentProbe.steps({
-  accept: deploymentProbe.task(({ context }) => ({ accepted: context.requestId }), {
-    next: 'done',
-  }),
-  done: deploymentProbe.final({
-    output: ({ context }) => ({ requestId: context.requestId, status: 'accepted' as const }),
-  }),
-})
+export const deploymentProbe = defineWizard(
+  {
+    name: 'deployment-probe',
+    context: DeploymentRequest,
+  },
+  ({ step, steps }) =>
+    steps({
+      accept: step({
+        run: ({ context }) => ({ accepted: context.requestId }),
+        next: 'done',
+      }),
+      done: step({
+        run: ({ context }) => ({
+          requestId: context.requestId,
+          status: 'accepted' as const,
+        }),
+      }),
+    }),
+)
 
 export async function runDeploymentProbe(input: unknown) {
   const request = DeploymentRequest.safeParse(input)
@@ -31,8 +37,5 @@ export async function runDeploymentProbe(input: unknown) {
     }
   }
 
-  const run = createRun(deploymentProbeFlow, { context: request.data })
-  await run.start()
-
-  return { ok: true as const, result: await run.awaitResult() }
+  return { ok: true as const, result: await deploymentProbe.run(request.data) }
 }

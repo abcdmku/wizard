@@ -1,17 +1,42 @@
 /**
- * Source adapter: the untyped view of what a `FlowRun` and a `Mirror` share (subscribe /
- * getSnapshot / the command sugar), how each exposes the state the hooks read, and how a nested
- * flow's slice is found (`steps[step].child…` of a projected state, `children[step].state` of a
- * run snapshot). One adapter per source object.
+ * Source adapter: the untyped view of what a `Run` and a `Mirror` share (subscribe /
+ * getSnapshot / the command sugar), how each exposes the state the hooks read, how a nested
+ * flow's slice is found through indexed projected children or the live Run.child handle,
+ * where a step's live phase comes from and whether the source is connected.
+ * One adapter per source object.
  *
  * @internal
  */
 
-/** Structural view of what `FlowRun` and `Mirror` share (plus `getState`, FlowRun only). */
-export interface RawSource extends RawActions {
-  subscribe(listener: (state?: unknown) => void): () => void
+import type { ChildPath } from './child-path'
+
+/** The command sugar the hooks call (`Run` and `Mirror` both carry it, this-free). */
+export interface RawActions {
+  next(): Promise<unknown>
+  back(): Promise<unknown>
+  go(step: string): Promise<unknown>
+  setInput(step: string, patch: unknown): Promise<unknown>
+  resetInput(step: string): Promise<unknown>
+  dispatch(command: unknown): Promise<unknown>
+}
+
+/** Structural view of what `Run` and `Mirror` share. */
+interface RawSource extends RawActions {
+  subscribe(listener: () => void): () => void
   getSnapshot(): unknown
-  getState?(): unknown
+}
+
+/** The Run-only part: its state, queries and live children. */
+interface RawRun extends RawSource {
+  getState(): unknown
+  explain(step: string): { readonly phase?: string }
+  child(step: string, index?: number): RawRun
+}
+
+/** The Mirror-only part: its transport connection. */
+interface RawMirror extends RawSource {
+  readonly connected: boolean
+  connect(transport?: unknown): void
 }
 
 export interface RawState {
@@ -19,81 +44,96 @@ export interface RawState {
   readonly steps: Readonly<Record<string, unknown>>
 }
 
-/** A FlowRun snapshot as the child reader walks it (`children[step].state`). */
-interface RawSnapshot {
-  readonly state: RawState
-  readonly children?: Readonly<Record<string, RawSnapshot | undefined>>
-}
-
-export interface RawActions {
-  start(): Promise<unknown>
-  next(): Promise<unknown>
-  back(): Promise<unknown>
-  go(step: string): Promise<unknown>
-  setInput(step: string, patch: unknown): Promise<unknown>
-  resetInput(step: string): Promise<unknown>
-  send(
-    event: string,
-    payload: unknown,
-    options?: { readonly correlationId?: string },
-  ): Promise<unknown>
-  run(step: string): Promise<unknown>
-  retry(step: string): Promise<unknown>
-  cancel(reason?: string): Promise<unknown>
-  runReady(): Promise<unknown>
-  compensate(options?: { readonly from?: string; readonly reason?: string }): Promise<unknown>
-  reset(): Promise<unknown>
-  skip(step: string, reason?: string): Promise<unknown>
-  invalidate(step: string, options?: { readonly cascade?: boolean }): Promise<unknown>
-  dispatch(command: unknown): Promise<unknown>
-}
-
 export interface Adapter {
   subscribe(listener: () => void): () => void
   /** The state the hooks read; `null` while a Mirror has no frame. */
   getState(): RawState | null
   /** The state slice of a nested flow (`path` of flow-step ids); `null` while it has none. */
-  getChildState(path: readonly string[]): RawState | null
+  getChildState(path: ChildPath): RawState | null
   /**
-   * The child slice inside a FIXED server snapshot (`Provider.serverSnapshot`): walked from the
-   * projected state over a Mirror; `null` over a FlowRun (its `serverSnapshot` is the run
-   * state, which carries child summaries only).
+   * The live phase of a step of the flow at `path`: `explain(step).phase` on the run (a Run's
+   * records do not carry it); `undefined` over a Mirror (its projected records do).
    */
-  childOfServerState(state: RawState, path: readonly string[]): RawState | null
+  phaseOf(path: ChildPath, step: string): string | undefined
+  /** A Mirror's transport state (`true` for a Run: it is local). */
+  connected(): boolean
+  /** Re-subscribe a Mirror to its transport (a no-op for a Run). */
+  connect(transport?: unknown): void
+  /** The source itself: its command sugar (+ `validate` / `explain` / `progress` over a Run). */
   readonly actions: RawActions
-}
-
-/** What a `Provider` puts in context: the source adapter plus the fixed server snapshot reader. */
-export interface Bound {
-  readonly adapter: Adapter
-  /** The state to render on the server and during hydration (`serverSnapshot`, else the live state). */
-  getServerState(): RawState | null
-  /** The child slice to render on the server and during hydration (walked from the fixed snapshot). */
-  getServerChildState(path: readonly string[]): RawState | null
 }
 
 const adapters = new WeakMap<object, Adapter>()
 
+export function adapt(source: object): Adapter {
+  const existing = adapters.get(source)
+  if (existing !== undefined) return existing
+  const adapter = isRun(source) ? runAdapter(source) : mirrorAdapter(source as RawMirror)
+  adapters.set(source, adapter)
+  return adapter
+}
+
+function isRun(source: object): source is RawRun {
+  return typeof (source as { getState?: unknown }).getState === 'function'
+}
+
+function runAdapter(run: RawRun): Adapter {
+  return {
+    subscribe: run.subscribe,
+    getState: () => run.getState() as RawState,
+    getChildState: (path) => (runChild(run, path)?.getState() as RawState | undefined) ?? null,
+    phaseOf: (path, step) => runPhase(run, path, step),
+    connected: () => true,
+    connect: () => {},
+    actions: run,
+  }
+}
+
+function mirrorAdapter(mirror: RawMirror): Adapter {
+  const getState = () => mirror.getSnapshot() as RawState | null
+  return {
+    subscribe: mirror.subscribe,
+    getState,
+    getChildState: (path) => childOfProjected(getState(), path),
+    phaseOf: () => undefined,
+    connected: () => mirror.connected,
+    connect: mirror.connect,
+    actions: mirror,
+  }
+}
+
+/** Follow explicitly selected live children, including completed retained handles. */
+function runChild(run: RawRun, path: ChildPath): RawRun | undefined {
+  let scope = run
+  for (const { step, index } of path) {
+    try {
+      scope = scope.child(step, index)
+    } catch {
+      return undefined // the flow step is not active: no live child, no phase
+    }
+  }
+  return scope
+}
+
+function runPhase(run: RawRun, path: ChildPath, step: string): string | undefined {
+  return runChild(run, path)?.explain(step).phase
+}
+
 /** The child slice of a projected state: `steps[p0].child.steps[p1].child…` (`null` when absent). */
-function childOfProjected(state: RawState | null, path: readonly string[]): RawState | null {
+function childOfProjected(state: RawState | null, path: ChildPath): RawState | null {
   let slice: RawState | null = state
-  for (const step of path) {
+  for (const { step, index } of path) {
     if (slice === null) return null
     const record = slice.steps[step] as { readonly child?: unknown } | undefined
-    const child = record?.child
+    const child =
+      index === undefined
+        ? record?.child
+        : Array.isArray(record?.child)
+          ? record.child[index]
+          : undefined
     slice = isRawState(child) ? child : null
   }
   return slice
-}
-
-/** The child slice of a FlowRun snapshot: `children[p0].children[p1]….state` (`null` when absent). */
-function childOfSnapshot(snapshot: RawSnapshot, path: readonly string[]): RawState | null {
-  let node: RawSnapshot | undefined = snapshot
-  for (const step of path) {
-    node = node?.children?.[step]
-    if (node === undefined) return null
-  }
-  return node === undefined ? null : node.state
 }
 
 function isRawState(value: unknown): value is RawState {
@@ -103,45 +143,4 @@ function isRawState(value: unknown): value is RawState {
     'steps' in value &&
     typeof (value as { steps?: unknown }).steps === 'object'
   )
-}
-
-export function adapt(source: object): Adapter {
-  const existing = adapters.get(source)
-  if (existing !== undefined) return existing
-  const raw = source as RawSource
-  const runState = raw.getState
-  const isRun = typeof runState === 'function'
-  const getState = isRun
-    ? () => runState.call(raw) as RawState // FlowRun: the state (never null)
-    : () => raw.getSnapshot() as RawState | null // Mirror: projected state, null before the first frame
-  const adapter: Adapter = {
-    subscribe: (listener) => raw.subscribe(() => listener()),
-    getState,
-    getChildState: isRun
-      ? (path) => childOfSnapshot(raw.getSnapshot() as RawSnapshot, path)
-      : (path) => childOfProjected(getState(), path),
-    childOfServerState: isRun ? () => null : childOfProjected,
-    actions: {
-      start: () => raw.start(),
-      next: () => raw.next(),
-      back: () => raw.back(),
-      go: (step) => raw.go(step),
-      setInput: (step, patch) => raw.setInput(step, patch),
-      resetInput: (step) => raw.resetInput(step),
-      send: (event, payload, options) =>
-        options === undefined ? raw.send(event, payload) : raw.send(event, payload, options),
-      run: (step) => raw.run(step),
-      retry: (step) => raw.retry(step),
-      cancel: (reason) => (reason === undefined ? raw.cancel() : raw.cancel(reason)),
-      runReady: () => raw.runReady(),
-      compensate: (options) => (options === undefined ? raw.compensate() : raw.compensate(options)),
-      reset: () => raw.reset(),
-      skip: (step, reason) => (reason === undefined ? raw.skip(step) : raw.skip(step, reason)),
-      invalidate: (step, options) =>
-        options === undefined ? raw.invalidate(step) : raw.invalidate(step, options),
-      dispatch: (command) => raw.dispatch(command),
-    },
-  }
-  adapters.set(source, adapter)
-  return adapter
 }

@@ -1,74 +1,43 @@
 /**
- * `inspect(flow)` — the static graph of a flow (nodes, edges, warnings), recursing into child
- * flows with `path`. This is exactly what a visualizer / devtools panel consumes; nothing here
- * runs a hook.
+ * `inspect(flow)` — the wizard manifest: nodes, edges, JSON Schemas, prose, warnings and a
+ * structural fingerprint, recursing into child flows with `path`. Nothing here runs a hook.
  *
  * @packageDocumentation
  */
 
+import type { AnyFlow } from '@openwizard/core'
+import { isBoundary } from '../authoring/boundary'
 import { analyze, type FlowWarning } from '../authoring/compile'
-import type { CompiledFlow, CompiledStep, DepsSpec } from '../authoring/compiled'
-import type { AnyFlow, StepKind } from '../authoring/types'
+import type { CompiledFlow } from '../authoring/compiled'
+import { isRecord } from '../record'
+import { fingerprint } from './fingerprint'
+import { exclusiveJoinWarnings } from './joins'
+import { toJSONSchema } from './json-schema'
+import { declaredTargets, prose, toNode } from './node'
+import type { FlowGraph, FlowGraphEdge, FlowGraphNode, JSONSchema } from './types'
 
 /**
- * One step of the graph. `path` is the run path of the flow the step belongs to
- * (`[]` = root, `['fulfil']` = inside the child of step `fulfil`), so ids never collide across
- * nesting levels. `dynamicNext` marks a step whose successors are only known at runtime.
- * @public
- */
-export interface FlowGraphNode {
-  readonly id: string
-  readonly kind: StepKind
-  readonly label?: string
-  readonly path: readonly string[]
-  /**
-   * Hooks the step defines, by their AUTHORING names (`enter`, `run`, `when`, `mapError`,
-   * `on:payment.captured`, a flow step's `context` / `deps` / `output` mappers, a final's
-   * `output`, a task's `idempotent` key function, …).
-   */
-  readonly hooks: readonly string[]
-  readonly dependsOn?: DepsSpec
-  /** Task timeout or wait timeout, in ms. */
-  readonly timeout?: number
-  readonly dynamicNext?: true
-  /** The step is an entry point of its flow. */
-  readonly start?: true
-}
-
-/**
- * A static edge between two steps of the same flow (`path`). `start` edges have no `from`.
- * @public
- */
-export interface FlowGraphEdge {
-  readonly from: string | null
-  readonly to: string
-  readonly kind: 'next' | 'dependsOn' | 'timeout' | 'start'
-  readonly path: readonly string[]
-}
-
-/**
- * The static graph of a flow: nodes, edges and analysis warnings (recursively for child flows).
- * @public
- */
-export interface FlowGraph {
-  readonly name: string
-  readonly version: number
-  readonly nodes: readonly FlowGraphNode[]
-  readonly edges: readonly FlowGraphEdge[]
-  readonly warnings: readonly FlowWarning[]
-}
-
-/**
- * Build the static graph of a flow (compiles it if needed; throws `DEFINITION_INVALID` for a
- * broken flow). Warnings: `UNREACHABLE`, `NEVER_ACTIVATES`, `NAV_CYCLE`.
+ * Describe a flow (compiles it if needed; throws `DEFINITION_INVALID` for a broken flow).
+ * Warnings include unreachable steps, blocked joins, navigation cycles and ambiguous sinks.
  * @public
  */
 export function inspect(flow: AnyFlow): FlowGraph {
   const { compiled, warnings } = analyze(flow)
   const nodes: FlowGraphNode[] = []
   const edges: FlowGraphEdge[] = []
-  collect(compiled, [], nodes, edges)
-  return { name: compiled.name, version: compiled.version, nodes, edges, warnings }
+  const joinWarnings: FlowWarning[] = []
+  collect(compiled, [], nodes, edges, joinWarnings)
+  const schemas = flowSchemas(compiled)
+  return {
+    name: compiled.name,
+    version: compiled.version,
+    ...prose(compiled),
+    fingerprint: fingerprint({ schemas, nodes, edges }),
+    schemas,
+    nodes,
+    edges,
+    warnings: [...warnings, ...joinWarnings],
+  }
 }
 
 function collect(
@@ -76,60 +45,64 @@ function collect(
   path: readonly string[],
   nodes: FlowGraphNode[],
   edges: FlowGraphEdge[],
+  warnings: FlowWarning[],
 ): void {
   const starts = new Set(def.start)
+  const sinks = new Set(def.sinks)
+  const raw = rawSteps(def)
   const children: Array<readonly [string, CompiledFlow]> = []
   for (const id of def.start) edges.push({ from: null, to: id, kind: 'start', path })
   for (const id of def.order) {
     const step = def.steps[id]
     if (step === undefined) continue
-    nodes.push(toNode(step, path, starts.has(id)))
+    nodes.push(
+      toNode(step, raw[id], {
+        path,
+        start: starts.has(id),
+        sink: sinks.has(id),
+        retry: def.policies.retry,
+      }),
+    )
     if (step.next.kind === 'static') {
       for (const to of step.next.targets) edges.push({ from: id, to, kind: 'next', path })
     }
+    for (const to of declaredTargets(step) ?? []) edges.push({ from: id, to, kind: 'route', path })
     if (step.dependsOn !== undefined) {
       const list = 'all' in step.dependsOn ? step.dependsOn.all : step.dependsOn.any
       for (const dep of list) edges.push({ from: dep, to: id, kind: 'dependsOn', path })
+    }
+    for (const [alias, need] of Object.entries(step.needs ?? {})) {
+      for (const from of need.steps)
+        edges.push({ from, to: id, kind: 'needs', alias, mode: need.kind, path })
+    }
+    if (step.fallback !== undefined) {
+      edges.push({ from: id, to: step.fallback, kind: 'fallback', path })
     }
     if (step.waitTimeout !== undefined) {
       edges.push({ from: id, to: step.waitTimeout.next, kind: 'timeout', path })
     }
     if (step.child !== undefined) children.push([id, step.child])
   }
+  warnings.push(...exclusiveJoinWarnings(def, path))
   // A flow's own nodes/edges come first, then its child flows (in declaration order).
-  for (const [id, child] of children) collect(child, [...path, id], nodes, edges)
+  for (const [id, child] of children) collect(child, [...path, id], nodes, edges, warnings)
 }
 
-/**
- * Compiled adapter names → the names the author wrote (`flow.flow(child, { context, deps, output })`,
- * `flow.final({ output })`, `flow.task(run, { idempotent: fn })`).
- */
-const AUTHORING_NAMES: Readonly<Record<string, string>> = {
-  childContext: 'context',
-  childDeps: 'deps',
-  childOutput: 'output',
-  finalOutput: 'output',
-  idempotencyKey: 'idempotent',
+/** The authoring step records of a compiled flow (its `identity` is the flow object). */
+function rawSteps(def: CompiledFlow): Readonly<Record<string, unknown>> {
+  const flow: unknown = def.identity
+  return isRecord(flow) && isRecord(flow.steps) ? flow.steps : {}
 }
 
-function toNode(step: CompiledStep, path: readonly string[], start: boolean): FlowGraphNode {
-  const hooks: string[] = []
-  for (const [name, hook] of Object.entries(step.hooks)) {
-    if (hook === undefined) continue
-    if (name === 'on') {
-      for (const event of Object.keys(step.hooks.on ?? {})) hooks.push(`on:${event}`)
-    } else hooks.push(AUTHORING_NAMES[name] ?? name)
+/** JSON Schemas of the context (input side: what `create` accepts) and of every event payload. */
+function flowSchemas(def: CompiledFlow): FlowGraph['schemas'] {
+  const flow: unknown = def.identity
+  if (!isRecord(flow)) return { events: {} }
+  const context = isBoundary(flow.context) ? toJSONSchema(flow.context, 'input') : undefined
+  const events: Record<string, JSONSchema | undefined> = {}
+  for (const name of Object.keys(def.events)) {
+    const schema = isRecord(flow.events) ? flow.events[name] : undefined
+    events[name] = isBoundary(schema) ? toJSONSchema(schema, 'input') : undefined
   }
-  const timeout = step.timeoutMs ?? step.waitTimeout?.afterMs
-  return {
-    id: step.id,
-    kind: step.kind,
-    ...(step.label !== undefined ? { label: step.label } : {}),
-    path,
-    hooks,
-    ...(step.dependsOn !== undefined ? { dependsOn: step.dependsOn } : {}),
-    ...(timeout !== undefined ? { timeout } : {}),
-    ...(step.next.kind === 'dynamic' ? { dynamicNext: true as const } : {}),
-    ...(start ? { start: true as const } : {}),
-  }
+  return { ...(context !== undefined ? { context } : {}), events }
 }

@@ -1,52 +1,83 @@
-# What happens when a task fails
+# Retries and failures
 
-A task often calls something that can fail for a short time. A database can be busy. A service can return an error. OpenWizard treats a thrown error or rejected promise as a failed task attempt.
-
-This example simulates storage being busy twice. The third call succeeds:
+A thrown error or rejected promise fails a work attempt. A retry policy schedules another attempt. After retries run out, the wizard applies its failure policy; the default policy halts for manual recovery.
 
 ```ts file="packages/docs/snippets/learn/retry.ts"
 ```
 
-The retry policy belongs to the `save` task. It means:
+1. Attempt 1 throws. The step stays `active` with phase `retrying` and a deadline 1,000 ms ahead.
+2. Attempt 2 throws. Another 1,000 ms wait.
+3. Attempt 3 succeeds. The output is stored and the step follows `next`.
 
-- Make the first call with `attempt` equal to `1`.
-- If it fails, wait 1,000 milliseconds and try again with `attempt` equal to `2`.
-- If that fails, wait again and make one final call with `attempt` equal to `3`.
+`attempts` counts retries after the first call, so `attempts: 2` allows three calls in total. `backoff` can be a fixed delay in milliseconds or `'exponential'`. Use `baseMs`, `factor`, `maxBackoffMs`, and `jitter` to tune exponential backoff. `retry.when(error)` can refuse a retry for an error that another call cannot fix.
 
-`attempts` counts extra tries after the first call. This is easy to misread. `attempts: 2` allows at most three calls to the task function.
+## When retries run out
 
-If one attempt succeeds, OpenWizard stores its output and follows `next`. Earlier failed attempts remain visible in the event log, but the step ends as `done`.
-
-## Inspect a task after every attempt fails
-
-When every allowed attempt fails, the task and run enter `failed`. With the default recoverable failure behavior, the run stops there instead of moving to `done`.
-
-The stored step error includes a message, failure kind, timestamp, and attempt number. Read it from state before deciding what to do:
+Under the default `onFailure: 'halt'` policy, the step becomes `failed` and the run becomes `halted`. The error and attempt count stay in state, and the run remains recoverable.
 
 ```ts
 const state = run.getState()
 console.error(state.steps.save.error)
+
+const retried = await run.retry('save')
+if (!retried.ok) console.error(retried.code, retried.message)
 ```
 
-Your application can retry the failed step later, perhaps after a user clicks a button or a service recovers:
+`retry()` starts a fresh retry cycle. Use `run.retry('save', { patch: { destination: 'backup' } })` to change context before the new attempt. A mapped `each` step keeps finished item results and retries failed items.
+
+Mapped child flows also support `run.retry('batch')` after item failure. It keeps completed children and retries failed items. `RetryStepId<typeof wizard>` includes runnable steps and mapped child flows. Recover an ordinary halted child through `run.child('address')` and its own retry command.
+
+`run.awaitOutcome()` returns a halted outcome with the failure and snapshot. `run.awaitResult()` waits for a terminal result and remains pending while the run is halted. A run with terminal `failed` status cannot recover with `retry()`.
+
+## Continue through a fallback
+
+A runnable or child step can route to a fallback after it fails for good:
 
 ```ts
-const result = await run.retry('save')
-if (!result.ok) console.error(result.code, result.message)
+load: step({
+  run: ({ deps }) => deps.fetchLiveData(),
+  retry: { attempts: 2, backoff: 1_000 },
+  fallback: 'cached',
+}),
+cached: step({ run: ({ deps }) => deps.readCachedData() }),
 ```
 
-`run.retry('save')` resets the task's attempt counter and starts a new retry cycle. Check its command result because the run may have changed before the request arrives.
+The failed step becomes `skipped` with reason `fallback` and retains its error. The run activates `cached` instead of applying the wizard's halt or compensation policy. Fallback also handles an exhausted item failure and a halted or failed child. A consumer with a plain need for the failed producer still follows the normal skipped-need rule; join alternate outputs with `{ any: [load, cached] }`.
+
+## Typed error data
+
+`mapError` turns the thrown value into JSON data at `steps.save.error.data`:
+
+```ts
+mapError: (error, { attempt }) => ({
+  code: error instanceof Error && /busy/.test(error.message) ? 'BUSY' : 'REJECTED',
+  attempt,
+}),
+```
+
+`ErrorOf<typeof wizard, 'save'>` gives UI and operator code that type. `retry.when` receives the mapped value when `mapError` exists. The serialized error keeps its message for diagnostics.
+
+Declare inline `mapError` before `retry` when `retry.when` reads inferred mapped fields, as the example above does. A reusable mapper with typed parameters supports either property order.
+
+## Timeouts
+
+`timeout: '30s'` fails a work attempt that runs too long. Its `run` function receives a `signal`; pass it to `fetch` or another API that accepts abort signals. An event wait uses `timeout: { after: '48h', next: 'expired' }` to take an alternate route when its deadline passes.
 
 ## Safe retries
 
-Retries mean the same logical task can call an outside service more than once. A crash can also happen after the outside service succeeds but before OpenWizard saves that success. Use the `idempotencyKey` passed to the task when the service supports idempotent requests.
+A retry can call an outside service twice. A crash can also happen between the service succeeding and its result reaching storage. Each `run` function receives an `idempotencyKey`:
 
 ```ts
-builder.task(({ idempotencyKey }) =>
-  payments.charge({ amount: 500, idempotencyKey }),
-)
+charge: step({
+  run: ({ context, deps, idempotencyKey }) =>
+    deps.payments.charge(context.orderId, context.total, { idempotencyKey }),
+  idempotent: ({ context }) => `order:${context.orderId}:charge`,
+  next: 'done',
+}),
 ```
 
-The key stays the same when an idempotent task is rerun after a crash. OpenWizard supplies the key, but the remote service must store and enforce it. Without that support, a payment or email may happen twice.
+The key stays stable across retries and resume. The remote service must enforce it; OpenWizard supplies the key. Compensation hooks also receive a stable key for repeated undo calls. [Retries and idempotency](/advanced/recovery) covers crashes during work.
 
-Use a `timeout` on a task that should not run forever. The task receives a `signal` that aborts when the timeout fires. Pass that signal to APIs such as `fetch` so the underlying work can stop too.
+## Next
+
+[Events and waiting](/learn/events) covers work that another system finishes.

@@ -8,10 +8,11 @@
  */
 
 import type { Batch } from './batch'
-import { emit, rec, stepDef } from './batch'
+import { emit, nextHop, rec, stepDef } from './batch'
 import type { TransitionRejectReason } from './events'
 import { phaseList, runPhases } from './nav-phases'
-import { enterStep, hasOnHandlers, schedule } from './scheduler'
+import { activateFeeds, propagateSkipped } from './needs'
+import { enterStep, failStep, hasEventHandlers, schedule, schedulingFrozen } from './scheduler'
 import { cursorTarget, eligible, isExplicitCause, isTerminal, ready } from './selectors'
 import type { Issue, NavCause, SerializedError } from './state'
 import { normalizeTargets } from './util'
@@ -48,9 +49,33 @@ export function rejectCurrent(
   rejectNav(b, reason, { ...opts, txId: b.state.nav.txId ?? b.env.id('tx') })
 }
 
+/**
+ * The transaction failed. When it was the auto-advance of a non-view step (its `next` threw,
+ * rejected or named an unknown step; its `exit` threw), that step fails under the flow's failure
+ * policy: a broken route never lets the run finish `done` (D4). A view's transaction is only
+ * rejected (the user is still on the view).
+ */
 export function failCurrent(b: Batch, step: string, error: SerializedError): void {
-  emit(b, { type: 'transition.failed', txId: b.state.nav.txId ?? b.env.id('tx'), step, error })
+  const nav = b.state.nav
+  emit(b, { type: 'transition.failed', txId: nav.txId ?? b.env.id('tx'), step, error })
+  const from = nav.from
+  if (nav.cause === 'auto' && from != null && stepDef(b, from)?.kind !== 'view')
+    failStep(b, from, error, 'hook')
   onNavIdle(b)
+}
+
+/** Close navigation before cancellation without scheduling more work or evaluating a guard. */
+export function abortCurrent(b: Batch, step?: string): void {
+  const nav = b.state.nav
+  if (nav.phase === 'idle' || nav.txId === undefined) return
+  const affected = step ?? nav.from ?? nav.pendingSteps?.[0] ?? nav.targets?.[0]
+  if (affected === undefined) return
+  emit(b, {
+    type: 'transition.failed',
+    txId: nav.txId,
+    step: affected,
+    error: { name: 'AbortError', code: 'CANCELLED', message: 'navigation cancelled' },
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +84,7 @@ export function failCurrent(b: Batch, step: string, error: SerializedError): voi
 
 export function navNext(b: Batch): void {
   const s = b.state
-  if (s.nav.phase !== 'idle') {
+  if (s.nav.phase !== 'idle' || (s.current !== null && rec(b, s.current)?.entering === true)) {
     rejectNav(b, 'nav-busy')
     return
   }
@@ -72,7 +97,7 @@ export function navNext(b: Batch): void {
 
 export function navGo(b: Batch, step: string): void {
   const s = b.state
-  if (s.nav.phase !== 'idle') {
+  if (s.nav.phase !== 'idle' || (s.current !== null && rec(b, s.current)?.entering === true)) {
     rejectNav(b, 'nav-busy', { step })
     return
   }
@@ -94,7 +119,7 @@ export function navGo(b: Batch, step: string): void {
 
 export function navBack(b: Batch): void {
   const s = b.state
-  if (s.nav.phase !== 'idle') {
+  if (s.nav.phase !== 'idle' || (s.current !== null && rec(b, s.current)?.entering === true)) {
     rejectNav(b, 'nav-busy')
     return
   }
@@ -127,13 +152,19 @@ export function startTransaction(
  * Non-view step completed: `step.done{next?}` → auto-advance (or defer while a
  * transition is in flight — `apply` queues it in `nav.deferred`) → schedule.
  */
-export function completeStep(b: Batch, step: string, output: unknown, next?: string): void {
+export function completeStep(
+  b: Batch,
+  step: string,
+  output: unknown,
+  next?: string | readonly string[],
+): void {
   emit(b, {
     type: 'step.done',
     step,
     ...(output !== undefined ? { output } : {}),
     ...(next !== undefined ? { next } : {}),
   })
+  activateFeeds(b, step)
   startAuto(b, step, next)
   schedule(b)
 }
@@ -142,26 +173,24 @@ export function completeStep(b: Batch, step: string, output: unknown, next?: str
  * Start the lightweight auto transaction from a completed non-view step — or (v0.2)
  * from a skipped step of any kind, whose `next` targets are arrived the same way.
  */
-export function startAuto(b: Batch, from: string, override?: string): void {
+export function startAuto(b: Batch, from: string, override?: string | readonly string[]): void {
   const s = b.state
   if (s.nav.phase !== 'idle') return
   if (isTerminal(s) || s.status === 'compensating') return
   const def = stepDef(b, from)
   if (def === undefined) return
-  if (override === undefined) {
-    if (def.kind === 'decision' && rec(b, from)?.status !== 'skipped') {
-      if (normalizeTargets(rec(b, from)?.output).length === 0) return
-    } else if (def.next.kind === 'none') {
-      return
-    }
-  }
-  if ((s.nav.hops ?? 0) >= AUTO_ADVANCE_LIMIT) {
+  if (override === undefined && def.next.kind === 'none' && def.hooks.exit === undefined) return
+  const hops = nextHop(b)
+  // An acyclic flow advances at most once per step between async boundaries: the guard only trips on loops.
+  const limit = AUTO_ADVANCE_LIMIT + b.env.def.order.length
+  if (hops > limit) {
+    const cycle = [...(s.nav.trail ?? []), from].map((id) => `'${id}'`).join(' → ')
     emit(b, {
       type: 'flow.failed',
       step: from,
       error: {
         name: 'WizardError',
-        message: `auto-advance exceeded ${AUTO_ADVANCE_LIMIT} hops`,
+        message: `auto-advance made ${limit} synchronous hops without an async boundary (a sync 'next' loop?); last steps: ${cycle}`,
         code: 'AUTO_ADVANCE_LOOP',
       },
       code: 'AUTO_ADVANCE_LOOP',
@@ -174,9 +203,10 @@ export function startAuto(b: Batch, from: string, override?: string): void {
     txId,
     from,
     cause: 'auto',
-    ...(override !== undefined ? { to: override } : {}),
+    hops,
+    ...(typeof override === 'string' ? { to: override } : {}),
   })
-  runPhases(b, 'resolvingTarget')
+  runPhases(b, 'resolvingTarget', override === undefined ? undefined : normalizeTargets(override))
 }
 
 /**
@@ -187,14 +217,14 @@ export function startAuto(b: Batch, from: string, override?: string): void {
 export function onNavIdle(b: Batch): void {
   const s = b.state
   if (s.nav.phase !== 'idle') return
-  if (isTerminal(s) || s.status === 'compensating') return
+  if (schedulingFrozen(b)) return
   const d = s.nav.deferred?.[0]
   if (d !== undefined) {
     startAuto(b, d.step, d.to)
     return
   }
   const view = s.current
-  if (view !== null && hasOnHandlers(b, view)) drainInbox(b, view)
+  if (view !== null && hasEventHandlers(b, view)) drainInbox(b, view)
 }
 
 /**
@@ -217,17 +247,16 @@ export function commit(b: Batch): void {
   const from = nav.from ?? null
   const targets = nav.targets ?? []
   const first = targets[0]
-  if (first === undefined) {
-    rejectCurrent(b, 'no-target')
-    return
-  }
+
   const direction = nav.direction ?? 'forward'
   const cause = nav.cause ?? 'auto'
   const txId = nav.txId ?? b.env.id('tx')
   if (from !== null) {
     const fr = rec(b, from)
-    if (fr?.kind === 'view' && fr.status === 'active')
-      emit(b, { type: 'step.exited', step: from, to: first, direction })
+    if (fr?.kind === 'view' && fr.status === 'active') {
+      emit(b, { type: 'step.exited', step: from, to: first ?? null, direction })
+      if (direction !== 'back') activateFeeds(b, from)
+    }
   }
   for (const t of targets) {
     // A target that is already pending (cursor rule / `go` to a ready view) is not re-arrived.
@@ -244,7 +273,22 @@ export function commit(b: Batch): void {
     (explicit ? eligible(b.env.def, b.state, cursor) : ready(b.env.def, b.state, cursor))
   )
     enterStep(b, cursor, from)
-  emit(b, { type: 'transition.committed', txId, from, to: first, cause, direction })
+  emit(b, { type: 'transition.committed', txId, from, to: first ?? null, cause, direction })
+  if (from !== null && (cause === 'next' || cause === 'auto')) {
+    const next = stepDef(b, from)?.next
+    if (next?.kind === 'dynamic' && next.targets !== undefined) {
+      const chosen = new Set(targets)
+      const skipped: string[] = []
+      for (const target of next.targets) {
+        const record = rec(b, target)
+        if (chosen.has(target) || record === undefined) continue
+        if (record.status !== 'idle' && !record.pendingActivation) continue
+        emit(b, { type: 'step.skipped', step: target, reason: 'not-taken' })
+        skipped.push(target)
+      }
+      propagateSkipped(b, skipped)
+    }
+  }
   schedule(b)
   onNavIdle(b)
 }

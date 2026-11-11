@@ -1,201 +1,235 @@
-/**
- * Per-kind constructor configs (concrete object types, so excess-property checks work) and the
- * `StepApi` of pre-bound constructors.
- * @packageDocumentation
- */
+/** The runnable/wait/sleep/routing, view and child-flow configs. */
 
-import type { TaskAdapter } from '../task-adapter'
+import type { RunAdapter } from '../run-adapter'
 import type { Boundary } from './boundary'
-import type { ContextInput, DepsOf, FlowOutput } from './extractors'
-import type { AnyFlow } from './flow'
-import type { OnHandlers, ViewOnResult, WaitOnResult } from './handlers'
+import type { DepsOf, RequiredDepsOf } from './extractors'
+import type { OnHandlers, WaitHandlersFor } from './handlers'
 import type {
-  BaseArgs,
   CompensateArgs,
-  DependsOn,
+  EachRunArgs,
   EnterArgs,
   ExitArgs,
-  MapErrorArgs,
-  NextArgs,
-  NextRef,
-  NextSpec,
+  HookArgs,
+  HookArgsFor,
   OutputArgs,
   RunArgs,
-  WaitOutput,
-  WhenSpec,
 } from './hook-args'
-import type { Duration, Issue, MaybePromise, RetryPolicy } from './primitives'
-import type { Step } from './step'
+import type { Duration, Issue, IsUnset, JsonValue, MaybePromise, RetryPolicy } from './primitives'
+import type { StepLike } from './step'
+import type {
+  EachOf,
+  NeedRef,
+  NeedsOutput,
+  RetryError,
+  ReturnedAdapterError,
+  StepOutput,
+} from './step-inference'
+import type { AnyFlow } from './wizard'
 
-/**
- * `flow.view` configuration. `I` / `O` are inferred from `input` ONLY (`NoInfer` everywhere else):
- * without `input` the view has no draft (`I = never`, `O = undefined`) and `initial` is rejected.
- * @public
- */
-export interface ViewCfg<C, Ev, D, I, O, N extends string> {
+type CheckedNeed = NeedRef & {
+  readonly any?: readonly StepLike[]
+  readonly optional?: StepLike
+}
+
+export interface Common<C, D, Nd, Dp> {
   readonly label?: string
-  /** Boundary for the draft input; the OUTPUT side is what hooks and `steps[k].output` see. */
+  readonly description?: string
+  readonly meta?: Readonly<Record<string, JsonValue>>
+  /** Typed data join: activates once every need is done; hooks get `needs` typed. */
+  readonly needs?: Nd & { readonly [A in keyof Nd]: CheckedNeed }
+  /** Control gate only (does not activate). */
+  readonly dependsOn?: readonly Dp[] | { readonly any: readonly Dp[] }
+  readonly when?: (args: HookArgs<C, D, NeedsOutput<Nd>>) => MaybePromise<boolean>
+  readonly enter?: (args: EnterArgs<C, D, NeedsOutput<Nd>>) => unknown
+}
+type NextResult<R> = MaybePromise<R | readonly R[] | null>
+type NextHandler<C, D, O, N, R> = (args: OutputArgs<C, D, O, N>) => NextResult<R>
+type Next<C, D, O, N, Nx, Nr> = Nx | readonly Nx[] | null | NextHandler<C, D, O, N, Nr>
+
+export interface Routing<C, D, O, Nd, Nx, Nr, Tg> {
+  /** Push edge: an id/step, several, `null`, or a function of the output (requires `targets`). */
+  readonly next?: Next<C, D, O, NeedsOutput<Nd>, Nx, Nr>
+  /** Every id a function `next` may return; untaken targets are skipped (`not-taken`). */
+  readonly targets?: readonly Tg[]
+}
+export interface StepConfig<
+  C,
+  Ev,
+  D,
+  R,
+  OB,
+  Em,
+  Ea,
+  Item,
+  Nd,
+  Nx,
+  Nr,
+  Tg,
+  Fb,
+  Dp,
+  To,
+  H,
+  Xk,
+  Wk extends PropertyKey = never,
+> extends Common<C, D, Nd, Dp>,
+    Routing<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, Nd, Nx, Nr, Tg> {
+  readonly exit?: (
+    args: ExitArgs<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, NeedsOutput<Nd>>,
+  ) => unknown
+  readonly on?: OnHandlers<C, Ev, D, NeedsOutput<Nd>>
+  readonly run?:
+    | ((
+        args: 'each' extends Xk
+          ? EachRunArgs<C, D, NeedsOutput<Nd>, Item>
+          : RunArgs<C, D, NeedsOutput<Nd>>,
+      ) => R | NoInfer<RunAdapter<C, D, unknown, Ea & JsonValue>>)
+    | RunAdapter<
+        C,
+        D,
+        R,
+        Ea & JsonValue,
+        'each' extends Xk
+          ? EachRunArgs<C, D, NeedsOutput<Nd>, Item>
+          : RunArgs<C, D, NeedsOutput<Nd>>
+      >
+  /** Map over items: `run` gets `item` / `index`, the output is an array in input order. */
+  readonly each?: (args: HookArgs<C, D, NeedsOutput<Nd>>) => readonly Item[]
+  readonly key?: (item: NoInfer<Item>, index: number) => string
+  readonly concurrency?: number
+  readonly output?: Boundary<OB, unknown>
+  readonly retry?: RetryPolicy<NoInfer<RetryError<Em, Ea | ReturnedAdapterError<R>>>>
+  readonly timeout?: Duration | { readonly after: Duration; readonly next: To }
+  readonly compensate?: (
+    args: CompensateArgs<C, D, NoInfer<StepOutput<R, OB, Item, H, Ev, Xk>>, NeedsOutput<Nd>>,
+  ) => unknown
+  readonly idempotent?: boolean | ((args: RunArgs<C, D, NeedsOutput<Nd>>) => string)
+  readonly mapError?: (error: unknown, args: RunArgs<C, D, NeedsOutput<Nd>>) => MaybePromise<Em>
+  /** When the step fails for good it is skipped (`fallback`) and the run continues here. */
+  readonly fallback?: Fb
+  readonly waitFor?: H &
+    WaitHandlersFor<C, Ev, D, NeedsOutput<Nd>, H, Wk> &
+    OptionKeys<Wk, PropertyKey>
+  /** Durable timer: completes when due (survives restarts). */
+  readonly sleep?: Duration | ((args: HookArgs<C, D, NeedsOutput<Nd>>) => Duration)
+}
+export interface ViewConfig<C, Ev, D, I, O, Nd, Nx, Nr, Tg, Dp, Nh = never>
+  extends Common<C, D, Nd, Dp>,
+    Routing<C, D, NoInfer<O>, Nd, Nx, Nr, Tg> {
+  /** Draft boundary: hooks see the OUTPUT side, `setInput` / `initial` the INPUT side. */
   readonly input?: Boundary<O, I>
-  /** Initial draft (INPUT side, partial). Requires `input`. */
-  readonly initial?: NoInfer<Partial<I>>
+  readonly initial?:
+    | NoInfer<Partial<I>>
+    | ((args: { readonly context: C; readonly deps: D }) => MaybePromise<NoInfer<Partial<I>>>)
   readonly validate?: (
-    a: OutputArgs<C, D, NoInfer<O>>,
+    args: OutputArgs<C, D, NoInfer<O>, NeedsOutput<Nd>>,
   ) => MaybePromise<void | undefined | readonly Issue[]>
-  readonly canEnter?: (a: EnterArgs<C, D>) => MaybePromise<boolean>
-  readonly canExit?: (a: OutputArgs<C, D, NoInfer<O>>) => MaybePromise<boolean>
-  readonly enter?: (a: EnterArgs<C, D>) => unknown
-  readonly exit?: (a: ExitArgs<C, D, NoInfer<O>>) => unknown
-  /** External-event handlers while the view is current; `{ next }` moves the cursor. */
-  readonly on?: OnHandlers<C, Ev, D, ViewOnResult<N>>
-  readonly when?: WhenSpec<C, D>
-  readonly next?: NextSpec<C, D, NoInfer<O>, N>
-  readonly dependsOn?: DependsOn<N>
+  readonly canEnter?: (args: EnterArgs<C, D, NeedsOutput<Nd>>) => MaybePromise<boolean>
+  readonly canExit?: (args: OutputArgs<C, D, NoInfer<O>, NeedsOutput<Nd>>) => MaybePromise<boolean>
+  readonly exit?: (args: ExitArgs<C, D, NoInfer<O>, NeedsOutput<Nd>>) => unknown
+  /** A handler may navigate: its `next` ids are checked like any other ref. */
+  readonly on?: OnHandlers<C, Ev, D, NeedsOutput<Nd>, { readonly next?: Nh | null }>
 }
-/**
- * `flow.task(run, options)` options. `E` (the `mapError` value type) is inferred from `mapError`.
- * @public
- */
-export interface TaskOptions<C, Ev, D, O, N extends string, E = never> {
-  readonly label?: string
-  /** Optional re-check of the value returned by `run` (fixes the step's output type). */
-  readonly output?: Boundary<O, unknown>
-  readonly retry?: RetryPolicy
-  readonly timeout?: Duration
-  readonly compensate?: (a: CompensateArgs<C, D, O>) => unknown
-  readonly enter?: (a: EnterArgs<C, D>) => unknown
-  readonly exit?: (a: ExitArgs<C, D, O>) => unknown
-  /** External-event handlers while the task runs (may `update()` context; return nothing). */
-  readonly on?: OnHandlers<C, Ev, D, void>
-  readonly when?: WhenSpec<C, D>
-  /**
-   * `true`: after a crash a `running` task is re-run on resume with the same idempotency key
-   * (`args.idempotencyKey`, default `${instanceId}:${step}:${runId}`) instead of failing
-   * `interrupted`; a function supplies the key.
-   */
-  readonly idempotent?: boolean | ((a: RunArgs<C, D>) => string)
-  /** Map a failure (thrown value / rejection) to a JSON-safe value stored as `error.data`. */
-  readonly mapError?: (error: unknown, a: MapErrorArgs<C, D>) => MaybePromise<E>
-  readonly next?: NextSpec<C, D, O, N>
-  readonly dependsOn?: DependsOn<N>
+export type ChildOutput<CO, OB, Item> = EachOf<Item, IsUnset<OB> extends true ? CO : OB>
+/** `flow(child, config)`: `CIn` / `CO` / `CD` are the child's context input, output and deps. */
+export interface ChildConfig<C, Ev, D, CIn, CO, CD, OB, Item, Nd, Nx, Nr, Tg, Fb, Dp>
+  extends Common<C, D, Nd, Dp>,
+    Routing<C, D, NoInfer<ChildOutput<CO, OB, Item>>, Nd, Nx, Nr, Tg> {
+  /** Builds the child's context input (per item with `each`). */
+  readonly context: (args: HookArgsFor<C, D, NeedsOutput<Nd>, Item>) => CIn
+  readonly each?: (args: HookArgs<C, D, NeedsOutput<Nd>>) => readonly Item[]
+  readonly key?: (item: NoInfer<Item>, index: number) => string
+  readonly concurrency?: number
+  readonly output?: Boundary<OB, unknown>
+  readonly fallback?: Fb
+  readonly exit?: (
+    args: ExitArgs<C, D, NoInfer<ChildOutput<CO, OB, Item>>, NeedsOutput<Nd>>,
+  ) => unknown
+  readonly on?: OnHandlers<C, Ev, D, NeedsOutput<Nd>>
+  /** Child deps, merged over what the child had `provide()`d. */
+  readonly deps?: (args: HookArgsFor<C, D, NeedsOutput<Nd>, Item>) => CD
 }
-/**
- * `flow.wait` configuration. `T` is the phantom captured from `timeout` (`undefined` when absent)
- * that decides whether `WaitOutput` carries the `{ event: 'timeout' }` marker.
- * @public
- */
-export interface WaitCfg<C, Ev, D, N extends string, T = unknown> {
-  readonly label?: string
-  /** One handler per event; `{ done }` overrides the output with a `WaitOutput` of this step. */
-  readonly on: OnHandlers<C, Ev, D, WaitOnResult<N, NoInfer<WaitOutput<Ev, T>>>>
-  readonly timeout?: { readonly after: Duration; readonly next: N } & T
-  readonly enter?: (a: EnterArgs<C, D>) => unknown
-  readonly exit?: (a: ExitArgs<C, D, WaitOutput<Ev, T>>) => unknown
-  readonly when?: WhenSpec<C, D>
-  readonly next?: NextSpec<C, D, WaitOutput<Ev, T>, N>
-  readonly dependsOn?: DependsOn<N>
+/** What a child `deps` mapper returns: the child's remaining deps, optionally overriding provided ones. */
+export type ChildDeps<CF extends AnyFlow> = [NonNullable<CF['~types']>['provided']] extends [never]
+  ? DepsOf<CF>
+  : RequiredDepsOf<CF> & {
+      [K in keyof DepsOf<CF> as K extends NonNullable<CF['~types']>['provided']
+        ? K
+        : never]?: DepsOf<CF>[K]
+    }
+/** Added when this wizard's deps do not cover `RequiredDepsOf<child>`: the `deps` mapper is required. */
+export interface ChildDepsRequired<C, D, Nd, CD, Item> {
+  readonly deps: (args: HookArgsFor<C, D, NeedsOutput<Nd>, Item>) => CD
 }
-/**
- * `flow.decision` configuration. The step's output is the normalized list of chosen targets
- * (`readonly N[]`: `'a'` → `['a']`, `null` → `[]`).
- * @public
- */
-export interface DecisionCfg<C, Ev, D, N extends string> {
-  readonly label?: string
-  readonly next: (a: NextArgs<C, D, undefined>) => MaybePromise<NextRef<N>>
-  readonly on?: OnHandlers<C, Ev, D, void>
-  readonly when?: WhenSpec<C, D>
-  readonly dependsOn?: DependsOn<N>
-}
-/**
- * `flow.flow(child, cfg)` configuration.
- * @public
- */
-export interface FlowCfg<C, Ev, D, CF extends AnyFlow, O, N extends string> {
-  readonly label?: string
-  /** Builds the child's context input (parsed ONCE by the child's context boundary at child creation). */
-  readonly context: (a: BaseArgs<C, D>) => ContextInput<CF>
-  /**
-   * Builds the child's deps (parsed by the child's `deps` boundary when it declares one, at
-   * child creation); when omitted the parent's deps object is passed through unchanged.
-   */
-  readonly deps?: (a: BaseArgs<C, D>) => DepsOf<CF>
-  /** Optional re-check of the child's output (fixes the step's output type). */
-  readonly output?: Boundary<O, unknown>
-  readonly exit?: (a: ExitArgs<C, D, O>) => unknown
-  readonly on?: OnHandlers<C, Ev, D, void>
-  readonly when?: WhenSpec<C, D>
-  readonly next?: NextSpec<C, D, O, N>
-  readonly dependsOn?: DependsOn<N>
-}
-/**
- * `flow.final` configuration.
- * @public
- */
-export interface FinalCfg<C, Ev, D, O> {
-  readonly label?: string
-  readonly output?: (a: BaseArgs<C, D>) => O
-  readonly on?: OnHandlers<C, Ev, D, void>
-}
+export type DepsRule<C, D, Nd, Item, CF extends AnyFlow> =
+  {} extends RequiredDepsOf<CF>
+    ? unknown
+    : [D] extends [RequiredDepsOf<CF>]
+      ? unknown
+      : ChildDepsRequired<C, D, Nd, ChildDeps<CF>, Item>
 
-type TaskRunOutput<F> =
-  F extends TaskAdapter<infer _C, infer _D, infer A, infer _E>
-    ? A
-    : F extends (...args: never[]) => infer R
-      ? Awaited<R>
-      : never
-
-type TaskRunError<F> = F extends TaskAdapter<infer _C, infer _D, infer _A, infer E> ? E : never
-
-type TaskRunOptions<C, Ev, D, F, O, N extends string, E> =
-  F extends TaskAdapter<infer _C, infer _D, infer _A, infer _E>
-    ? Omit<TaskOptions<C, Ev, D, TaskRunOutput<F>, N, TaskRunError<F>>, 'output' | 'mapError'>
-    : TaskOptions<C, Ev, D, O, N, E>
-
-type TaskRunOutputFor<F, O> =
-  F extends TaskAdapter<infer _C, infer _D, infer _A, infer _E> ? TaskRunOutput<F> : O
-
-type TaskRunErrorFor<F, E> =
-  F extends TaskAdapter<infer _C, infer _D, infer _A, infer _E> ? TaskRunError<F> : E
-
-/**
- * Constructors pre-bound to `C`/`Ev`/`D`. Only `N` captures literals; no `const` params.
- * `I = never` means "this step has no draft input"; `O` is `undefined` (never `never`) when a
- * step has no output value. A view's `I`/`O` come from its `input` boundary only; a wait's
- * `T` phantom records whether it declares a `timeout`; a decision's output is `readonly N[]`;
- * a task's `E` is its `mapError` value type (`never` without `mapError`).
- * @public
- */
-export interface StepApi<C, Ev, D> {
-  view<I = never, O = [I] extends [never] ? undefined : I, N extends string = never>(
-    cfg: ViewCfg<C, Ev, D, I, O, N>,
-  ): Step<C, Ev, D, I, O, N, 'view', never>
-  task<
-    F extends (a: RunArgs<C, D>) => unknown,
-    O = TaskRunOutput<F>,
-    N extends string = never,
-    E = never,
-  >(
-    run: F,
-    options?: TaskRunOptions<C, Ev, D, F, O, N, E>,
-  ): Step<C, Ev, D, never, TaskRunOutputFor<F, O>, N, 'task', never, TaskRunErrorFor<F, E>>
-  wait<N extends string = never, T = undefined>(
-    cfg: WaitCfg<C, Ev, D, N, T>,
-  ): Step<
-    C,
-    Ev,
-    D,
-    never,
-    WaitOutput<Ev, [T] extends [undefined] ? undefined : true>,
-    N,
-    'wait',
-    never
-  >
-  decision<N extends string>(
-    cfg: DecisionCfg<C, Ev, D, N>,
-  ): Step<C, Ev, D, never, readonly N[], N, 'decision', never>
-  flow<CF extends AnyFlow, O = FlowOutput<CF>, N extends string = never>(
-    child: CF,
-    cfg: FlowCfg<C, Ev, D, CF, O, N>,
-  ): Step<C, Ev, D, never, O, N, 'flow', CF>
-  final<O = undefined>(cfg?: FinalCfg<C, Ev, D, O>): Step<C, Ev, D, never, O, never, 'final', never>
+/** Records which options a config literal was written with (`Xk`); unknown keys stay excess errors. */
+export type OptionKeys<Xk, Known extends PropertyKey> = {
+  readonly [P in Xk & Known]?: unknown
+} & {
+  readonly [P in Xk &
+    Known &
+    (
+      | 'run'
+      | 'waitFor'
+      | 'sleep'
+      | 'input'
+      | 'each'
+      | 'output'
+      | 'needs'
+      | 'next'
+      | 'targets'
+    )]: unknown
 }
+export type StepOption = keyof StepConfig<
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown
+>
+export type ViewOption = keyof ViewConfig<
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown
+>
+export type ChildOption = keyof ChildConfig<
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown
+>

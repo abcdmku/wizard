@@ -1,5 +1,22 @@
 # React API
 
-Use the generated [`@openwizard/react` reference](/typedoc/modules/_openwizard_react.html) for `bindReact()` and its typed hooks.
+The generated [`@openwizard/react` reference](/typedoc/modules/_openwizard_react.html) covers `bindReact()`, the `Provider`, every hook, and the helper types behind them.
 
-Read the [React package guide](/packages/react) first.
+Read the [React guide](/packages/react) first.
+
+| Export | Purpose |
+|---|---|
+| `bindReact<typeof wizard>()` | Creates hooks typed to a wizard; accepts a projection type for mirrors |
+| `useRun(create, deps?)` | Owns a local run or mirror across renders and StrictMode remounts |
+| `Provider` | Supplies the stable `Run` or `Mirror` source; accepts optional `fallback` |
+| `useSnapshot()` | Whole state, re-rendered on every commit |
+| `useCurrent()` | Current view step's record or `null` |
+| `useStep(id)` | One step's record plus `next`, `back`, `go`, `setInput`, `resetInput` |
+| `useSelector(fn, isEqual?)` | Derived value with change detection |
+| `useActions()` | Command methods, including mapped child-flow retry |
+| `useChild(step)` / `useChild(mappedStep, index)` | Hooks for an ordinary child or one mapped input item |
+| `useConnection()` | Mirror binding only; reads transport connection state |
+
+Bind the wizard itself. For server rendering, seed the client source with `wizard.resume(snapshot)` or `createMirror({ initial, transport })` before passing it to `Provider`. View helpers scope `next` and `back` to their step, including over a mirror.
+
+Mapped child bindings require a numeric input index, such as `binding.useChild('batch', 0)`. Ordinary child bindings take only the step id. Over a mirror, the projection must expose a nested child state; `child: true` exposes summaries and cannot supply child hooks. A child binding's `useSnapshot()` returns `null` before that item has state; guard it before calling `useStep()`.

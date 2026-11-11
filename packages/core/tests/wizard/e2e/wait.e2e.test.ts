@@ -1,11 +1,11 @@
 /**
  * (c) wait steps with the REAL machine: send() delivered, early event buffered
  * then delivered on entry, TTL expiry, wait timeout branch (`timeout.next`),
- * handler `{ next }` override, `keep`, and the sendRejected path (boundary).
+ * handler-driven routing through `next`, `keep`, and boundary rejection.
  */
 
 import { describe, expect, it } from 'vitest'
-import { final, flow, guard, task, view, wait } from '../../helpers/fixtures'
+import { eventStep, flow, guard, routingStep, runStep, view } from '../../helpers/fixtures'
 import { e2e } from './harness'
 
 const paymentEvent = guard((v) => typeof (v as any)?.paymentId === 'string', 'paymentId required')
@@ -17,7 +17,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       start: 'w',
       events: { 'payment.captured': paymentEvent },
       steps: {
-        w: wait({
+        w: eventStep({
           on: {
             'payment.captured': ({ payload, update }) => {
               update({ paymentId: (payload as any).paymentId })
@@ -25,7 +25,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
           },
           next: 'end',
         }),
-        end: final(),
+        end: routingStep(),
       },
     })
     const t = e2e(def, { context: {} })
@@ -36,7 +36,8 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       ok: false,
       reason: 'rejected',
       code: 'BOUNDARY_REJECTED',
-      message: 'payload rejected by the event boundary',
+      message:
+        "the payload of 'payment.captured' was rejected by its event boundary: paymentId required",
       issues: [{ message: 'paymentId required' }],
     })
     expect(t.of('event.rejected')[0]).toMatchObject({
@@ -57,11 +58,11 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       payload: { paymentId: 'p_1' },
     })
     expect(t.of('event.delivered')[0]).toMatchObject({ to: 'w', payload: { paymentId: 'p_1' } })
-    // Handler `update()` landed before the step completed; output = { event, payload } by default.
+    // Handler `update()` lands before completion; an omitted result uses the payload as output.
     expect(t.run.getState().context).toEqual({ paymentId: 'p_1' })
     expect(t.rec('w')).toMatchObject({
       status: 'done',
-      output: { event: 'payment.captured', payload: { paymentId: 'p_1' } },
+      output: { paymentId: 'p_1' },
     })
     expect(t.run.getState().status).toBe('done')
     const order = t.types()
@@ -76,8 +77,8 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       events: { hello: guard(() => true), other: guard(() => true) },
       steps: {
         form: view({ next: 'w' }),
-        w: wait({ on: { hello: ({ payload }) => ({ done: { got: payload } }) }, next: 'end' }),
-        end: final(),
+        w: eventStep({ on: { hello: ({ payload }) => ({ done: { got: payload } }) }, next: 'end' }),
+        end: routingStep(),
       },
     })
     const t = e2e(def, { now: 1_000 })
@@ -115,7 +116,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       start: 'form',
       policies: { unmatchedEvents: { buffer: false, ttlMs: 0 } },
       events: { hello: guard(() => true) },
-      steps: { form: view({ next: 'end' }), end: final() },
+      steps: { form: view({ next: 'end' }), end: routingStep() },
     })
     const t = e2e(def)
     await t.run.start()
@@ -123,7 +124,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       ok: false,
       reason: 'dropped',
       code: 'NOT_ACTIVE',
-      message: 'no-listener',
+      message: "no step is waiting for 'hello' and unmatched events are not buffered",
     })
     expect(t.of('event.dropped')[0]).toMatchObject({ event: 'hello', reason: 'no-listener' })
   })
@@ -134,13 +135,13 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       start: 'w',
       events: { hello: guard(() => true) },
       steps: {
-        w: wait({
+        w: eventStep({
           on: { hello: () => undefined },
           timeout: { afterMs: 15 * 60_000, next: 'expired' },
           next: 'ok',
         }),
-        ok: final(),
-        expired: final({ output: () => 'timed out' }),
+        ok: routingStep(),
+        expired: runStep({ run: () => 'timed out' }),
       },
     })
     const t = e2e(def, { now: 100_000 })
@@ -156,7 +157,8 @@ describe('e2e wait: routing, inbox, timeouts', () => {
     expect(t.run.getState().status).toBe('waiting')
     t.sched.advance(1)
     expect(t.of('timer.fired')[0]).toMatchObject({ timerId: 'wait:w' })
-    expect(t.rec('w')).toMatchObject({ status: 'done', output: { event: 'timeout' } })
+    expect(t.rec('w').status).toBe('done')
+    expect(t.rec('w').output).toBeUndefined()
     expect(t.of('step.done')[0]).toMatchObject({ step: 'w', next: 'expired' })
     expect(t.rec('expired').status).toBe('done')
     expect(t.rec('ok').status).toBe('idle')
@@ -166,27 +168,29 @@ describe('e2e wait: routing, inbox, timeouts', () => {
     expect(await t.run.send('hello', {})).toMatchObject({ ok: false, reason: 'dropped' })
   })
 
-  it('a handler may keep waiting, override the target with { next }, or fail the step', async () => {
+  it('a handler may keep waiting, return data for a declared route, or fail the step', async () => {
     let mode: 'keep' | 'next' | 'fail' = 'keep'
     const def = flow({
       name: 'handler',
       start: 'w',
       events: { ping: guard(() => true) },
       steps: {
-        w: wait({
+        w: eventStep({
           on: {
-            ping: () =>
-              mode === 'keep'
-                ? { keep: true }
-                : mode === 'next'
-                  ? { next: 'alt', done: 'routed' }
-                  : { fail: 'refused' },
+            ping: ({ update }) => {
+              if (mode === 'keep') return { keep: true }
+              if (mode === 'fail') return { fail: 'refused' }
+              update({ route: 'alt' })
+              return { done: 'routed' }
+            },
           },
           timeout: { afterMs: 1_000, next: 'end' },
-          next: 'end',
+          dynamicNext: ({ context }) =>
+            (context as { route?: string }).route === 'alt' ? 'alt' : 'end',
+          targets: ['alt', 'end'],
         }),
-        alt: final({ output: () => 'alt' }),
-        end: final(),
+        alt: runStep({ run: () => 'alt' }),
+        end: routingStep(),
       },
     })
     const t = e2e(def)
@@ -197,7 +201,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
     mode = 'next'
     await t.run.send('ping', {})
     expect(t.rec('w')).toMatchObject({ status: 'done', output: 'routed' })
-    expect(t.of('step.done').find((e) => e.step === 'w')).toMatchObject({ next: 'alt' })
+    expect(t.of('transition.committed').at(-1)).toMatchObject({ from: 'w', to: 'alt' })
     expect(t.run.getState().output).toBe('alt')
     expect(t.run.getState().timers).toEqual({}) // timeout timer cleared on completion
     expect(t.sched.pending()).toBe(0)
@@ -211,7 +215,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       status: 'failed',
       error: { kind: 'hook', message: 'refused' },
     })
-    expect(t2.run.getState().status).toBe('failed')
+    expect(t2.run.getState().status).toBe('halted')
   })
 
   it('a handler that throws fails the wait step (kind hook) under the halt policy', async () => {
@@ -220,7 +224,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       start: 'w',
       events: { ping: guard(() => true) },
       steps: {
-        w: wait({
+        w: eventStep({
           on: {
             ping: () => {
               throw new Error('handler exploded')
@@ -228,7 +232,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
           },
           next: 'end',
         }),
-        end: final(),
+        end: routingStep(),
       },
     })
     const t = e2e(def)
@@ -239,7 +243,7 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       status: 'failed',
       error: { kind: 'hook', message: 'handler exploded' },
     })
-    expect(t.run.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('halted')
   })
 
   it('a task in flight while a wait listens: send() to the wait works while the task runs', async () => {
@@ -249,8 +253,8 @@ describe('e2e wait: routing, inbox, timeouts', () => {
       start: ['t', 'w'],
       events: { ping: guard(() => true) },
       steps: {
-        t: task({ run: () => new Promise((r) => (finish = r)) }),
-        w: wait({ on: { ping: () => ({ done: 'pinged' }) } }),
+        t: runStep({ run: () => new Promise((r) => (finish = r)) }),
+        w: eventStep({ on: { ping: () => ({ done: 'pinged' }) } }),
       },
     })
     const t = e2e(def)

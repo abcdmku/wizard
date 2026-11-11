@@ -21,6 +21,7 @@
  */
 
 import type { CompiledFlow, RuntimeBoundary } from '../authoring/compiled'
+import { parseEachChildAddress } from '../interpreter/each-child'
 
 export function canReviveAt(
   def: CompiledFlow,
@@ -31,8 +32,16 @@ export function canReviveAt(
   if (head === 'state') return revivableInState(def, at(root, 'state'), rest)
   if (head === 'children') {
     const [step, ...inner] = rest
-    if (typeof step !== 'string' || !Object.hasOwn(def.steps, step)) return false
-    const child = def.steps[step]?.child
+    if (typeof step !== 'string') return false
+    const address = Object.hasOwn(def.steps, step) ? undefined : parseEachChildAddress(step)
+    if (
+      address !== undefined &&
+      (def.steps[address.step]?.each === undefined ||
+        at(root, 'state', 'steps', address.step, 'each', 'keys', address.index) !== address.key)
+    ) {
+      return false
+    }
+    const child = def.steps[address?.step ?? step]?.child
     return child === undefined ? false : canReviveAt(child, at(root, 'children', step), inner)
   }
   return false
@@ -46,9 +55,37 @@ function revivableInState(
   const [head, second, third, fourth] = path
   if (head === 'context') return revives(def.context)
   if (
+    def.output === undefined &&
+    (head === 'output' ||
+      (head === 'terminal' && second === 'output' && at(state, 'terminal', 'status') === 'done'))
+  ) {
+    let boundary: RuntimeBoundary | undefined
+    let latest = -1
+    for (const id of def.sinks) {
+      if (at(state, 'steps', id, 'status') !== 'done') continue
+      const stored = at(state, 'steps', id, 'completedSeq')
+      const sequence = typeof stored === 'number' ? stored : 0
+      if (sequence < latest) continue
+      latest = sequence
+      boundary = stepBoundary(def, id)
+    }
+    return revives(boundary)
+  }
+  if (
     head === 'steps' &&
     typeof second === 'string' &&
     (third === 'output' || third === 'previousOutput')
+  ) {
+    return revives(stepBoundary(def, second))
+  }
+  if (
+    head === 'steps' &&
+    typeof second === 'string' &&
+    def.steps[second]?.each !== undefined &&
+    third === 'each' &&
+    fourth === 'records' &&
+    path[4] === 'root' &&
+    itemOutputPath(path.slice(5))
   ) {
     return revives(stepBoundary(def, second))
   }
@@ -63,6 +100,24 @@ function revivableInState(
     )
   }
   return false
+}
+
+/** Follow the sparse each-result trie, stopping at the completed item's output. */
+function itemOutputPath(path: readonly (string | number)[]): boolean {
+  let offset = 0
+  while (path[offset] === 'children') {
+    const child = path[offset + 1]
+    if (typeof child !== 'number' || !Number.isInteger(child) || child < 0) return false
+    offset += 2
+  }
+  const item = path[offset + 1]
+  return (
+    path[offset] === 'items' &&
+    typeof item === 'number' &&
+    Number.isInteger(item) &&
+    item >= 0 &&
+    path[offset + 2] === 'output'
+  )
 }
 
 /** The boundary that re-parses a step's stored `output` on resume (views: their `input`). */

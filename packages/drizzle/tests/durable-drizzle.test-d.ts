@@ -1,4 +1,4 @@
-import type { DurableStore } from '@openwizard/durable'
+import type { DurableStore } from '@openwizard/durable/store'
 import { expectTypeOf } from 'vitest'
 import type { DrizzleDurableStoreOptions } from '../src'
 import { createPgDrizzleDurableStore, definePgDurableSchema, type PgDurableSchema } from '../src/pg'

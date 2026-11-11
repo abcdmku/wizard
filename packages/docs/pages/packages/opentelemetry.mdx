@@ -1,22 +1,40 @@
 # OpenTelemetry
 
-`@openwizard/opentelemetry` translates a run's event stream into tracing spans. It lets an existing OpenTelemetry setup show when a run starts, how long steps take, and where failures occur.
+`@openwizard/opentelemetry` turns a run's event stream into workflow, task-attempt, compensation, and nested-flow spans. You need it when an OpenTelemetry pipeline already exists and should show run timing and failures.
 
 ```sh
 npm install @openwizard/opentelemetry @opentelemetry/api
 ```
 
-Your application must configure the OpenTelemetry SDK, tracer provider, and exporter first. This package only creates spans through the OpenTelemetry API.
-
-Attach instrumentation before the run starts so it sees the full lifecycle:
-
 ```ts file="packages/docs/snippets/packages/opentelemetry.mts"
 ```
 
-`instrumentRun(run)` subscribes to events from that run. Call `stop()` before disposing the run or when the run should no longer emit telemetry.
+1. `instrumentRun(run)` subscribes to the run's events before `start()` so it sees the whole lifecycle.
+2. The workflow span opens on start; task attempts and child flows become child spans.
+3. Failures set the span status; successes leave it unset unless `successStatus` is on.
+4. `telemetry.stop()` ends open spans and unsubscribes.
+5. Dispose the run after stopping instrumentation.
 
-By default, the adapter does not copy context, view input, step output, event payloads, idempotency keys, or error messages into spans. Those values can contain personal data or secrets. Enable extra attributes only after deciding what your tracing backend is allowed to store.
+## Options and handle
 
-Read [explain, observe, and replay](/advanced/operations) for the event and state model that instrumentation consumes.
+| Export | What it does |
+|---|---|
+| `instrumentRun(run, options?)` | Attaches spans and returns a `RunInstrumentation` |
+| `tracer`, `parentContext` | Tracer to use; parent of the root workflow span |
+| `resumeContext` | Context from an earlier process, added as a span link |
+| `recordEvents` | `'none'`, `'lifecycle'` (default), or `'all'` |
+| `children`, `instanceId`, `onError` | Trace child flows; instance id handling; adapter error hook |
+| `span(path)`, `context(path)`, `inject()`, `extract()` | Read or propagate the current span context |
+| `send(event, payload, options?)` | Link the incoming trace context and forward `eventId` and `correlationId` to the run |
 
-[OpenTelemetry API lookup](/api/opentelemetry)
+Pass the delivery's stable id as `eventId` when the sender may retry. The run's persisted deduplication window handles repeats; instrumentation returns the same duplicate result as `run.send()`.
+
+## Boundaries
+
+Your application configures the SDK, tracer provider, and exporter; this package only calls the OpenTelemetry API. By default no context, input, output, event payload, idempotency key, or error message is copied into spans. Turn on extra attributes only after deciding what your tracing backend may store.
+
+## Next
+
+Read [explain, observe, and replay](/advanced/operations) for the events and phases the spans are built from.
+
+[OpenTelemetry API](/api/opentelemetry)

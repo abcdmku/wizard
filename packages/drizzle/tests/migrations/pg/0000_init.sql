@@ -1,6 +1,5 @@
 CREATE TABLE "test_wizard_dedupe" (
 	"run_key" text NOT NULL,
-	"kind" text NOT NULL,
 	"dedupe_id" text NOT NULL,
 	"digest" text NOT NULL,
 	"status" text NOT NULL,
@@ -10,7 +9,7 @@ CREATE TABLE "test_wizard_dedupe" (
 	"request" text,
 	"result" text,
 	"completed_at_ms" bigint,
-	CONSTRAINT "test_wizard_dedupe_run_key_kind_dedupe_id_pk" PRIMARY KEY("run_key","kind","dedupe_id")
+	CONSTRAINT "test_wizard_dedupe_run_key_dedupe_id_pk" PRIMARY KEY("run_key","dedupe_id")
 );
 --> statement-breakpoint
 CREATE TABLE "test_wizard_runs" (

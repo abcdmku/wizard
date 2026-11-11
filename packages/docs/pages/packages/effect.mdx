@@ -1,18 +1,43 @@
-# Effect 3
+# Effect
 
-OpenWizard tasks normally use functions that return a value or promise. `@openwizard/effect` adapts an Effect 3 program to that same task contract, so an application already using Effect can keep its typed error and service model.
+`@openwizard/effect` runs Effect 4 programs as runnable wizard steps. Each run gets a caller-owned `ManagedRuntime` through its dependencies.
 
 ```sh
-npm install @openwizard/effect effect@^3.22.1
+npm install @openwizard/effect effect@4.0.0-beta.107
 ```
 
 ```ts file="packages/effect/snippets/basic.ts"
 ```
 
-`makeEffectRunner()` creates a runner from a runtime `Layer`. `runner.task()` then builds the task function passed to `flow.task()`. When the Effect succeeds, its value becomes the task output. When its typed error channel fails, the adapter stores that value as task error data. Defects and interruptions remain distinct failure kinds.
+1. `ManagedRuntime.make(layer)` builds the runtime that provides `Payments`.
+2. The wizard declares `deps: boundary.trusted<EffectDeps<Payments>>()`.
+3. `step({ run: runEffect(program) })` runs the program with typed step args and the runtime from `deps`.
+4. OpenWizard still owns retries, waits, timers, and approvals.
+5. `runtime.dispose()` runs during application shutdown, not per run.
 
-The runtime `Layer` supplies Effect services when the task runs. OpenWizard still owns task attempts, retry timing, timeout state, and step transitions.
+For `each` and `needs`, create the adapter inside the step callback, as `batchCheckout` does. `run: args => runEffect(() => program(args.item, args.needs.load))` lets that callback infer the item and joined data before building the Effect. The returned adapter executes with the same step arguments and abort signal. Ordinary steps can pass `runEffect(program)` directly.
 
-You do not need this package for ordinary promises. Use it only with Effect 3. Use [`@openwizard/effect-v4`](/packages/effect-v4) for Effect 4 beta because the Effect versions have different APIs.
+Declare a static step `output` boundary when saved output must revive parsed values such as Dates. For a Date, `output: z.coerce.date()` can parse its JSON form on resume. A boundary created only inside the callback cannot supply that restore rule. JSON results need no extra boundary.
 
-[Effect 3 API lookup](/api/effect)
+## Exports
+
+| Export | What it does |
+|---|---|
+| `runEffect(program, { mapError? })` | Run adapter for `step({ run: ... })` |
+| `EffectDeps<Services, RuntimeError>` | Runtime services and layer error in wizard deps |
+| `RunEffectOptions` | JSON mapping for typed program or runtime-layer failures |
+| `RuntimeErrorOf<Deps>` | Extracts the runtime-layer error type |
+
+## Errors and cancellation
+
+The step output is the Effect's success value. A typed failure has kind `typed`; `runEffect(program, { mapError })` stores the returned JSON value in `error.data`, typed by `ErrorOf`. The mapper also receives failures while building the runtime's Layer. Without a mapper, the failure has no typed data. Defects have kind `defect`; interruption has kind `interrupted`.
+
+A step-level `output` boundary replaces the adapter's default result boundary. A step-level `mapError` maps the original failure and replaces adapter-mapped data; `retry.when` receives that step-mapped JSON value. Put shared mapping on `runEffect`, and override it on the step when that wizard needs a different error shape.
+
+The adapter forwards the step's abort signal to Effect, so timeouts, cancellation, and disposal interrupt its fiber. TypeScript rejects a program whose services the runtime does not provide. Pass `{ deps: { runtime } }` when creating a run, or bind it with `wizard.provide({ runtime })`. Keep the runtime open across runs and dispose it during application shutdown. This package targets Effect 4 beta.
+
+## Next
+
+Read [recovery](/advanced/recovery) for how OpenWizard treats a rejected task hook.
+
+[Effect API](/api/effect)

@@ -1,27 +1,30 @@
-import { createRun, defineFlow } from '@openwizard/core'
+import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-const approval = defineFlow({
-  name: 'approval',
-  context: z.object({ approvedBy: z.string().optional() }),
-  events: {
-    approved: z.object({ by: z.string() }),
+const approval = defineWizard(
+  {
+    name: 'approval',
+    context: z.object({ approvedBy: z.string().optional() }),
+    events: { approved: z.object({ by: z.string() }) },
   },
-})
+  ({ step, steps }) =>
+    steps({
+      waitForApproval: step({
+        waitFor: {
+          approved: ({ payload, update }) => {
+            update({ approvedBy: payload.by })
+            return { done: payload.by }
+          },
+        },
+        next: 'done',
+      }),
+      done: step({ run: ({ context }) => context.approvedBy }),
+    }),
+)
 
-const approvalFlow = approval.steps({
-  waitForApproval: approval.wait({
-    on: {
-      approved: ({ payload, update }) => update({ approvedBy: payload.by }),
-    },
-    next: 'done',
-  }),
-  done: approval.final({ output: ({ context }) => context.approvedBy }),
-})
-
-const run = createRun(approvalFlow, { context: {} })
+const run = approval.create({})
 await run.start()
-await run.send('approved', { by: 'Grace' })
+await run.send('approved', { by: 'Grace' }, { eventId: 'approval-42' })
 
 const result = await run.awaitResult()
 if (result.status !== 'done') throw new Error('approval did not finish')

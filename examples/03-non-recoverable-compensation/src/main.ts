@@ -2,7 +2,6 @@
  * Runnable walk-through: `pnpm --filter example-03-non-recoverable-compensation start`.
  * Three reservations succeed, the payment is declined, and the saga unwinds in reverse order.
  */
-import { createRun } from '@openwizard/core'
 import { bookTripFlow, type Deps } from './book-trip'
 
 const deps: Deps = {
@@ -25,7 +24,7 @@ const deps: Deps = {
   },
 }
 
-const run = createRun(bookTripFlow, { context: { tripId: 'T1', total: 900 }, deps })
+const run = bookTripFlow.create({ tripId: 'T1', total: 900 }, { deps })
 run.observe((event) => {
   switch (event.type) {
     case 'step.done':
@@ -38,7 +37,7 @@ run.observe((event) => {
       console.log(`⟲ compensating, plan: ${event.plan.join(' → ')}`)
       break
     case 'flow.compensated':
-      console.log(`⟲ compensated (outcome ${event.outcome}, failures: ${event.failures.length})`)
+      console.log(`⟲ compensated (run ${event.status}, failures: ${event.failures.length})`)
       break
     default:
   }

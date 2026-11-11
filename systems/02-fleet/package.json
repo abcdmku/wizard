@@ -1,0 +1,40 @@
+{
+  "name": "@openwizard/system-02-fleet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenWizard system 02: tenant-safe fleet dispatch and cold-chain drill.",
+  "type": "module",
+  "packageManager": "pnpm@10.19.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm --filter @openwizard/fleet-shared --filter @openwizard/fleet-api --filter @openwizard/fleet-web run build && tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm --filter @openwizard/fleet-shared --filter @openwizard/fleet-api --filter @openwizard/fleet-web run typecheck && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm test:unit && pnpm test:integration && pnpm test:e2e",
+    "test:unit": "vitest run --config vitest.unit.config.ts && pnpm --filter @openwizard/fleet-api --filter @openwizard/fleet-web run test",
+    "test:integration": "node scripts/run-fleet-test.mjs integration",
+    "test:e2e": "node scripts/run-fleet-test.mjs e2e",
+    "test:all": "pnpm typecheck && pnpm test:unit && pnpm test:integration && pnpm test:e2e",
+    "compose:up": "docker compose up --build",
+    "compose:down": "docker compose down",
+    "compose:reset": "docker compose down -v",
+    "db:reset": "node scripts/reset-db.mjs",
+    "seed": "node scripts/seed.mjs",
+    "wait:api": "node scripts/wait-for-health.mjs",
+    "dx:check": "node scripts/check-dx-metrics.mjs"
+  },
+  "dependencies": {
+    "@openwizard/core": "workspace:*",
+    "@openwizard/effect": "workspace:*",
+    "@openwizard/fleet-shared": "workspace:*",
+    "effect": "4.0.0-beta.107"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.13.3",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10",
+    "zod": "4.4.3"
+  }
+}

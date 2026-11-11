@@ -40,7 +40,7 @@ const twoViews = flow({
   steps: {
     a: { kind: 'view', input: stringsBoundary('name'), next: { kind: 'static', targets: ['b'] } },
     b: { kind: 'view', next: { kind: 'static', targets: ['end'] } },
-    end: { kind: 'final' },
+    end: { kind: 'step' },
   },
 })
 
@@ -97,7 +97,7 @@ describe('resumeWizardRuntime', () => {
           input: boundary((v) => ({ ok: true, value: { ...(v as object), trimmed: true } })),
           next: { kind: 'static', targets: ['b'] },
         },
-        b: { kind: 'view' },
+        b: { kind: 'view', next: { kind: 'static', targets: [] } },
       },
     })
     const { snap } = await running(def)
@@ -122,11 +122,6 @@ describe('resumeWizardRuntime', () => {
       expect.arrayContaining(['v: expected 1, got 2', "flow.name: expected 'nav', got 'other'"]),
     )
     expect(bad.message).toContain('SNAPSHOT_INCOMPATIBLE'.length > 0 ? 'not compatible' : '')
-
-    const { end: _end, ...steps } = snap.state.steps
-    expect(
-      resumeErr(twoViews, { ...snap, state: { ...snap.state, steps } }).issues?.[0]?.message,
-    ).toBe("state.steps: missing step 'end'")
 
     const fn = { ...snap, state: { ...snap.state, context: { evil: () => 1 } } }
     expect(resumeErr(twoViews, fn).issues?.[0]?.message).toBe(
@@ -163,7 +158,7 @@ describe('resumeWizardRuntime', () => {
       context: boundary((v) => Promise.resolve({ ok: true, value: v }) as any),
     }
     expect(resumeErr(asyncDef, snap).issues?.map((i) => i.message)).toEqual([
-      'context: async boundaries are not supported by resumeRun (use resumeRunAsync)',
+      'context: async boundaries are not supported by resume() (use resumeAsync())',
     ])
   })
 
@@ -171,8 +166,8 @@ describe('resumeWizardRuntime', () => {
     const def = flow({
       name: 'nav',
       steps: {
-        w: { kind: 'wait', hooks: { on: {} }, waitTimeout: { afterMs: 1_000, next: 'end' } },
-        end: { kind: 'final' },
+        w: { kind: 'step', hooks: { waitFor: {} }, waitTimeout: { afterMs: 1_000, next: 'end' } },
+        end: { kind: 'step' },
       },
     })
     const o = baseOpts()
@@ -215,18 +210,18 @@ describe('resumeWizardRuntime', () => {
       name: 'child',
       steps: {
         t: {
-          kind: 'task',
+          kind: 'step',
           hooks: { run: () => new Promise((r) => (resolveChild = r)) },
           next: { kind: 'static', targets: ['cend'] },
         },
-        cend: { kind: 'final' },
+        cend: { kind: 'step' },
       },
     })
     const parent = flow({
       name: 'parent',
       steps: {
         f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'final' },
+        end: { kind: 'step' },
       },
     })
     const o = baseOpts()
@@ -252,12 +247,12 @@ describe('resumeWizardRuntime', () => {
   it('an active flow step with no persisted child has its summary stripped so the machine re-creates it', async () => {
     // (The re-creation itself — plan(flow.resumed) → childContext → child.create — is proven
     // against the real machine in e2e-resume.test.ts; the toy machine only emits flow.resumed.)
-    const child = flow({ name: 'child', steps: { w: { kind: 'wait', hooks: { on: {} } } } })
+    const child = flow({ name: 'child', steps: { w: { kind: 'step', hooks: { waitFor: {} } } } })
     const parent = flow({
       name: 'parent',
       steps: {
         f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'final' },
+        end: { kind: 'step' },
       },
     })
     const o = baseOpts()
@@ -287,13 +282,13 @@ describe('resumeWizardRuntime', () => {
         contextParses += 1
         return { ok: true, value: v }
       }),
-      steps: { w: { kind: 'wait', hooks: { on: {} } } },
+      steps: { w: { kind: 'step', hooks: { waitFor: {} } } },
     })
     const parent = flow({
       name: 'parent',
       steps: {
         f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'final' },
+        end: { kind: 'step' },
       },
     })
     const o = baseOpts()
@@ -317,7 +312,7 @@ describe('resumeWizardRuntime', () => {
           ? { ok: true, value: v }
           : { ok: false, issues: [{ message: 'second call' }] }
       }),
-      steps: { w: { kind: 'wait', hooks: { on: {} } } },
+      steps: { w: { kind: 'step', hooks: { waitFor: {} } } },
     })
     const parent2 = {
       ...parent,

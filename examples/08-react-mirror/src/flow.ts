@@ -3,9 +3,9 @@
  * imports) runs on the server; the client only ever imports the TYPE of `checkoutClient`
  * (see client.ts).
  *
- * view `shipping` → view `payment` → task `reserve` → task `charge` → final `receipt`
+ * view `shipping` → view `payment` → step `reserve` → step `charge` → receipt output
  */
-import { boundary, defineFlow, defineProjection } from '@openwizard/core'
+import { boundary, defineProjection, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
 /**
@@ -19,77 +19,75 @@ export interface CheckoutDeps {
   payments: { charge(token: string, amount: number): Promise<{ chargeId: string }> }
 }
 
-const checkout = defineFlow({
-  name: 'checkout',
-  version: 1,
-  context: z.object({
-    cartId: z.string(),
-    total: z.number().positive(),
-    express: z.boolean().default(false),
-    customer: z.string().optional(),
-    /** Opaque token from the payment view; the card number never enters the run at all. */
-    paymentToken: z.string().optional(),
-    reservationId: z.string().optional(),
-    chargeId: z.string().optional(),
-  }),
-  deps: boundary.trusted<CheckoutDeps>(), // trusted: constructed by the server, never from the wire
-  onFailure: 'compensate',
-})
-
-export const checkoutFlow = checkout.steps(
+export const checkoutFlow = defineWizard(
   {
-    shipping: checkout.view({
-      label: 'Shipping',
-      input: z.object({
-        name: z.string().min(2, 'Name needs at least 2 characters'),
-        address: z.string().min(5, 'Address needs at least 5 characters'),
-        express: z.boolean().default(false),
-      }),
-      initial: { name: '', address: '' }, // draft (INPUT side) the client starts from
-      exit: ({ output, update }) => update({ customer: output.name, express: output.express }),
-      next: 'payment',
+    name: 'checkout',
+    version: 1,
+    output: ({ context }) => ({
+      customer: context.customer ?? '',
+      total: context.total,
+      express: context.express,
+      reservationId: context.reservationId ?? '',
+      chargeId: context.chargeId ?? '',
     }),
-    payment: checkout.view({
-      label: 'Payment',
-      // The draft holds the provider's token (+ last4 for display), never the card number: the
-      // UI tokenises with the provider SDK BEFORE `setInput` (see App.tsx / payments.ts).
-      input: z.object({
-        paymentToken: z.string().regex(/^tok_/, 'Tokenise the card first'),
-        last4: z.string().regex(/^\d{4}$/),
-      }),
-      exit: ({ output, update }) => update({ paymentToken: output.paymentToken }),
-      next: 'reserve',
+    context: z.object({
+      cartId: z.string(),
+      total: z.number().positive(),
+      express: z.boolean().default(false),
+      customer: z.string().optional(),
+      /** Opaque token from the payment view; the card number never enters the run at all. */
+      paymentToken: z.string().optional(),
+      reservationId: z.string().optional(),
+      chargeId: z.string().optional(),
     }),
-    reserve: checkout.task(({ context, deps }) => deps.inventory.reserve(context.cartId), {
-      label: 'Reserve stock',
-      // `attempts` = retries after the first failure: one retry here, 400 ms later.
-      retry: { attempts: 1, backoff: 400 },
-      exit: ({ output, update }) => update({ reservationId: output.reservationId }),
-      compensate: () => {
-        /* release the reservation in a real system */
-      },
-      next: 'charge',
-    }),
-    charge: checkout.task(
-      ({ context, deps }) => deps.payments.charge(context.paymentToken ?? '', context.total),
-      {
-        label: 'Charge card',
-        exit: ({ output, update }) => update({ chargeId: output.chargeId }),
-        next: 'receipt',
-      },
-    ),
-    receipt: checkout.final({
-      label: 'Receipt',
-      output: ({ context }) => ({
-        customer: context.customer ?? '',
-        total: context.total,
-        express: context.express,
-        reservationId: context.reservationId ?? '',
-        chargeId: context.chargeId ?? '',
-      }),
-    }),
+    deps: boundary.trusted<CheckoutDeps>(), // trusted: constructed by the server, never from the wire
+    onFailure: 'compensate',
   },
-  { start: 'shipping' },
+  ({ step, view, steps }) =>
+    steps(
+      {
+        shipping: view({
+          label: 'Shipping',
+          input: z.object({
+            name: z.string().min(2, 'Name needs at least 2 characters'),
+            address: z.string().min(5, 'Address needs at least 5 characters'),
+            express: z.boolean().default(false),
+          }),
+          initial: { name: '', address: '' }, // draft (INPUT side) the client starts from
+          exit: ({ output, update }) => update({ customer: output.name, express: output.express }),
+          next: 'payment',
+        }),
+        payment: view({
+          label: 'Payment',
+          // The draft holds the provider's token (+ last4 for display), never the card number: the
+          // UI tokenises with the provider SDK BEFORE `setInput` (see App.tsx / payments.ts).
+          input: z.object({
+            paymentToken: z.string().regex(/^tok_/, 'Tokenise the card first'),
+            last4: z.string().regex(/^\d{4}$/),
+          }),
+          exit: ({ output, update }) => update({ paymentToken: output.paymentToken }),
+          next: 'reserve',
+        }),
+        reserve: step({
+          run: ({ context, deps }) => deps.inventory.reserve(context.cartId),
+          label: 'Reserve stock',
+          // `attempts` = retries after the first failure: one retry here, 400 ms later.
+          retry: { attempts: 1, backoff: 400 },
+          exit: ({ output, update }) => update({ reservationId: output.reservationId }),
+          compensate: () => {
+            /* release the reservation in a real system */
+          },
+          next: 'charge',
+        }),
+        charge: step({
+          run: ({ context, deps }) =>
+            deps.payments.charge(context.paymentToken ?? '', context.total),
+          label: 'Charge card',
+          exit: ({ output, update }) => update({ chargeId: output.chargeId }),
+        }),
+      },
+      { start: 'shipping' },
+    ),
 )
 
 /**

@@ -47,8 +47,8 @@ function setup(
 const taskThenFinal = (run: (args: any) => unknown, extra: Record<string, unknown> = {}) =>
   flow({
     steps: {
-      t: { kind: 'task', hooks: { run }, next: { kind: 'static', targets: ['end'] }, ...extra },
-      end: { kind: 'final' },
+      t: { kind: 'step', hooks: { run }, next: { kind: 'static', targets: ['end'] }, ...extra },
+      end: { kind: 'step', hooks: { run: () => undefined } },
     },
   })
 
@@ -81,9 +81,9 @@ describe('interpreter: batch atomicity', () => {
     const { interp, commits, processed } = setup(def)
     interp.send({ type: 'start' })
     expect(commits).toHaveLength(1)
-    interp.send({ type: 'runReady' }) // toy machine: [] for this command
+    interp.send({ type: 'startReady' }) // toy machine: [] for this command
     expect(commits).toHaveLength(1)
-    expect(processed.at(-1)?.msg).toEqual({ type: 'runReady' })
+    expect(processed.at(-1)?.msg).toEqual({ type: 'startReady' })
     expect(processed.at(-1)?.batch).toEqual([])
   })
 
@@ -124,7 +124,7 @@ describe('interpreter: sync-commit guarantee', () => {
     expect(interp.getState().steps.t!.status).toBe('done')
     expect(interp.getState().steps.t!.output).toBe('later')
     expect(interp.getState().status).toBe('done')
-    expect(commits).toHaveLength(2)
+    expect(commits).toHaveLength(3)
   })
 
   it("strict: 'sync' turns a thenable into res.err { syncViolation } in the same drain", () => {
@@ -155,7 +155,7 @@ describe('interpreter: re-entrancy', () => {
     const def = flow({
       steps: {
         v: { kind: 'view', next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'final' },
+        end: { kind: 'step', hooks: { run: () => undefined } },
       },
     })
     let inputSeenInsideListener: unknown = 'unset'
@@ -212,11 +212,11 @@ describe('interpreter: causality', () => {
     const def = flow({
       steps: {
         w: {
-          kind: 'wait',
-          hooks: { on: { ping: () => undefined } },
+          kind: 'step',
+          hooks: { waitFor: { ping: () => undefined } },
           waitTimeout: { afterMs: 50, next: 'end' },
         },
-        end: { kind: 'final' },
+        end: { kind: 'step', hooks: { run: () => undefined } },
       },
     })
     const { interp, events, sched } = setup(def)

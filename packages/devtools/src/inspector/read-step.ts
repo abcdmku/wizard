@@ -8,12 +8,13 @@
  */
 
 import type { Explanation } from '@openwizard/core'
+import { runAtPath, snapshotAtPath } from '../children'
 import {
   type DevtoolsSource,
-  type FlowRunSource,
-  isFlowRunSource,
   isProjectedState,
+  isRunSource,
   type ProjectedStep,
+  type RunSource,
   type SnapshotLike,
 } from '../types'
 
@@ -37,27 +38,19 @@ export function readStep(
   path: readonly string[],
   id: string,
 ): StepReading {
-  return isFlowRunSource(source)
+  return isRunSource(source)
     ? readRunStep(source, snapshot as SnapshotLike, path, id)
     : readProjectedStep(snapshot, path, id)
 }
 
 function readRunStep(
-  run: FlowRunSource,
+  run: RunSource,
   snapshot: SnapshotLike,
   path: readonly string[],
   id: string,
 ): StepReading {
-  let node: SnapshotLike | undefined = snapshot
-  let scope: FlowRunSource | undefined = run
-  for (const step of path) {
-    node = node?.children[step]
-    try {
-      scope = scope?.child(step)
-    } catch {
-      scope = undefined
-    }
-  }
+  const node = snapshotAtPath(snapshot, path)
+  const scope = runAtPath(run, path)
   if (node === undefined)
     return { id, path, missing: `child flow at '${path.join('/')}' is not live` }
   const record = (node.state.steps as Readonly<Record<string, unknown>>)[id]
@@ -75,8 +68,14 @@ function readRunStep(
 function readProjectedStep(snapshot: unknown, path: readonly string[], id: string): StepReading {
   if (!isProjectedState(snapshot)) return { id, path, missing: 'no projected state yet' }
   let state = snapshot
-  for (const step of path) {
-    const child: unknown = state.steps[step]?.child
+  for (let position = 0; position < path.length; position++) {
+    const step = path[position]
+    if (step === undefined) return { id, path, missing: 'invalid child path' }
+    let child: unknown = state.steps[step]?.child
+    if (Array.isArray(child)) {
+      const index = path[++position]
+      child = index !== undefined && /^(0|[1-9]\d*)$/.test(index) ? child[Number(index)] : undefined
+    }
     if (!isProjectedState(child)) {
       return {
         id,

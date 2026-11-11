@@ -13,6 +13,7 @@
  */
 
 import type { CompiledFlow } from '../authoring/compiled'
+import { parseEachChildAddress } from '../interpreter/each-child'
 import type { WizardState } from '../machine/state'
 import {
   checkJsonSafe,
@@ -22,6 +23,7 @@ import {
   isNonNegativeInt,
   isRecord,
 } from './snapshot-checks'
+import { checkEachChildren } from './snapshot-each'
 import { checkState } from './snapshot-state'
 
 export interface Snapshot {
@@ -116,11 +118,28 @@ function isSnapshotOf(def: CompiledFlow, input: unknown, reasons: string[]): inp
   }
 
   // JSON safety of the persisted state (children are checked recursively below).
-  checkJsonSafe(state, 'state', reasons, new WeakSet())
+  checkJsonSafe(state, 'state', reasons, new Set())
 
   if (isRecord(input.children)) {
+    if (reasons.length === 0 && isRecord(state.steps))
+      checkEachChildren(def, state.steps, input.children, reasons)
     for (const [step, child] of Object.entries(input.children)) {
-      const stepDef = def.steps[step]
+      const address = Object.hasOwn(def.steps, step) ? undefined : parseEachChildAddress(step)
+      const owner = address?.step ?? step
+      const stepDef = def.steps[owner]
+      if (address !== undefined) {
+        const record = isRecord(state.steps) ? state.steps[owner] : undefined
+        const each = isRecord(record) && isRecord(record.each) ? record.each : undefined
+        if (
+          stepDef?.each === undefined ||
+          each === undefined ||
+          !Array.isArray(each.keys) ||
+          each.keys[address.index] !== address.key
+        ) {
+          reasons.push(`children.${step}: item address does not match a mapped flow item`)
+          continue
+        }
+      }
       if (stepDef === undefined || stepDef.kind !== 'flow' || stepDef.child === undefined) {
         reasons.push(`children.${step}: '${step}' is not a flow step`)
         continue

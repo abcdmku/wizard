@@ -1,4 +1,4 @@
-import { createRun, isWizardError, type RunEvent } from '@openwizard/core'
+import { parseCommand, type RunEvent } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { checkoutFlow } from './checkout'
@@ -9,11 +9,13 @@ const T0 = 1_000_000
 function make() {
   const scheduler = createTestScheduler({ now: T0 })
   // `correlationId` = the order id: correlated events for another order are dropped.
-  const run = createRun(checkoutFlow, {
-    context: { orderId: 'o-1' },
-    correlationId: 'o-1',
-    scheduler: scheduler,
-  })
+  const run = checkoutFlow.create(
+    { orderId: 'o-1' },
+    {
+      correlationId: 'o-1',
+      scheduler: scheduler,
+    },
+  )
   const events: RunEvent<typeof checkoutFlow>[] = []
   run.observe((event) => events.push(event))
   const eventsOfType = <T extends RunEvent['type']>(type: T) =>
@@ -59,8 +61,9 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     expect(run.getState().steps.awaitPayment).toMatchObject({
       status: 'done',
       output: {
-        event: 'payment.captured',
-        payload: { paymentId: 'pay_1', amount: 42, orderId: 'o-1' },
+        paymentId: 'pay_1',
+        amount: 42,
+        orderId: 'o-1',
       },
     })
     expect(run.getState().status).toBe('done')
@@ -105,6 +108,33 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     run.dispose()
   })
 
+  it('dedupes a webhook id while buffered and after its payment completes the run', async () => {
+    const { run, eventsOfType } = make()
+    await run.start()
+    expect(await run.send('payment.captured', goodBody, { eventId: 'wh-77' })).toMatchObject({
+      ok: true,
+      buffered: true,
+    })
+    expect(await run.send('payment.captured', goodBody, { eventId: 'wh-77' })).toMatchObject({
+      ok: true,
+      duplicate: true,
+      delivered: [],
+      buffered: false,
+    })
+    expect(run.getState().inbox).toHaveLength(1)
+
+    await run.next()
+    expect(run.getState().output).toBe('paid (pay_1)')
+    expect(await run.send('payment.captured', goodBody, { eventId: 'wh-77' })).toMatchObject({
+      ok: true,
+      duplicate: true,
+      delivered: [],
+    })
+    expect(eventsOfType('event.received')).toHaveLength(1)
+    expect(eventsOfType('event.delivered')).toHaveLength(1)
+    run.dispose()
+  })
+
   it('expires a buffered event after its TTL, then times out the idle wait step', async () => {
     const { run, scheduler, eventsOfType } = make()
     await run.start()
@@ -122,12 +152,12 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     expect(run.getState().status).toBe('waiting')
     scheduler.advance(1)
     expect(eventsOfType('timer.fired').at(-1)).toMatchObject({ timerId: 'wait:awaitPayment' })
-    expect(run.getState().steps.awaitPayment.output).toEqual({ event: 'timeout' })
+    expect(run.getState().steps.awaitPayment.output).toBeUndefined()
     expect(run.getState().output).toBe('expired: no payment within 30 minutes')
     run.dispose()
   })
 
-  it('lets a handler override the next target and rejects unknown event names', async () => {
+  it('routes a failed payment to the declared decline target and rejects unknown wire events', async () => {
     const { run } = make()
     await run.start()
     await run.next()
@@ -135,16 +165,22 @@ describe('05 external events: send() through the event boundary, inbox, TTL, tim
     expect(
       await run.dispatch({ type: 'send', event: 'payment.captured', payload: badBody }),
     ).toMatchObject({ ok: false, code: 'BOUNDARY_REJECTED' })
-    // Undeclared event → WizardError('UNKNOWN_EVENT') (the types already prevent this).
-    await expect(run.send('payment.refunded' as never, {})).rejects.toSatisfy(
-      (e: unknown) => isWizardError(e) && e.code === 'UNKNOWN_EVENT',
-    )
+    // Typed send calls reject unknown names at compile time. Decode unknown wire data first.
+    expect(
+      parseCommand(checkoutFlow, {
+        type: 'send',
+        event: 'payment.refunded',
+        payload: {},
+      }),
+    ).toMatchObject({ ok: false, issues: [{ path: ['event'] }] })
     expect(await run.send('payment.failed', { reason: 'insufficient funds' })).toMatchObject({
       ok: true,
       delivered: ['awaitPayment'],
     })
     expect(run.getState().steps.awaitPayment.status).toBe('done')
+    expect(run.getState().steps.awaitPayment.output).toEqual({ reason: 'insufficient funds' })
     expect(run.getState().steps.declined.status).toBe('done')
+    expect(run.getState().steps.paid).toMatchObject({ status: 'skipped', skipReason: 'not-taken' })
     expect(run.getState().output).toBe('declined: insufficient funds')
     run.dispose()
   })

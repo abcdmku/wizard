@@ -1,5 +1,6 @@
-import { AnyFlow, Explanation, FlowGraph as FlowGraph$1, RunEvent, Snapshot, StepKind, StepStatus } from "@openwizard/core";
+import { FlowGraph as FlowGraph$1, FlowGraphEdge, FlowGraphNode } from "@openwizard/core/inspect";
 import { CSSProperties, ReactElement } from "react";
+import { AnyFlow, Explanation, RunEvent, Snapshot, StepKind, StepStatus } from "@openwizard/core";
 import { ElkNode } from "elkjs/lib/elk-api";
 //#region src/types.d.ts
 /**
@@ -24,7 +25,7 @@ interface StepStatusInfo {
 }
 /**
  * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root flow,
- * `'fulfil/pick'` for step `pick` of the child flow of `fulfil`). Built with
+ * `'fulfil/pick'` for an ordinary child or `'batch/0/pick'` for a mapped child). Built with
  * `collectStatuses()` from a run snapshot or a projected (`ClientState`) state, or by hand.
  * @public
  */
@@ -32,6 +33,7 @@ type StepStatusMap = Readonly<Record<string, StepStatusInfo>>;
 /**
  * What a graph click reports: the step `id`, the run `path` of its flow and the combined
  * `key` (`stepKey(path, id)`).
+ * Mapped children carry their input index after the owning step, e.g. `['batch', '0']`.
  * @public
  */
 interface GraphSelection {
@@ -47,7 +49,7 @@ interface GraphSelection {
 declare function stepKey(path: readonly string[], id: string): string;
 /**
  * A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by
- * flow-step id. `FlowRun.getSnapshot()` of any flow returns one.
+ * flow-step id. `Run.getSnapshot()` of any flow returns one.
  * @public
  */
 interface SnapshotLike {
@@ -55,12 +57,12 @@ interface SnapshotLike {
   readonly children: Readonly<Record<string, SnapshotLike | undefined>>;
 }
 /**
- * The structural view of a `FlowRun` the devtools read (`FlowRun<F>` of any flow satisfies it):
+ * The structural view of a `Run` the devtools read (`Run<F>` of any flow satisfies it):
  * identity, the flow, state / snapshot, the two subscriptions, the bounded log, `explain` and
  * the live child handles.
  * @public
  */
-interface FlowRunSource {
+interface RunSource {
   readonly id: string;
   readonly flow: AnyFlow;
   getState(): Snapshot<AnyFlow>['state'];
@@ -69,8 +71,8 @@ interface FlowRunSource {
   observe(listener: (event: RunEvent) => void): () => void;
   log(): readonly RunEvent[];
   explain(step: string): Explanation;
-  /** Live child of an active flow step (throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE` otherwise). */
-  child(step: string): FlowRunSource;
+  /** Live child, optionally selected by mapped item key or index. Throws when it is not live. */
+  child(step: string, keyOrIndex?: number | string): Pick<RunSource, 'explain' | 'child'>;
 }
 /**
  * The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies
@@ -88,15 +90,16 @@ interface MirrorSource {
   readonly connected: boolean;
 }
 /**
- * What the components accept as `source`: a live `FlowRun` or a `Mirror`.
+ * What the components accept as `source`: a live `Run` or a `Mirror`.
  * @public
  */
-type DevtoolsSource = FlowRunSource | MirrorSource;
+type DevtoolsSource = RunSource | MirrorSource;
 /**
- * True for a `FlowRunSource` (it has `observe` / `log` / `explain`); false for a Mirror.
+ * True for a `RunSource` (it has `getState` / `log` / `explain`); false for a Mirror (which
+ * also has `observe`).
  * @public
  */
-declare function isFlowRunSource(source: DevtoolsSource): source is FlowRunSource;
+declare function isRunSource(source: DevtoolsSource): source is RunSource;
 /**
  * The projected step facts a `ClientState` carries for every step (`ClientStepState` base) plus
  * the optional exposures, as the devtools read them without knowing the projection.
@@ -146,17 +149,6 @@ interface GraphInput {
   readonly graph?: FlowGraph$1;
   readonly flow?: AnyFlow;
 }
-/**
- * One node of a `FlowGraph` (`inspect(flow).nodes[i]`): id, kind, path, hooks, `dependsOn`,
- * `timeout`, `dynamicNext`, `start`.
- * @public
- */
-type FlowGraphNode = FlowGraph$1['nodes'][number];
-/**
- * One edge of a `FlowGraph` (`inspect(flow).edges[i]`): `from` (`null` for `start`), `to`, kind, path.
- * @public
- */
-type FlowGraphEdge = FlowGraph$1['edges'][number];
 //#endregion
 //#region src/devtools/use-resize.d.ts
 /**
@@ -167,10 +159,10 @@ type DockPosition = 'bottom' | 'right';
 //#endregion
 //#region src/devtools/Devtools.d.ts
 /**
- * `<Devtools>` props: the `source` (a `FlowRun` or a `Mirror`), the graph (`flow` / `graph`; a
+ * `<Devtools>` props: the `source` (a `Run` or a `Mirror`), the graph (`flow` / `graph`; a
  * run source brings its own flow), `theme`, `defaultOpen`, dock `position` and `defaultSize`
  * (px), the toggle `hotkey` (default `ctrl+shift+d`, `false` to disable), `context` (the input
- * `createRun` received) for a full-range timeline, `maxEvents` for the event buffer.
+ * `wizard.create` received) for a full-range timeline, `maxEvents` for the event buffer.
  * @public
  */
 interface DevtoolsProps extends GraphInput {
@@ -196,12 +188,13 @@ declare function Devtools(props: DevtoolsProps): ReactElement;
 //#region src/layout/model.d.ts
 /**
  * Kind of a drawable node: a step card, a group (a `flow` step containing its child flow), a
- * flow's entry marker or the `?` port of a dynamic `next`.
+ * flow's entry marker or the `?` port of a dynamic `next` without declared targets.
  * @public
  */
 type ModelNodeKind = 'step' | 'group' | 'entry' | 'dynamic';
 /**
- * Kind of a drawable edge: the `FlowGraph` kinds plus `dynamic` (a step → its `?` port).
+ * Kind of a drawable edge: the `FlowGraph` kinds (`route` = a declared target of a dynamic
+ * `next`) plus `dynamic` (a step → its `?` port when no targets are declared).
  * @public
  */
 type ModelEdgeKind = FlowGraphEdge['kind'] | 'dynamic';
@@ -221,7 +214,7 @@ interface ModelNode {
   readonly height: number;
 }
 /**
- * One drawable edge between two model keys (`label` for `dependsOn` / `timeout` edges).
+ * One drawable edge between two model keys, with labels for routing, joins and alternate paths.
  * @public
  */
 interface ModelEdge {
@@ -248,7 +241,8 @@ interface GraphModel {
 /**
  * Build the drawable model of a `FlowGraph` (`inspect(flow)`): one entry marker per flow, a card
  * per step — a `flow` step whose child flow is in the graph becomes a group containing it — a
- * `?` port per dynamic `next`, and typed, labelled edges. Pure and synchronous.
+ * `?` port per dynamic `next` without declared targets, and typed, labelled edges. Pure and
+ * synchronous.
  * @public
  */
 declare function buildGraphModel(graph: FlowGraph$1): GraphModel;
@@ -316,6 +310,8 @@ interface FlowGraphProps extends GraphInput {
   readonly activeStep?: string | null;
   /** Live statuses / phases by step key (see `collectStatuses`). */
   readonly statuses?: StepStatusMap;
+  /** Live child run paths from collectStatuses(). Mapped children get one group per index. */
+  readonly childPaths?: readonly (readonly string[])[];
   /** Selected step key (controlled). Omit to let the graph keep its own selection. */
   readonly selected?: string | null;
   readonly onSelect?: (selection: GraphSelection | null) => void;
@@ -344,7 +340,7 @@ declare function FlowGraph(props: FlowGraphProps): ReactElement;
  * @public
  */
 interface EventLogProps {
-  readonly source?: FlowRunSource;
+  readonly source?: RunSource;
   readonly events?: readonly RunEvent[];
   readonly filter?: string | ((event: RunEvent) => boolean);
   readonly onSelect?: (event: RunEvent) => void;
@@ -423,21 +419,21 @@ interface ReplayWindowStore {
  * survives closing the panel.
  * @public
  */
-declare function createReplayWindow(run: FlowRunSource, options?: {
+declare function createReplayWindow(run: RunSource, options?: {
   readonly maxEvents?: number;
   readonly context?: unknown;
 }): ReplayWindowStore;
 //#endregion
 //#region src/timeline/Timeline.d.ts
 /**
- * `<Timeline>` props: the run `source`; `context` (the input `createRun` received) lets the
+ * `<Timeline>` props: the run `source`; `context` (the input `wizard.create` received) lets the
  * window start from the initial state when the whole log is still available, else scrubbing
  * starts where the timeline attached; `onScrub` receives the replayed state (or `null` when
  * following the live end); `maxEvents` bounds the window (default 5000).
  * @public
  */
 interface TimelineProps {
-  readonly source: FlowRunSource;
+  readonly source: RunSource;
   readonly context?: unknown;
   readonly onScrub?: (state: ReplayState | null, seq: number) => void;
   readonly maxEvents?: number;
@@ -460,7 +456,8 @@ declare function Timeline(props: TimelineProps): ReactElement;
 /**
  * Flatten a run snapshot (`getSnapshot()`: state + children, recursively) or a projected
  * `ClientState` (its `steps`, recursing into `child` slices that are projected states) into a
- * `StepStatusMap`, and report the key of the current view (the deepest cursor). Phases come
+ * `StepStatusMap`, and report the key of the current view (the deepest cursor) and live
+ * `childPaths` for the graph. Mapped children use `[owner, String(index)]`. Phases come
  * from the projected state when it has them; for a run snapshot pass `phaseOf` (typically
  * `(path, id) => run.explain(id).phase` scoped to the child) to add them.
  * @public
@@ -468,13 +465,14 @@ declare function Timeline(props: TimelineProps): ReactElement;
 declare function collectStatuses(state: SnapshotLike | ProjectedState, phaseOf?: (path: readonly string[], id: string) => StepPhase | undefined): {
   readonly statuses: StepStatusMap;
   readonly current: string | null;
+  readonly childPaths: readonly (readonly string[])[];
 };
 /**
  * The phase reader for a live run: `explain(id).phase` on the run for root steps and on
  * the live child handle for nested ones (a child that is not live has no phase).
  * @public
  */
-declare function runPhaseReader(run: FlowRunSource): (path: readonly string[], id: string) => StepPhase | undefined;
+declare function runPhaseReader(run: RunSource): (path: readonly string[], id: string) => StepPhase | undefined;
 /**
  * The live overlay of a source for one of its snapshots (`source.getSnapshot()`): statuses (with
  * phases) and the current view key — the run snapshot + `explain` for a run, the projected
@@ -484,7 +482,8 @@ declare function runPhaseReader(run: FlowRunSource): (path: readonly string[], i
 declare function overlayOf(source: DevtoolsSource, snapshot: unknown): {
   readonly statuses: StepStatusMap;
   readonly current: string | null;
+  readonly childPaths: readonly (readonly string[])[];
 };
 //#endregion
-export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, EventLog, type EventLogProps, FlowGraph, type FlowGraphEdge, type FlowGraphNode, type FlowGraphProps, type FlowRunSource, type GraphInput, type GraphModel, type GraphSelection, type LayoutEngine, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isFlowRunSource, isProjectedState, layoutGraph, overlayOf, runPhaseReader, stepKey };
+export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, EventLog, type EventLogProps, FlowGraph, type FlowGraphProps, type GraphInput, type GraphModel, type GraphSelection, type LayoutEngine, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type RunSource, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isProjectedState, isRunSource, layoutGraph, overlayOf, runPhaseReader, stepKey };
 //# sourceMappingURL=index.d.ts.map

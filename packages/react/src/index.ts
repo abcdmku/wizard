@@ -1,24 +1,34 @@
 /**
- * @openwizard/react — the public surface. `bindReact<typeof flowOrProjection>()` returns a
- * typed `Provider` and hooks over a `FlowRun` (flow) or a `Mirror` (projection).
+ * @openwizard/react — the public surface. `bindReact<typeof wizardOrProjection>()` returns a
+ * typed `Provider` and hooks over a `Run` (flow) or a `Mirror` (projection); `useRun` owns
+ * that source inside a component.
  *
  * @packageDocumentation
  */
 
 export { bindReact } from './bind-react'
 export type {
-  Actions,
-  BindTarget,
+  BindingOf,
   ChildBinding,
   ChildBindingId,
   ChildStateOf,
   ChildStepHelpers,
-  CurrentOf,
+  Connection,
   ExposedChildId,
-  FlowOf,
-  NavResultOf,
+  MirrorBinding,
   ProviderProps,
   ReactBinding,
+} from './binding-types'
+export type {
+  Actions,
+  ActionsOf,
+  BindTarget,
+  CommandResultOf,
+  CurrentOf,
+  FieldOf,
+  FlowOf,
+  NavResultOf,
+  RunActions,
   SendResultOf,
   SourceOf,
   StateOf,
@@ -27,3 +37,4 @@ export type {
   StepRecordOf,
   UseStepResult,
 } from './types'
+export { useRun } from './use-run'

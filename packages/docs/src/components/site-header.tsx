@@ -1,90 +1,77 @@
 import { Link } from '@tanstack/react-router'
-import { Menu, X } from 'lucide-react'
+import { ArrowUpRight, Menu, X } from 'lucide-react'
 import { site, withBase } from '../lib/site'
 import { SearchDialog } from './search-dialog'
 import { ThemeToggle } from './theme-toggle'
 
 const TOP_LINKS = [
-  { label: 'Docs', slug: 'getting-started' },
+  { label: 'Start', slug: 'getting-started' },
   { label: 'Learn', slug: 'learn' },
-  { label: 'Advanced', slug: 'advanced' },
+  { label: 'Production', slug: 'advanced' },
   { label: 'Recipes', slug: 'recipes' },
-  { label: 'Examples', slug: 'examples' },
-  { label: 'API', slug: 'api' },
+  { label: 'Packages', slug: 'packages' },
 ] as const
 
 interface SiteHeaderProps {
-  /** Mobile navigation drawer state (only the docs layout has one). */
   readonly menuOpen?: boolean
   readonly onToggleMenu?: () => void
 }
 
-/** Sticky top bar shared by the docs pages and the playground. */
 export function SiteHeader({ menuOpen = false, onToggleMenu }: SiteHeaderProps) {
   return (
-    <header className="sticky top-0 z-40 border-b border-neutral-200 bg-paper/90 backdrop-blur dark:border-neutral-800 dark:bg-ink/90">
-      <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center justify-between gap-4 px-4 lg:px-6">
-        <div className="flex items-center gap-5">
+    <header className="site-header">
+      <div className="site-header-inner">
+        <div className="site-header-brand-group">
           {onToggleMenu && (
             <button
               type="button"
               onClick={onToggleMenu}
               aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
-              className="-ml-1 rounded p-1 text-neutral-600 lg:hidden dark:text-neutral-300"
+              aria-expanded={menuOpen}
+              className="site-menu-button"
             >
-              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
             </button>
           )}
-          <Link to="/" className="text-sm font-bold tracking-tight">
-            {site.name}
+          <Link to="/" className="site-wordmark" aria-label="OpenWizard home">
+            <span>OW</span>
+            <strong>{site.name}</strong>
           </Link>
-          <nav className="hidden items-center gap-4 text-[13px] text-neutral-500 md:flex dark:text-neutral-400">
-            {TOP_LINKS.map((link) => (
-              <Link
-                key={link.slug}
-                to="/$"
-                params={{ _splat: link.slug }}
-                className="transition-colors hover:text-neutral-900 dark:hover:text-neutral-100"
-                activeProps={{
-                  className: 'font-medium text-neutral-900 dark:text-neutral-100',
-                }}
-                activeOptions={{ exact: false }}
-              >
-                {link.label}
-              </Link>
-            ))}
-            <Link
-              to="/playground"
-              className="transition-colors hover:text-neutral-900 dark:hover:text-neutral-100"
-              activeProps={{ className: 'font-medium text-neutral-900 dark:text-neutral-100' }}
-            >
-              Playground
-            </Link>
-            <a
-              href={withBase('/typedoc/')}
-              className="transition-colors hover:text-neutral-900 dark:hover:text-neutral-100"
-            >
-              TypeDoc
-            </a>
-          </nav>
+          <span className="site-header-divider" aria-hidden="true" />
+          <span className="site-header-context">Documentation</span>
         </div>
-        <div className="flex items-center gap-2">
+
+        <nav className="site-header-nav" aria-label="Documentation sections">
+          {TOP_LINKS.map((link) => (
+            <Link
+              key={link.slug}
+              to="/$"
+              params={{ _splat: link.slug }}
+              activeProps={{ className: 'site-header-nav-active' }}
+              activeOptions={{ exact: false }}
+            >
+              {link.label}
+            </Link>
+          ))}
+          <a href={withBase('/typedoc/')}>API</a>
+        </nav>
+
+        <div className="site-header-actions">
           <SearchDialog />
-          <a
-            href={site.repositoryUrl}
-            aria-label="GitHub repository"
-            className="rounded-full p-1.5 text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-          >
-            <GithubMark className="h-4 w-4" />
+          <a href={site.repositoryUrl} aria-label="GitHub repository" className="site-icon-action">
+            <GithubMark />
           </a>
           <ThemeToggle />
+          <Link to="/playground" className="site-playground-link">
+            Playground
+            <ArrowUpRight aria-hidden="true" />
+          </Link>
         </div>
       </div>
     </header>
   )
 }
 
-/** The GitHub mark (lucide dropped brand icons). */
 export function GithubMark({ className = '' }: { readonly className?: string }) {
   return (
     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" className={className}>

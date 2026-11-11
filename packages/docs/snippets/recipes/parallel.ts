@@ -1,20 +1,15 @@
-import { defineFlow } from '@openwizard/core'
+import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-const dashboard = defineFlow({
-  name: 'dashboard',
-  context: z.object({ userId: z.string() }),
-})
-
-export const dashboardFlow = dashboard.steps(
-  {
-    loadProfile: dashboard.task(async () => 'profile', { next: 'join' }),
-    loadOrders: dashboard.task(async () => 'orders', { next: 'join' }),
-    join: dashboard.decision({
-      dependsOn: ['loadProfile', 'loadOrders'],
-      next: () => 'done',
-    }),
-    done: dashboard.final(),
+export const dashboardFlow = defineWizard(
+  { name: 'dashboard', context: z.object({ userId: z.string() }) },
+  ({ step, steps }) => {
+    const loadProfile = step({ run: async () => ({ name: 'Ada' }) })
+    const loadOrders = step({ run: async () => [{ id: 'order-1' }] })
+    const join = step({
+      needs: { loadProfile, loadOrders },
+      run: ({ needs }) => ({ name: needs.loadProfile.name, orders: needs.loadOrders.length }),
+    })
+    return steps({ loadProfile, loadOrders, join }, { start: ['loadProfile', 'loadOrders'] })
   },
-  { start: ['loadProfile', 'loadOrders'] },
 )

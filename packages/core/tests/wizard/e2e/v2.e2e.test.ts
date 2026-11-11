@@ -6,8 +6,15 @@
  * idempotent crash-resume, and `migrate`.
  */
 import { describe, expect, it } from 'vitest'
-import { WizardError } from '../../../src/errors'
-import { final, flow, flowStep, guard, task, view, wait } from '../../helpers/fixtures'
+import {
+  eventStep,
+  flow,
+  flowStep,
+  guard,
+  routingStep,
+  runStep,
+  view,
+} from '../../helpers/fixtures'
 import { e2e, tick } from './harness'
 
 const on = () => undefined
@@ -30,7 +37,7 @@ describe('e2e v0.2 — external events on every kind, flow-level, correlation, a
           },
           next: 'receipt',
         }),
-        receipt: final({ output: ({ context }) => context }),
+        receipt: runStep({ run: ({ context }) => context }),
       },
     })
     const t = e2e(def)
@@ -60,7 +67,7 @@ describe('e2e v0.2 — external events on every kind, flow-level, correlation, a
         },
         abort: ({ payload }) => ({ cancel: `abort:${String(payload)}` }),
       },
-      steps: { w: wait({ on: { paid: on }, next: 'end' }), end: final() },
+      steps: { w: eventStep({ on: { paid: on }, next: 'end' }), end: routingStep() },
     })
     const t = e2e(def, { correlationId: 'order-9' })
     expect(t.run.getState().correlationId).toBe('order-9')
@@ -75,7 +82,7 @@ describe('e2e v0.2 — external events on every kind, flow-level, correlation, a
     expect(await t.run.send('paid', { orderId: 'order-1' })).toMatchObject({
       ok: false,
       reason: 'dropped',
-      message: 'correlation',
+      message: "'paid' belongs to another run (its correlation id does not match this run's)",
     })
     expect(t.run.getState().inbox).toEqual([])
     expect(await t.run.send('abort', 'ops')).toMatchObject({ ok: true })
@@ -87,24 +94,27 @@ describe('e2e v0.2 — external events on every kind, flow-level, correlation, a
     const child = flow({
       name: 'child',
       start: 'v',
-      steps: { v: view({ next: 'e' }), e: final() },
+      steps: { v: view({ next: 'e' }), e: routingStep() },
     })
     const parent = flow({
       name: 'parent',
       start: 'f',
-      steps: { f: flowStep(child, { next: 'end' }), end: final() },
+      steps: { f: flowStep(child, { next: 'end' }), end: routingStep() },
     })
     const t = e2e(parent, { correlationId: 'corr' })
     await t.run.start()
     expect(t.run.child('f').getState().correlationId).toBe('corr')
   })
 
-  it('attach(source): the source gets send(); its disposer runs on dispose() (or when the returned function is called); after dispose attach throws', async () => {
+  it('attach(source): the source gets send(); its disposer runs on dispose() (or when the returned function is called)', async () => {
     const def = flow({
       name: 'attach',
       start: 'w',
       events: { tick: anyEvent.guard },
-      steps: { w: wait({ on: { tick: () => ({ keep: true }) }, next: 'end' }), end: final() },
+      steps: {
+        w: eventStep({ on: { tick: () => ({ keep: true }) }, next: 'end' }),
+        end: routingStep(),
+      },
     })
     const t = e2e(def)
     await t.run.start()
@@ -131,7 +141,6 @@ describe('e2e v0.2 — external events on every kind, flow-level, correlation, a
     t.run.dispose()
     expect(second).toBe(1)
     expect(detached).toBe(1)
-    expect(() => t.run.attach(() => () => {})).toThrow(WizardError)
   })
 })
 
@@ -142,23 +151,23 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
       start: 'a',
       steps: {
         a: view({ next: 'load' }),
-        load: task({ run: () => 'loaded', next: 'b' }),
+        load: runStep({ run: () => 'loaded', next: 'b' }),
         b: view({ dependsOn: ['load'], next: ['t1', 't2'] }),
-        t1: task({ run: () => 't1', dependsOn: ['load'], next: 'c' }),
-        t2: task({ run: () => new Promise(() => {}), next: 'c' }),
+        t1: runStep({ run: () => 't1', dependsOn: ['load'], next: 'c' }),
+        t2: runStep({ run: () => new Promise(() => {}), next: 'c' }),
         c: view({ dependsOn: ['t1', 't2'], next: 'end' }),
-        end: final(),
+        end: routingStep(),
       },
     })
 
   it('progress() and readyViews() follow the run; skip() unblocks a slow task; invalidate() cascades and rejects active steps', async () => {
     const t = e2e(dag())
-    expect(t.run.progress()).toEqual({ done: 0, total: 6, ratio: 0 })
+    expect(t.run.progress()).toEqual({ done: 0, total: 7, ratio: 0 })
     expect(t.run.readyViews()).toEqual([])
     await t.run.start()
     expect(t.run.readyViews()).toEqual(['a'])
     await t.run.next()
-    expect(t.run.progress()).toEqual({ done: 2, total: 6, ratio: 2 / 6 })
+    expect(t.run.progress()).toEqual({ done: 2, total: 7, ratio: 2 / 7 })
     expect(t.run.readyViews()).toEqual(['b'])
     await t.run.next() // t1 done (sync), t2 hangs; c blocked
     expect(t.rec('t2').status).toBe('active')
@@ -166,12 +175,12 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
     expect(await t.run.skip('t2', 'too slow')).toMatchObject({ ok: true })
     expect(t.rec('t2')).toMatchObject({ status: 'skipped', skipReason: 'command' })
     expect(t.run.getState().current).toBe('c') // deps satisfied → cursor moved
-    expect(t.run.progress()).toEqual({ done: 5, total: 6, ratio: 5 / 6 }) // skipped counts
+    expect(t.run.progress()).toEqual({ done: 5, total: 7, ratio: 5 / 7 }) // skipped counts
     // invalidate: active/current rejected, done cascades
     expect(await t.run.invalidate('c')).toMatchObject({
       ok: false,
       code: 'INVALID_COMMAND',
-      message: 'current-view',
+      message: "'c' is the current view; navigate away before invalidating it",
       step: 'c',
     })
     expect(await t.run.invalidate('load')).toMatchObject({ ok: true })
@@ -181,7 +190,7 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
     expect(t.rec('c').status).toBe('idle') // cancelled + invalidated (it depended transitively)
     expect(t.rec('t2').status).toBe('skipped') // no dependsOn on load
     expect(t.run.getState().current).toBeNull()
-    expect(t.run.progress()).toEqual({ done: 2, total: 6, ratio: 2 / 6 })
+    expect(t.run.progress()).toEqual({ done: 2, total: 7, ratio: 2 / 7 })
     // cascade: false leaves dependents alone
     await t.run.go('a')
     await t.run.next()
@@ -197,16 +206,16 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
     await done.run.skip('t2')
     await done.run.next()
     expect(done.run.getState().status).toBe('done')
-    expect(done.run.progress()).toEqual({ done: 6, total: 6, ratio: 1 })
+    expect(done.run.progress()).toEqual({ done: 7, total: 7, ratio: 1 })
   })
 
-  it('skip rejections and dispatch shapes: final step, unknown step, malformed cascade', async () => {
+  it('rejects an idle sink, unknown steps and malformed cascade commands', async () => {
     const t = e2e(dag())
     await t.run.start()
     expect(await t.run.skip('end')).toMatchObject({
       ok: false,
-      code: 'INVALID_COMMAND',
-      message: 'final-step',
+      code: 'NOT_ACTIVE',
+      message: "'end' is idle; only a ready or active step can be skipped",
     })
     expect(await t.run.skip('nope')).toMatchObject({ ok: false, code: 'UNKNOWN_STEP' })
     expect(await t.run.dispatch({ type: 'skip', step: 'a' })).toMatchObject({ ok: true })
@@ -218,6 +227,21 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
     })
   })
 
+  it('can skip a ready sink and finish without output', async () => {
+    const t = e2e(
+      flow({
+        start: 'end',
+        policies: { autoRun: 'manual' },
+        steps: { end: runStep({ run: () => 'unused' }) },
+      }),
+    )
+    await t.run.start()
+    expect(await t.run.skip('end')).toMatchObject({ ok: true })
+    expect(t.rec('end')).toMatchObject({ status: 'skipped', skipReason: 'command' })
+    expect(t.run.getState().status).toBe('done')
+    expect(t.run.getState().output).toBeUndefined()
+  })
+
   it('when: false on a task skips it in the same drain as readiness (sync predicate); an async predicate resolves later', async () => {
     let asked = 0
     const def = flow({
@@ -225,7 +249,7 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
       start: 'v',
       steps: {
         v: view({ next: ['sync', 'async'] }),
-        sync: task({
+        sync: runStep({
           when: ({ context }) => {
             asked += 1
             return (context as { pro?: boolean }).pro === true
@@ -233,9 +257,9 @@ describe('e2e v0.2 — skip / invalidate / progress / readyViews', () => {
           run: () => 'ran',
           next: 'join',
         }),
-        async: task({ when: () => Promise.resolve(false), run: () => 'ran', next: 'join' }),
-        join: task({ dependsOn: ['sync', 'async'], run: () => 'j', next: 'end' }),
-        end: final(),
+        async: runStep({ when: () => Promise.resolve(false), run: () => 'ran', next: 'join' }),
+        join: runStep({ dependsOn: ['sync', 'async'], run: () => 'j', next: 'end' }),
+        end: routingStep(),
       },
     })
     const t = e2e(def)

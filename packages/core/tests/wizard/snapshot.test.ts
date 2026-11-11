@@ -11,7 +11,7 @@ const def = flow({
   steps: {
     a: { kind: 'view', next: { kind: 'static', targets: ['f'] } },
     f: { kind: 'flow', child },
-    end: { kind: 'final' },
+    end: { kind: 'step' },
   },
 })
 
@@ -81,27 +81,25 @@ describe('toSnapshot / validateSnapshot', () => {
     ).toContain('state.flow: expected main@2')
   })
 
-  it('rejects step-set drift (missing / unknown steps) and kind mismatches', () => {
+  it('rejects steps the flow no longer defines (pointing at renameSteps) and kind mismatches', () => {
     const snap = base()
-    const { a: _a, ...withoutA } = snap.state.steps
-    expect(reasonsOf({ ...snap, state: { ...snap.state, steps: withoutA } })).toContain(
-      "state.steps: missing step 'a'",
-    )
     expect(
       reasonsOf({
         ...snap,
         state: { ...snap.state, steps: { ...snap.state.steps, zz: snap.state.steps.a } },
       }),
-    ).toContain("state.steps: unknown step 'zz'")
+    ).toContain(
+      "state.steps: step 'zz' is no longer defined; if it was renamed, bump the flow's version and resume with { migrate: (snapshot) => renameSteps(snapshot, { 'zz': '<new id>' }) }",
+    )
     expect(
       reasonsOf({
         ...snap,
         state: {
           ...snap.state,
-          steps: { ...snap.state.steps, a: { ...snap.state.steps.a!, kind: 'task' } },
+          steps: { ...snap.state.steps, a: { ...snap.state.steps.a!, kind: 'step' } },
         },
       }),
-    ).toContain("state.steps.a.kind: expected 'view', got 'task'")
+    ).toContain("state.steps.a.kind: expected 'view', got 'step'")
   })
 
   it('rejects status invariant violations', () => {
@@ -189,7 +187,9 @@ describe('toSnapshot / validateSnapshot', () => {
           current: 'a',
         },
       }),
-    ).toContain('state.status: running without an active task/decision/flow/final step')
+    ).toContain(
+      'state.status: running without an active runnable, routing, completing, or child-flow step',
+    )
   })
 
   it('validates the saga shapes: SagaEntry stack, SagaEntryRef lists and optional bookkeeping', () => {

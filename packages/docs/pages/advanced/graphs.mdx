@@ -1,42 +1,72 @@
-# Run a graph instead of a fixed sequence
+# Graphs and parallel work
 
-Some workflows are not a straight line. Two tasks may run together, an optional branch may be skipped, and a later step may require both branches before it starts.
+Use `next` to start branches, `needs` to join their outputs, and `dependsOn` to wait for work without reading its output. These rules let the same wizard mix navigation and background work.
 
-The ingest example fans out into normalization and enrichment, joins them at a decision, then stores or quarantines the batch:
-
-```text
-                         /-> normalize --\
-ingest ----------------<                 >-> gate -> persist -> done
-                         \-> enrich ----/       \-> quarantine
+```ts file="packages/docs/snippets/advanced/fanout.ts"
 ```
 
-```ts file="examples/07-dag-pipeline/src/pipeline.ts"
+<Diagram name="graph" />
+
+In this example, `fetch` activates `normalize` and `enrich`. Both point to `gate`, so the gate has an activation edge as well as a control gate. `dependsOn` holds it until both branches are `done` or `skipped`. With `concurrency: 2`, the run can execute both run functions together.
+
+## Join typed outputs with `needs`
+
+Create producers before the consumer so its hooks receive their output types:
+
+```ts file="packages/docs/snippets/advanced/averages.ts"
 ```
 
-## Fan-out and join are separate decisions
+`needs` supplies both data and activation. Neither producer needs `next: 'average'`. Every hook on `average` receives the same typed `needs` object.
 
-Returning `next: ['normalize', 'enrich']` makes both branches ready. It does not say when `gate` may run.
+| Need | When the consumer can run | Value in its hooks | If a producer is skipped |
+|---|---|---|---|
+| `needs: { result: producer }` | Producer completes | Producer output | Consumer skips with `needs-skipped` |
+| `needs: { result: { any: [a, b] } }` | First producer completes | Union of producer outputs | Consumer skips only if all producers skip |
+| `needs: { result: { optional: producer } }` | Producer settles | Output or `undefined` | Consumer receives `undefined` |
 
-`dependsOn: ['normalize', 'enrich']` defines the join. Both branches can arrive at `gate`, but the decision stays blocked until both dependencies are `done` or `skipped`.
+A plain need requires a step object, not an id string. References in `next`, `targets`, `dependsOn`, and `fallback` accept either spelling. Optional needs change data availability; producer failures still follow their failure policy.
 
-This separation handles branches that finish in either order. `run.explain('gate')` reports the exact missing dependency while it waits.
+An event wait with a timeout can complete with `undefined`. That value reaches even a plain need; handle it in the consumer. Required needs propagate a skipped producer, not a completed producer whose output is `undefined`.
 
-## Concurrency is a budget
+## `dependsOn` gates activation
 
-`concurrency: 2` allows two task functions to run at once for one run. If five tasks become ready, three remain ready until a slot opens. Views and wait steps do not consume this task budget.
+`dependsOn: [a, b]` waits until both are `done` or `skipped`. `{ any: [a, b] }` waits until one is. It supplies no hook data and does not start the consumer. Activate that consumer with `next` or include it in `start`.
 
-Set `autoRun: 'manual'` when a worker pool should choose when ready tasks start. `runReady()` starts ready work up to the concurrency limit, while `run('stepId')` targets one ready task.
+A false `when` skips a branch. A control gate can still run; a consumer with a required `needs` value skips because there is no value to read. Choose the gate based on whether the consumer needs that result.
 
-## Optional work still satisfies the join
+## Declare branch targets
 
-The `enrich` task has a `when` predicate. When enrichment is off, OpenWizard marks it `skipped` and lets it satisfy `dependsOn`. The branch did not run, but the graph can still reach `gate`.
+```ts
+choose: step({
+  targets: ['fast', 'review'],
+  next: ({ context }) => context.total < 100 ? 'fast' : 'review',
+})
+```
 
-An operator can also call `skip()` on ready or active work. Skipping an active task aborts its signal and ignores a late result. Use this for an optional integration that should not block the whole run.
+A function `next` requires `targets`. Its return type and its runtime result must stay within that list. An invalid or throwing selector fails the step under the wizard's failure policy.
 
-## Invalidation reruns derived work
+The runtime skips unchosen targets with `not-taken`, then propagates that skip along static edges when every predecessor was skipped. Required needs propagate skips too. `inspect(wizard)` warns about an AND-join over exclusive targets. If a blocked dependency can no longer activate, the join fails with `DEPS_UNREACHABLE` instead of waiting forever.
 
-`invalidate('normalize')` moves a completed step back to `idle`. With the default cascading behavior, completed transitive dependents return to `idle` too. The old output moves to `previousOutput` so an interface can compare the last result while recomputation runs.
+This quote chooses one provider and joins its output through an any-need. The optional backup value is `undefined` when that branch was skipped:
 
-Invalidation is explicit. OpenWizard never guesses that a context change makes an old output stale. Your application decides which step to invalidate and whether to cascade.
+```ts file="packages/docs/snippets/advanced/patterns.ts" lines="1-22"
+```
 
-Parallel tasks share context, so design branches to update different fields or make the merge order irrelevant. The runtime sequences committed updates, but it cannot decide which competing business value should win.
+## Map over a collection
+
+```ts file="packages/docs/snippets/advanced/patterns.ts" lines="24-39"
+```
+
+`each` snapshots the items when the step starts and returns results in input order, even when calls finish out of order. `concurrency` bounds the number of item calls. A `key: (item, index) => string` can name items; keys must be unique.
+
+Completed item results live in the snapshot. Resume keeps those results and recovers interrupted items according to `idempotent`. Each item follows `retry`; if one exhausts its retries, the step fails while keeping completed results. `run.retry('fetch')` retries failed items. Every completed item emits transient `step.progress` with `{ done, total }`.
+
+## Manual execution and invalidation
+
+With `autoRun: 'manual'`, use `run.startReady()` to start ready work or `run.startStep('normalize')` for one runnable step. Views and event waits do not consume the run-function concurrency budget.
+
+`await run.invalidate('normalize')` resets it and, by default, its transitive dependents. Running dependents are cancelled first. Old output moves to `previousOutput`; context changes never invalidate work automatically. Reactivate the step through a predecessor's edge before starting it again.
+
+Parallel hooks read context as it was when each hook started. Use `update(current => ({ count: current.count + 1 }))` when a patch depends on the latest committed value. The updater applies atomically; a captured `context.count + 1` can lose a concurrent increment.
+
+Next: [Snapshots and migrations](/advanced/persistence). Related: [Explain, observe, replay](/advanced/operations), [run steps in parallel](/recipes/parallel).

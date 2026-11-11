@@ -7,7 +7,7 @@
 
 import type { RunEvent } from '@openwizard/core'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
-import type { FlowRunSource } from '../types'
+import type { RunSource } from '../types'
 
 export const DEFAULT_MAX_EVENTS = 2_000
 
@@ -67,7 +67,7 @@ export function createEventBuffer(max: number): EventBuffer {
  * the buffer stays empty.
  */
 export function useEventBuffer(
-  source: FlowRunSource | undefined,
+  source: RunSource | undefined,
   max: number = DEFAULT_MAX_EVENTS,
 ): EventBuffer {
   const buffer = useMemo(() => createEventBuffer(max), [max])

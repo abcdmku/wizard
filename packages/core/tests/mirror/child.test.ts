@@ -5,7 +5,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { defineFlow } from '../../src/authoring/define-flow'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createMirror } from '../../src/mirror/create-mirror'
 import { createLocalTransport } from '../../src/mirror/local-transport'
@@ -14,33 +13,43 @@ import type { Transport } from '../../src/mirror/transport'
 import type { Frame, WireAck, WireCommand } from '../../src/mirror/wire'
 import { defineProjection } from '../../src/projection/define-projection'
 import { createRun } from '../../src/wizard/create-wizard'
+import { defineWizard } from '../../src/wizard/define-wizard'
 
-const grandchild = defineFlow({ name: 'grandchild', context: z.object({ sku: z.string() }) })
-const grandchildFlow = grandchild.steps({
-  pick: grandchild.view({ input: z.object({ bin: z.string() }), next: 'done' }),
-  done: grandchild.final({ output: ({ context }) => ({ sku: context.sku }) }),
-})
-const fulfilment = defineFlow({
-  name: 'fulfilment',
-  context: z.object({ orderId: z.string(), warehouse: z.string().optional() }),
-})
-const fulfilmentFlow = fulfilment.steps({
-  confirm: fulfilment.view({
-    input: z.object({ warehouse: z.string() }),
-    exit: ({ output, update }) => update({ warehouse: output.warehouse }),
-    next: 'pack',
-  }),
-  pack: fulfilment.flow(grandchildFlow, { context: () => ({ sku: 'sku-1' }), next: 'done' }),
-  done: fulfilment.final({ output: ({ context }) => ({ warehouse: context.warehouse }) }),
-})
-const order = defineFlow({ name: 'order', context: z.object({ cartId: z.string() }) })
-const orderFlow = order.steps({
-  fulfil: order.flow(fulfilmentFlow, {
-    context: ({ context }) => ({ orderId: context.cartId }),
-    next: 'end',
-  }),
-  end: order.final({ output: () => 'shipped' }),
-})
+const grandchildFlow = defineWizard(
+  { name: 'grandchild', context: z.object({ sku: z.string() }) },
+  ({ step, view, steps }) =>
+    steps({
+      pick: view({ input: z.object({ bin: z.string() }), next: 'done' }),
+      done: step({ run: ({ context }) => ({ sku: context.sku }) }),
+    }),
+)
+const fulfilmentFlow = defineWizard(
+  {
+    name: 'fulfilment',
+    context: z.object({ orderId: z.string(), warehouse: z.string().optional() }),
+  },
+  ({ step, view, flow, steps }) =>
+    steps({
+      confirm: view({
+        input: z.object({ warehouse: z.string() }),
+        exit: ({ output, update }) => update({ warehouse: output.warehouse }),
+        next: 'pack',
+      }),
+      pack: flow(grandchildFlow, { context: () => ({ sku: 'sku-1' }), next: 'done' }),
+      done: step({ run: ({ context }) => ({ warehouse: context.warehouse }) }),
+    }),
+)
+const orderFlow = defineWizard(
+  { name: 'order', context: z.object({ cartId: z.string() }) },
+  ({ step, flow, steps }) =>
+    steps({
+      fulfil: flow(fulfilmentFlow, {
+        context: ({ context }) => ({ orderId: context.cartId }),
+        next: 'end',
+      }),
+      end: step({ run: () => 'shipped' }),
+    }),
+)
 const orderClient = defineProjection(orderFlow, {
   expose: {
     steps: {
@@ -58,7 +67,6 @@ const orderClient = defineProjection(orderFlow, {
     output: true,
   },
 })
-
 async function loop() {
   const run = createRun(orderFlow, {
     context: { cartId: 'c-1' },
@@ -70,7 +78,6 @@ async function loop() {
   const mirror = createMirror<typeof orderClient>({ transport: createLocalTransport(source) })
   return { run, mirror, source }
 }
-
 describe('mirror.child(step)', () => {
   it('drives a nested flow through child commands; the projected child slice follows', async () => {
     const { run, mirror } = await loop()
@@ -121,7 +128,6 @@ describe('mirror.child(step)', () => {
     run.dispose()
     mirror.dispose()
   })
-
   it('wraps every command as { type: child, path, command } — flattened for nested senders; skip / invalidate too', async () => {
     const sent: WireCommand[] = []
     let onFrame: ((frame: Frame<unknown>) => void) | undefined
@@ -145,7 +151,7 @@ describe('mirror.child(step)', () => {
     await child.skip('confirm', 'not needed')
     await child.invalidate('confirm', { cascade: false })
     await grand.next()
-    await grand.send('typo' as never, { a: 1 }, { correlationId: 'c' })
+    await grand.send('typo' as never, { a: 1 } as unknown, { correlationId: 'c' })
     await mirror.skip('fulfil')
     await mirror.invalidate('fulfil')
     expect(sent.map((w) => w.command)).toEqual([

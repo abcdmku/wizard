@@ -1,11 +1,7 @@
-import {
-  type AnyFlow,
-  type FlowGraph,
-  type FlowRun,
-  inspect,
-  type Snapshot,
-} from '@openwizard/core'
+import type { AnyFlow, Run, Snapshot } from '@openwizard/core'
+import { type FlowGraph, inspect } from '@openwizard/core/inspect'
 import { useMemo } from 'react'
+import { runAt } from './child-path'
 import { FlowGraphView, type NodeStateLookup } from './flow-graph'
 
 export interface StepRef {
@@ -13,22 +9,20 @@ export interface StepRef {
   readonly id: string
 }
 
-/** The snapshot of the (child) run at `path`, walking `Snapshot.children`. */
+/** The selected child's snapshot, using public owner/index paths rather than storage keys. */
 export function snapshotAt(
-  run: FlowRun<AnyFlow>,
+  run: Run<AnyFlow>,
   path: readonly string[],
 ): Snapshot<AnyFlow> | undefined {
-  let snapshot: Snapshot<AnyFlow> | undefined = run.getSnapshot()
-  for (const step of path) {
-    const children: Readonly<Record<string, Snapshot<AnyFlow> | undefined>> =
-      snapshot?.children ?? {}
-    snapshot = children[step]
+  try {
+    return runAt(run, path).getSnapshot()
+  } catch {
+    return undefined
   }
-  return snapshot
 }
 
 /** Live status / phase per node: the root from `getState()` + `explain()`, children from their snapshots. */
-export function liveStateLookup(run: FlowRun<AnyFlow>): NodeStateLookup {
+export function liveStateLookup(run: Run<AnyFlow>): NodeStateLookup {
   return (path, id) => {
     if (path.length === 0) {
       const record = run.getState().steps[id]
@@ -53,7 +47,7 @@ export function safeInspect(flow: AnyFlow): FlowGraph | { readonly error: string
 
 interface GraphViewProps {
   readonly flow: AnyFlow | undefined
-  readonly run: FlowRun<AnyFlow> | undefined
+  readonly run: Run<AnyFlow> | undefined
   readonly selected: StepRef | null
   readonly onSelect: (ref: StepRef) => void
 }

@@ -1,0 +1,11 @@
+{
+  "extends": ["../../tsconfig.base.json", "../../tsconfig.source.json"],
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["api/**/*.ts", "shared/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "*.config.ts"]
+}

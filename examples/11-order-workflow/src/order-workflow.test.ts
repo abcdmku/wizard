@@ -1,4 +1,4 @@
-import { createMemoryStore, createRun, type RunEvent, type Snapshot } from '@openwizard/core'
+import { createMemoryStore, type RunEvent } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { type Deps, orderWorkflowFlow } from './order-workflow'
@@ -18,7 +18,9 @@ const ready = {
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
-function fakeDeps(options: { chargeFailures?: number; requestFails?: boolean } = {}) {
+type Failures = { chargeFailures?: number; requestFails?: boolean; chargeMessage?: string }
+
+function fakeDeps(options: Failures = {}) {
   const calls: string[] = []
   const keys = { reserve: [] as string[], charge: [] as string[], request: [] as string[] }
   let chargeCalls = 0
@@ -39,7 +41,7 @@ function fakeDeps(options: { chargeFailures?: number; requestFails?: boolean } =
         keys.charge.push(idempotencyKey)
         chargeCalls += 1
         if (chargeCalls <= (options.chargeFailures ?? 0))
-          throw new Error(`payment unavailable (attempt ${chargeCalls})`)
+          throw new Error(options.chargeMessage ?? `payment unavailable (attempt ${chargeCalls})`)
         return { paymentId: 'payment-42' }
       },
       refund: async (paymentId, { idempotencyKey }) => {
@@ -58,12 +60,11 @@ function fakeDeps(options: { chargeFailures?: number; requestFails?: boolean } =
   return { deps, calls, keys }
 }
 
-function make(options: { chargeFailures?: number; requestFails?: boolean } = {}) {
+function make(options: Failures = {}) {
   const scheduler = createTestScheduler({ now: T0 })
   const store = createMemoryStore()
   const { deps, calls, keys } = fakeDeps(options)
-  const run = createRun(orderWorkflowFlow, {
-    context,
+  const run = orderWorkflowFlow.create(context, {
     deps,
     instanceId: 'order-o-42',
     correlationId: context.orderId,
@@ -73,7 +74,7 @@ function make(options: { chargeFailures?: number; requestFails?: boolean } = {})
   })
   const events: RunEvent<typeof orderWorkflowFlow>[] = []
   run.observe((event) => events.push(event))
-  const eventsOfType = <T extends RunEvent['type']>(type: T) =>
+  const eventsOfType = <T extends RunEvent<typeof orderWorkflowFlow>['type']>(type: T) =>
     events.filter(
       (event): event is Extract<RunEvent<typeof orderWorkflowFlow>, { type: T }> =>
         event.type === type,
@@ -104,7 +105,7 @@ describe('11 order workflow: tasks, durable retry, event wait, persistence and c
     )
 
     await run.save()
-    const saved = (await store.get(KEY)) as Snapshot<typeof orderWorkflowFlow>
+    const saved = await store.get(KEY)
     expect(saved).toMatchObject({
       v: 1,
       flow: { name: 'order-workflow', version: 1 },
@@ -164,11 +165,30 @@ describe('11 order workflow: tasks, durable retry, event wait, persistence and c
     ])
     expect(eventsOfType('flow.compensating')[0]).toMatchObject({
       plan: ['charge', 'reserve'],
-      outcome: 'failed',
+      status: 'failed',
     })
-    expect(eventsOfType('flow.compensated')[0]).toMatchObject({ failures: [], outcome: 'failed' })
+    expect(eventsOfType('flow.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
     expect(run.getState().steps.charge.status).toBe('compensated')
     expect(run.getState().steps.reserve.status).toBe('compensated')
+    run.dispose()
+  })
+
+  it('uses the mapped error to stop retrying a declined payment and releases its reservation', async () => {
+    const { run, calls, keys, eventsOfType } = make({
+      chargeFailures: 1,
+      chargeMessage: 'payment declined',
+    })
+    await run.start()
+    await settle()
+    expect(run.getState().status).toBe('failed')
+    expect(run.getState().steps.charge.error?.data).toEqual({ code: 'DECLINED', attempt: 1 })
+    expect(eventsOfType('step.retryScheduled')).toEqual([])
+    expect(keys.charge).toEqual(['order:o-42:payment-charge'])
+    expect(calls).toEqual([
+      'inventory.reserve',
+      'payments.charge',
+      'inventory.release:reservation-42:order:o-42:inventory-release',
+    ])
     run.dispose()
   })
 })

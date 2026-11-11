@@ -2,7 +2,7 @@
  * `<FlowGraph>` in the DOM: every step becomes a card (child steps inside their group), the
  * live overlay lands on the cards (`data-status`, `data-current`), a click reports the selection.
  */
-import { inspect } from '@openwizard/core'
+import { inspect } from '@openwizard/core/inspect'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { FlowGraph } from '../src/graph/FlowGraph'
@@ -25,10 +25,10 @@ describe('<FlowGraph>', () => {
     // Child cards are React Flow children of the group node (parentId), rendered after it.
     expect(cardOf(container, 'count')).toBeDefined()
     expect(cardOf(container, 'packed')).toBeDefined()
-    // Markers: one entry per flow + the `?` port of the dynamic decision.
+    // Routing targets are explicit, so the graph has only entry markers.
     expect(container.querySelectorAll('.owd-marker[data-variant="entry"]').length).toBe(2)
-    expect(container.querySelectorAll('.owd-marker[data-variant="dynamic"]').length).toBe(1)
-    expect(container.querySelectorAll('.react-flow__edge').length).toBe(graph.edges.length + 1) // + dynamic
+    expect(container.querySelectorAll('.owd-marker[data-variant="dynamic"]').length).toBe(0)
+    expect(container.querySelectorAll('.react-flow__edge').length).toBe(graph.edges.length)
     if (graph.warnings.length > 0)
       expect(container.querySelector('.owd-badge-warn')?.textContent).toContain(
         String(graph.warnings.length),

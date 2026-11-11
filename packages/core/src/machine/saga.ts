@@ -1,7 +1,7 @@
 /**
  * Saga — compensation (§5.2 / plan §8.5).
  *
- * Phase 1 (settle): `flow.compensating` (apply records `saga.settling` = tasks
+ * Phase 1 (settle): `flow.compensating` (apply records `saga.settling` = runs
  * whose `run` is in flight), every active step is cancelled (the interpreter
  * aborts runs on `step.cancelled`), then we wait for the settling results —
  * bounded by a persisted grace timer (`compensationGraceMs`, default 30 s):
@@ -9,7 +9,7 @@
  * Phase 2 (unwind): one `step.compensationStarted{step, runId}` at a time, in
  * reverse completion order over the stack entries (one per completion —
  * repeated activations are compensated separately), best-effort; failures
- * collect in `saga.failures`; `flow.compensated{outcome}` when nothing is left.
+ * collect in `saga.failures`; `flow.compensated{status}` when nothing is left.
  *
  * @internal
  */
@@ -45,14 +45,14 @@ export function pendingEntries(b: Batch): readonly SagaEntry[] {
 export function startCompensation(
   b: Batch,
   reason: string | undefined,
-  outcome: 'failed' | 'cancelled',
+  status: 'failed' | 'cancelled',
   plan?: readonly string[],
 ): void {
   const list = plan ?? pendingEntries(b).map((e) => e.step)
   emit(b, {
     type: 'flow.compensating',
     plan: list,
-    outcome,
+    status,
     ...(reason !== undefined ? { reason } : {}),
   })
   cancelAllActive(b, reason ?? 'compensating')
@@ -83,7 +83,7 @@ export function unwindNext(b: Batch): void {
     emit(b, {
       type: 'flow.compensated',
       failures: b.state.saga.failures.map((f) => f.step),
-      outcome: b.state.saga.outcome ?? 'failed',
+      status: b.state.saga.outcome ?? 'failed',
     })
     return
   }

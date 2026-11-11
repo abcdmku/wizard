@@ -1,12 +1,5 @@
-import {
-  createMirror,
-  createMirrorSource,
-  createRun,
-  defineProjection,
-  isWizardError,
-  parseCommand,
-  type RunEvent,
-} from '@openwizard/core'
+import { defineProjection, isWizardError, parseCommand, type RunEvent } from '@openwizard/core'
+import { createMirror, createMirrorSource } from '@openwizard/core/mirror'
 import { createLocalTransport } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { type Deps, fulfilmentFlow, orderFlow } from './order'
@@ -30,7 +23,7 @@ const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 describe('06 nested flow: order.flow(child, { context })', () => {
   it('creates the child with the mapped context, forwards its events with a path, and completes the parent with its output', async () => {
     const { deps, shipments } = fakeDeps()
-    const run = createRun(orderFlow, { context: { orderId: 'o-1', amount: 30 }, deps })
+    const run = orderFlow.create({ orderId: 'o-1', amount: 30 }, { deps })
     const events: RunEvent<typeof orderFlow>[] = []
     run.observe((event) => events.push(event))
 
@@ -113,7 +106,7 @@ describe('06 nested flow: order.flow(child, { context })', () => {
 
   it('routes child wire commands through the parent run', async () => {
     const { deps } = fakeDeps()
-    const run = createRun(orderFlow, { context: { orderId: 'o-2', amount: 5 }, deps })
+    const run = orderFlow.create({ orderId: 'o-2', amount: 5 }, { deps })
     const events: RunEvent<typeof orderFlow>[] = []
     run.observe((event) => events.push(event))
     await run.start()
@@ -143,7 +136,7 @@ describe('06 nested flow: order.flow(child, { context })', () => {
   })
   it('lets a Mirror drive a child exposed by the projection', async () => {
     const { deps, shipments } = fakeDeps()
-    const run = createRun(orderFlow, { context: { orderId: 'o-3', amount: 12 }, deps })
+    const run = orderFlow.create({ orderId: 'o-3', amount: 12 }, { deps })
     await run.start()
     // The projection exposes the child's projected state under `steps.fulfil.child` (deny-by-default
     // inside too: only the pick draft and the child's current view cross the wire).

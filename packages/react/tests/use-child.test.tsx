@@ -1,16 +1,11 @@
 /**
  * `useChild(step)` (v0.2): hooks bound to a nested flow's slice — over a loopback Mirror (the
- * `steps[step].child` slice of the projection) and over a FlowRun (`getSnapshot().children`);
+ * `steps[step].child` slice of the projection) and over a Run (`getSnapshot().children`);
  * `useSnapshot()` is null before the child exists, `useStep` reads the child step + scoped
  * helpers, `useActions()` sends `child` commands, nested `useChild` reaches a grandchild.
  */
-import {
-  createMirror,
-  createMirrorSource,
-  createRun,
-  defineFlow,
-  defineProjection,
-} from '@openwizard/core'
+import { defineProjection, defineWizard } from '@openwizard/core'
+import { createMirror, createMirrorSource } from '@openwizard/core/mirror'
 import { createLocalTransport } from '@openwizard/core/testing'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -20,35 +15,44 @@ import { tick } from './fixture'
 
 afterEach(cleanup)
 
-const grandchild = defineFlow({ name: 'grandchild', context: z.object({ sku: z.string() }) })
-const grandchildFlow = grandchild.steps({
-  pick: grandchild.view({ input: z.object({ bin: z.string() }), next: 'done' }),
-  done: grandchild.final(),
-})
-const fulfilment = defineFlow({
-  name: 'fulfilment',
-  context: z.object({ orderId: z.string(), warehouse: z.string().optional() }),
-})
-const fulfilmentFlow = fulfilment.steps({
-  confirm: fulfilment.view({
-    input: z.object({ warehouse: z.string() }),
-    exit: ({ output, update }) => update({ warehouse: output.warehouse }),
-    next: 'pack',
-  }),
-  pack: fulfilment.flow(grandchildFlow, { context: () => ({ sku: 'sku-1' }), next: 'done' }),
-  done: fulfilment.final({ output: ({ context }) => ({ warehouse: context.warehouse }) }),
-})
-const order = defineFlow({ name: 'order', context: z.object({ cartId: z.string() }) })
-const orderFlow = order.steps(
-  {
-    intro: order.view({ next: 'fulfil' }),
-    fulfil: order.flow(fulfilmentFlow, {
-      context: ({ context }) => ({ orderId: context.cartId }),
-      next: 'end',
+const grandchildFlow = defineWizard(
+  { name: 'grandchild', context: z.object({ sku: z.string() }) },
+  ({ view, step, steps }) =>
+    steps({
+      pick: view({ input: z.object({ bin: z.string() }), next: 'done' }),
+      done: step({ run: () => undefined }),
     }),
-    end: order.final(),
+)
+const fulfilmentFlow = defineWizard(
+  {
+    name: 'fulfilment',
+    context: z.object({ orderId: z.string(), warehouse: z.string().optional() }),
   },
-  { start: 'intro' },
+  ({ view, step, flow, steps }) =>
+    steps({
+      confirm: view({
+        input: z.object({ warehouse: z.string() }),
+        exit: ({ output, update }) => update({ warehouse: output.warehouse }),
+        next: 'pack',
+      }),
+      pack: flow(grandchildFlow, { context: () => ({ sku: 'sku-1' }), next: 'done' }),
+      done: step({ run: ({ context }) => ({ warehouse: context.warehouse }) }),
+    }),
+)
+const orderFlow = defineWizard(
+  { name: 'order', context: z.object({ cartId: z.string() }) },
+  ({ view, step, flow, steps }) =>
+    steps(
+      {
+        intro: view({ next: 'fulfil' }),
+        fulfil: flow(fulfilmentFlow, {
+          context: ({ context }) => ({ orderId: context.cartId }),
+          next: 'end',
+        }),
+        end: step({ run: () => undefined }),
+      },
+      { start: 'intro' },
+    ),
 )
 const orderClient = defineProjection(orderFlow, {
   expose: {
@@ -92,7 +96,7 @@ function ConfirmView({ step }: { step: ConfirmLike }) {
 }
 
 async function loop() {
-  const run = createRun(orderFlow, { context: { cartId: 'c-1' } })
+  const run = orderFlow.create({ cartId: 'c-1' })
   await run.start()
   const source = createMirrorSource(run, orderClient)
   const mirror = createMirror<typeof orderClient>({ transport: createLocalTransport(source) })
@@ -214,9 +218,9 @@ describe('useChild over a Mirror', () => {
   })
 })
 
-describe('useChild over a FlowRun', () => {
+describe('useChild over a Run', () => {
   it('reads the child snapshot state and drives the child through child commands', async () => {
-    const run = createRun(orderFlow, { context: { cartId: 'c-2' } })
+    const run = orderFlow.create({ cartId: 'c-2' })
     await run.start()
     function Confirm() {
       return <ConfirmView step={owFlow.useChild('fulfil').useStep('confirm')} />
@@ -253,7 +257,7 @@ describe('useChild over a FlowRun', () => {
       await tick()
     })
     expect(run.child('fulfil').getState().steps.confirm.status).toBe('done')
-    // Nested over a FlowRun: the grandchild snapshot.
+    // Nested over a Run: the grandchild snapshot.
     let grand: unknown
     function Grand() {
       grand = owFlow.useChild('fulfil').useChild('pack').useSnapshot()

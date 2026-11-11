@@ -1,26 +1,56 @@
 # React
 
-`@openwizard/react` re-renders React components when a run's state changes. The package can read a `FlowRun` in the same process or a `Mirror` that represents a server-owned run in the browser.
+`@openwizard/react` gives React components typed hooks over a local `Run` or a `Mirror` of a server-owned run.
 
 ```sh
 npm install @openwizard/react react
 ```
 
-Create one binding for the flow type. The binding gives its hooks the exact context, step ids, inputs, and outputs from that flow:
-
 ```tsx file="packages/docs/snippets/packages/react.tsx"
 ```
 
-Render the binding's `Provider` above components that call its hooks. Pass one stable source object to the provider.
+1. `bindReact<typeof signupFlow>()` binds the wizard itself, so hooks know its context, step ids, inputs, and outputs.
+2. `Provider` receives one stable source and makes it available to the hooks below it.
+3. `useSnapshot()` re-renders on every commit and reads the whole visible state.
+4. `useStep('contact')` returns that step's record plus `setInput`, `next`, `back`, `go`, and `resetInput`, and re-renders only when that step changes.
+5. `useActions()` returns the run's command methods, such as `cancel()` and `send()`.
 
-- `useSnapshot()` subscribes to the whole visible run state.
-- `useStep('stepId')` reads one typed step and includes actions that apply to it.
-- `useActions()` returns commands such as navigation, input changes, and events.
+## Hooks
 
-The hooks do not create or persist the run. Your application owns the source and decides when to dispose it.
+| Export | What it does |
+|---|---|
+| `bindReact<T>()` | Creates `Provider` and hooks for a wizard or a projection |
+| `useRun(create, deps?)` | Owns a local run or mirror across renders and StrictMode remounts |
+| `Provider` | Takes a stable `source` and optional `fallback` |
+| `useSnapshot()` | The whole state; re-renders on every commit |
+| `useCurrent()` | The current view step's record, or `null` |
+| `useStep(id)` | One typed step record with bound helpers |
+| `useSelector(fn, isEqual?)` | A derived value; re-renders when it changes |
+| `useActions()` | Command methods, including retry of mapped child flows |
+| `useChild(step)` / `useChild(mappedStep, index)` | Hooks scoped to an ordinary child or one mapped input item |
+| `useConnection()` | Mirror binding only; reads connection state for offline UI |
 
-The example passes a local run directly, which is useful for a client-only app or a component test. If the real run lives on a server, do not copy its full snapshot into the browser by default. Define a projection containing the fields the client may see, create a `Mirror` that sends commands to the server, and pass that mirror to a binding typed by the projection.
+## Boundaries
 
-Read [projections and mirrors](/advanced/projections) for the server-to-browser data boundary and versioned frame model.
+Use `useRun(() => wizard.create(input), deps)` when a component owns the run. It keeps the source through StrictMode's simulated remount and disposes it after real unmount. A source passed from outside the component stays under its caller's ownership.
 
-[React API lookup](/api/react)
+For a server-owned run, define a projection of the fields the browser may see, import `createMirror` from `@openwizard/core/mirror`, and bind to the projection type. TypeScript rejects fields the projection omits. Seed server-rendered state with `createMirror({ initial, transport })`; for local state, resume the snapshot before passing the run to `Provider`.
+
+View helpers send step-scoped `next` and `back` commands so a stale component cannot navigate a different view. `setInput` clears validation issues only for the fields it changes.
+
+## Mapped child bindings
+
+Use `binding.useChild('batch', 0)` to select the first mapped child's input index. The numeric index is required for mapped children; an ordinary child uses `binding.useChild('fulfil')`. Child bindings can select grandchildren the same way.
+
+Over a mirror, expose a nested `child` spec to use child hooks. A mapped child projects an array in input order with `null` entries before an item's child state exists. `child: true` exposes only summaries. Guard the selected binding's `useSnapshot()` against `null` before calling its `useStep()`.
+
+```tsx file="packages/docs/snippets/packages/mapped-react.tsx"
+```
+
+Render this under `reviewsUI.Provider` with a mirror of `reviewsClient`, defined in the [mapped-child example](/advanced/nested#one-child-per-item). The separate form component keeps hook order consistent while the parent waits for child state.
+
+## Next
+
+Read [projections and mirrors](/advanced/projections) for the server-to-browser boundary, or open the [React mirror example](/examples).
+
+[React API](/api/react)

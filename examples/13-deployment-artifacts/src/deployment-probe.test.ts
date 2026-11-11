@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runDeploymentProbe } from './deployment-probe'
 
 describe('provider-neutral deployment host', () => {
-  it('runs the same typed flow before any provider preset is selected', async () => {
+  it('runs the same typed wizard before any provider preset is selected', async () => {
     const response = await runDeploymentProbe({ requestId: 'request-42' })
 
     expect(response).toMatchObject({

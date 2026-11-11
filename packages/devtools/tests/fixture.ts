@@ -1,16 +1,10 @@
 /**
- * Shared fixture: an ingest pipeline (view → task with retry → fan-out → AND-join decision →
- * wait → nested child flow → finals) plus a `back` loop, a dynamic decision and an orphan step,
- * so the graph has every edge kind, a cycle, a `?` port, a group and an isolated node.
+ * An ingest pipeline with a view, retry, fan-out, gated decision, event wait and child wizard.
+ * The child joins typed data through `needs`; routing declares its possible targets.
+ * A loop and an orphan step exercise the layout's cycle and isolated-node handling.
  */
-import {
-  boundary,
-  createMirror,
-  createMirrorSource,
-  createRun,
-  defineFlow,
-  defineProjection,
-} from '@openwizard/core'
+import { boundary, defineProjection, defineWizard } from '@openwizard/core'
+import { createMirror, createMirrorSource } from '@openwizard/core/mirror'
 import { createLocalTransport, createTestScheduler } from '@openwizard/core/testing'
 import { z } from 'zod'
 
@@ -18,76 +12,82 @@ export interface Deps {
   api: { fetch(): Promise<number> }
 }
 
-const pack = defineFlow({ name: 'pack', context: z.object({ items: z.number() }) })
-export const packFlow = pack.steps(
-  {
-    count: pack.task(({ context }) => context.items * 2, { next: 'packed' }),
-    packed: pack.final({ output: ({ steps }) => steps.count?.output }),
+export const packFlow = defineWizard(
+  { name: 'pack', context: z.object({ items: z.number() }) },
+  ({ step, steps }) => {
+    const count = step({ run: ({ context }) => context.items * 2 })
+    return steps({ count, packed: step({ needs: { count }, run: ({ needs }) => needs.count }) })
   },
-  { start: 'count' },
 )
 
-const ingest = defineFlow({
-  name: 'ingest',
-  context: z.object({
-    source: z.string(),
-    rows: z.number().optional(),
-    quality: z.number().default(0),
-  }),
-  events: { 'payment.captured': z.object({ paymentId: z.string() }) },
-  deps: boundary.trusted<Deps>(),
-  concurrency: 2,
-})
-
-export const pipeline = ingest.steps(
+export const pipeline = defineWizard(
   {
-    form: ingest.view({
-      input: z.object({ name: z.string().min(1) }),
-      initial: { name: '' },
-      next: 'ingest',
+    name: 'ingest',
+    context: z.object({
+      source: z.string(),
+      rows: z.number().optional(),
+      quality: z.number().default(0),
     }),
-    ingest: ingest.task(
-      async ({ deps, update }) => {
-        const rows = await deps.api.fetch()
-        update({ rows })
-        return { rows }
-      },
-      { retry: { attempts: 2, backoff: 100 }, next: ['normalize', 'enrich'] },
-    ),
-    normalize: ingest.task(({ context }) => ({ normalized: context.rows ?? 0 }), { next: 'gate' }),
-    enrich: ingest.task(({ update }) => update({ quality: 0.9 }), {
-      when: ({ context }) => (context.rows ?? 0) > 0,
-      next: 'gate',
-    }),
-    gate: ingest.decision({
-      dependsOn: ['normalize', 'enrich'],
-      next: ({ context }) => (context.quality >= 0.8 ? 'awaitPayment' : 'rejected'),
-    }),
-    awaitPayment: ingest.wait({
-      on: { 'payment.captured': () => undefined },
-      timeout: { after: '15m', next: 'rejected' },
-      next: 'pack',
-    }),
-    pack: ingest.flow(packFlow, {
-      context: ({ context }) => ({ items: context.rows ?? 0 }),
-      next: 'review',
-    }),
-    review: ingest.view({ next: 'done' }),
-    // A `back`-like loop: review → form closes a cycle (NAV_CYCLE) the layout must break.
-    again: ingest.view({ next: 'form' }),
-    rejected: ingest.final({ output: () => 'rejected' }),
-    done: ingest.final({ output: ({ context }) => `stored ${context.rows ?? 0} rows` }),
-    orphan: ingest.final(),
+    events: { 'payment.captured': z.object({ paymentId: z.string() }) },
+    deps: boundary.trusted<Deps>(),
+    concurrency: 2,
   },
-  { start: 'form' },
+  ({ step, view, flow, steps }) =>
+    steps(
+      {
+        form: view({
+          input: z.object({ name: z.string().min(1) }),
+          initial: { name: '' },
+          next: 'ingest',
+        }),
+        ingest: step({
+          run: async ({ deps, update }) => {
+            const rows = await deps.api.fetch()
+            update({ rows })
+            return { rows }
+          },
+          retry: { attempts: 2, backoff: 100 },
+          next: ['normalize', 'enrich'],
+        }),
+        normalize: step({
+          run: ({ context }) => ({ normalized: context.rows ?? 0 }),
+          next: 'gate',
+        }),
+        enrich: step({
+          run: ({ update }) => update({ quality: 0.9 }),
+          when: ({ context }) => (context.rows ?? 0) > 0,
+          next: 'gate',
+        }),
+        gate: step({
+          dependsOn: ['normalize', 'enrich'],
+          targets: ['awaitPayment', 'rejected'],
+          next: ({ context }) => (context.quality >= 0.8 ? 'awaitPayment' : 'rejected'),
+        }),
+        awaitPayment: step({
+          waitFor: { 'payment.captured': ({ payload }) => ({ done: payload.paymentId }) },
+          timeout: { after: '15m', next: 'rejected' },
+          next: 'pack',
+        }),
+        pack: flow(packFlow, {
+          context: ({ context }) => ({ items: context.rows ?? 0 }),
+          next: 'review',
+        }),
+        review: view({ input: z.object({}), next: 'done' }),
+        // This entry closes a cycle through form and review.
+        again: view({ input: z.object({}), next: 'form' }),
+        rejected: step({ run: () => 'rejected' }),
+        done: step({ run: ({ context }) => `stored ${context.rows ?? 0} rows` }),
+        orphan: step({ run: () => undefined }),
+      },
+      { start: 'form' },
+    ),
 )
 
 export const context = { source: 'crm' }
 
 export function makeRun(fetch: () => Promise<number> = async () => 100) {
   const sched = createTestScheduler({ now: 1_000 })
-  const run = createRun(pipeline, {
-    context,
+  const run = pipeline.create(context, {
     deps: { api: { fetch } },
     scheduler: sched,
     logSize: 1_000,

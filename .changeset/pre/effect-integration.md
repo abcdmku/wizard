@@ -3,5 +3,5 @@
 '@openwizard/effect': minor
 ---
 
-Add the stable Effect 3.22 task adapter, typed durable failures, and native
-Effect helpers for starting and awaiting a FlowRun.
+Add the Effect run adapter and typed JSON failure data. Effect programs execute
+through ordinary wizard steps, with cancellation, retries and boundary validation.

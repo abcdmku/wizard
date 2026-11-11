@@ -22,31 +22,33 @@ export function enterEvents(
     { type: 'step.entered', step: id, from, runId },
   ]
   switch (def.kind) {
-    case 'task':
-      out.push({
-        type: 'step.runStarted',
-        step: id,
-        attempt: 1,
-        runId,
-        idempotencyKey: `${state.instanceId}:${id}:${runId}`,
-      })
-      break
-    case 'wait':
-      if (def.waitTimeout !== undefined) {
+    case 'step':
+      if (def.hooks.run !== undefined) {
+        out.push({
+          type: 'step.runStarted',
+          step: id,
+          attempt: 1,
+          runId,
+          idempotencyKey: `${state.instanceId}:${id}:${runId}`,
+        })
+      } else if (def.hooks.waitFor !== undefined && def.waitTimeout !== undefined) {
         out.push({
           type: 'timer.scheduled',
           timerId: `wait:${id}`,
           dueAt: env.now() + def.waitTimeout.afterMs,
           purpose: 'waitTimeout',
         })
+      } else if (
+        def.hooks.waitFor === undefined &&
+        def.sleep === undefined &&
+        env.def.sinks.includes(id)
+      ) {
+        out.push({ type: 'step.done', step: id }, { type: 'flow.done' })
       }
       break
     case 'flow':
       if (def.hooks.childContext === undefined)
         out.push({ type: 'child.started', step: id, childPath: [...env.path, id] })
-      break
-    case 'final':
-      out.push({ type: 'step.done', step: id }, { type: 'flow.done' })
       break
     default:
       break
@@ -60,9 +62,17 @@ export function targetsOf(env: MachineEnv, id: string): readonly string[] {
   return next?.kind === 'static' ? next.targets : []
 }
 
-export function advance(env: MachineEnv, state: WizardState, from: string): DomainEventBody[] {
+export function advance(
+  env: MachineEnv,
+  state: WizardState,
+  from: string,
+  output?: unknown,
+): DomainEventBody[] {
   const out: DomainEventBody[] = []
   for (const target of targetsOf(env, from)) out.push(...enterEvents(env, state, target, from))
+  if (env.def.sinks.includes(from)) {
+    out.push({ type: 'flow.done', ...(output !== undefined ? { output } : {}) })
+  }
   return out
 }
 

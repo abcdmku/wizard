@@ -8,10 +8,13 @@ import type {
   AnyFlow,
   ChildFlowOf,
   ChildStepId,
+  Ctx,
   DraftOf,
   EventType,
+  IsEach,
+  RetryStepId,
+  RunStepId,
   StepId,
-  TaskId,
   ViewId,
 } from '../../authoring/types'
 
@@ -37,6 +40,9 @@ export type SetInputCommand<F extends AnyFlow> = {
   [K in ViewId<F>]: { readonly type: 'setInput'; readonly step: K; readonly patch: DraftOf<F, K> }
 }[ViewId<F>]
 
+type ChildPrefix<F extends AnyFlow, K extends ChildStepId<F>> =
+  true extends IsEach<F, K> ? readonly [K, string] : readonly [K]
+
 /**
  * A command addressed to a nested flow: `path: [flowStep]` with a `Command` of that child, or a
  * longer path (`[flowStep, grandChildStep, …]`) whose `command` is typed for the flow at its end
@@ -52,7 +58,7 @@ export type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] 
         [K in ChildStepId<F>]:
           | {
               readonly type: 'child'
-              readonly path: readonly [K]
+              readonly path: ChildPrefix<F, K>
               readonly command: Command<ChildFlowOf<F, K>, CommandDepthPrev[Depth]>
             }
           | (ChildCommand<ChildFlowOf<F, K>, CommandDepthPrev[Depth]> extends infer Inner
@@ -62,7 +68,7 @@ export type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] 
                 }
                 ? {
                     readonly type: 'child'
-                    readonly path: readonly [K, ...P]
+                    readonly path: readonly [...ChildPrefix<F, K>, ...P]
                     readonly command: C
                   }
                 : never
@@ -71,8 +77,9 @@ export type ChildCommand<F extends AnyFlow, Depth extends number = 8> = [Depth] 
 
 /**
  * A wire command (JSON), typed by the flow: `go` / `setInput` / `resetInput` take a `ViewId<F>`
- * (`setInput.patch` is that view's `DraftOf`), `run` / `retry` a `TaskId<F>`, `send` an
- * `EventType<F>` (its `payload` stays `unknown` — it is re-parsed by the event boundary),
+ * (`setInput.patch` is that view's `DraftOf`), `run` / `retry` a `RunStepId<F>` (`retry.patch` a
+ * context patch), `send` an `EventType<F>` (its `payload` stays `unknown` — it is re-parsed by
+ * the event boundary; `eventId` dedupes deliveries),
  * `compensate.from` / `skip.step` / `invalidate.step` a `StepId<F>`, and `child` a typed
  * `ChildCommand<F>`. `Depth` bounds the child recursion (8 child levels; beyond it ids widen to
  * `string`). Untrusted input becomes a `Command<F>` through `parseCommand(flow, input)`;
@@ -91,10 +98,11 @@ export type Command<F extends AnyFlow = AnyFlow, Depth extends number = 8> =
       readonly event: EventType<F>
       readonly payload: unknown
       readonly correlationId?: string
+      readonly eventId?: string
     }
-  | { readonly type: 'run'; readonly step: TaskId<F> }
-  | { readonly type: 'runReady' }
-  | { readonly type: 'retry'; readonly step: TaskId<F> }
+  | { readonly type: 'startStep'; readonly step: RunStepId<F> }
+  | { readonly type: 'startReady' }
+  | { readonly type: 'retry'; readonly step: RetryStepId<F>; readonly patch?: Partial<Ctx<F>> }
   | { readonly type: 'cancel'; readonly reason?: string }
   | { readonly type: 'compensate'; readonly from?: StepId<F>; readonly reason?: string }
   | { readonly type: 'reset' }

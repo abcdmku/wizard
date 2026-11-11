@@ -3,12 +3,12 @@
  * `context` is exported too; handing it to `<Devtools context>` lets the timeline replay the
  * run from seq 0 even when the panel mounts late.
  */
-import { createRun, type FlowRun } from '@openwizard/core'
+import type { Run } from '@openwizard/core'
 import { type Deps, makeDeps, pipeline } from './pipeline'
 
 export { pipeline }
 export const context = { source: 'crm-export' }
 
-export function createPipelineRun(deps: Deps = makeDeps()): FlowRun<typeof pipeline> {
-  return createRun(pipeline, { context, deps, logSize: 1_000 })
+export function createPipelineRun(deps: Deps = makeDeps()): Run<typeof pipeline> {
+  return pipeline.create(context, { deps, logSize: 1_000 })
 }

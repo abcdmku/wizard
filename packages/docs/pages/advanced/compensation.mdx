@@ -1,46 +1,37 @@
-# Undo completed side effects in a known order
+# Compensation
 
-A database transaction cannot cover an airline, hotel, car provider, and payment API. If the fourth call fails, the first three systems may already hold real reservations.
-
-The trip example gives each completed reservation a compensation function and sets `onFailure: 'compensate'`:
+When later work fails, compensation runs the undo hooks of completed steps, newest first. Use it when several external systems must agree and no single transaction covers them.
 
 ```ts file="examples/03-non-recoverable-compensation/src/book-trip.ts"
 ```
 
-## OpenWizard records what actually completed
+What happens when `charge` fails:
 
-The runtime pushes a task onto the saga stack only after that task succeeds. It stores the task output that its compensation function will need later.
+1. The runtime has recorded three completed runnable steps with their outputs.
+2. `onFailure: 'compensate'` puts the run in `compensating` and starts unwinding.
+3. `reserveCar`, then `reserveHotel`, then `reserveFlight` run their `compensate` hook with their own stored `output`.
+4. The run ends `failed` with a compensation summary in state and in the result.
 
-If `charge` fails, the recorded stack is:
+<Diagram name="compensation" />
 
-```text
-reserveFlight -> reserveHotel -> reserveCar
-```
+## Only completed work is compensated
 
-OpenWizard compensates in reverse completion order:
-
-```text
-cancel car -> cancel hotel -> cancel flight
-```
-
-Reverse order matters when a later reservation depends on an earlier one. It also means a skipped or never-started task is not compensated.
+A task joins the saga stack when it succeeds, and it stores the output its hook will need. A skipped, ready, or never-started task has no entry. Reverse order matters when a later reservation depends on an earlier one.
 
 ## Compensation can fail too
 
-A hotel cancellation may fail while the car cancellation succeeds. OpenWizard records the failed compensation, continues unwinding the remaining entries, and finishes with the failure list in saga state and the terminal result.
-
-After the hotel system recovers, an operator can retry only that entry:
+If the hotel cancellation throws, the runtime records that failure and keeps unwinding the rest. Once the hotel system recovers, retry just that entry:
 
 ```ts
 await run.compensate({ from: 'reserveHotel' })
 ```
 
-The selected hook receives the original task output again. Make each compensation idempotent when its outside service supports a request key.
+The hook receives the original output and an opaque `idempotencyKey` for that entry in the compensation stack. It stays stable across undo retries, save, and resume. It differs from the forward call's key; repeated loop executions get distinct undo keys. Pass the supplied key to the service rather than constructing one from the step id.
 
-## This is a recovery plan, not time travel
+A worker can stop after an undo takes effect but before its result commits, so compensation may be repeated too.
 
-Compensation performs new business actions. A refund does not make a charge disappear. A cancellation may have a fee. Another system may have observed the original reservation.
+## Match the service's undo operation
 
-Write compensation functions that match those business facts. OpenWizard supplies the completion order, stored outputs, failure tracking, and retry command. Your application decides what "undo" means for each service.
+A refund does not erase a charge, and a cancellation may carry a fee. Write each hook to match what "undo" means for that service. Use the default recoverable halt when a human should repair and continue forward; use `onFailure: 'compensate'` when the path must end and earlier effects must be reversed.
 
-Use the default recoverable halt when a human should repair the failed task and continue forward. Use `onFailure: 'compensate'` when the failed path must become terminal and earlier side effects should be unwound.
+Next: [Graphs and parallel work](/advanced/graphs). Related: [Retries and idempotency](/advanced/recovery) for the recoverable halt.

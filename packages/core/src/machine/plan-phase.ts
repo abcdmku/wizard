@@ -8,6 +8,7 @@
 import type { Effect } from './effects'
 import type { DomainEvent } from './events'
 import { call } from './plan-call'
+import { isRoutingStep } from './selectors'
 import type { WizardState } from './state'
 import type { MachineEnv } from './types'
 
@@ -35,10 +36,10 @@ export function planPhase(
       if (from !== undefined) out.push(call(env, from, 'canExit', { txId, extra: { to } }))
       return
     case 'resolvingTarget':
-      // A decision's targets are its output — unless it was skipped (v0.2): then its `next` hook is asked.
+      // A routing step's targets are its output; a skipped step follows its ordinary transition.
       if (
         from !== undefined &&
-        (from.kind !== 'decision' || from.status === 'skipped') &&
+        (!isRoutingStep(env.def.steps[from.id]) || from.status === 'skipped') &&
         env.def.steps[from.id]?.next.kind === 'dynamic'
       ) {
         out.push(call(env, from, 'next', { txId, extra: { output: from.output } }))
@@ -52,16 +53,18 @@ export function planPhase(
       }
       return
     case 'exiting':
-      if (from !== undefined)
-        out.push(
-          call(env, from, 'exit', { txId, extra: { to, direction: nav.direction ?? 'forward' } }),
-        )
+      if (from !== undefined) out.push(call(env, from, 'exit', { txId, extra: { to } }))
       return
     case 'entering':
       for (const t of nav.pendingSteps ?? []) {
         const rec = state.steps[t]
-        if (rec !== undefined)
+        if (rec === undefined) continue
+        if (rec.initializing !== undefined) {
+          if (rec.initializing === ev.seq)
+            out.push(call(env, rec, 'initial', { initialSeq: rec.initializing }))
+        } else {
           out.push(call(env, rec, 'enter', { txId, extra: { from: nav.from ?? null } }))
+        }
       }
       return
     default:

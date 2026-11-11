@@ -7,6 +7,7 @@ import rehypePrettyCode from 'rehype-pretty-code'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
 import { defineConfig } from 'vite'
+import { resolveBasePath } from './lib/build-environment.mjs'
 import { buildDocsManifest } from './lib/docs-manifest.mjs'
 import { remarkCodeFrom, remarkRepoLinks } from './lib/remark-plugins.mjs'
 import { docsManifestPlugin, monacoLibsPlugin } from './lib/vite-plugins.mjs'
@@ -15,19 +16,6 @@ const docsRoot = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const pagesRoot = fileURLToPath(new URL('./pages', import.meta.url))
 const githubUrl = `https://github.com/${process.env.GITHUB_REPOSITORY ?? 'abcdmku/wizard'}`
-
-/**
- * GitHub Pages serves a project site under `/<repo>/`. `DOCS_BASE` overrides; otherwise the base
- * is derived from `GITHUB_REPOSITORY` in production builds on Actions, and `/` everywhere else.
- */
-function resolveBasePath(): string {
-  if (process.env.DOCS_BASE) return process.env.DOCS_BASE
-  const repository = process.env.GITHUB_REPOSITORY
-  if (process.env.NODE_ENV !== 'production' || process.env.GITHUB_ACTIONS !== 'true') return '/'
-  const [owner, repo] = repository?.split('/') ?? []
-  if (!owner || !repo || repo === `${owner}.github.io`) return '/'
-  return `/${repo}/`
-}
 
 const base = resolveBasePath()
 const prerenderPages = [...buildDocsManifest(docsRoot).prerenderPages, '/playground']

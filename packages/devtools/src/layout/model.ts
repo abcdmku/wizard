@@ -1,14 +1,15 @@
 /**
  * Graph model: turn a `FlowGraph` (`inspect(flow)`) into the drawable model — one entry marker
  * per flow, a card per step (a `flow` step whose child is in the graph becomes a GROUP that
- * contains the child flow's model), a `?` port per dynamic `next`, and typed edges. Pure and
+ * contains the child flow's model), a `?` port per dynamic `next` without declared targets, and
+ * typed edges. Pure and
  * synchronous; the layout engine positions it, `toReactFlow` renders it.
  *
  * @packageDocumentation
  */
 
-import type { FlowGraph } from '@openwizard/core'
-import { type FlowGraphEdge, type FlowGraphNode, stepKey } from '../types'
+import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from '@openwizard/core/inspect'
+import { stepKey } from '../types'
 
 /** Rendered size of a step card. */
 export const STEP_WIDTH = 200
@@ -20,13 +21,14 @@ export const GROUP_PADDING = { top: 60, right: 24, bottom: 24, left: 24 } as con
 
 /**
  * Kind of a drawable node: a step card, a group (a `flow` step containing its child flow), a
- * flow's entry marker or the `?` port of a dynamic `next`.
+ * flow's entry marker or the `?` port of a dynamic `next` without declared targets.
  * @public
  */
 export type ModelNodeKind = 'step' | 'group' | 'entry' | 'dynamic'
 
 /**
- * Kind of a drawable edge: the `FlowGraph` kinds plus `dynamic` (a step → its `?` port).
+ * Kind of a drawable edge: the `FlowGraph` kinds (`route` = a declared target of a dynamic
+ * `next`) plus `dynamic` (a step → its `?` port when no targets are declared).
  * @public
  */
 export type ModelEdgeKind = FlowGraphEdge['kind'] | 'dynamic'
@@ -48,7 +50,7 @@ export interface ModelNode {
 }
 
 /**
- * One drawable edge between two model keys (`label` for `dependsOn` / `timeout` edges).
+ * One drawable edge between two model keys, with labels for routing, joins and alternate paths.
  * @public
  */
 export interface ModelEdge {
@@ -87,7 +89,8 @@ function parentOf(path: readonly string[]): string | undefined {
 /**
  * Build the drawable model of a `FlowGraph` (`inspect(flow)`): one entry marker per flow, a card
  * per step — a `flow` step whose child flow is in the graph becomes a group containing it — a
- * `?` port per dynamic `next`, and typed, labelled edges. Pure and synchronous.
+ * `?` port per dynamic `next` without declared targets, and typed, labelled edges. Pure and
+ * synchronous.
  * @public
  */
 export function buildGraphModel(graph: FlowGraph): GraphModel {
@@ -120,7 +123,7 @@ export function buildGraphModel(graph: FlowGraph): GraphModel {
       width: STEP_WIDTH,
       height: STEP_HEIGHT,
     })
-    if (step.dynamicNext === true) {
+    if (step.dynamicNext === true && step.targets === undefined) {
       nodes.push({
         key: dynamicKey(key),
         kind: 'dynamic',
@@ -179,10 +182,18 @@ function edgeLabel(
   target: FlowGraphNode | undefined,
 ): string | undefined {
   switch (edge.kind) {
+    case 'route':
+      return 'route'
     case 'dependsOn':
       return target?.dependsOn !== undefined && 'any' in target.dependsOn
         ? 'dependsOn (any)'
         : 'dependsOn'
+    case 'needs': {
+      const mode = edge.mode === undefined || edge.mode === 'all' ? '' : ` (${edge.mode})`
+      return `needs${edge.alias === undefined ? '' : ` ${edge.alias}`}${mode}`
+    }
+    case 'fallback':
+      return 'fallback'
     case 'timeout':
       return source?.timeout === undefined ? 'timeout' : `timeout ${formatMs(source.timeout)}`
     default:

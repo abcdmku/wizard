@@ -107,16 +107,10 @@ export function SearchDialog() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-900 dark:border-neutral-800 dark:text-neutral-400 dark:hover:border-neutral-600 dark:hover:text-neutral-100"
-      >
+      <button type="button" onClick={() => setOpen(true)} className="site-search-button">
         <Search className="h-3.5 w-3.5" aria-hidden="true" />
-        <span className="hidden sm:inline">Search</span>
-        <kbd className="hidden rounded border border-neutral-200 px-1 font-mono text-[10px] sm:inline dark:border-neutral-700">
-          /
-        </kbd>
+        <span>Search documentation</span>
+        <kbd>/</kbd>
       </button>
 
       {open && (

@@ -1,52 +1,61 @@
-# Retry work without losing the history
+# Retries and idempotency
 
-A retry loop can make a flaky call succeed. Production recovery needs more information than that. You need to know the current attempt, the next deadline, the error safe to persist, and whether a crash makes another call safe.
-
-The invoice example sends one logical write to a ledger. It combines four controls on the same task:
+A runnable step can retry with backoff, store a typed error, and pass an idempotency key to a remote service. Use these together when a crash could leave you unsure whether a request took effect.
 
 ```ts file="examples/02-recoverable-failure/src/sync-invoice.ts"
 ```
 
-## Retry deadlines are run state
+When the ledger is down, the step remains `active` with `phase: 'retrying'` and an absolute `retryAt` deadline. `attempts: 3` allows three retries after the first call. With a 200 ms exponential base, those delays are 200 ms, 400 ms, and 800 ms. Once retries run out, the default policy puts the run in `halted` so an operator can repair and retry it.
 
-`attempts: 3` means one initial call plus three retries. Exponential backoff uses 200 ms, 400 ms, and 800 ms with the default settings.
-
-After a failure, the step remains active with `phase: 'retrying'`. Its `retryAt` deadline appears in state and in a `step.retryScheduled` event. Saving the run saves that deadline. A resumed run re-arms the remaining timer instead of starting a fresh delay.
-
-Nothing calls the ledger before the deadline. A test can prove the exact schedule with `createTestScheduler()` instead of sleeping.
-
-## Typed error data survives storage
-
-Raw JavaScript errors are inconsistent and may contain data you should not persist. `mapError` converts the thrown value into a small application type:
+## Retry policy
 
 ```ts
-{ code: 'LEDGER_UNAVAILABLE', attempt: 4 }
+retry: {
+  attempts: 3,
+  backoff: 'exponential',
+  baseMs: 200,
+  factor: 2,
+  maxBackoffMs: 30_000,
+  jitter: 0.2,
+  when: (error) => error.code === 'LEDGER_UNAVAILABLE',
+}
 ```
 
-OpenWizard stores that value at `state.steps.post.error.data`. The exported `ErrorOf<typeof flow, 'post'>` type lets a UI or operator tool handle it without casting.
+A numeric `backoff` sets a fixed delay. `jitter` varies it to spread concurrent retries. `when` can stop retries for a permanent error and receives the mapped error when `mapError` is configured.
 
-The original serialized error message remains available for diagnostics. The mapped data is the stable contract your application can branch on.
+Retry deadlines appear in events and snapshots. Resume uses the remaining delay rather than restarting it. Use `createTestScheduler()` from `@openwizard/core/testing` to test deadlines without sleeping.
 
-## A crash creates an ambiguity
+## Typed error data
 
-Consider this order of events:
+`mapError` returns a small JSON-safe value for application code. `ErrorOf<typeof syncInvoiceFlow, 'post'>` recovers its type. The record keeps it in `steps.post.error.data` alongside the serialized error message. A non-JSON mapper result fails the step.
 
-```text
-ledger accepts request -> worker crashes -> success was never saved
-```
+Raw thrown values may contain secrets or unstable library fields. Map the fields your UI or retry policy actually needs.
 
-No workflow engine can infer whether the ledger applied the request. OpenWizard gives every task attempt an `idempotencyKey`. Marking a task `idempotent` also tells resume that it may reissue an interrupted call with the same key.
-
-The ledger must enforce that key. If it stores the first result under `invoice:INV-7`, the second call can return the same result without posting the invoice twice.
-
-For a non-idempotent task found in `active` state after a crash, resume marks the step as `failed` with `kind: 'interrupted'`. The host must inspect the outside system and decide whether to call `retry()`.
-
-## A recoverable halt keeps the evidence
-
-When automatic retries run out, the default failure policy halts the run. It does not erase the step output, attempt count, error, or log. An operator can repair the dependency and call:
+## Recover a halt
 
 ```ts
-const retried = await run.retry('post')
+await run.retry('post', { patch: { amount: 125 } })
 ```
 
-That starts a new retry cycle for the failed task. Use [compensation](/advanced/compensation) when a terminal failure should undo earlier completed side effects instead of waiting for repair.
+`halted` is recoverable. The run keeps its error, attempt count, completed outputs, and log. `failed` is terminal, for example after the compensation policy ends a run. `awaitOutcome()` reports a halt; `awaitResult()` keeps waiting for a terminal result.
+
+For an `each` step, every item follows the retry policy independently. Exhausted items fail the step without discarding completed item results. An explicit retry reruns failed items rather than the whole collection. This applies to mapped child flows too: `run.retry('batch')` retains completed child outputs. `RetryStepId<typeof wizard>` includes runnable steps and mapped child-flow steps.
+
+## Crash recovery needs service idempotency
+
+<Diagram name="recovery" />
+
+The worker can die after the ledger applies a request but before the run records its result. Mark `idempotent: true` only when reissuing that request is safe. A runnable hook receives `idempotencyKey`; pass it to the service that performs the side effect. Retries and interrupted-work recovery reuse the key. A custom `idempotent` function can derive the service's key.
+
+Without `idempotent`, resume marks an interrupted runnable step failed with `kind: 'interrupted'`. Check the remote system before retrying. Saving snapshots or deduplicating inbound commands cannot close the crash window around a remote call.
+
+## Continue through a fallback
+
+```ts file="packages/docs/snippets/advanced/patterns.ts" lines="48-61"
+```
+
+After `remote` exhausts retries, it becomes `skipped` with reason `fallback`. Its record retains the error, and `cache` activates instead of the run halting or compensating.
+
+Fallback and event-timeout edges are alternate paths. They do not replace the successful step's sink output. If the wizard has several sinks, use its options-level `output` selector for one stable result shape. Otherwise its inferred output includes the possible sink values and, where branches can skip them, `undefined`.
+
+Next: [Compensation](/advanced/compensation), [Snapshots and migrations](/advanced/persistence).

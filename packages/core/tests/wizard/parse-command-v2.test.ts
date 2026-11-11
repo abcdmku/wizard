@@ -5,11 +5,11 @@
 import { describe, expect, it } from 'vitest'
 import { decodeCommand } from '../../src/wizard/parse-command'
 import { validateSnapshot } from '../../src/wizard/snapshot'
-import { createHarness, final, flow, task, view } from '../helpers/fixtures'
+import { completeStepDef, createHarness, flow, runStep, view } from '../helpers/fixtures'
 
 const def = flow({
   start: 'a',
-  steps: { a: view({ next: 't' }), t: task({ next: 'end' }), end: final() },
+  steps: { a: view({ next: 't' }), t: runStep({ next: 'end' }), end: completeStepDef() },
 })
 
 describe('decodeCommand — skip / invalidate (v0.2)', () => {
@@ -51,6 +51,23 @@ describe('decodeCommand — skip / invalidate (v0.2)', () => {
     expect(msg(decodeCommand({ type: 'skip', step: 't', cascade: true }, def))).toEqual([
       "unknown property 'cascade' on 'skip'",
     ])
+  })
+})
+
+describe('decodeCommand — retry.patch and send.eventId', () => {
+  it('carries a JSON object patch and an event id; rejects a non-object patch', () => {
+    expect(decodeCommand({ type: 'retry', step: 't', patch: { attempts: 2 } }, def)).toEqual({
+      ok: true,
+      value: { type: 'retry', step: 't', patch: { attempts: 2 } },
+    })
+    expect(decodeCommand({ type: 'send', event: 'ping', payload: {}, eventId: 'evt_1' })).toEqual({
+      ok: true,
+      value: { type: 'send', event: 'ping', payload: {}, eventId: 'evt_1' },
+    })
+    expect(decodeCommand({ type: 'retry', step: 't', patch: 3 }, def)).toEqual({
+      ok: false,
+      issues: [{ message: "'patch' must be an object", path: ['patch'] }],
+    })
   })
 })
 

@@ -19,7 +19,37 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./store": {
+      "import": {
+        "types": "./dist/store.d.ts",
+        "default": "./dist/store.js"
+      },
+      "require": {
+        "types": "./dist/store.d.cts",
+        "default": "./dist/store.cjs"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      },
+      "require": {
+        "types": "./dist/testing.d.cts",
+        "default": "./dist/testing.cjs"
+      }
+    },
     "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "store": [
+        "./dist/store.d.ts"
+      ],
+      "testing": [
+        "./dist/testing.d.ts"
+      ]
+    }
   },
   "files": [
     "dist",
@@ -57,9 +87,16 @@
     "node": ">=20"
   },
   "peerDependencies": {
-    "@openwizard/core": "workspace:^"
+    "@openwizard/core": "workspace:^",
+    "vitest": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@openwizard/core": "workspace:*"
+    "@openwizard/core": "workspace:*",
+    "vitest": "^4.1.10"
   }
 }

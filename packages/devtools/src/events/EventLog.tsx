@@ -5,6 +5,7 @@
  */
 
 import type { RunEvent } from '@openwizard/core'
+import { traceLine } from '@openwizard/core/inspect'
 import {
   type ChangeEvent,
   type CSSProperties,
@@ -16,9 +17,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { DevtoolsTheme, FlowRunSource } from '../types'
+import type { DevtoolsTheme, RunSource } from '../types'
 import { useBufferedEvents, useEventBuffer } from './event-buffer'
-import { eventDetail, eventStep, formatAt, matchesFilter } from './format'
 
 /**
  * `<EventLog>` props: a live `source` (run) or a static `events` array; an optional `filter`
@@ -27,7 +27,7 @@ import { eventDetail, eventStep, formatAt, matchesFilter } from './format'
  * @public
  */
 export interface EventLogProps {
-  readonly source?: FlowRunSource
+  readonly source?: RunSource
   readonly events?: readonly RunEvent[]
   readonly filter?: string | ((event: RunEvent) => boolean)
   readonly onSelect?: (event: RunEvent) => void
@@ -97,6 +97,16 @@ export function EventLog(props: EventLogProps): ReactElement {
   )
 }
 
+/** Case-insensitive substring filter over type / step / event name / path. */
+function matchesFilter(event: RunEvent, filter: string): boolean {
+  const needle = filter.trim().toLowerCase()
+  if (needle === '') return true
+  const line = traceLine(event)
+  return `${line.type} ${line.step} ${line.event} ${line.path.join('/')}`
+    .toLowerCase()
+    .includes(needle)
+}
+
 /** Static `events` win; otherwise the live buffer of `source` (empty without either). */
 function useLogRows(props: EventLogProps): readonly RunEvent[] {
   const live = useEventBuffer(props.events === undefined ? props.source : undefined, props.maxRows)
@@ -143,29 +153,49 @@ function Rows({ events, origin, selectedSeq, onSelect }: RowsProps): ReactElemen
       </div>
       <div style={{ height: start * ROW_HEIGHT }} />
       {visible.map((event) => (
-        <button
-          type="button"
+        <Row
           key={`${event.path.join('/')}:${event.seq}:${event.type}`}
-          className="owd-log-row"
-          data-selected={event.seq === selectedSeq && event.path.length === 0 ? 'true' : undefined}
-          data-child={event.path.length > 0 ? 'true' : undefined}
-          onClick={() => onSelect?.(event)}
-          style={{ height: ROW_HEIGHT }}
-        >
-          <span className="owd-mono">{event.seq}</span>
-          <span className="owd-mono owd-subtle">{formatAt(event.at, origin)}</span>
-          <span className="owd-log-type" data-family={event.type.split('.')[0]}>
-            {event.type}
-          </span>
-          <span className="owd-mono">{eventStep(event)}</span>
-          <span className="owd-mono owd-subtle">{event.path.join('/')}</span>
-          <span className="owd-log-detail owd-subtle" title={eventDetail(event)}>
-            {eventDetail(event)}
-          </span>
-        </button>
+          event={event}
+          origin={origin}
+          selected={event.seq === selectedSeq && event.path.length === 0}
+          onSelect={onSelect}
+        />
       ))}
       <div style={{ height: Math.max(0, events.length - end) * ROW_HEIGHT }} />
       {events.length === 0 && <div className="owd-empty">no events yet</div>}
     </div>
+  )
+}
+
+interface RowProps {
+  readonly event: RunEvent
+  readonly origin: number | undefined
+  readonly selected: boolean
+  readonly onSelect: ((event: RunEvent) => void) | undefined
+}
+
+/** One event: seq, time (relative to the first row), type, step, path and the body fields. */
+function Row({ event, origin, selected, onSelect }: RowProps): ReactElement {
+  const line = traceLine(event, origin)
+  return (
+    <button
+      type="button"
+      className="owd-log-row"
+      data-selected={selected ? 'true' : undefined}
+      data-child={event.path.length > 0 ? 'true' : undefined}
+      onClick={() => onSelect?.(event)}
+      style={{ height: ROW_HEIGHT }}
+    >
+      <span className="owd-mono">{event.seq}</span>
+      <span className="owd-mono owd-subtle">{line.at}</span>
+      <span className="owd-log-type" data-family={event.type.split('.')[0]}>
+        {event.type}
+      </span>
+      <span className="owd-mono">{line.step}</span>
+      <span className="owd-mono owd-subtle">{event.path.join('/')}</span>
+      <span className="owd-log-detail owd-subtle" title={line.detail}>
+        {line.detail}
+      </span>
+    </button>
   )
 }

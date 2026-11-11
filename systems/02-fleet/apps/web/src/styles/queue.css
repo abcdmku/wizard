@@ -1,0 +1,125 @@
+.queue-panel {
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+.queue-heading {
+  padding-block: 1rem;
+}
+.count-badge {
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+}
+.escalation-list {
+  max-height: 21rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: #3c463e transparent;
+}
+.escalation-list li + li {
+  border-top: 1px solid var(--line-soft);
+}
+.escalation-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  align-items: center;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+.escalation-card:hover,
+.escalation-card.selected {
+  background: #171d18;
+}
+.escalation-card.selected {
+  box-shadow: inset 2px 0 var(--accent);
+}
+.escalation-card > svg {
+  width: 1rem;
+  color: var(--quiet);
+}
+.queue-rank {
+  color: var(--quiet);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+}
+.escalation-body {
+  min-width: 0;
+}
+.escalation-body > strong,
+.escalation-body > small {
+  display: block;
+}
+.escalation-body > strong {
+  margin: 0.35rem 0 0.25rem;
+  overflow: hidden;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.escalation-body > small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.escalation-meta {
+  display: flex;
+  gap: 0.55rem;
+  color: var(--quiet);
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  text-transform: uppercase;
+}
+.severity-label {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  color: var(--amber);
+}
+.priority-band {
+  padding: 0.08rem 0.28rem;
+  border: 1px solid var(--line);
+  border-radius: 0.2rem;
+  color: var(--muted);
+}
+.priority-band.band-p0 {
+  border-color: rgba(255, 114, 94, 0.4);
+  color: var(--red);
+  background: var(--red-soft);
+}
+.priority-band.band-p1 {
+  border-color: rgba(255, 189, 102, 0.35);
+  color: var(--amber);
+}
+.severity-label i {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+.severity-critical .severity-label {
+  color: var(--red);
+}
+.severity-low .severity-label {
+  color: var(--blue);
+}
+.queue-empty {
+  min-height: 12rem;
+  padding: 1.5rem;
+}

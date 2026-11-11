@@ -1,4 +1,5 @@
-import { createRun, inspect, type RunEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
+import { inspect } from '@openwizard/core/inspect'
 import { createTestScheduler, type TestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { type Deps, definePipeline, pipeline } from './pipeline'
@@ -37,14 +38,16 @@ function make(
 ) {
   const scheduler = createTestScheduler({ now: 0 })
   const { deps, timeline } = fakeDeps(scheduler, quality === undefined ? {} : { quality })
-  const run = createRun(flow, {
-    context: { source: 'crm-export', ...context },
-    deps,
-    scheduler: scheduler,
-  })
+  const run = flow.create(
+    { source: 'crm-export', ...context },
+    {
+      deps,
+      scheduler: scheduler,
+    },
+  )
   const events: RunEvent<typeof pipeline>[] = []
   run.observe((event) => events.push(event))
-  const eventsOfType = <T extends RunEvent['type']>(type: T) =>
+  const eventsOfType = <T extends RunEvent<typeof pipeline>['type']>(type: T) =>
     events.filter(
       (event): event is Extract<RunEvent<typeof pipeline>, { type: T }> => event.type === type,
     )
@@ -55,18 +58,19 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
   it('runs both branches in parallel and holds the join until both finish', async () => {
     const { run, scheduler, timeline, eventsOfType } = make(pipeline)
 
-    // The static graph is what a visualizer consumes: next edges + dependsOn edges, no warnings.
+    // needs exposes both data dependencies and activation edges in the static graph.
     const graph = inspect(pipeline)
     expect(
       graph.edges
-        .filter((edge) => edge.kind === 'dependsOn')
+        .filter((edge) => edge.kind === 'needs' && edge.to === 'gate')
         .map((edge) => `${edge.from}→${edge.to}`),
     ).toEqual(['normalize→gate', 'enrich→gate'])
-    expect(graph.edges.filter((edge) => edge.from === 'ingest').map((edge) => edge.to)).toEqual([
-      'normalize',
-      'enrich',
-    ])
-    expect(graph.warnings).toEqual([])
+    expect(
+      graph.edges
+        .filter((edge) => edge.from === 'ingest' && edge.kind === 'needs')
+        .map((edge) => edge.to),
+    ).toEqual(['normalize', 'enrich'])
+    expect(graph.warnings.map((warning) => warning.code)).toEqual(['MULTIPLE_SINKS'])
 
     await run.start() // ingest (sync) → fan-out → both branches start at once
     expect(timeline).toEqual(['normalize:start@0', 'enrich:start@0'])
@@ -79,13 +83,13 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
       reasons: ['not-activated', 'deps-unmet:normalize', 'deps-unmet:enrich'],
     })
 
-    scheduler.advance(300) // normalize finishes and arrives at the gate …
+    scheduler.advance(300) // normalize finishes; the gate still waits for enrichment.
     await settle()
     expect(run.getState().steps.normalize).toMatchObject({
       status: 'done',
       output: { normalized: 100 },
     })
-    // … which is now activated but BLOCKED on the other branch.
+    // The first completed producer activates the gate; unmet needs keep it blocked.
     expect(run.explain('gate')).toMatchObject({
       status: 'idle',
       phase: 'blocked',
@@ -119,9 +123,10 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
 
     // Both runs started before either finished, which proves the branches actually overlapped.
     const started = eventsOfType('step.runStarted').map((event) => event.step)
-    const finished = eventsOfType('step.runSucceeded').map((event) => event.step)
+    // Hookless routing joins complete without reporting a task run.
+    const finished = eventsOfType('step.done').map((event) => event.step)
     expect(started.slice(0, 3)).toEqual(['ingest', 'normalize', 'enrich'])
-    expect(finished).toEqual(['ingest', 'normalize', 'enrich', 'persist'])
+    expect(finished).toEqual(['ingest', 'normalize', 'enrich', 'gate', 'persist', 'done'])
     run.dispose()
   })
 
@@ -145,7 +150,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     run.dispose()
   })
 
-  it('waits for runReady in manual mode and explains why ready steps are blocked', async () => {
+  it('waits for startReady in manual mode and explains why ready steps are blocked', async () => {
     const manual = definePipeline({ concurrency: 2, autoRun: 'manual' })
     const { run, scheduler, timeline } = make(manual)
     await run.start()
@@ -154,13 +159,13 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     expect(run.explain('ingest')).toMatchObject({ phase: 'ready', reasons: ['auto-run-manual'] })
     expect(run.getState().status).toBe('waiting')
 
-    expect(await run.runReady()).toMatchObject({ ok: true }) // ingest runs (sync) → fan-out
+    expect(await run.startReady()).toMatchObject({ ok: true }) // ingest runs (sync) → fan-out
     expect(run.getState().steps.ingest.status).toBe('done')
-    expect(timeline).toEqual([]) // the branches wait for the next runReady()
+    expect(timeline).toEqual([]) // the branches wait for the next startReady()
     expect(run.explain('normalize').reasons).toEqual(['auto-run-manual'])
     expect(run.explain('enrich').reasons).toEqual(['auto-run-manual'])
 
-    expect(await run.runReady()).toMatchObject({ ok: true }) // both branches start together
+    expect(await run.startReady()).toMatchObject({ ok: true }) // both branches start together
     expect(timeline).toEqual(['normalize:start@0', 'enrich:start@0'])
     scheduler.advance(500)
     await settle()
@@ -171,7 +176,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     // Drive the rest stage by stage until the flow is done.
     let rounds = 0
     while (run.getState().status !== 'done' && rounds < 5) {
-      expect(await run.runReady()).toMatchObject({ ok: true })
+      expect(await run.startReady()).toMatchObject({ ok: true })
       rounds += 1
     }
     expect(run.getState().status).toBe('done')
@@ -186,7 +191,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     await settle()
     expect(run.getState().steps.gate.status).toBe('done')
     expect(run.getState().steps.quarantine.status).toBe('done')
-    expect(run.getState().steps.persist.status).toBe('idle')
+    expect(run.getState().steps.persist.status).toBe('skipped')
     expect(run.getState().output).toBe('quarantined (quality 0.4)')
     run.dispose()
   })
@@ -194,14 +199,14 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     const { run, scheduler, timeline, eventsOfType } = make(pipeline, undefined, {
       enrichment: 'off',
     })
-    expect(run.progress()).toEqual({ done: 0, total: 5, ratio: 0 }) // finals excluded
+    expect(run.progress()).toEqual({ done: 0, total: 7, ratio: 0 }) // all ordinary steps count
     await run.start() // ingest → fan-out; enrich is ready → `when` false → skipped at once
     expect(eventsOfType('step.skipped')).toHaveLength(1)
     expect(eventsOfType('step.skipped')[0]).toMatchObject({ step: 'enrich', reason: 'when' })
     expect(run.getState().steps.enrich.status).toBe('skipped')
     expect(timeline).toEqual(['normalize:start@0']) // the enricher never ran
-    expect(run.progress()).toEqual({ done: 2, total: 5, ratio: 0.4 }) // ingest done + enrich skipped
-    // The gate is arrived (enrich's next still fires) and blocked on normalize only.
+    expect(run.progress()).toEqual({ done: 2, total: 7, ratio: 2 / 7 }) // ingest done + enrich skipped
+    // Skipped enrichment activates the gate with undefined; normalize still gates readiness.
     expect(run.explain('gate')).toMatchObject({
       phase: 'blocked',
       reasons: ['deps-unmet:normalize'],
@@ -210,7 +215,8 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     await settle()
     expect(run.getState().status).toBe('done')
     expect(run.getState().output).toBe('stored 100 rows')
-    expect(run.progress()).toEqual({ done: 5, total: 5, ratio: 1 })
+    // Declared untaken targets count as skipped, so every node reaches a settled state.
+    expect(run.progress()).toEqual({ done: 7, total: 7, ratio: 1 })
     run.dispose()
   })
 
@@ -234,7 +240,7 @@ describe('07 DAG pipeline: fan-out, parallel branches, AND-join, explain()', () 
     await settle()
     expect(run.getState().steps.enrich.status).toBe('skipped')
     expect(run.getState().context.enriched).toBeUndefined()
-    expect(run.progress()).toEqual({ done: 4, total: 5, ratio: 1 }) // ratio is 1 once done
+    expect(run.progress()).toEqual({ done: 7, total: 7, ratio: 1 })
     run.dispose()
   })
 })

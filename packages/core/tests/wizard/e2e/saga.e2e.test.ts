@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { WizardState } from '../../../src/machine/state'
-import { final, flow, task } from '../../helpers/fixtures'
+import { flow, routingStep, runStep } from '../../helpers/fixtures'
 import { e2e, tick } from './harness'
 
 function sagaFlow(opts: { failCompensate2?: () => boolean; asyncRun4?: boolean } = {}) {
@@ -17,8 +17,8 @@ function sagaFlow(opts: { failCompensate2?: () => boolean; asyncRun4?: boolean }
     start: 't1',
     policies: { onFailure: 'compensate' },
     steps: {
-      t1: task({ run: () => 'r1', compensate: () => void compensated.push('t1'), next: 't2' }),
-      t2: task({
+      t1: runStep({ run: () => 'r1', compensate: () => void compensated.push('t1'), next: 't2' }),
+      t2: runStep({
         run: () => 'r2',
         compensate: () => {
           if (opts.failCompensate2?.() === true) throw new Error('undo t2 failed')
@@ -26,19 +26,19 @@ function sagaFlow(opts: { failCompensate2?: () => boolean; asyncRun4?: boolean }
         },
         next: 't3',
       }),
-      t3: task({
+      t3: runStep({
         run: () => 'r3',
         compensate: ({ output }) => void compensated.push(`t3:${String(output)}`),
         next: 't4',
       }),
-      t4: task({
+      t4: runStep({
         run: () => {
           if (opts.asyncRun4 === true) return new Promise(() => {})
           throw new Error('t4 exploded')
         },
         next: 'end',
       }),
-      end: final(),
+      end: routingStep(),
     },
   })
   return { def, compensated }
@@ -76,9 +76,9 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
     )
     expect(t.of('flow.compensating')[0]).toMatchObject({
       plan: ['t3', 't2', 't1'],
-      outcome: 'failed',
+      status: 'failed',
     })
-    expect(t.of('flow.compensated')[0]).toMatchObject({ failures: [], outcome: 'failed' })
+    expect(t.of('flow.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
     // Everything after is rejected as a value.
     expect(await t.run.next()).toMatchObject({ ok: false })
     expect(await t.run.retry('t4')).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
@@ -118,7 +118,7 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
     })
   })
 
-  it('cancel() during an in-flight run aborts it, waits for it to settle, then compensates (outcome cancelled)', async () => {
+  it('cancel() during an in-flight run aborts it, waits for it to settle, then compensates (status cancelled)', async () => {
     const { def, compensated } = sagaFlow({ asyncRun4: true })
     const t = e2e(def, { abortGraceMs: 1_000 })
     await t.run.start()
@@ -134,7 +134,7 @@ describe('e2e saga: compensation order, partial failure, retry, cancel', () => {
     await tick()
     expect(t.run.getState().saga.settling ?? []).toEqual([])
     expect(compensated).toEqual(['t3:r3', 't2', 't1'])
-    expect(t.of('flow.compensated')[0]).toMatchObject({ outcome: 'cancelled' })
+    expect(t.of('flow.compensated')[0]).toMatchObject({ status: 'cancelled' })
     expect(t.run.getState().status).toBe('cancelled')
   })
 })

@@ -16,6 +16,10 @@ telemetry.stop()
 
 The package does not configure an OpenTelemetry SDK or exporter.
 
+`telemetry.send(event, payload, { context, eventId, correlationId })` links an incoming trace
+context and forwards both ids to the run. Repeated event ids use core's persisted deduplication
+window and return the normal duplicate result.
+
 Read the [OpenTelemetry package guide](../docs/pages/packages/opentelemetry.mdx).
 
 ## Exports
@@ -26,9 +30,9 @@ Read the [OpenTelemetry package guide](../docs/pages/packages/opentelemetry.mdx)
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `ExternalSendOptions` | interface | Options for the instrumentation `send` convenience method. | [src](../../packages/opentelemetry/src/index.ts#L90) |
-| `instrumentRun` | function | Attach OpenTelemetry workflow, task-attempt, compensation, and nested-flow spans to a run. | [src](../../packages/opentelemetry/src/index.ts#L207) |
-| `InstrumentRunOptions` | interface | Options for `instrumentRun`. | [src](../../packages/opentelemetry/src/index.ts#L70) |
-| `RunInstrumentation` | interface | Handle returned by `instrumentRun`. | [src](../../packages/opentelemetry/src/index.ts#L98) |
+| `ExternalSendOptions` | interface | Options for the instrumentation `send` convenience method. | [src](../../packages/opentelemetry/src/types.ts#L27) |
+| `instrumentRun` | function | Attach OpenTelemetry workflow, task-attempt, compensation, and nested-flow spans to a run. | [src](../../packages/opentelemetry/src/index.ts#L34) |
+| `InstrumentRunOptions` | interface | Options for `instrumentRun`. | [src](../../packages/opentelemetry/src/types.ts#L7) |
+| `RunInstrumentation` | interface | Handle returned by `instrumentRun`. | [src](../../packages/opentelemetry/src/types.ts#L37) |
 
 <!-- exports:end -->

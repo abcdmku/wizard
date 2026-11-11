@@ -1,22 +1,26 @@
 /**
  * Types of the untyped run runtime: creation / resume options, the `WizardRuntime` surface
- * (what the typed `FlowRun<F>` façade wraps) and the internal config / plan shapes shared by a
+ * (what the typed `Run<F>` faÃ§ade wraps) and the internal config / plan shapes shared by a
  * root, its resume path and its children.
  *
- * @internal Public users see the typed `FlowRun<F>`.
+ * @internal Public users see the typed `Run<F>`.
  */
 
 import type { CompiledFlow } from '../../authoring/compiled'
+import type { Duration } from '../../authoring/types'
+import type { ParentLink } from '../../interpreter/child'
 import type { Clock, IdGenerator, RuntimeEnv, Scheduler } from '../../interpreter/env'
 import type { Explanation, Progress } from '../../machine'
 import type { Command } from '../../machine/commands'
 import type { DomainEvent } from '../../machine/events'
+import type { RuntimeResult } from '../../machine/run-result'
 import type { Issue, WizardState } from '../../machine/state'
-import type { InitialState, Machine } from '../../machine/types'
+import type { EventIdPolicy, InitialState, Machine } from '../../machine/types'
+import type { WaitingFor } from '../../machine/waiting-for'
 import type { Store } from '../../persistence/store'
 import type { CommandResult, NavResult, SendResult } from '../results'
 import type { Snapshot } from '../snapshot'
-import type { RuntimeResult } from './terminal-results'
+import type { RuntimeOutcome } from './outcome'
 
 export interface WizardRuntimeOptions {
   /** Context value that already passed the flow's context boundary. */
@@ -54,6 +58,8 @@ export interface WizardRuntimeOptions {
   readonly beforeEffects?: (input: {
     readonly snapshot: Snapshot
     readonly events: readonly DomainEvent[]
+    /** Exact dispatch inputs associated with this batch, with their result when final. */
+    readonly commands: readonly import('./command-commits').CommandCommit[]
   }) => void | Promise<void>
   /** Gate a timer callback before it enqueues its fire message. */
   readonly beforeTimer?: (timer: {
@@ -64,18 +70,27 @@ export interface WizardRuntimeOptions {
   /** Listener exceptions are isolated; default rethrows asynchronously. */
   readonly onListenerError?: (error: unknown) => void
   /**
-   * v0.2 (§9.1): correlation id of this instance. An event whose `correlate[event](payload)`
+   * v0.2 (Â§9.1): correlation id of this instance. An event whose `correlate[event](payload)`
    * differs from it is dropped (`event.dropped { reason: 'correlation' }`). Stored in the state
    * (persisted with the snapshot); children created by this instance inherit it.
    */
   readonly correlationId?: string
+  /** How long and how many delivered `eventId`s are remembered for dedupe (D8). Default `'24h'` / 1000. */
+  readonly eventIds?: EventIdOptions
+}
+
+/** `RunOptions.eventIds`: the dedupe window of `send(â€¦, { eventId })`. */
+export interface EventIdOptions {
+  readonly ttl?: Duration
+  readonly limit?: number
 }
 
 /**
- * v0.2 (§9.5): rewrite a snapshot persisted by an older flow version. Called only when the
+ * v0.2 (Â§9.5): rewrite a snapshot persisted by an older flow version. Called only when the
  * snapshot's `flow.version` differs from the flow's (a `flow.name` mismatch is always
- * incompatible); the result is validated like any snapshot and must carry the flow's version.
- * May return a promise — then only `resumeRunAsync` accepts it.
+ * incompatible); the result is stamped with the flow's current version and validated like any
+ * snapshot (`renameSteps` rewrites renamed step ids). May return a promise â€” then only
+ * `resumeRunAsync` accepts it.
  */
 export type SnapshotMigration = (
   snapshot: unknown,
@@ -102,62 +117,84 @@ export interface WizardRuntime {
   resetInput(step: string): Promise<CommandResult>
   /** Pure query: the view's `input` boundary + `validate` hook over the current draft; no events. */
   validate(step: string): Promise<readonly Issue[]>
-  /** External event through the flow's event boundary. Unknown event name → `WizardError('UNKNOWN_EVENT')`. */
-  send(
-    event: string,
-    payload: unknown,
-    options?: { readonly correlationId?: string },
-  ): Promise<SendResult>
-  run(step: string): Promise<CommandResult>
-  retry(step: string): Promise<CommandResult>
+  /**
+   * External event through the flow's event boundary. Unknown event name â†’ `WizardError('UNKNOWN_EVENT')`.
+   * A remembered `eventId` is a duplicate: `{ ok: true, duplicate: true, delivered: [] }`, nothing changes.
+   */
+  send(event: string, payload: unknown, options?: SendOptions): Promise<SendResult>
+  startStep(step: string): Promise<CommandResult>
+  /** Re-run a failed runnable step; `patch` is merged into the context first. */
+  retry(step: string, options?: RetryOptions): Promise<CommandResult>
   cancel(reason?: string): Promise<CommandResult>
-  runReady(): Promise<CommandResult>
+  startReady(): Promise<CommandResult>
   compensate(options?: { readonly from?: string; readonly reason?: string }): Promise<CommandResult>
   reset(): Promise<CommandResult>
-  /** v0.2 (§9.2): skip a ready-or-active non-final step (`step.skipped { reason: 'command' }`). */
+  /** Skip a ready or active step that does not complete the flow. */
   skip(step: string, reason?: string): Promise<CommandResult>
-  /** v0.2 (§9.3): a done/failed/skipped step returns to idle; `cascade` (default true) follows `dependsOn` dependents. */
+  /** v0.2 (Â§9.3): a done/failed/skipped step returns to idle; `cascade` (default true) follows `dependsOn` dependents. */
   invalidate(step: string, options?: { readonly cascade?: boolean }): Promise<CommandResult>
   /**
-   * v0.2 (§9.1): connect an external event source: `source(send)` subscribes and returns a
-   * disposer, which runs on `dispose()` (or when the returned function is called). Throws `DISPOSED`.
+   * v0.2 (Â§9.1): connect an external event source: `source(send)` subscribes and returns a
+   * disposer, which runs on `dispose()` (or when the returned function is called). After
+   * `dispose()` the source is never called and the returned function is a no-op.
    */
   attach(source: (send: WizardRuntime['send']) => () => void): () => void
-  /** v0.2 (§9.6): `{ done, total, ratio }` over the non-final steps (skipped counts as done). */
+  /** `{ done, total, ratio }` over steps that do not complete the flow. */
   progress(): Progress
-  /** v0.2 (§9.6): the current view plus every ready view, in declaration order. */
+  /** v0.2 (Â§9.6): the current view plus every ready view, in declaration order. */
   readyViews(): readonly string[]
   /** The one wire door: validates the shape (`decodeCommand`) and never throws for data problems. */
-  dispatch(command: Command): Promise<CommandResult>
+  dispatch(command: Command, options?: DispatchOptions): Promise<CommandResult>
   getState(): WizardState
-  /** Terminal result, or `undefined` while idle/running/waiting/recoverably failed. */
+  /** Terminal result, or `undefined` while idle/running/waiting/halted. */
   result(): RuntimeResult | undefined
   /** Wait for a terminal result; reset/dispose rejects with a lifecycle error. */
   awaitResult(): Promise<RuntimeResult>
+  /** Terminal, halted or parked outcome now (parked on sleeps included); `undefined` while busy. */
+  outcome(): RuntimeOutcome | undefined
+  /** The next outcome that needs the outside world (`runtime/outcome`); does not dispose. */
+  awaitOutcome(): Promise<RuntimeOutcome>
+  /** What the run and its live children wait on from the outside (flat, by `path`). */
+  waitingFor(): readonly WaitingFor[]
+  /** Wait until the current FIFO drain and its host barriers have completed. */
+  whenIdle(): Promise<void>
   /** Notify once per terminal transition; a reset starts a new transition cycle. */
   subscribeResult(listener: (result: RuntimeResult) => void): () => void
   /** Versioned, JSON-safe snapshot including live children; cached per state. */
   getSnapshot(): Snapshot
-  /** Pure query: why a step is (not) where the caller expects (`machine/explain`); never throws. */
-  explain(step: string): Explanation
+  /** Pure query: why a step is (not) where the caller expects (`machine/explain`) and what the run waits on; never throws. */
+  explain(step: string): Explanation & { readonly waitingFor: readonly WaitingFor[] }
   /** State listeners: once per committed batch. */
   subscribe(listener: (state: WizardState) => void): () => void
   /** Event listeners: every event of this run and its children (`event.path`). */
   observe(listener: (event: DomainEvent) => void): () => void
   log(): readonly DomainEvent[]
-  /** Live nested runtime of a `flow` step. Throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE`. */
-  child(step: string): WizardRuntime
+  /** Live nested runtime of a `flow` step. Throws `NOT_A_FLOW_STEP` / `NOT_ACTIVE` (also after `dispose()`). */
+  child(step: string, keyOrIndex?: number | string): WizardRuntime
   /** Write a snapshot now (no-op without a store). */
   save(): Promise<void>
   dispose(): void
   isDisposed(): boolean
 }
 
+/** `send()` options: correlation and event deduplication. @public */
+export interface SendOptions {
+  readonly correlationId?: string
+  readonly eventId?: string
+}
+
+/** `retry()` options: a context patch applied atomically before the step re-runs. */
+export interface RetryOptions {
+  readonly patch?: Readonly<Record<string, unknown>>
+}
+
 /**
- * Normalized options; shared by a root and all its children except `deps`, which each child
- * runtime receives for itself (`{ ...cfg, deps }` in the child factory).
+ * Normalized options; shared by a root and all its children except `deps` and `parent`, which
+ * each child runtime receives for itself (`{ ...cfg, deps, parent }` in the child factory).
  */
 export interface RuntimeConfig {
+  /** A child's link to the run that embeds it; absent on a root. */
+  readonly parent?: ParentLink
   readonly machine: Machine
   readonly initialState: InitialState
   readonly env: RuntimeEnv
@@ -169,6 +206,7 @@ export interface RuntimeConfig {
   readonly beforeEffects: WizardRuntimeOptions['beforeEffects'] | undefined
   readonly beforeTimer: WizardRuntimeOptions['beforeTimer'] | undefined
   readonly onListenerError: ((error: unknown) => void) | undefined
+  readonly eventIds: EventIdPolicy | undefined
   readonly persistence:
     | {
         readonly store: Store
@@ -217,6 +255,15 @@ export interface BuildInit {
 
 /** `WizardRuntime` plus the resume trigger used by `resume.ts`. */
 export interface InternalRuntime extends WizardRuntime {
-  /** Send the `resume` message and re-attach the prepared children (resume path only). */
+  /** Attach the whole prepared tree without running recovery effects. */
+  prepareResume(plan: ResumePlan): void
+  /** Resume the attached tree after the parent's resume batch commits. */
+  resumePrepared(): void
+  /** Prepare the tree and start this run's recovery. */
   resumeFrom(plan: ResumePlan): void
+}
+
+/** Optimistic concurrency checked atomically when dispatch reaches the machine. @public */
+export interface DispatchOptions {
+  readonly expectedVersion?: { readonly epoch: number; readonly seq: number }
 }

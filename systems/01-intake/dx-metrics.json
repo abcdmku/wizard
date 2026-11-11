@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "system": "01-intake",
+  "drill": "beneficial-owner",
+  "wizardLoc": 201,
+  "workaroundHelpers": 0,
+  "casts": 0,
+  "explicitGenerics": 0,
+  "typecheckMs": 10719,
+  "filesTouched": [
+    "shared/forms.ts",
+    "api/workflow/flow.ts",
+    "web/src/forms/OwnersForm.tsx",
+    "web/src/routes/applicant.tsx",
+    "tests/transport.integration.test.ts",
+    "tests/worker.integration.test.ts"
+  ]
+}

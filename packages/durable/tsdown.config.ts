@@ -10,8 +10,22 @@ const shared: UserConfig = {
   treeshake: true,
 }
 
-export default defineConfig({
-  ...shared,
-  entry: { index: 'src/index.ts' },
-  clean: true,
-})
+// One build per entry so each emitted declaration file is self-contained (a shared build would
+// split common modules into hashed chunks). The entries import each other by package name, kept
+// external, so the store protocol (and `DurableStoreError`) exists once at runtime and in types;
+// `vitest` stays an optional peer of the testing entry.
+export default defineConfig([
+  { ...shared, entry: { store: 'src/store.ts' }, clean: true },
+  {
+    ...shared,
+    entry: { index: 'src/index.ts' },
+    clean: false,
+    external: ['@openwizard/durable/store'],
+  },
+  {
+    ...shared,
+    entry: { testing: 'src/testing.ts' },
+    clean: false,
+    external: ['@openwizard/durable/store', 'vitest'],
+  },
+])

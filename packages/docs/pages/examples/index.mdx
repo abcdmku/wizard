@@ -1,12 +1,14 @@
 # Runnable examples
 
-Run an example from the repository root:
+Every example is a small package under `examples/<name>` with a flow, a runner, and a test.
+
+Run one from the repository root:
 
 ```sh
 pnpm --filter example-01-happy-path start
 ```
 
-Replace the package name with the example you want. Run its test and type check with `check`:
+Type-check and test it with `check`:
 
 ```sh
 pnpm --filter example-01-happy-path check
@@ -14,27 +16,31 @@ pnpm --filter example-01-happy-path check
 
 ## Start here
 
-| Example | What the code proves | Try it |
+| Example | What it shows | Try it |
 |---|---|---|
 | `01-happy-path` | The smallest flow and run | [Playground](/playground?example=01-happy-path) |
-| `02-recoverable-failure` | Timed retries and a later manual retry | [Playground](/playground?example=02-recoverable-failure) |
-| `04-resume-from-snapshot` | Save, dispose, resume, and continue | [Playground](/playground?example=04-resume-from-snapshot) |
-| `05-external-events` | Validate, correlate, buffer, and deliver events | [Playground](/playground?example=05-external-events) |
+| `02-recoverable-failure` | Timed retries, then a manual `retry()` | [Playground](/playground?example=02-recoverable-failure) |
+| `04-resume-from-snapshot` | Save, dispose, resume, continue | [Playground](/playground?example=04-resume-from-snapshot) |
+| `05-external-events` | Validate, correlate, buffer, deliver events | [Playground](/playground?example=05-external-events) |
 
 ## Read after the basics
 
-| Example | Topic | Try it |
+| Example | What it shows | Try it |
 |---|---|---|
 | `03-non-recoverable-compensation` | Undo completed work after a later task fails | [Playground](/playground?example=03-non-recoverable-compensation) |
 | `06-nested-flow` | Parent and child runs | [Playground](/playground?example=06-nested-flow) |
-| `07-dag-pipeline` | Parallel tasks and a join | [Playground](/playground?example=07-dag-pipeline) |
+| `07-dag-pipeline` | Parallel runnable steps and a join | [Playground](/playground?example=07-dag-pipeline) |
 | `08-react-mirror` | React over a projected browser mirror | Run locally |
-| `09-mermaid` | Turn a flow into Mermaid text | [Playground](/playground?example=09-mermaid) |
+| `09-mermaid` | A flow rendered as Mermaid text | [Playground](/playground?example=09-mermaid) |
 | `10-devtools` | Inspect a live run in React | Run locally |
-| `11-order-workflow` | A larger order workflow | [Playground](/playground?example=11-order-workflow) |
+| `11-order-workflow` | Several production features in one order flow | [Playground](/playground?example=11-order-workflow) |
 | `12-pulumi-infrastructure` | Bind deployment resources with Pulumi | Run locally |
-| `13-deployment-artifacts` | Build host artifacts for several providers | Run locally |
+| `13-deployment-artifacts` | Host artifacts for several providers | Run locally |
 
-Each example keeps its flow, runner, and tests in its own `examples/<name>/src` folder. Read the flow file first, then `main.ts`, then the test.
+## How to read one
 
-Example 11 is the best place to see several production features working together. The [advanced overview](/advanced) explains why each part exists before you read the full order code.
+Open the flow file first, then `main.ts`, then the test. Example 11 combines the most features; the [advanced overview](/advanced) explains each one before you read it.
+
+## Larger systems
+
+The repository also ships four runnable reference systems. The [reference systems](/examples/reference-systems) page lists their local ports and demo identities.

@@ -19,7 +19,7 @@ export const PACKAGES_DIR = join(ROOT, 'packages')
  *   specifier: string,   // what a consumer imports: '@openwizard/core' | '@openwizard/core/testing'
  *   subpath: string,     // the package.json exports key: '.' | './testing'
  *   slug: string,        // file-name friendly id: 'core' | 'core-testing'
- *   indexPath: string,   // packages/<pkg>/src/<entry>.ts
+ *   indexPath: string,   // packages/<pkg>/src/<entry>.ts or src/<entry>/index.ts
  *   dtsPath: string,     // packages/<pkg>/dist/<entry>.d.ts (after `pnpm build`)
  * }} Entry
  */
@@ -48,12 +48,18 @@ export function listPackages() {
           specifier: subpath === '.' ? pkg.name : `${pkg.name}/${entry}`,
           subpath,
           slug: subpath === '.' ? short : `${short}-${entry.replaceAll('/', '-')}`,
-          indexPath: join(dir, 'src', `${entry}.ts`),
+          indexPath: entrySource(dir, entry),
           dtsPath: join(dir, 'dist', `${entry}.d.ts`),
         }
       })
       return { dir, name: pkg.name, entries, indexPath: join(dir, 'src', 'index.ts') }
     })
+}
+
+/** `src/<entry>.ts`, else `src/<entry>/index.ts` (`./inspect` → `src/inspect/index.ts`). */
+function entrySource(dir, entry) {
+  const file = join(dir, 'src', `${entry}.ts`)
+  return existsSync(file) ? file : join(dir, 'src', entry, 'index.ts')
 }
 
 /**

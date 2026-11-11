@@ -10,19 +10,26 @@
 
 import type { Batch } from './batch'
 import { emit, rec, stepDef } from './batch'
-import { startAuto, startTransaction } from './nav'
-import { startCompensation } from './saga'
+import { completeStep, startAuto, startTransaction } from './nav'
+import { synchronizeNeeds } from './needs'
 import {
-  activeTaskCount,
+  activeRunCount,
   eligibleSteps,
   explicitTarget,
+  isEventStep,
+  isRunnableStep,
   isTerminal,
+  ready,
   readySteps,
   readyViews,
   viewsAwaitingWhen,
 } from './selectors'
-import type { NavCause, SerializedError } from './state'
+import { startSleep } from './sleep'
+import type { NavCause } from './state'
+import { stepIndex } from './step-index'
 import { drainInbox, startWait } from './wait'
+
+export { failStep } from './failure'
 
 export const retryTimerId = (step: string) => `retry:${step}`
 export const waitTimerId = (step: string) => `wait:${step}`
@@ -38,23 +45,28 @@ export function currentIdempotencyKey(b: Batch, step: string, runId: number): st
   return rec(b, step)?.idempotencyKey ?? idempotencyKey(b, step, runId)
 }
 
-/** Emit `timer.cleared` for the step's retry / wait timers if they exist. */
+/** Clear every timer owned by the step, including retries of individual map items. */
 export function clearStepTimers(b: Batch, step: string): void {
-  for (const id of [retryTimerId(step), waitTimerId(step)]) {
-    if (id in b.state.timers) emit(b, { type: 'timer.cleared', timerId: id })
+  for (const [id, timer] of Object.entries(b.state.timers)) {
+    if (timer.step === step) emit(b, { type: 'timer.cleared', timerId: id })
   }
 }
 
-/** Nothing new may enter: terminal, compensating, or halted (`onFailure:'halt'` after a failure). */
+/**
+ * Nothing new may enter: terminal, compensating, not started, or halted by a failed step of this
+ * run (a run halted only because a child flow halted keeps scheduling its other branches).
+ */
 export function schedulingFrozen(b: Batch): boolean {
   const s = b.state.status
-  return isTerminal(b.state) || s === 'compensating' || s === 'failed' || s === 'idle'
+  if (s === 'halted') return stepIndex(b.state.steps).failed > 0
+  return isTerminal(b.state) || s === 'compensating' || s === 'idle'
 }
 
 /** The step declares at least one `on[event]` handler (v0.2: any kind). */
-export function hasOnHandlers(b: Batch, step: string): boolean {
-  const on = stepDef(b, step)?.hooks.on
-  return on !== undefined && Object.keys(on).length > 0
+export function hasEventHandlers(b: Batch, step: string): boolean {
+  const hooks = stepDef(b, step)?.hooks
+  const handlers = hooks?.waitFor ?? hooks?.on
+  return handlers !== undefined && Object.keys(handlers).length > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -70,7 +82,9 @@ export function enterStep(b: Batch, step: string, from: string | null): void {
   const r = rec(b, step)
   const def = stepDef(b, step)
   if (r === undefined || def === undefined) return
-  const pending = def.hooks.enter !== undefined && r.enterDone !== true
+  const initialPending =
+    def.kind === 'view' && def.hooks.initial !== undefined && r.input === undefined
+  const pending = initialPending || (def.hooks.enter !== undefined && r.enterDone !== true)
   emit(b, {
     type: 'step.entered',
     step,
@@ -81,13 +95,37 @@ export function enterStep(b: Batch, step: string, from: string | null): void {
   if (!pending) startKind(b, step)
 }
 
+/** Continue a scheduler entry after a dynamic draft initializer stored its result. */
+export function continueAfterInitial(b: Batch, step: string): void {
+  const r = rec(b, step)
+  const def = stepDef(b, step)
+  if (r?.entering !== true || def === undefined) return
+  if (def.hooks.enter !== undefined) return
+  emit(b, { type: 'step.enterCompleted', step })
+  startKind(b, step)
+}
+
 /** Kind-specific work once `enter` has resolved (or when there is no `enter` hook). */
 export function startKind(b: Batch, step: string): void {
   const r = rec(b, step)
   const def = stepDef(b, step)
   if (r === undefined || def === undefined || r.status !== 'active') return
+  if (def.sleep !== undefined) {
+    startSleep(b, step)
+    return
+  }
+  if (isEventStep(def)) {
+    startWait(b, step)
+    return
+  }
+  if (def.each !== undefined) return
   switch (def.kind) {
-    case 'task':
+    case 'step':
+      if (!isRunnableStep(def) && def.next.kind !== 'dynamic') {
+        completeStep(b, step, undefined)
+        return
+      }
+      if (!isRunnableStep(def)) break
       if (def.hooks.idempotencyKey !== undefined) {
         // v0.2 (§10.4): the custom key is computed first; `step.runStarted` follows with its value.
         emit(b, { type: 'step.idempotencyKeyRequested', step, runId: r.runId })
@@ -101,18 +139,12 @@ export function startKind(b: Batch, step: string): void {
         })
       }
       break
-    case 'wait':
-      startWait(b, step)
-      return
-    case 'final':
-      if (def.hooks.finalOutput === undefined) completeFinal(b, step, undefined)
-      return
     default:
-      // view: waits for the cursor; decision/flow: `plan` emits the `next` / `childContext` call.
+      // A view waits for the cursor. A child flow starts through `plan`.
       break
   }
   // v0.2 (§10.1): a listening step drains its inbox on start (views: once `nav` is idle, see `onNavIdle`).
-  if (def.kind !== 'view' && hasOnHandlers(b, step)) drainInbox(b, step)
+  if (def.kind !== 'view' && hasEventHandlers(b, step)) drainInbox(b, step)
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +160,7 @@ export interface ScheduleOptions {
 
 export function schedule(b: Batch, opts: ScheduleOptions = {}): void {
   if (schedulingFrozen(b)) return
+  synchronizeNeeds(b)
   const def = b.env.def
   // v0.2 (§10.2): eligible steps with an unevaluated `when` predicate ask it first (any kind, any
   // autoRun) — except the target of an in-flight `go` / `back`, whose `when` is bypassed.
@@ -141,16 +174,20 @@ export function schedule(b: Batch, opts: ScheduleOptions = {}): void {
     }
   }
   if (def.policies.autoRun === 'ready' || opts.force === true) {
-    let budget = def.policies.concurrency - activeTaskCount(def, b.state)
+    let budget = def.policies.concurrency - activeRunCount(def, b.state)
     for (const id of readySteps(def, b.state)) {
+      // A synchronous routing or buffered wait can schedule this candidate in a nested call.
+      if (!ready(def, b.state, id)) continue
       const kind = def.steps[id]?.kind
       if (kind === undefined || kind === 'view') continue
-      if (kind === 'task') {
+      if (isRunnableStep(def.steps[id])) {
         if (budget <= 0) continue
         budget--
       }
       enterStep(b, id, null)
       if (schedulingFrozen(b)) return
+      if (!isRunnableStep(def.steps[id]))
+        budget = def.policies.concurrency - activeRunCount(def, b.state)
     }
   }
   cursorRule(b, opts.cursorCause ?? 'auto')
@@ -179,13 +216,6 @@ function cursorRule(b: Batch, cause: NavCause): void {
 // Completion / cancellation / failure / skipping
 // ---------------------------------------------------------------------------
 
-/** `final` reached: cancel every other active step, then `step.done` + `flow.done`. */
-export function completeFinal(b: Batch, step: string, output: unknown): void {
-  for (const id of [...b.state.active]) if (id !== step) cancelStep(b, id, 'flow-done')
-  emit(b, { type: 'step.done', step, ...(output !== undefined ? { output } : {}) })
-  emit(b, { type: 'flow.done', ...(output !== undefined ? { output } : {}) })
-}
-
 /** `step.cancelled` + timer cleanup. */
 export function cancelStep(b: Batch, step: string, reason?: string): void {
   if (rec(b, step)?.status !== 'active') return
@@ -207,39 +237,4 @@ export function skipStep(b: Batch, step: string, reason: 'when' | 'command'): vo
   emit(b, { type: 'step.skipped', step, reason })
   startAuto(b, step)
   schedule(b)
-}
-
-/**
- * A step failed for good: record `step.failed`, then apply the flow's failure
- * policy. `interrupted` failures never trigger compensation (the user `retry`s).
- * `data` (v0.2) = the task's `mapError` value.
- */
-export function failStep(
-  b: Batch,
-  step: string,
-  error: SerializedError,
-  kind:
-    | 'run'
-    | 'typed'
-    | 'defect'
-    | 'timeout'
-    | 'hook'
-    | 'child'
-    | 'sync-violation'
-    | 'interrupted',
-  data?: unknown,
-): void {
-  clearStepTimers(b, step)
-  emit(b, { type: 'step.failed', step, error, kind, ...(data !== undefined ? { data } : {}) })
-  if (b.env.def.policies.onFailure === 'compensate' && kind !== 'interrupted') {
-    startCompensation(b, `step-failed:${step}`, 'failed')
-    return
-  }
-  emit(b, {
-    type: 'flow.failed',
-    step,
-    error,
-    code: 'STEP_FAILED',
-    ...(data !== undefined ? { data } : {}),
-  })
 }

@@ -3,7 +3,7 @@
  * ELK layout for it, ignoring stale results when the graph changes mid-flight.
  */
 
-import type { FlowGraph } from '@openwizard/core'
+import type { FlowGraph } from '@openwizard/core/inspect'
 import { useEffect, useMemo, useState } from 'react'
 import { type LayoutEngine, type LayoutResult, layoutGraph } from '../layout/elk'
 import { buildGraphModel, type GraphModel } from '../layout/model'

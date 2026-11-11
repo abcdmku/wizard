@@ -10,7 +10,7 @@
 import type { Batch } from './batch'
 import { emit, rec, stepDef } from './batch'
 import type { EffectResult } from './commands'
-import { commit, failCurrent, rejectCurrent } from './nav'
+import { abortCurrent, commit, failCurrent, rejectCurrent } from './nav'
 import type { Issue, NavPhase, SerializedError } from './state'
 import { normalizeTargets, unknownTarget } from './util'
 
@@ -24,6 +24,8 @@ const PHASES_FULL: readonly NavPhase[] = [
   'entering',
 ]
 const PHASES_TARGETED: readonly NavPhase[] = ['canEnter', 'exiting', 'entering']
+/** `back` leaves the current view without validating or exiting it (D7): its draft is kept. */
+const PHASES_BACK: readonly NavPhase[] = ['canEnter', 'entering']
 const PHASES_AUTO: readonly NavPhase[] = ['resolvingTarget', 'canEnter', 'exiting', 'entering']
 
 export function phaseList(b: Batch): readonly NavPhase[] {
@@ -35,7 +37,7 @@ export function phaseList(b: Batch): readonly NavPhase[] {
     case 'go':
       return fromIsView ? PHASES_FULL : PHASES_TARGETED
     case 'back':
-      return PHASES_TARGETED
+      return PHASES_BACK
     default:
       // cursor rule (from null) vs. auto-advance from a completed non-view step
       return nav.from == null ? PHASES_TARGETED : PHASES_AUTO
@@ -63,6 +65,14 @@ export function runPhases(b: Batch, start: NavPhase, targets?: readonly string[]
     i++
   }
   commit(b)
+}
+
+/** Run the phases after `phase` in this transaction's list (commit when it was the last). */
+function continueAfter(b: Batch, phase: NavPhase): void {
+  const list = phaseList(b)
+  const next = list[list.indexOf(phase) + 1]
+  if (next === undefined) commit(b)
+  else runPhases(b, next)
 }
 
 function phaseEvent(b: Batch, phase: NavPhase, targets?: readonly string[]): void {
@@ -125,10 +135,6 @@ function resolveTargets(b: Batch, from: string | null, known?: readonly string[]
     rejectCurrent(b, 'no-target')
     return 'stop'
   }
-  // A decision's output IS its target list — unless it was skipped (v0.2): then its `next`
-  // hook is asked like any dynamic `next`.
-  if (def.kind === 'decision' && rec(b, from ?? '')?.status !== 'skipped')
-    return applyTargets(b, from, normalizeTargets(rec(b, from ?? '')?.output))
   if (def.next.kind === 'dynamic') {
     phaseEvent(b, 'resolvingTarget')
     return 'wait'
@@ -139,11 +145,6 @@ function resolveTargets(b: Batch, from: string | null, known?: readonly string[]
 
 /** Record resolved targets (validated) via the `resolvingTarget` phase event. */
 function applyTargets(b: Batch, from: string | null, targets: readonly string[]): PhaseOutcome {
-  if (targets.length === 0) {
-    phaseEvent(b, 'resolvingTarget')
-    rejectCurrent(b, 'no-target', from !== null ? { step: from } : {})
-    return 'stop'
-  }
   const unknown = targets.find((t) => stepDef(b, t) === undefined)
   if (unknown !== undefined) {
     phaseEvent(b, 'resolvingTarget')
@@ -185,6 +186,10 @@ export function onNavResult(
   const nav = b.state.nav
   const from = nav.from ?? null
   const ok = msg.type === 'res.ok'
+  if (!ok && msg.cancelled === true) {
+    abortCurrent(b, msg.token.step)
+    return true
+  }
   const value = ok ? msg.value : undefined
   const error: SerializedError = ok ? { name: 'Error', message: '' } : msg.error
   switch (msg.hook) {
@@ -224,17 +229,9 @@ export function onNavResult(
     case 'next': {
       if (nav.phase !== 'resolvingTarget' || from === null) return false
       if (ok) {
-        const targets = normalizeTargets(value)
-        if (targets.length === 0) {
-          rejectCurrent(b, 'no-target', { step: from })
-        } else {
-          const unknown = targets.find((t) => stepDef(b, t) === undefined)
-          if (unknown !== undefined) {
-            failCurrent(b, from, unknownTarget(unknown))
-          } else {
-            runPhases(b, 'canEnter', targets)
-          }
-        }
+        const error = nextTargetsError(b, from, value)
+        if (error !== undefined) failCurrent(b, from, error)
+        else runPhases(b, 'canEnter', normalizeTargets(value))
       } else {
         failCurrent(b, from, error)
       }
@@ -244,13 +241,13 @@ export function onNavResult(
       const step = msg.token.step
       if (nav.phase !== 'canEnter' || !(nav.pendingSteps ?? []).includes(step)) return false
       if (guardEvaluated(b, step, 'canEnter', ok, value, error)) {
-        if ((b.state.nav.pendingSteps?.length ?? 0) === 0) runPhases(b, 'exiting')
+        if ((b.state.nav.pendingSteps?.length ?? 0) === 0) continueAfter(b, 'canEnter')
       } else rejectCurrent(b, 'guard-canEnter', { step })
       return true
     }
     case 'exit': {
       if (nav.phase !== 'exiting' || from === null) return false
-      if (ok) runPhases(b, 'entering')
+      if (ok) continueAfter(b, 'exiting')
       else failCurrent(b, from, error)
       return true
     }
@@ -267,4 +264,36 @@ export function onNavResult(
     default:
       return false
   }
+}
+
+/** Runtime hook results must name existing steps within their declared target list. */
+export function nextTargetsError(
+  b: Batch,
+  step: string,
+  value: unknown,
+): SerializedError | undefined {
+  if (
+    value !== null &&
+    typeof value !== 'string' &&
+    (!Array.isArray(value) || value.some((target) => typeof target !== 'string'))
+  )
+    return {
+      name: 'WizardError',
+      code: 'INVALID_NEXT_TARGET',
+      message: `next() of '${step}' must return a step id, an array of step ids, or null`,
+    }
+  const targets = normalizeTargets(value)
+  const unknown = targets.find((target) => stepDef(b, target) === undefined)
+  if (unknown !== undefined) return unknownTarget(unknown)
+  const next = stepDef(b, step)?.next
+  if (next?.kind !== 'dynamic' || next.targets === undefined) return undefined
+  const declared = new Set(next.targets)
+  const undeclared = targets.find((target) => !declared.has(target))
+  return undeclared === undefined
+    ? undefined
+    : {
+        name: 'WizardError',
+        code: 'UNDECLARED_TARGET',
+        message: `next() of '${step}' selected undeclared target '${undeclared}'`,
+      }
 }

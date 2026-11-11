@@ -16,6 +16,8 @@ import type { Issue, WizardState } from '../../machine/state'
 import { samePath } from '../../machine/util'
 import type { PersistenceDriver } from '../../persistence/driver'
 import { type Snapshot, toSnapshot } from '../snapshot'
+import { createCommandCommits } from './command-commits'
+import { disposeRuntimeContext } from './dispose'
 import type { Processed } from './results'
 import { createTerminalResultTracker, type TerminalResultTracker } from './terminal-results'
 import { createTxTracker, type TxTracker } from './transactions'
@@ -27,6 +29,7 @@ export interface RuntimeContext {
   readonly init: BuildInit
   readonly instanceId: string
   readonly interp: Interpreter<WizardRuntime, ResumePlan>
+  readonly commandCommits: ReturnType<typeof createCommandCommits>
   readonly tx: TxTracker
   readonly terminal: TerminalResultTracker
   readonly stateListeners: Set<(state: WizardState) => void>
@@ -37,6 +40,8 @@ export interface RuntimeContext {
   readonly pendingOps: Set<() => void>
   /** Disposers of `attach()`ed event sources (v0.2): run on `dispose()`. */
   readonly attached: Set<() => void>
+  /** The children that were live at `dispose()` (disposed with it): what `child()` answers afterwards. */
+  readonly disposedChildren: Map<string, WizardRuntime>
   /** The persistence driver of a persisting root (set by `attachPersistence`). */
   driver: PersistenceDriver | undefined
   disposed: boolean
@@ -45,7 +50,7 @@ export interface RuntimeContext {
   readonly onListenerError: (error: unknown) => void
   /** Isolated listener call: an exception goes to `onListenerError`, never to the caller. */
   notify<T>(listeners: Set<(value: T) => void>, value: T): void
-  /** Versioned, JSON-safe snapshot including live children; cached per state + children. */
+  /** Versioned, JSON-safe snapshot of the committed state and its children; cached per pair. */
   getSnapshot(): Snapshot
   /** A write failed (auto-save or `save()`): record `persist.failed` (the caller hands the error on). */
   reportPersistFailure(key: string, error: unknown): void
@@ -88,6 +93,7 @@ export function createContext(
   let terminal: TerminalResultTracker
   const beforeEffects = cfg.beforeEffects
   const beforeTimer = cfg.beforeTimer
+  const commandCommits = createCommandCommits()
   const tx = createTxTracker(() => ctx.disposed)
   const interp = createInterpreter<WizardRuntime, ResumePlan>({
     def,
@@ -99,12 +105,16 @@ export function createContext(
     ...(cfg.strict !== undefined ? { strict: cfg.strict } : {}),
     ...(cfg.logSize !== undefined ? { logSize: cfg.logSize } : {}),
     ...(cfg.abortGraceMs !== undefined ? { abortGraceMs: cfg.abortGraceMs } : {}),
+    ...(cfg.eventIds !== undefined ? { eventIds: cfg.eventIds } : {}),
+    ...(cfg.parent !== undefined ? { parent: cfg.parent } : {}),
     ...(init.persist && beforeEffects !== undefined
       ? {
-          beforeEffects: (_state: WizardState, batch: readonly DomainEvent[]) =>
+          // The barrier sees the staged pair; `getState`/`getSnapshot` keep the committed one.
+          beforeEffects: (state, batch, _effects, children, message) =>
             beforeEffects({
-              snapshot: ctx.getSnapshot(),
+              snapshot: toSnapshot(state, children, env.clock.now()),
               events: batch,
+              commands: commandCommits.forBatch(message, batch, state.seq),
             }),
         }
       : {}),
@@ -119,11 +129,7 @@ export function createContext(
       : {}),
     children: { factory: childFactory(() => ctx), ancestors: init.ancestors },
     onListenerError,
-    onStateSwap: () => {
-      // The durable before-effects barrier reads the new state before publication. Invalidate
-      // this cache at the swap point without notifying external subscribers yet.
-      snapshotCache = undefined
-    },
+    onFatal: () => disposeRuntimeContext(ctx),
     onEvent: (event) => {
       if (samePath(event.path, init.path)) tx.track(event)
       notify(eventListeners, event)
@@ -134,6 +140,8 @@ export function createContext(
       notify(stateListeners, state)
     },
     onProcessed: (msg, batch) => {
+      if (beforeEffects === undefined || !init.persist || batch.length === 0)
+        commandCommits.forBatch(msg, batch, interp.getState().seq)
       const resolve = pendingMessages.get(msg)
       if (resolve === undefined) return
       pendingMessages.delete(msg)
@@ -153,12 +161,14 @@ export function createContext(
     instanceId,
     interp,
     tx,
+    commandCommits,
     terminal,
     stateListeners,
     eventListeners,
     pendingMessages,
     pendingOps: new Set(),
     attached: new Set(),
+    disposedChildren: new Map(),
     driver: undefined,
     disposed: false,
     onListenerError,

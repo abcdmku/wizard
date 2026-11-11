@@ -5,13 +5,8 @@
  * (frames out via `source.subscribe`, commands in via `source.dispatch` after auth), and the
  * UI never imports it.
  */
-import {
-  createMirrorSource,
-  createRun,
-  type FlowRun,
-  type Scheduler,
-  type Transport,
-} from '@openwizard/core'
+import type { Run, Scheduler } from '@openwizard/core'
+import { createMirrorSource, type Transport } from '@openwizard/core/mirror'
 import { createLocalTransport } from '@openwizard/core/testing'
 import type { ClientView } from './client'
 import { type CheckoutDeps, checkoutClient, checkoutFlow } from './flow'
@@ -55,13 +50,15 @@ export interface ServerOptions {
  */
 export function startServer(options: ServerOptions = {}): {
   readonly transport: Transport<ClientView>
-  readonly run: FlowRun<typeof checkoutFlow>
+  readonly run: Run<typeof checkoutFlow>
 } {
-  const run = createRun(checkoutFlow, {
-    context: { cartId: 'cart-42', total: 129.5 },
-    deps: options.deps ?? demoDeps,
-    ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
-  })
+  const run = checkoutFlow.create(
+    { cartId: 'cart-42', total: 129.5 },
+    {
+      deps: options.deps ?? demoDeps,
+      ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
+    },
+  )
   void run.start()
   const source = createMirrorSource(run, checkoutClient)
   const transport = createLocalTransport(source, {

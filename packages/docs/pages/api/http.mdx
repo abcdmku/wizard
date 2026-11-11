@@ -1,0 +1,34 @@
+# HTTP API
+
+The generated [`@openwizard/http` reference](/typedoc/modules/_openwizard_http.html) covers the run API, signed receivers, outbound subscriptions, storage contracts, the browser client and the Nitro adapter.
+
+Read the [HTTP guide](/packages/http) first.
+
+| Export | Purpose |
+|---|---|
+| `createHTTP(wizard, options)` | Opted-in run routes, signed receivers and their OpenAPI document for one wizard |
+| `combineHTTP(sources, options?)` | One `fetch` handler and one OpenAPI document for several sources |
+| `createWebhookSubscriptions(options)` | Outgoing subscriptions for a declared allowlist of public events |
+| `createMemoryWebhookStore()` | In-memory subscriptions and delivery queue |
+| `createMemoryIdempotencyStore()` | In-memory replay store for `Idempotency-Key` and `webhook-id` |
+| `IdempotencyStore`, `IdempotencyClaim` | Atomic request claims and fenced response completion |
+| `createBearerScopeProvider`, `createOAuth2ScopeProvider` | Authentication and scopes for generated routes |
+| `signWebhook(input)` | Standard Webhooks signature headers for a body |
+| `httpTransport`, `decodeServerSentEvents` | Browser client from `@openwizard/http/client` |
+| `withNitro` | Nitro adapter from `@openwizard/http/nitro` |
+
+The returned handler exposes `fetch(request)`, `openAPI(info)`, and its source `wizard`. A Mirror connects through `httpTransport` from `@openwizard/http/client`; import `createMirror` from `@openwizard/core/mirror`.
+
+`Idempotency-Key` and signed receivers' `webhook-id` become scoped, hashed command or event ids. With durable handles, an applied command whose result cannot be recovered returns HTTP 409 `IDEMPOTENCY_INTERRUPTED`. Read the current run state before deciding whether to send a new command with a new key.
+
+## Idempotency store adapters
+
+| Method | Contract |
+|---|---|
+| `claim(key, fingerprint)` | Return `claimed` with a fresh `claimId`, or the existing `pending` or `completed` record |
+| `complete(key, claimId, response)` | Store the response only if this live pending claim still owns the key; return a boolean |
+| `release(key, claimId)` | Remove only this live pending claim; return a boolean |
+
+The owner comparison and mutation must be atomic. After expiry, eviction, replacement, or completion, a stale producer gets `false` and cannot overwrite or remove a newer claim.
+
+Mirror commands can carry `expectedSeq` through `optimisticConcurrency`. HTTP forwards that guard to the run's `expectedVersion` check after asynchronous payload validation. A stale command returns `STALE`; a completed durable receipt replays before version checks.

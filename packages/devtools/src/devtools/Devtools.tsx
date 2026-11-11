@@ -5,7 +5,7 @@
  * is closed or another tab is showing.
  */
 
-import { type FlowGraph as FlowGraphData, inspect } from '@openwizard/core'
+import { type FlowGraph as FlowGraphData, inspect } from '@openwizard/core/inspect'
 import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useBufferedEvents, useEventBuffer } from '../events/event-buffer'
 import { useSourceOverlay, useSourceSnapshot } from '../hooks/use-source'
@@ -15,18 +15,18 @@ import {
   type DevtoolsTheme,
   type GraphInput,
   type GraphSelection,
-  isFlowRunSource,
   isProjectedState,
+  isRunSource,
 } from '../types'
 import { EventsTab, GraphTab, InspectorTab, type Shared, TimelineTab } from './tabs'
 import { useHotkey } from './use-hotkey'
 import { type DockPosition, useResize } from './use-resize'
 
 /**
- * `<Devtools>` props: the `source` (a `FlowRun` or a `Mirror`), the graph (`flow` / `graph`; a
+ * `<Devtools>` props: the `source` (a `Run` or a `Mirror`), the graph (`flow` / `graph`; a
  * run source brings its own flow), `theme`, `defaultOpen`, dock `position` and `defaultSize`
  * (px), the toggle `hotkey` (default `ctrl+shift+d`, `false` to disable), `context` (the input
- * `createRun` received) for a full-range timeline, `maxEvents` for the event buffer.
+ * `wizard.create` received) for a full-range timeline, `maxEvents` for the event buffer.
  * @public
  */
 export interface DevtoolsProps extends GraphInput {
@@ -58,7 +58,7 @@ const TABS: ReadonlyArray<readonly [Tab, string]> = [
  */
 export function Devtools(props: DevtoolsProps): ReactElement {
   const { source } = props
-  const run = isFlowRunSource(source) ? source : undefined
+  const run = isRunSource(source) ? source : undefined
   const [open, setOpen] = useState(props.defaultOpen ?? false)
   const [tab, setTab] = useState<Tab>('graph')
   const [position, setPosition] = useState<DockPosition>(props.position ?? 'bottom')
@@ -180,7 +180,7 @@ export function Devtools(props: DevtoolsProps): ReactElement {
 /** Status / seq / instance of the source, live. */
 function SourceMeta({ source }: { readonly source: DevtoolsSource }): ReactElement {
   const snapshot = useSourceSnapshot(source)
-  if (isFlowRunSource(source)) {
+  if (isRunSource(source)) {
     const state = source.getState()
     return (
       <span className="owd-panel-meta owd-mono">
@@ -199,7 +199,7 @@ function SourceMeta({ source }: { readonly source: DevtoolsSource }): ReactEleme
 }
 
 function statusOf(source: DevtoolsSource): string {
-  if (isFlowRunSource(source)) return source.getState().status
+  if (isRunSource(source)) return source.getState().status
   const projected = source.getSnapshot()
   return isProjectedState(projected) ? projected.status : 'idle'
 }

@@ -1,49 +1,48 @@
-# Test a flow through its public behavior
+# Testing
 
-A useful flow test creates a real run and sends the same commands your application will send. You do not need a browser, HTTP server, or database to check navigation and state changes.
+Create a real run and send the commands your application uses. Replace services with fakes so the test does not need a browser, server, or database.
 
 ```ts file="packages/docs/snippets/learn/testing.test.ts"
 ```
 
-Read the test as a short story:
+1. Create a run with empty context and start it.
+2. Store an invalid draft.
+3. Call `next()` and assert the command failed.
+4. Assert the run is still on `contact`.
 
-1. Create a fresh signup run with empty context.
-2. Start it so `contact` becomes the current view.
-3. Store an invalid email draft.
-4. Call `next()` to try to leave the view.
-5. Check that the command failed and the run stayed on `contact`.
+Assert what a user observes, such as command responses, outcomes, `status`, `current`, and calls to services. Assert an exact event sequence when event ordering is the behavior under test.
 
-Those assertions describe behavior a user can observe. They do not depend on internal event ordering.
+## Fake dependencies
 
-Depending on the feature, check one or more of these public values:
+Pass services through `deps` so the test can replace them:
 
-- the command result
-- the final result
-- the current step or status
-- calls made through fake dependencies, such as a test email client
+```ts
+const payments = {
+  charge: vi.fn().mockRejectedValueOnce(new Error('busy')).mockResolvedValue({ id: 'p1' }),
+}
+const run = order.create(context, { deps: { payments } })
+```
 
-Avoid checking every emitted event in a basic navigation test. Exact event order is useful when you are testing event behavior itself, but otherwise it makes a test fail after harmless runtime changes.
+This fake fails once, then succeeds. Start the run and assert the completed output and number of calls. For a failure that needs manual recovery, await `run.awaitOutcome()` and assert `status: 'halted'`; `awaitResult()` will wait until you recover or cancel that run.
 
-## Replace outside services with dependencies
+`createMemoryStore()` exposes `keys()` and `clear()` for persistence tests. Save a snapshot, dispose the original run, and call `wizard.resume(snapshot, options)` to check that completed work stays completed.
 
-If a task sends email or writes to a payment API, pass that client through the flow's `deps`. A test can then provide a small fake that records calls or returns a controlled error. The flow definition stays the same, and the test does not make a network request.
-
-This also lets you test retries safely. Configure the fake to fail twice, succeed once, and assert the number of calls and the final result.
-
-## Test timers without waiting
-
-Real delays make tests slow and unreliable. `@openwizard/core/testing` exports `createTestScheduler()`. Pass it to `createRun()` and advance its clock yourself.
+## Timers without waiting
 
 ```ts
 import { createTestScheduler } from '@openwizard/core/testing'
 
 const scheduler = createTestScheduler({ now: 0 })
-const run = createRun(flow, { context, scheduler })
+const run = wizard.create(context, { scheduler })
 
 await run.start()
-scheduler.advance(1_000)
+scheduler.advance(1_000) // fires timers due by now
 ```
 
-Advancing the scheduler runs callbacks whose deadline has arrived. Use it for retry backoff, task timeouts, wait timeouts, and buffered event expiry without making the test sleep for real time.
+The scheduler is also the run's clock. Sleep deadlines, retry backoff, work timeouts, wait timeouts, and buffered-event expiry move with `advance()`.
 
-Call `run.dispose()` at the end of each test so timers and subscriptions from one test cannot affect another.
+Dispose every live run at the end of the test so timers and subscriptions do not outlive it. The convenience `wizard.run()` owns disposal itself.
+
+## Next
+
+The [Production](/advanced) section starts with what happens when a process crashes during work.

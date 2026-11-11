@@ -4,10 +4,11 @@
  * status line reaches `done`.
  */
 import './test-setup'
+import { createTestScheduler } from '@openwizard/core/testing'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from './App'
-import { makeDeps } from './pipeline'
+import { makeDeps, pipeline } from './pipeline'
 import { createPipelineRun } from './wizard'
 
 afterEach(cleanup)
@@ -39,4 +40,32 @@ describe('10 devtools: the page drives the pipeline and the panel follows', () =
     expect(Number(eventsTab.querySelector('.owd-count')?.textContent)).toBe(run.log().length)
     run.dispose()
   }, 10_000)
+
+  it('quarantines the batch when approval times out', async () => {
+    const scheduler = createTestScheduler({ now: 0 })
+    const run = pipeline.create(
+      { source: 'crm-export' },
+      {
+        scheduler,
+        deps: {
+          source: { fetch: () => ({ rows: 100 }) },
+          normalizer: { run: async (rows) => ({ normalized: rows }) },
+          enricher: { run: async (rows) => ({ enriched: rows, quality: 0.9 }) },
+          warehouse: { write: () => ({ batchId: 'b-1' }) },
+        },
+      },
+    )
+    try {
+      await run.start()
+      await waitFor(() => expect(run.getState().steps.approve.status).toBe('active'))
+      scheduler.advance(120_000)
+      await run.whenIdle()
+      expect(run.getState().status).toBe('done')
+      expect(run.getState().output).toBe('quarantined (quality 0.9)')
+      expect(run.getState().steps.quarantine.status).toBe('done')
+      expect(run.getState().steps.persist.status).toBe('idle')
+    } finally {
+      run.dispose()
+    }
+  })
 })

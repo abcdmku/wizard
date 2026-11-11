@@ -1,55 +1,81 @@
-# Explain and rebuild a run from facts
+# Explain, observe, replay
 
-When a workflow is stuck, a state dump says what exists now. Operators also need to know why a step is blocked and which transitions produced that state.
-
-OpenWizard exposes three levels of inspection:
-
-- `getState()` returns the current run state.
-- `explain(step)` returns stable reason codes for one step.
-- `observe()` and `log()` expose the ordered domain events that changed the run.
-
-The example below captures every event, asks why the form is waiting, completes it, and rebuilds the final state with `replay()`:
+`explain()` reports why a step is blocked. `observe()` streams committed events and transient progress. `replay()` rebuilds state from recorded events without performing work. Use them to diagnose a stuck run or reconstruct an audit trail.
 
 ```ts file="packages/docs/snippets/advanced/inspection.ts"
 ```
 
-## `explain()` answers why a step did not run
+The example observes a contact view, sets its input, and advances. It then replays the committed events and compares the result with `getState()`.
 
-The query reports stored status, live phase, ready view candidates, and reasons such as:
+## Inspect the definition or explain a run
+
+```ts
+import { inspect, toMermaid } from '@openwizard/core/inspect'
+
+const graph = inspect(wizard)
+const diagram = toMermaid(graph)
+const explanation = run.explain('contact')
+```
+
+`inspect` reads the wizard's graph without creating a run. It includes data needs, control gates, declared routing targets, fallback edges, and warnings such as exclusive-branch AND-joins or ambiguous default output.
+
+`explain(step)` reads live state. It emits no events and starts no work, even after disposal. It returns stored status, live phase, ready view candidates, blocking reasons, and `waitingFor`.
 
 | Reason | Meaning |
 |---|---|
-| `flow-not-started` | `start()` has not activated the entry step |
-| `not-activated` | No completed predecessor has arrived at this step |
-| `deps-unmet:normalize` | A named dependency has not completed or skipped |
-| `guard-false:canEnter` | The last entry guard rejected the transition |
-| `concurrency-limit` | Ready task work is waiting for a task slot |
-| `auto-run-manual` | The flow requires `run()` or `runReady()` |
-| `retrying` | A failed attempt has a future retry deadline |
-| `failed:interrupted` | Resume found a non-idempotent task in flight |
+| `flow-not-started` | `start()` has not run |
+| `not-activated` | No start, edge, or satisfied data need activated this step |
+| `deps-unmet:normalize` | A control gate or data need is still unmet |
+| `guard-false:canEnter` | The entry guard rejected navigation |
+| `concurrency-limit` | Runnable work is waiting for a slot |
+| `auto-run-manual` | Use `startStep()` or `startReady()` |
+| `flow-halted` | Repair or skip the failed work before continuing |
+| `failed:interrupted` | Resume found non-idempotent work in flight |
 
-`explain()` is a pure query. It does not start work or emit events, and it remains callable after `dispose()`.
+`run.waitingFor()`, `explain().waitingFor`, and a waiting outcome use one flat list. Each entry has `kind: 'view' | 'event' | 'sleep'`, `step`, a relative `path`, and optional event names or deadline. An empty path means this run. Ordinary children use paths such as `['fulfil']`; mapped children include their numeric input index as a string, such as `['batch', '0']`. Progress events use the same public paths.
 
-## Events are the audit trail of state changes
+## Apply a command to the version you read
 
-`observe()` receives committed events from the root and nested runs. Every event has an `instanceId`, `epoch`, sequence number, timestamp, type, and child path.
+```ts
+const { epoch, seq } = run.getState()
+const result = await run.dispatch(
+  { type: 'next', from: 'contact' },
+  { expectedVersion: { epoch, seq } },
+)
+```
 
-`log()` keeps a bounded in-memory ring, 200 events by default. Increase `logSize` for local diagnostics, or stream `observe()` events to storage when you need a complete audit history. A bounded log that dropped its beginning cannot rebuild the initial state by itself.
+`DispatchOptions.expectedVersion` checks both epoch and sequence when the interpreter processes the command. The check still holds if payload parsing awaited an async boundary first. A mismatch returns `STALE`; read the latest state before deciding whether to retry.
 
-OpenTelemetry and devtools consume this same event stream. Telemetry failures are isolated from workflow execution so an exporter cannot fail the run.
+`from` guards which view the command leaves. `CANCELLED` reports an aborted navigation transaction, for example when cancellation stops a pending guard. It is separate from `STALE`, which reports a version mismatch.
 
-## Replay does not call hooks
+## Outcomes and terminal results
 
-`replay(flow, events, options)` folds committed events through the same state reducer used by the live runtime. It does not call a task, handler, validation hook, compensation, timer, or outside service.
+`awaitOutcome()` returns when the run is terminal, halted, or waiting on a view or external event. It keeps the run alive. `awaitResult()` waits for a terminal `done`, `failed`, or `cancelled` result, so it can stay pending while a run is halted.
 
-For a complete fresh-run log, replayed state equals `getState()`. `upTo` stops at a sequence number for time travel. `from` starts with an earlier saved state when the log is only a tail or the run was resumed.
+`wizard.run(input)` creates and starts a run, awaits its outcome, then disposes it. A halted or waiting outcome carries a snapshot for later resume. Pure sleeps and retry backoff keep it running. Step failures become outcome values. Invalid creation input still fails at the boundary.
 
-Child events have their own sequence numbers, so root replay skips them. Parent `child.summary` events carry the child facts needed by the parent state.
+## Observe and retain events
 
-Replay proves what state follows from recorded facts. It does not prove that an outside service told the truth or that an event store retained every event. Preserve the full ordered stream when audits depend on it.
+Events carry `instanceId`, `epoch`, `seq`, timestamp, `type`, and a path relative to the observed run. Child events use their own sequence. Devtools and OpenTelemetry consume this stream too.
 
-## Progress has a narrow definition
+`log()` retains the last 200 recorded events by default; raise `logSize` for debugging. Stream committed events to external storage for a full audit. A ring that has lost the start cannot rebuild the initial state.
 
-`progress()` counts non-final steps. Completed and skipped steps count as done. The ratio becomes `1` when the flow reaches `done`, even if an optional branch was skipped.
+Hook `progress(value)` and `each` item progress emit transient `step.progress`. They are visible to observers but never enter the log or snapshot and do not consume the log limit. Keep durable business facts in context or outputs.
 
-That metric is useful for a step rail. It is not an estimate of elapsed time or remaining cost. Use domain-specific progress in context when those meanings matter.
+## Replay recorded facts
+
+`replay(wizard, events, options)` invokes no runnable hook, event handler, compensation, or timer. `upTo` stops at a sequence for time travel; `from` starts with saved state when the event list is only a tail.
+
+Root replay ignores child-path events; parent `child.summary` events carry the parent's facts. Replay proves what follows from recorded data. It cannot prove that a remote service reported the truth.
+
+## Progress summaries
+
+```ts
+run.progress() // { done, total, ratio }
+```
+
+This counts workflow steps, including skipped work as finished. It estimates neither elapsed time nor collection size. Use an `each` step's `{ done, total }` progress events for item counts, and a hook's own progress payload for domain-specific work.
+
+Progress stays private on a mirror unless the [projection opts in](/advanced/projections).
+
+Next: [`@openwizard/devtools`](/packages/devtools). Related: [Graphs and parallel work](/advanced/graphs).

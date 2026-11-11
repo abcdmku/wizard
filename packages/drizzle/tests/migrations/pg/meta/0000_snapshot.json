@@ -1,5 +1,5 @@
 {
-  "id": "91f9e4d0-a166-4937-adfb-a016f460ea5d",
+  "id": "8e07751e-c768-4f2c-8292-01401080a4c5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -10,12 +10,6 @@
       "columns": {
         "run_key": {
           "name": "run_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -110,9 +104,9 @@
         }
       },
       "compositePrimaryKeys": {
-        "test_wizard_dedupe_run_key_kind_dedupe_id_pk": {
-          "name": "test_wizard_dedupe_run_key_kind_dedupe_id_pk",
-          "columns": ["run_key", "kind", "dedupe_id"]
+        "test_wizard_dedupe_run_key_dedupe_id_pk": {
+          "name": "test_wizard_dedupe_run_key_dedupe_id_pk",
+          "columns": ["run_key", "dedupe_id"]
         }
       },
       "uniqueConstraints": {},

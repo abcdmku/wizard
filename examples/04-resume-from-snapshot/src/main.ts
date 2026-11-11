@@ -3,7 +3,7 @@
  * Process 1 reaches the wait step and auto-saves; "crashes"; process 2 resumes from the store
  * three hours later (virtual time) and the 48h deadline still fires.
  */
-import { createMemoryStore, createRun, resumeRun } from '@openwizard/core'
+import { createMemoryStore } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { approval, type Deps } from './approval'
 
@@ -15,13 +15,15 @@ const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 // ── process 1 ─────────────────────────────────────────────────────────────────────────────
 const sched1 = createTestScheduler({ now: 0 })
-const first = createRun(approval, {
-  context: { requestId: '42', amount: 1_250 },
-  deps,
-  store,
-  key,
-  scheduler: sched1,
-})
+const first = approval.create(
+  { requestId: '42', amount: 1_250 },
+  {
+    deps,
+    store,
+    key,
+    scheduler: sched1,
+  },
+)
 await first.start()
 await settle()
 await first.save()
@@ -36,7 +38,7 @@ console.log('process 1: crashed')
 
 // ── process 2, three hours later ──────────────────────────────────────────────────────────
 const sched2 = createTestScheduler({ now: 3 * HOUR })
-const resumed = resumeRun(approval, await store.get(key), {
+const resumed = approval.resume(await store.get(key), {
   deps,
   store,
   key,

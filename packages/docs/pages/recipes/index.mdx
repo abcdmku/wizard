@@ -1,10 +1,10 @@
-# Recipes
+# Overview
 
-Use these pages after the learning path when you recognize the same control-flow problem in your application. Each recipe explains what causes the run to move, where its data goes, and why that step kind fits the problem.
+Each recipe covers one workflow pattern with a tested snippet and an explanation of its execution.
 
-- [Collect form input](/recipes/form) when a person must provide valid data before work continues.
-- [Choose a branch](/recipes/branching) when current data selects one path and skips the others.
-- [Run work in parallel](/recipes/parallel) when independent tasks can start together but a later step needs all of them finished.
-- [Use a child flow](/recipes/nested) when one stage is a workflow with its own steps, state, and tests.
-
-Start with [how a flow becomes a running workflow](/learn/mental-model) if `defineFlow()`, context, or `next` are still new.
+| Recipe | Use it when |
+|---|---|
+| [Collect form input](/recipes/form) | A person must enter valid data before the run continues |
+| [Branch on data](/recipes/branching) | Current data decides which path runs |
+| [Run steps in parallel](/recipes/parallel) | Independent work starts together and a typed join consumes its outputs |
+| [Use a child flow](/recipes/nested) | A stage has its own context, input, or recovery workflow |

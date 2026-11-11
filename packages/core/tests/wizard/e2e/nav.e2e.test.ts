@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { final, flow, guard, task, view } from '../../helpers/fixtures'
+import { flow, guard, routingStep, runStep, view } from '../../helpers/fixtures'
 import { e2e } from './harness'
 
 const happy = () =>
@@ -20,18 +20,22 @@ const happy = () =>
         ),
         next: 'work',
       }),
-      work: task({
-        run: ({ input, steps }) => ({
-          greeting: `hello ${(steps.form!.output as any).name}`,
+      work: runStep({
+        needs: { form: { kind: 'all', steps: ['form'] } },
+        run: ({ input, needs }) => ({
+          greeting: `hello ${(needs.form as { name: string }).name}`,
           sawInput: input,
         }),
         next: 'end',
       }),
-      end: final({ output: ({ steps }) => steps.work!.output }),
+      end: runStep({
+        needs: { work: { kind: 'all', steps: ['work'] } },
+        run: ({ needs }) => needs.work,
+      }),
     },
   })
 
-describe('e2e nav: view → task → final (all sync)', () => {
+describe('e2e nav: view → runnable step → completing step (all sync)', () => {
   it('start enters the view through the cursor rule; the state is committed before the promise is awaited', async () => {
     const t = e2e(happy())
     const p = t.run.start()
@@ -106,14 +110,16 @@ describe('e2e nav: view → task → final (all sync)', () => {
       'step.runStarted',
       'step.runSucceeded',
       'step.done',
+      'step.arrived', // needs activates the sink before its transition
       'transition.started', // auto
       'transition.phase',
       'transition.phase',
       'transition.phase',
       'transition.phase',
-      'step.arrived',
       'transition.committed',
       'step.entered',
+      'step.runStarted',
+      'step.runSucceeded',
       'step.done',
       'flow.done',
     ])
@@ -198,7 +204,7 @@ describe('e2e nav: view → task → final (all sync)', () => {
     expect(await t.run.setInput('c', { x: 1 })).toMatchObject({ ok: false, code: 'NAV_BUSY' })
     release?.()
     // canExit passed but c has no `next` → no-target.
-    expect(await pending).toMatchObject({ ok: false, reason: 'no-target', code: 'NO_TARGET' })
+    expect(await pending).toMatchObject({ ok: true, to: null })
     expect(t.run.getState().nav.phase).toBe('idle')
   })
 
@@ -210,7 +216,7 @@ describe('e2e nav: view → task → final (all sync)', () => {
         a: view({ dynamicNext: ({ context }) => ((context as any).vip ? 'vip' : 'std') }),
         std: view({ next: 'end' }),
         vip: view({ next: 'end' }),
-        end: final(),
+        end: routingStep(),
       },
     })
     const t = e2e(def, { context: { vip: true } })

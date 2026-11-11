@@ -1,4 +1,4 @@
-import { createRun, type RunEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
 import { describe, expect, it } from 'vitest'
 import { bookTripFlow, type Deps } from './book-trip'
 
@@ -46,7 +46,7 @@ function fakeSuppliers(options: { hotelCancelFailures?: number } = {}) {
 }
 
 function make(deps: Deps) {
-  const run = createRun(bookTripFlow, { context: { tripId: 'T1', total: 900 }, deps })
+  const run = bookTripFlow.create({ tripId: 'T1', total: 900 }, { deps })
   const events: RunEvent<typeof bookTripFlow>[] = []
   run.observe((event) => events.push(event))
   const eventsOfType = <T extends RunEvent['type']>(type: T) =>
@@ -98,7 +98,7 @@ describe('03 compensation: onFailure "compensate"', () => {
     // The events: the plan is announced first, then one started/compensated pair per entry.
     expect(eventsOfType('flow.compensating')[0]).toMatchObject({
       plan: ['reserveCar', 'reserveHotel', 'reserveFlight'],
-      outcome: 'failed',
+      status: 'failed',
     })
     expect(eventsOfType('step.compensationStarted').map((event) => event.step)).toEqual([
       'reserveCar',
@@ -110,7 +110,7 @@ describe('03 compensation: onFailure "compensate"', () => {
       'reserveHotel',
       'reserveFlight',
     ])
-    expect(eventsOfType('flow.compensated')[0]).toMatchObject({ failures: [], outcome: 'failed' })
+    expect(eventsOfType('flow.compensated')[0]).toMatchObject({ failures: [], status: 'failed' })
     const types = events.map((event) => event.type)
     expect(types.indexOf('step.failed')).toBeLessThan(types.indexOf('flow.compensating'))
     expect(types.indexOf('flow.compensating')).toBeLessThan(
@@ -150,7 +150,7 @@ describe('03 compensation: onFailure "compensate"', () => {
     })
     expect(eventsOfType('flow.compensated')[0]).toMatchObject({
       failures: ['reserveHotel'],
-      outcome: 'failed',
+      status: 'failed',
     })
     expect(run.getState().status).toBe('failed')
 

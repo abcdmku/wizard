@@ -125,7 +125,8 @@ export function toyDecide(
       ]
       const targets = S.active.filter(
         (id) =>
-          S.steps[id]?.kind === 'wait' && env.def.steps[id]?.hooks.on?.[msg.event] !== undefined,
+          S.steps[id]?.kind === 'step' &&
+          env.def.steps[id]?.hooks.waitFor?.[msg.event] !== undefined,
       )
       if (targets.length > 0) {
         for (const to of targets)
@@ -148,13 +149,17 @@ export function toyDecide(
       return [{ type: 'event.rejected', event: msg.event, issues: msg.issues }]
     case 'retry': {
       const rec = S.steps[msg.step]
-      if (rec === undefined || rec.kind !== 'task' || rec.status !== 'failed') {
+      if (
+        rec === undefined ||
+        env.def.steps[msg.step]?.hooks.run === undefined ||
+        rec.status !== 'failed'
+      ) {
         return [
           {
             type: 'command.rejected',
             command: msg,
-            reason: 'not a failed task',
-            code: 'NOT_A_TASK',
+            reason: 'not a failed runnable step',
+            code: 'NOT_RUNNABLE',
           },
         ]
       }
@@ -247,14 +252,13 @@ export function toyDecide(
       if (rec?.status !== 'active') return out
       if (msg.done !== undefined) {
         out.push({ type: 'step.done', step: msg.step, output: msg.done.output })
-        out.push(...advance(env, S, msg.step))
+        out.push(...advance(env, S, msg.step, msg.done.output))
       } else if (msg.failed !== undefined) {
         out.push({ type: 'step.failed', step: msg.step, error: msg.failed.error, kind: 'child' })
         out.push({
           type: 'flow.failed',
           step: msg.step,
           error: msg.failed.error,
-          code: 'CHILD_FAILED',
         })
       }
       return out
@@ -292,7 +296,7 @@ export function toyDecide(
             return [
               { type: 'step.runSucceeded', step: stepId, attempt: rec.attempt, output: msg.value },
               { type: 'step.done', step: stepId, output: msg.value },
-              ...advance(env, S, stepId),
+              ...advance(env, S, stepId, msg.value),
             ]
           }
           const kind = msg.syncViolation ? 'sync-violation' : msg.timedOut ? 'timeout' : 'run'
@@ -306,14 +310,14 @@ export function toyDecide(
               ...(msg.timedOut ? { timedOut: true } : {}),
             },
             { type: 'step.failed', step: stepId, error: msg.error, kind },
-            { type: 'flow.failed', step: stepId, error: msg.error, code: 'STEP_FAILED' },
+            { type: 'flow.failed', step: stepId, error: msg.error },
           ]
         }
         case 'on': {
           if (msg.type === 'res.err') {
             return [
               { type: 'step.failed', step: stepId, error: msg.error, kind: 'hook' },
-              { type: 'flow.failed', step: stepId, error: msg.error, code: 'STEP_FAILED' },
+              { type: 'flow.failed', step: stepId, error: msg.error },
             ]
           }
           // OnHandlerResult: `{ keep: true }` stays waiting; `{ done }` is the step output.
@@ -323,7 +327,7 @@ export function toyDecide(
           const out: DomainEventBody[] = [{ type: 'step.done', step: stepId, output }]
           if (S.timers[`wait:${stepId}`] !== undefined)
             out.push({ type: 'timer.cleared', timerId: `wait:${stepId}` })
-          out.push(...advance(env, S, stepId))
+          out.push(...advance(env, S, stepId, output))
           return out
         }
         case 'childContext': {

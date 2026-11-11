@@ -1,8 +1,8 @@
-import type { FlowGraph, StepStatus } from '@openwizard/core'
+import type { StepStatus } from '@openwizard/core'
+import type { FlowGraph, FlowGraphNode } from '@openwizard/core/inspect'
 import { useMemo } from 'react'
 import {
   type DagLayout,
-  type FlowGraphNode,
   flowsOf,
   type LaidOutEdge,
   type LaidOutNode,
@@ -24,12 +24,9 @@ interface FlowGraphViewProps {
 }
 
 const KIND_GLYPH: Record<FlowGraphNode['kind'], string> = {
-  view: '▭',
-  task: '⚙',
-  wait: '◷',
-  decision: '◇',
-  flow: '▣',
-  final: '◎',
+  view: 'V',
+  step: 'S',
+  flow: 'F',
 }
 
 function edgePath({ from, to, back }: LaidOutEdge): string {
@@ -58,10 +55,17 @@ const formatMs = (ms: number): string =>
         : `${ms}ms`
 
 function edgeLabel({ edge, from, to }: LaidOutEdge): string | null {
+  if (edge.kind === 'route') return 'route'
   if (edge.kind === 'dependsOn') {
     const spec = to.node.dependsOn
     return spec && 'any' in spec ? 'dependsOn (any)' : 'dependsOn'
   }
+  if (edge.kind === 'needs') {
+    const alias = edge.alias ? ` ${edge.alias}` : ''
+    const mode = edge.mode && edge.mode !== 'all' ? ` (${edge.mode})` : ''
+    return `needs${alias}${mode}`
+  }
+  if (edge.kind === 'fallback') return 'fallback'
   if (edge.kind === 'timeout') {
     return from.node.timeout === undefined ? 'timeout' : `timeout ${formatMs(from.node.timeout)}`
   }
@@ -106,15 +110,6 @@ function NodeShape({
 }) {
   const { x, y, width: w, height: h } = node
   switch (node.node.kind) {
-    case 'wait':
-      return <rect x={x} y={y} width={w} height={h} rx={h / 2} className={className} />
-    case 'decision':
-      return (
-        <polygon
-          points={`${x + 12},${y} ${x + w - 12},${y} ${x + w},${y + h / 2} ${x + w - 12},${y + h} ${x + 12},${y + h} ${x},${y + h / 2}`}
-          className={className}
-        />
-      )
     case 'flow':
       return (
         <polygon
@@ -122,21 +117,7 @@ function NodeShape({
           className={className}
         />
       )
-    case 'final':
-      return (
-        <>
-          <rect x={x} y={y} width={w} height={h} rx={h / 2} className={className} />
-          <rect
-            x={x + 3}
-            y={y + 3}
-            width={w - 6}
-            height={h - 6}
-            rx={(h - 6) / 2}
-            className="fill-none stroke-current stroke-neutral-400 dark:stroke-neutral-600"
-          />
-        </>
-      )
-    case 'task':
+    case 'step':
       return (
         <>
           <rect x={x} y={y} width={w} height={h} rx={4} className={className} />
@@ -202,7 +183,7 @@ function FlowSvg({
       </defs>
       {layout.edges.map((laid) => {
         const label = edgeLabel(laid)
-        const dashed = laid.edge.kind === 'timeout' || laid.edge.kind === 'dependsOn'
+        const dashed = laid.edge.kind !== 'next' && laid.edge.kind !== 'start'
         const midX = (laid.from.x + laid.from.width / 2 + laid.to.x + laid.to.width / 2) / 2
         const midY = (laid.from.y + laid.from.height + laid.to.y) / 2
         return (

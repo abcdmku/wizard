@@ -1,0 +1,13 @@
+flowchart LR
+  browser["Browser<br/>React + Pixi"]
+  proxy["Web nginx :4400<br/>static + /api + /v1 + /ws"]
+  api["dungeon-api :8080<br/>authenticated command ingress"]
+  wizard["One Wizard per party<br/>10 Hz tick + durable waits"]
+  host["DurableRunHost<br/>CAS + dedupe + active-party boot registry"]
+  db[(Postgres :5432<br/>snapshots + commands)]
+  browser -->|HTTP /api or /v1| proxy
+  browser <-->|WebSocket /ws| proxy
+  proxy -->|private dungeon network| api
+  api -->|typed events| wizard
+  wizard --> host
+  host <-->|snapshot + command CAS| db

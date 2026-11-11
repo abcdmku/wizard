@@ -1,10 +1,12 @@
-import type { AnyFlow, Explanation, FlowGraph, FlowRun } from '@openwizard/core'
+import type { AnyFlow, Explanation, Run } from '@openwizard/core'
+import type { FlowGraph } from '@openwizard/core/inspect'
 import { useMemo } from 'react'
+import { runAt } from './child-path'
 import { stringify } from './format'
 import { type StepRef, safeInspect, snapshotAt } from './graph-view'
 
 interface ExplainViewProps {
-  readonly run: FlowRun<AnyFlow> | undefined
+  readonly run: Run<AnyFlow> | undefined
   readonly selected: StepRef | null
   readonly onSelect: (ref: StepRef) => void
 }
@@ -12,17 +14,16 @@ interface ExplainViewProps {
 type StepExplanation = Explanation<AnyFlow> & { readonly note?: string }
 
 /** `run.explain(step)` for the root, `run.child(...).explain(step)` down a path when the child is live. */
-function explainAt(run: FlowRun<AnyFlow>, ref: StepRef): StepExplanation {
+export function explainAt(run: Run<AnyFlow>, ref: StepRef): StepExplanation {
   try {
-    let target: FlowRun<AnyFlow> = run
-    for (const step of ref.path) target = target.child(step)
-    return target.explain(ref.id)
+    return runAt(run, ref.path).explain(ref.id)
   } catch (error) {
     return {
       status: snapshotAt(run, ref.path)?.state.steps[ref.id]?.status ?? 'unknown',
       phase: undefined,
       reasons: [],
       candidates: [],
+      waitingFor: [],
       note: `child run not live: ${error instanceof Error ? error.message : String(error)}`,
     }
   }
@@ -52,6 +53,7 @@ export function ExplainView({ run, selected, onSelect }: ExplainViewProps) {
         explanation: selected ? explainAt(run, selected) : null,
         progress: run.progress(),
         readyViews: run.readyViews(),
+        waitingFor: run.waitingFor(),
         status: run.getState().status,
         current: run.getState().current,
       }
@@ -65,16 +67,32 @@ export function ExplainView({ run, selected, onSelect }: ExplainViewProps) {
     )
   }
   const { explanation } = live
+  const choices = graph.nodes.map((node) => ({
+    path: node.path,
+    id: node.id,
+    kind: node.kind,
+    label: node.id,
+  }))
+  const known = new Set(choices.map((choice) => JSON.stringify([...choice.path, choice.id])))
+  const waitingChoices = live.waitingFor
+    .filter((wait) => !known.has(JSON.stringify([...wait.path, wait.step])))
+    .map((wait) => ({
+      path: wait.path,
+      id: wait.step,
+      kind: wait.kind,
+      label: [...wait.path, wait.step].join('/'),
+    }))
   return (
     <div className="grid h-full grid-cols-[minmax(7rem,11rem)_1fr] font-mono text-[11.5px]">
       <ul className="overflow-auto border-r border-neutral-200 py-2 dark:border-neutral-800">
-        {graph.nodes.map((node) => {
+        {[...choices, ...waitingChoices].map((node) => {
           const isSelected =
             selected?.id === node.id && selected.path.join('/') === node.path.join('/')
           return (
-            <li key={`${node.path.join('/')}/${node.id}`}>
+            <li key={JSON.stringify([...node.path, node.id])}>
               <button
                 type="button"
+                title={node.label}
                 onClick={() => onSelect({ path: node.path, id: node.id })}
                 className={`block w-full truncate px-3 py-1 text-left transition-colors ${
                   isSelected
@@ -83,7 +101,7 @@ export function ExplainView({ run, selected, onSelect }: ExplainViewProps) {
                 }`}
                 style={{ paddingLeft: `${12 + node.path.length * 10}px` }}
               >
-                {node.id} <span className="text-neutral-400">{node.kind}</span>
+                {node.label} <span className="text-neutral-400">{node.kind}</span>
               </button>
             </li>
           )
@@ -97,6 +115,14 @@ export function ExplainView({ run, selected, onSelect }: ExplainViewProps) {
             value={`${live.progress.done}/${live.progress.total} (${Math.round(live.progress.ratio * 100)}%)`}
           />
           <Row label="readyViews" value={list(live.readyViews)} />
+          <Row
+            label="waitingFor"
+            value={list(
+              live.waitingFor.map(
+                (wait) => `${[...wait.path, wait.step].join('/')} (${wait.kind})`,
+              ),
+            )}
+          />
         </dl>
         {explanation && selected && (
           <dl className="mt-3 border-t border-neutral-200 pt-2 dark:border-neutral-800">

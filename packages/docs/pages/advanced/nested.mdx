@@ -1,36 +1,59 @@
-# Give a subsystem its own run
+# Nested flows
 
-A child flow is useful when one stage has its own navigation, tasks, tests, timers, or reuse. It is more than a function call. The child has a run id, state, context, snapshot, and event path inside its parent.
-
-The order example pays in the parent, runs fulfilment as a child flow, and copies the child's tracking output back into parent context:
+A `flow(childWizard, options)` step runs a child wizard with its own run id, context, snapshot, and events. Use it when a stage needs its own navigation or recovery, or several parents reuse it.
 
 ```ts file="examples/06-nested-flow/src/order.ts"
 ```
 
-## The boundary between parent and child is explicit
+Here `pay` completes before `fulfil` starts a child run. The `context` mapper produces the child's input, which its boundary parses. Once the child finishes, its output becomes the parent step's output. An `exit` hook can copy selected data into the parent context.
 
-The parent `flow` step maps its context into the child's starting context. The child parses that value with its own schema. Dependencies pass through unchanged by default, or the parent can map a different dependency object.
+## Context and dependencies
 
-The child cannot silently read or mutate parent context. When it finishes, its typed final output becomes the parent flow step's output. The parent's `exit` hook decides what to copy back.
+The child cannot read or mutate parent context. Its context mapper is the only way parent data enters it.
 
-This boundary makes reuse honest. A fulfilment flow can run under several parents without assuming their context shapes.
+Parent dependencies pass through when they satisfy the child's remaining requirements. Add a `deps` mapper when they do not. `childWizard.provide(...)` carries bound dependencies into child runs, so a parent only supplies the keys still required. `DepsOf<typeof childWizard>` describes all services child hooks can read; `RequiredDepsOf<typeof childWizard>` describes what creation still requires.
 
-## Parent state includes a child summary
-
-While the child is live, `run.child('fulfil')` returns its typed `FlowRun`. The parent step also stores a child summary with status and current view.
-
-`getSnapshot()` stores the full active child snapshot under the parent step id. Resuming the parent restores the child and its remaining timers. Disposing the parent disposes its children.
-
-## Event paths identify the emitting run
-
-Root events have `path: []`. Events forwarded from the fulfilment child have `path: ['fulfil']`. Deeper nesting appends more step ids.
+## Reaching the child
 
 ```ts
-run.observe((event) => {
-  console.log(event.path, event.type)
-})
+const child = run.child('fulfil') // Run of the child wizard while it is live
 ```
 
-Use `isChildEvent(event)` when TypeScript needs to narrow a `RunEvent` to the child event family. The path lets logs and devtools show where a repeated step id came from.
+An ordinary child takes no selector. Calling `child` before that run starts throws a `WizardError` with code `NOT_ACTIVE`. The parent record stores a child summary. `getSnapshot()` also embeds the full child snapshot, so resume can restore its work and deadlines. Disposing the parent disposes its children.
 
-Use a normal task when the child would contain one function and no independent lifecycle. A nested run is valuable only when that separation buys reuse, state ownership, or recovery.
+## Event paths
+
+```ts
+run.observe((event) => console.log(event.path, event.type))
+// []          this run's events
+// ['fulfil']  events forwarded from the child
+
+run.child('fulfil').observe((event) => console.log(event.path))
+// []          that child's own events
+```
+
+Paths are relative to the run you observe. An ordinary child's path is `['fulfil']`; a mapped child's path is `['batch', '0']` for input index zero. Further descendants append their step ids. `isChildEvent(event)` narrows a `RunEvent` to the child event family. Waiting and progress events use these same readable paths.
+
+## One child per item
+
+```ts file="packages/docs/snippets/advanced/mapped-children.ts" lines="1-31"
+```
+
+The parent snapshots the items and starts one child per item. Its output is an array of child outputs in input order. Completed item results persist. Item hooks, including a child `deps` mapper, receive `item` and `index`.
+
+Select a mapped child by its input index or configured item key:
+
+```ts file="packages/docs/snippets/advanced/mapped-children.ts" lines="52-67"
+```
+
+Mapped children require that second argument. Over the wire, `mirror.child('batch', 0)` uses a numeric input index; React uses `binding.useChild('batch', 0)` too. Ordinary children use only the step id.
+
+If an item child fails, `run.retry('batch')` retries failed items while retaining completed results. See [retries and idempotency](/advanced/recovery) before repeating external effects.
+
+## Failures cross the boundary
+
+A halted or failed child fails its parent flow step under the parent's failure policy. A `fallback` on that step marks it skipped with the child's error retained and activates the recovery target. The child still has its own failure record for inspection.
+
+If the child would contain only one function and no lifecycle of its own, use a runnable step. Nest when separate state or recovery helps.
+
+Next: [Projections and mirrors](/advanced/projections). Related: [use a child flow](/recipes/nested).

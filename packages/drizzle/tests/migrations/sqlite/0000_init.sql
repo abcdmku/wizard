@@ -1,6 +1,5 @@
 CREATE TABLE `test_wizard_dedupe` (
 	`run_key` text NOT NULL,
-	`kind` text NOT NULL,
 	`dedupe_id` text NOT NULL,
 	`digest` text NOT NULL,
 	`status` text NOT NULL,
@@ -10,7 +9,7 @@ CREATE TABLE `test_wizard_dedupe` (
 	`request` text,
 	`result` text,
 	`completed_at_ms` integer,
-	PRIMARY KEY(`run_key`, `kind`, `dedupe_id`),
+	PRIMARY KEY(`run_key`, `dedupe_id`),
 	FOREIGN KEY (`run_key`) REFERENCES `test_wizard_runs`(`run_key`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint

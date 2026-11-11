@@ -3,7 +3,6 @@
  * A flaky ledger fails twice; the retry policy waits 200 ms, then 400 ms. The time is virtual
  * (the test scheduler doubles as the clock), so the demo finishes instantly.
  */
-import { createRun } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { type Deps, syncInvoiceFlow } from './sync-invoice'
 
@@ -20,11 +19,7 @@ const deps: Deps = {
 }
 
 const scheduler = createTestScheduler({ now: 0 })
-const run = createRun(syncInvoiceFlow, {
-  context: { invoiceId: 'INV-7', amount: 120 },
-  deps,
-  scheduler: scheduler,
-})
+const run = syncInvoiceFlow.create({ invoiceId: 'INV-7', amount: 120 }, { deps, scheduler })
 run.observe((event) => {
   if (event.type === 'step.runFailed')
     console.log(

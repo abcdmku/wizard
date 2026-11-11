@@ -1,77 +1,59 @@
-/**
- * Return contracts of the `on[event]` handlers by kind (step-level and flow-level) and the
- * correlation extractors.
- * @packageDocumentation
- */
+/** Closed event-handler return contracts. */
 
+import type { StepError } from './assembly'
 import type { EventArgs, FlowOnArgs } from './hook-args'
-import type { MaybePromise, StepKind } from './primitives'
+import type { MaybePromise } from './primitives'
 
-/**
- * What a `wait` step's `on[event]` handler may return: nothing (the event completes the step —
- * output `{ event, payload }` — through its static `next`), `{ next }` (a single id overriding
- * it; `null` / `undefined` = no override), `{ keep: true }` (consume the event, keep waiting),
- * `{ done: output, next? }` (complete with that output — `O`, the step's `WaitOutput` — instead
- * of the event) or `{ fail: reason }` (fail the step, `kind: 'hook'`).
- * @public
- */
-export type WaitOnResult<N extends string, O = unknown> =
+/** What a `waitFor` handler returns: nothing (output = payload), `{ done }`, keep waiting, or fail. */
+/** A wait verdict: complete with payload or done, keep waiting, or fail. @public */
+export type WaitResult =
   | void
   | undefined
-  | { readonly next?: N | null | undefined }
-  | { readonly keep: true }
-  | { readonly done: O; readonly next?: N | null | undefined }
-  | { readonly fail: string }
-/**
- * What a `view` step's `on[event]` handler may return: nothing, or `{ next }` — an external
- * event moves the cursor (a transition with `cause: 'event'` that runs `canEnter` / `exit` /
- * `enter` and skips input parsing / `validate` / `canExit`).
- * @public
- */
-export type ViewOnResult<N extends string> =
-  | void
-  | undefined
-  | { readonly next?: N | null | undefined }
-/**
- * Return contract of a step-level `on[event]` handler by kind: `WaitOnResult` for waits,
- * `ViewOnResult` for views, `void` for tasks / decisions / flows / finals (they may `update()`
- * context, never redirect).
- * @public
- */
-export type OnResult<K extends StepKind, N extends string> = [K] extends ['wait']
-  ? WaitOnResult<N>
-  : [K] extends ['view']
-    ? ViewOnResult<N>
-    : void
-/**
- * Step-level `on` handlers, one per event the step listens for while ACTIVE (payload already
- * parsed by the flow's event boundary); `R` is the kind's return contract (`OnResult`).
- * @public
- */
-export type OnHandlers<C, Ev, D, R> = {
-  readonly [E in keyof Ev]?: (a: EventArgs<C, D, Ev[E], E>) => MaybePromise<R>
+  | { readonly done: unknown; readonly next?: never }
+  | { readonly keep: true; readonly next?: never }
+  | { readonly fail: string; readonly next?: never }
+/** Wait handlers with parsed event payloads and a closed return contract. @public */
+export type WaitHandlers<C, Ev, D, N> = {
+  readonly [E in keyof Ev]?: (args: EventArgs<C, D, Ev[E], E, N>) => MaybePromise<WaitResult>
 }
-/**
- * What a flow-level `on[event]` handler may return: nothing, or `{ cancel: reason }` to cancel
- * the flow (subject to the compensation policy).
- * @public
- */
+/** Contextual handler checks and return-value inference use separate maps. */
+export type WaitHandlersFor<C, Ev, D, N, H, Wk extends PropertyKey> = {
+  readonly [E in keyof H | Wk]: E extends keyof Ev
+    ? (
+        args: EventArgs<C, D, Ev[E], E, N>,
+      ) => E extends keyof H
+        ? H[E] extends (...args: never[]) => infer R
+          ? R & MaybePromise<WaitResult>
+          : MaybePromise<WaitResult>
+        : MaybePromise<WaitResult>
+    : StepError<`'${E & string}' is not an event of this wizard`>
+}
+/** `Wk` = the handler keys written (survives a failed call, unlike `H`). */
+export type EmptyWait<Xk, Wk> = 'waitFor' extends Xk
+  ? [Wk] extends [never]
+    ? '`waitFor` needs at least one event handler'
+    : never
+  : never
+export type UnknownEvents<H, Ev> = {
+  readonly [E in Exclude<
+    keyof H,
+    keyof Ev
+  >]: StepError<`'${E & string}' is not an event of this wizard`>
+}
+/** Passive handlers for declared external events. @public */
+export type OnHandlers<C, Ev, D, N, R = void> = {
+  readonly [E in keyof Ev]?: (args: EventArgs<C, D, Ev[E], E, N>) => MaybePromise<R | undefined>
+}
+
+// Steps and their phantom facts
+
+/** A flow handler result that may cancel the run. @public */
 export type FlowOnResult = void | undefined | { readonly cancel: string }
-/**
- * Flow-level `on` handlers (`defineFlow({ on })`): run after the step-level handlers of the
- * same event, in the same batch, whether or not a step handled it.
- * @public
- */
+/** Flow-level handlers for declared external events. @public */
 export type FlowOnHandlers<C, Ev, D> = {
-  readonly [E in keyof Ev]?: (a: FlowOnArgs<C, D, Ev[E], E>) => MaybePromise<FlowOnResult>
+  readonly [E in keyof Ev]?: (args: FlowOnArgs<C, D, Ev[E], E>) => MaybePromise<FlowOnResult>
 }
-/**
- * Correlation extractors (`defineFlow({ correlate })`): per event, the correlation id of a
- * parsed payload (`undefined` = this payload carries none). An event whose id differs from the
- * run's `correlationId` (`createRun(flow, { correlationId })`) is dropped
- * (`event.dropped { reason: 'correlation' }`), never buffered.
- * @public
- */
+/** Correlation extractors for declared event payloads. @public */
 export type CorrelateSpec<Ev> = {
   readonly [E in keyof Ev]?: (payload: Ev[E]) => string | undefined
 }

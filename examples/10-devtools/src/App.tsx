@@ -1,12 +1,12 @@
 /** Drive the run and inspect the same instance in a docked Devtools panel. */
-import type { FlowRun } from '@openwizard/core'
+import type { Run } from '@openwizard/core'
 import { Devtools } from '@openwizard/devtools'
 import { useSyncExternalStore } from 'react'
 import { context, type pipeline } from './wizard'
 
 const TASKS = ['ingest', 'normalize', 'enrich', 'persist'] as const
 
-export function App({ run }: { run: FlowRun<typeof pipeline> }) {
+export function App({ run }: { run: Run<typeof pipeline> }) {
   const state = useSyncExternalStore(
     (listener) => run.subscribe(listener),
     () => run.getState(),

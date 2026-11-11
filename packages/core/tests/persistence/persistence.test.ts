@@ -14,7 +14,7 @@ const twoViews = flow({
   steps: {
     a: { kind: 'view', next: { kind: 'static', targets: ['b'] } },
     b: { kind: 'view', next: { kind: 'static', targets: ['end'] } },
-    end: { kind: 'final' },
+    end: { kind: 'step' },
   },
 })
 
@@ -83,7 +83,7 @@ describe('persistence via the run runtime', () => {
     expect((store.writes[1] as Snapshot).state.current).toBe('b')
     expect(((await store.get('k')) as Snapshot).seq).toBe(run.getState().seq)
     // A no-op command changes nothing → no write.
-    await run.runReady()
+    await run.startReady()
     await settle()
     expect(store.writes).toHaveLength(2)
   })
@@ -196,12 +196,12 @@ describe('persistence via the run runtime', () => {
   })
 
   it('a child never persists on its own; the root snapshot carries it', async () => {
-    const child = flow({ name: 'child', steps: { w: { kind: 'wait', hooks: { on: {} } } } })
+    const child = flow({ name: 'child', steps: { w: { kind: 'step', hooks: { waitFor: {} } } } })
     const parent = flow({
       name: 'parent',
       steps: {
         f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'final' },
+        end: { kind: 'step' },
       },
     })
     const store = recordingStore()

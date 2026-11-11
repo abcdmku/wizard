@@ -2,33 +2,28 @@
  * `compile(flow)` — turns an inert `Flow` into the `CompiledFlow` the machine and the
  * interpreter consume, validating it on the way.
  *
- * Hard problems (thrown together as ONE `WizardError` listing ALL of them, nested flows
- * included): unknown ids in `next` / `dependsOn` / `timeout.next` / `start`, a `final` with
- * `next`, dependency cycles, a `wait` that can never complete (no handlers, no timeout), a
+ * Definition problems include unknown refs, dependency cycles, invalid option combinations,
  * step-level or flow-level handler (`on`, `correlate`) for an undeclared event, fields a kind
- * does not accept (per-kind allow-lists, e.g. `input` on a task, `when` on a final), malformed
+ * does not accept (per-kind allow-lists, e.g. `input` on a plain step), malformed
  * hooks/policies. The error code is `NESTING_CYCLE` (a flow embeds an ancestor) or
  * `NESTING_TOO_DEEP` (deeper than 8) when such a problem is among them, `DEFINITION_INVALID`
- * otherwise — nothing aborts on the first nested problem.
+ * otherwise. Nested definition problems are collected together.
  *
- * v0.2: `on` compiles for every kind (`hooks.on`; a handler's result reaches the machine RAW —
- * `machine/wait.ts` applies the per-kind contract: `{ keep } / { next } / { done } / { fail }`
- * for waits, `{ next }` for views, `void` elsewhere, anything else `event.handlerResultIgnored`);
- * `when` → `hooks.when`; a task's `idempotent` → `idempotent: true` (+ `hooks.idempotencyKey`
+ * `on` compiles for every kind. The machine applies the result contract: `keep` / `done` / `fail`
+ * for `waitFor`, `{ next }` for views, `void` elsewhere, anything else `event.handlerResultIgnored`);
+ * `when` → `hooks.when`; a runnable step's `idempotent` → `idempotent: true` (+ `hooks.idempotencyKey`
  * for the function form) and `mapError` → `hooks.mapError` (called with `(args.error, args)`);
  * the definition header's `on` / `correlate` → `def.on` / `def.correlate`.
  *
  * Warnings (never thrown; `compile(flow, { onWarning })`, reused by `inspect()`):
  * `UNREACHABLE` (no path from `start`), `NEVER_ACTIVATES` (`dependsOn` but no incoming edge),
  * `NAV_CYCLE` (a cycle through static `next` / `timeout.next` edges — allowed, reported).
- * Dynamic `next` functions may target any step, so a reachable dynamic step silences the
- * reachability analysis.
+ * Dynamic `next` functions require declared targets, which bound reachability analysis.
  *
  * Flow-step mappers (`context`, `deps`) are compiled RAW: the executor / child bridge parse
  * their values through the child's boundaries exactly once, at child creation.
  *
- * Results are cached per `Flow` object (`defineFlow().steps()` compiles eagerly, so
- * `createRun` never compiles twice).
+ * Results are cached per flow object. Wizard assembly compiles eagerly.
  *
  * @packageDocumentation
  */
@@ -44,7 +39,13 @@ import { describeName } from './shared'
  * @public
  */
 export interface FlowWarning {
-  readonly code: 'UNREACHABLE' | 'NEVER_ACTIVATES' | 'NAV_CYCLE'
+  readonly code:
+    | 'UNREACHABLE'
+    | 'NEVER_ACTIVATES'
+    | 'NAV_CYCLE'
+    | 'EXCLUSIVE_JOIN'
+    | 'MULTIPLE_SINKS'
+    | 'NO_SINKS'
   readonly message: string
   /** Step the warning is about. */
   readonly step?: string

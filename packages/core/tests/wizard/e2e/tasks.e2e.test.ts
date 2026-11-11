@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { final, flow, guard, task } from '../../helpers/fixtures'
+import { flow, guard, routingStep, runStep } from '../../helpers/fixtures'
 import { e2e, tick } from './harness'
 
 describe('e2e tasks: retry, timeout, retry command', () => {
@@ -15,7 +15,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       name: 'retry',
       start: 't',
       steps: {
-        t: task({
+        t: runStep({
           run: async ({ attempt }) => {
             calls += 1
             if (attempt === 1) throw new Error('flaky')
@@ -24,7 +24,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
           retry: { attempts: 3, backoff: 100 },
           next: 'end',
         }),
-        end: final(),
+        end: routingStep(),
       },
     })
     const t = e2e(def, { now: 50_000 })
@@ -65,7 +65,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       name: 'halt',
       start: 't',
       steps: {
-        t: task({
+        t: runStep({
           run: async () => {
             if (fail) throw new Error('down')
             return 'up'
@@ -73,7 +73,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
           retry: { attempts: 1, backoff: 10 },
           next: 'end',
         }),
-        end: final(),
+        end: routingStep(),
       },
     })
     const t = e2e(def)
@@ -86,10 +86,10 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       [2, false],
     ])
     expect(t.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'run', message: 'down' } })
-    expect(t.run.getState().status).toBe('failed')
-    expect(t.types()).toContain('flow.failed')
-    // Recoverable halt-failure: only retry/cancel/compensate are accepted.
-    expect(await t.run.next()).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
+    expect(t.run.getState().status).toBe('halted')
+    expect(t.types()).toContain('flow.halted')
+    // A halted run accepts recovery commands only.
+    expect(await t.run.next()).toMatchObject({ ok: false, code: 'FLOW_HALTED' })
     fail = false
     const retried = t.run.retry('t')
     // The retry command commits synchronously (runStarted); the async run lands later.
@@ -108,7 +108,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       name: 'timeout',
       start: 't',
       steps: {
-        t: task({
+        t: runStep({
           run: ({ signal }) => {
             signals.push(signal)
             return hang ? new Promise(() => {}) : Promise.resolve('fast')
@@ -116,7 +116,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
           timeoutMs: 500,
           next: 'end',
         }),
-        end: final(),
+        end: routingStep(),
       },
     })
     const t = e2e(def)
@@ -131,7 +131,7 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       timedOut: true,
     })
     expect(t.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'timeout' } })
-    expect(t.run.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('halted')
     hang = false
     expect(await t.run.retry('t')).toMatchObject({ ok: true })
     await tick()
@@ -145,12 +145,12 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       name: 'output',
       start: 't',
       steps: {
-        t: task({
+        t: runStep({
           run: () => ({ id: 42 }),
           output: guard((v) => typeof (v as any)?.id === 'string', 'id must be a string'),
           next: 'end',
         }),
-        end: final(),
+        end: routingStep(),
       },
     })
     const t = e2e(def)
@@ -160,6 +160,6 @@ describe('e2e tasks: retry, timeout, retry command', () => {
       error: { kind: 'run', name: 'BoundaryRejection' },
     })
     expect(t.of('step.runFailed')[0]?.error.message).toContain('id must be a string')
-    expect(t.run.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('halted')
   })
 })

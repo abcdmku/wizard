@@ -14,6 +14,9 @@ export const workflowTables = defineSqliteDurableSchema()
 
 Export the tables from your Drizzle schema, run your normal migration, then create the store with your database connection.
 
+Pass the store to `createDurableHost(wizard, { store })`. Import `DurableStore`, `Version`, and
+other adapter protocol types from `@openwizard/durable/store`.
+
 Read the [Drizzle storage guide](../docs/pages/packages/drizzle.mdx).
 
 ## Exports
@@ -26,24 +29,24 @@ Read the [Drizzle storage guide](../docs/pages/packages/drizzle.mdx).
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `DrizzleDurableStoreOptions` | interface | Options shared by the Drizzle durable-store adapters. | [src](../../packages/drizzle/src/store.ts#L23) |
+| `DrizzleDurableStoreOptions` | interface | Options shared by the Drizzle durable-store adapters. | [src](../../packages/drizzle/src/store-types.ts#L12) |
 
 ### `@openwizard/drizzle/pg`
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
 | `createPgDrizzleDurableStore` | function | Adapt a PostgreSQL Drizzle database to the OpenWizard `DurableStore` port. | [src](../../packages/drizzle/src/pg.ts#L103) |
-| `definePgDurableSchema` | function | Create PostgreSQL Drizzle tables for durable coordination. | [src](../../packages/drizzle/src/pg.ts#L35) |
+| `definePgDurableSchema` | function | Create PostgreSQL Drizzle tables for durable coordination. | [src](../../packages/drizzle/src/pg.ts#L36) |
 | `PgDurableSchema` | type | PostgreSQL tables returned by `definePgDurableSchema`. | [src](../../packages/drizzle/src/pg.ts#L94) |
-| `PgDurableSchemaOptions` | interface | Controls the table names created by `definePgDurableSchema`. | [src](../../packages/drizzle/src/pg.ts#L23) |
+| `PgDurableSchemaOptions` | interface | Controls the table names created by `definePgDurableSchema`. | [src](../../packages/drizzle/src/pg.ts#L24) |
 
 ### `@openwizard/drizzle/sqlite`
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `createSqliteDrizzleDurableStore` | function | Adapt an asynchronous SQLite Drizzle database to the OpenWizard | [src](../../packages/drizzle/src/sqlite.ts#L105) |
+| `createSqliteDrizzleDurableStore` | function | Adapt an asynchronous SQLite Drizzle database to the OpenWizard | [src](../../packages/drizzle/src/sqlite.ts#L104) |
 | `defineSqliteDurableSchema` | function | Create SQLite Drizzle tables for durable coordination. | [src](../../packages/drizzle/src/sqlite.ts#L34) |
-| `SqliteDurableSchema` | type | SQLite tables returned by `defineSqliteDurableSchema`. | [src](../../packages/drizzle/src/sqlite.ts#L93) |
+| `SqliteDurableSchema` | type | SQLite tables returned by `defineSqliteDurableSchema`. | [src](../../packages/drizzle/src/sqlite.ts#L92) |
 | `SqliteDurableSchemaOptions` | interface | Controls the table names created by `defineSqliteDurableSchema`. | [src](../../packages/drizzle/src/sqlite.ts#L22) |
 
 <!-- exports:end -->

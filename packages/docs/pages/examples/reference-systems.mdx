@@ -1,0 +1,55 @@
+# Reference systems
+
+Four independent local demos, each with its own README, seed, and drill commands. The credentials below only work against these development stacks.
+
+## Fixed local endpoints
+
+| System | Browser | API | Other host ports |
+|---|---|---|---|
+| [Grant intake](https://github.com/abcdmku/wizard/blob/main/systems/01-intake/README.md) | `http://127.0.0.1:4300` | `http://127.0.0.1:4310` | worker health `4320`; Postgres `5432` |
+| [Fleet dispatch](https://github.com/abcdmku/wizard/blob/main/systems/02-fleet/README.md) | `http://127.0.0.1:3000` | `http://127.0.0.1:8787` | Postgres `5432` |
+| [Fulfillment](https://github.com/abcdmku/wizard/blob/main/systems/03-fulfillment/README.md) | `http://localhost:4500` | orchestrator `http://localhost:4510` | partner `4520`; Postgres `5435`; LocalStack `4566` |
+| [Dungeon](https://github.com/abcdmku/wizard/blob/main/systems/04-dungeon/README.md) | `http://localhost:4400` | `http://localhost:4410` | Postgres `5432` |
+
+Intake, Fleet, and Dungeon all default to Postgres on `5432`. Run one Compose stack at a time or override the documented port variables.
+
+## Grant intake
+
+Direct API requests need the bearer token and `X-Tenant-Id: demo-grants`. Browser routes: `/`, `/apply/:applicationId`, `/apply/:applicationId/:step`, `/reviewer`, `/reviewer/:applicationId`.
+
+| Role | Bearer token |
+|---|---|
+| Applicant | `intake-applicant-demo` |
+| Reviewer | `intake-reviewer-demo` |
+
+## Fleet dispatch
+
+The bearer token selects the account; there is no tenant field.
+
+| Account | Bearer token |
+|---|---|
+| Lakeshore dispatcher | `fleet-demo-lakeshore` |
+| Lakeshore manager | `fleet-demo-lakeshore-manager` |
+| Lakeshore simulator | `fleet-demo-lakeshore-simulator` |
+| Redwood dispatcher | `fleet-demo-redwood` |
+| Seed administrator | `fleet-demo-seed` |
+
+## Fulfillment
+
+| Role and tenant | Bearer token |
+|---|---|
+| Acme customer Alice | `customer-acme` |
+| Acme operator Olivia | `operator-acme` |
+| Globex customer Gary | `customer-globex` |
+| Globex operator Gabriel | `operator-globex` |
+
+Tenant-isolation drill: as `operator-globex`, the order list must omit Acme orders and an Acme order detail request must return `404`.
+
+## Dungeon
+
+No static player token. Run `pnpm seed` from `systems/04-dungeon`; it seeds party `starter-party` and prints signed browser URLs that expire after ten minutes.
+
+| Player id | Name |
+|---|---|
+| `player-one` | Mira |
+| `player-two` | Tarin |

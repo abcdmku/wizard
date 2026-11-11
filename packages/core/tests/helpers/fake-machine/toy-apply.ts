@@ -192,12 +192,17 @@ export function toyApply(env: MachineEnv, S: WizardState, ev: DomainEvent): Wiza
   const active = Object.values(next.steps)
     .filter((r) => r.status === 'active')
     .map((r) => r.id)
-  const status = terminal ?? (TERMINAL.has(S.status) ? S.status : deriveStatus(next, active))
+  const status = terminal ?? (TERMINAL.has(S.status) ? S.status : deriveStatus(env, next, active))
   return { ...next, active, status, seq: ev.seq, updatedAt: ev.at }
 }
 
-function deriveStatus(S: WizardState, active: readonly string[]): RunStatus {
-  if (active.some((id) => ['task', 'decision', 'flow'].includes(S.steps[id]!.kind)))
+function deriveStatus(env: MachineEnv, S: WizardState, active: readonly string[]): RunStatus {
+  if (
+    active.some((id) => {
+      const step = env.def.steps[id]
+      return step?.kind === 'flow' || (step?.kind === 'step' && step.hooks.waitFor === undefined)
+    })
+  )
     return 'running'
   if (active.length > 0) return 'waiting'
   return S.startedAt === null ? 'idle' : 'waiting'

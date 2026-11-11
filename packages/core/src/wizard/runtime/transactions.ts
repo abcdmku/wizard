@@ -15,7 +15,7 @@ export type TxOutcome =
   | {
       readonly kind: 'committed'
       readonly from: string | null
-      readonly to: string
+      readonly to: string | null
       readonly seq: number
     }
   | {

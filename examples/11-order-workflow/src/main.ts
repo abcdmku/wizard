@@ -3,7 +3,7 @@
  * An order reserves inventory, charges the customer, requests fulfilment, then receives the
  * typed `shipment.ready` webhook. The scheduler is virtual so this demo never waits 24 hours.
  */
-import { createMemoryStore, createRun, type FlowRun } from '@openwizard/core'
+import { createMemoryStore, type Run } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { type Deps, orderWorkflowFlow } from './order-workflow'
 
@@ -40,19 +40,21 @@ const deps: Deps = {
   },
 }
 
-const run: FlowRun<typeof orderWorkflowFlow> = createRun(orderWorkflowFlow, {
-  context: {
+const run: Run<typeof orderWorkflowFlow> = orderWorkflowFlow.create(
+  {
     orderId,
     lines: [{ sku: 'book-1', quantity: 2 }],
     total: 42,
   },
-  deps,
-  instanceId: `order-${orderId}`,
-  correlationId: orderId,
-  store,
-  key,
-  scheduler,
-})
+  {
+    deps,
+    instanceId: `order-${orderId}`,
+    correlationId: orderId,
+    store,
+    key,
+    scheduler,
+  },
+)
 
 run.observe((event) => {
   if (event.type === 'step.runStarted')

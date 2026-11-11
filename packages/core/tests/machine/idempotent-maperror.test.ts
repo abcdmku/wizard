@@ -3,7 +3,7 @@
  * plus a `replay(log) == state` fixture exercising the new events. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, of, replay, task, view } from '../helpers/fixtures'
+import { createHarness, flow, of, replay, routingStep, runStep, view } from '../helpers/fixtures'
 
 const key = () => 'k'
 const map = () => ({})
@@ -14,9 +14,9 @@ describe('idempotent tasks', () => {
       flow({
         start: ['a', 'b'],
         steps: {
-          a: task({ idempotent: true, retry: { attempts: 2, backoff: 10 }, next: 'end' }),
-          b: task({ next: 'end' }),
-          end: final({ dependsOn: ['a', 'b'] }),
+          a: runStep({ idempotent: true, retry: { attempts: 2, backoff: 10 }, next: 'end' }),
+          b: runStep({ next: 'end' }),
+          end: routingStep({ dependsOn: ['a', 'b'] }),
         },
       }),
     )
@@ -27,7 +27,7 @@ describe('idempotent tasks', () => {
     h.fire('retry:a')
     expect(h.rec('a')).toMatchObject({ attempt: 2, idempotencyKey: 'inst-1:a:1' })
     const r = h.step({ type: 'resume', fromSeq: h.state.seq })
-    expect(r.types).toEqual(['flow.resumed', 'step.runStarted', 'step.failed', 'flow.failed'])
+    expect(r.types).toEqual(['flow.resumed', 'step.runStarted', 'step.failed', 'flow.halted'])
     expect(of(r, 'flow.resumed')[0]?.interrupted).toEqual(['a', 'b'])
     expect(of(r, 'step.runStarted')[0]).toEqual(
       expect.objectContaining({
@@ -55,13 +55,13 @@ describe('idempotent tasks', () => {
       flow({
         start: 't',
         steps: {
-          t: task({
+          t: runStep({
             idempotent: true,
             idempotencyKey: key,
             retry: { attempts: 1, backoff: 5 },
             next: 'end',
           }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -108,7 +108,7 @@ describe('idempotent tasks', () => {
     const h = createHarness(
       flow({
         start: 't',
-        steps: { t: task({ idempotencyKey: key, next: 'end' }), end: final() },
+        steps: { t: runStep({ idempotencyKey: key, next: 'end' }), end: routingStep() },
       }),
     )
     h.start()
@@ -117,7 +117,7 @@ describe('idempotent tasks', () => {
     )
     const g = createHarness(h.def)
     g.start()
-    expect(g.err(g.call('idempotencyKey'), 'no key').types).toEqual(['step.failed', 'flow.failed'])
+    expect(g.err(g.call('idempotencyKey'), 'no key').types).toEqual(['step.failed', 'flow.halted'])
   })
 })
 
@@ -127,8 +127,8 @@ describe('mapError', () => {
       flow({
         start: 't',
         steps: {
-          t: task({ mapError: map, retry: { attempts: 1, backoff: 100 }, next: 'end' }),
-          end: final(),
+          t: runStep({ mapError: map, retry: { attempts: 1, backoff: 100 }, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
@@ -158,7 +158,7 @@ describe('mapError', () => {
     const m2 = h.call('mapError', 't')
     expect(m2.extra).toMatchObject({ timedOut: true, attempt: 2 })
     const failed = h.ok(m2, { retryable: false })
-    expect(failed.types).toEqual(['step.runFailed', 'step.failed', 'flow.failed'])
+    expect(failed.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
     expect(of(failed, 'step.failed')[0]).toMatchObject({
       kind: 'timeout',
       data: { retryable: false },
@@ -173,12 +173,15 @@ describe('mapError', () => {
 
   it('a throwing mapError yields no data (the original failure is recorded); a cancel while mapping ignores the map result', () => {
     const h = createHarness(
-      flow({ start: 't', steps: { t: task({ mapError: map, next: 'end' }), end: final() } }),
+      flow({
+        start: 't',
+        steps: { t: runStep({ mapError: map, next: 'end' }), end: routingStep() },
+      }),
     )
     h.start()
     h.err(h.call('run'), 'boom')
     const r = h.err(h.call('mapError'), 'mapper bug')
-    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'flow.failed'])
+    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
     expect(of(r, 'step.failed')[0]).toMatchObject({ error: { message: 'boom' } })
     expect(of(r, 'step.failed')[0]).not.toHaveProperty('data')
     expect(h.rec('t').error).not.toHaveProperty('data')
@@ -205,7 +208,7 @@ describe('replay(log) == state — v0.2 fixture', () => {
         steps: {
           a: view({ on: { hint: on }, next: ['opt', 'work'] }),
           opt: view({ when: () => false, next: 'join' }),
-          work: task({
+          work: runStep({
             idempotent: true,
             idempotencyKey: () => 'w',
             mapError: () => ({ mapped: true }),
@@ -213,9 +216,9 @@ describe('replay(log) == state — v0.2 fixture', () => {
             on: { progress: on },
             next: 'join',
           }),
-          join: task({ dependsOn: ['opt', 'work'], next: 'b' }),
+          join: runStep({ dependsOn: ['opt', 'work'], next: 'b' }),
           b: view({ dependsOn: ['join'], next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
       { correlationId: 'me' },

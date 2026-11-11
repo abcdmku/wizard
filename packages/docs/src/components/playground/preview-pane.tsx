@@ -121,7 +121,7 @@ export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
         <StatusLabel snapshot={snapshot} />
         {snapshot.runs.length > 1 && (
           <select
-            aria-label="FlowRun"
+            aria-label="Run"
             value={handle?.label ?? ''}
             onChange={(event) => setSelectedRun(event.target.value)}
             className="rounded border border-neutral-200 bg-transparent px-1 py-0.5 font-mono text-[11px] text-neutral-700 dark:border-neutral-700 dark:text-neutral-300"

@@ -1,5 +1,5 @@
 /**
- * `@openwizard/effect` — optional Effect 3.22.1 task adapters over a FlowRun.
+ * `@openwizard/effect` - Effect 4.0.0-beta.107 hooks bound to a caller-owned runtime.
  * @module @openwizard/effect
  */
 export * from '@openwizard/effect'

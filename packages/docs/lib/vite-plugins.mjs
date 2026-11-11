@@ -96,6 +96,14 @@ export function monacoLibsPlugin(docsRoot) {
           readFileSync(join(coreDist, 'dist', 'index.d.ts'), 'utf8'),
         ],
         [
+          'file:///node_modules/@openwizard/core/inspect.d.ts',
+          readFileSync(join(coreDist, 'dist', 'inspect.d.ts'), 'utf8'),
+        ],
+        [
+          'file:///node_modules/@openwizard/core/mirror.d.ts',
+          readFileSync(join(coreDist, 'dist', 'mirror.d.ts'), 'utf8'),
+        ],
+        [
           'file:///node_modules/@openwizard/core/testing.d.ts',
           readFileSync(join(coreDist, 'dist', 'testing.d.ts'), 'utf8'),
         ],

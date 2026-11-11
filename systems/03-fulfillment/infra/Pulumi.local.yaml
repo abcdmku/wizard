@@ -1,0 +1,9 @@
+config:
+  aws:region: us-east-1
+  openwizard-fulfillment:partnerApiBaseUrl: http://partner-api:3002
+  openwizard-fulfillment:orchestrationCallbackUrl: http://orchestrator:3001/api/webhooks/partner
+  openwizard-fulfillment:partnerWebhookSecret: local-partner-webhook-secret
+  openwizard-fulfillment:requestTimeoutMilliseconds: 8000
+  openwizard-fulfillment:lambdaTimeoutSeconds: 15
+  openwizard-fulfillment:queueVisibilityTimeoutSeconds: 120
+  openwizard-fulfillment:maxReceiveCount: 5

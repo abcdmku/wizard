@@ -1,6 +1,9 @@
 packages:
   - packages/*
   - examples/*
+  - systems/*
+  - systems/*/*
+  - systems/*/*/*
 
 onlyBuiltDependencies:
   - esbuild

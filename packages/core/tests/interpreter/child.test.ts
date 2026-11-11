@@ -121,8 +121,8 @@ const childDef = (run: () => unknown = () => 'child-out') =>
   flow({
     name: 'child',
     steps: {
-      t: { kind: 'task', hooks: { run }, next: { kind: 'static', targets: ['cend'] } },
-      cend: { kind: 'final' },
+      t: { kind: 'step', hooks: { run }, next: { kind: 'static', targets: ['cend'] } },
+      cend: { kind: 'step', hooks: { run: () => undefined } },
     },
   })
 
@@ -131,7 +131,7 @@ const parentDef = (child: CompiledFlow, extraSteps: Record<string, any> = {}) =>
     name: 'parent',
     steps: {
       f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] }, ...extraSteps.f },
-      end: { kind: 'final' },
+      end: { kind: 'step', hooks: { run: () => undefined } },
     },
   })
 
@@ -151,6 +151,8 @@ describe('child bridge', () => {
       'step.done',
       'step.arrived',
       'step.entered',
+      'step.runStarted',
+      'step.runSucceeded',
       'step.done',
       'flow.done',
     ])
@@ -226,11 +228,11 @@ describe('child bridge', () => {
       name: 'child',
       steps: {
         w: {
-          kind: 'wait',
-          hooks: { on: { ping: ({ payload }: any) => ({ done: { got: payload } }) } },
+          kind: 'step',
+          hooks: { waitFor: { ping: ({ payload }: any) => ({ done: { got: payload } }) } },
           next: { kind: 'static', targets: ['cend'] },
         },
-        cend: { kind: 'final' },
+        cend: { kind: 'step', hooks: { run: () => undefined } },
       },
     })
     const { interp } = setup(

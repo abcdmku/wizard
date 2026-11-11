@@ -42,7 +42,7 @@ const twoViews = (extra: Record<string, any> = {}) =>
     steps: {
       a: { kind: 'view', next: { kind: 'static', targets: ['b'] }, ...extra.a },
       b: { kind: 'view', next: { kind: 'static', targets: ['end'] }, ...extra.b },
-      end: { kind: 'final' },
+      end: { kind: 'step' },
     },
   })
 
@@ -72,20 +72,25 @@ describe('run runtime: dispatch result mapping', () => {
     const { run } = make(twoViews())
     await run.start()
     const r = await run.retry('a')
-    expect(r).toEqual({ ok: false, code: 'NOT_A_TASK', message: 'not a failed task', step: 'a' })
+    expect(r).toEqual({
+      ok: false,
+      code: 'NOT_RUNNABLE',
+      message: 'not a failed runnable step',
+      step: 'a',
+    })
     // Unknown codes degrade to INVALID_COMMAND.
     const custom = make(
       twoViews(),
       {},
       {
         decide: (_e, _s, msg) =>
-          msg.type === 'runReady'
+          msg.type === 'startReady'
             ? [{ type: 'command.rejected', command: msg, reason: 'nope', code: 'WHATEVER' }]
             : undefined,
       },
     )
     await custom.run.start()
-    expect(await custom.run.runReady()).toEqual({
+    expect(await custom.run.startReady()).toEqual({
       ok: false,
       code: 'INVALID_COMMAND',
       message: 'nope',
@@ -95,7 +100,7 @@ describe('run runtime: dispatch result mapping', () => {
   it('a message the machine ignores resolves { ok: true } with the current seq', async () => {
     const { run } = make(twoViews())
     await run.start()
-    expect(await run.runReady()).toEqual({ ok: true, seq: 3 })
+    expect(await run.startReady()).toEqual({ ok: true, seq: 3 })
     expect(await run.compensate({ reason: 'x' })).toEqual({ ok: true, seq: 3 })
   })
 
@@ -206,11 +211,11 @@ describe('run runtime: external events', () => {
       policies: { unmatchedEvents: { buffer, ttlMs: 1_000 } },
       steps: {
         w: {
-          kind: 'wait',
-          hooks: { on: { ping: ({ payload }: any) => ({ done: { got: payload } }) } },
+          kind: 'step',
+          hooks: { waitFor: { ping: ({ payload }: any) => ({ done: { got: payload } }) } },
           next: { kind: 'static', targets: ['end'] },
         },
-        end: { kind: 'final' },
+        end: { kind: 'step' },
       },
     })
 
@@ -222,7 +227,7 @@ describe('run runtime: external events', () => {
       ok: false,
       reason: 'rejected',
       code: 'BOUNDARY_REJECTED',
-      message: 'payload rejected by the event boundary',
+      message: "the payload of 'ping' was rejected by its event boundary: id: id must be a string",
       issues: [{ message: 'id must be a string', path: ['id'] }],
     })
     expect(types(events)).toContain('event.rejected')
@@ -250,7 +255,7 @@ describe('run runtime: external events', () => {
       ok: false,
       reason: 'dropped',
       code: 'NOT_ACTIVE',
-      message: 'no-listener',
+      message: "no step is waiting for 'other' and unmatched events are not buffered",
     })
     await expect(run.send('unknown', {})).rejects.toBeInstanceOf(WizardError)
     await expect(run.send('unknown', {})).rejects.toMatchObject({ code: 'UNKNOWN_EVENT' })

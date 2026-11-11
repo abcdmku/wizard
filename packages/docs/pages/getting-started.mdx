@@ -1,77 +1,103 @@
-# Getting started
+# Build a wizard
 
-OpenWizard is useful when a job has named stages and you need to know which stage is active. A signup might collect an email, create an account, and send a confirmation. An order might wait for payment before it ships.
+OpenWizard runs a typed graph of steps. A step can collect input, run work, wait for an event or a timer, choose a branch, or run a child wizard. A run keeps its context, outputs, drafts, and deadlines while execution pauses.
 
-This page starts with a one-step flow so you can see the basic API without database or HTTP code getting in the way. The flow takes a name and returns a greeting.
+The [core API reference](/api/core) lists options. The [production guides](/advanced) explain persistence and hosting.
 
 ## Install
 
-You need Node.js 20 or newer.
-
 ```sh
 npm install @openwizard/core zod
-npm install --save-dev tsx typescript
 ```
 
-`@openwizard/core` is the runtime. Zod checks data that enters the flow. `tsx` runs the TypeScript example without a separate build step.
+Core runs in browsers and server JavaScript runtimes with timers, promises, and `AbortController`. Repository tooling requires Node.js 20 or newer. Zod is optional; any Standard Schema validator works.
 
-OpenWizard accepts any [Standard Schema](https://standardschema.dev/) library. The examples use Zod because its schemas are short and familiar.
+## Define and execute
 
-## Define a flow
-
-Create `src/hello-flow.ts`:
-
-```ts file="examples/01-happy-path/src/hello-flow.ts"
+```ts file="packages/docs/snippets/learn/factory.ts"
 ```
 
-Read the definition from the outside in:
+`defineWizard(options, build)` calls the builder once. The callback creates steps, then returns `steps(map, { start? })` to check references against the assembled map. Schemas infer context and input; functions infer step outputs. The first step starts by default.
 
-1. `context` describes the data every step may read. This flow requires one string named `name`.
-2. `defineFlow()` creates a builder whose step functions know that context type.
-3. `hello.steps()` gives every step an id. This flow has one step named `done`.
-4. `hello.final()` ends the run. Its `output` function creates the value returned to the caller.
+The returned Wizard is the definition itself. Pass it directly to `inspect(wizard)`, `defineProjection(wizard, ...)`, `createHTTP(wizard, ...)`, or a durable host. Every call to `wizard.create(input)` produces independent run state.
 
-The definition is inert. Importing this file does not create timers, call services, or start the `done` step.
+`runSync` returns a discriminated outcome and disposes its run. Check `status` before reading `output`. If a callback returns a promise or execution needs a timer, it throws `SYNC_VIOLATION` with the step name.
 
-## Run it
+## Collect input
 
-Create `src/main.ts`:
-
-```ts file="examples/01-happy-path/src/main.ts"
+```ts file="packages/docs/snippets/learn/factory-form.ts"
 ```
 
-Run the file:
+`create(input)` validates starting context and returns an idle Run. `start()` enters `contact`. `setInput` merges a draft; `next()` validates it and follows the edge only after validation succeeds. Invalid input produces `ok: false` with issues.
 
-```sh
-npx tsx src/main.ts
+The view's `exit` receives parsed `output`. Here, `output.email` is a string and `update` commits it to context. `go`, `setInput`, and `child` accept only appropriate step IDs.
+
+Keep a live Run while a user edits input or a server waits for an event. Dispose it when its owner unmounts or shuts down. [React](/packages/react) supplies subscriptions without adding UI code to the definition.
+
+## Run work and supply services
+
+```ts file="packages/docs/snippets/learn/factory-services.ts"
 ```
 
-You should see:
+`step({ run, ...options })` infers the awaited return value. It accepts retry, timeout, compensation, error mapping, and fallback. The wizard's `output: ({ context }) => ...` selector computes its final result after work and exit hooks finish. This selector is synchronous.
 
-```text
-Hello, Ada!
+Put database clients and other services in `deps`. They never enter snapshots. `provide` returns a new Wizard and tracks the keys it supplies. Providing only `log` leaves `lookup` required. Providing both lets this example call `run` without a deps option.
+
+`DepsOf<typeof wizard>` describes all services hooks receive. `RequiredDepsOf<typeof providedWizard>` describes the services still required at creation. Provided services also reach child wizards, HTTP run creators, and durable hosts. Per-run deps can override a provided key.
+
+## Join typed outputs
+
+```ts file="packages/docs/snippets/recipes/parallel.ts"
 ```
 
-Here is what each call does:
+Create producers first, then refer to their step objects in `needs`. The join starts when both producers finish, even though neither declares a `next` edge to it. `needs.loadProfile` and `needs.loadOrders` have their producer's output types.
 
-1. `createRun()` checks `{ name: 'Ada' }` against the flow's context schema and creates one live run in the `idle` state.
-2. `start()` activates the first step. A final step runs immediately, so this run changes to `done`.
-3. `awaitResult()` returns the completed run's output, `Hello, Ada!`.
-4. `dispose()` releases resources owned by the live run, such as timers and listeners.
+These options answer different questions:
 
-## Why the flow and run are separate
+| Option | Meaning |
+|---|---|
+| `next` | Activate the named step or steps after this step finishes |
+| `dependsOn` | Gate a step that another edge already activated |
+| `needs` | Wait for typed producer data and activate the consumer |
 
-The flow definition is reusable. Your application can import `helloFlow` once and create a separate run for Ada, Lin, or any other request. Each run has its own context, state, output, and id.
+A plain need requires its producer's output. `{ any: [a, b] }` uses the first completed producer's output. `{ optional: a }` permits a skipped producer and supplies `undefined`. A skipped required need skips its consumer; an any need skips only if all alternatives skip. Read [graphs](/advanced/graphs) for branch joins and item maps.
 
-```ts
-const ada = createRun(helloFlow, { context: { name: 'Ada' } })
-const lin = createRun(helloFlow, { context: { name: 'Lin' } })
+## Compose wizards and step modules
+
+```ts file="packages/docs/snippets/learn/factory-composition.ts"
 ```
 
-Starting `ada` does not change `lin`. This separation matters as soon as several users can use the same workflow at the same time.
+A module is an ordinary function returning named steps. Spreading modules into the map checks references against the whole graph. Keep distinct keys; object spread overwrites duplicates.
 
-## What to read next
+Pass a child Wizard directly to `flow(child, { context })`. The child owns its context and output. The parent's `exit` receives the child output after the child finishes. Provided child services stay attached to the child. The parent must supply or map the child's remaining required services.
 
-Read [how a flow becomes a running workflow](/learn/mental-model) next. Then learn [how each step behaves](/learn/steps) and [how a view collects input](/learn/input).
+A dynamic `next` must declare `targets`. Unchosen targets become skipped, which lets joins distinguish an untaken branch from unfinished work. Use a separate `step({ waitFor })` before work that needs an event. A view or runnable step can use `on` for events delivered while it is active.
 
-If the hello flow feels too small to explain why OpenWizard exists, read [why the deep features matter](/advanced). It starts with crashes, duplicate requests, competing workers, early webhooks, compensation, and safe browser state.
+## Choose the execution boundary
+
+| Method | Behavior |
+|---|---|
+| `wizard.create(input, options?)` | Validate synchronous creation boundaries and return a live Run |
+| `wizard.createAsync(input, options?)` | Await creation boundary validation and return a live Run |
+| `wizard.runSync(input, options?)` | Return a synchronous outcome and dispose the run |
+| `wizard.run(input, options?)` | Return when terminal, halted, or parked on a view or external event, then dispose |
+| `wizard.resume(snapshot, options?)` | Restore a live Run with synchronous boundary validation |
+| `wizard.resumeAsync(snapshot, options?)` | Restore a live Run with asynchronous boundary validation |
+
+Async work functions work with `create`. `createAsync` is needed when creation boundaries validate asynchronously.
+
+Convenience execution returns `done`, `failed`, `cancelled`, `halted`, or `waiting`. Halted and waiting outcomes include a snapshot you can resume. Step failures are outcomes; invalid starting context and other API misuse can still throw.
+
+For a live Run, `whenIdle()` waits for the current drain, `awaitOutcome()` waits for the next terminal or parked state, and `awaitResult()` waits only for a terminal result. `awaitOutcome` keeps the Run alive. Pure sleeps and retry backoff keep async convenience execution going.
+
+`runSync` checks synchronous execution at runtime. TypeScript cannot prove that every nested callback or service is synchronous. It cannot undo an external side effect started before a callback returns a promise.
+
+## Keep private data at the host
+
+Import the same Wizard in browser tests, a UI, and a server. Inject platform-specific services at the host. Core opens no database connections.
+
+A snapshot contains context, drafts, outputs, and errors. Use a [projection](/advanced/projections) for a server-owned run's client state. Hook progress is transient, but its payload can still contain private data. Forward it only through explicit per-step progress exposure.
+
+The public constructors accept object configurations only. Assembly checks step references and needs cycles. Duplicate step objects and some identical-type reference mistakes still need runtime checks. Untrusted input still needs schemas even when TypeScript accepts a caller's type.
+
+Continue with [events](/learn/events), [failure handling](/learn/failures), or [save and resume](/learn/persistence).

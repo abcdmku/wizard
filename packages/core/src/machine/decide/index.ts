@@ -19,19 +19,18 @@ import type { Batch } from '../batch'
 import { createBatch, emit } from '../batch'
 import type { Command, EffectResult, InternalMessage, Message } from '../commands'
 import { isCommand } from '../commands'
-import type { DomainEventBody } from '../events'
+import { isDuplicateEvent } from '../event-ids'
+import type { TransitionRejectReason } from '../events'
 import { navBack, navGo, navNext, rejectNav } from '../nav'
 import { schedule } from '../scheduler'
-import { isTerminal } from '../selectors'
 import type { WizardState } from '../state'
-import type { MachineEnv } from '../types'
+import type { Decision, MachineEnv } from '../types'
 import { routeEvent } from '../wait'
 import { onChildResult } from './child'
 import {
   cmdCancel,
   cmdChild,
   cmdCompensate,
-  cmdInput,
   cmdInvalidate,
   cmdReset,
   cmdRetry,
@@ -39,34 +38,61 @@ import {
   cmdSkip,
   cmdStart,
   gate,
+  type RejectCode,
   reject,
 } from './commands'
+import { cmdInput, onContextPatch } from './input'
 import { onResult } from './results'
-import { onResume, onTimerFired } from './timers-resume'
+import { onSettle } from './settle'
+import { fireOverdue, onResume, onTimerFired } from './timers-resume'
 
-export function decide(
-  env: MachineEnv,
-  state: WizardState,
-  msg: Message,
-): readonly DomainEventBody[] {
-  const b = createBatch(env, state)
+export function decide(env: MachineEnv, state: WizardState, msg: Message): Decision {
+  const b = createBatch(env, state, isHopBoundary(msg))
   if (isCommand(msg)) decideCommand(b, msg)
   else decideInternal(b, msg)
-  return b.events
+  return { events: b.events, state: b.state, at: b.at }
+}
+
+const NAV_REJECT: Partial<Record<RejectCode, TransitionRejectReason>> = {
+  FLOW_NOT_STARTED: 'flow-not-started',
+  FLOW_COMPENSATING: 'flow-compensating',
+  FLOW_HALTED: 'flow-halted',
+}
+
+/**
+ * An asynchronously settled hook or child flow restarts the auto-advance hop guard (external
+ * messages reset it in `apply`).
+ */
+function isHopBoundary(msg: Message): boolean {
+  return (
+    (msg.type === 'res.ok' || msg.type === 'res.err' || msg.type === 'res.child') &&
+    msg.async === true
+  )
+}
+
+/**
+ * `send`: wait timeouts and retries already due fire first (D9: deadlines are absolute, also
+ * across restarts), then the event is routed — unless those timers ended the run.
+ */
+function cmdSend(b: Batch, cmd: Extract<Command, { type: 'send' }>): void {
+  fireOverdue(b)
+  const code = gate(b, cmd)
+  if (code !== undefined) reject(b, cmd, code, code.toLowerCase().replace(/_/g, '-'))
+  else routeEvent(b, cmd)
 }
 
 function decideCommand(b: Batch, cmd: Command): void {
+  // A remembered delivery is a duplicate in every status (D8): it emits nothing.
+  if (
+    cmd.type === 'send' &&
+    cmd.eventId !== undefined &&
+    isDuplicateEvent(b.env, b.state, cmd.eventId)
+  )
+    return
   const code = gate(b, cmd)
   if (code !== undefined) {
     if (cmd.type === 'next' || cmd.type === 'go' || cmd.type === 'back') {
-      rejectNav(
-        b,
-        code === 'FLOW_NOT_STARTED'
-          ? 'flow-not-started'
-          : code === 'FLOW_COMPENSATING'
-            ? 'flow-compensating'
-            : 'flow-terminal',
-      )
+      rejectNav(b, NAV_REJECT[code] ?? 'flow-terminal')
     } else if (cmd.type === 'cancel' && b.state.status === 'compensating') {
       // no-op by design
     } else {
@@ -92,15 +118,15 @@ function decideCommand(b: Batch, cmd: Command): void {
       cmdInput(b, cmd)
       break
     case 'send':
-      routeEvent(b, cmd.event, cmd.payload, cmd.correlationId)
+      cmdSend(b, cmd)
       break
     case 'sendRejected':
       emit(b, { type: 'event.rejected', event: cmd.event, issues: cmd.issues })
       break
-    case 'run':
+    case 'startStep':
       cmdRun(b, cmd)
       break
-    case 'runReady':
+    case 'startReady':
       schedule(b, { force: true })
       break
     case 'retry':
@@ -142,12 +168,10 @@ function decideInternal(b: Batch, msg: EffectResult | InternalMessage): void {
       onTimerFired(b, msg.timerId)
       return
     case 'context.patch':
-      if (isTerminal(b.state)) return
-      emit(b, {
-        type: 'context.changed',
-        patch: msg.patch,
-        ...(msg.by !== undefined ? { by: msg.by } : {}),
-      })
+      onContextPatch(b, msg)
+      return
+    case 'settle':
+      onSettle(b)
       return
     case 'resume':
       onResume(b, msg.fromSeq)

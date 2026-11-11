@@ -1,9 +1,9 @@
 {
   "getting-started": "Getting started",
   "learn": { "title": "Learn" },
-  "advanced": { "title": "Advanced" },
+  "advanced": { "title": "Production" },
   "recipes": { "title": "Recipes" },
   "packages": { "title": "Packages" },
   "examples": { "title": "Examples" },
-  "api": { "title": "API lookup" }
+  "api": { "title": "API reference" }
 }

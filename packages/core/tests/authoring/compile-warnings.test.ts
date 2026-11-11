@@ -1,52 +1,34 @@
-/**
- * `compile()` — advisory warnings (reused by `inspect`) and nesting rules.
- */
 import { describe, expect, it } from 'vitest'
-import { boundary } from '../../src/authoring/boundary'
+import { z } from 'zod'
 import { compile, type FlowWarning } from '../../src/authoring/compile'
-import { defineFlow } from '../../src/authoring/define-flow'
 import type { AnyFlow } from '../../src/authoring/types'
 import { WizardError } from '../../src/errors'
+import { defineWizard } from '../../src/wizard/define-wizard'
+import { rawFlow, rawStep } from './helpers'
 
-/** Hand-build a Flow object (JS-caller shape) around raw step records. */
-function rawFlow(
-  steps: Record<string, Partial<CompiledStepLike>>,
-  extra: Record<string, unknown> = {},
-): AnyFlow {
-  return {
-    '~types': undefined,
-    name: 'raw',
-    context: boundary.trusted(),
-    steps: Object.fromEntries(
-      Object.entries(steps).map(([id, s]) => [
-        id,
-        { '~types': undefined, '~bound': undefined, ...s },
-      ]),
-    ),
-    ...extra,
-  } as unknown as AnyFlow
+function warningsOf(flow: AnyFlow): FlowWarning[] {
+  const warnings: FlowWarning[] = []
+  compile(flow, { onWarning: (warning) => warnings.push(warning) })
+  return warnings
 }
-type CompiledStepLike = Record<string, unknown> & { kind: string }
 
-describe('compile: warnings (advisory, reused by inspect)', () => {
-  const warn = defineFlow({ name: 'warn', context: boundary.trusted() })
-  const collect = (flow: AnyFlow): FlowWarning[] => {
-    const out: FlowWarning[] = []
-    compile(flow, { onWarning: (w) => out.push(w) })
-    return out
-  }
-
-  it('unreachable steps and dependsOn without incoming edges', () => {
-    const flow = warn.steps(
-      {
-        a: warn.view({ next: 'b' }),
-        b: warn.final(),
-        orphan: warn.view({ next: 'b' }),
-        gated: warn.task(async () => 1, { dependsOn: ['a'], next: 'b' }),
-      },
-      { start: 'a' },
+describe('graph warnings', () => {
+  it('distinguishes an unreachable step from a control gate that will never activate', () => {
+    const wizard = defineWizard(
+      { name: 'warnings', context: z.object({}) },
+      ({ step, view, steps }) =>
+        steps({
+          a: view({ input: z.string(), next: 'b' }),
+          b: step({ run: () => true }),
+          orphan: view({ input: z.string(), next: 'b' }),
+          gated: step({ run: () => 1, dependsOn: ['a'], next: 'b' }),
+        }),
     )
-    expect(collect(flow)).toEqual([
+    expect(
+      warningsOf(wizard).filter((warning) =>
+        ['UNREACHABLE', 'NEVER_ACTIVATES'].includes(warning.code),
+      ),
+    ).toEqual([
       {
         code: 'UNREACHABLE',
         message: "step 'orphan' is not reachable from start",
@@ -63,152 +45,138 @@ describe('compile: warnings (advisory, reused by inspect)', () => {
     ])
   })
 
-  it('timeout targets and fan-out count as edges; a reachable dynamic next silences the analysis', () => {
-    const edges = defineFlow({
-      name: 'edges',
-      context: boundary.trusted(),
-      events: { e: boundary.trusted() },
-    })
-    const flow = edges.steps({
-      w: edges.wait({
-        on: { e: () => {} },
-        timeout: { after: '1m', next: 'late' },
-        next: ['a', 'b'],
-      }),
-      a: edges.final(),
-      b: edges.final(),
-      late: edges.final(),
-    })
-    expect(collect(flow)).toEqual([])
-    const dyn = warn.steps({
-      d: warn.decision({ next: () => 'far' }),
-      far: warn.final(),
-      farther: warn.final(),
-    })
-    expect(collect(dyn)).toEqual([])
-    const dynUnreached = warn.steps({
-      a: warn.view({ next: 'b' }),
-      b: warn.final(),
-      d: warn.decision({ next: () => 'a' }),
-    })
-    expect(collect(dynUnreached).map((w) => w.step)).toEqual(['d'])
+  it('counts declared routing targets, fallbacks, timeouts and pull needs as reachable edges', () => {
+    const wizard = defineWizard(
+      { name: 'reachable', context: z.object({}), events: { ready: z.boolean() } },
+      ({ step, steps }) => {
+        const a = step({ run: () => 1, fallback: 'recover' })
+        const b = step({
+          waitFor: { ready: () => ({ done: true }) },
+          timeout: { after: '1m', next: 'late' },
+        })
+        return steps({
+          route: step({ next: () => [a, b], targets: [a, b] }),
+          a,
+          b,
+          join: step({ needs: { a, b }, run: () => 'joined' }),
+          recover: step({ run: () => 'recovered' }),
+          late: step({ run: () => 'late' }),
+          orphan: step({ run: () => 'orphan' }),
+        })
+      },
+    )
+    expect(
+      warningsOf(wizard)
+        .filter((warning) => ['UNREACHABLE', 'NEVER_ACTIVATES'].includes(warning.code))
+        .map((warning) => warning.step),
+    ).toEqual(['orphan'])
   })
 
-  it('navigation cycles through next / timeout.next are advisory NAV_CYCLE warnings (each cycle once)', () => {
-    const loops = defineFlow({
-      name: 'loops',
-      context: boundary.trusted(),
-      events: { e: boundary.trusted() },
-    })
-    const flow = loops.steps({
-      a: loops.view({ next: 'b' }),
-      b: loops.view({ next: ['a', 'w'] }), // a → b → a
-      w: loops.wait({ on: { e: () => {} }, timeout: { after: '1m', next: 'w' }, next: 'end' }), // w → w (timeout)
-      end: loops.final(),
-    })
-    expect(collect(flow)).toEqual([
+  it('permits navigation cycles and reports each cycle once', () => {
+    const wizard = defineWizard(
+      { name: 'loops', context: z.object({}), events: { ready: z.boolean() } },
+      ({ step, view, steps }) =>
+        steps({
+          a: view({ input: z.string(), next: 'b' }),
+          b: view({ input: z.string(), next: ['a', 'wait'] }),
+          wait: step({
+            waitFor: { ready: () => ({ done: true }) },
+            timeout: { after: '1m', next: 'wait' },
+            next: 'end',
+          }),
+          end: step({ run: () => true }),
+        }),
+    )
+    expect(warningsOf(wizard).filter((warning) => warning.code === 'NAV_CYCLE')).toEqual([
       {
         code: 'NAV_CYCLE',
         message:
-          'navigation cycle: a -> b -> a (allowed; make sure a guard, a decision or a wait breaks it)',
+          'navigation cycle: a -> b -> a (allowed; make sure a guard, next function, or external event breaks it)',
         step: 'a',
         path: [],
       },
       {
         code: 'NAV_CYCLE',
         message:
-          'navigation cycle: w -> w (allowed; make sure a guard, a decision or a wait breaks it)',
-        step: 'w',
+          'navigation cycle: wait -> wait (allowed; make sure a guard, next function, or external event breaks it)',
+        step: 'wait',
         path: [],
       },
     ])
-    // Cycles are allowed: the flow compiles and a plain chain has no warning.
-    expect(collect(warn.steps({ a: warn.view({ next: 'b' }), b: warn.final() }))).toEqual([])
   })
 
-  it('nested flows report warnings with their path; onWarning is replayed from the cache', () => {
-    const child = defineFlow({ name: 'child', context: boundary.trusted() })
-    const childFlow = child.steps({ a: child.final(), lost: child.final() })
-    const flow = warn.steps({
-      f: warn.flow(childFlow, { context: () => ({}), next: 'e' }),
-      e: warn.final(),
-    })
-    const first = collect(flow)
-    expect(first).toEqual([
+  it('keeps paths on nested warnings and replays warnings on a cached definition', () => {
+    const child = defineWizard({ name: 'child', context: z.object({}) }, ({ step, steps }) =>
+      steps({ a: step({ run: () => true }), lost: step({ run: () => false }) }),
+    )
+    const wizard = defineWizard({ name: 'parent', context: z.object({}) }, ({ flow, steps }) =>
+      steps({ child: flow(child, { context: () => ({}) }) }),
+    )
+    const unreachable = (flow: AnyFlow) =>
+      warningsOf(flow).filter((warning) => warning.code === 'UNREACHABLE')
+    const expected = [
       {
         code: 'UNREACHABLE',
         message: "step 'lost' is not reachable from start",
         step: 'lost',
-        path: ['f'],
+        path: ['child'],
       },
-    ])
-    expect(collect(flow)).toEqual(first)
+    ]
+    expect(unreachable(wizard)).toEqual(expected)
+    expect(unreachable(wizard)).toEqual(expected)
   })
 })
 
-describe('compile: nesting', () => {
-  it('rejects a flow embedding one of its ancestors (NESTING_CYCLE)', () => {
-    // A cycle can only be built by mutation after definition (warn.flow needs the child object).
+describe('nesting validation', () => {
+  it('collects a nesting cycle and independent sibling definition errors', () => {
+    const embedded = rawStep({ context: () => ({}) }, 'flow')
     const cyclic = rawFlow({
-      f: { kind: 'flow', child: undefined, context: () => ({}), next: 'e' },
-      e: { kind: 'final' },
+      bad: rawStep({ input: z.string(), next: 'missing' }, 'view'),
+      embedded,
+      sibling: rawStep(
+        { context: () => ({}) },
+        'flow',
+        rawFlow({ x: rawStep({ input: z.string(), next: 'ghost' }, 'view') }),
+      ),
     })
-    ;(cyclic.steps as unknown as Record<string, Record<string, unknown>>).f!.child = cyclic
+    embedded.child = cyclic
     try {
       compile(cyclic)
       expect.unreachable()
     } catch (error) {
-      expect((error as WizardError).code).toBe('NESTING_CYCLE')
-      expect((error as WizardError).step).toBe('f')
-    }
-  })
-
-  it('collects every problem of the tree before throwing: the nesting code wins, siblings are still reported', () => {
-    const cyclic = rawFlow({
-      bad: { kind: 'view', next: 'nope' },
-      f: { kind: 'flow', child: undefined, context: () => ({}), next: 'e' },
-      g: {
-        kind: 'flow',
-        child: rawFlow({ x: { kind: 'view', next: 'ghost' } }),
-        context: () => ({}),
-        next: 'e',
-      },
-      e: { kind: 'final' },
-    })
-    ;(cyclic.steps as unknown as Record<string, Record<string, unknown>>).f!.child = cyclic
-    try {
-      compile(cyclic)
-      expect.unreachable()
-    } catch (error) {
-      const e = error as WizardError
-      expect(e.code).toBe('NESTING_CYCLE')
-      expect(e.step).toBe('f')
-      expect(e.issues?.map((i) => i.message)).toEqual([
-        "step 'bad': next: unknown step 'nope'",
-        "flow 'raw' embeds one of its ancestors (at step 'f')",
-        "g: step 'x': next: unknown step 'ghost'",
+      expect(error).toBeInstanceOf(WizardError)
+      if (!(error instanceof WizardError)) throw error
+      expect(error.code).toBe('NESTING_CYCLE')
+      expect(error.step).toBe('embedded')
+      expect(error.issues?.map((issue) => issue.message)).toEqual([
+        "step 'bad': next: unknown step 'missing'",
+        "wizard 'raw' embeds one of its ancestors (at step 'embedded')",
+        "sibling: step 'x': next: unknown step 'ghost'",
       ])
     }
   })
 
-  it('allows 8 nested levels and rejects the 9th (NESTING_TOO_DEEP)', () => {
-    const leaf = defineFlow({ name: 'leaf', context: boundary.trusted() })
-    let current: AnyFlow = leaf.steps({ e: leaf.final() })
+  it('allows eight nesting levels and rejects the ninth', () => {
+    let current = rawFlow({ end: rawStep({ run: () => true }) }, { name: 'leaf' })
     for (let level = 1; level <= 8; level += 1) {
-      const levelFlow = defineFlow({ name: `level${level}`, context: boundary.trusted() })
-      current = levelFlow.steps({
-        c: levelFlow.flow(current, { context: () => ({}), next: 'e' }),
-        e: levelFlow.final(),
-      })
+      current = rawFlow(
+        { child: rawStep({ context: () => ({}) }, 'flow', current) },
+        { name: `level-${level}` },
+      )
     }
-    const nine = defineFlow({ name: 'nine', context: boundary.trusted() })
+    expect(() => compile(current)).not.toThrow()
+    const ninth = rawFlow(
+      { child: rawStep({ context: () => ({}) }, 'flow', current) },
+      { name: 'ninth' },
+    )
     try {
-      nine.steps({ c: nine.flow(current, { context: () => ({}), next: 'e' }), e: nine.final() })
+      compile(ninth)
       expect.unreachable()
     } catch (error) {
       expect(error).toBeInstanceOf(WizardError)
-      expect((error as WizardError).code).toBe('NESTING_TOO_DEEP')
-      expect((error as WizardError).message).toContain('c/c/c/c/c/c/c/c/c')
+      if (!(error instanceof WizardError)) throw error
+      expect(error.code).toBe('NESTING_TOO_DEEP')
+      expect(error.message).toContain('child/child/child/child/child/child/child/child/child')
     }
   })
 })

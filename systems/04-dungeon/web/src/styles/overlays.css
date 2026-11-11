@@ -1,0 +1,53 @@
+.loading-shell {
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgb(129 91 45 / 18%), transparent 28rem), #080a0e;
+}
+
+.dungeon-loading {
+  display: grid;
+  color: var(--muted);
+  text-align: center;
+  place-items: center;
+}
+
+.loading-rune {
+  display: grid;
+  width: 66px;
+  height: 66px;
+  color: #17120a;
+  border: 1px solid #f3d78f;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 40px rgb(227 188 104 / 26%);
+  font-family: Georgia, serif;
+  font-size: 2.2rem;
+  place-items: center;
+}
+
+.phase-curtain {
+  position: absolute;
+  z-index: 18;
+  top: 50%;
+  left: 50%;
+  padding: 1rem 1.4rem;
+  color: var(--gold);
+  font-family: Georgia, serif;
+  font-size: 1.4rem;
+  transform: translate(-50%, -50%);
+}
+
+.server-notice {
+  position: absolute;
+  z-index: 40;
+  right: 14px;
+  bottom: 78px;
+  max-width: min(360px, calc(100vw - 28px));
+  padding: 0.65rem 0.8rem;
+  color: #ffd3b2;
+  border: 1px solid #874f38;
+  border-radius: 7px;
+  background: rgb(37 18 15 / 94%);
+  box-shadow: 0 10px 30px #000;
+  font-size: 0.78rem;
+}

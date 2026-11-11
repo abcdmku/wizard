@@ -1,10 +1,10 @@
 /**
- * Scheduler (§3 / §4.1) — retry / backoff / timeout and `final` steps.
+ * Scheduler (§3 / §4.1), retry / backoff / timeout and sink completion.
  */
 import { describe, expect, it } from 'vitest'
 import type { Message } from '../../src/machine/commands'
 import { machine } from '../../src/machine/index'
-import { createHarness, final, flow, of, task, view } from '../helpers/fixtures'
+import { createHarness, flow, of, routingStep, runStep, view } from '../helpers/fixtures'
 
 const machineDecide = (h: ReturnType<typeof createHarness>, msg: Message) =>
   machine.decide(h.env, h.state, msg)
@@ -19,7 +19,7 @@ describe('retry / backoff / timeout', () => {
   }) =>
     flow({
       start: 't',
-      steps: { t: task({ retry, next: 'end' }), end: final() },
+      steps: { t: runStep({ retry, next: 'end' }), end: routingStep() },
     })
 
   it('exponential backoff: schedule attempts 2..N+1 at 200·2^(n-1) capped by maxBackoffMs, then fail', () => {
@@ -55,10 +55,10 @@ describe('retry / backoff / timeout', () => {
     expect(delays).toEqual([200, 400, 500])
     // attempt 4 fails for good
     const last = h.err(h.call('run', 't'), 'final failure')
-    expect(last.types).toEqual(['step.runFailed', 'step.failed', 'flow.failed'])
+    expect(last.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
     expect(of(last, 'step.runFailed')[0]?.willRetry).toBe(false)
     expect(h.rec('t')).toMatchObject({ status: 'failed', error: { kind: 'run', attempt: 4 } })
-    expect(h.state.status).toBe('failed')
+    expect(h.state.status).toBe('halted')
   })
 
   it('fixed and tuned exponential backoff (baseMs/factor); flow-level retry policy applies when the step has none', () => {
@@ -100,7 +100,7 @@ describe('retry / backoff / timeout', () => {
     const flowLevel = createHarness(
       flow({
         start: 't',
-        steps: { t: task({ next: 'end' }), end: final() },
+        steps: { t: runStep({ next: 'end' }), end: routingStep() },
         policies: { retry: { attempts: 1, backoff: 5 } },
       }),
     )
@@ -113,29 +113,32 @@ describe('retry / backoff / timeout', () => {
 
   it('no retry policy: the first failure fails the step; timedOut → kind timeout; timeoutMs is planned on the run call', () => {
     const h = createHarness(
-      flow({ start: 't', steps: { t: task({ timeoutMs: 50, next: 'end' }), end: final() } }),
+      flow({
+        start: 't',
+        steps: { t: runStep({ timeoutMs: 50, next: 'end' }), end: routingStep() },
+      }),
     )
     h.start()
     const call = h.call('run')
     expect(call.timeoutMs).toBe(50)
     const r = h.err(call, 'timed out', { timedOut: true })
-    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'flow.failed'])
+    expect(r.types).toEqual(['step.runFailed', 'step.failed', 'flow.halted'])
     expect(of(r, 'step.failed')[0]?.kind).toBe('timeout')
     expect(h.rec('t').error?.kind).toBe('timeout')
   })
 
   it('retry command re-runs a failed task with attempt 1 and the flow resumes; success clears failedStep', () => {
-    const h = createHarness(flow({ start: 't', steps: { t: task({ next: 'end' }), end: final() } }))
+    const h = createHarness(
+      flow({ start: 't', steps: { t: runStep({ next: 'end' }), end: routingStep() } }),
+    )
     h.start()
     h.err(h.call('run'), 'nope')
-    expect(h.state.status).toBe('failed')
-    // most commands are rejected while halted, retry is not
-    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('flow-terminal')
-    expect(of(h.cmd({ type: 'send', event: 'x', payload: 1 }), 'command.rejected')[0]?.code).toBe(
-      'FLOW_TERMINAL',
-    )
+    expect(h.state.status).toBe('halted')
+    // navigation and startReady are rejected while halted; recovery commands are not
+    expect(of(h.cmd('next'), 'transition.rejected')[0]?.reason).toBe('flow-halted')
+    expect(of(h.cmd('startReady'), 'command.rejected')[0]?.code).toBe('FLOW_HALTED')
     expect(of(h.cmd({ type: 'retry', step: 'end' }), 'command.rejected')[0]?.code).toBe(
-      'NOT_A_TASK',
+      'NOT_RUNNABLE',
     )
     const r = h.cmd({ type: 'retry', step: 't' })
     expect(r.types).toEqual(['step.runStarted'])
@@ -146,6 +149,7 @@ describe('retry / backoff / timeout', () => {
       'not-failed',
     )
     h.ok(h.call('run'), 'ok')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
   })
 
@@ -154,69 +158,73 @@ describe('retry / backoff / timeout', () => {
       flow({
         start: ['a', 'b'],
         steps: {
-          a: task({ next: 'c' }),
-          b: task({ next: 'c' }),
-          c: task({ dependsOn: ['a', 'b'], next: 'end' }),
-          end: final(),
+          a: runStep({ next: 'c' }),
+          b: runStep({ next: 'c' }),
+          c: runStep({ dependsOn: ['a', 'b'], next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
     h.start()
     h.err(h.call('run', 'a'), 'boom')
-    expect(h.state.status).toBe('failed')
+    expect(h.state.status).toBe('halted')
     // b still settles: its result is applied, its successor is arrived, nothing enters
     const r = h.ok(h.call('run', 'b'), 'fine')
     expect(r.types).toContain('step.done')
     expect(h.rec('b').status).toBe('done')
     expect(h.rec('c')).toMatchObject({ pendingActivation: true, status: 'idle' })
-    expect(h.state.status).toBe('failed')
+    expect(h.state.status).toBe('halted')
     // retry a → the flow resumes; when a completes, c (arrived, deps met) enters
     h.cmd({ type: 'retry', step: 'a' })
     expect(h.state.status).toBe('running')
     h.ok(h.call('run', 'a'), 'ok')
     expect(h.rec('c').status).toBe('active')
     h.ok(h.call('run', 'c'), 'ok')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
   })
 })
 
-describe('final', () => {
-  it('reaching a final cancels every other active step (running tasks, waiting views) before flow.done', () => {
+describe('sink completion', () => {
+  it('a completed sink leaves running tasks and waiting views active until all work drains', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
           a: view({ next: ['slow', 'v', 'end'] }),
-          slow: task(),
+          slow: runStep(),
           v: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
     h.start()
-    h.cmd('next') // slow runs, v is current, end is arrived but ends the flow → cancels
-    // NB: `end` is arrived by the fan-out too, so the flow finishes in this very batch:
-    const r = h.log.filter((e) => e.seq > 4)
-    const cancelled = of(r, 'step.cancelled')
-    expect(cancelled.map((c) => c.step).sort()).toEqual(['slow', 'v'])
-    expect(cancelled[0]?.reason).toBe('flow-done')
-    expect(r.slice(-2).map((e) => e.type)).toEqual(['step.done', 'flow.done'])
+    const r = h.cmd('next')
+    expect(h.rec('end').status).toBe('done')
+    expect(of(r, 'step.cancelled')).toEqual([])
+    expect(h.step({ type: 'settle' }).types).toEqual([])
+    expect(h.state.status).toBe('running')
+    expect(h.state.active).toEqual(['v', 'slow'])
+    expect(h.state.current).toBe('v')
+    expect(h.pending('run', 'slow')).toHaveLength(1)
+    h.cmd('next')
+    h.ok(h.call('run', 'slow'), 'finished')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(h.state.active).toEqual([])
     expect(h.state.current).toBeNull()
-    // slow was cancelled before its run was ever planned (same batch) → no pending run call
     expect(h.pending('run', 'slow')).toHaveLength(0)
   })
 
-  it('a late run result for a task cancelled by flow-done is ignored as cancelled', () => {
+  it('a sibling run result after a sink completed is accepted and can become the final output', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
           a: view({ next: ['slow', 'v'] }),
-          slow: task(),
+          slow: runStep(),
           v: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -224,31 +232,70 @@ describe('final', () => {
     h.cmd('next')
     const run = h.call('run', 'slow')
     const r = h.cmd('next')
-    expect(of(r, 'step.cancelled').map((c) => c.step)).toEqual(['slow'])
+    expect(of(r, 'step.cancelled')).toEqual([])
+    expect(h.rec('end').status).toBe('done')
+    expect(h.rec('slow').status).toBe('active')
+    expect(h.step({ type: 'settle' }).types).toEqual([])
+    expect(h.ok(run, 'late').types).toEqual(['step.runSucceeded', 'step.done'])
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
-    expect(h.ok(run, 'late').types).toEqual(['result.ignored'])
-    expect(of(h.log, 'result.ignored')[0]?.reason).toBe('cancelled')
+    expect(h.state.output).toBe('late')
+    expect(h.rec('slow').output).toBe('late')
   })
 
-  it('finalOutput hook: called after enter; its value becomes step output and flow output', () => {
+  it('a terminal run hook supplies the sink output after the interpreter drains', () => {
     const h = createHarness(
       flow({
         start: 't',
         steps: {
-          t: task({ next: 'end' }),
-          end: final({ output: () => ({ total: 1 }) }),
+          t: runStep({ next: 'end' }),
+          end: runStep({ run: () => ({ total: 1 }) }),
         },
       }),
     )
     h.start()
     h.ok(h.call('run'), 42)
     expect(h.state.status).toBe('running')
-    const fo = h.call('finalOutput')
-    expect(fo.token).toEqual({ step: 'end', runId: 1 })
+    const fo = h.call('run', 'end')
+    expect(fo.token).toEqual({ step: 'end', runId: 1, attempt: 1 })
     const r = h.ok(fo, { total: 1 })
-    expect(r.types).toEqual(['step.done', 'flow.done'])
+    expect(r.types).toEqual(['step.runSucceeded', 'step.done'])
+    const settled = h.step({ type: 'settle' })
+    expect(settled.types).toEqual(['flow.done'])
     expect(h.state.output).toEqual({ total: 1 })
     expect(h.rec('end').output).toEqual({ total: 1 })
-    expect(r.effects.at(-1)).toEqual({ kind: 'persist', reason: 'final' })
+    expect(settled.effects.at(-1)).toEqual({ kind: 'persist', reason: 'final' })
+  })
+})
+
+describe('retry jitter and patch (D12)', () => {
+  it('jitter shortens the backoff by a random share (the drawn due time is recorded)', () => {
+    const h = createHarness(
+      flow({
+        start: 't',
+        steps: { t: runStep({ retry: { attempts: 1, backoff: 1_000, jitter: 0.5 } }) },
+      }),
+    )
+    h.start()
+    // The harness draws 0.5: 1000 × (1 − 0.5 × 0.5).
+    const r = h.err(h.call('run'), 'flaky')
+    expect(of(r, 'step.retryScheduled')[0]?.dueAt).toBe(h.clock.now + 750)
+  })
+
+  it('retry(step, { patch }) merges the patch into the context before the step re-runs', () => {
+    const h = createHarness(flow({ start: 't', steps: { t: runStep() } }), {
+      context: { amount: 0, note: 'x' },
+    })
+    h.start()
+    h.err(h.call('run'), 'declined')
+    expect(
+      of(h.cmd({ type: 'retry', step: 't', patch: [] as never }), 'command.rejected')[0],
+    ).toMatchObject({
+      code: 'INVALID_COMMAND',
+      reason: 'invalid-patch',
+    })
+    const r = h.cmd({ type: 'retry', step: 't', patch: { amount: 5 } })
+    expect(r.types).toEqual(['context.changed', 'step.runStarted'])
+    expect(h.state.context).toEqual({ amount: 5, note: 'x' })
   })
 })

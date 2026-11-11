@@ -4,7 +4,7 @@
  * `explain()` (run) or the projected facts + a note (Mirror), the events / timeline tabs are
  * live for a run and say why not for a Mirror.
  */
-import { inspect } from '@openwizard/core'
+import { inspect } from '@openwizard/core/inspect'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Devtools } from '../src/devtools/Devtools'
@@ -54,7 +54,7 @@ describe('<Devtools source={run}>', () => {
     expect([...container.querySelectorAll('.owd-chip-reason')].map((c) => c.textContent)).toContain(
       'retrying',
     )
-    expect(fact(container, 'kind')).toBe('task')
+    expect(fact(container, 'kind')).toBe('step')
 
     // Events tab is live; the timeline shows the live state and can scrub back to seq 0.
     fireEvent.click(tab('Events'))

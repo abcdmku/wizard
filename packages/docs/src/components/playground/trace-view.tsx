@@ -39,7 +39,11 @@ export function TraceView({
 }) {
   const ref = useAutoScroll(trace.length)
   if (trace.length === 0) {
-    return <p className="p-4 font-mono text-xs text-neutral-500">No events yet. Press Run.</p>
+    return (
+      <p className="p-4 font-mono text-xs text-neutral-500">
+        No events yet. Use <code>wizard.create(...)</code> to inspect a live run.
+      </p>
+    )
   }
   return (
     <div ref={ref} className="h-full overflow-auto">

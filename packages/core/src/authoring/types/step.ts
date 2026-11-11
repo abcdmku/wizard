@@ -1,115 +1,101 @@
-/**
- * The step records: what a constructor returns (`Step`), the compact form stored in a flow
- * (`FlowStep`) and their phantom facts.
- * @packageDocumentation
- */
+/** Constructor records and compact facts stored by a wizard. */
+import type { StepKind } from './primitives'
+import type { StepRecordConfig } from './step-record'
 
-import type { Boundary } from './boundary'
-import type { OnHandlers, OnResult } from './handlers'
-import type {
-  BaseArgs,
-  CompensateArgs,
-  DependsOn,
-  EnterArgs,
-  ExitArgs,
-  MapErrorArgs,
-  NextSpec,
-  OutputArgs,
-  RunArgs,
-  WhenSpec,
-} from './hook-args'
-import type { Duration, Issue, MaybePromise, RetryPolicy, StepKind } from './primitives'
-
-/**
- * Phantom facts of a step: input (draft) type, output type, referenced ids, child flow and the
- * `mapError` value type (`E`, `never` without `mapError`).
- * @public
- */
-export interface StepTypes<I, O, N extends string, CF, E = never> {
-  readonly input: I
-  readonly output: O
-  readonly refs: N
-  readonly child: CF
-  readonly error: E
+/** Anything a constructor returned (refs, needs). */
+export interface StepLike {
+  readonly config: StepRecordConfig
+  readonly kind: StepKind
+  readonly '~types': unknown
+  readonly '~links': unknown
+  readonly '~bound': unknown
 }
+/** A reference to a step: its id, or the step object itself. */
+export type Ref = string | StepLike
+/**
+ * What a function `next` may return. Id targets keep id returns checked here (the error stays on the
+ * `next` line); step objects in either list are checked by `steps()` (`Route`), which can resolve them.
+ */
+export type RefWithin<Tg> = [Tg] extends [never]
+  ? Ref
+  : [Extract<Tg, StepLike>] extends [never]
+    ? Tg | StepLike
+    : Ref
+/** What a function `next` returns; a bare fallback to the constraint (it returns only `null`) is nothing. */
+export type Returned<Nr, Tg> = [RefWithin<Tg>] extends [Nr] ? never : Nr
+/** Recorded when a step object is involved, so `steps()` checks the returns against `targets`. */
+export type Route<Nr, Tg> = [Extract<Nr | Tg, StepLike>] extends [never]
+  ? never
+  : { readonly ret: Nr; readonly tg: Tg }
+/**
+ * TypeScript also infers a function `next` (at low priority) into the static-ref parameter `Nx`,
+ * which then falls back to its constraint `Ref | null`; that fallback means "no static next".
+ */
+export type StaticNext<Nx> = [Ref | null] extends [Nx] ? never : Nx
+
+/** Per-step facts every consumer reads (`OutputOf`, `ViewId`, `RunStepId`, ). */
+export interface StepFacts {
+  readonly output: unknown
+  readonly input?: unknown
+  readonly child?: unknown
+  readonly error?: unknown
+  readonly runnable?: boolean
+  readonly each?: boolean
+}
+/** Facts only `steps()` reads: references, needs, successors and constructor-level problems. */
+/** `cond`: the step has its own `when`, so it may be skipped. */
+export interface Links<
+  Refs extends string,
+  Objs,
+  Needs,
+  Alt,
+  Succ extends boolean,
+  Problem extends string,
+  Cond extends boolean = false,
+  Rt = never,
+> {
+  readonly cond: Cond
+  readonly route: Rt
+  readonly refs: Refs
+  readonly objs: Objs
+  readonly needs: Needs
+  readonly alt: Alt
+  readonly succ: Succ
+  readonly problem: Problem
+}
+interface Binding<C, Ev, D> {
+  readonly context: C
+  readonly events: Ev
+  readonly deps: D
+}
+/** Invariant probe for the definition facts the step was built with. */
+export type BoundTo<C, Ev, D> = (facts: Binding<C, Ev, D>) => Binding<C, Ev, D>
 
 /**
- * Contravariant probe that records which context / events / deps a step is bound to; the
- * assembly check `T[K] extends { '~bound': BoundTo<C, Ev, D> | undefined }` accepts steps
- * written for a subset context / events / deps and rejects unrelated ones. Phantom only.
- * @public
+ * A step as returned by `step`, `view` or `flow` (every field present; values are phantom).
+ * `'~exact'` makes a step invariant in its facts, so `steps()` matches a `needs` ref to the map
+ * entry it IS rather than to any step whose output happens to be a subtype.
  */
-export type BoundTo<C, Ev, D> = (args: BaseArgs<C, D>, events: Ev) => void
-
-/**
- * One step as returned by a constructor. `C` context, `Ev` event map, `D` deps, `I` raw input
- * (draft) type, `O` output type, `N` every step id literal this step references (phantom),
- * `K` kind, `CF` child flow, `E` the `mapError` value type (tasks; `never` otherwise). Every
- * config field is present (`undefined` when unset).
- * @public
- */
-export interface Step<C, Ev, D, I, O, N extends string, K extends StepKind, CF, E = never> {
+/** A constructor record with authored config and inference facts. @public */
+export interface Step<K extends StepKind, X extends StepFacts, L, B> {
   readonly kind: K
-  readonly '~types': StepTypes<I, O, N, CF, E> | undefined
-  readonly '~bound': BoundTo<C, Ev, D> | undefined
-  readonly label: string | undefined
-  readonly dependsOn: DependsOn<N> | undefined
-  readonly next: NextSpec<C, D, O, N> | undefined
-  /** Any kind (v0.2): external-event handlers while the step is active; return contract by kind. */
-  readonly on: OnHandlers<C, Ev, D, OnResult<K, N>> | undefined
-  /** Any non-final kind (v0.2): skip predicate. */
-  readonly when: WhenSpec<C, D> | undefined
-  // view
-  readonly input: Boundary<O, I> | undefined
-  readonly initial: Partial<I> | undefined
-  readonly validate:
-    | ((a: OutputArgs<C, D, O>) => MaybePromise<void | undefined | readonly Issue[]>)
-    | undefined
-  readonly canEnter: ((a: EnterArgs<C, D>) => MaybePromise<boolean>) | undefined
-  readonly canExit: ((a: OutputArgs<C, D, O>) => MaybePromise<boolean>) | undefined
-  readonly enter: ((a: EnterArgs<C, D>) => unknown) | undefined
-  readonly exit: ((a: ExitArgs<C, D, O>) => unknown) | undefined
-  // task
-  readonly run: ((a: RunArgs<C, D>) => unknown) | undefined
-  readonly output: Boundary<O, unknown> | ((a: BaseArgs<C, D>) => O) | undefined
-  readonly retry: RetryPolicy | undefined
-  readonly timeout: Duration | { readonly after: Duration; readonly next: N } | undefined
-  readonly compensate: ((a: CompensateArgs<C, D, O>) => unknown) | undefined
-  /** Task (v0.2): re-run after a crash instead of failing `interrupted`; a function supplies the key. */
-  readonly idempotent: boolean | ((a: RunArgs<C, D>) => string) | undefined
-  /** Task (v0.2): maps a failure to the JSON-safe `error.data` (`ErrorOf<F, K>`). */
-  readonly mapError: ((error: unknown, a: MapErrorArgs<C, D>) => MaybePromise<E>) | undefined
-  // flow
-  readonly child: CF | undefined
-  readonly context: ((a: BaseArgs<C, D>) => unknown) | undefined
-  readonly deps: ((a: BaseArgs<C, D>) => unknown) | undefined
+  readonly config: StepRecordConfig
+  readonly child?: X extends { readonly child: infer CF } ? CF : never
+  readonly '~types': X | undefined
+  readonly '~links': L | undefined
+  readonly '~bound': B | undefined
+  readonly '~exact': ((facts: X, links: L) => void) | undefined
 }
-
-/**
- * Untyped view of any step record — the runtime's internal shape (never exported from the barrel).
- * @internal
- */
-// biome-ignore lint/suspicious/noExplicitAny: internal wildcard view used only by the runtime
-export type AnyStep = Step<any, any, any, any, any, string, StepKind, any, any>
-
-/**
- * What `Flow.steps[k]` is typed as: the per-step facts only (kind + phantom). `C`/`Ev`/`D` are
- * NOT repeated per step so a flow's printed type stays O(steps); every extractor reads only
- * `kind` and `'~types'`.
- * @public
- */
-export interface FlowStep<I, O, N extends string, K extends StepKind, CF, E = never> {
+/** Whether a step's output can be the wizard output: no successor (`sink`), maybe skipped (`maybe`). */
+export type SinkRole = 'sink' | 'maybe' | 'inner'
+/** A step as stored in an assembled wizard: kind, facts and sink role only. */
+/** Compact step facts and its sink role in the assembled wizard. @public */
+export interface FlowStep<K extends StepKind, X extends StepFacts, Role extends SinkRole> {
   readonly kind: K
-  readonly '~types': StepTypes<I, O, N, CF, E> | undefined
+  readonly '~types': X | undefined
+  readonly '~role': Role | undefined
 }
 
-/**
- * Compacts a constructor result to its `FlowStep`.
- * @public
- */
-export type CompactStep<S> = S extends {
-  readonly kind: infer K extends StepKind
-  readonly '~types': StepTypes<infer I, infer O, infer N, infer CF, infer E> | undefined
-}
-  ? FlowStep<I, O, N, K, CF, E>
-  : never
+/** Structural constraint for generic step modules. */
+/** A structural constraint for generic step modules and references. @public */
+export type AnyStep = StepLike

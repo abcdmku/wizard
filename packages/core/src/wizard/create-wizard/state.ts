@@ -14,21 +14,23 @@ import type {
   ErrorOf,
   EventType,
   FlowOutput,
+  IsEach,
   KindOf,
   OutputOf,
   PayloadOf,
+  RunStepId,
   StepId,
-  TaskId,
   ViewId,
 } from '../../authoring/types'
 import type { Explanation as MachineExplanation } from '../../machine'
 import type { DomainEvent } from '../../machine/events'
 import type { ChildSummary, StepError, StepRecord, WizardState } from '../../machine/state'
+import type { WaitingFor } from '../results'
 import type { Command } from './command'
 
 /**
  * A step's stored error typed by the step: `SerializedError` (`name`, `message`, `code?`) plus
- * `kind`, `at`, `attempt?`, `issues?` and — for a task with `mapError` — `data` (`ErrorOf<F, K>`).
+ * `kind`, `at`, `attempt?`, `issues?` and — for a runnable step with `mapError` — `data` (`ErrorOf<F, K>`).
  * @public
  */
 export type StepErrorOf<F extends AnyFlow, K extends StepId<F>> = Omit<StepError, 'data'> & {
@@ -37,7 +39,7 @@ export type StepErrorOf<F extends AnyFlow, K extends StepId<F>> = Omit<StepError
 
 /**
  * Typed view of one step's stored record: `input` is the draft (`DraftOf`), `output` the
- * step's `OutputOf`, `error` its `StepErrorOf` (with `data` for a `mapError` task); everything
+ * step's `OutputOf`, `error` its `StepErrorOf` (with `data` for `mapError`); everything
  * else (status, attempt, guards, timers…) is shared.
  * @public
  */
@@ -68,11 +70,18 @@ type StateOf<F extends AnyFlow> = Omit<
 
 /**
  * The versioned, JSON-safe snapshot of a run (what `getSnapshot()` returns, what a `Store`
- * persists and what `resumeRun` accepts). `state` is the typed view of the run state;
+ * persists and what `wizard.resume` accepts). `state` is the typed view of the run state;
  * `children` hold the snapshots of live child flows keyed by flow-step id.
  * @public
  */
-export interface Snapshot<F extends AnyFlow> {
+type SnapshotDefinition<Types extends AnyFlow['~types']> = Omit<AnyFlow, '~types'> & {
+  readonly '~types': Types
+}
+
+/** Snapshot typing depends only on definition facts, so a wizard and its Flow have the same snapshot. @public */
+export type Snapshot<F extends AnyFlow> = SnapshotFields<SnapshotDefinition<F['~types']>>
+
+interface SnapshotFields<F extends AnyFlow> {
   readonly v: 1
   readonly flow: { readonly name: string; readonly version: number }
   readonly instanceId: string
@@ -106,7 +115,7 @@ type StepOutputEvent<
     }
   : never
 
-type TaskOutputEvent<T, F extends AnyFlow, K extends TaskId<F> = TaskId<F>> = K extends unknown
+type RunOutputEvent<T, F extends AnyFlow, K extends RunStepId<F> = RunStepId<F>> = K extends unknown
   ? Omit<T, 'step' | 'output'> & {
       readonly step: K
       readonly output: OutputOf<F, K>
@@ -127,14 +136,14 @@ type StepErrorEvent<T, F extends AnyFlow, K extends StepId<F> = StepId<F>> = K e
     }
   : never
 
-type TaskErrorEvent<T, F extends AnyFlow, K extends TaskId<F> = TaskId<F>> = K extends unknown
+type RunErrorEvent<T, F extends AnyFlow, K extends RunStepId<F> = RunStepId<F>> = K extends unknown
   ? Omit<T, 'step' | 'data'> & {
       readonly step: K
       readonly data?: ErrorOf<F, K>
     }
   : never
 
-type TaskStepEvent<T, F extends AnyFlow, K extends TaskId<F> = TaskId<F>> = K extends unknown
+type RunStepEvent<T, F extends AnyFlow, K extends RunStepId<F> = RunStepId<F>> = K extends unknown
   ? Omit<T, 'step'> & { readonly step: K }
   : never
 
@@ -209,13 +218,13 @@ type TypedFlowEvent<T, F extends AnyFlow, P extends readonly string[]> = T exten
     : T extends { readonly type: 'step.done' }
       ? StepOutputEvent<T, F>
       : T extends { readonly type: 'step.runSucceeded' }
-        ? TaskOutputEvent<T, F>
+        ? RunOutputEvent<T, F>
         : T extends { readonly type: 'step.validated' }
           ? ViewOutputEvent<T, F>
           : T extends { readonly type: 'step.failed' }
             ? StepErrorEvent<T, F>
             : T extends { readonly type: 'step.runFailed' }
-              ? TaskErrorEvent<T, F>
+              ? RunErrorEvent<T, F>
               : T extends {
                     readonly type:
                       | 'step.idempotencyKeyRequested'
@@ -223,7 +232,7 @@ type TypedFlowEvent<T, F extends AnyFlow, P extends readonly string[]> = T exten
                       | 'step.retryScheduled'
                       | 'step.runStarted'
                   }
-                ? TaskStepEvent<T, F>
+                ? RunStepEvent<T, F>
                 : T extends { readonly type: 'input.changed' }
                   ? InputChangedEvent<T, F>
                   : T extends { readonly type: 'context.changed' }
@@ -263,6 +272,9 @@ type UntypedChildRunEvent<P extends readonly string[]> = WithPath<
   readonly [...P, string, ...string[]]
 >
 
+type ChildPath<F extends AnyFlow, K extends ChildStepId<F>, P extends readonly string[]> =
+  true extends IsEach<F, K> ? readonly [...P, K, `${number}`] : readonly [...P, K]
+
 type ChildRunEventCandidates<
   F extends AnyFlow,
   P extends readonly string[],
@@ -273,8 +285,8 @@ type ChildRunEventCandidates<
     ? UntypedChildRunEvent<P>
     : {
         [K in ChildStepId<F>]:
-          | FlowEventAtPath<ChildFlowOf<F, K>, readonly [...P, K]>
-          | ChildRunEventAt<ChildFlowOf<F, K>, readonly [...P, K], PreviousRunEventDepth[Depth]>
+          | FlowEventAtPath<ChildFlowOf<F, K>, ChildPath<F, K, P>>
+          | ChildRunEventAt<ChildFlowOf<F, K>, ChildPath<F, K, P>, PreviousRunEventDepth[Depth]>
       }[ChildStepId<F>]
 
 type ChildRunEventAt<F extends AnyFlow, P extends readonly string[], Depth extends RunEventDepth> =
@@ -322,9 +334,11 @@ export function isChildEvent<F extends AnyFlow>(event: RunEvent<F>): event is Ch
  * its live `phase` (`undefined` when it has none), stable `reasons` codes explaining why it is
  * (not) where you expect (`flow-not-started`, `nav-busy`, `not-activated`, `deps-unmet:<id>`,
  * `guard-false:canEnter`, `concurrency-limit`, `auto-run-manual`, `failed:<kind>`,
- * `not-current`, `entering`, `retrying`, …) and the ready views the cursor could move to.
+ * `not-current`, `entering`, `retrying`, …), the ready views the cursor could move to, and
+ * what the run waits on from the outside (`run.waitingFor()`).
  * @public
  */
 export type Explanation<F extends AnyFlow = AnyFlow> = Omit<MachineExplanation, 'candidates'> & {
   readonly candidates: readonly ViewId<F>[]
+  readonly waitingFor: readonly WaitingFor<F>[]
 }

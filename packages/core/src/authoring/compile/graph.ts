@@ -9,7 +9,6 @@ import type { FlowWarning } from './index'
 export class StepGraph {
   private readonly nextEdges = new Map<string, Set<string>>()
   private readonly depEdges = new Map<string, readonly string[]>()
-  private readonly dynamicSteps = new Set<string>()
 
   constructor(private readonly ids: readonly string[]) {}
 
@@ -20,12 +19,6 @@ export class StepGraph {
       this.nextEdges.set(from, set)
     }
     for (const t of to) set.add(t)
-  }
-  timeout(from: string, to: string): void {
-    this.edges(from, [to])
-  }
-  dynamic(step: string): void {
-    this.dynamicSteps.add(step)
   }
   dependsOn(step: string, deps: readonly string[]): void {
     this.depEdges.set(step, deps)
@@ -43,24 +36,20 @@ export class StepGraph {
     for (const cycle of findCycles(this.ids, (id) => [...(this.nextEdges.get(id) ?? [])])) {
       out.push({
         code: 'NAV_CYCLE',
-        message: `navigation cycle: ${cycle.join(' -> ')} (allowed; make sure a guard, a decision or a wait breaks it)`,
+        message: `navigation cycle: ${cycle.join(' -> ')} (allowed; make sure a guard, next function, or external event breaks it)`,
         step: cycle[0] as string,
         path,
       })
     }
   }
 
-  /** Steps with no path from `start` (a reachable dynamic-`next` step may reach anything). */
+  /** Steps with no path from start through normal, alternate or data activation edges. */
   warnUnreachable(start: readonly string[], path: readonly string[], out: FlowWarning[]): void {
     const reached = new Set<string>()
     const queue = start.filter((s) => this.ids.includes(s))
     for (const s of queue) reached.add(s)
-    while (queue.length > 0) {
-      const id = queue.shift() as string
-      if (this.dynamicSteps.has(id)) {
-        for (const t of this.ids) if (!reached.has(t)) reached.add(t)
-        break
-      }
+    for (let index = 0; index < queue.length; index += 1) {
+      const id = queue[index] as string
       for (const t of this.nextEdges.get(id) ?? []) {
         if (!reached.has(t)) {
           reached.add(t)

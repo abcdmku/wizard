@@ -3,12 +3,7 @@
  * layering from the start nodes, a few barycenter sweeps to reduce crossings, then top-down
  * coordinates. Pure data in, positions out — the SVG rendering lives in `flow-graph.tsx`.
  */
-import type { FlowGraph } from '@openwizard/core'
-
-type FlowGraphNode = FlowGraph['nodes'][number]
-type FlowGraphEdge = FlowGraph['edges'][number]
-
-export type { FlowGraphEdge, FlowGraphNode }
+import type { FlowGraph, FlowGraphEdge, FlowGraphNode } from '@openwizard/core/inspect'
 
 export interface LaidOutNode {
   readonly node: FlowGraphNode

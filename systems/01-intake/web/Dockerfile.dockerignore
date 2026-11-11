@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/dist
+**/.vite
+systems/02-fleet
+systems/03-fulfillment
+systems/04-dungeon

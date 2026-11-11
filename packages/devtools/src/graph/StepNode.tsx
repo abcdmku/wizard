@@ -17,9 +17,15 @@ function flagsOf(data: StepNodeData): string[] {
   const flags: string[] = []
   if (step.dependsOn !== undefined)
     flags.push('any' in step.dependsOn ? 'dependsOn (any)' : 'dependsOn')
+  if (step.needs !== undefined) flags.push(`needs ${Object.keys(step.needs).join(', ')}`)
+  if (step.each !== undefined) flags.push(`each (${step.each.concurrency} concurrent)`)
+  if (step.sleep !== undefined)
+    flags.push(step.sleep === 'dynamic' ? 'sleep (dynamic)' : `sleep ${formatMs(step.sleep)}`)
+  if (step.fallback !== undefined) flags.push(`fallback ${step.fallback}`)
   if (step.timeout !== undefined) flags.push(`timeout ${formatMs(step.timeout)}`)
   if (step.dynamicNext === true) flags.push('dynamic next')
-  for (const hook of step.hooks) if (hook !== 'run') flags.push(hook)
+  for (const hook of step.hooks)
+    if (hook !== 'run' && hook !== 'each' && hook !== 'sleep') flags.push(hook)
   return flags
 }
 

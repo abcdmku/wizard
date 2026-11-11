@@ -1,79 +1,98 @@
-# Commands, state, and final results
+# Commands, state, and outcomes
 
-Applications usually need answers to three different questions:
-
-1. Did the command I just sent succeed?
-2. What is the run doing now?
-3. How did the whole run end?
-
-OpenWizard uses a different value for each question. Keeping them separate prevents a successful command from being mistaken for a completed workflow.
-
-## A command result describes one request
-
-Methods such as `start()`, `setInput()`, `next()`, `send()`, and `retry()` return a result for that command. Check `ok` before reading fields that only exist on success.
+An application needs the response to its command, the run's current state, and the outcome of its work. OpenWizard gives each a separate value.
 
 ```ts
-const result = await run.next()
+const moved = await run.next() // response to this command
+const state = run.getState() // current state
+const outcome = await run.awaitOutcome() // terminal, halted, or waiting
+```
 
-if (!result.ok) {
-  console.error(result.code, result.message)
+## Command results
+
+`start()`, `setInput()`, `next()`, `send()`, `retry()`, and other commands return results. Check `ok` before reading success fields:
+
+```ts
+const moved = await run.next()
+if (!moved.ok) console.error(moved.code, moved.message)
+```
+
+`ok: true` means the command was applied. A successful `start()` can leave the run waiting at a form. Invalid input and commands refused in the current state return `{ ok: false, code, message }`; validation failures also carry `issues`.
+
+Cancelling a run while navigation is pending aborts that navigation. Its result has `ok: false`, `reason: 'failed'`, and `code: 'CANCELLED'`.
+
+Runnable work starts automatically by default. Set `autoRun: 'manual'` in the wizard options to control it yourself. `run.startStep('load')` starts one ready runnable step and `run.startReady()` starts the ready set. Their command responses describe whether the command succeeded, not whether the run finished.
+
+## Commands based on a state version
+
+Use `dispatch(command, { expectedVersion })` when a command depends on state your application read earlier. Capture `{ epoch: run.epoch, seq: run.getState().seq }` with that read and pass it as `expectedVersion` when dispatching.
+
+OpenWizard checks both `epoch` and `seq` atomically when it processes the command, after queued work and any asynchronous payload check. A mismatch returns `STALE` without applying the requested action. Read the current state before deciding whether to issue another command. Including `epoch` also detects a resume since the version you read.
+
+```ts file="packages/docs/snippets/learn/optimistic-dispatch.ts"
+```
+
+## State
+
+```ts
+const { status, current, active, context, steps } = run.getState()
+```
+
+| Field | Meaning |
+|---|---|
+| `status` | `idle`, `running`, `waiting`, `halted`, `done`, `failed`, `compensating`, or `cancelled` |
+| `current` | The current view, or `null` |
+| `active` | Active step ids, including the current view |
+| `context` | The typed shared data |
+| `steps` | Per-step `status`, `attempt`, `input`, `output`, and `error` |
+
+`getState()` is synchronous. `subscribe(listener)` follows committed state changes. `observe(listener)` follows events, including transient progress. `run.waitingFor()` lists the current views, event waits, and sleep deadlines. Its flat entries include a `path`; `[]` identifies this run, `['address']` identifies an ordinary child, and `['batch', '0']` identifies the first mapped child under `batch`. Mapped path segments use the input index as a string.
+
+## Outcomes when work pauses
+
+`awaitOutcome()` resolves when a run ends, halts, or parks on input from a person or external system. It leaves the run alive so you can recover or send the missing input.
+
+```ts
+const outcome = await run.awaitOutcome()
+if (outcome.status === 'halted') {
+  console.error(outcome.failure)
+} else if (outcome.status === 'waiting') {
+  console.log(outcome.waitingFor)
 }
 ```
 
-An `ok: true` result means OpenWizard accepted and applied that command. It does not always mean the flow is done. For example, `start()` can succeed and leave the run waiting at a form.
+Both `halted` and `waiting` outcomes carry a `snapshot`. Save it and resume later, or keep the live run and continue. Pure sleep timers and retry backoff keep `awaitOutcome()` waiting for work to proceed.
 
-Bad input and commands that are invalid for the current state normally return `{ ok: false }`. They do not throw. The `code`, `message`, and optional `issues` tell your application what to report or do next.
-
-## State describes the run right now
+Use `wizard.run(input, options?)` when you want the outcome without owning a live run:
 
 ```ts
-const state = run.getState()
-
-console.log(state.status)
-console.log(state.current)
-console.log(state.context)
-console.log(state.steps)
+const outcome = await order.run({ orderId: 'o-42', total: 42 }, { deps: { payments } })
+if (outcome.status === 'done') console.log(outcome.output)
 ```
 
-`getState()` returns the current in-memory state without waiting. Use it to render a UI, inspect a failed step, or decide whether a command makes sense.
+The convenience method creates, starts, awaits the outcome, and disposes its run. To continue a waiting or halted outcome, call `order.resume(outcome.snapshot, options)`. `wizard.runSync()` returns the same outcome types synchronously and throws `SYNC_VIOLATION` when a hook returns a promise or a timer is needed.
 
-The most common run statuses are:
+## Terminal results
 
-| Status | Meaning |
-|---|---|
-| `idle` | The run has not started |
-| `running` | A step is doing work |
-| `waiting` | A view, event, timer, or manual task is holding the run |
-| `done` | A final step finished |
-| `failed` | Work failed and the run is halted or terminal |
-| `cancelled` | The run was cancelled |
-
-`current` is the active view for user navigation, or `null` when no view owns the cursor. `active` can contain tasks, waits, or child flows that are also running. `steps` holds the input, output, status, and error recorded for every named step.
-
-## A final result describes how the run ended
-
-`result()` returns the final result if one exists now. `awaitResult()` waits for one.
+`awaitResult()` waits for `done`, `failed`, or `cancelled`. It stays pending through a recoverable halt or an external wait, so use it only when your application will continue driving the run.
 
 ```ts
 const result = await run.awaitResult()
-
-if (result.status === 'done') {
-  console.log(result.output)
-}
+if (result.status === 'done') console.log(result.output)
 ```
 
-The final result has one of three statuses:
+| Result | Meaning |
+|---|---|
+| `done` | Carries the options-level `output` selector result, or the last completed sink's output |
+| `failed` | Carries a terminal failure and any compensation summary |
+| `cancelled` | Carries the cancellation reason and any compensation summary |
 
-- `done` includes the output created by a final step.
-- `failed` includes the terminal failure.
-- `cancelled` includes the cancellation reason when one was supplied.
+A run stopped for manual recovery has `status: 'halted'`, not `failed`. It can accept `retry`, `skip`, `compensate`, or `cancel`. `awaitResult()` rejects with `RunLifecycleError` if you reset or dispose before a terminal result. See [retries and failures](/learn/failures).
 
-A recoverable task failure can put the current state in `failed` without producing a final result yet. That distinction is intentional. The run is halted so your application can inspect the failed step and call `retry()`.
+## What throws
 
-`awaitResult()` also rejects if you dispose or reset the run before it reaches a terminal result. That lifecycle error is different from a task failure stored in run state.
+Step failures are outcome values. Boundary rejection while creating a run, incompatible snapshots, and definitions with invalid references throw `WizardError`. A typed event name must belong to the wizard; untrusted event payloads are checked by `send()` and return rejection results. Commands issued after disposal return `DISPOSED`.
 
-## When code throws
+## Next
 
-OpenWizard returns ordinary data problems as result objects. Programmer mistakes can still throw a `WizardError`. One example is sending an event name the flow never declared. Catch exceptions at an application boundary, but handle expected validation and state problems by checking `ok`.
-
-Use `subscribe()` for state changes and `observe()` for individual run events.
+[Retries and failures](/learn/failures) covers scheduled retries, fallback routes, and manual recovery.

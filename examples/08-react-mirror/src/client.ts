@@ -1,5 +1,6 @@
 /** Build the browser Mirror and hooks from the projection type. */
-import { createMirror, type Mirror, type ProjectionOutput, type Transport } from '@openwizard/core'
+import type { ProjectionOutput } from '@openwizard/core'
+import { createMirror, type Mirror, type Transport } from '@openwizard/core/mirror'
 import { bindReact } from '@openwizard/react'
 import type { checkoutClient } from './flow'
 

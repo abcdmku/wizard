@@ -1,5 +1,18 @@
 # Devtools API
 
-Use the generated [`@openwizard/devtools` reference](/typedoc/modules/_openwizard_devtools.html) for the panel, graph, event log, inspector, timeline, and lower-level layout tools.
+The generated [`@openwizard/devtools` reference](/typedoc/modules/_openwizard_devtools.html) covers the panel, its standalone parts, and the graph model and layout helpers.
 
-Read the [devtools package guide](/packages/devtools) first.
+Read the [Devtools guide](/packages/devtools) first.
+
+| Export | Purpose |
+|---|---|
+| `Devtools` | Composite dockable panel over a `Run` or `Mirror` |
+| `DevtoolsProps` | `source`, `theme`, `defaultOpen`, `position`, `hotkey`, `context`, `maxEvents` |
+| `FlowGraph` | Static flow graph with the live status overlay |
+| `EventLog` | Event list with filter |
+| `StepInspector` | One step's record and explanation |
+| `Timeline` | Time travel over the run's events |
+| `buildGraphModel`, `layoutGraph` | Graph model and ELK layout for custom rendering |
+| `RunSource`, `isRunSource` | Local-run source contract and its discriminator |
+
+For custom components, `isRunSource(source)` distinguishes a local run from a mirror. Import static graph types and `inspect(wizard)` from `@openwizard/core/inspect`.

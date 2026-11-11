@@ -1,36 +1,51 @@
-# Run work in parallel
+# Run steps in parallel
 
-Parallel starts help when two pieces of work do not depend on each other. A dashboard can load a profile and recent orders at the same time instead of waiting for one request before starting the other.
+Start independent work together, then join its outputs with `needs`.
 
 ```ts file="packages/docs/snippets/recipes/parallel.ts"
 ```
 
-The flow has two entry steps because `start` is an array. Calling `run.start()` makes both `loadProfile` and `loadOrders` ready in the same run.
+## What happens
 
-Each task points to `join`, but arrival alone is not enough to run it. The `dependsOn` list keeps `join` blocked until both tasks have finished. The decision then runs once and moves to `done`.
+1. `steps(map, { start: ['loadProfile', 'loadOrders'] })` chooses both entry steps.
+2. `run.start()` activates them and each produces its own output.
+3. `join` declares `needs: { loadProfile, loadOrders }`. It activates once both outputs are ready, without either producer pointing `next` at it.
+4. `join` reads typed values from `needs`, returns the combined result, and completes the wizard.
 
-This is the important shape:
+<Diagram name="parallel" />
 
-```text
-loadProfile --\
-               join -> done
-loadOrders  --/
-```
+Use `needs` when the join consumes outputs. Use `dependsOn` for a completion gate when the step gets its data elsewhere. `dependsOn` alone does not activate a join; it also needs an entry in `start` or an incoming `next`.
 
-Without the dependency list, the first completed branch could activate `join` while the other task was still running.
-
-## Limit how many tasks run at once
-
-Starting several branches makes them eligible to run together. Set `concurrency` on `defineFlow()` when your database or outside service needs a limit:
+## Use the first completed result
 
 ```ts
-const builder = defineFlow({
-  name: 'dashboard',
-  context: schema,
-  concurrency: 2,
+const first = step({
+  needs: { result: { any: [loadPrimary, loadReplica] } },
+  run: ({ needs }) => needs.result,
 })
 ```
 
-With `concurrency: 2`, at most two task steps execute at the same time for that run. Other ready tasks remain queued until a slot opens. The limit does not count views or wait steps because those steps are paused instead of executing task code.
+The consumer activates when either producer completes. Its value has the union of their output types. It skips only if both producers skip. This does not cancel the other producer; the wizard still waits for activated work to finish.
 
-Do not add parallel branches just because two lines of code look independent. Use them when the work is safe to overlap and the later join names the dependency explicitly.
+A plain need skips its consumer when the producer skips. Use `{ optional: producer }` for data that may be absent; the consumer waits for that producer to settle and receives `undefined` when it skips. These rules matter when producers belong to exclusive branches.
+
+## Map over items
+
+When the number of tasks comes from input, use one item step rather than generating step ids:
+
+```ts
+fetchOrders: step({
+  each: ({ context }) => context.orderIds,
+  concurrency: 4,
+  key: (orderId) => orderId,
+  run: ({ item, deps }) => deps.loadOrder(item),
+}),
+```
+
+The output array preserves input order even if requests finish out of order. OpenWizard stores finished items so resume does not repeat them, and manual retry keeps those results while retrying failed items. Item progress emits `{ done, total }` through `step.progress` events.
+
+## Limit work across steps
+
+Set `concurrency: 2` in the wizard options to bound concurrent runnable step work. Ready steps queue until a slot opens. Views and external event waits do not consume a work slot. An item step's own `concurrency` controls the calls inside that step.
+
+[Graphs](/advanced/graphs) covers larger fan-out and fan-in shapes.

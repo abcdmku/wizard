@@ -1,12 +1,11 @@
 {
-  "index": "API lookup",
+  "index": "Overview",
   "core": "Core",
   "react": "React",
   "devtools": "Devtools",
   "durable": "Durable",
   "drizzle": "Drizzle",
-  "effect": "Effect 3",
-  "effect-v4": "Effect 4 beta",
+  "effect": "Effect",
   "opentelemetry": "OpenTelemetry",
-  "webhooks": "Webhooks"
+  "http": "HTTP"
 }

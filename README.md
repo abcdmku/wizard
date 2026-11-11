@@ -1,66 +1,38 @@
 # OpenWizard
 
-OpenWizard runs TypeScript workflows that may wait, retry failed work, and continue after a process restart.
-
-## Install
+OpenWizard runs typed wizards and workflows in TypeScript. Steps collect input, run work, wait for events or timers, branch, join typed outputs, and compose child wizards.
 
 ```sh
 npm install @openwizard/core zod
 ```
 
-## Smallest example
-
-Define a flow:
-
-```ts title="examples/01-happy-path/src/hello-flow.ts"
-import { defineFlow } from '@openwizard/core'
+```ts title="packages/docs/snippets/learn/factory.ts"
+import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-const hello = defineFlow({
-  name: 'hello',
-  context: z.object({ name: z.string() }),
-})
+export const hello = defineWizard(
+  { name: 'hello', context: z.object({ name: z.string() }) },
+  ({ step, steps }) => steps({ greet: step({ run: ({ context }) => `Hello, ${context.name}!` }) }),
+)
 
-export const helloFlow = hello.steps({
-  done: hello.final({
-    output: ({ context }) => `Hello, ${context.name}!`,
-  }),
-})
+export const result = hello.runSync({ name: 'Ada' })
+if (result.status === 'done') {
+  // biome-ignore lint/suspicious/noConsole: display the quickstart result
+  console.log(result.output)
+}
 ```
 
-Create one run:
+Use `wizard.create(input)` for a live Run. Use `wizard.run(input)` to return an outcome when the run finishes, halts, or waits for input or an event. Halted and waiting outcomes include a snapshot to resume. `wizard.provide(services)` binds deps and leaves missing keys required by the type.
 
-```ts title="examples/01-happy-path/src/main.ts"
-import { createRun } from '@openwizard/core'
-import { helloFlow } from './hello-flow'
+A Wizard is the definition itself. Pass it directly to React bindings, projections, inspectors, HTTP APIs, and durable hosts. Each creation call has independent state.
 
-const run = createRun(helloFlow, {
-  context: { name: 'Ada' },
-})
+Read [Build a wizard](./packages/docs/pages/getting-started.mdx) for forms, typed data joins, services, composition, and execution. The [core API reference](./packages/docs/pages/api/core.mdx) lists contracts.
 
-await run.start()
-
-const result = await run.awaitResult()
-if (result.status === 'done') console.log(result.output)
-
-run.dispose()
-```
-
-`defineFlow()` describes the workflow. `createRun()` creates one execution of it. Nothing runs until `start()`.
-
-## Why use it
-
-OpenWizard becomes useful when work cannot be represented safely by one promise chain. A run can persist retry deadlines, wait for correlated events, resume after a restart, compensate completed side effects, fan out into dependent branches, and expose a restricted projection to a browser.
-
-For multiple workers, `@openwizard/durable` adds leases, fencing, compare-and-swap snapshots, duplicate command results, and timer claims. External task effects remain at-least-once, so OpenWizard passes stable idempotency keys to services that can enforce them.
-
-Read [getting started](./packages/docs/pages/getting-started.mdx), then follow the [learning path](./packages/docs/pages/learn/index.mdx). The [recipes](./packages/docs/pages/recipes/index.mdx) solve common problems with complete examples.
-
-Read [why the deep features matter](./packages/docs/pages/advanced/index.mdx) for the production failure model and the guarantees behind recovery, durability, projections, and replay.
+For production, read [recovery and hosting](./packages/docs/pages/advanced/index.mdx). External effects may repeat after a crash. Pass stable idempotency keys to services that enforce them. The [reference systems](./packages/docs/pages/examples/reference-systems.mdx) exercise browser, API, worker, and persistence boundaries.
 
 ## Work on the repository
 
-OpenWizard requires Node.js 20 or newer and pnpm 10.
+Node.js 20 or newer and pnpm 10.
 
 ```sh
 pnpm install
@@ -69,4 +41,4 @@ pnpm test
 pnpm --filter @openwizard/docs check
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full set of checks.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full checks.

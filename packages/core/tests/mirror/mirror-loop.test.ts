@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import { defineFlow } from '../../src/authoring/define-flow'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { createMirror, type Mirror } from '../../src/mirror/create-mirror'
 import { createLocalTransport } from '../../src/mirror/local-transport'
@@ -13,10 +12,10 @@ import type { Transport } from '../../src/mirror/transport'
 import type { Frame } from '../../src/mirror/wire'
 import { defineProjection, type ProjectionOutput } from '../../src/projection/define-projection'
 import { createRun } from '../../src/wizard/create-wizard'
+import { defineWizard } from '../../src/wizard/define-wizard'
 import { checkoutClient, checkoutFlow, makeRun, tick } from './fixture'
 
 type State = ProjectionOutput<typeof checkoutClient>
-
 describe('createMirror: end to end through the loopback', () => {
   function loop(options: Parameters<typeof createLocalTransport>[1] = {}) {
     const run = makeRun()
@@ -25,22 +24,18 @@ describe('createMirror: end to end through the loopback', () => {
     const mirror: Mirror<typeof checkoutClient> = createMirror({ transport })
     return { run, source, transport, mirror }
   }
-
   it('drives a real run view → task → final through the mirror; the mirror never sees unexposed fields', async () => {
     const { run, mirror, source } = loop()
     expect(mirror.connected).toBe(true) // the loopback delivers the initial frame synchronously
     expect(mirror.getSnapshot()?.status).toBe('idle')
     const frames: number[] = []
     mirror.subscribe(() => frames.push(mirror.seq ?? -1))
-
     expect(await mirror.dispatch({ type: 'start' })).toMatchObject({ ok: true })
     expect(mirror.getSnapshot()?.current).toBe('shipping')
-
     // Invalid draft → INVALID_INPUT with issues visible through the projection.
     const rejected = await mirror.next()
     expect(rejected).toMatchObject({ ok: false, code: 'INVALID_INPUT' })
     expect(mirror.getSnapshot()?.steps.shipping.issues?.length).toBeGreaterThan(0)
-
     expect(await mirror.setInput('shipping', { address: 'Main St' })).toMatchObject({ ok: true })
     expect(mirror.getSnapshot()?.steps.shipping.input).toEqual({ address: 'Main St' })
     expect(await mirror.next()).toMatchObject({ ok: true })
@@ -64,7 +59,6 @@ describe('createMirror: end to end through the loopback', () => {
     source.dispose()
     run.dispose()
   })
-
   it('optimisticConcurrency: a command sent against a stale seq is answered STALE and the next frame resyncs', async () => {
     const run = makeRun()
     await run.start()
@@ -101,7 +95,6 @@ describe('createMirror: end to end through the loopback', () => {
     expect(await plain.setInput('shipping', { address: 'z' })).toMatchObject({ ok: true })
     run.dispose()
   })
-
   it('deterministic latency: frames and acks travel through the injected scheduler; serialize decouples objects', async () => {
     const sched = createTestScheduler()
     const run = makeRun()
@@ -116,7 +109,6 @@ describe('createMirror: end to end through the loopback', () => {
     sched.advance(50)
     expect(mirror.getSnapshot()?.status).toBe('idle')
     expect(mirror.getSnapshot()).not.toBe(run.project(checkoutClient)) // a copy, not the run's object
-
     let result: unknown
     const pending = mirror.dispatch({ type: 'start' }).then((r) => {
       result = r
@@ -134,7 +126,6 @@ describe('createMirror: end to end through the loopback', () => {
     expect(mirror.getSnapshot()?.current).toBe('shipping')
     run.dispose()
   })
-
   it('unsubscribing the loopback drops frames that were still in flight', () => {
     const sched = createTestScheduler()
     const run = makeRun()
@@ -147,22 +138,27 @@ describe('createMirror: end to end through the loopback', () => {
     expect(frames).toHaveLength(0)
     run.dispose()
   })
-
   it("step ids named '__proto__' and 'constructor' survive the whole loop (serialized transport included)", async () => {
-    const reservedIds = defineFlow({
-      name: 'reserved-ids',
-      context: boundary.trusted<Record<string, never>>(),
-    })
-    const reserved = reservedIds.steps(
+    const reserved = defineWizard(
       {
-        ['__proto__']: reservedIds.view({
-          input: z.object({ v: z.string() }),
-          next: 'constructor',
-        }),
-        constructor: reservedIds.task(() => 'built', { next: 'end' }),
-        end: reservedIds.final({ output: () => 'ok' }),
+        name: 'reserved-ids',
+        context: boundary.trusted<Record<string, never>>(),
       },
-      { start: '__proto__' },
+      ({ step, view, steps }) =>
+        steps(
+          {
+            ['__proto__']: view({
+              input: z.object({ v: z.string() }),
+              next: 'constructor',
+            }),
+            constructor: step({
+              run: () => 'built',
+              next: 'end',
+            }),
+            end: step({ run: () => 'ok' }),
+          },
+          { start: '__proto__' },
+        ),
     )
     const projection = defineProjection(reserved, {
       expose: { steps: { ['__proto__']: { input: true }, constructor: { output: true } } },
@@ -192,12 +188,13 @@ describe('createMirror: end to end through the loopback', () => {
     expect(await mirror.retry('constructor')).toHaveProperty('ok')
     // The persisted shape is plain JSON with own keys.
     const json = JSON.parse(JSON.stringify(run.getSnapshot())) as {
-      state: { steps: Record<string, unknown> }
+      state: {
+        steps: Record<string, unknown>
+      }
     }
     expect(Object.hasOwn(json.state.steps, '__proto__')).toBe(true)
     run.dispose()
   })
-
   it('select projections whose state is a primitive, an array or null travel through the (serialized) loop frame by frame', async () => {
     const run = makeRun()
     const currentView = defineProjection(checkoutFlow, { select: (s) => s.current })

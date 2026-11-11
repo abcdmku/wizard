@@ -31,6 +31,7 @@
     "docs:gen": "node ./scripts/gen-export-tables.mjs",
     "docs:dev": "pnpm --filter @openwizard/docs dev",
     "docs:build": "pnpm --filter @openwizard/docs build",
+    "dx:audit": "node ./scripts/dx-audit.mjs",
     "examples": "pnpm -r --filter \"./examples/*\" run check",
     "size": "size-limit",
     "publint": "pnpm -r --filter \"./packages/*\" --filter \"!@openwizard/docs\" exec publint",
@@ -62,13 +63,19 @@
     {
       "name": "@openwizard/core (esm, brotli)",
       "path": "packages/core/dist/index.js",
-      "limit": "40 kB",
+      "limit": "55 kB",
+      "brotli": true
+    },
+    {
+      "name": "@openwizard/core/inspect (esm, brotli)",
+      "path": "packages/core/dist/inspect.js",
+      "limit": "12 kB",
       "brotli": true
     },
     {
       "name": "@openwizard/durable",
       "path": "packages/durable/dist/index.js",
-      "limit": "6 kB",
+      "limit": "7 kB",
       "brotli": true,
       "ignore": [
         "@openwizard/core"
@@ -99,17 +106,6 @@
     {
       "name": "@openwizard/effect",
       "path": "packages/effect/dist/index.js",
-      "limit": "2 kB",
-      "brotli": true,
-      "ignore": [
-        "@openwizard/core",
-        "@standard-schema/spec",
-        "effect"
-      ]
-    },
-    {
-      "name": "@openwizard/effect-v4",
-      "path": "packages/effect-v4/dist/index.js",
       "limit": "2 kB",
       "brotli": true,
       "ignore": [
@@ -154,19 +150,25 @@
       ]
     },
     {
-      "name": "@openwizard/webhooks",
-      "path": "packages/webhooks/dist/index.js",
-      "limit": "16 kB",
+      "name": "@openwizard/http",
+      "path": "packages/http/dist/index.js",
+      "limit": "22 kB",
       "brotli": true,
       "ignore": [
         "@openwizard/core",
-        "standardwebhooks"
+        "@openwizard/core/inspect"
       ]
     },
     {
-      "name": "@openwizard/webhooks/nitro",
-      "path": "packages/webhooks/dist/nitro.js",
-      "limit": "6 kB",
+      "name": "@openwizard/http/client",
+      "path": "packages/http/dist/client.js",
+      "limit": "2 kB",
+      "brotli": true
+    },
+    {
+      "name": "@openwizard/http/nitro",
+      "path": "packages/http/dist/nitro.js",
+      "limit": "2.5 kB",
       "brotli": true,
       "ignore": [
         "nitro",

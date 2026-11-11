@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMemoryStore } from '../../../src/persistence/memory-store'
 import type { Snapshot } from '../../../src/wizard/snapshot'
-import { final, flow, task, view } from '../../helpers/fixtures'
+import { flow, routingStep, runStep, view } from '../../helpers/fixtures'
 import { e2e, e2eResume, tick } from './harness'
 
 describe('e2e dispose', () => {
@@ -19,7 +19,7 @@ describe('e2e dispose', () => {
       start: 'a',
       steps: {
         a: view({ exit: () => new Promise<void>(() => {}), next: 't' }),
-        t: task({
+        t: runStep({
           run: ({ signal: s }) => {
             signal = s
             return new Promise(() => {})
@@ -32,14 +32,14 @@ describe('e2e dispose', () => {
     const pending = t.run.next()
     expect(t.run.getState().nav.phase).toBe('exiting')
     t.run.dispose()
-    expect(await pending).toEqual({
+    const disposedNav = {
       ok: false,
       reason: 'failed',
       code: 'DISPOSED',
-      message: 'run disposed',
-    })
-    await expect(t.run.next()).rejects.toMatchObject({ code: 'DISPOSED' })
-    expect(() => t.run.child('a')).toThrow()
+      message: 'the run is disposed; create or resume a new run',
+    }
+    expect(await pending).toEqual(disposedNav)
+    expect(await t.run.next()).toEqual(disposedNav)
 
     // A running task at dispose time: aborted, silenced.
     const u = e2e(
@@ -47,7 +47,7 @@ describe('e2e dispose', () => {
         name: 'run',
         start: 't',
         steps: {
-          t: task({
+          t: runStep({
             run: ({ signal: s }) => {
               signal = s
               return new Promise(() => {})
@@ -69,7 +69,7 @@ describe("e2e strict: 'sync'", () => {
     const def = flow({
       name: 'strict-task',
       start: 't',
-      steps: { t: task({ run: async () => 1, next: 'end' }), end: final() },
+      steps: { t: runStep({ run: async () => 1, next: 'end' }), end: routingStep() },
     })
     const t = e2e(def, { strict: 'sync' })
     await t.run.start()
@@ -78,7 +78,7 @@ describe("e2e strict: 'sync'", () => {
       willRetry: false,
       error: { code: 'SYNC_VIOLATION' },
     })
-    expect(t.run.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('halted')
   })
 
   it("a strict-sync violation is step.failed{kind:'sync-violation'} and is never retried, even with a retry policy", async () => {
@@ -86,8 +86,8 @@ describe("e2e strict: 'sync'", () => {
       name: 'strict-retry',
       start: 't',
       steps: {
-        t: task({ run: async () => 1, retry: { attempts: 2, backoff: 10 }, next: 'end' }),
-        end: final(),
+        t: runStep({ run: async () => 1, retry: { attempts: 2, backoff: 10 }, next: 'end' }),
+        end: routingStep(),
       },
     })
     const t = e2e(def, { strict: 'sync' })
@@ -107,7 +107,7 @@ describe("e2e strict: 'sync'", () => {
       status: 'failed',
       error: { kind: 'sync-violation', code: 'SYNC_VIOLATION' },
     })
-    expect(t.run.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('halted')
     expect(t.sched.pending()).toBe(0)
     t.sched.advance(1_000)
     expect(t.of('step.runStarted')).toHaveLength(1)
@@ -151,8 +151,8 @@ describe('e2e persistence with the real machine', () => {
       start: 'a',
       steps: {
         a: view({ next: 't' }),
-        t: task({ run: async () => 'done', next: 'end' }),
-        end: final(),
+        t: runStep({ run: async () => 'done', next: 'end' }),
+        end: routingStep(),
       },
     })
     const t = e2e(def, { store, key: 'k' })
@@ -186,5 +186,31 @@ describe('e2e persistence with the real machine', () => {
     await b.run.save()
     const final2 = (await store.get('k')) as Snapshot
     expect(final2).toMatchObject({ epoch: 1, state: { status: 'done' } })
+  })
+})
+
+describe('e2e progress', () => {
+  it('progress(value) reaches observe() but never the log, the state or the snapshot', async () => {
+    const def = flow({
+      name: 'progress',
+      start: 't',
+      steps: {
+        t: runStep({
+          run: ({ progress }) => {
+            progress({ done: 1, total: 2 })
+            return 'ok'
+          },
+          next: 'end',
+        }),
+        end: routingStep(),
+      },
+    })
+    const t = e2e(def)
+    await t.run.start()
+    expect(t.of('step.progress')).toMatchObject([
+      { type: 'step.progress', step: 't', value: { done: 1, total: 2 }, path: [] },
+    ])
+    expect(t.run.log().some((event) => event.type === 'step.progress')).toBe(false)
+    expect(JSON.stringify(t.run.getSnapshot())).not.toContain('"total":2')
   })
 })

@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { final, flow, flowStep, guard, task, view } from '../../helpers/fixtures'
+import { flow, flowStep, guard, routingStep, runStep, view } from '../../helpers/fixtures'
 import { e2e } from './harness'
 
 const child = () =>
@@ -16,11 +16,14 @@ const child = () =>
     start: 'confirm',
     steps: {
       confirm: view({ next: 'ship' }),
-      ship: task({
+      ship: runStep({
         run: ({ context }) => ({ tracking: `TRK-${(context as any).orderId}` }),
         next: 'done',
       }),
-      done: final({ output: ({ steps }) => steps.ship!.output }),
+      done: runStep({
+        needs: { ship: { kind: 'all', steps: ['ship'] } },
+        run: ({ needs }) => needs.ship,
+      }),
     },
   })
 
@@ -29,13 +32,15 @@ const parent = (childDef = child()) =>
     name: 'checkout',
     start: 'pay',
     steps: {
-      pay: task({ run: () => ({ orderId: 'o-1' }), next: 'fulfil' }),
+      pay: runStep({ run: () => ({ orderId: 'o-1' }), next: 'fulfil' }),
       fulfil: flowStep(childDef, {
-        context: ({ steps }) => ({ orderId: (steps.pay!.output as any).orderId }),
+        needs: { pay: { kind: 'all', steps: ['pay'] } },
+        context: ({ needs }) => ({ orderId: (needs.pay as { orderId: string }).orderId }),
         next: 'receipt',
       }),
-      receipt: final({
-        output: ({ steps }) => ({ tracking: (steps.fulfil!.output as any).tracking }),
+      receipt: runStep({
+        needs: { fulfil: { kind: 'all', steps: ['fulfil'] } },
+        run: ({ needs }) => ({ tracking: (needs.fulfil as { tracking: string }).tracking }),
       }),
     },
   })
@@ -129,17 +134,19 @@ describe('e2e nested flows', () => {
     })
     expect(t.rec('fulfil').error?.message).toContain('orderId must be a number')
     expect(() => t.run.child('fulfil')).toThrow()
-    expect(t.run.getState().status).toBe('failed')
+    expect(t.run.getState().status).toBe('halted')
   })
 
-  it('a failing child fails the parent flow step with kind child', async () => {
+  it('a halted child halts the parent (its flow step stays active); recovering the child finishes the parent', async () => {
+    let fail = true
     const boom = flow({
       name: 'boom',
       start: 't',
       steps: {
-        t: task({
+        t: runStep({
           run: () => {
-            throw new Error('child task exploded')
+            if (fail) throw new Error('child task exploded')
+            return 'fixed'
           },
         }),
       },
@@ -147,16 +154,29 @@ describe('e2e nested flows', () => {
     const p = flow({
       name: 'p',
       start: 'f',
-      steps: { f: flowStep(boom, { context: () => ({}), next: 'end' }), end: final() },
+      steps: { f: flowStep(boom, { context: () => ({}), next: 'end' }), end: routingStep() },
     })
     const t = e2e(p)
     await t.run.start()
-    expect(t.run.child('f').getState().status).toBe('failed')
-    expect(t.rec('f')).toMatchObject({
-      status: 'failed',
-      error: { kind: 'child', message: 'child task exploded' },
+    expect(t.run.child('f').getState().status).toBe('halted')
+    expect(t.rec('f').status).toBe('active')
+    expect(t.run.getState().status).toBe('halted')
+    expect(t.run.outcome()).toMatchObject({
+      status: 'halted',
+      failure: {
+        kind: 'step',
+        step: 'f',
+        error: { kind: 'child', message: 'child task exploded' },
+        child: {
+          status: 'halted',
+          failure: { step: 't', error: { message: 'child task exploded' } },
+        },
+      },
     })
-    expect(t.run.getState().status).toBe('failed')
+
+    fail = false
+    expect(await t.run.child('f').retry('t')).toMatchObject({ ok: true })
+    expect(t.run.getState().status).toBe('done')
   })
 
   it('a flow step with a childOutput hook maps the child output; two levels of nesting keep their paths', async () => {
@@ -164,8 +184,11 @@ describe('e2e nested flows', () => {
       name: 'leaf',
       start: 't',
       steps: {
-        t: task({ run: () => 'leaf-out', next: 'e' }),
-        e: final({ output: ({ steps }) => steps.t!.output }),
+        t: runStep({ run: () => 'leaf-out', next: 'e' }),
+        e: runStep({
+          needs: { t: { kind: 'all', steps: ['t'] } },
+          run: ({ needs }) => needs.t,
+        }),
       },
     })
     const mid = flow({
@@ -177,7 +200,10 @@ describe('e2e nested flows', () => {
           output: ({ output }) => ({ wrapped: output }),
           next: 'e',
         }),
-        e: final({ output: ({ steps }) => steps.f!.output }),
+        e: runStep({
+          needs: { f: { kind: 'all', steps: ['f'] } },
+          run: ({ needs }) => needs.f,
+        }),
       },
     })
     const root = flow({
@@ -185,7 +211,10 @@ describe('e2e nested flows', () => {
       start: 'f',
       steps: {
         f: flowStep(mid, { context: () => ({}), next: 'e' }),
-        e: final({ output: ({ steps }) => steps.f!.output }),
+        e: runStep({
+          needs: { f: { kind: 'all', steps: ['f'] } },
+          run: ({ needs }) => needs.f,
+        }),
       },
     })
     const t = e2e(root)

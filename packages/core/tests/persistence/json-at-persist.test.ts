@@ -7,35 +7,40 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import { defineFlow } from '../../src/authoring/define-flow'
 import { WizardError } from '../../src/errors'
 import { createMemoryStore } from '../../src/persistence/memory-store'
-import { createRun, type RunEvent, resumeRun } from '../../src/wizard/create-wizard'
+import type { RunEvent } from '../../src/wizard/create-wizard'
+import { defineWizard } from '../../src/wizard/define-wizard'
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('persistence: JSON-checked before every store write', () => {
-  const dates = defineFlow({ name: 'dates', context: z.object({ tenant: z.string() }) })
+  const dates = { name: 'dates', context: z.object({ tenant: z.string() }) }
 
   it('a task output holding a Date (no output boundary) is not written: onPersistError + persist.failed name the path; getSnapshot() stays live', async () => {
-    const stamped = dates.steps(
-      {
-        save: dates.task(() => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }), {
-          next: 'end',
-        }),
-        end: dates.final(),
-      },
-      { start: 'save' },
+    const stamped = defineWizard(dates, ({ step, steps }) =>
+      steps(
+        {
+          save: step({
+            run: () => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }),
+            next: 'end',
+          }),
+          end: step({}),
+        },
+        { start: 'save' },
+      ),
     )
     const store = createMemoryStore()
     const errors: unknown[] = []
     const events: RunEvent<typeof stamped>[] = []
-    const run = createRun(stamped, {
-      context: { tenant: 't1' },
-      store,
-      key: 'dates/1',
-      onPersistError: (error) => errors.push(error),
-    })
+    const run = stamped.create(
+      { tenant: 't1' },
+      {
+        store,
+        key: 'dates/1',
+        onPersistError: (error) => errors.push(error),
+      },
+    )
     run.observe((event) => events.push(event))
     await run.start()
     await tick()
@@ -91,18 +96,25 @@ describe('persistence: JSON-checked before every store write', () => {
       inf: Number.POSITIVE_INFINITY,
     }
     for (const [name, value] of Object.entries(values)) {
-      const flow = dates.steps(
-        { t: dates.task(() => ({ [name]: value }), { next: 'end' }), end: dates.final() },
-        { start: 't' },
+      const wizard = defineWizard(dates, ({ step, steps }) =>
+        steps(
+          {
+            t: step({ run: () => ({ [name]: value }), next: 'end' }),
+            end: step({}),
+          },
+          { start: 't' },
+        ),
       )
       const errors: WizardError[] = []
-      const run = createRun(flow, {
-        context: { tenant: 't1' },
-        store: createMemoryStore(),
-        onPersistError: (error) => {
-          if (error instanceof WizardError) errors.push(error)
+      const run = wizard.create(
+        { tenant: 't1' },
+        {
+          store: createMemoryStore(),
+          onPersistError: (error) => {
+            if (error instanceof WizardError) errors.push(error)
+          },
         },
-      })
+      )
       await run.start()
       await tick()
       expect(errors[0]?.code, name).toBe('SNAPSHOT_NOT_SERIALIZABLE')
@@ -114,18 +126,25 @@ describe('persistence: JSON-checked before every store write', () => {
   })
 
   it('an undefined PROPERTY is tolerated (JSON.stringify omits it), like a real store would', async () => {
-    const flow = dates.steps(
-      { t: dates.task(() => ({ id: 'x', note: undefined }), { next: 'end' }), end: dates.final() },
-      { start: 't' },
+    const wizard = defineWizard(dates, ({ step, steps }) =>
+      steps(
+        {
+          t: step({ run: () => ({ id: 'x', note: undefined }), next: 'end' }),
+          end: step({}),
+        },
+        { start: 't' },
+      ),
     )
     const store = createMemoryStore()
     const errors: unknown[] = []
-    const run = createRun(flow, {
-      context: { tenant: 't1' },
-      store,
-      key: 'k',
-      onPersistError: (error) => errors.push(error),
-    })
+    const run = wizard.create(
+      { tenant: 't1' },
+      {
+        store,
+        key: 'k',
+        onPersistError: (error) => errors.push(error),
+      },
+    )
     await run.start()
     await tick()
     expect(errors).toEqual([])
@@ -134,26 +153,32 @@ describe('persistence: JSON-checked before every store write', () => {
     run.dispose()
   })
 
-  it('a Date under a reviving boundary (task `output` with z.coerce.date()) is written as JSON and comes back as a Date after resumeRun', async () => {
-    const stamped = dates.steps(
-      {
-        save: dates.task(() => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }), {
-          output: z.object({ id: z.string(), createdAt: z.coerce.date() }),
-          next: 'gate',
-        }),
-        gate: dates.view({ input: z.object({ ok: z.literal(true) }), next: 'end' }),
-        end: dates.final({ output: ({ steps }) => steps.save?.output }),
-      },
-      { start: 'save' },
-    )
+  it('a Date under a reviving boundary (task `output` with z.coerce.date()) is written as JSON and comes back as a Date after resume', async () => {
+    const stamped = defineWizard(dates, ({ step, view, steps }) => {
+      const save = step({
+        run: () => ({ id: 'row-1', createdAt: new Date(1_700_000_000_000) }),
+        output: z.object({ id: z.string(), createdAt: z.coerce.date() }),
+        next: 'gate',
+      })
+      return steps(
+        {
+          save,
+          gate: view({ input: z.object({ ok: z.literal(true) }), next: 'end' }),
+          end: step({ needs: { save }, dependsOn: ['gate'], run: ({ needs }) => needs.save }),
+        },
+        { start: 'save' },
+      )
+    })
     const store = createMemoryStore()
     const errors: unknown[] = []
-    const run = createRun(stamped, {
-      context: { tenant: 't1' },
-      store,
-      key: 'dates/2',
-      onPersistError: (error) => errors.push(error),
-    })
+    const run = stamped.create(
+      { tenant: 't1' },
+      {
+        store,
+        key: 'dates/2',
+        onPersistError: (error) => errors.push(error),
+      },
+    )
     await run.start()
     await tick()
     expect(run.getState().current).toBe('gate')
@@ -167,7 +192,7 @@ describe('persistence: JSON-checked before every store write', () => {
     run.dispose()
 
     // … and resume re-parses it through the boundary: a Date again, same instant.
-    const resumed = resumeRun(stamped, raw, { store, key: 'dates/2' })
+    const resumed = stamped.resume(raw, { store, key: 'dates/2' })
     const revived = resumed.getState().steps.save.output?.createdAt
     expect(revived).toBeInstanceOf(Date)
     expect(revived?.getTime()).toBe(1_700_000_000_000)
@@ -175,37 +200,41 @@ describe('persistence: JSON-checked before every store write', () => {
   })
 
   it('a Date in the context is fine when the context boundary re-parses it (z.coerce.date()), and rejected under boundary.trusted()', async () => {
-    const coerced = defineFlow({
+    const coerced = {
       name: 'ctx-dates',
       context: z.object({ since: z.coerce.date() }),
-    })
-    const okFlow = coerced.steps({ end: coerced.final() })
+    }
+    const okWizard = defineWizard(coerced, ({ step, steps }) => steps({ end: step({}) }))
     const errors: unknown[] = []
     const store = createMemoryStore()
-    const run = createRun(okFlow, {
-      context: { since: '2024-01-01T00:00:00.000Z' },
-      store,
-      key: 'ctx',
-      onPersistError: (error) => errors.push(error),
-    })
+    const run = okWizard.create(
+      { since: '2024-01-01T00:00:00.000Z' },
+      {
+        store,
+        key: 'ctx',
+        onPersistError: (error) => errors.push(error),
+      },
+    )
     expect(run.getState().context.since).toBeInstanceOf(Date)
     await run.save()
     expect(errors).toEqual([])
-    const resumed = resumeRun(okFlow, await store.get('ctx'), {})
+    const resumed = okWizard.resume(await store.get('ctx'))
     expect(resumed.getState().context.since).toBeInstanceOf(Date)
     resumed.dispose()
     run.dispose()
 
-    const trusted = defineFlow({
+    const trusted = {
       name: 'ctx-trusted',
       context: boundary.trusted<{ readonly since: Date }>(),
-    })
-    const trustedFlow = trusted.steps({ end: trusted.final() })
-    const bad = createRun(trustedFlow, {
-      context: { since: new Date() },
-      store: createMemoryStore(),
-      onPersistError: () => {},
-    })
+    }
+    const trustedWizard = defineWizard(trusted, ({ step, steps }) => steps({ end: step({}) }))
+    const bad = trustedWizard.create(
+      { since: new Date() },
+      {
+        store: createMemoryStore(),
+        onPersistError: () => {},
+      },
+    )
     await expect(bad.save()).rejects.toMatchObject({
       code: 'SNAPSHOT_NOT_SERIALIZABLE',
       message: expect.stringContaining('state.context.since is a Date'),
@@ -214,20 +243,22 @@ describe('persistence: JSON-checked before every store write', () => {
   })
 
   it('a store rejection is reported the same way (persist.failed { reason: "store" })', async () => {
-    const flow = dates.steps({ end: dates.final() })
+    const wizard = defineWizard(dates, ({ step, steps }) => steps({ end: step({}) }))
     const errors: unknown[] = []
-    const run = createRun(flow, {
-      context: { tenant: 't1' },
-      store: {
-        get: async () => null,
-        set: async () => {
-          throw new Error('disk full')
+    const run = wizard.create(
+      { tenant: 't1' },
+      {
+        store: {
+          get: async () => null,
+          set: async () => {
+            throw new Error('disk full')
+          },
+          delete: async () => {},
         },
-        delete: async () => {},
+        key: 'k',
+        onPersistError: (error) => errors.push(error),
       },
-      key: 'k',
-      onPersistError: (error) => errors.push(error),
-    })
+    )
     await run.start()
     await tick()
     expect(errors.map((e) => (e as Error).message)).toEqual(['disk full'])

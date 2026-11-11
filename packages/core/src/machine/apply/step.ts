@@ -36,14 +36,11 @@ function deferContinuation(
   def: CompiledFlow,
   state: WizardState,
   step: string,
-  override: string | undefined,
+  override: string | readonly string[] | undefined,
 ): WizardState {
   const stepDef = def.steps[step]
   const busy = state.nav.phase !== 'idle' && state.status !== 'compensating' && !isTerminal(state)
-  const advances =
-    stepDef !== undefined &&
-    stepDef.kind !== 'final' &&
-    (override !== undefined || stepDef.next.kind !== 'none')
+  const advances = stepDef !== undefined && (override !== undefined || stepDef.next.kind !== 'none')
   if (!busy || !advances) return state
   const entry = override !== undefined ? { step, to: override } : { step }
   return withNav(state, { ...state.nav, deferred: [...(state.nav.deferred ?? []), entry] })
@@ -64,6 +61,10 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           rec.kind === 'view' && rec.input === undefined && def?.initial !== undefined
             ? { input: def.initial }
             : {}
+        const initialSeq =
+          rec.kind === 'view' && rec.input === undefined && def?.hooks.initial !== undefined
+            ? (rec.initializing ?? ev.seq)
+            : undefined
         const base = omit(rec, [
           'error',
           'issues',
@@ -73,15 +74,20 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           'idempotencyKey',
           'arrivedSeq',
           'exitedAt',
+          'endedAt',
           'child',
           'entering',
           'enterDone',
+          'completedSeq',
           'when',
           'skipReason',
+          'invalidated',
+          'each',
         ])
         return {
           ...base,
           ...seedInput,
+          ...(initialSeq !== undefined ? { initializing: initialSeq } : {}),
           status: 'active',
           runId: ev.runId,
           attempt: 0,
@@ -111,12 +117,16 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
         status: ev.direction === 'back' ? 'idle' : 'done',
         pendingActivation: false,
         exitedAt: ev.at,
+        ...(ev.direction === 'back' ? {} : { endedAt: ev.at }),
+        completedSeq: ev.seq,
       }))
     case 'step.done': {
       const def = env.def.steps[ev.step]
       let next = withStep(state, ev.step, (rec) => ({
-        ...omit(rec, ['error', 'retryAt', 'deadline', 'entering', 'output']),
+        ...omit(rec, ['error', 'retryAt', 'deadline', 'entering', 'output', 'invalidated']),
         status: 'done',
+        completedSeq: ev.seq,
+        endedAt: ev.at,
         pendingActivation: false,
         ...(ev.output !== undefined ? { output: ev.output } : {}),
       }))
@@ -134,9 +144,10 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
     }
     case 'step.failed': {
       const next = withStep(dropHint(state, ev.step), ev.step, (rec) => ({
-        ...omit(rec, ['retryAt', 'deadline', 'entering', 'when']),
+        ...omit(rec, ['retryAt', 'deadline', 'entering', 'initializing', 'when']),
         status: 'failed',
         pendingActivation: false,
+        endedAt: ev.at,
         error: toStepError(
           ev.error,
           ev.kind,
@@ -152,7 +163,11 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
             ...next,
             failure: {
               step: ev.step,
-              error,
+              error: {
+                name: error.name,
+                message: error.message,
+                ...(error.code !== undefined ? { code: error.code } : {}),
+              },
               kind: error.kind,
               at: error.at,
               ...(error.attempt !== undefined ? { attempt: error.attempt } : {}),
@@ -167,6 +182,7 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
       const next = withStep(dropHint(state, ev.step), ev.step, (rec) => ({
         ...omit(rec, [
           'entering',
+          'initializing',
           'when',
           'error',
           'issues',
@@ -175,12 +191,26 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           'deadline',
           'idempotencyKey',
           'arrivedSeq',
+          'invalidated',
         ]),
         status: 'skipped',
         pendingActivation: false,
+        endedAt: ev.at,
         ...(ev.reason !== undefined ? { skipReason: ev.reason } : {}),
+        ...(ev.error !== undefined
+          ? {
+              error: toStepError(
+                ev.error,
+                ev.kind ?? 'run',
+                ev.at,
+                rec.attempt > 0 ? rec.attempt : undefined,
+                ev.data,
+              ),
+            }
+          : {}),
       }))
-      return deferContinuation(env.def, next, ev.step, undefined)
+      if (ev.reason === 'not-taken' || ev.reason === 'needs-skipped') return next
+      return deferContinuation(env.def, next, ev.step, ev.next)
     }
     case 'step.whenStarted':
       return patchStep(state, ev.step, { when: 'pending' })
@@ -202,21 +232,26 @@ export function applyStep(env: MachineEnv, state: WizardState, ev: DomainEvent):
           'idempotencyKey',
           'arrivedSeq',
           'entering',
+          'initializing',
           'enterDone',
+          'completedSeq',
+          'endedAt',
           'when',
           'child',
+          'each',
         ]),
         status: 'idle',
+        invalidated: true,
         pendingActivation: false,
         ...(rec.output !== undefined ? { previousOutput: rec.output } : {}),
       }))
     case 'step.cancelled':
-      return patchStep(state, ev.step, { status: 'cancelled', pendingActivation: false }, [
-        'entering',
-        'retryAt',
-        'deadline',
-        'when',
-      ])
+      return patchStep(
+        state,
+        ev.step,
+        { status: 'cancelled', pendingActivation: false, endedAt: ev.at },
+        ['entering', 'initializing', 'retryAt', 'deadline', 'when'],
+      )
     case 'step.validated':
       return withStep(state, ev.step, (rec) => ({
         ...omit(rec, ['issues']),

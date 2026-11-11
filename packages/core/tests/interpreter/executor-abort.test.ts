@@ -30,6 +30,7 @@ function harness(
     abortGraceMs: 1_000,
     getState: () => state,
     send: (msg, causedBy) => sent.push({ msg, causedBy }),
+    progress: () => {},
   })
   return { executor, sent, sched, state }
 }
@@ -62,10 +63,10 @@ describe('executor: extra echo and hostile thenables', () => {
     const def = flow({
       steps: {
         w: {
-          kind: 'wait',
+          kind: 'step',
           hooks: {
-            on: {
-              ok: () => ({ next: 'x' }),
+            waitFor: {
+              ok: () => ({ done: 'x' }),
               boom: () => {
                 throw new Error('handler failed')
               },
@@ -78,7 +79,7 @@ describe('executor: extra echo and hostile thenables', () => {
     const { executor, sent } = harness(def, activate('w'))
     const extra = { event: 'ok', payload: { id: 1 }, inboxId: 'evt_1' }
     executor.execute(call('w', 'on', { extra }))
-    expect(sent[0]!.msg).toMatchObject({ type: 'res.ok', value: { next: 'x' }, extra })
+    expect(sent[0]!.msg).toMatchObject({ type: 'res.ok', value: { done: 'x' }, extra })
     const extraErr = { event: 'boom', payload: 2, inboxId: 'evt_2' }
     executor.execute({ ...call('w', 'on', { extra: extraErr }), effectId: 'fx2' })
     expect(sent[1]!.msg).toMatchObject({ type: 'res.err', extra: extraErr })
@@ -102,7 +103,7 @@ describe('executor: extra echo and hostile thenables', () => {
     const def = flow({
       steps: {
         t: {
-          kind: 'task',
+          kind: 'step',
           hooks: {
             run: () => ({
               // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
@@ -124,7 +125,7 @@ describe('executor: extra echo and hostile thenables', () => {
     const def = flow({
       steps: {
         t: {
-          kind: 'task',
+          kind: 'step',
           hooks: {
             run: () => ({
               // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
@@ -146,7 +147,7 @@ describe('executor: extra echo and hostile thenables', () => {
     const def = flow({
       steps: {
         t: {
-          kind: 'task',
+          kind: 'step',
           hooks: {
             run: () => ({
               // biome-ignore lint/suspicious/noThenProperty: intentionally synchronous custom thenable
@@ -170,7 +171,7 @@ describe('executor: extra echo and hostile thenables', () => {
     const def = flow({
       steps: {
         t: {
-          kind: 'task',
+          kind: 'step',
           hooks: {
             run: () => ({
               // biome-ignore lint/suspicious/noThenProperty: intentionally hostile thenable
@@ -190,13 +191,54 @@ describe('executor: extra echo and hostile thenables', () => {
 })
 
 describe('executor: timeout and abort', () => {
+  it('aborts a navigation transaction without cancelling an unrelated run of the same step', () => {
+    const signals: { run?: AbortSignal; guard?: AbortSignal } = {}
+    const def = flow({
+      steps: {
+        t: {
+          kind: 'step',
+          hooks: {
+            run: ({ signal }) => {
+              signals.run = signal
+              return new Promise(() => {})
+            },
+            canEnter: ({ signal }) => {
+              signals.guard = signal
+              return new Promise<boolean>(() => {})
+            },
+          },
+        },
+      },
+    })
+    const { executor, sent, sched } = harness(def, activate('t'))
+    executor.execute(call('t', 'run'))
+    executor.execute({
+      ...call('t', 'canEnter'),
+      effectId: 'guard',
+      token: { step: 't', runId: 3, txId: 'navigation' },
+    })
+    executor.abortTransaction('navigation', 'navigation cancelled')
+    expect(signals.guard?.aborted).toBe(true)
+    expect(signals.run?.aborted).toBe(false)
+    sched.advance(1_000)
+    expect(sent).toHaveLength(1)
+    expect(sent[0]!.msg).toMatchObject({
+      type: 'res.err',
+      effectId: 'guard',
+      cancelled: true,
+      timedOut: true,
+    })
+    expect(executor.pending()).toBe(1)
+    executor.abortAll()
+  })
+
   it('times out with res.err { timedOut } and aborts the signal; late results are dropped', async () => {
     let resolveIt: (v: unknown) => void = () => {}
     let signal: AbortSignal | undefined
     const def = flow({
       steps: {
         t: {
-          kind: 'task',
+          kind: 'step',
           hooks: {
             run: (a) => {
               signal = a.signal
@@ -224,7 +266,7 @@ describe('executor: timeout and abort', () => {
   it('abort(step) aborts the signal but lets a late success through as res.ok', async () => {
     let resolveIt: (v: unknown) => void = () => {}
     const def = flow({
-      steps: { t: { kind: 'task', hooks: { run: () => new Promise((r) => (resolveIt = r)) } } },
+      steps: { t: { kind: 'step', hooks: { run: () => new Promise((r) => (resolveIt = r)) } } },
     })
     const { executor, sent } = harness(def, activate('t'))
     executor.execute(call('t', 'run'))
@@ -239,7 +281,7 @@ describe('executor: timeout and abort', () => {
     const def = flow({
       steps: {
         t: {
-          kind: 'task',
+          kind: 'step',
           hooks: {
             run: (a) => {
               signal = a.signal
@@ -266,7 +308,7 @@ describe('executor: timeout and abort', () => {
 
   it('abort(step) without a timeout arms the grace timer; abortAll silences everything', () => {
     const def = flow({
-      steps: { t: { kind: 'task', hooks: { run: () => new Promise(() => {}) } } },
+      steps: { t: { kind: 'step', hooks: { run: () => new Promise(() => {}) } } },
     })
     const { executor, sent, sched } = harness(def, activate('t'))
     executor.execute(call('t', 'run'))

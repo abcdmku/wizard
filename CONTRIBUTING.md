@@ -12,7 +12,7 @@ pnpm test
 
 ## Make a change
 
-1. Add or update a test next to the package you changed.
+1. Add or update a focused test for changed behavior or a type contract.
 2. Run the narrow package test while you work.
 3. Run the repository checks before opening a pull request.
 4. Add a changeset for a user-visible package change.
@@ -43,14 +43,14 @@ pnpm check:docs
 
 | Folder | Contents |
 |---|---|
-| `packages/core` | Flow definitions, runtime, state, persistence, mirrors, and tests |
+| `packages/core` | Wizard definitions, runtime, state, persistence, mirrors, and tests |
 | `packages/react` | React bindings |
 | `packages/devtools` | React inspection tools |
 | `packages/durable` | Leases, fenced writes, and durable run hosting |
 | `packages/drizzle` | PostgreSQL and SQLite durable stores |
-| `packages/effect*` | Effect task adapters |
+| `packages/effect` | Effect task adapters |
 | `packages/opentelemetry` | Run tracing |
-| `packages/webhooks` | Signed webhooks and HTTP resources |
+| `packages/http` | Generated HTTP API, signed webhooks, outbound callbacks, browser client |
 | `packages/docs` | Public documentation site and checked snippets |
 | `examples` | Runnable projects and their tests |
 
@@ -59,6 +59,8 @@ pnpm check:docs
 Write for someone who has not used a workflow engine before. Introduce one idea at a time and use a complete example before adding options.
 
 Code fences with `file="..."` load the named repository file during the docs build. Put reusable examples in `packages/docs/snippets` and make sure they type-check.
+
+Use `defineWizard(options, ({ step, steps }) => steps(map))` in public examples. A Wizard is the definition passed to integrations. Keep executable snippets and the root quickstart in sync. Generated export tables come from `pnpm docs:gen`; edit the source documentation comments instead of those tables.
 
 Run both checks after changing docs:
 

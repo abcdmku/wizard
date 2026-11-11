@@ -1,7 +1,7 @@
 {
   "name": "@openwizard/effect",
   "version": "0.1.0-next.0",
-  "description": "Run Effect 3 programs as OpenWizard tasks.",
+  "description": "Run Effect 4 programs as OpenWizard steps.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -35,13 +35,11 @@
   },
   "peerDependencies": {
     "@openwizard/core": "workspace:^",
-    "@standard-schema/spec": ">=1.1.0 <2",
-    "effect": ">=3.22.1 <4"
+    "effect": "^4.0.0-beta.107"
   },
   "devDependencies": {
     "@openwizard/core": "workspace:*",
-    "@standard-schema/spec": "^1.1.0",
-    "effect": "3.22.1"
+    "effect": "4.0.0-beta.107"
   },
   "keywords": [
     "wizard",

@@ -1,7 +1,7 @@
 {
-  "index": "Recipes",
+  "index": "Overview",
   "form": "Collect form input",
-  "branching": "Choose a branch",
-  "parallel": "Run work in parallel",
+  "branching": "Branch on data",
+  "parallel": "Run tasks in parallel",
   "nested": "Use a child flow"
 }

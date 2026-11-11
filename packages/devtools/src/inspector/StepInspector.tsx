@@ -4,17 +4,12 @@
  * the static facts of the graph node (kind, hooks, `dependsOn`, `timeout`, edges).
  */
 
-import type { FlowGraph } from '@openwizard/core'
+import type { FlowGraph, FlowGraphNode } from '@openwizard/core/inspect'
 import { type CSSProperties, type ReactElement, useMemo } from 'react'
+import { definitionPath } from '../graph/instances'
 import { useSourceSnapshot } from '../hooks/use-source'
 import { formatMs } from '../layout/model'
-import {
-  type DevtoolsSource,
-  type DevtoolsTheme,
-  type FlowGraphNode,
-  isFlowRunSource,
-  stepKey,
-} from '../types'
+import { type DevtoolsSource, type DevtoolsTheme, isRunSource, stepKey } from '../types'
 import { JsonView } from './JsonView'
 import { readStep, type StepReading } from './read-step'
 
@@ -61,7 +56,11 @@ export function StepInspector(props: StepInspectorProps): ReactElement {
     () => readStep(props.source, snapshot, path, props.step),
     [props.source, snapshot, path, props.step],
   )
-  const node = props.graph?.nodes.find((n) => n.id === props.step && samePath(n.path, path))
+  const definedPath = props.graph === undefined ? path : definitionPath(props.graph, path)
+  const node =
+    definedPath === undefined
+      ? undefined
+      : props.graph?.nodes.find((n) => n.id === props.step && samePath(n.path, definedPath))
   const theme = props.theme ?? 'system'
   return (
     <div
@@ -82,7 +81,7 @@ export function StepInspector(props: StepInspectorProps): ReactElement {
       {reading.missing !== undefined && <div className="owd-empty">{reading.missing}</div>}
       {reading.record !== undefined && <RecordSection record={reading.record} />}
       {reading.projected !== undefined && <ProjectedSection reading={reading} />}
-      <ExplainSection reading={reading} isRun={isFlowRunSource(props.source)} />
+      <ExplainSection reading={reading} isRun={isRunSource(props.source)} />
       {node !== undefined && props.graph !== undefined && (
         <DefinitionSection node={node} graph={props.graph} />
       )}
@@ -134,6 +133,7 @@ function RecordSection({
         <JsonView label="previousOutput" value={record.previousOutput} />
       )}
       {record.child !== undefined && <JsonView label="child" value={record.child} />}
+      {record.each !== undefined && <JsonView label="items" value={record.each} />}
     </section>
   )
 }
@@ -224,11 +224,21 @@ function DefinitionSection({
           name="timeout"
           value={node.timeout === undefined ? undefined : formatMs(node.timeout)}
         />
+        <Fact name="needs" value={node.needs} />
+        <Fact name="each" value={node.each} />
+        <Fact
+          name="sleep"
+          value={
+            node.sleep === undefined || node.sleep === 'dynamic' ? node.sleep : formatMs(node.sleep)
+          }
+        />
+        <Fact name="fallback" value={node.fallback} />
+        <Fact name="sink" value={node.completes === true ? 'yes' : undefined} />
         <Fact
           name="next"
           value={
             node.dynamicNext === true
-              ? 'dynamic (?)'
+              ? `dynamic (${node.targets?.join(', ') ?? '?'})`
               : outgoing
                   .filter((e) => e.kind === 'next')
                   .map((e) => e.to)

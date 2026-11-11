@@ -18,14 +18,14 @@ export { initialState } from './initial'
 export { AUTO_ADVANCE_LIMIT } from './nav'
 export { inboxTimerId, retryTimerId, waitTimerId } from './scheduler'
 export {
-  activeTaskCount,
+  activeRunCount,
   available,
   awaitingWhen,
   cursorTarget,
   depsSatisfied,
   eligible,
   eligibleSteps,
-  isRecoverableFailure,
+  isEventStep,
   isTerminal,
   type Progress,
   phase,
@@ -39,5 +39,5 @@ export {
   unmetDeps,
   viewsAwaitingWhen,
 } from './selectors'
-export type { InitialState, InitialStateOptions, Machine, MachineEnv } from './types'
+export type { Decision, InitialState, InitialStateOptions, Machine, MachineEnv } from './types'
 export { apply, decide, deriveStatus, plan }

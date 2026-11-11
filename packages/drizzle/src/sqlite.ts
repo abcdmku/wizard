@@ -1,4 +1,4 @@
-import type { DurableStore } from '@openwizard/durable'
+import type { DurableStore } from '@openwizard/durable/store'
 import type { TablesRelationalConfig } from 'drizzle-orm'
 import { and, eq, isNotNull, lte } from 'drizzle-orm'
 import {
@@ -51,10 +51,9 @@ export function defineSqliteDurableSchema(options: SqliteDurableSchemaOptions = 
       runKey: text('run_key')
         .notNull()
         .references(() => runs.key, { onDelete: 'cascade' }),
-      kind: text('kind').$type<'command' | 'event'>().notNull(),
       dedupeId: text('dedupe_id').notNull(),
       digest: text('digest').notNull(),
-      status: text('status').$type<'pending' | 'completed'>().notNull(),
+      status: text('status').$type<'pending' | 'applied' | 'completed'>().notNull(),
       claimId: text('claim_id').notNull(),
       ownerFence: text('owner_fence').notNull(),
       claimedAt: integer('claimed_at_ms').notNull(),
@@ -63,7 +62,7 @@ export function defineSqliteDurableSchema(options: SqliteDurableSchemaOptions = 
       completedAt: integer('completed_at_ms'),
     },
     (columns) => [
-      primaryKey({ columns: [columns.runKey, columns.kind, columns.dedupeId] }),
+      primaryKey({ columns: [columns.runKey, columns.dedupeId] }),
       index(`${prefix}dedupe_retention_idx`).on(columns.status, columns.completedAt),
     ],
   )
@@ -148,26 +147,22 @@ function createSqliteRepository<
                 await tx.update(runs).set(patch).where(eq(runs.key, key))
                 applyRunPatch(row, patch)
               },
-              async readDedupe(kind, id) {
+              async readDedupe(id) {
                 const rows = await tx
                   .select()
                   .from(dedupe)
-                  .where(
-                    and(eq(dedupe.runKey, key), eq(dedupe.kind, kind), eq(dedupe.dedupeId, id)),
-                  )
+                  .where(and(eq(dedupe.runKey, key), eq(dedupe.dedupeId, id)))
                   .limit(1)
                 return rows[0] ?? null
               },
               async insertDedupe(value) {
                 await tx.insert(dedupe).values(value)
               },
-              async updateDedupe(kind, id, value) {
+              async updateDedupe(id, value) {
                 await tx
                   .update(dedupe)
                   .set(value)
-                  .where(
-                    and(eq(dedupe.runKey, key), eq(dedupe.kind, kind), eq(dedupe.dedupeId, id)),
-                  )
+                  .where(and(eq(dedupe.runKey, key), eq(dedupe.dedupeId, id)))
               },
               async readTimer(timerId) {
                 const rows = await tx
@@ -212,7 +207,7 @@ function createSqliteRepository<
         db.transaction(
           async (tx) => {
             const dedupeRows = await tx
-              .select({ runKey: dedupe.runKey, kind: dedupe.kind, dedupeId: dedupe.dedupeId })
+              .select({ runKey: dedupe.runKey, dedupeId: dedupe.dedupeId })
               .from(dedupe)
               .where(
                 and(
@@ -225,13 +220,7 @@ function createSqliteRepository<
             for (const row of dedupeRows) {
               await tx
                 .delete(dedupe)
-                .where(
-                  and(
-                    eq(dedupe.runKey, row.runKey),
-                    eq(dedupe.kind, row.kind),
-                    eq(dedupe.dedupeId, row.dedupeId),
-                  ),
-                )
+                .where(and(eq(dedupe.runKey, row.runKey), eq(dedupe.dedupeId, row.dedupeId)))
             }
 
             const remaining = input.limit - dedupeRows.length

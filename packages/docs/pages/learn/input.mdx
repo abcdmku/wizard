@@ -1,56 +1,70 @@
-# How a view collects and validates input
+# Views and input
 
-A task can finish without asking anyone for help. A form cannot. A `view` step represents that pause in the workflow.
-
-This signup flow starts at a view named `contact`. The run stays there until the application supplies a valid email and calls `next()`.
+A `view` pauses the run at a form. It stores a draft, validates it when your application moves on, and supplies the accepted value to `exit`. Copy the fields later steps need into context there, or pass the view's output to a consumer through `needs`.
 
 ```ts file="packages/docs/snippets/learn/form.ts"
 ```
 
-## The draft and context have different jobs
-
-The view's `input` schema describes its draft. The draft belongs to the `contact` step while the user edits it. It is separate from the run's shared context.
-
-OpenWizard checks the draft when `next()` tries to leave the view. If it passes, the parsed value becomes the view step's `output`. The `exit` hook then copies `output.email` into context with `update()` because the final step needs it later.
-
-Keeping unfinished input out of context prevents later steps from reading an email before validation succeeds.
-
-## Drive the view from your application
-
 ```ts file="packages/docs/snippets/learn/run-form.mts"
 ```
 
-The calls have separate responsibilities:
+1. `start()` enters `contact`. Status is `waiting` and `state.current` is `'contact'`.
+2. `setInput('contact', patch)` shallow-merges the patch into the draft and clears issues for changed fields.
+3. `next()` parses the whole draft with `input`. On success the parsed value becomes the step's output, `exit` runs, and the run follows `next`.
+4. The final step reads the accepted data and completes.
 
-1. `start()` enters `contact`. The run status becomes `waiting` and `state.current` becomes `'contact'`.
-2. `setInput('contact', patch)` shallow-merges a patch into that view's draft. This lets a UI save one changed field at a time.
-3. `next()` parses the full draft with the Zod schema. If it is valid, the view exits and the run follows `next: 'done'`.
-4. The final step reads the email from context and finishes the run.
+`setInput()` stores the draft. `next()` attempts to leave the view.
 
-`setInput()` does not mean "submit the form." It stores a draft. `next()` is the operation that tries to leave the current view.
-
-## Handle invalid input without an exception
-
-If the email is invalid, `next()` returns a result with `ok: false` and validation issues:
+## Invalid input
 
 ```ts
 const moved = await run.next()
 
-if (!moved.ok) {
-  console.log(moved.code)
-  console.log(moved.issues)
+if (!moved.ok && moved.reason === 'validation') {
+  console.log(moved.code) // 'INVALID_INPUT'
+  console.log(moved.issues) // [{ message, path }]
 }
 ```
 
-The run stays on `contact`, the `exit` hook does not run, and the invalid value is not copied into context. A UI can display the issues and let the user edit the same draft.
+The run stays on the view, `exit` does not run, and nothing reaches context. Render the issues and let the user edit the draft. `run.validate('contact')` checks without trying to move. `canEnter` and `canExit` can also refuse navigation.
 
-## Where data gets checked
+## Draft and context are separate
 
-The runtime checks data at boundaries where values enter trusted flow state:
+The draft belongs to the view while it is edited. Context holds data shared with later steps. Copy accepted fields in `exit`:
 
-- `createRun()` checks the starting context.
-- `next()` checks a view draft.
-- `send()` checks an event payload.
-- A task can check a service response with an `output` schema before storing it.
+```ts
+exit: ({ output, update }) => update({ email: output.email }),
+```
 
-Use `boundary.trusted<Type>()` only when your application constructed and checked the value before passing it to OpenWizard. It supplies a TypeScript type but performs no runtime validation.
+`back()` preserves the draft and does not run the view's `exit` hook. If a later step needs the view's accepted output directly, reference the view in `needs: { contact }`.
+
+## Initial drafts
+
+`initial` seeds the draft from a partial object or a function of `context` and `deps`:
+
+```ts
+profile: view({
+  input: profileInput,
+  initial: ({ context }) => ({ plan: context.selectedPlan }),
+  next: 'done',
+}),
+```
+
+OpenWizard stores the resolved draft, so back navigation and resume keep it. `resetInput('profile')` clears it and runs the initializer again. An initializer that throws fails the view.
+
+A view can handle declared events through `on`. To require approval before entering the form, place a separate `step({ waitFor })` before it.
+
+## Where data is checked
+
+| Boundary | Checked by |
+|---|---|
+| Starting context | `wizard.create(input)` |
+| View draft | `next()`, `go()`, `validate()` |
+| Event payload | `send()` |
+| Work output | The step's optional `output` schema |
+
+`boundary.trusted<T>()` supplies a type without checking values at runtime. Use it for data your host already checks, such as service dependencies.
+
+## Next
+
+[Commands, state, and outcomes](/learn/results) explains what a command response says compared with live state and a run outcome.

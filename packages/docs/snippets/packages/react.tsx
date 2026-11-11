@@ -1,18 +1,41 @@
-import type { FlowRun } from '@openwizard/core'
+import type { Run } from '@openwizard/core'
 import { bindReact } from '@openwizard/react'
-import type { helloFlow } from '../../../../examples/01-happy-path/src/hello-flow'
+import type { signupFlow } from '../learn/form'
 
-const hello = bindReact<typeof helloFlow>()
+const signup = bindReact<typeof signupFlow>()
 
-function Status() {
-  const state = hello.useSnapshot()
-  return <p>Run status: {state.status}</p>
+function ContactForm() {
+  const { status } = signup.useSnapshot()
+  const contact = signup.useStep('contact')
+  const actions = signup.useActions()
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        void contact.next()
+      }}
+    >
+      <input
+        value={contact.input?.email ?? ''}
+        onChange={(event) => void contact.setInput({ email: event.target.value })}
+      />
+      {contact.issues?.map((issue) => (
+        <p key={issue.message}>{issue.message}</p>
+      ))}
+      <button type="submit">Continue</button>
+      <button type="button" onClick={() => void actions.cancel()}>
+        Cancel
+      </button>
+      <p>Run status: {status}</p>
+    </form>
+  )
 }
 
-export function HelloStatus({ run }: { run: FlowRun<typeof helloFlow> }) {
+export function Signup({ run }: { run: Run<typeof signupFlow> }) {
   return (
-    <hello.Provider source={run}>
-      <Status />
-    </hello.Provider>
+    <signup.Provider source={run}>
+      <ContactForm />
+    </signup.Provider>
   )
 }

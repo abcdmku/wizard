@@ -1,5 +1,5 @@
 /**
- * (f) resume with the REAL machine: snapshot mid-wait (deadline + inbox) →
+ * (f) resume with the real machine: snapshot during `waitFor` (deadline + inbox) →
  * `resumeWizardRuntime` on a fresh runtime → epoch + 1, `flow.resumed`, inbox
  * drained before the overdue timer fires; snapshot mid-running-task →
  * `step.failed{kind:'interrupted'}` → `retry` works; nested children restored;
@@ -7,11 +7,19 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { final, flow, flowStep, guard, task, view, wait } from '../../helpers/fixtures'
+import {
+  eventStep,
+  flow,
+  flowStep,
+  guard,
+  routingStep,
+  runStep,
+  view,
+} from '../../helpers/fixtures'
 import { e2e, e2eResume, roundTrip, tick } from './harness'
 
 describe('e2e resume', () => {
-  it('mid-wait: inbox drained first, then the overdue timeout fires — but the delivery already completed the step', async () => {
+  it('mid-wait: an overdue timeout fires during the resume batch, before any buffered event is delivered (D9)', async () => {
     const def = flow({
       name: 'wait-resume',
       start: 'form',
@@ -19,13 +27,13 @@ describe('e2e resume', () => {
       policies: { unmatchedEvents: { buffer: true, ttlMs: 60_000 } },
       steps: {
         form: view({ next: 'w' }),
-        w: wait({
+        w: eventStep({
           on: { hello: ({ payload }) => ({ done: { got: payload } }) },
           timeout: { afterMs: 1_000, next: 'expired' },
           next: 'ok',
         }),
-        ok: final({ output: () => 'ok' }),
-        expired: final({ output: () => 'expired' }),
+        ok: runStep({ run: () => 'ok' }),
+        expired: runStep({ run: () => 'expired' }),
       },
     })
     // Phase 1: reach the wait, buffer nothing yet, snapshot with the deadline armed.
@@ -36,18 +44,17 @@ describe('e2e resume', () => {
     const snap1 = roundTrip(a.run.getSnapshot())
     a.run.dispose()
 
-    // Resume much later: the timer is overdue → re-armed for "now" → fires on the next tick.
+    // Resume much later: deadlines are absolute, so the overdue timeout fires in the resume batch.
     const b = e2eResume(def, snap1, { now: 5_000 })
     expect(b.run.epoch).toBe(1)
     expect(b.run.log()[0]).toMatchObject({ type: 'flow.resumed', fromSeq: (snap1 as any).seq })
-    expect(b.run.getState().status).toBe('waiting')
-    expect(b.sched.pending()).toBe(1)
-    b.sched.advance(0)
-    expect(b.rec('w')).toMatchObject({ status: 'done', output: { event: 'timeout' } })
+    expect(b.rec('w').status).toBe('done')
+    expect(b.rec('w').output).toBeUndefined()
     expect(b.run.getState().output).toBe('expired')
+    expect(b.sched.pending()).toBe(0)
 
-    // Phase 2: an event arrives EARLY (buffered) while another instance is mid-wait; snapshot; resume
-    // overdue → the inbox drains first (the handler completes the wait), the timer is not honoured.
+    // Phase 2: an event is buffered while another instance is mid-wait; snapshot; resume after the
+    // deadline → the overdue timeout fires before the inbox drains, so the timeout wins.
     const c = e2e(def, { now: 1_000, instanceId: 'c' })
     await c.run.start()
     // buffer while still on the view (nobody listens)
@@ -76,13 +83,10 @@ describe('e2e resume', () => {
     })
     d.run.dispose()
     const e = e2eResume(def, inboxSnap, { now: 5_000 })
-    // Drained during the resume batch itself, before any timer could fire.
-    expect(e.of('event.delivered')[0]).toMatchObject({ event: 'hello', to: 'w', payload: { n: 9 } })
-    expect(e.rec('w')).toMatchObject({ status: 'done', output: { got: { n: 9 } } })
-    expect(e.run.getState().output).toBe('ok')
-    expect(e.run.getState().timers).toEqual({})
-    e.sched.flush()
-    expect(e.run.getState().output).toBe('ok')
+    expect(e.of('event.delivered')).toEqual([])
+    expect(e.rec('w').status).toBe('done')
+    expect(e.rec('w').output).toBeUndefined()
+    expect(e.run.getState().output).toBe('expired')
   })
 
   it('mid-running task: resumed as step.failed{kind:interrupted}; retry() re-runs it', async () => {
@@ -91,14 +95,14 @@ describe('e2e resume', () => {
       name: 'task-resume',
       start: 't',
       steps: {
-        t: task({
+        t: runStep({
           run: () => {
             calls += 1
             return calls === 1 ? new Promise(() => {}) : Promise.resolve('second run')
           },
           next: 'end',
         }),
-        end: final(),
+        end: routingStep(),
       },
     })
     const a = e2e(def)
@@ -113,7 +117,7 @@ describe('e2e resume', () => {
       status: 'failed',
       error: { kind: 'interrupted', code: 'INTERRUPTED' },
     })
-    expect(b.run.getState().status).toBe('failed')
+    expect(b.run.getState().status).toBe('halted')
     expect(await b.run.retry('t')).toMatchObject({ ok: true })
     await tick()
     expect(b.rec('t')).toMatchObject({ status: 'done', output: 'second run' })
@@ -143,7 +147,7 @@ describe('e2e resume', () => {
     const child = flow({
       name: 'child',
       start: 'v',
-      steps: { v: view({ next: 'e' }), e: final({ output: () => 'child done' }) },
+      steps: { v: view({ next: 'e' }), e: runStep({ run: () => 'child done' }) },
     })
     let contextCalls = 0
     const parent = flow({
@@ -157,7 +161,10 @@ describe('e2e resume', () => {
           },
           next: 'end',
         }),
-        end: final({ output: ({ steps }) => steps.f!.output }),
+        end: runStep({
+          needs: { f: { kind: 'all', steps: ['f'] } },
+          run: ({ needs }) => needs.f,
+        }),
       },
     })
     const a = e2e(parent)

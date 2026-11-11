@@ -3,19 +3,21 @@
  * shell's shared state (selection, selected seq, time-travel state, buffers).
  */
 
-import type { FlowGraph as FlowGraphData, RunEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
+import { type FlowGraph as FlowGraphData, traceLine } from '@openwizard/core/inspect'
 import { type ChangeEvent, type ReactElement, useMemo } from 'react'
 import { EventLog } from '../events/EventLog'
 import { FlowGraph } from '../graph/FlowGraph'
+import { definitionPath, instanceGraph } from '../graph/instances'
 import { StepInspector } from '../inspector/StepInspector'
 import { collectStatuses } from '../status'
 import type { ReplayState, ReplayWindowStore } from '../timeline/replay-window'
 import { Timeline } from '../timeline/Timeline'
 import {
   type DevtoolsSource,
-  type FlowRunSource,
   type GraphSelection,
-  isFlowRunSource,
+  isRunSource,
+  type RunSource,
   type StepStatusMap,
   stepKey,
 } from '../types'
@@ -30,7 +32,11 @@ export interface Shared {
   /** The replayed state while the timeline is scrubbing (`null` = live). */
   readonly travel: ReplayState | null
   readonly setTravel: (state: ReplayState | null, seq: number) => void
-  readonly live: { readonly statuses: StepStatusMap; readonly current: string | null }
+  readonly live: {
+    readonly statuses: StepStatusMap
+    readonly current: string | null
+    readonly childPaths: readonly (readonly string[])[]
+  }
 }
 
 export function GraphTab({ shared }: { readonly shared: Shared }): ReactElement {
@@ -53,6 +59,7 @@ export function GraphTab({ shared }: { readonly shared: Shared }): ReactElement 
     <FlowGraph
       graph={shared.graph}
       statuses={overlay.statuses}
+      childPaths={overlay.childPaths}
       activeStep={overlay.current}
       selected={shared.selection?.key ?? null}
       onSelect={shared.setSelection}
@@ -76,8 +83,8 @@ export function EventsTab({
       selectedSeq={shared.selectedSeq}
       onSelect={(event) => {
         shared.setSelectedSeq(event.seq)
-        const step = (event as { readonly step?: string }).step
-        if (typeof step === 'string')
+        const { step } = traceLine(event)
+        if (step !== '')
           shared.setSelection({ id: step, path: event.path, key: stepKey(event.path, step) })
       }}
     />
@@ -87,12 +94,16 @@ export function EventsTab({
 export function InspectorTab({ shared }: { readonly shared: Shared }): ReactElement {
   const ids = useMemo(
     () =>
-      (shared.graph?.nodes ?? []).map((n) => ({
-        key: stepKey(n.path, n.id),
-        id: n.id,
-        path: n.path,
-      })),
-    [shared.graph],
+      (shared.graph === undefined ? [] : instanceGraph(shared.graph, shared.live.childPaths).nodes)
+        .filter(
+          (n) => shared.graph !== undefined && definitionPath(shared.graph, n.path) !== undefined,
+        )
+        .map((n) => ({
+          key: stepKey(n.path, n.id),
+          id: n.id,
+          path: n.path,
+        })),
+    [shared.graph, shared.live.childPaths],
   )
   const picked = shared.selection
   return (
@@ -141,10 +152,10 @@ export function TimelineTab({
   readonly store: ReplayWindowStore | undefined
   readonly context: unknown
 }): ReactElement {
-  if (!isFlowRunSource(shared.source) || store === undefined) {
+  if (!isRunSource(shared.source) || store === undefined) {
     return <Note>the timeline replays a run's events — a Mirror source has none.</Note>
   }
-  const run: FlowRunSource = shared.source
+  const run: RunSource = shared.source
   return <Timeline source={run} store={store} context={context} onScrub={shared.setTravel} />
 }
 

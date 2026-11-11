@@ -1,5 +1,5 @@
 /**
- * Boundaries — the data doors: Standard Schemas and branded `Checker`s (`boundary.parse` & co).
+ * Boundaries describe accepted inputs and parsed outputs for schemas and branded checkers.
  * @packageDocumentation
  */
 
@@ -23,7 +23,7 @@ export type CheckerKind = 'parse' | 'guard' | 'assert' | 'trusted'
 
 /**
  * A branded runtime checker built by `boundary.parse/guard/assert/trusted`. `I` is the
- * input (draft) type — equal to `O` for checkers; the (private, nominal) brand keeps plain
+ * input type equals `O` for checkers. The private brand keeps plain
  * functions and hand-written objects out.
  * @public
  */
@@ -33,7 +33,7 @@ export interface Checker<O, I = O> {
 }
 
 /**
- * A data door: any Standard Schema (Zod 4 / Valibot / ArkType / …) or a branded `Checker`.
+ * A Standard Schema, such as Zod, Valibot or ArkType, or a branded checker.
  * `O` is the parsed output type, `I` the accepted input (draft) type.
  * @public
  */

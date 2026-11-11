@@ -1,767 +1,353 @@
 /**
- * Type tests — port of the ADR-001 spike (`spikes/id-safety.spike.ts`) to shape (B)
- * `defineFlow(options).steps(defs, { start })`. Every `@ts-expect-error` is an
- * error-location assertion: it sits on the line right above where tsc must report.
+ * Executable spec for the round-3 authoring API (tmp/r3/CONTRACTS.md R1–R8).
+ * Every prototype implements `./api` (types + `declare` functions only) so that this file typechecks
+ * under strict + exactOptionalPropertyTypes + noUncheckedIndexedAccess, and every `@ts-expect-error`
+ * line is a real error. Do not weaken a scenario to make it pass ; report it instead.
  */
-import { type } from 'arktype'
-import * as v from 'valibot'
-import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import type { RetryPolicy as CompiledRetryPolicy } from '../../src/authoring/compiled'
-import { defineFlow } from '../../src/authoring/define-flow'
 import type {
-  AbortSignalLike,
-  AnyFlow,
-  ChildFlowOf,
-  ChildStepId,
   ContextInput,
-  Ctx,
-  DepsOf,
-  DraftOf,
-  EventMapOf,
   EventType,
-  Flow,
-  FlowOutput,
-  FlowStep,
-  HasKind,
-  InputOf,
-  KindOf,
   OutputOf,
-  PayloadOf,
-  RetryPolicy,
-  Step,
+  RequiredDepsOf,
+  StepApi,
   StepId,
-  StepKind,
-  StepTypesOf,
-  TaskId,
-  ViewId,
-  WaitOutput,
 } from '../../src/authoring/types'
+import type { Run } from '../../src/wizard/create-wizard/wizard'
+import { defineWizard } from '../../src/wizard/define-wizard'
+import type { RunOutcome } from '../../src/wizard/results'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Case 1 — the plan §2 end-to-end example (adapted per the architecture review)
-// ─────────────────────────────────────────────────────────────────────────────
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
+declare function expectType<T>(value: T): void
+declare function assert<T extends true>(): void
 
-interface CheckoutDeps {
-  shipping: {
-    createLabel(ctx: { orderId: string; express: boolean }): Promise<{ trackingId: string }>
-  }
-  inventory: {
-    reserve(cartId: string, opts: { signal: AbortSignalLike }): Promise<{ reservationId: string }>
-    release(reservationId: string): Promise<void>
-  }
-  payments: { createIntent(cartId: string, total: number): Promise<{ intentId: string }> }
+// 1. Linear steps: outputs inferred from `run`, sink output is the wizard output
+export const hello = defineWizard(
+  { name: 'hello', context: z.object({ name: z.string() }) },
+  ({ step, steps }) =>
+    steps({
+      greet: step({ run: ({ context }) => `Hello, ${context.name}!`, next: 'shout' }),
+      shout: step({ run: ({ context }) => context.name.toUpperCase() }),
+    }),
+)
+assert<Equal<StepId<typeof hello>, 'greet' | 'shout'>>()
+assert<Equal<OutputOf<typeof hello, 'greet'>, string>>()
+assert<Equal<ContextInput<typeof hello>, { name: string }>>()
+export async function s1() {
+  const outcome = await hello.run({ name: 'Ada' })
+  if (outcome.status === 'done') expectType<string>(outcome.output)
+  // @ts-expect-error ; input is checked
+  await hello.run({ nam: 'Ada' })
 }
 
-const fulfilment = defineFlow({
-  name: 'fulfilment',
-  context: z.object({
-    orderId: z.string(),
-    express: z.boolean(),
-    trackingId: z.string().optional(),
-  }),
-  deps: boundary.trusted<Pick<CheckoutDeps, 'shipping'>>(),
-})
-export const fulfilmentFlow = fulfilment.steps({
-  label: fulfilment.task(({ context, deps }) => deps.shipping.createLabel(context), {
-    exit: ({ output, update }) => update({ trackingId: output.trackingId }),
-    next: 'done',
-  }),
-  // ADR-001 L1: sibling `steps` cannot be typed per flow; the typed idiom is context.
-  done: fulfilment.final({ output: ({ context }) => ({ trackingId: context.trackingId }) }),
-})
-
-const checkout = defineFlow({
-  name: 'checkout',
-  context: z.object({
-    cartId: z.string(),
-    total: z.number(),
-    express: z.boolean().default(false),
-    paymentId: z.string().optional(),
-    declineReason: z.string().optional(),
-  }),
-  events: {
-    'payment.captured': z.object({ paymentId: z.string(), amount: z.number() }),
-    'payment.failed': z.object({ reason: z.string() }),
-  },
-  deps: boundary.trusted<CheckoutDeps>(),
-  onFailure: 'compensate',
-})
-export const checkoutFlow = checkout.steps(
-  {
-    shipping: checkout.view({
-      input: z.object({ address: z.string().min(1), express: z.boolean().default(false) }),
-      exit: ({ output, update }) => update({ express: output.express }),
-      next: 'reserve',
+// 2. Views: typed draft and parsed output; exit sees the parsed output
+export const signup = defineWizard(
+  { name: 'signup', context: z.object({ email: z.string().default('') }) },
+  ({ view, step, steps }) =>
+    steps({
+      contact: view({
+        input: z.object({ email: z.string().email(), age: z.coerce.number().int() }),
+        initial: { email: '' },
+        exit: ({ output, update }) => {
+          expectType<number>(output.age)
+          update({ email: output.email })
+        },
+        next: 'welcome',
+      }),
+      welcome: step({ run: ({ context }) => context.email }),
     }),
-    reserve: checkout.task(
-      ({ context, deps, signal }) => deps.inventory.reserve(context.cartId, { signal }),
-      {
-        retry: { attempts: 3, backoff: 'exponential' },
-        compensate: ({ output, deps }) => deps.inventory.release(output.reservationId),
-        next: 'awaitPayment',
+)
+export function s2(run: Run<typeof signup>) {
+  void run.setInput('contact', { email: 'a@b.c' })
+  // @ts-expect-error ; unknown draft key
+  void run.setInput('contact', { emial: 'x' })
+  // @ts-expect-error ; welcome is not a view
+  void run.setInput('welcome', {})
+}
+
+// 3. Fan-out + typed join via `needs` (pull: the join activates when its needs are done)
+type Services = {
+  profiles: { load(id: string): Promise<{ name: string }> }
+  orders: { list(id: string): Promise<{ total: number }[]> }
+}
+export const dashboard = defineWizard(
+  {
+    name: 'dashboard',
+    context: z.object({ userId: z.string() }),
+    deps: boundary.trusted<Services>(),
+  },
+  ({ step, steps }) => {
+    const profile = step({ run: ({ context, deps }) => deps.profiles.load(context.userId) })
+    const orders = step({ run: ({ context, deps }) => deps.orders.list(context.userId) })
+    const summary = step({
+      needs: { profile, orders },
+      run: ({ needs }) => {
+        expectType<{ name: string }>(needs.profile)
+        expectType<{ total: number }[]>(needs.orders)
+        return { name: needs.profile.name, spent: needs.orders.reduce((s, o) => s + o.total, 0) }
       },
+    })
+    return steps({ profile, orders, summary }, { start: ['profile', 'orders'] })
+  },
+)
+assert<Equal<OutputOf<typeof dashboard, 'summary'>, { name: string; spent: number }>>()
+
+// 4. Conditional branch with declared targets + `{ any }` join; dynamic next is constrained
+export const payment = defineWizard(
+  { name: 'payment', context: z.object({ method: z.enum(['card', 'invoice']) }) },
+  ({ step, steps }) => {
+    const card = step({ run: async () => ({ chargeId: 'ch_1' }) })
+    const invoice = step({ run: async () => ({ invoiceId: 'in_1' }) })
+    const choose = step({
+      targets: [card, invoice],
+      next: ({ context }) => (context.method === 'card' ? card : invoice),
+    })
+    const receipt = step({
+      needs: { paid: { any: [card, invoice] } },
+      run: ({ needs }) => {
+        expectType<{ chargeId: string } | { invoiceId: string }>(needs.paid)
+        return 'receipt'
+      },
+    })
+    return steps({ choose, card, invoice, receipt })
+  },
+)
+export const badBranch = defineWizard(
+  { name: 'bad-branch', context: z.object({ ok: z.boolean() }) },
+  ({ step, steps }) =>
+    steps({
+      a: step({ run: () => 1 }),
+      b: step({ run: () => 2 }),
+      // @ts-expect-error ; a dynamic next must declare its targets
+      choose: step({ next: ({ context }) => (context.ok ? 'a' : 'b') }),
+      pick: step({
+        targets: ['a'],
+        // @ts-expect-error ; 'b' is not a declared target
+        next: ({ context }) => (context.ok ? 'a' : 'b'),
+      }),
+    }),
+)
+
+// 5. Map over N items with concurrency and a stable key; output is an array
+export const summarize = defineWizard(
+  {
+    name: 'summarize',
+    context: z.object({ docs: z.array(z.object({ id: z.string(), text: z.string() })) }),
+  },
+  ({ step, steps }) => {
+    const summaries = step({
+      each: ({ context }) => context.docs,
+      key: (doc) => doc.id,
+      concurrency: 8,
+      retry: { attempts: 3, backoff: 'exponential', jitter: 0.2 },
+      run: async ({ item, index, progress }) => {
+        progress({ chars: item.text.length })
+        return { id: item.id, index, words: item.text.split(' ').length }
+      },
+    })
+    const total = step({
+      needs: { summaries },
+      run: ({ needs }) => needs.summaries.reduce((n, s) => n + s.words, 0),
+    })
+    return steps({ summaries, total })
+  },
+)
+assert<
+  Equal<OutputOf<typeof summarize, 'summaries'>, { id: string; index: number; words: number }[]>
+>()
+
+// 6. Loop until a condition (self edge declared in targets); atomic update(fn)
+export const poller = defineWizard(
+  { name: 'poller', context: z.object({ jobId: z.string(), attempts: z.number().default(0) }) },
+  ({ step, steps }) =>
+    steps({
+      poll: step({
+        run: async ({ update }) => {
+          update((current) => ({ attempts: current.attempts + 1 }))
+          return { done: Math.random() > 0.5 }
+        },
+        targets: ['poll', 'finish'],
+        next: ({ output }) => (output.done ? 'finish' : 'poll'),
+      }),
+      finish: step({ run: ({ context }) => context.attempts }),
+    }),
+)
+
+// 7. Human approval with a deadline; a durable sleep; typed events and send
+export const approval = defineWizard(
+  {
+    name: 'approval',
+    context: z.object({ amount: z.number() }),
+    events: {
+      approved: z.object({ by: z.string() }),
+      rejected: z.object({ by: z.string(), reason: z.string() }),
+    },
+  },
+  ({ step, steps }) =>
+    steps({
+      wait: step({
+        waitFor: {
+          approved: ({ payload }) => ({ done: { decision: 'approved' as const, by: payload.by } }),
+          rejected: ({ payload }) => ({ done: { decision: 'rejected' as const, by: payload.by } }),
+        },
+        timeout: { after: '48h', next: 'expired' },
+        next: 'cooldown',
+      }),
+      cooldown: step({ sleep: '10m', next: 'apply' }),
+      apply: step({ run: ({ context }) => context.amount }),
+      expired: step({ run: () => 'expired' as const }),
+    }),
+)
+assert<Equal<EventType<typeof approval>, 'approved' | 'rejected'>>()
+assert<
+  Equal<
+    OutputOf<typeof approval, 'wait'>,
+    { decision: 'approved'; by: string } | { decision: 'rejected'; by: string } | undefined
+  >
+>()
+export async function s7(run: Run<typeof approval>) {
+  const sent = await run.send('approved', { by: 'lee' }, { eventId: 'evt_1' })
+  if (sent.ok && sent.duplicate) expectType<readonly string[]>(sent.delivered)
+  // @ts-expect-error ; unknown event
+  await run.send('approve', { by: 'lee' })
+  // @ts-expect-error ; wrong payload for a known event
+  await run.send('approved', { reason: 'x' })
+  await run.send('approved', JSON.parse('{}') as unknown) // untrusted bodies still accepted
+}
+
+// 8. Saga: compensate receives the typed output and an idempotency key; fallback edge
+export const trip = defineWizard(
+  { name: 'trip', context: z.object({ city: z.string() }), onFailure: 'compensate' },
+  ({ step, steps }) =>
+    steps({
+      hotel: step({
+        run: async ({ idempotencyKey }) => ({ bookingId: idempotencyKey }),
+        compensate: ({ output, idempotencyKey }) => {
+          expectType<string>(output.bookingId)
+          expectType<string>(idempotencyKey)
+        },
+        next: 'flight',
+      }),
+      flight: step({
+        run: async () => ({ pnr: 'X' }),
+        retry: { attempts: 3, when: (error) => error instanceof Error },
+        fallback: 'manual',
+      }),
+      manual: step({ run: () => 'queued for an agent' }),
+    }),
+)
+
+// 9. Child wizard: provided deps travel; remaining deps are required; typed child output
+type Mail = { send(to: string): Promise<void> }
+const notify = defineWizard(
+  {
+    name: 'notify',
+    context: z.object({ to: z.string() }),
+    deps: boundary.trusted<{ mail: Mail; log: (m: string) => void }>(),
+  },
+  ({ step, steps }) =>
+    steps({ send: step({ run: ({ context, deps }) => deps.mail.send(context.to) }) }),
+)
+const notifyWithMail = notify.provide({ mail: { send: async () => {} } })
+assert<Equal<RequiredDepsOf<typeof notifyWithMail>, { log: (m: string) => void }>>()
+export const signupFlow = defineWizard(
+  {
+    name: 'signup-flow',
+    context: z.object({ email: z.string() }),
+    deps: boundary.trusted<{ log: (m: string) => void }>(),
+  },
+  ({ flow, steps }) =>
+    steps({
+      notify: flow(notifyWithMail, { context: ({ context }) => ({ to: context.email }) }),
+    }),
+)
+export const missingDeps = defineWizard(
+  { name: 'missing', context: z.object({ email: z.string() }) },
+  ({ flow, steps }) =>
+    steps({
+      // @ts-expect-error ; the parent has no `log`, so a deps mapper is required
+      notify: flow(notifyWithMail, { context: ({ context }) => ({ to: context.email }) }),
+    }),
+)
+export const perItem = defineWizard(
+  { name: 'per-item', context: z.object({ emails: z.array(z.string()) }) },
+  ({ flow, steps }) =>
+    steps({
+      notifyAll: flow(notifyWithMail, {
+        each: ({ context }) => context.emails,
+        concurrency: 4,
+        context: ({ item }) => ({ to: item }),
+        deps: () => ({ log: () => {} }),
+      }),
+    }),
+)
+
+// 10. Mistakes stay local: one typo errors on its line and never collapses the wizard
+export const typo = defineWizard({ name: 'typo', context: z.object({}) }, ({ step, steps }) =>
+  steps({
+    // @ts-expect-error ; unknown step id
+    a: step({ run: () => 1, next: 'bb' }),
+    b: step({ run: () => 2 }),
+  }),
+)
+assert<Equal<StepId<typeof typo>, 'a' | 'b'>>() // ids survive the typo above
+export const badStart = defineWizard(
+  { name: 'bad-start', context: z.object({}) },
+  ({ step, steps }) =>
+    steps(
+      { a: step({ run: () => 1 }) },
+      // @ts-expect-error ; unknown start id
+      { start: 'zzz' },
     ),
-    awaitPayment: checkout.wait({
-      enter: ({ context, deps }) => deps.payments.createIntent(context.cartId, context.total),
-      on: {
-        'payment.captured': ({ payload, update }) => update({ paymentId: payload.paymentId }),
-        'payment.failed': ({ payload, update }) => update({ declineReason: payload.reason }),
-      },
-      timeout: { after: '15m', next: 'expired' },
-      next: 'route',
-    }),
-    route: checkout.decision({
-      next: ({ context }) => (context.paymentId ? 'fulfil' : 'declined'),
-    }),
-    fulfil: checkout.flow(fulfilmentFlow, {
-      context: ({ context }) => ({ orderId: context.cartId, express: context.express }),
-      deps: ({ deps }) => ({ shipping: deps.shipping }),
-      next: 'receipt',
-    }),
-    receipt: checkout.final(),
-    declined: checkout.final(),
-    expired: checkout.final(),
+)
+assert<Equal<StepId<typeof badStart>, 'a'>>()
+export const excess = defineWizard({ name: 'excess', context: z.object({}) }, ({ step, steps }) =>
+  steps({
+    // @ts-expect-error ; misspelled option is an excess-property error, not a bogus overload error
+    a: step({ run: () => 1, nxt: 'a' }),
+  }),
+)
+export const foreignNeed = defineWizard(
+  { name: 'foreign', context: z.object({}) },
+  ({ step, steps }) => {
+    const local = step({ run: () => 1 })
+    return steps({
+      local,
+      // @ts-expect-error ; a need must be a step of this wizard (bound to the same context/events/deps)
+      join: step({ needs: { x: foreign }, run: () => 0 }),
+    })
   },
-  { start: 'shipping' },
 )
-type CheckoutF = typeof checkoutFlow
+declare const otherApi: StepApi<{ other: true }, {}, unknown>
+const foreign = otherApi.step({ run: () => 1 })
 
-describe('case 1: end-to-end example', () => {
-  it('extracts ids, kinds, context, deps, events and outputs', () => {
-    expectTypeOf<StepId<CheckoutF>>().toEqualTypeOf<
-      | 'shipping'
-      | 'reserve'
-      | 'awaitPayment'
-      | 'route'
-      | 'fulfil'
-      | 'receipt'
-      | 'declined'
-      | 'expired'
-    >()
-    expectTypeOf<ViewId<CheckoutF>>().toEqualTypeOf<'shipping'>()
-    expectTypeOf<TaskId<CheckoutF>>().toEqualTypeOf<'reserve'>()
-    expectTypeOf<ChildStepId<CheckoutF>>().toEqualTypeOf<'fulfil'>()
-    expectTypeOf<Ctx<CheckoutF>>().toEqualTypeOf<{
-      cartId: string
-      total: number
-      express: boolean
-      paymentId?: string | undefined
-      declineReason?: string | undefined
-    }>()
-    expectTypeOf<ContextInput<CheckoutF>>().toEqualTypeOf<{
-      cartId: string
-      total: number
-      express?: boolean | undefined
-      paymentId?: string | undefined
-      declineReason?: string | undefined
-    }>()
-    expectTypeOf<DepsOf<CheckoutF>>().toEqualTypeOf<CheckoutDeps>()
-    expectTypeOf<EventType<CheckoutF>>().toEqualTypeOf<'payment.captured' | 'payment.failed'>()
-    expectTypeOf<PayloadOf<CheckoutF, 'payment.failed'>>().toEqualTypeOf<{ reason: string }>()
-    expectTypeOf<InputOf<CheckoutF, 'shipping'>>().toEqualTypeOf<{
-      address: string
-      express?: boolean | undefined
-    }>()
-    expectTypeOf<DraftOf<CheckoutF, 'shipping'>>().toEqualTypeOf<{
-      address?: string
-      express?: boolean | undefined
-    }>()
-    expectTypeOf<OutputOf<CheckoutF, 'shipping'>>().toEqualTypeOf<{
-      address: string
-      express: boolean
-    }>()
-    expectTypeOf<OutputOf<CheckoutF, 'reserve'>>().toEqualTypeOf<{ reservationId: string }>()
-    expectTypeOf<OutputOf<CheckoutF, 'awaitPayment'>>().toEqualTypeOf<
-      | {
-          readonly event: 'payment.captured'
-          readonly payload: { paymentId: string; amount: number }
-        }
-      | { readonly event: 'payment.failed'; readonly payload: { reason: string } }
-      | { readonly event: 'timeout' }
-    >()
-    expectTypeOf<OutputOf<CheckoutF, 'fulfil'>>().toEqualTypeOf<{
-      trackingId: string | undefined
-    }>()
-    expectTypeOf<FlowOutput<typeof fulfilmentFlow>>().toEqualTypeOf<{
-      trackingId: string | undefined
-    }>()
-    expectTypeOf<FlowOutput<CheckoutF>>().toEqualTypeOf<undefined>()
-    expectTypeOf<ChildFlowOf<CheckoutF, 'fulfil'>>().toEqualTypeOf<typeof fulfilmentFlow>()
-    // refs captured through string / fn / array / union+null / timeout.next
-    expectTypeOf<StepTypesOf<CheckoutF, 'shipping'>['refs']>().toEqualTypeOf<'reserve'>()
-    expectTypeOf<StepTypesOf<CheckoutF, 'awaitPayment'>['refs']>().toEqualTypeOf<
-      'expired' | 'route'
-    >()
-    expectTypeOf<StepTypesOf<CheckoutF, 'route'>['refs']>().toEqualTypeOf<'fulfil' | 'declined'>()
-    expectTypeOf<StepTypesOf<CheckoutF, 'receipt'>['refs']>().toEqualTypeOf<never>()
-    expectTypeOf<KindOf<CheckoutF, 'route'>>().toEqualTypeOf<'decision'>()
-  })
-
-  it('hover-quality: a step in Flow.steps is a concrete compact FlowStep; every flow satisfies AnyFlow', () => {
-    expectTypeOf(checkoutFlow.steps.reserve).toEqualTypeOf<
-      FlowStep<never, { reservationId: string }, 'awaitPayment', 'task', never>
-    >()
-    expectTypeOf(checkoutFlow).toMatchTypeOf<AnyFlow>()
-    expectTypeOf(fulfilmentFlow).toMatchTypeOf<AnyFlow>()
-    const full = checkout.task(
-      ({ deps, context, signal }) => deps.inventory.reserve(context.cartId, { signal }),
-      {
-        next: 'awaitPayment',
-      },
-    )
-    expectTypeOf(full).toEqualTypeOf<
-      Step<
-        Ctx<CheckoutF>,
-        EventMapOf<CheckoutF>,
-        CheckoutDeps,
-        never,
-        { reservationId: string },
-        'awaitPayment',
-        'task',
-        never
-      >
-    >()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Cases 2–5 — id safety in `next` (string / fn) / `timeout.next` / `start`
-// ─────────────────────────────────────────────────────────────────────────────
-
-type SmallCtx = { a: string; b: number }
-const small = defineFlow({ name: 'small', context: boundary.trusted<SmallCtx>() })
-const se = defineFlow({
-  name: 'small-events',
-  context: boundary.trusted<SmallCtx>(),
-  events: { ping: boundary.trusted<{ n: number }>() },
-})
-
-export const bad2 = small.steps({
-  // @ts-expect-error case 2 — `next: 'typo'` is reported on THIS step's property line
-  a: small.view({ next: 'typo' }),
-  b: small.final(),
-})
-export const bad3 = small.steps({
-  // @ts-expect-error case 3 — the literal survives through the fn return (`N`), still rejected here
-  a: small.decision({ next: () => 'typo' }),
-  b: small.final(),
-})
-export const bad4 = se.steps({
-  // @ts-expect-error case 4 — `timeout.next` typo
-  a: se.wait({ on: { ping: () => {} }, timeout: { after: '1m', next: 'typo' }, next: 'b' }),
-  b: se.final(),
-})
-export const bad5 = small.steps(
-  { a: small.view({ next: 'b' }), b: small.final() },
-  // @ts-expect-error case 5 — `start` must be a step id (completions offer 'a' | 'b')
-  { start: 'typo' },
-)
-
-describe('cases 2–5: no cascade — shape (B) keeps T precise even when the check fails', () => {
-  it('StepId and refs stay precise on the failure path', () => {
-    expectTypeOf<StepId<typeof bad2>>().toEqualTypeOf<'a' | 'b'>()
-    expectTypeOf<StepTypesOf<typeof bad2, 'a'>['refs']>().toEqualTypeOf<'typo'>()
-    expectTypeOf<Ctx<typeof bad2>>().toEqualTypeOf<SmallCtx>()
-    expectTypeOf<StepId<typeof bad3>>().toEqualTypeOf<'a' | 'b'>()
-    expectTypeOf<EventType<typeof bad4>>().toEqualTypeOf<'ping'>()
-    expectTypeOf<StepId<typeof bad5>>().toEqualTypeOf<'a' | 'b'>()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Cases 6–8 — modules (spread), excess properties, context variance
-// ─────────────────────────────────────────────────────────────────────────────
-
-const module = defineFlow({ name: 'module', context: boundary.trusted<{ a: string }>() })
-export const addressModule = {
-  m1: module.view({ input: z.object({ street: z.string() }), next: 'm2' }),
-  m2: module.task(({ context }) => Promise.resolve({ ok: context.a.length > 0 }), { next: 'root' }), // refers outside the module
+// 10b. Step modules: an ordinary function returns steps for any wizard; refs are checked on assembly
+function auditSteps<C, Ev, D>({ step }: StepApi<C, Ev, D>) {
+  return { audit: step({ run: () => 'recorded' as const }) }
 }
-export const ok6 = small.steps({ ...addressModule, root: small.view({ next: 'm1' }) }) // superset context accepts a { a } module (case 8 ✓)
-describe('case 6: module spread', () => {
-  it('composes and keeps outputs', () => {
-    expectTypeOf<StepId<typeof ok6>>().toEqualTypeOf<'m1' | 'm2' | 'root'>()
-    expectTypeOf<OutputOf<typeof ok6, 'm2'>>().toEqualTypeOf<{ ok: boolean }>()
-  })
-})
-// @ts-expect-error case 6 — `{ ...mod }` alone: 'root' is unresolved; spreads cannot be elaborated per property → error on the argument
-export const bad6 = small.steps({ ...addressModule })
+export const withModule = defineWizard(
+  { name: 'with-module', context: z.object({ id: z.string() }) },
+  (api) => api.steps({ load: api.step({ run: () => 1, next: 'audit' }), ...auditSteps(api) }),
+)
+assert<Equal<StepId<typeof withModule>, 'load' | 'audit'>>()
 
-export const bad7 = small.steps({
-  // @ts-expect-error case 7 — excess property `nxt` inside a constructor
-  a: small.view({ nxt: 'b' }),
-  b: small.final(),
-})
-
-const unrelated = defineFlow({ name: 'unrelated', context: boundary.trusted<{ z: boolean }>() })
-export const unrelatedSteps = { u: unrelated.view({ exit: ({ context }) => context.z, next: 'u' }) }
-export const bad8 = small.steps({
-  // @ts-expect-error case 8 — a step bound to an unrelated context is rejected on its property line
-  u: unrelatedSteps.u,
-  root: small.final(),
-})
-const depsMod = defineFlow({
-  name: 'deps-module',
-  context: boundary.trusted<{ a: string }>(),
-  deps: boundary.trusted<{ mailer: { send(to: string): Promise<void> } }>(),
-})
-export const bad8deps = small.steps({
-  // @ts-expect-error case 8 (deps) — module needs `mailer`, this flow provides no deps
-  m: depsMod.task(({ deps, context }) => deps.mailer.send(context.a), { next: 'root' }),
-  root: small.final(),
-})
-const evMod = defineFlow({
-  name: 'ev-module',
-  context: boundary.trusted<{ a: string }>(),
-  events: { other: boundary.trusted<{ x: number }>() },
-})
-export const bad8events = small.steps({
-  // @ts-expect-error case 8 (events) — module listens for an event this flow does not declare
-  w: evMod.wait({ on: { other: () => {} }, next: 'root' }),
-  root: small.final(),
-})
-const evSubset = defineFlow({ name: 'ev-subset', context: boundary.trusted<{ a: string }>() })
-export const ok8events = se.steps({
-  w: evSubset.view({ next: 'root' }), // a module without events composes into a flow with events
-  root: se.final(),
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Case 9 — order (in)dependence with `s.task(run, options)`
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const ok9 = small.steps({
-  // compensate/next BEFORE anything else — still typed
-  t1: small.task(async () => ({ id: 1 }), {
-    compensate: ({ output }) => output.id.toFixed(),
-    next: ({ output }) => (output.id > 0 ? 't2' : 't3'),
-    exit: ({ output }) => output.id,
-    retry: { attempts: 2 },
-  }),
-  // sync run, `next` first, `output` boundary overrides the run return type
-  t2: small.task(() => 'raw-json', {
-    next: 't3',
-    output: z.object({ parsed: z.number() }),
-    compensate: ({ output }) => output.parsed,
-  }),
-  t3: small.final(),
-})
-describe('case 9: task(run, options) is order independent', () => {
-  it('outputs and refs', () => {
-    expectTypeOf<OutputOf<typeof ok9, 't1'>>().toEqualTypeOf<{ id: number }>()
-    expectTypeOf<OutputOf<typeof ok9, 't2'>>().toEqualTypeOf<{ parsed: number }>()
-    expectTypeOf<StepTypesOf<typeof ok9, 't1'>['refs']>().toEqualTypeOf<'t2' | 't3'>()
-  })
-})
-export const bad9 = small.steps({
-  t1: small.task(async () => ({ id: 1 }), {
-    // @ts-expect-error `output` is `{ id: number }` (not any/unknown): unknown property rejected regardless of order
-    compensate: ({ output }) => output.nope,
-    next: 't2',
-  }),
-  t2: small.final(),
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Case 10 — `initial` vs `input`; INPUT vs OUTPUT with .default()/.transform()
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const ok10 = small.steps({
-  form: small.view({
-    input: z.object({
-      qty: z.string().transform((x) => Number(x)),
-      express: z.boolean().default(false),
-    }),
-    initial: { qty: '1' }, // Partial<INPUT> (string), not the parsed number
-    validate: ({ output }) => (output.qty > 0 ? undefined : [{ message: 'qty must be > 0' }]),
-    canExit: ({ output }) => output.qty < 100,
-    exit: ({ output }) => output.express, // parsed
-    next: 'done',
-  }),
-  done: small.final(),
-})
-describe('case 10: draft (INPUT) vs output (OUTPUT)', () => {
-  it('InputOf/DraftOf are the INPUT side, OutputOf the OUTPUT side', () => {
-    expectTypeOf<InputOf<typeof ok10, 'form'>>().toEqualTypeOf<{
-      qty: string
-      express?: boolean | undefined
-    }>()
-    expectTypeOf<DraftOf<typeof ok10, 'form'>>().toEqualTypeOf<{
-      qty?: string
-      express?: boolean | undefined
-    }>()
-    expectTypeOf<OutputOf<typeof ok10, 'form'>>().toEqualTypeOf<{ qty: number; express: boolean }>()
-  })
-})
-// order inside a view/flow cfg never matters either: `input`/`output` are boundaries (inferred in pass 1)
-export const okOrderView = small.steps({
-  v: small.view({
-    exit: ({ output }) => output.qty.toFixed(),
-    next: 'f',
-    input: z.object({ qty: z.number() }),
-  }),
-  f: small.flow(fulfilmentFlow, {
-    exit: ({ output }) => output.trackingId,
-    next: 'done',
-    context: ({ context }) => ({ orderId: context.a, express: false }),
-  }),
-  done: small.final(),
-})
-describe('case 10b: cfg property order', () => {
-  it('view/flow outputs come from boundaries / child flow', () => {
-    expectTypeOf<OutputOf<typeof okOrderView, 'v'>>().toEqualTypeOf<{ qty: number }>()
-    expectTypeOf<OutputOf<typeof okOrderView, 'f'>>().toEqualTypeOf<{
-      trackingId: string | undefined
-    }>()
-  })
-})
-export const bad10 = small.steps({
-  form: small.view({
-    input: z.object({ qty: z.string() }),
-    // @ts-expect-error case 10 — `initial` must be a Partial of the schema INPUT (`qty` is a string)
-    initial: { qty: 1 },
-    next: 'done',
-  }),
-  done: small.final(),
-})
-describe('case 10c: no cascade — schema wins', () => {
-  it('InputOf is still the schema input', () => {
-    expectTypeOf<InputOf<typeof bad10, 'form'>>().toEqualTypeOf<{ qty: string }>()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inputless views (review finding 3): `I` / `O` come from `input` ONLY — `initial` and the
-// output-consuming hooks cannot widen them; without `input` a view is I = never, O = undefined.
-// ─────────────────────────────────────────────────────────────────────────────
-
-declare const widened: Partial<{ foo: string }>
-export const okNoInput = small.steps({
-  v: small.view({ next: 'done', exit: ({ output }) => output }),
-  done: small.final(),
-})
-export const badInitialNoInput = small.steps({
-  // @ts-expect-error `initial` requires `input` (Partial<never> = never): a widened value is rejected
-  v: small.view({ initial: widened, next: 'done' }),
-  // @ts-expect-error … so is an explicit object literal
-  v2: small.view({ initial: { foo: 'x' }, next: 'done' }),
-  done: small.final(),
-})
-export const badAnnotatedHookNoInput = small.steps({
-  // @ts-expect-error an annotated hook parameter cannot invent an output type: `output` is undefined here
-  v: small.view({ next: 'done', exit: ({ output }: { output: { foo: string } }) => output.foo }),
-  done: small.final(),
-})
-export const badAnnotatedHookWithInput = small.steps({
-  v: small.view({
-    input: z.object({ foo: z.string() }),
-    // @ts-expect-error the annotation must match the boundary OUTPUT ({ foo: string }), it does not retype it
-    exit: ({ output }: { output: { bar: number } }) => output.bar,
-    next: 'done',
-  }),
-  done: small.final(),
-})
-describe('inputless views', () => {
-  it('have no draft and no output, whatever `initial` / hook annotations say', () => {
-    expectTypeOf<InputOf<typeof okNoInput, 'v'>>().toEqualTypeOf<never>()
-    expectTypeOf<OutputOf<typeof okNoInput, 'v'>>().toEqualTypeOf<undefined>()
-    expectTypeOf<InputOf<typeof badInitialNoInput, 'v'>>().toEqualTypeOf<never>()
-    expectTypeOf<OutputOf<typeof badInitialNoInput, 'v'>>().toEqualTypeOf<undefined>()
-    expectTypeOf<OutputOf<typeof badInitialNoInput, 'v2'>>().toEqualTypeOf<undefined>()
-    expectTypeOf<OutputOf<typeof badAnnotatedHookNoInput, 'v'>>().toEqualTypeOf<undefined>()
-    expectTypeOf<OutputOf<typeof badAnnotatedHookWithInput, 'v'>>().toEqualTypeOf<{ foo: string }>()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Decision output (ADR-001 amendment): the normalized list of chosen targets.
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('decision output', () => {
-  it('is readonly N[] over the ids the decision may choose', () => {
-    expectTypeOf<OutputOf<CheckoutF, 'route'>>().toEqualTypeOf<readonly ('fulfil' | 'declined')[]>()
-    const d = small.decision({ next: () => (Math.random() > 0.5 ? 'a' : ['a', 'b']) })
-    expectTypeOf<NonNullable<(typeof d)['~types']>['output']>().toEqualTypeOf<
-      readonly ('a' | 'b')[]
-    >()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Kind filters (review finding 13): a partially widened kind is not any of its members; the fully
-// widened `StepKind` (a wildcard flow) still counts as every kind.
-// ─────────────────────────────────────────────────────────────────────────────
-
-declare const widenedKinds: Flow<
-  { n: number },
-  { n: number },
-  {},
-  unknown,
-  {
-    readonly either: FlowStep<never, undefined, 'v', 'view' | 'task', never>
-    readonly wild: FlowStep<never, undefined, 'v', StepKind, never>
-    readonly v: FlowStep<never, undefined, never, 'view', never>
-    readonly t: FlowStep<never, number, never, 'task', never>
-    readonly f: FlowStep<never, string, never, 'final', never>
+// 11. Outcomes
+export function s11(outcome: RunOutcome<typeof approval>) {
+  switch (outcome.status) {
+    case 'done':
+      return outcome.output
+    case 'waiting':
+      for (const w of outcome.waitingFor) {
+        if (w.path.length === 0 && w.kind === 'event')
+          expectType<readonly ('approved' | 'rejected')[]>(w.events)
+      }
+      return outcome.snapshot
+    case 'halted':
+      return outcome.failure.step
+    case 'failed':
+    case 'cancelled':
+      return outcome.status
   }
->
-describe('kind filters', () => {
-  it("exclude 'view' | 'task' steps, include StepKind wildcards", () => {
-    expectTypeOf<ViewId<typeof widenedKinds>>().toEqualTypeOf<'wild' | 'v'>()
-    expectTypeOf<TaskId<typeof widenedKinds>>().toEqualTypeOf<'wild' | 't'>()
-    expectTypeOf<FlowOutput<typeof widenedKinds>>().toEqualTypeOf<string | undefined>()
-    expectTypeOf<HasKind<typeof widenedKinds, 'either', 'view'>>().toEqualTypeOf<false>()
-    expectTypeOf<HasKind<typeof widenedKinds, 'wild', 'final'>>().toEqualTypeOf<true>()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Case 11 — Zod 4 / Valibot / ArkType / boundary.guard / trusted / parse all infer
-// ─────────────────────────────────────────────────────────────────────────────
-
-const isUser = (x: unknown): x is { id: string } => typeof x === 'object' && x !== null && 'id' in x
-const b11 = defineFlow({
-  name: 'boundaries',
-  context: v.object({ locale: v.string(), total: v.optional(v.number(), 0) }), // valibot default → input ≠ output
-  events: {
-    zod: z.object({ a: z.string() }),
-    vali: v.object({ b: v.number() }),
-    ark: type({ c: 'boolean' }),
-    guard: boundary.guard(isUser),
-    trusted: boundary.trusted<{ e: Date }>(),
-    parse: boundary.parse((x) => String(x)),
-  },
-  deps: boundary.trusted<{ log: (m: string) => void }>(),
-})
-export const ok11 = b11.steps({
-  ark: b11.view({
-    input: type({ name: 'string', age: 'number' }),
-    exit: ({ output, deps }) => deps.log(output.name.toUpperCase()),
-    next: 'vali',
-  }),
-  vali: b11.view({ input: v.object({ email: v.pipe(v.string(), v.email()) }), next: 'guarded' }),
-  guarded: b11.view({
-    input: boundary.guard(isUser),
-    exit: ({ output }) => output.id,
-    next: 'trusted',
-  }),
-  trusted: b11.view({
-    input: boundary.trusted<{ note: string }>(),
-    initial: { note: '' },
-    next: 'ev',
-  }),
-  ev: b11.wait({
-    on: {
-      zod: ({ payload, deps }) => deps.log(payload.a),
-      vali: ({ payload, deps }) => deps.log(payload.b.toFixed()),
-      ark: ({ payload, deps }) => deps.log(String(payload.c)),
-      guard: ({ payload, deps }) => deps.log(payload.id),
-      trusted: ({ payload, deps }) => deps.log(String(payload.e.getTime())),
-      parse: ({ payload, deps }) => deps.log(payload.toUpperCase()),
-    },
-    next: 'done',
-  }),
-  done: b11.final({ output: ({ context }) => context.total }),
-})
-type Ok11 = typeof ok11
-describe('case 11: boundary inference', () => {
-  it('context, inputs, events, deps and flow output infer from every boundary style', () => {
-    expectTypeOf<Ctx<Ok11>>().toEqualTypeOf<{ locale: string; total: number }>()
-    expectTypeOf<ContextInput<Ok11>>().toEqualTypeOf<{
-      locale: string
-      total?: number | undefined
-    }>()
-    expectTypeOf<OutputOf<Ok11, 'ark'>>().toEqualTypeOf<{ name: string; age: number }>()
-    expectTypeOf<OutputOf<Ok11, 'vali'>>().toEqualTypeOf<{ email: string }>()
-    expectTypeOf<OutputOf<Ok11, 'guarded'>>().toEqualTypeOf<{ id: string }>()
-    expectTypeOf<InputOf<Ok11, 'trusted'>>().toEqualTypeOf<{ note: string }>()
-    expectTypeOf<PayloadOf<Ok11, 'ark'>>().toEqualTypeOf<{ c: boolean }>()
-    expectTypeOf<PayloadOf<Ok11, 'parse'>>().toEqualTypeOf<string>()
-    expectTypeOf<EventType<Ok11>>().toEqualTypeOf<
-      'zod' | 'vali' | 'ark' | 'guard' | 'trusted' | 'parse'
-    >()
-    expectTypeOf<FlowOutput<Ok11>>().toEqualTypeOf<number>()
-    expectTypeOf<DepsOf<Ok11>>().toEqualTypeOf<{ log: (m: string) => void }>()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Wait steps — output is the union over ALL flow events (+ timeout); on/timeout/next any order
-// ─────────────────────────────────────────────────────────────────────────────
-
-const waits = defineFlow({
-  name: 'waits',
-  context: boundary.trusted<SmallCtx>(),
-  events: { e1: boundary.trusted<{ x: number }>(), e2: boundary.trusted<{ y: string }>() },
-})
-export const okWait = waits.steps({
-  w: waits.wait({
-    next: ({ output }) => (output.event === 'e1' ? (output.payload.x > 0 ? 'done' : 'w2') : 'w2'),
-    timeout: { after: 3000, next: 'done' },
-    on: { e1: ({ payload }) => ({ next: payload.x > 1 ? 'done' : undefined }) }, // handler-returned target is captured too
-  }),
-  w2: waits.wait({
-    on: { e2: ({ payload, update }) => update({ a: payload.y }) },
-    exit: ({ output }) => output.event, // 'e1' | 'e2' — no timeout declared, no timeout marker
-    next: 'done',
-  }),
-  done: waits.final(),
-})
-describe('wait output', () => {
-  it('is the union over all events, plus the timeout marker only when the step declares timeout; refs include handler targets', () => {
-    expectTypeOf<OutputOf<typeof okWait, 'w'>>().toEqualTypeOf<
-      | { readonly event: 'e1'; readonly payload: { x: number } }
-      | { readonly event: 'e2'; readonly payload: { y: string } }
-      | { readonly event: 'timeout' }
-    >()
-    expectTypeOf<OutputOf<typeof okWait, 'w2'>>().toEqualTypeOf<
-      | { readonly event: 'e1'; readonly payload: { x: number } }
-      | { readonly event: 'e2'; readonly payload: { y: string } }
-    >()
-    expectTypeOf<StepTypesOf<typeof okWait, 'w'>['refs']>().toEqualTypeOf<'done' | 'w2'>()
-    // The generic `WaitOutput<Ev>` (unknown phantom) keeps the marker: it is "any wait step".
-    expectTypeOf<WaitOutput<{ e1: { x: number } }>>().toEqualTypeOf<
-      { readonly event: 'e1'; readonly payload: { x: number } } | { readonly event: 'timeout' }
-    >()
-  })
-  it('hooks of a wait without timeout never see the marker', () => {
-    waits.wait({
-      on: { e1: () => {} },
-      // @ts-expect-error `output.event` is 'e1' | 'e2' here: comparing with 'timeout' has no overlap
-      exit: ({ output }) => output.event === 'timeout',
-      next: 'done',
-    })
-  })
-})
-export const badWait = waits.steps({
-  w: waits.wait({
-    // @ts-expect-error unknown event name in `on` (excess property on a concrete mapped type)
-    on: { e3: () => {} },
-    next: 'done',
-  }),
-  done: waits.final(),
-})
-export const badWaitArrayNext = waits.steps({
-  // @ts-expect-error a handler's `next` override is a single id (what the runtime supports), not a list: refs widen to string
-  w: waits.wait({
-    on: {
-      // @ts-expect-error … and the handler's return type itself is rejected
-      e1: () => ({ next: ['done', 'w2'] }),
-    },
-    next: 'done',
-  }),
-  w2: waits.final(),
-  done: waits.final(),
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Negative tests from the review: dynamic keys, duplicate keys across a spread, widened `next`
-// ─────────────────────────────────────────────────────────────────────────────
-
-declare const dyn: string
-// @ts-expect-error computed/dynamic key → index signature → rejected by NoDynamicKeys (error on the argument)
-export const badDynamic = small.steps({ [dyn]: small.view({ next: 'x' }), b: small.final() })
-const K = 'lit' as const
-export const okComputedLiteral = small.steps({ [K]: small.view({ next: 'b' }), b: small.final() }) // computed LITERAL keys are fine
-describe('computed literal keys', () => {
-  it('are literal ids', () => {
-    expectTypeOf<StepId<typeof okComputedLiteral>>().toEqualTypeOf<'lit' | 'b'>()
-  })
-})
-export const dupOverwritten = small.steps({
-  // @ts-expect-error TS2783: 'm1' is specified more than once, so this usage will be overwritten by the spread
-  m1: small.view({ next: 'root' }),
-  ...addressModule,
-  root: small.view({ next: 'm1' }),
-})
-// `{ ...addressModule, m1: small.view(...) }` (explicit AFTER spread) compiles — the explicit key wins silently;
-// the runtime (compile.ts) still validates ids.
-export const dupExplicitWins = small.steps({
-  ...addressModule,
-  m1: small.view({ next: 'root' }),
-  root: small.view({ next: 'm1' }),
-})
-describe('duplicate keys across a spread', () => {
-  it('explicit key wins', () => {
-    expectTypeOf<KindOf<typeof dupExplicitWins, 'm1'>>().toEqualTypeOf<'view'>()
-  })
-})
-declare const someString: string
-export const badWidened = small.steps({
-  // @ts-expect-error `next` returning a widened `string` is rejected (refs: string ⊄ ids)
-  a: small.decision({ next: ({ context }) => context.a }),
-  // @ts-expect-error `next: string` variable is rejected
-  b: small.view({ next: someString }),
-  c: small.final(),
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Definition header: `name` required, hooks typed, `dependsOn` ids checked
-// ─────────────────────────────────────────────────────────────────────────────
-
-// @ts-expect-error `name` is required (persistence identity)
-export const _nameRequired = defineFlow({ context: boundary.trusted<SmallCtx>() })
-export const badDeps = small.steps({
-  a: small.task(async () => 1, { next: 'b' }),
-  // @ts-expect-error `dependsOn: ['nope']` — unknown id
-  b: small.task(async () => 2, { dependsOn: ['nope'] }),
-  c: small.final(),
-})
-export const okDeps = small.steps({
-  a: small.task(async () => 1, { next: ['b', 'c'] }),
-  b: small.task(async () => 2, { next: 'join' }),
-  c: small.task(async () => 3, { next: 'join' }),
-  join: small.task(async () => 4, { dependsOn: ['b', 'c'], next: 'anyJoin' }),
-  anyJoin: small.task(async () => 5, { dependsOn: { any: ['b', 'c'] }, next: 'done' }),
-  done: small.final(),
-})
-describe('dependsOn', () => {
-  it('captures ids into refs', () => {
-    expectTypeOf<StepTypesOf<typeof okDeps, 'join'>['refs']>().toEqualTypeOf<
-      'b' | 'c' | 'anyJoin'
-    >()
-    expectTypeOf<StepTypesOf<typeof okDeps, 'a'>['refs']>().toEqualTypeOf<'b' | 'c'>()
-  })
-})
-
-// A hand-written Flow type is assignable to AnyFlow only when its steps are FlowSteps.
-declare const handFlow: Flow<
-  { n: number },
-  { n: number },
-  {},
-  unknown,
-  {
-    readonly a: FlowStep<never, undefined, 'b', 'view', never>
-    readonly b: FlowStep<never, undefined, never, 'final', never>
-  }
->
-describe('AnyFlow', () => {
-  it('accepts hand-written flows and exposes string ids for AnyFlow itself', () => {
-    expectTypeOf(handFlow).toMatchTypeOf<AnyFlow>()
-    expectTypeOf<StepId<AnyFlow>>().toEqualTypeOf<string>()
-    expectTypeOf<ViewId<AnyFlow>>().toEqualTypeOf<string>()
-    expectTypeOf<EventType<AnyFlow>>().toEqualTypeOf<string>()
-    expectTypeOf<ViewId<typeof handFlow>>().toEqualTypeOf<'a'>()
-  })
-})
-
-// One RetryPolicy shape for the DSL and the machine: `backoff` is a fixed number of ms or
-// 'exponential' (+ baseMs / factor / maxBackoffMs); the old `delay` / 'fixed' form is gone.
-const retry = defineFlow({ name: 'retry', context: boundary.trusted<{}>() })
-describe('RetryPolicy', () => {
-  it('is the machine shape (attempts, backoff: number | exponential, baseMs, factor, maxBackoffMs)', () => {
-    expectTypeOf<RetryPolicy>().toEqualTypeOf<CompiledRetryPolicy>()
-    retry.task(() => 1, { retry: { attempts: 3, backoff: 100 } })
-    retry.task(() => 1, {
-      retry: { attempts: 3, backoff: 'exponential', baseMs: 50, factor: 3, maxBackoffMs: 5_000 },
-    })
-    // @ts-expect-error `delay` is not a field: use `backoff: <ms>`
-    retry.task(() => 1, { retry: { attempts: 3, delay: 100 } })
-    // @ts-expect-error `'fixed'` is not a backoff: use a number of ms
-    retry.task(() => 1, { retry: { attempts: 3, backoff: 'fixed' } })
-    // @ts-expect-error `maxDelay` is not a field: use `maxBackoffMs`
-    defineFlow({ name: 'x', context: boundary.trusted<{}>(), retry: { attempts: 1, maxDelay: 5 } })
-  })
-})
+}

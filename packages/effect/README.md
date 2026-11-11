@@ -1,14 +1,34 @@
 # @openwizard/effect
 
-Run Effect 3 programs as OpenWizard tasks.
+Run Effect 4 programs as OpenWizard steps.
 
 ```sh
-npm install @openwizard/effect effect@^3.22.1
+npm install @openwizard/effect effect@^4.0.0-beta.107
 ```
 
-`makeEffectRunner()` turns an Effect program into a function accepted by `flow.task()`.
+Use `step({ run: runEffect(program, { mapError? }) })` to run a program as a step. The program receives the
+step's typed args and runs on the `ManagedRuntime` the run gets in its deps (`EffectDeps<Services>`),
+so a test passes a runtime built from another Layer without redefining the wizard. A program that
+needs a service the runtime does not provide fails type checking.
 
-Read the [Effect 3 package guide](../docs/pages/packages/effect.mdx).
+The step output is the program's success value. A typed failure (from the program or the runtime's
+Layer) is recorded as failure kind `typed`, with `mapError`'s value as the step's `error.data`
+(`ErrorOf`); a defect is kind `defect` and an interruption kind `interrupted`. A step timeout, a
+cancel or a dispose interrupts the fiber. Dispose the runtime with the rest of your application
+resources.
+
+Declare `deps: boundary.trusted<EffectDeps<Services>>()`, then supply `{ deps: { runtime } }` at
+creation or bind it with `wizard.provide({ runtime })`. Mapping on `runEffect` supplies the default
+JSON error channel. Step-level `output` and `mapError` can replace the adapter's output boundary
+and mapped error data; `retry.when` receives the step's mapped error.
+
+For `each` or `needs`, create the adapter inside `run`, such as
+`run: args => runEffect(() => program(args.item, args.needs))`. The step callback infers those
+arguments first. Declare a static step `output` boundary to restore parsed values such as Dates
+from saved JSON. A callback-created adapter validates execution but cannot supply a restore
+schema. JSON outputs need no extra boundary.
+
+Read the [Effect package guide](../docs/pages/packages/effect.mdx).
 
 ## Exports
 
@@ -18,12 +38,9 @@ Read the [Effect 3 package guide](../docs/pages/packages/effect.mdx).
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `awaitResult` | function | Await the terminal result of an existing FlowRun in the Effect error channel. | [src](../../packages/effect/src/execute.ts#L5) |
-| `EffectRunner` | interface | Adapts Effect 3 programs to OpenWizard tasks. | [src](../../packages/effect/src/runner.ts#L60) |
-| `EffectRunnerOptions` | interface | Defaults shared by every task created by an Effect runner. | [src](../../packages/effect/src/runner.ts#L33) |
-| `EffectTaskOptions` | interface | Durable boundaries and tracing for an adapted Effect task. | [src](../../packages/effect/src/runner.ts#L24) |
-| `EffectTraceOptions` | interface | Trace naming and attributes for one Effect task attempt. | [src](../../packages/effect/src/runner.ts#L16) |
-| `execute` | function | Start an existing FlowRun and await its terminal result as an Effect. | [src](../../packages/effect/src/execute.ts#L34) |
-| `makeEffectRunner` | function | Create an Effect 3 task runner from a managed runtime or closed Layer. | [src](../../packages/effect/src/runner.ts#L233) |
+| `EffectDeps` | interface | Wizard deps that carry the Effect runtime of a run. Declare them with | [src](../../packages/effect/src/run-effect.ts#L18) |
+| `runEffect` | function | Run an Effect program as a step. The program gets the step's `RunArgs` and runs on | [src](../../packages/effect/src/run-effect.ts#L59) |
+| `RunEffectOptions` | interface | Options for `runEffect`. `Data` is the JSON value stored as the step's typed error data. | [src](../../packages/effect/src/run-effect.ts#L29) |
+| `RuntimeErrorOf` | type | The error a runtime's Layer can fail with while it is being built. | [src](../../packages/effect/src/run-effect.ts#L23) |
 
 <!-- exports:end -->

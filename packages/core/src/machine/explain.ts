@@ -3,7 +3,7 @@
  *
  * Pure query over selectors; reason codes are stable strings the façade and
  * devtools can match on:
- * `unknown-step`, `flow-not-started`, `flow-terminal`, `flow-compensating`,
+ * `unknown-step`, `flow-not-started`, `flow-terminal`, `flow-compensating`, `flow-halted`,
  * `nav-busy`, `not-activated`, `deps-unmet:<id>`, `guard-false:canEnter`,
  * `guard-false:canExit`, `concurrency-limit`, `auto-run-manual`,
  * `failed:<kind>`, `not-current`, `entering`, `retrying`, `when-pending` (v0.2:
@@ -15,9 +15,10 @@
 
 import type { CompiledFlow } from '../authoring/compiled'
 import {
-  activeTaskCount,
+  activeRunCount,
   awaitingWhen,
   eligible,
+  isRunnableStep,
   isTerminal,
   phase,
   ready,
@@ -43,6 +44,7 @@ export function explain(def: CompiledFlow, state: WizardState, stepId: string): 
   if (state.status === 'idle') reasons.push('flow-not-started')
   else if (isTerminal(state)) reasons.push('flow-terminal')
   else if (state.status === 'compensating') reasons.push('flow-compensating')
+  else if (state.status === 'halted') reasons.push('flow-halted')
   if (state.nav.phase !== 'idle') reasons.push('nav-busy')
 
   if (rec.status === 'active') {
@@ -64,7 +66,7 @@ export function explain(def: CompiledFlow, state: WizardState, stepId: string): 
       reasons.push('when-pending')
     if (ready(def, state, stepId)) {
       const stepDef = def.steps[stepId]
-      if (stepDef?.kind === 'task' && activeTaskCount(def, state) >= def.policies.concurrency)
+      if (isRunnableStep(stepDef) && activeRunCount(def, state) >= def.policies.concurrency)
         reasons.push('concurrency-limit')
       if (stepDef !== undefined && stepDef.kind !== 'view' && def.policies.autoRun === 'manual')
         reasons.push('auto-run-manual')

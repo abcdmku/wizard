@@ -13,7 +13,7 @@
 
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { describeError, WizardError } from '../errors'
-import { getThen } from '../interpreter/thenable'
+import { isThenable } from '../interpreter/thenable'
 import type { BoundaryResult, RuntimeBoundary } from './compiled'
 import { type Boundary, CHECKER, type Checker, type CheckerKind, type Issue } from './types'
 
@@ -109,7 +109,9 @@ export function toRuntimeBoundary(boundary: Boundary<unknown, unknown>): Runtime
       kind: 'standard',
       parse: (value) => {
         const result = props.validate(value)
-        return isThenable(result) ? result.then(fromStandardResult) : fromStandardResult(result)
+        return isThenable(result)
+          ? (result as Promise<StandardSchemaV1.Result<unknown>>).then(fromStandardResult)
+          : fromStandardResult(result)
       },
     }
   }
@@ -194,9 +196,4 @@ function issuesFromError(error: unknown): readonly Issue[] {
     if (mapped.length > 0) return mapped
   }
   return [{ message: describeError(error) }]
-}
-
-/** A Standard Schema `validate` may return its result synchronously or as a thenable. */
-function isThenable(value: unknown): value is PromiseLike<StandardSchemaV1.Result<unknown>> {
-  return getThen(value) !== undefined
 }

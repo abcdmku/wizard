@@ -5,11 +5,28 @@
  */
 
 import type { NavState, SagaState, StepError, StepRecord, TimerEntry, WizardState } from '../state'
+import { carryIndex, stepIndex } from '../step-index'
 import { omit } from '../util'
+import { writeActive, writeStep } from './draft'
 
 export type RecPatch = Partial<StepRecord>
 export type RecKey = keyof StepRecord
 
+/** Keep `state.active` in activation order: a newcomer is appended, a leaver removed. */
+function activeAfter(
+  active: readonly string[],
+  before: StepRecord,
+  after: StepRecord,
+): readonly string[] {
+  const was = before.status === 'active'
+  const is = after.status === 'active'
+  return was === is ? active : writeActive(active, after.id, is)
+}
+
+/**
+ * The ONE writer of step records: keeps `state.active` and the derived step index in sync.
+ * Inside a `decide` batch the write is in place (see `draft.ts`), so it is O(1) amortized.
+ */
 export function withStep(
   state: WizardState,
   id: string,
@@ -17,7 +34,11 @@ export function withStep(
 ): WizardState {
   const rec = state.steps[id]
   if (rec === undefined) return state
-  return { ...state, steps: { ...state.steps, [id]: fn(rec) } }
+  const next = fn(rec)
+  const index = stepIndex(state.steps)
+  const steps = writeStep(state.steps, id, rec, next)
+  carryIndex(index, steps, rec, next)
+  return { ...state, steps, active: activeAfter(state.active, rec, next) }
 }
 
 export function patchStep(

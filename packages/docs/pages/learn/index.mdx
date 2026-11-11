@@ -1,16 +1,18 @@
-# Learn OpenWizard
+# Overview
 
-This section explains what happens inside a run and why each API exists. Read it in order the first time. Each page adds one new behavior to the small flow from the previous page.
+Start with [Build a wizard](/getting-started) for a complete definition and run. These pages explain the same API one behavior at a time.
 
-1. [How a flow becomes a running workflow](/learn/mental-model) separates the reusable definition from one live run and explains where data lives.
-2. [How steps behave](/learn/steps) shows which steps run automatically, which ones pause, and how `next` links move the run.
-3. [How a view collects and validates input](/learn/input) follows a form draft from `setInput()` through `next()` and into shared context.
-4. [How commands, state, and final results differ](/learn/results) explains the three values applications commonly confuse.
-5. [What happens when a task fails](/learn/failures) follows automatic retries, a halted run, and a later manual retry.
-6. [How a run waits for another system](/learn/events) declares an event, validates its payload, and delivers it to an active wait step.
-7. [How save and resume survive a restart](/learn/persistence) writes a snapshot, disposes the old process object, and creates a new run from stored state.
-8. [How to test public behavior](/learn/testing) checks commands and state without starting a UI or server.
+| Page | You learn |
+|---|---|
+| [Flows and runs](/learn/mental-model) | A wizard is a definition; a run records one execution |
+| [Step kinds](/learn/steps) | Work, typed joins, event waits, timers, views, and children |
+| [Views and input](/learn/input) | Drafts, validation, and moving accepted data into context |
+| [Commands, state, results](/learn/results) | Command responses, live state, parked outcomes, and terminal results |
+| [Retries and failures](/learn/failures) | Retry policies, fallback, halted runs, and manual recovery |
+| [Events and waiting](/learn/events) | Declaring events and delivering them to a waiting step |
+| [Save and resume](/learn/persistence) | Snapshots, stores, and continuing after a restart |
+| [Testing](/learn/testing) | Driving a run in a test without a server or UI |
 
-The first four pages are enough to build a local workflow that runs tasks and collects input. Read the later pages when your workflow crosses a process boundary, can fail, or must survive a restart.
+Read the first four pages for a local wizard that runs code and collects input. Continue when a run must survive a restart, wait on another system, or recover from failure.
 
-The [advanced path](/advanced) continues with the production guarantees behind retries, compensation, graph execution, snapshot migration, multi-worker durability, projections, and replay.
+The [Production](/advanced) section covers idempotency, compensation, graphs, migrations, worker ownership, projections, and replay.

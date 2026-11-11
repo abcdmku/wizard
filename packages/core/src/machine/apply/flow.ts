@@ -13,6 +13,7 @@ import type {
   SerializedError,
   WizardState,
 } from '../state'
+import { stepIndex } from '../step-index'
 import type { MachineEnv } from '../types'
 import { omit } from '../util'
 import { patchStep, withSaga } from './patch'
@@ -23,6 +24,7 @@ import { patchStep, withSaga } from './patch'
  * token is staled here (its late result is `result.ignored`, resume does not re-issue it).
  */
 function dropPendingWhen(state: WizardState): WizardState {
+  if (stepIndex(state.steps).whenPending === 0) return state
   let next = state
   for (const id of Object.keys(state.steps)) {
     if (state.steps[id]?.when === 'pending') next = patchStep(next, id, {}, ['when'])
@@ -57,13 +59,11 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
               at: ev.at,
               ...(ev.data !== undefined ? { data: ev.data } : {}),
             }
-      const next = { ...omit(state, ['terminal']), failure }
-      // A step failure under the halt policy is intentionally recoverable.  It
-      // becomes terminal only when no failed step was recorded (for example an
-      // auto-advance loop or another flow-level runtime failure).
-      if (Object.values(state.steps).some((rec) => rec.status === 'failed')) return next
-      return { ...next, terminal: { status: 'failed', failure } }
+      return { ...dropPendingWhen(state), failure, terminal: { status: 'failed', failure } }
     }
+    case 'flow.halted':
+      // `step.failed` just recorded the primary failure; keep it for results and recovery.
+      return state
     case 'flow.compensating': {
       const settling = state.active.filter((id) => runInFlight(state.steps[id]))
       const retried: ReadonlySet<string> = new Set(ev.plan)
@@ -71,19 +71,20 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
         ...omit(state.saga, ['reason', 'outcome', 'inFlight']),
         failures: state.saga.failures.filter((f) => !retried.has(f.step)),
         settling,
-        outcome: ev.outcome ?? 'failed',
+        outcome: ev.status ?? 'failed',
         ...(ev.reason !== undefined ? { reason: ev.reason } : {}),
       }
       return dropPendingWhen(withSaga(omit(state, ['terminal']), saga))
     }
     case 'flow.compensated': {
       const next = withSaga(state, omit(state.saga, ['settling', 'inFlight']))
+      const failures = state.saga.failures.map((ref) => compensationFailure(state, ref))
       const compensation = {
-        outcome: ev.outcome,
-        failures: state.saga.failures.map((ref) => compensationFailure(state, ref)),
+        outcome: failures.length > 0 ? ('partial' as const) : ('completed' as const),
+        failures,
       }
       const terminal =
-        ev.outcome === 'cancelled'
+        ev.status === 'cancelled'
           ? {
               status: 'cancelled' as const,
               ...(state.saga.reason !== undefined ? { reason: state.saga.reason } : {}),
@@ -109,14 +110,17 @@ export function applyFlow(env: MachineEnv, state: WizardState, ev: DomainEvent):
     case 'flow.resumed':
     case 'flow.status':
       return state
-    case 'flow.reset':
-      return initialState(env, {
+    case 'flow.reset': {
+      const fresh = initialState(env, {
         instanceId: state.instanceId,
         context: state.context,
         now: ev.at,
         epoch: state.epoch,
         ...(state.correlationId !== undefined ? { correlationId: state.correlationId } : {}),
       })
+      // Deliveries already applied stay duplicates after a reset (D8).
+      return state.eventIds === undefined ? fresh : { ...fresh, eventIds: state.eventIds }
+    }
     default:
       return state
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, of, view, wait } from '../helpers/fixtures'
+import { createHarness, eventStep, flow, of, routingStep, view } from '../helpers/fixtures'
 
 const on = () => undefined
 
@@ -9,13 +9,13 @@ const waiting = (
   flow({
     start: 'w',
     steps: {
-      w: wait({
+      w: eventStep({
         on: { paid: on, failed: on },
         next: 'end',
         ...(opts.timeout !== undefined ? { timeout: opts.timeout } : {}),
       }),
-      expired: final(),
-      end: final(),
+      expired: routingStep(),
+      end: routingStep(),
     },
     policies: { unmatchedEvents: { buffer: opts.buffer ?? true, ttlMs: opts.ttlMs ?? 5_000 } },
   })
@@ -47,7 +47,8 @@ describe('wait — routing', () => {
     })
     const done = h.ok(call, undefined)
     expect(done.types.slice(0, 1)).toEqual(['step.done'])
-    expect(of(done, 'step.done')[0]?.output).toEqual({ event: 'paid', payload: { amount: 5 } })
+    expect(of(done, 'step.done')[0]?.output).toEqual({ amount: 5 })
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
   })
 
@@ -87,9 +88,9 @@ describe('wait — routing', () => {
       flow({
         start: ['w1', 'w2'],
         steps: {
-          w1: wait({ on: { ping: on }, next: 'end' }),
-          w2: wait({ on: { ping: on }, next: 'end' }),
-          end: final({ dependsOn: ['w1', 'w2'] }),
+          w1: eventStep({ on: { ping: on }, next: 'end' }),
+          w2: eventStep({ on: { ping: on }, next: 'end' }),
+          end: routingStep({ dependsOn: ['w1', 'w2'] }),
         },
       }),
     )
@@ -102,6 +103,7 @@ describe('wait — routing', () => {
     expect(h.rec('w2').status).toBe('done')
     expect(h.rec('w1').status).toBe('active')
     h.ok(calls[0]!, undefined)
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
   })
 
@@ -120,15 +122,15 @@ describe('wait — routing', () => {
     })
   })
 
-  it('handler results: keep stays waiting; {next} overrides the target; {done} overrides the output; {fail} fails the step', () => {
+  it('handler results: keep stays waiting; done overrides the output; fail fails the step; next is rejected', () => {
     const mk = () =>
       createHarness(
         flow({
           start: 'w',
           steps: {
-            w: wait({ on: { e: on }, next: 'a' }),
-            a: final(),
-            b: final(),
+            w: eventStep({ on: { e: on }, next: 'a' }),
+            a: routingStep(),
+            b: routingStep(),
           },
         }),
       )
@@ -138,33 +140,35 @@ describe('wait — routing', () => {
     keep.cmd({ type: 'send', event: 'e', payload: 1 })
     expect(keep.ok(keep.call('on'), { keep: true }).types).toEqual([])
     expect(keep.rec('w').status).toBe('active')
-    // next override
+    // Wait handlers cannot override routing.
     const nxt = mk()
     nxt.start()
     nxt.cmd({ type: 'send', event: 'e', payload: 1 })
     const r = nxt.ok(nxt.call('on'), { next: 'b' })
-    expect(of(r, 'step.done')[0]).toMatchObject({ next: 'b' })
-    expect(of(r, 'transition.started')[0]).toMatchObject({ from: 'w', to: 'b', cause: 'auto' })
-    expect(nxt.rec('b').status).toBe('done')
+    expect(r.types).toEqual(['step.failed', 'flow.halted'])
+    expect(nxt.rec('w').error?.code).toBe('INVALID_WAIT_RESULT')
+    expect(nxt.rec('b').status).toBe('idle')
     expect(nxt.rec('a').status).toBe('idle')
     // done override
     const dn = mk()
     dn.start()
     dn.cmd({ type: 'send', event: 'e', payload: 1 })
     expect(of(dn.ok(dn.call('on'), { done: 'custom' }), 'step.done')[0]?.output).toBe('custom')
+    expect(dn.rec('a').status).toBe('done')
+    expect(dn.rec('b').status).toBe('idle')
     // fail
     const fl = mk()
     fl.start()
     fl.cmd({ type: 'send', event: 'e', payload: 1 })
     const f = fl.ok(fl.call('on'), { fail: 'rejected by handler' })
-    expect(f.types).toEqual(['step.failed', 'flow.failed'])
+    expect(f.types).toEqual(['step.failed', 'flow.halted'])
     expect(fl.rec('w').error).toMatchObject({ kind: 'hook', message: 'rejected by handler' })
     // unknown next
     const un = mk()
     un.start()
     un.cmd({ type: 'send', event: 'e', payload: 1 })
     expect(of(un.ok(un.call('on'), { next: 'zzz' }), 'step.failed')[0]?.error.code).toBe(
-      'UNKNOWN_STEP',
+      'INVALID_WAIT_RESULT',
     )
   })
 
@@ -175,7 +179,7 @@ describe('wait — routing', () => {
     h.cmd({ type: 'send', event: 'failed', payload: 2 })
     const [first, second] = h.pending('on')
     const r = h.err(first!, 'handler threw')
-    expect(r.types).toEqual(['step.failed', 'flow.failed'])
+    expect(r.types).toEqual(['step.failed', 'flow.halted'])
     expect(h.ok(second!, undefined).types).toEqual(['result.ignored'])
   })
 })
@@ -187,8 +191,8 @@ describe('wait — inbox drain, TTL, timeout', () => {
         start: 'v',
         steps: {
           v: view({ next: 'w' }),
-          w: wait({ on: { paid: on }, next: 'end' }),
-          end: final(),
+          w: eventStep({ on: { paid: on }, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )
@@ -217,6 +221,7 @@ describe('wait — inbox drain, TTL, timeout', () => {
     expect(of(k, 'event.delivered')[0]?.payload).toBe('second')
     expect(h.state.inbox).toEqual([])
     h.ok(h.call('on'), undefined)
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
   })
 
@@ -237,7 +242,11 @@ describe('wait — inbox drain, TTL, timeout', () => {
     const h = createHarness(
       flow({
         start: 'v',
-        steps: { v: view({ next: 'w' }), w: wait({ on: { paid: on }, next: 'end' }), end: final() },
+        steps: {
+          v: view({ next: 'w' }),
+          w: eventStep({ on: { paid: on }, next: 'end' }),
+          end: routingStep(),
+        },
         policies: { unmatchedEvents: { buffer: true, ttlMs: 50 } },
       }),
     )
@@ -253,7 +262,7 @@ describe('wait — inbox drain, TTL, timeout', () => {
     expect(h.rec('w').status).toBe('active')
   })
 
-  it('wait timeout: timer armed on entry (deadline stored), fires → step.done{event:timeout} and auto-advance to timeout.next', () => {
+  it('wait timeout: stores a deadline, completes with undefined output and advances to timeout.next', () => {
     const h = createHarness(waiting({ timeout: { afterMs: 1_000, next: 'expired' } }))
     const r = h.start()
     expect(r.types).toEqual(['flow.started', 'step.arrived', 'step.entered', 'timer.scheduled'])
@@ -269,11 +278,12 @@ describe('wait — inbox drain, TTL, timeout', () => {
     const fired = h.fire('wait:w')
     expect(fired.types.slice(0, 2)).toEqual(['timer.fired', 'step.done'])
     expect(of(fired, 'step.done')[0]).toMatchObject({
-      output: { event: 'timeout' },
       next: 'expired',
     })
+    expect(of(fired, 'step.done')[0]?.output).toBeUndefined()
     expect(h.rec('expired').status).toBe('done')
     expect(h.rec('end').status).toBe('idle')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(h.state.timers).toEqual({})
   })
@@ -294,7 +304,10 @@ describe('wait — inbox drain, TTL, timeout', () => {
     const h = createHarness(
       flow({
         start: 'w',
-        steps: { w: wait({ enter: () => undefined, on: { paid: on }, next: 'end' }), end: final() },
+        steps: {
+          w: eventStep({ enter: () => undefined, on: { paid: on }, next: 'end' }),
+          end: routingStep(),
+        },
       }),
     )
     h.start()

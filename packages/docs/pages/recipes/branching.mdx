@@ -1,16 +1,48 @@
-# Choose a branch
+# Branch on data
 
-Use a `decision` when the run must choose one route from current data. In this delivery flow, the customer's selected speed decides which fulfillment task runs.
+Use `step({ next, targets })` when current data picks one of several paths.
 
 ```ts file="packages/docs/snippets/recipes/branching.ts"
 ```
 
-When the run reaches `choose`, OpenWizard calls its `next` function with the current context. The function returns either `'express'` or `'standard'`. That returned string is a step id, not an arbitrary label.
+## What happens
 
-Only the selected task becomes ready. The other task stays idle. Both possible tasks link to `done`, so the paths meet again after their different work finishes.
+1. The run enters `choose` and calls `next` with the current context.
+2. The function returns the `express` or `standard` step.
+3. OpenWizard activates the selected target and skips the other with reason `not-taken`.
+4. The selected branch finishes. With no remaining work, the wizard completes with that sink's output.
 
-TypeScript checks literal ids returned by the decision. A typo such as `'expres'` fails the build because the flow has no step with that id. OpenWizard also validates step links when the flow definition is created.
+## Declare dynamic targets
 
-Keep side effects out of a decision. Let it choose the route, then put the database or HTTP call in the selected task. This makes retries and failures belong to the step that performs the work.
+A function `next` must declare the full set of targets it can return:
 
-Use `when` instead when a step should either run or be skipped while the rest of the route stays the same. Use a decision when choosing one target changes which path becomes active.
+```ts
+const choose = step({
+  targets: [express, standard],
+  next: ({ context }) => context.speed === 'express' ? express : standard,
+})
+```
+
+Targets can be literal ids or step objects. OpenWizard checks them against the assembled map and checks the callback's return against its targets. An invalid return or thrown error fails the step under the wizard's failure policy.
+
+For a later data join over mutually exclusive targets, use `needs: { delivery: { any: [express, standard] } }`. A plain need for each branch would skip the join when the untaken branch skips. Use an optional need for a branch whose value may be absent.
+
+## Skip an optional action
+
+Use `when` when a step may be omitted while the sequence continues:
+
+```ts
+gift: step({
+  run: wrapGift,
+  when: ({ context }) => context.gift,
+  next: 'done',
+}),
+```
+
+If `when` returns false, the step skips and follows its ordinary `next`. A skipped step satisfies a `dependsOn` control gate, while a plain `needs` reference propagates the skip to its consumer.
+
+## Keep routing pure
+
+Choose the path from data the run already has. Put database or HTTP calls in runnable steps so retries and errors belong to the operation that can fail.
+
+[Graphs](/advanced/graphs) covers branches, typed joins, and control gates.

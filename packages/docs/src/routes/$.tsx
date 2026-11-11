@@ -21,7 +21,7 @@ export const Route = createFileRoute('/$')({
     return { page }
   },
   head: ({ loaderData }) => ({
-    meta: loaderData ? [{ title: `${loaderData.page.title} — ${site.name}` }] : [],
+    meta: loaderData ? [{ title: `${loaderData.page.title} | ${site.name}` }] : [],
   }),
   component: DocsPageRoute,
 })

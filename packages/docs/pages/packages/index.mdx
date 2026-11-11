@@ -1,25 +1,18 @@
-# Package guide
+# Overview
 
-Every OpenWizard application starts with `@openwizard/core`. The other packages connect a core run to a UI, database, distributed worker system, tracing backend, or HTTP boundary. They are optional because not every application has those boundaries.
+Every application installs `@openwizard/core`; add another package only when a run crosses a boundary such as React, a database, several workers, tracing, or HTTP.
 
-| Package | Add it when you need |
-|---|---|
-| [`@openwizard/core`](/packages/core) | Flows and local runs |
-| [`@openwizard/react`](/packages/react) | React hooks for a run or browser mirror |
-| [`@openwizard/devtools`](/packages/devtools) | A visual graph, event log, and timeline |
-| [`@openwizard/durable`](/packages/durable) | Safe ownership when several workers share runs |
-| [`@openwizard/drizzle`](/packages/drizzle) | PostgreSQL or SQLite storage for durable runs |
-| [`@openwizard/effect`](/packages/effect) | Effect 3 programs as tasks |
-| [`@openwizard/effect-v4`](/packages/effect-v4) | Effect 4 beta programs as tasks |
-| [`@openwizard/opentelemetry`](/packages/opentelemetry) | OpenTelemetry spans from run events |
-| [`@openwizard/webhooks`](/packages/webhooks) | Signed webhooks and an HTTP API |
+| Package | Adds | Install when |
+|---|---|---|
+| [`@openwizard/core`](/packages/core) | Wizard definitions, local runs, outcomes, snapshots, events, replay | Always |
+| [`@openwizard/react`](/packages/react) | Typed hooks over a run or a browser mirror | React renders the run |
+| [`@openwizard/devtools`](/packages/devtools) | Live graph, event log, timeline, step inspector | You need to see why a step is waiting |
+| [`@openwizard/durable`](/packages/durable) | Leases, fencing, deduplication, timer claims | Several processes can touch one run |
+| [`@openwizard/drizzle`](/packages/drizzle) | PostgreSQL and SQLite tables for durable records | Durable needs a real database |
+| [`@openwizard/effect`](/packages/effect) | Effect 4 step adapters using the runtime in wizard deps | Your runnable work is an Effect program |
+| [`@openwizard/opentelemetry`](/packages/opentelemetry) | Spans created from run events | An OpenTelemetry pipeline already exists |
+| [`@openwizard/http`](/packages/http) | A run API, signed incoming events and outbound callbacks over HTTP | Browsers or external systems call the run |
 
-## A common path through the packages
+## Typical stacks
 
-For a command-line tool or one Node.js server, start with core and keep the run in that process. Add React only if React renders the run.
-
-Add persistence when a run must outlive the process. A core `Store` is enough when one process owns each run. Add Durable when several server instances, queue workers, or timer workers can touch the same run. Drizzle is one database implementation for that durable contract.
-
-Devtools and OpenTelemetry observe runs. They do not change ownership or persistence. Webhooks put an HTTP boundary around events and selected commands. The Effect adapters only matter if your task code already uses Effect.
-
-Install a package when you can name the problem it solves in your application. Core does not require the rest of the stack.
+A CLI or single Node.js server needs core only, plus a core `Store` when a run must outlive the process. A React app adds `react`, and `devtools` during development. A multi-worker service adds `durable` and `drizzle`. Add `opentelemetry` and `http` when tracing or external HTTP callers appear. Use `effect` when runnable work already uses Effect programs.

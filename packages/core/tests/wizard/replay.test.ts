@@ -8,92 +8,102 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import { defineFlow } from '../../src/authoring/define-flow'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { replay } from '../../src/replay'
-import { createRun, type FlowRun, type RunEvent } from '../../src/wizard/create-wizard'
+import type { Run, RunEvent } from '../../src/wizard/create-wizard'
+import { defineWizard } from '../../src/wizard/define-wizard'
 
 const settle = () => new Promise<void>((r) => setTimeout(r, 0))
 
 // ---- fixtures ------------------------------------------------------------------------------
 
-const packFlow = (() => {
-  const pack = defineFlow({ name: 'pack', context: z.object({ items: z.number() }) })
-  return pack.steps(
-    {
-      count: pack.task(({ context }) => context.items * 2, { next: 'packed' }),
-      packed: pack.final({ output: ({ steps }) => steps.count?.output }),
-    },
-    { start: 'count' },
-  )
-})()
+const packFlow = defineWizard(
+  { name: 'pack', context: z.object({ items: z.number() }) },
+  ({ step, steps }) => {
+    const count = step({ run: ({ context }) => context.items * 2, next: 'packed' })
+    return steps(
+      { count, packed: step({ needs: { count }, run: ({ needs }) => needs.count }) },
+      { start: 'count' },
+    )
+  },
+)
 
 interface Deps {
   api: { fetch(): Promise<number> }
 }
 
-const replayFixture = defineFlow({
-  name: 'replay-fixture',
-  context: z.object({
-    order: z.string(),
-    total: z.number().default(0),
-    rows: z.number().optional(),
-    quality: z.number().default(0),
-  }),
-  events: { 'payment.captured': z.object({ paymentId: z.string() }) },
-  deps: boundary.trusted<Deps>(),
-  concurrency: 2,
-})
-
-const flow = replayFixture.steps(
+const flow = defineWizard(
   {
-    form: replayFixture.view({
-      input: z.object({ name: z.string().min(1) }),
-      initial: { name: '' },
-      exit: ({ update }) => update({ total: 10 }),
-      next: 'ingest',
+    name: 'replay-fixture',
+    context: z.object({
+      order: z.string(),
+      total: z.number().default(0),
+      rows: z.number().optional(),
+      quality: z.number().default(0),
     }),
-    ingest: replayFixture.task(
-      async ({ deps, update }) => {
-        const rows = await deps.api.fetch()
-        update({ rows })
-        return { rows }
-      },
-      { retry: { attempts: 2, backoff: 100 }, next: ['normalize', 'enrich'] },
-    ),
-    normalize: replayFixture.task(({ context }) => ({ normalized: context.rows ?? 0 }), {
-      next: 'gate',
-    }),
-    enrich: replayFixture.task(({ update }) => update({ quality: 0.9 }), {
-      when: ({ context }) => (context.rows ?? 0) > 0,
-      next: 'gate',
-    }),
-    gate: replayFixture.decision({
-      dependsOn: ['normalize', 'enrich'],
-      next: ({ context }) => (context.quality >= 0.8 ? 'awaitPayment' : 'rejected'),
-    }),
-    awaitPayment: replayFixture.wait({
-      on: { 'payment.captured': ({ update, payload }) => update({ order: payload.paymentId }) },
-      timeout: { after: '15m', next: 'rejected' },
-      next: 'pack',
-    }),
-    pack: replayFixture.flow(packFlow, {
-      context: ({ context }) => ({ items: context.rows ?? 0 }),
-      next: 'done',
-    }),
-    rejected: replayFixture.final({ output: () => 'rejected' }),
-    done: replayFixture.final({ output: ({ context }) => `stored ${context.rows ?? 0} rows` }),
+    events: { 'payment.captured': z.object({ paymentId: z.string() }) },
+    deps: boundary.trusted<Deps>(),
+    concurrency: 2,
   },
-  { start: 'form' },
+  ({ step, view, flow: childFlow, steps }) =>
+    steps(
+      {
+        form: view({
+          input: z.object({ name: z.string().min(1) }),
+          initial: { name: '' },
+          exit: ({ update }) => update({ total: 10 }),
+          next: 'ingest',
+        }),
+        ingest: step({
+          run: async ({ deps, update }) => {
+            const rows = await deps.api.fetch()
+            update({ rows })
+            return { rows }
+          },
+          retry: { attempts: 2, backoff: 100 },
+          next: ['normalize', 'enrich'],
+        }),
+        normalize: step({
+          run: ({ context }) => ({ normalized: context.rows ?? 0 }),
+          next: 'gate',
+        }),
+        enrich: step({
+          run: ({ update }) => update({ quality: 0.9 }),
+          when: ({ context }) => (context.rows ?? 0) > 0,
+          next: 'gate',
+        }),
+        gate: step({
+          dependsOn: ['normalize', 'enrich'],
+          next: ({ context }) => (context.quality >= 0.8 ? 'awaitPayment' : 'rejected'),
+          targets: ['awaitPayment', 'rejected'],
+        }),
+        awaitPayment: step({
+          waitFor: {
+            'payment.captured': ({ update, payload }) => {
+              update({ order: payload.paymentId })
+              return { done: payload }
+            },
+          },
+          timeout: { after: '15m', next: 'rejected' },
+          next: 'pack',
+        }),
+        pack: childFlow(packFlow, {
+          context: ({ context }) => ({ items: context.rows ?? 0 }),
+          next: 'done',
+        }),
+        rejected: step({ run: () => 'rejected' }),
+        done: step({ run: ({ context }) => `stored ${context.rows ?? 0} rows` }),
+      },
+      { start: 'form' },
+    ),
 )
 
 const context = { order: 'o-1' }
 
 function make(fetch: () => Promise<number>) {
   const sched = createTestScheduler({ now: 1_000 })
-  const run = createRun(flow, {
-    context,
+  const run = flow.create(context, {
     deps: { api: { fetch } },
     scheduler: sched,
     ids: createSequentialIds(),
@@ -103,7 +113,7 @@ function make(fetch: () => Promise<number>) {
 }
 
 /** `replay` of the whole log equals the live state, and every prefix (`upTo`) is consistent too. */
-function expectReplayEquals(run: FlowRun<typeof flow>, log: readonly RunEvent<typeof flow>[]) {
+function expectReplayEquals(run: Run<typeof flow>, log: readonly RunEvent<typeof flow>[]) {
   const replayed = replay(flow, log, { context, instanceId: run.id })
   expect(replayed).toEqual(run.getState())
   // Prefix property: the fold up to seq N equals the fold of the events with seq <= N.

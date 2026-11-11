@@ -1,0 +1,141 @@
+.action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  margin-top: 1.5rem;
+}
+
+.action-bar--sticky {
+  position: sticky;
+  z-index: 10;
+  bottom: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 0.75rem 0.75rem 0 0;
+  margin-inline: -1rem;
+  background: rgb(255 254 250 / 0.96);
+  box-shadow: 0 -8px 24px rgb(13 42 66 / 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.action-bar__status {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.action-bar__controls,
+.action-bar__secondary,
+.action-bar__primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.review-section {
+  padding-block: 1.15rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.review-section:first-child {
+  padding-top: 0;
+}
+
+.review-section:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.review-section--invalid {
+  padding-inline: 1rem;
+  border: 1px solid #e1c56d;
+  border-radius: 0.6rem;
+  background: #fffdf4;
+}
+
+.review-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.review-section__title {
+  margin: 0;
+  font-size: 1.06rem;
+}
+
+.review-section__body {
+  margin-top: 0.75rem;
+}
+
+.risk-progress {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--surface-muted);
+}
+
+.risk-progress__heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.risk-progress__label {
+  color: var(--navy-dark);
+  font-weight: 760;
+}
+
+.risk-progress__state {
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+.risk-progress__track {
+  height: 0.62rem;
+  border-radius: 99rem;
+  overflow: hidden;
+  background: #d8e0dd;
+}
+
+.risk-progress__bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #6b7b82;
+  transition: width 300ms ease;
+}
+
+.risk-progress--info .risk-progress__bar {
+  background: #367b9f;
+}
+
+.risk-progress--success .risk-progress__bar {
+  background: #27845f;
+}
+
+.risk-progress--warning .risk-progress__bar {
+  background: #bd8416;
+}
+
+.risk-progress--danger .risk-progress__bar {
+  background: var(--danger);
+}
+
+.risk-progress__bar--indeterminate {
+  min-width: 28%;
+  animation: progress 1.3s ease-in-out infinite alternate;
+}
+
+.risk-progress__message {
+  margin: 0.55rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.83rem;
+}

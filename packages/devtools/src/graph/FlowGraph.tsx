@@ -3,7 +3,7 @@
  * ELK layered layout, with the live overlay (`statuses`, `activeStep`) and a selection.
  */
 
-import { type FlowGraph as FlowGraphData, inspect } from '@openwizard/core'
+import { type FlowGraph as FlowGraphData, inspect } from '@openwizard/core/inspect'
 import {
   Background,
   Controls,
@@ -28,6 +28,7 @@ import {
 import type { LayoutEngine } from '../layout/elk'
 import type { DevtoolsTheme, GraphInput, GraphSelection, StepStatusMap } from '../types'
 import { FlowEdgeComponent } from './FlowEdge'
+import { definitionPath, instanceGraph } from './instances'
 import { MarkerNodeComponent } from './MarkerNode'
 import { GroupNodeComponent, StepNodeComponent } from './StepNode'
 import {
@@ -50,6 +51,8 @@ export interface FlowGraphProps extends GraphInput {
   readonly activeStep?: string | null
   /** Live statuses / phases by step key (see `collectStatuses`). */
   readonly statuses?: StepStatusMap
+  /** Live child run paths from collectStatuses(). Mapped children get one group per index. */
+  readonly childPaths?: readonly (readonly string[])[]
   /** Selected step key (controlled). Omit to let the graph keep its own selection. */
   readonly selected?: string | null
   readonly onSelect?: (selection: GraphSelection | null) => void
@@ -78,9 +81,18 @@ const EMPTY_STATUSES: StepStatusMap = {}
  * @public
  */
 export function FlowGraph(props: FlowGraphProps): ReactElement {
-  const graph: FlowGraphData | undefined = useMemo(
+  const definition: FlowGraphData | undefined = useMemo(
     () => props.graph ?? (props.flow === undefined ? undefined : inspect(props.flow)),
     [props.graph, props.flow],
+  )
+  const paths = props.childPaths ?? []
+  const pathKey = JSON.stringify(paths)
+  const lastPaths = useRef({ key: pathKey, paths })
+  if (lastPaths.current.key !== pathKey) lastPaths.current = { key: pathKey, paths }
+  const stablePaths = lastPaths.current.paths
+  const graph = useMemo(
+    () => (definition === undefined ? undefined : instanceGraph(definition, stablePaths)),
+    [definition, stablePaths],
   )
   const { model, layout, pending, error } = useGraphLayout(graph, props.layoutEngine)
   const [ownSelected, setOwnSelected] = useState<string | null>(null)
@@ -121,9 +133,15 @@ export function FlowGraph(props: FlowGraphProps): ReactElement {
   const onNodeClick: NodeMouseHandler<DevtoolsNode> = useCallback(
     (_event, node) => {
       if (node.type === 'marker') return
+      if (
+        stablePaths.length > 0 &&
+        definition !== undefined &&
+        definitionPath(definition, node.data.path) === undefined
+      )
+        return
       select({ id: node.data.step.id, path: node.data.path, key: node.id })
     },
-    [select],
+    [definition, stablePaths, select],
   )
   const onPaneClick = useCallback(() => select(null), [select])
 

@@ -1,7 +1,15 @@
-import { t as DrizzleDurableStoreOptions } from "./store-CtbU3mHI.js";
 import { TablesRelationalConfig } from "drizzle-orm";
-import { DurableStore } from "@openwizard/durable";
 import { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
+import { DurableStore, RetentionPolicy } from "@openwizard/durable/store";
+//#region src/store-types.d.ts
+/** Options shared by the Drizzle durable-store adapters. @public */
+interface DrizzleDurableStoreOptions {
+  readonly now?: () => number;
+  readonly leaseTtlMs?: number;
+  readonly timerClaimTtlMs?: number;
+  readonly retention?: RetentionPolicy;
+}
+//#endregion
 //#region src/sqlite.d.ts
 /** Controls the table names created by `defineSqliteDurableSchema`. @public */
 interface SqliteDurableSchemaOptions {
@@ -207,26 +215,6 @@ declare function defineSqliteDurableSchema(options?: SqliteDurableSchemaOptions)
       }, {}, {
         length: number | undefined;
       }>;
-      kind: import("drizzle-orm/sqlite-core").SQLiteColumn<{
-        name: "kind";
-        tableName: "dedupe";
-        dataType: "string";
-        columnType: "SQLiteText";
-        data: "command" | "event";
-        driverParam: string;
-        notNull: true;
-        hasDefault: false;
-        isPrimaryKey: false;
-        isAutoincrement: false;
-        hasRuntimeDefault: false;
-        enumValues: [string, ...string[]];
-        baseColumn: never;
-        identity: undefined;
-        generated: undefined;
-      }, {}, {
-        length: number | undefined;
-        $type: "command" | "event";
-      }>;
       dedupeId: import("drizzle-orm/sqlite-core").SQLiteColumn<{
         name: "dedupe_id";
         tableName: "dedupe";
@@ -270,7 +258,7 @@ declare function defineSqliteDurableSchema(options?: SqliteDurableSchemaOptions)
         tableName: "dedupe";
         dataType: "string";
         columnType: "SQLiteText";
-        data: "pending" | "completed";
+        data: "pending" | "applied" | "completed";
         driverParam: string;
         notNull: true;
         hasDefault: false;
@@ -283,7 +271,7 @@ declare function defineSqliteDurableSchema(options?: SqliteDurableSchemaOptions)
         generated: undefined;
       }, {}, {
         length: number | undefined;
-        $type: "pending" | "completed";
+        $type: "pending" | "applied" | "completed";
       }>;
       claimId: import("drizzle-orm/sqlite-core").SQLiteColumn<{
         name: "claim_id";

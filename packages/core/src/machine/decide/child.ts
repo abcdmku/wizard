@@ -1,20 +1,29 @@
 /**
  * `res.child` (§7): a child flow's summary / completion / failure reported by the child bridge.
+ * A halted child only updates the summary: the flow step stays active (its run is `halted` when
+ * nothing else runs, D1) and continues when the recovered child finishes. A child that ends
+ * failed or cancelled fails the flow step — or, when its `fallback` chose a step, skips it and
+ * routes there (D13). The child's mapped error data is kept on the flow step's error.
  * @internal
  */
 
 import type { Batch } from '../batch'
 import { emit, rec, stepDef } from '../batch'
 import type { EffectResult } from '../commands'
+import { onEachChildResult } from '../each-results'
 import { completeStep } from '../nav'
 import { onCompensated } from '../saga'
 import { failStep } from '../scheduler'
 import type { RunStatus } from '../state'
 import { ignore } from './results'
 
-const CHILD_TERMINAL: ReadonlySet<RunStatus> = new Set(['done', 'failed', 'cancelled'])
+const CHILD_TERMINAL: readonly RunStatus[] = ['done', 'failed', 'cancelled']
 
 export function onChildResult(b: Batch, msg: Extract<EffectResult, { type: 'res.child' }>): void {
+  if (msg.token.itemIndex !== undefined) {
+    if (!onEachChildResult(b, msg)) ignore(b, `child:${msg.step}`, 'stale')
+    return
+  }
   const r = rec(b, msg.step)
   const def = stepDef(b, msg.step)
   const effectId = `child:${msg.step}`
@@ -43,7 +52,7 @@ export function onChildResult(b: Batch, msg: Extract<EffectResult, { type: 'res.
     return
   }
   if (r.status !== 'active') return
-  const first = r.child === undefined || !CHILD_TERMINAL.has(r.child.status)
+  const first = r.child === undefined || !CHILD_TERMINAL.includes(r.child.status)
   emit(b, {
     type: 'child.summary',
     step: msg.step,
@@ -56,5 +65,12 @@ export function onChildResult(b: Batch, msg: Extract<EffectResult, { type: 'res.
       completeStep(b, msg.step, msg.done.output)
     return
   }
-  if (msg.failed !== undefined) failStep(b, msg.step, msg.failed.error, 'child')
+  if (msg.failed !== undefined) failStep(b, msg.step, msg.failed.error, 'child', msg.failed.data)
+  else if (msg.summary.status === 'halted' && def.fallback !== undefined)
+    failStep(
+      b,
+      msg.step,
+      { name: 'ChildHalted', message: `child of step '${msg.step}' halted`, code: 'CHILD_HALTED' },
+      'child',
+    )
 }

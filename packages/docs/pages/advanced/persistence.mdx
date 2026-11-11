@@ -1,47 +1,72 @@
-# Carry waits and timers across deployments
+# Snapshots and migrations
 
-A useful snapshot must preserve more than context. If a run is waiting 48 hours for approval, a restart three hours later should leave 45 hours on the deadline. It should not restart the clock or call completed tasks again.
+A snapshot saves run state, item results, child snapshots, event buffers, and absolute timer deadlines. Resume it when a workflow must outlive its current process.
 
-The approval example has a notification task, an external event, a 48-hour timeout, and three final routes:
-
-```ts file="examples/04-resume-from-snapshot/src/approval.ts" lines="8-49"
+```ts file="packages/docs/snippets/advanced/resume.ts"
 ```
 
-## A snapshot records execution facts
+The example creates a run through `approvalFlow.create(input, { store, key })`. It auto-saves committed changes; `save()` waits for the write. Three hours later, `approvalFlow.resume(saved, options)` restores the wait, increments the epoch, and re-arms the 48-hour deadline with 45 hours remaining.
 
-The saved object contains the flow name and version, run id, epoch, sequence number, context, every step record, navigation history, inbox entries, timers, saga state, and child snapshots.
+## What a snapshot contains
 
-`resumeRun()` checks that structure before using it. It then increments the epoch, emits `flow.resumed`, restores active waits and children, and re-arms timers from their absolute deadlines.
+Definition name and version, run id, epoch, sequence, context, step records, drafts, navigation history, buffered events, retained event ids, timers, compensation state, and child snapshots. An `each` step also saves its input items and completed item results. A snapshot is plain JSON; dependency services and hook functions stay in code.
 
-The tested example saves at the wait step and resumes three hours later:
+Declare step `output` when a saved value needs parsing back into a richer object. For example, `output: z.coerce.date()` restores a Date from its JSON string. This boundary must be part of the definition even when a run callback returns an adapter with its own execution boundary. Resume does not rerun the callback to discover a schema. JSON outputs need no additional boundary.
 
-```ts file="examples/04-resume-from-snapshot/src/approval.test.ts" lines="43-96"
+The same saved object can be resumed more than once. Core does not coordinate those processes. Use a durable host if they could perform side effects against the same run.
+
+## Interrupted work
+
+A snapshot may contain runnable work that was active when the process died.
+
+- Non-idempotent work fails with `kind: 'interrupted'`. Check the remote system before retrying.
+- Idempotent work reissues with the stored `idempotencyKey`. The remote service must deduplicate it.
+- Completed `each` items keep their results. Recovery only concerns unfinished items.
+
+```ts
+resumed.explain('notify').reasons // ['failed:interrupted', ...]
+await resumed.retry('notify')
 ```
 
-The resumed timer fires after the remaining 45 hours. The completed `notify` task stays done.
+Default step failure policy produces a recoverable `halted` run. A failure under the compensation policy can end as terminal `failed`.
 
-## Interrupted tasks require an explicit policy
+## Timers across restarts
 
-A snapshot can contain a task with status `active` because the process died before its promise settled.
-
-- A non-idempotent interrupted task becomes `failed` on resume with error kind `interrupted`. The host inspects the outside system and calls `retry()` only when safe.
-- An idempotent interrupted task runs again with the same idempotency key. The outside service must deduplicate it.
-
-This prevents resume from silently repeating an unknown side effect.
-
-## Version the flow when saved data changes
-
-The flow name and version identify the code expected to read a snapshot. If version 2 adds a required `currency` field, OpenWizard rejects a version 1 snapshot with `SNAPSHOT_INCOMPATIBLE` unless the host supplies `migrate`.
-
-```ts file="examples/04-resume-from-snapshot/src/approval.test.ts" lines="172-205"
+```ts file="packages/docs/snippets/advanced/patterns.ts" lines="41-46"
 ```
 
-The migration receives the raw saved object and its old flow identity. It must return a snapshot whose envelope and nested state both name the new version. After migration, normal snapshot and schema validation still run.
+`sleep` stores an absolute deadline and completes when due. Its duration can also be a function of hook arguments. Persist the run to preserve that deadline across restarts; a promise kept in memory cannot do this.
 
-Keep migrations deterministic and test them against saved fixtures from every supported version. A deployment that cannot read existing runs is a data migration problem, even when no SQL table changed.
+On resume, a run processes its overdue deadlines before its own interrupted work and buffered events. Parent runs resume before child restoration, so this is a per-run guarantee. Future timers use their remaining delay.
 
-## Core persistence assumes one owner
+## Migrate old snapshots
 
-Core serializes writes so an older snapshot from the same process cannot overwrite a newer one. It does not provide a lease or compare-and-swap check across processes.
+Name and version identify compatible code. A name mismatch is rejected. For a version mismatch, pass a migration to the new wizard:
 
-Use core `Store` when one process owns each run. Use [multi-worker durability](/advanced/durability) when separate workers can race on the same key.
+```ts
+const resumed = approvalV2.resume(saved, {
+  migrate: (snapshot, from) => {
+    const v1 = ApprovalV1Snapshot.parse(snapshot)
+    const identity = { name: from.name, version: 2 }
+    return {
+      ...v1,
+      flow: identity,
+      state: {
+        ...v1.state,
+        flow: identity,
+        context: { ...v1.state.context, currency: 'EUR' },
+      },
+    }
+  },
+})
+```
+
+`ApprovalV1Snapshot` is your boundary for the saved v1 format. Parse the unknown input before reading it. Update both the envelope and `state.flow`; normal snapshot validation still runs afterwards. Keep migrations deterministic and test saved fixtures for every supported version.
+
+Use `resumeAsync` for an async migration or async snapshot validation. A synchronous resume does not accept a promise from its migration.
+
+## One owner per run
+
+Core sequences writes within one process so an older snapshot cannot overwrite a newer one. It has no cross-process lease or compare-and-swap protocol. Snapshot saving also happens after committed changes; it is not a database transaction around remote effects.
+
+Next: [Multi-worker durability](/advanced/durability).

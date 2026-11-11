@@ -1,19 +1,47 @@
 # Core
 
-`@openwizard/core` is the required package. It defines flows, creates and resumes live runs, validates data, moves between steps, manages timers, and produces snapshots and event logs.
+`@openwizard/core` defines a wizard, creates its runs, validates data, schedules work, and produces snapshots and events. Start with [getting started](/getting-started), then use the [API reference](/api/core) for individual contracts.
 
 ```sh
 npm install @openwizard/core zod
 ```
 
-## What core includes
+## Define once, create many runs
 
-A core run lives in your JavaScript process. Your code calls methods such as `start()`, `next()`, `send()`, and `retry()`. The run updates its state and starts any task, timer, or child flow made ready by that command.
+`defineWizard(options, ({ step, view, flow, steps }) => steps(map))` returns a wizard with typed step ids, event payloads, services, and outputs. The wizard is the flow definition, so adapters and child-flow constructors take it directly.
 
-Core does not choose an HTTP framework, render a UI, or open a database connection. This lets the same flow run in a CLI, server, queue worker, or test.
+Use `wizard.create(input, options?)` for a live run that your application will drive. Use `wizard.run(input, options?)` to start and get a done, failed, cancelled, halted, or waiting outcome. A waiting or halted outcome includes the snapshot for `wizard.resume(snapshot, options?)`.
 
-Core does include a small persistence interface. Pass a `Store` when one process owns each run. Add [`@openwizard/durable`](/packages/durable) when several processes need coordinated access to the same run.
+`wizard.provide(deps)` returns a new wizard with supplied services. Remaining keys stay required wherever a consumer creates runs, including child wizards and durable hosts.
 
-Start with [getting started](/getting-started). The [learning path](/learn) explains the runtime by following one run through input, tasks, failures, events, and a restart.
+| Import | What it does |
+|---|---|
+| `defineWizard` | Define context, services, events, and a checked step map |
+| `defineProjection` | Select the state and progress a client may receive |
+| `createMemoryStore` | Persist snapshots in tests and one owning process |
+| `replay` | Recompute state from recorded events without running effects |
+| `@openwizard/core/inspect` | Graphs, Mermaid, schemas, and trace formatting |
+| `@openwizard/core/mirror` | Server mirror sources, browser mirrors, transports, and wire decoders |
+| `@openwizard/core/testing` | Deterministic clocks and local transports |
 
-Use the [core API lookup](/api/core) when you need an exact option or return type.
+## Model the work and data
+
+`step({ run })` executes work. `step({ each, run })` maps work over items and keeps results in input order. `step({ waitFor })` waits for an external event; `step({ sleep })` waits for a persisted deadline. `view({ input })` collects input. `flow(childWizard, { context })` composes another wizard.
+
+`next` activates successors. `dependsOn` gates a step that another edge activated. `needs` joins typed producer outputs and activates the consumer when they settle. The [graphs guide](/advanced/graphs) explains how these rules handle fan-out, fan-in, and exclusive branches.
+
+A wait with `timeout: { after, next }` can complete with `undefined` when its deadline wins. Its typed output includes that case, so downstream `needs` consumers must handle it.
+
+Mapped child flows keep one child per input item. Select a live child with `run.child('batch', 0)` or its exact stable key. Mirrors select mapped children by numeric input index. Retrying the mapped flow keeps finished item results.
+
+## Own a live run
+
+Commands return results for expected refusals and data failures. Call `await run.whenIdle()` before reading the snapshot after a command that may enqueue more work. It waits for the current drain and host persistence barriers, not future timers or unfinished asynchronous hooks.
+
+`run.awaitOutcome()` resolves when the run reaches a terminal status, a recoverable halt, or a view/event wait. `run.awaitResult()` waits only for a terminal result. Disposal rejects outstanding waiters with `RunLifecycleError('RUN_DISPOSED')`.
+
+For commands based on a previously read state, use `run.dispatch(command, { expectedVersion: { epoch, seq } })`. The guard runs after asynchronous validation and rejects an intervening state change with `STALE`. Cancellation of an in-progress navigation returns `CANCELLED`.
+
+A core `Store` assumes one live process owns each run. Add [Durable](/packages/durable) when several processes share a run, [HTTP](/packages/http) for remote commands, and [React](/packages/react) for typed component hooks.
+
+[Core API](/api/core)

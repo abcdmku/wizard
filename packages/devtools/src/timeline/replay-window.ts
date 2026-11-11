@@ -9,7 +9,7 @@
 
 import { type AnyFlow, type RunEvent, replay, type Snapshot } from '@openwizard/core'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
-import type { FlowRunSource } from '../types'
+import type { RunSource } from '../types'
 
 /**
  * A (typed-erased) run state as `replay` returns it.
@@ -59,7 +59,7 @@ export const DEFAULT_REPLAY_EVENTS = 5_000
  * @public
  */
 export function createReplayWindow(
-  run: FlowRunSource,
+  run: RunSource,
   options: { readonly maxEvents?: number; readonly context?: unknown } = {},
 ): ReplayWindowStore {
   const max = options.maxEvents ?? DEFAULT_REPLAY_EVENTS
@@ -140,16 +140,13 @@ export interface UseReplayWindowOptions {
  * `options.store` of an owner higher up (so the range survives this component). `undefined`
  * without a run (a Mirror source).
  */
+export function useReplayWindow(run: RunSource, options?: UseReplayWindowOptions): ReplayWindowStore
 export function useReplayWindow(
-  run: FlowRunSource,
-  options?: UseReplayWindowOptions,
-): ReplayWindowStore
-export function useReplayWindow(
-  run: FlowRunSource | undefined,
+  run: RunSource | undefined,
   options?: UseReplayWindowOptions,
 ): ReplayWindowStore | undefined
 export function useReplayWindow(
-  run: FlowRunSource | undefined,
+  run: RunSource | undefined,
   options: UseReplayWindowOptions = {},
 ): ReplayWindowStore | undefined {
   const { maxEvents, context, store: shared } = options

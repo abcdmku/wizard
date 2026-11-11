@@ -2,7 +2,16 @@
  * v0.2 §10.1 — flow-level `on` handlers, resume with buffered events, correlation. Pure machine tests.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, of, replay, task, view, wait } from '../helpers/fixtures'
+import {
+  createHarness,
+  eventStep,
+  flow,
+  of,
+  replay,
+  routingStep,
+  runStep,
+  view,
+} from '../helpers/fixtures'
 
 const on = () => undefined
 const yes = () => true
@@ -12,7 +21,7 @@ describe('on — flow-level handlers', () => {
     const h = createHarness(
       flow({
         start: 'w',
-        steps: { w: wait({ on: { paid: on }, next: 'end' }), end: final() },
+        steps: { w: eventStep({ on: { paid: on }, next: 'end' }), end: routingStep() },
         on: { paid: on, other: on },
       }),
     )
@@ -40,7 +49,7 @@ describe('on — flow-level handlers', () => {
     const halt = createHarness(
       flow({
         start: 't',
-        steps: { t: task({ next: 'end' }), end: final() },
+        steps: { t: runStep({ next: 'end' }), end: routingStep() },
         on: { abort: on },
       }),
     )
@@ -55,9 +64,9 @@ describe('on — flow-level handlers', () => {
       flow({
         start: 't',
         steps: {
-          t: task({ compensate: on, next: 'u' }),
-          u: task(),
-          end: final(),
+          t: runStep({ compensate: on, next: 'u' }),
+          u: runStep(),
+          end: routingStep(),
         },
         policies: { onFailure: 'compensate' },
         on: { abort: on },
@@ -75,7 +84,7 @@ describe('on — flow-level handlers', () => {
     const h = createHarness(
       flow({
         start: 'w',
-        steps: { w: wait({ on: { e: on }, next: 'end' }), end: final() },
+        steps: { w: eventStep({ on: { e: on }, next: 'end' }), end: routingStep() },
         on: { e: on },
       }),
     )
@@ -92,6 +101,7 @@ describe('on — flow-level handlers', () => {
     )
     expect(of(r, 'event.handlerFailed')[0]).not.toHaveProperty('step')
     h.ok(stepCall!, undefined)
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     h.cmd({ type: 'send', event: 'e', payload: 2 }) // rejected: terminal — no call planned
     // a stale flowOn result once terminal
@@ -112,7 +122,7 @@ describe('on — resume', () => {
     const h = createHarness(
       flow({
         start: 'v',
-        steps: { v: view({ canExit: yes, on: { ping: on }, next: 'end' }), end: final() },
+        steps: { v: view({ canExit: yes, on: { ping: on }, next: 'end' }), end: routingStep() },
       }),
     )
     h.start()
@@ -141,7 +151,7 @@ describe('on — correlation', () => {
   const correlated = () =>
     flow({
       start: 'w',
-      steps: { w: wait({ on: { paid: on }, next: 'end' }), end: final() },
+      steps: { w: eventStep({ on: { paid: on }, next: 'end' }), end: routingStep() },
       correlate: {
         paid: (p) => (p as { orderId?: string }).orderId,
         boom: () => {

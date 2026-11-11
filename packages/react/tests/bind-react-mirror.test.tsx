@@ -1,14 +1,12 @@
 /**
  * `bindReact<typeof projection>()` over a Mirror — loopback rendering, fallback until the first
- * frame, ack results, StrictMode listener leaks, SSR / hydration with `serverSnapshot`.
+ * frame, ack results, StrictMode listener leaks. (SSR and transport behaviour: mirror-client.test.tsx.)
  */
-import { createMirror, createMirrorSource, type Mirror } from '@openwizard/core'
+import { createMirror, createMirrorSource, type Mirror } from '@openwizard/core/mirror'
 import { createLocalTransport, createTestScheduler } from '@openwizard/core/testing'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { StrictMode } from 'react'
-import { hydrateRoot } from 'react-dom/client'
-import { renderToString } from 'react-dom/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { bindReact } from '../src/index'
 import {
   checkoutClient,
@@ -20,9 +18,6 @@ import {
 } from './fixture'
 
 afterEach(cleanup)
-
-/** Server HTML without React's text-node separators (`<!-- -->`). */
-const text = (html: string): string => html.replace(/<!--.*?-->/g, '')
 
 const owFlow = bindReact<typeof checkoutFlow>()
 const owMirror = bindReact<typeof checkoutClient>()
@@ -252,88 +247,6 @@ describe('bindReact over a Mirror', () => {
     expect(b.count()).toBeGreaterThan(0)
     unmount()
     expect(b.count()).toBe(0)
-    mirror.dispose()
-    run.dispose()
-  })
-
-  it('SSR: `serverSnapshot` renders on the server and hydrates without a mismatch even when the live source already moved on', async () => {
-    const run = makeRun()
-    await run.start()
-    // What the server rendered with (captured while the mirror still sat at `shipping`).
-    const serverSnapshot = run.project(checkoutClient)
-    const sched = createTestScheduler()
-    const source = createMirrorSource(run, checkoutClient)
-    const transport = createLocalTransport(source, { delayMs: 100, scheduler: sched })
-    const mirror: Mirror<typeof checkoutClient> = createMirror({ transport })
-    const tree = (
-      <owMirror.Provider
-        source={mirror}
-        serverSnapshot={serverSnapshot}
-        fallback={<p>connecting</p>}
-      >
-        <Status.mirror />
-      </owMirror.Provider>
-    )
-    // Server: no frame has arrived, yet the server snapshot renders the state.
-    const html = renderToString(tree)
-    expect(text(html)).toContain('waiting/shipping')
-    expect(html).not.toContain('connecting')
-
-    // Between server render and hydration the run moves on and the mirror catches up.
-    await run.setInput('shipping', { address: 'Main St' })
-    await run.next()
-    await tick()
-    act(() => {
-      sched.advance(100)
-    })
-    expect(mirror.getSnapshot()?.status).toBe('done')
-
-    // Client: hydrate the server HTML — no recoverable (mismatch) error, then the live state shows.
-    const container = document.createElement('div')
-    container.innerHTML = html
-    document.body.appendChild(container)
-    const recoverable: unknown[] = []
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    let root: ReturnType<typeof hydrateRoot> | undefined
-    await act(async () => {
-      root = hydrateRoot(container, tree, { onRecoverableError: (e) => recoverable.push(e) })
-    })
-    expect(recoverable).toEqual([])
-    expect(consoleError).not.toHaveBeenCalled()
-    consoleError.mockRestore()
-    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe('done/none')
-    act(() => {
-      root?.unmount()
-    })
-    container.remove()
-    mirror.dispose()
-    run.dispose()
-  })
-
-  it('without `serverSnapshot` the server render uses the live source (fallback while a Mirror has no frame)', async () => {
-    const run = makeRun()
-    await run.start()
-    const sched = createTestScheduler()
-    const source = createMirrorSource(run, checkoutClient)
-    const transport = createLocalTransport(source, { delayMs: 100, scheduler: sched })
-    const mirror: Mirror<typeof checkoutClient> = createMirror({ transport })
-    expect(
-      renderToString(
-        <owMirror.Provider source={mirror} fallback={<p>connecting</p>}>
-          <Status.mirror />
-        </owMirror.Provider>,
-      ),
-    ).toContain('connecting')
-    // A FlowRun source has state right away.
-    expect(
-      text(
-        renderToString(
-          <owFlow.Provider source={run}>
-            <Status.flow />
-          </owFlow.Provider>,
-        ),
-      ),
-    ).toContain('waiting/shipping')
     mirror.dispose()
     run.dispose()
   })

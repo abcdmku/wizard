@@ -1,92 +1,94 @@
-# Steps
+# Step kinds
 
-A step is a named stage in a flow. Its kind tells OpenWizard whether to run code now, pause for something outside the process, choose another route, or finish.
+The `defineWizard` callback provides `step`, `view`, `flow`, and `steps`. Each constructor takes an object configuration. Return `steps(map, { start? })` to assemble the definition.
 
-Most small background workflows need only a `task` followed by a `final` step. This example downloads a report and then finishes:
+| Declaration | Purpose |
+|---|---|
+| `step({ run })` | Run synchronous or asynchronous work |
+| `step({ each, run, concurrency? })` | Run work for each item and collect outputs in input order |
+| `step({ waitFor })` | Wait for a declared external event |
+| `step({ sleep })` | Wait until a persisted timer is due |
+| `step({ next, targets? })` | Route or join without a work callback |
+| `view({ input, ...config })` | Collect and validate a draft |
+| `flow(childWizard, config)` | Run a child wizard |
+
+## Run work
 
 ```ts file="packages/docs/snippets/learn/task.ts"
 ```
 
-`download` runs when the flow starts. If its function succeeds, OpenWizard stores the returned string in `run.getState().steps.download.output` and follows `next: 'done'`.
+The returned value, or resolved promise value, becomes the step's inferred output. Throwing or rejecting fails the attempt. Runnable steps support retry, timeout, compensation, idempotency, mapped errors, and fallback.
 
-`done` creates the final output and changes the run status to `done`. That output is what `awaitResult()` returns.
+For a list of items, add `each: ({ context }) => context.items`. Its `run` callback receives `item` and `index`; the step output is an array in input order. `concurrency` bounds the number of item calls running at once. OpenWizard snapshots the item list and stores finished item results, so resume does not repeat finished items. An exhausted item retry fails the step; `run.retry('step')` retries failed items and keeps finished results.
 
-## How a run moves between steps
+## Choose the next step
 
-The flow needs an entry point and links between later steps.
-
-1. `start()` activates the configured start step.
-2. An automatic step such as a task runs as soon as it becomes ready.
-3. When the step finishes, its `next` value names the next step.
-4. A waiting step stops that automatic progress until your application sends a command or event.
-
-There is no hidden loop over the object. After the start, the `next` links and decision results control where the run goes.
-
-## Choose a kind based on what finishes the step
-
-| Kind | What it represents | What finishes it |
-|---|---|---|
-| `task` | Code your application can run, such as a database write or API call | The task function resolves |
-| `view` | A screen or form that needs user input | Your application calls `next()` with a valid draft stored |
-| `wait` | A pause for an external event, such as payment confirmation | Your application calls `send()` with an event handled by the step |
-| `decision` | A routing choice based on current data | Its `next` function returns one or more step ids |
-| `flow` | Another flow run owned by this parent step | The child run finishes |
-| `final` | The successful end of the flow | Its output function returns |
-
-You will rarely use all six in one flow. Pick the kind that matches who or what can complete that stage.
-
-### Use `task` for code that can run now
-
-A task starts automatically when it is ready. Its function may return a value or a promise. Use tasks for database calls, HTTP requests, file work, or calculations that you want OpenWizard to track.
-
-If the function rejects or throws, the task fails. You can add a retry policy, timeout, output schema, or compensation function when the call needs them.
-
-### Use `view` when a person controls progress
-
-A view makes the run wait at a user-facing stage. Your UI stores a draft with `setInput()` and tries to leave with `next()`. OpenWizard checks the draft before it moves.
-
-The [input page](/learn/input) walks through that lifecycle.
-
-### Use `wait` when another system controls progress
-
-A wait step listens for declared flow events. A payment provider, queue consumer, or webhook route can call `send()` when the outside action happens.
-
-Unlike a task, a wait does not poll or call the outside system. It stays active until an event handler finishes it or an optional timeout sends the run elsewhere.
-
-### Use `decision` to choose a route
-
-A decision runs a function that returns a step id. It should inspect data and choose a route, not perform the business work for that route.
-
-For example, a delivery decision can return `'express'` or `'standard'`. Only the chosen task becomes ready.
-
-### Use `flow` to run a child workflow
-
-A flow step creates a child run from another flow definition. The parent step stays active while the child runs. When the child finishes, its output becomes the parent step's output.
-
-Use this when the child has several steps, its own tests, or is reused by more than one parent. A task is simpler for a single function call.
-
-### Use `final` to return success
-
-A final step ends the run successfully. Its optional `output` function reads context and dependencies and returns the flow's public result.
-
-A final step has no `next` link because the successful path ends there.
-
-## How OpenWizard chooses the first step
-
-If you omit the `start` option, OpenWizard uses the first key in the steps object. In the report example, `download` comes first, so it starts first.
-
-For anything beyond a tiny flow, naming the start step makes the entry point clear and prevents a later reordering of the object from changing behavior:
-
-```ts
-const flow = builder.steps(
-  {
-    first: builder.task(doWork, { next: 'done' }),
-    done: builder.final(),
-  },
-  { start: 'first' },
-)
+```ts file="packages/docs/snippets/recipes/branching.ts"
 ```
 
-`{ start: 'first' }` does not run the step by itself. It tells `run.start()` which step to activate.
+`next` accepts a step id or object, an array to activate parallel branches, `null`, or a function returning those values. A function may be asynchronous and must declare `targets`. OpenWizard checks its return against those targets at runtime; an invalid return fails the step. Return `null` or omit `next` to end that branch.
 
-An array such as `{ start: ['loadProfile', 'loadOrders'] }` activates several entry steps. Use that only when the work is independent and you understand how the branches join again. The [parallel work recipe](/recipes/parallel) shows the complete shape.
+A routing declaration, `step({ next, targets })`, has output `undefined`. A runnable step keeps its work's output and supplies that value to its `next` callback.
+
+Literal ids are checked against the assembled map. Object references must belong to that map under exactly one key. Assembly checks declarations without executing their callbacks.
+
+## Join typed outputs
+
+Declare producers before the consumer so `needs` can reference their step objects:
+
+```ts
+const profile = step({ run: ({ context, deps }) => deps.loadProfile(context.userId) })
+const orders = step({ run: ({ context, deps }) => deps.loadOrders(context.userId) })
+const dashboard = step({
+  needs: { profile, orders },
+  run: ({ needs }) => ({ profile: needs.profile, orders: needs.orders }),
+})
+
+return steps({ profile, orders, dashboard }, { start: ['profile', 'orders'] })
+```
+
+`needs` both gates and activates its consumer. Producers do not need `next: 'dashboard'`. Every hook on the consumer receives typed `needs` values.
+
+| Need | Value supplied to hooks | If producers are skipped |
+|---|---|---|
+| `profile: profileStep` | The producer's output | The consumer skips with reason `needs-skipped` |
+| `winner: { any: [first, second] }` | The first completed output, typed as the union of producer outputs | The consumer skips only if all listed producers skip |
+| `extra: { optional: extraStep }` | The output or `undefined` | The consumer can continue once the producer settles |
+
+`needs` takes step objects so it can infer their outputs. `dependsOn` takes ids or objects and only checks completion. `dependsOn: [first, second]` gates on both, while `{ any: [first, second] }` gates on either. A skipped step satisfies this control gate. Supply an activation through `start` or `next` when using `dependsOn` alone.
+
+## Wait for events or time
+
+An event wait is its own step:
+
+```ts
+approval: step({
+  waitFor: {
+    approved: ({ payload }) => payload.accepted ? { done: payload } : { keep: true },
+  },
+  timeout: { after: '48h', next: 'expired' },
+  next: 'publish',
+}),
+```
+
+A `waitFor` handler can return `{ done: value }`, `{ keep: true }`, or `{ fail: 'reason' }`. Returning nothing completes the wait with the event payload as output. Wait handlers do not return `next`; declare routing on the step.
+
+A timeout completes the wait with output `undefined` and activates its timeout target. The wait's `OutputOf` type includes `undefined`; hooks consuming it through `needs` must check for that value, even with a plain need.
+
+Compose an event wait followed by a runnable, view, or child step. Those steps keep ordinary `on` handlers for events received while active. See [events and waiting](/learn/events).
+
+Use `step({ sleep: '10m', next: 'checkAgain' })` for a delay. The timer has an absolute deadline in the snapshot, so restart does not begin another ten-minute wait. `sleep` also accepts a function of hook arguments and produces no output.
+
+## Finish naturally
+
+A final runnable step finishes after its work and exit hook. A final view finishes after `run.next()` validates and exits it. A child step finishes when its child completes. The wizard completes once its activated branches and hooks finish.
+
+Without an options-level `output` selector, the wizard returns the output of the last completed sink. A sink has no static `next` or `targets` and is not a producer for another step's `needs`. Fallback and wait-timeout routes are alternate outcomes, so those edges do not remove the original step from sink selection. Several sinks produce a union of output types; skipped sinks or graphs without a sink can add `undefined`.
+
+For a single result, use a final join with typed `needs`, or select it from context with `output: ({ context }) => ({ total: context.total })` in the wizard options. That selector runs synchronously after activated work finishes. Prepare asynchronous results in a runnable step.
+
+## Views, children, and entry steps
+
+A view stores a draft independently of rendering. See [views and input](/learn/input). Pass the child wizard itself to `flow(childWizard, config)`; its completed output becomes the parent step's output. See [composition](/getting-started#compose-wizards-and-step-modules).
+
+The first map key is the default entry. Choose another with `steps(map, { start: 'load' })`, or start several branches with an array. OpenWizard checks those ids against the map.

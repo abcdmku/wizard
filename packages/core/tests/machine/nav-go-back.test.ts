@@ -2,7 +2,7 @@
  * Navigation pipeline (§1) — dynamic `next`, `go` reachability and `back`.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, of, task, view } from '../helpers/fixtures'
+import { createHarness, flow, of, routingStep, runStep, view } from '../helpers/fixtures'
 
 const linear = () =>
   flow({
@@ -11,7 +11,7 @@ const linear = () =>
       a: view({ next: 'b' }),
       b: view({ next: 'c' }),
       c: view({ next: 'end' }),
-      end: final(),
+      end: routingStep(),
     },
   })
 
@@ -24,7 +24,7 @@ describe('nav pipeline — dynamic next, go, back', () => {
         b: view({ next: 'c' }),
         c: view({ next: 'end' }),
         d: view({ next: 'end' }),
-        end: final(),
+        end: routingStep(),
       },
     })
 
@@ -54,8 +54,8 @@ describe('nav pipeline — dynamic next, go, back', () => {
     expect(h.state.current).toBe('a')
     h.cmd('next')
     const rej = h.ok(h.call('next'), null)
-    expect(of(rej, 'transition.rejected')[0]?.reason).toBe('no-target')
-    expect(h.state.current).toBe('a')
+    expect(of(rej, 'transition.committed')[0]?.to).toBeNull()
+    expect(h.state.current).toBeNull()
   })
 
   it('dynamic next returning an unknown id → transition.failed{UNKNOWN_STEP}', () => {
@@ -119,7 +119,7 @@ describe('nav pipeline — dynamic next, go, back', () => {
           a: view({ next: ['b', 'c'] }),
           b: view({ next: 'end' }),
           c: view({ next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -151,11 +151,7 @@ describe('nav pipeline — dynamic next, go, back', () => {
     expect(h.state.history).toEqual(['a', 'b', 'c'])
     const r = h.cmd('back')
     expect(of(r, 'transition.started')[0]).toMatchObject({ from: 'c', to: 'b', cause: 'back' })
-    expect(of(r, 'transition.phase').map((p) => p.phase)).toEqual([
-      'canEnter',
-      'exiting',
-      'entering',
-    ])
+    expect(of(r, 'transition.phase').map((p) => p.phase)).toEqual(['canEnter', 'entering'])
     expect(of(r, 'step.exited')[0]).toMatchObject({ step: 'c', to: 'b', direction: 'back' })
     expect(h.rec('c').status).toBe('idle')
     expect(h.state.current).toBe('b')
@@ -172,33 +168,27 @@ describe('nav pipeline — dynamic next, go, back', () => {
     expect(of(h.cmd('back'), 'transition.rejected')[0]?.reason).toBe('no-history')
   })
 
-  it('back runs canEnter on the previous view and exit on the current one', () => {
-    const calls: string[] = []
+  it('back runs canEnter on the previous view and never the exit hook of the current one', () => {
     const h = createHarness(
       flow({
         start: 'a',
         steps: {
           a: view({ canEnter: () => true, next: 'b' }),
           b: view({ exit: () => undefined, next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
     h.start()
     h.ok(h.call('canEnter'), true) // the cursor rule (start) evaluates a's canEnter too
     h.cmd('next')
+    h.cmd({ type: 'setInput', step: 'b', patch: { draft: true } })
     h.cmd('back')
     expect(h.state.nav.phase).toBe('canEnter')
-    const ce = h.call('canEnter')
-    calls.push(ce.step)
-    h.ok(ce, true)
-    expect(h.state.nav.phase).toBe('exiting')
-    const ex = h.call('exit')
-    expect(ex).toMatchObject({ step: 'b', extra: { to: 'a', direction: 'back' } })
-    h.ok(ex)
-    expect(calls).toEqual(['a'])
+    h.ok(h.call('canEnter', 'a'), true)
+    expect(h.pending('exit')).toEqual([])
     expect(h.state.current).toBe('a')
-    expect(h.rec('b').status).toBe('idle')
+    expect(h.rec('b')).toMatchObject({ status: 'idle', input: { draft: true } })
   })
 
   it('go to a view whose deps are unmet is not reachable (explainable), and becomes reachable when they are met', () => {
@@ -207,9 +197,9 @@ describe('nav pipeline — dynamic next, go, back', () => {
         start: 'a',
         steps: {
           a: view({ next: ['t', 'b'] }),
-          t: task(),
+          t: runStep(),
           b: view({ dependsOn: ['t'], next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )

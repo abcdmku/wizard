@@ -7,11 +7,12 @@
  * @packageDocumentation
  */
 
+import type { FlowGraphNode } from '@openwizard/core/inspect'
 import type { Edge, Node } from '@xyflow/react'
 import type { LayoutResult, Placement } from '../layout/elk'
 import { pickHandles } from '../layout/handles'
 import type { GraphModel, ModelEdge, ModelEdgeKind, ModelNode } from '../layout/model'
-import type { FlowGraphNode, StepStatusInfo, StepStatusMap } from '../types'
+import type { StepStatusInfo, StepStatusMap } from '../types'
 
 /** What the graph overlays on the static model right now. */
 export interface GraphOverlay {

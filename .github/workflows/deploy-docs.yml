@@ -2,7 +2,7 @@ name: Deploy docs
 
 on:
   push:
-    branches: [main]
+    branches: [main, v3]
   workflow_dispatch:
 
 permissions:
@@ -29,8 +29,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # The docs consume the BUILT packages (workspace links to dist).
       - run: pnpm build
-      - name: Build the site (base path derived from the repository name)
-        run: pnpm docs:build
+      - name: Verify and build the site (base path derived from the repository name)
+        run: pnpm --filter @openwizard/docs check
         env:
           NODE_ENV: production
           GITHUB_ACTIONS: 'true'
@@ -39,6 +39,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: packages/docs/dist/client
+          retention-days: 7
 
   deploy:
     needs: build

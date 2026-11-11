@@ -1,16 +1,15 @@
-import { defineFlow } from '@openwizard/core'
+import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-const delivery = defineFlow({
-  name: 'delivery',
-  context: z.object({ speed: z.enum(['standard', 'express']) }),
-})
-
-export const deliveryFlow = delivery.steps({
-  choose: delivery.decision({
-    next: ({ context }) => (context.speed === 'express' ? 'express' : 'standard'),
-  }),
-  standard: delivery.task(async () => '3 to 5 days', { next: 'done' }),
-  express: delivery.task(async () => 'next day', { next: 'done' }),
-  done: delivery.final(),
-})
+export const deliveryFlow = defineWizard(
+  { name: 'delivery', context: z.object({ speed: z.enum(['standard', 'express']) }) },
+  ({ step, steps }) => {
+    const standard = step({ run: async () => '3 to 5 days' })
+    const express = step({ run: async () => 'next day' })
+    const choose = step({
+      targets: [standard, express],
+      next: ({ context }) => (context.speed === 'express' ? express : standard),
+    })
+    return steps({ choose, standard, express })
+  },
+)

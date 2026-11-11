@@ -1,57 +1,40 @@
-# Why the deep features matter
+# Overview
 
-If a job always finishes inside one request, a normal function is easier. If it only needs one background attempt, a queue worker may be enough.
+These pages cover what happens when a run stops halfway, waits longer than one process lives, receives duplicate messages, splits into branches, or exposes progress over a network. Each page opens with the smallest example that shows one feature; the sections below it go deeper.
 
-OpenWizard earns the extra structure when the work can stop halfway through, wait longer than one process lives, receive duplicate messages, split into branches, or expose state across a network. At that point, "call these functions in order" leaves hard questions unanswered.
+## Pick the page for your failure
 
-## The failures that change the design
+| You hit | Read |
+|---|---|
+| A call failed, and a restart may repeat it | [Retries and idempotency](/advanced/recovery) |
+| A later step failed after earlier side effects | [Compensation](/advanced/compensation) |
+| Branches must join typed results, or a collection needs bounded parallel work | [Graphs and parallel work](/advanced/graphs) |
+| Saved state came from older code | [Snapshots and migrations](/advanced/persistence) |
+| Two workers loaded the same run | [Multi-worker durability](/advanced/durability) |
+| A webhook arrived early or for another run | [External event routing](/advanced/events) |
+| A stage deserves its own run and snapshot | [Nested flows](/advanced/nested) |
+| A browser needs a safe subset of state | [Projections and mirrors](/advanced/projections) |
+| An operator asks why a step is stuck | [Explain, observe, replay](/advanced/operations) |
 
-| Production situation | Question your application must answer | OpenWizard feature |
-|---|---|---|
-| An API call fails twice and succeeds later | How many attempts ran, and when is the next one due? | Retry state and persisted backoff timers |
-| A process crashes after a payment provider accepted a charge | Is it safe to call the provider again? | Stable task idempotency keys and interrupted-task rules |
-| A later booking step fails | Which earlier side effects need to be undone, and in what order? | Compensation based on recorded completion order |
-| Two workers receive commands for the same order | Which worker owns the run, and can the old owner still write? | Leases, fencing tokens, and compare-and-swap commits |
-| The same HTTP request is retried | Has this command already been applied? | Durable command and event ids with stored results |
-| A webhook arrives before its wait step | Should it be rejected, buffered, or routed to another run? | Event schemas, correlation, and a timed inbox |
-| A browser needs workflow state | Which fields may cross the network? | Deny-by-default projections and mirrors |
-| An operator asks why a join is stuck | Which dependency or policy blocks the step? | `explain()`, event observation, progress, and replay |
-| A deployment changes the context schema | How do old saved runs load under the new code? | Flow versions and explicit snapshot migration |
+## All of them in one flow
 
-These are state problems. OpenWizard records their answers in the run instead of leaving them in logs, timers, and application-specific flags.
+The order example uses idempotent runnable steps, exponential retry, typed error data, compensation, a correlated webhook, and a persisted 24-hour timeout in one wizard:
 
-## One order can use several features together
-
-The larger order example reserves inventory, charges a customer, asks another system to ship, and waits up to 24 hours for a correlated webhook:
-
-```text
-reserve -> charge -> requestShipment -> awaitShipment -> shipped
-   |          |
-   |          +-- compensate with refund if a later task fails
-   +------------- compensate by releasing inventory
+```ts file="examples/11-order-workflow/src/order-workflow.ts"
 ```
 
-The tested flow combines idempotent tasks, exponential retry, typed error data, compensation, external event validation, correlation, a persisted timeout, and a tenant-scoped storage key.
+<Diagram name="order" />
 
-```ts file="examples/11-order-workflow/src/order-workflow.ts" lines="31-113"
-```
-
-That combination is the point. The features share one state machine, snapshot, event sequence, and set of TypeScript ids. You do not have to make separate retry, timer, webhook, and rollback records agree after a crash.
-
-Run the complete example with:
+The snapshot records attempt counts, retry deadlines, compensation order, buffered events, and timers together. A durable host coordinates that saved state across workers. External services still need idempotency for calls that a crash can interrupt.
 
 ```sh
 pnpm --filter example-11-order-workflow start
 ```
 
-## What the runtime does and does not promise
+## What core does not do
 
-OpenWizard validates commands and event payloads, records state transitions in sequence, persists deadlines in snapshots, and can coordinate one durable owner for a run. The same event stream can rebuild state without rerunning task functions.
+- It cannot make a remote call exactly once. Pass the task's `idempotencyKey` to a service that enforces it.
+- Compensation is a new side effect, not a rollback. It can fail, and the failure is recorded.
+- There is no HTTP server, auth, or database driver in core. Your host owns those and feeds the run typed commands.
 
-It cannot make a remote side effect exactly once. A network call can succeed before the worker records the result. Use the task's idempotency key with a service that enforces it.
-
-Compensation is not a database rollback. Compensation functions are new side effects, and they can fail. OpenWizard records those failures and lets an operator retry the selected compensation.
-
-Core does not provide an HTTP server, authentication system, database connection, or deployment scheduler. The host application owns those boundaries. OpenWizard gives them typed commands, snapshots, events, and coordination results to work with.
-
-Start with [retries and idempotency](/advanced/recovery), or jump to the production failure closest to your system.
+Next: start with [Retries and idempotency](/advanced/recovery).

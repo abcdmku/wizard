@@ -30,7 +30,12 @@ export type Effect =
       readonly fire: Command | { readonly type: 'timer.fired'; readonly timerId: string }
     }
   | { readonly kind: 'timer.clear'; readonly timerId: string }
-  | { readonly kind: 'child.create'; readonly step: string; readonly context: unknown }
+  | {
+      readonly kind: 'child.create'
+      readonly step: string
+      readonly context: unknown
+      readonly itemIndex?: number
+    }
   | { readonly kind: 'child.send'; readonly step: string; readonly command: Command }
   | { readonly kind: 'child.dispose'; readonly step: string }
   | { readonly kind: 'persist'; readonly reason: 'change' | 'final' | 'manual' }

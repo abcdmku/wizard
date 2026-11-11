@@ -4,14 +4,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   createHarness,
-  final,
+  eventStep,
   flow,
   flowStep,
   of,
   replay,
-  task,
+  routingStep,
+  runStep,
   view,
-  wait,
 } from '../helpers/fixtures'
 
 const on = () => undefined
@@ -21,13 +21,13 @@ const dag = () =>
     start: 'a',
     steps: {
       a: view({ next: 'load' }),
-      load: task({ compensate: on, next: 'b' }),
+      load: runStep({ compensate: on, next: 'b' }),
       b: view({ dependsOn: ['load'], next: ['t1', 't2'] }),
-      t1: task({ dependsOn: ['load'], next: 'join' }),
-      t2: task({ next: 'join' }),
-      join: task({ dependsOn: ['t1', 't2'], next: 'c' }),
+      t1: runStep({ dependsOn: ['load'], next: 'join' }),
+      t2: runStep({ next: 'join' }),
+      join: runStep({ dependsOn: ['t1', 't2'], next: 'c' }),
       c: view({ dependsOn: ['join'], next: 'end' }),
-      end: final(),
+      end: routingStep(),
     },
   })
 
@@ -111,15 +111,15 @@ describe('invalidate', () => {
   })
 
   it('running dependents are cancelled first (a task run aborted, a child flow cancelled), then invalidated', () => {
-    const child = flow({ start: 'x', steps: { x: view({ next: 'e' }), e: final() } })
+    const child = flow({ start: 'x', steps: { x: view({ next: 'e' }), e: routingStep() } })
     const h = createHarness(
       flow({
         start: 'seed',
         steps: {
-          seed: task({ next: ['t', 'f'] }),
-          t: task({ dependsOn: ['seed'] }),
+          seed: runStep({ next: ['t', 'f'] }),
+          t: runStep({ dependsOn: ['seed'] }),
           f: flowStep(child, { dependsOn: ['seed'] }),
-          end: final({ dependsOn: ['t', 'f'] }),
+          end: routingStep({ dependsOn: ['t', 'f'] }),
         },
       }),
     )
@@ -171,13 +171,13 @@ describe('invalidate', () => {
     const h = createHarness(
       flow({
         start: 'v',
-        steps: { v: view({ next: 't' }), t: task({ next: 'end' }), end: final() },
+        steps: { v: view({ next: 't' }), t: runStep({ next: 'end' }), end: routingStep() },
       }),
     )
     h.start()
     h.cmd('next')
     h.err(h.call('run'), 'boom')
-    expect(h.state.status).toBe('failed')
+    expect(h.state.status).toBe('halted')
     // gated like retry: allowed while halted
     const r = h.cmd({ type: 'invalidate', step: 't' })
     expect(r.types).toEqual(['step.invalidated'])
@@ -192,6 +192,7 @@ describe('invalidate', () => {
     h.cmd('next')
     expect(h.rec('t')).toMatchObject({ status: 'active', runId: 2 })
     h.ok(h.call('run'), 'ok')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(replay(h)).toEqual(h.state)
   })
@@ -202,7 +203,7 @@ describe('invalidate', () => {
         start: 'v',
         steps: {
           v: view({ next: 'w' }),
-          w: wait({ when: () => true, on: { e: on }, next: 'v2' }),
+          w: eventStep({ when: () => true, on: { e: on }, next: 'v2' }),
           v2: view({ next: 'w' }),
         },
       }),

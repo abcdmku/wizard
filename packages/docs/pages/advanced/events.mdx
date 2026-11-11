@@ -1,40 +1,56 @@
-# Route outside events without trusting them
+# External event routing
 
-A payment webhook has three separate questions:
-
-1. Is the payload valid?
-2. Does it belong to this run?
-3. Is a step listening now, or did the event arrive early?
-
-The checkout example answers each question in the flow definition:
+An external event passes its boundary and correlation check before the runtime delivers it to active listeners. If no step listens yet, the run can buffer it. Use this for webhooks that arrive early, twice, or for the wrong run.
 
 ```ts file="examples/05-external-events/src/checkout.ts"
 ```
 
-## Boundaries run before handlers
+On `run.send('payment.captured', payload)`:
 
-`send('payment.captured', payload)` parses the unknown payload through the declared schema. A rejected payload produces `BOUNDARY_REJECTED` with issues. No step or flow handler sees it.
+1. The event boundary parses the payload. An invalid payload returns `BOUNDARY_REJECTED` with issues.
+2. `correlate` extracts the order id. A mismatch with the run's `correlationId` drops the event.
+3. Active listeners handle the event in activation order. A `waitFor` handler completes or keeps its step waiting.
+4. If no step listens, the event can enter the FIFO buffer until its TTL expires.
 
-Webhook signature verification belongs at the HTTP boundary. The event schema then checks the verified body before it changes workflow state.
+## Boundaries and correlation
 
-## Correlation protects the run id
+```ts
+const run = checkoutFlow.create({ orderId: 'o-1' }, { correlationId: 'o-1' })
+```
 
-The host creates an order run with `correlationId: 'o-1'`. The flow's `correlate` function extracts `payload.orderId`. If it returns another id, OpenWizard drops the event with reason `correlation` instead of delivering or buffering it.
+Verify a webhook signature at the HTTP layer before sending its body to the run. The event boundary then checks the payload before any handler reads it. Typed `send()` uses the boundary's input type; an untrusted `unknown` body still goes through runtime validation.
 
-Correlation is a routing check, not authentication. Your webhook route still decides which tenant and run the sender may access.
+Correlation checks routing, not caller authority. Authenticate the sender and look up the run within its tenant before calling `send()`.
 
-## The inbox handles valid early events
+## Deduplicate deliveries
 
-If a valid, correlated event arrives before `awaitPayment` becomes active, OpenWizard can place it in the run's FIFO inbox. When the wait enters, it consumes the oldest matching entry.
+```ts
+await run.send('payment.captured', payload, { eventId: webhookId })
+```
 
-`unmatchedEvents: { buffer: true, ttl: '10m' }` gives each entry an expiry timer. A stale event leaves the inbox instead of completing a much later wait.
+The run records accepted event ids in its snapshot. Repeating one returns `{ ok: true, duplicate: true, delivered: [] }` without delivering it again. `eventIds: { ttl: '24h', limit: 1000 }` is the default bounded retention policy; adjust it in run options for your sender's retry window. An id outside that window can be accepted again.
 
-Set `buffer: false` when an early event indicates a caller bug. In that mode, `send()` returns a dropped result immediately.
+Use a durable host when workers can race. Core's event-id record prevents duplicate delivery within the run; it does not make an external side effect exactly once.
 
-## Step handlers and flow handlers have different reach
+## Buffer early events
 
-A wait step handler completes or keeps that wait, updates context, and may override the next target. A flow-level handler runs regardless of the active step. The example uses that wider scope for `order.cancelled`.
+`unmatchedEvents: { buffer: true, ttl: '10m' }` keeps a valid, correlated event until a wait enters. The runtime consumes the oldest matching entry first and drops expired entries. Set `buffer: false` when an early event is a caller error.
 
-Wait timeouts are routes, not thrown exceptions. If no payment event arrives within 30 minutes, the wait completes with `{ event: 'timeout' }` and follows its timeout target.
+## Wait handlers and passive handlers
 
-The inbox, deadlines, correlation id, and active listeners all survive a snapshot. That is what makes an event-driven wait different from keeping a promise open in one server process.
+A `waitFor` handler can return `{ done: value }`, `{ keep: true }`, or `{ fail: error }`. A completed wait follows the step's configured `next`; its handler cannot return `{ next }`. Keep routing in the definition so `targets`, inspection, and skip propagation agree.
+
+Views, runnable steps, and child-flow steps can listen through `on`. Compose an event wait followed by a runnable step when the event should start work. A flow-level `on` handler runs after step listeners. If a handler halts the run, the remaining handlers in that delivery do not run.
+
+## Deadlines survive resume
+
+An event wait can declare `timeout: { after: '30m', next: 'expired' }`. That is an alternate route if the event never completes the wait. On timeout the wait completes with output `undefined`; its output type includes that possibility. A `needs` consumer must handle the missing value even when it uses a plain required reference, because the wait completed rather than skipped.
+
+```ts file="packages/docs/snippets/advanced/timed-needs.ts"
+```
+
+The buffer, correlation id, event-id retention, and absolute deadlines are snapshot data.
+
+On resume, a run fires its overdue deadlines before recovering its own interrupted work or delivering a buffered event. This ordering applies per run; a parent resumes before its children restore.
+
+Next: [Nested flows](/advanced/nested). Related: [events and waiting](/learn/events), [`@openwizard/http`](/packages/http).

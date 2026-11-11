@@ -1,406 +1,88 @@
-import { AnyFlow, Command, CommandResult, EventType, FlowRun, ResumeOptions, RunOptions, SendResult } from "@openwizard/core";
-//#region src/contracts.d.ts
-/**
- * An opaque fencing token. A new token is issued every time a lease changes
- * owner, including after an expired lease.
- *
- * @public
- */
-type FenceToken = string;
-/**
- * The two coordinates a host compares when it commits a snapshot.
- *
- * @public
- */
-interface Version {
-  readonly epoch: number;
-  readonly seq: number;
-}
-/**
- * A versioned value stored by a `DurableStore`.
- *
- * The value must be JSON-serializable for the in-memory adapter and should be
- * JSON-serializable for every production adapter.
- *
- * @public
- */
-interface DurableRecord<Value = unknown> {
-  readonly value: Value;
-  readonly version: Version;
-}
-/**
- * A lease and its fencing token. Pass the complete value returned by
- * `DurableStore.acquire`, `renew`, or a successful renewal back to later calls.
- *
- * @public
- */
-interface Lease {
-  readonly key: string;
-  readonly ownerId: string;
-  readonly fence: FenceToken;
-  readonly expiresAt: number;
-}
-/**
- * Lease timing options. The adapter supplies its configured default when this
- * value is omitted.
- *
- * @public
- */
-interface LeaseOptions {
-  readonly ttlMs?: number;
-}
-/**
- * The stable failure codes returned by coordination operations.
- *
- * @public
- */
-type DurableResultCode = 'LEASE_BUSY' | 'LEASE_LOST' | 'CAS_CONFLICT' | 'INVALID_VERSION' | 'DEDUPLICATE_CONFLICT' | 'TIMER_NOT_DUE' | 'TIMER_STALE' | 'TIMER_ALREADY_CLAIMED' | 'TIMER_CLAIM_LOST';
-/**
- * A lease acquisition result. Acquisition and the first snapshot read happen
- * in one linearizable operation.
- *
- * @public
- */
-type AcquireLeaseResult = {
-  readonly ok: true;
-  readonly lease: Lease;
-  readonly record: DurableRecord | null;
-} | {
-  readonly ok: false;
-  readonly code: 'LEASE_BUSY';
-  readonly retryAt: number;
-};
-/**
- * A lease renewal result.
- *
- * @public
- */
-type RenewLeaseResult = {
-  readonly ok: true;
-  readonly lease: Lease;
-} | {
-  readonly ok: false;
-  readonly code: 'LEASE_LOST';
-};
-/**
- * A lease release result. Releasing an old or expired lease is harmless and
- * reports `LEASE_LOST`.
- *
- * @public
- */
-type ReleaseLeaseResult = {
-  readonly ok: true;
-} | {
-  readonly ok: false;
-  readonly code: 'LEASE_LOST';
-};
-/**
- * The namespace used by durable idempotency records.
- *
- * @public
- */
-type DedupeKind = 'command' | 'event';
-/**
- * A request to claim a command or event id. `digest` must identify the full
- * logical request, not only its caller-generated id.
- *
- * @public
- */
-interface DedupeClaimInput {
-  readonly lease: Lease;
-  readonly kind: DedupeKind;
-  readonly id: string;
-  readonly digest: string;
-  readonly request?: unknown;
-}
-/**
- * The result of a durable command or event claim.
- *
- * @public
- */
-type DedupeClaimResult = {
-  readonly ok: true;
-  readonly status: 'claimed';
-  readonly claimId: string;
-  readonly request?: unknown;
-} | {
-  readonly ok: true;
-  readonly status: 'pending';
-  readonly claimId: string;
-  readonly ownerFence: FenceToken;
-  readonly claimedAt: number;
-  readonly request?: unknown;
-} | {
-  readonly ok: true;
-  readonly status: 'completed';
-  readonly digest: string;
-  readonly result: unknown;
-} | {
-  readonly ok: false;
-  readonly code: 'LEASE_LOST';
-} | {
-  readonly ok: false;
-  readonly code: 'DEDUPLICATE_CONFLICT';
-  readonly existingDigest: string;
-};
-/**
- * The durable completion marker for a previously claimed command or event.
- * It is applied atomically with the snapshot passed to `DurableStore.commit`.
- *
- * @public
- */
-interface DedupeCompletion {
-  readonly kind: DedupeKind;
-  readonly id: string;
-  readonly digest: string;
-  readonly claimId: string;
-  readonly result: unknown;
-}
-/**
- * The identity of a claimed timer. The expected version prevents an old timer
- * callback from claiming a timer that was removed or replaced by a later
- * snapshot.
- *
- * @public
- */
-interface TimerClaimInput {
-  readonly lease: Lease;
-  readonly timerId: string;
-  readonly dueAt: number;
-  readonly expected: Version;
-}
-/**
- * The result of a durable timer claim.
- *
- * @public
- */
-type TimerClaimResult = {
-  readonly ok: true;
-  readonly claimId: string;
-  readonly timerId: string;
-  readonly dueAt: number;
-  readonly expected: Version;
-} | {
-  readonly ok: false;
-  readonly code: 'LEASE_LOST';
-} | {
-  readonly ok: false;
-  readonly code: 'TIMER_NOT_DUE';
-  readonly dueAt: number;
-} | {
-  readonly ok: false;
-  readonly code: 'TIMER_STALE';
-  readonly actual: Version | null;
-} | {
-  readonly ok: false;
-  readonly code: 'TIMER_ALREADY_CLAIMED';
-  readonly claimId: string;
-  readonly ownerFence: FenceToken;
-  readonly claimedUntil: number;
-};
-/**
- * The durable completion marker for a claimed timer. It is applied atomically
- * with the snapshot passed to `DurableStore.commit`.
- *
- * @public
- */
-interface TimerCompletion {
-  readonly timerId: string;
-  readonly dueAt: number;
-  readonly expected: Version;
-  readonly claimId: string;
-}
-/**
- * A compare-and-swap commit. `next`, `completeDedupe`, or `completeTimer` must
- * be supplied. All supplied changes succeed or none of them are persisted.
- *
- * @public
- */
-interface CommitInput {
-  readonly lease: Lease;
-  readonly expected: Version | null;
-  readonly next?: DurableRecord;
-  readonly completeDedupe?: DedupeCompletion;
-  readonly completeTimer?: TimerCompletion;
-}
-/**
- * The result of a compare-and-swap commit.
- *
- * @public
- */
-type CommitResult = {
-  readonly ok: true;
-  readonly version: Version | null;
-} | {
-  readonly ok: false;
-  readonly code: 'LEASE_LOST';
-} | {
-  readonly ok: false;
-  readonly code: 'CAS_CONFLICT';
-  readonly actual: Version | null;
-} | {
-  readonly ok: false;
-  readonly code: 'INVALID_VERSION';
-} | {
-  readonly ok: false;
-  readonly code: 'DEDUPLICATE_CONFLICT';
-} | {
-  readonly ok: false;
-  readonly code: 'TIMER_CLAIM_LOST';
-};
-/**
- * Retention limits for coordination metadata. Snapshot rows are not removed by
- * this hook because their lifecycle belongs to the host application.
- *
- * @public
- */
-interface RetentionPolicy {
-  readonly completedDedupeMs: number;
-  readonly timerClaimMs: number;
-}
-/**
- * Controls one retention pass. `limit` bounds total metadata removals.
- *
- * @public
- */
-interface RetentionSweepOptions {
-  readonly limit?: number;
-}
-/**
- * Counts removed coordination records from a retention pass.
- *
- * @public
- */
-interface RetentionSweepResult {
-  readonly dedupeRemoved: number;
-  readonly timerClaimsRemoved: number;
-}
-/**
- * The storage and coordination contract. Every mutating operation is required
- * to be linearizable by an adapter. It does not attach to `FlowRun`, execute
- * tasks, or define the runtime commit barrier.
- *
- * @public
- */
-interface DurableStore {
-  /** Acquire a key lease and read its current record atomically. */
-  acquire(key: string, ownerId: string, options?: LeaseOptions): Promise<AcquireLeaseResult>;
-  /** Read a record without acquiring a lease. */
-  read(key: string): Promise<DurableRecord | null>;
-  /** Extend a still-live lease without changing its fence. */
-  renew(lease: Lease, options?: LeaseOptions): Promise<RenewLeaseResult>;
-  /** Release the current lease if the fence still matches. */
-  release(lease: Lease): Promise<ReleaseLeaseResult>;
-  /** Compare and swap a record and optional completion markers atomically. */
-  commit(input: CommitInput): Promise<CommitResult>;
-  /** Claim a command or event id, or replay its completed result. */
-  claimDedupe(input: DedupeClaimInput): Promise<DedupeClaimResult>;
-  /** Claim one due timer for the expected snapshot version. */
-  claimTimer(input: TimerClaimInput): Promise<TimerClaimResult>;
-  /** Remove expired coordination metadata. Snapshot records remain intact. */
-  sweep(options?: RetentionSweepOptions): Promise<RetentionSweepResult>;
-}
-/**
- * Codes thrown for malformed input or an in-memory serialization failure.
- * Expected races use the typed result unions instead.
- *
- * @public
- */
-type DurableStoreErrorCode = 'INVALID_ARGUMENT' | 'INVALID_VERSION' | 'NOTHING_TO_COMMIT' | 'NOT_SERIALIZABLE' | 'FENCE_EXHAUSTED';
-/**
- * Error thrown when a caller violates the storage contract before a mutation
- * can be attempted.
- *
- * @public
- */
-declare class DurableStoreError extends Error {
-  readonly code: DurableStoreErrorCode;
-  constructor(code: DurableStoreErrorCode, message: string);
-}
-/**
- * Options for the test adapter. Its clock is read inside each operation, so a
- * mutable clock can exercise expiry and retention without sleeping.
- *
- * @public
- */
-interface MemoryDurableStoreOptions {
-  readonly now?: () => number;
-  readonly leaseTtlMs?: number;
-  readonly timerClaimTtlMs?: number;
-  readonly retention?: RetentionPolicy;
-}
-/**
- * The in-memory implementation adds inspection helpers while retaining the
- * exact `DurableStore` contract.
- *
- * @public
- */
-interface MemoryDurableStore extends DurableStore {
-  /** Return the keys that have acquired a lease or stored metadata. */
-  keys(): readonly string[];
-  /** Remove all rows and coordination metadata. */
-  clear(): void;
-}
+import { DurableStore, Lease, LeaseOptions, ReleaseLeaseResult, RenewLeaseResult, RetentionPolicy, Version } from "@openwizard/durable/store";
+import { AnyWizard, Command, CommandResult, ContextInput, DepsOf, EventType, PayloadInput, RequiredDepsOf, ResumeOptions, Run, RunOptions, SendResult } from "@openwizard/core";
+//#region src/durable-run-state.d.ts
+/** Why a durable host stopped on its own: its lease, snapshot CAS, or a timer claim was lost. @public */
+type DurableLeaseLossCode = 'LEASE_LOST' | 'CAS_CONFLICT' | 'TIMER_CLAIM_LOST';
 //#endregion
 //#region src/durable-run.d.ts
-type HostFailureCode = 'LEASE_LOST' | 'CAS_CONFLICT' | 'TIMER_CLAIM_LOST';
-/** Lease and host options shared by durable creation and resume. */
-interface DurableHostOptions {
+interface DurableHostOptions$1 {
   readonly store: DurableStore;
   readonly key: string;
   readonly ownerId: string;
+  /** Lease TTL for this host. Default: the store's `leaseTtlMs`. */
   readonly lease?: LeaseOptions;
-  readonly renewEveryMs?: number;
-  readonly onLeaseLost?: (code: HostFailureCode) => void;
+  /**
+   * How the lease stays alive. Default `{ everyMs: ttlMs / 3 }`: a timer on the run's
+   * scheduler renews it in the background (long-lived processes). `'manual'` starts no timer:
+   * use it for request-scoped hosts (edge runtimes such as Cloudflare Workers) that open, act,
+   * and dispose within one request, and call `host.renew()` when work may outlive the TTL.
+   */
+  readonly renew?: 'manual' | {
+    readonly everyMs: number;
+  };
+  /** Called once when the host stops because its lease, CAS, or timer claim was lost. */
+  readonly onLeaseLost?: (code: DurableLeaseLossCode) => void;
 }
 /**
- * Options for a durable run. An existing record is resumed automatically.
- *
- * @public
+ * Core persistence options the host replaces: it commits every snapshot itself, under the
+ * lease and before effects run, so there is no auto-save to tune and a failed write stops the
+ * host (`onLeaseLost`) instead of reaching `onPersistError`. `redact` stays: it runs on every
+ * snapshot before the store sees it, and a takeover owner resumes from the redacted copy.
  */
-type DurableRunOptions<F extends AnyFlow> = Omit<RunOptions<F>, 'store' | 'key' | 'autoSave' | 'beforeEffects' | 'beforeTimer'> & DurableHostOptions;
+type HostManagedOption = 'store' | 'key' | 'autoSave' | 'debounceMs' | 'onPersistError' | 'beforeEffects' | 'beforeTimer';
+/** Options for a durable run. An existing record is resumed automatically. @public */
+type DurableRunOptions<F extends AnyWizard> = Omit<RunOptions<F>, HostManagedOption> & DurableHostOptions$1;
+/** Options for resuming an already persisted durable run. @public */
+type DurableResumeOptions<F extends AnyWizard> = Omit<ResumeOptions<F>, HostManagedOption> & DurableHostOptions$1;
 /**
- * Options for resuming an already persisted durable run.
- *
- * @public
- */
-type DurableResumeOptions<F extends AnyFlow> = Omit<ResumeOptions<F>, 'store' | 'key' | 'autoSave' | 'beforeEffects' | 'beforeTimer'> & DurableHostOptions;
-/**
- * Options for a caller-supplied command idempotency key.
+ * Options for a caller-supplied command idempotency key. `digest` defaults to a
+ * stable JSON digest of the command; reusing `commandId` for another command
+ * returns `DEDUPLICATE_CONFLICT`.
  *
  * @public
  */
 interface DurableCommandOptions {
   readonly commandId: string;
   readonly digest?: string;
+  /**
+   * Reject a new claim with `CAS_CONFLICT` unless the stored version matches. The run checks
+   * again after asynchronous parsing; an intervening change records a `STALE` command result.
+   * Completed receipts replay before either check.
+   */
   readonly expectedVersion?: Version;
 }
 /**
- * Options for a caller-supplied event idempotency key.
+ * Options for an external event. `eventId` is its idempotency key: core records
+ * it in the run snapshot, which the host commits under the lease, so a
+ * redelivery to any owner returns `duplicate: true`. A payload the event
+ * boundary rejects records nothing and can be resent with the same id.
  *
  * @public
  */
 interface DurableEventOptions {
   readonly eventId: string;
-  readonly digest?: string;
-  readonly expectedVersion?: Version;
   readonly correlationId?: string;
 }
+/** Failure codes of the durable gate itself (not of the flow). @public */
+type DurableRunFailureCode = 'LEASE_LOST' | 'CAS_CONFLICT' | 'DEDUPLICATE_CONFLICT' | 'COMMAND_PENDING' | 'COMMAND_INTERRUPTED';
 /**
- * Failure codes returned by durable command and event helpers.
+ * The durable gate refused or lost an operation. `actual` is the stored version
+ * on `CAS_CONFLICT`; `claimId` names the claim still in flight on `COMMAND_PENDING`.
+ * `COMMAND_INTERRUPTED`: an earlier owner committed the beginning of an asynchronous
+ * navigation, then stopped before its final transaction result committed. A result committed
+ * with its snapshot always replays; an unfinished applied claim is never run again.
  *
  * @public
  */
-type DurableRunFailureCode = 'LEASE_LOST' | 'CAS_CONFLICT' | 'DEDUPLICATE_CONFLICT' | 'COMMAND_PENDING' | 'EVENT_PENDING';
-/**
- * Result of opening a durable run. A busy key is a value, not an exception.
- *
- * @public
- */
-type DurableRunOpenResult<F extends AnyFlow> = {
-  readonly ok: true;
-  readonly host: DurableRunHost<F>;
-} | {
+interface DurableHostFailure {
+  readonly ok: false;
+  readonly code: DurableRunFailureCode;
+  readonly message: string;
+  readonly actual?: Version | null;
+  readonly claimId?: string;
+}
+/** Why a durable run could not be opened. A busy key is a value, not an exception. @public */
+type DurableRunOpenFailure = {
   readonly ok: false;
   readonly code: 'LEASE_BUSY';
   readonly retryAt: number;
@@ -411,8 +93,15 @@ type DurableRunOpenResult<F extends AnyFlow> = {
   readonly ok: false;
   readonly code: 'LEASE_LOST';
 };
+/** Result of opening a durable run. @public */
+type DurableRunOpenResult<F extends AnyWizard> = {
+  readonly ok: true;
+  readonly host: DurableRunHost<F>;
+} | DurableRunOpenFailure;
 /**
- * Result of a deduplicated durable command.
+ * Result of a deduplicated durable command: `applied` now or `replayed` from
+ * the stored result of an earlier call with the same id. `result` is the
+ * flow's own `CommandResult`, which may itself be a rejection.
  *
  * @public
  */
@@ -421,75 +110,234 @@ type DurableCommandResult = {
   readonly status: 'applied' | 'replayed';
   readonly result: CommandResult;
   readonly version: Version;
-} | {
-  readonly ok: false;
-  readonly code: DurableRunFailureCode;
-  readonly actual?: Version | null;
-  readonly claimId?: string;
-};
+} | DurableHostFailure;
 /**
- * Result of a deduplicated durable event.
+ * Result of a durable event: the flow's `SendResult` (accepted with the
+ * committed `version`, `duplicate: true` for a redelivered `eventId`, or the
+ * boundary rejection / drop), or a failure of the durable gate.
  *
  * @public
  */
-type DurableEventResult = {
+type DurableEventResult = (Extract<SendResult, {
   readonly ok: true;
-  readonly status: 'applied' | 'replayed';
-  readonly result: SendResult;
+}> & {
   readonly version: Version;
-} | {
+}) | Extract<SendResult, {
   readonly ok: false;
-  readonly code: DurableRunFailureCode;
-  readonly actual?: Version | null;
-  readonly claimId?: string;
-};
+}> | DurableHostFailure;
 /**
- * A `FlowRun` plus the lease, CAS, dedupe, and timer gates needed by a
+ * A `Run` plus the lease, CAS, dedupe, and timer gates needed by a
  * multi-owner host. Use `run` for local control; use `dispatch` and `send` for
- * external commands and events so their ids and expected versions are checked.
+ * external commands and events so their ids are checked.
  *
  * The host remains at-least-once. It cannot make an external task effect
  * exactly once.
  *
  * @public
  */
-interface DurableRunHost<F extends AnyFlow> {
-  readonly run: FlowRun<F>;
+interface DurableRunHost<F extends AnyWizard> {
+  readonly run: Run<F>;
   readonly lease: Lease;
+  /** The last version committed to the store. */
   readonly version: Version;
+  /** Extend the lease now. Required with `renew: 'manual'` when work may outlive the TTL. */
   renew(options?: LeaseOptions): Promise<RenewLeaseResult>;
   dispatch(command: Command<F>, options: DurableCommandOptions): Promise<DurableCommandResult>;
-  send<E extends EventType<F>>(event: E, payload: unknown, options: DurableEventOptions): Promise<DurableEventResult>;
-  claimTimer(timerId: string, dueAt: number, expected?: Version): Promise<TimerClaimResult>;
+  /** Like `Run.send`: a typed payload must match the event; an `unknown` body is parsed. */
+  send<E extends EventType<F>, P>(event: E, payload: unknown extends P ? P : PayloadInput<F, E>, options: DurableEventOptions): Promise<DurableEventResult>;
+  /**
+   * Stop the run and release the lease once the commands and events already sent to this host
+   * have committed. Reports `LEASE_LOST` when the host had already stopped.
+   */
   release(): Promise<ReleaseLeaseResult>;
+  /** Like `release`, but never reports a lost lease. */
   dispose(): Promise<void>;
 }
 /**
- * Acquire a durable lease and create or resume its `FlowRun`.
+ * Acquire a durable lease and create or resume a run of the wizard.
  *
- * The normal `createRun` API and core `Store` are unchanged. This helper turns
- * every committed root snapshot into a fenced CAS write before planned effects
+ * This helper uses the wizard's bound creators, including dependencies supplied by `provide()`.
+ * It turns every committed root snapshot into a fenced CAS write before planned effects
  * run, and claims core timers before they enqueue fire messages.
  *
  * @public
  */
-declare function createDurableRun<F extends AnyFlow>(flow: F, options: DurableRunOptions<F>): Promise<DurableRunOpenResult<F>>;
+declare function createDurableRun<F extends AnyWizard>(flow: F, options: DurableRunOptions<F>): Promise<DurableRunOpenResult<F>>;
 /**
  * Acquire a durable lease and resume an existing record. It returns
  * `RUN_NOT_FOUND` when the key has no snapshot.
  *
  * @public
  */
-declare function resumeDurableRun<F extends AnyFlow>(flow: F, options: DurableResumeOptions<F>): Promise<DurableRunOpenResult<F>>;
+declare function resumeDurableRun<F extends AnyWizard>(flow: F, options: DurableResumeOptions<F>): Promise<DurableRunOpenResult<F>>;
+//#endregion
+//#region src/host-registry.d.ts
+/**
+ * The result returned by a host opener. Expected open failures stay in the
+ * caller-defined `E` branch.
+ *
+ * @public
+ */
+type HostOpenResult<T, E extends {
+  readonly ok: false;
+}> = {
+  readonly ok: true;
+  readonly value: T;
+} | E;
+/**
+ * Lifecycle controls for one host generation. The signal aborts when that
+ * generation is invalidated, evicted, or disposed. `invalidate` only removes
+ * the generation opened with this context, so an old lease-loss callback
+ * cannot remove its replacement.
+ *
+ * @public
+ */
+interface HostOpenContext {
+  readonly signal: AbortSignal;
+  invalidate(): void;
+}
+/**
+ * Returned when an open loses a race with registry disposal or starts after
+ * disposal.
+ *
+ * @public
+ */
+interface HostRegistryDisposed {
+  readonly ok: false;
+  readonly code: 'HOST_REGISTRY_DISPOSED';
+}
+/**
+ * The result returned by `createHostRegistry().open`. The registry adds its
+ * own disposed failure without manufacturing the caller-defined `E`.
+ *
+ * @public
+ */
+type HostRegistryOpenResult<T, E extends {
+  readonly ok: false;
+}> = HostOpenResult<T, E> | HostRegistryDisposed;
+/**
+ * Create a keyed host cache that removes entries only through invalidation,
+ * expected eviction, or registry disposal. Opens for one key share a promise.
+ * Different keys open independently. The registry does not choose keys,
+ * discover hosts, retry, or interpret open failures.
+ *
+ * @public
+ */
+declare function createHostRegistry<I, T, E extends {
+  readonly ok: false;
+}>(options: {
+  readonly key: (identity: I) => string;
+  readonly open: (identity: I, context: HostOpenContext) => Promise<HostOpenResult<T, E>>;
+  readonly close: (value: T) => void | PromiseLike<void>;
+}): {
+  open(identity: I): Promise<HostRegistryOpenResult<T, E>>;
+  cached(identity: I): T | undefined;
+  values(): readonly T[];
+  evict(identity: I, expected: T): Promise<boolean>;
+  dispose(): Promise<void>;
+};
+//#endregion
+//#region src/durable-host.d.ts
+type HostDeps<F extends AnyWizard> = {} extends RequiredDepsOf<F> ? {
+  readonly deps?: (key: string) => Partial<DepsOf<F>>;
+} : {
+  readonly deps: (key: string) => RequiredDepsOf<F> & Partial<DepsOf<F>>;
+};
+/**
+ * Options of `createDurableHost`: the run options every run shares (scheduler, clock, `redact`,
+ * `eventIds`, `migrate`, lease and renewal), plus `deps(key)` for dependencies still required
+ * after `wizard.provide()`.
+ *
+ * @public
+ */
+type DurableHostOptions<F extends AnyWizard> = Omit<DurableResumeOptions<F>, 'key' | 'ownerId' | 'onLeaseLost' | 'deps'> & {
+  /** Written on every lease this host takes. Default: a random id per host. */
+  readonly ownerId?: string;
+  /** A run's host stopped on its own (lease, CAS, or timer claim lost). The key reopens on use. */
+  readonly onLeaseLost?: (key: string, code: DurableLeaseLossCode) => void;
+} & HostDeps<F>;
+/** Per-run creation options of `DurableHost.create`. @public */
+type DurableCreateOptions<F extends AnyWizard> = Pick<RunOptions<F>, 'instanceId' | 'correlationId'>;
+/** Why `DurableHost` could not reach a run: open failures plus a disposed host. @public */
+type DurableHostOpenFailure = DurableRunOpenFailure | HostRegistryDisposed;
+/**
+ * Result of `DurableHost.open` / `create`. A returned handle's `send` and `dispatch` reopen
+ * its key after automatic lease release. Its `run` belongs to the latest generation that
+ * handle used; local run commands and subscriptions last only as long as that lease.
+ *
+ * @public
+ */
+type DurableHostOpenResult<F extends AnyWizard> = {
+  readonly ok: true;
+  readonly host: DurableRunHost<F>;
+} | DurableHostOpenFailure;
+/**
+ * Durable runs of one flow, addressed by key. The host owns each run's lease (renewal, release on
+ * a terminal result, reopening after a takeover) and keeps live runs open in memory; every method
+ * returns failures as values.
+ *
+ * @public
+ */
+interface DurableHost<F extends AnyWizard> {
+  /** Create the run at `key` (or resume the one stored there) and keep it open. */
+  create(key: string, input: ContextInput<F>, options?: DurableCreateOptions<F>): Promise<DurableHostOpenResult<F>>;
+  /** The open run at `key`, resuming it from the store when needed (`RUN_NOT_FOUND` if none). */
+  open(key: string): Promise<DurableHostOpenResult<F>>;
+  /** `open(key)`, then `send` through its host: a redelivered `eventId` is a duplicate. */
+  send<E extends EventType<F>, P>(key: string, event: E, payload: unknown extends P ? P : PayloadInput<F, E>, options: DurableEventOptions): Promise<DurableEventResult | DurableHostOpenFailure>;
+  /** `open(key)`, then `dispatch` through its host: a repeated `commandId` replays its result. */
+  dispatch(key: string, command: Command<F>, options: DurableCommandOptions): Promise<DurableCommandResult | DurableHostOpenFailure>;
+  /** Release every lease once in-flight commands and events commit. Later calls fail. */
+  dispose(): Promise<void>;
+}
+/**
+ * Host the durable runs of `flow` on `store`: what a multi-worker service would otherwise build
+ * from `createHostRegistry` and `createDurableRun`. A run whose lease is lost is dropped and
+ * reopened by the next call for its key. A terminal run releases its lease after in-flight host
+ * operations settle. Returned handles can be held across I/O: `send` and `dispatch` reopen on
+ * demand and replay persisted ids. A competing owner makes a held handle return `LEASE_LOST`;
+ * `open(key)` reports `LEASE_BUSY` with its retry time. Explicitly released handles stay closed.
+ *
+ * @public
+ */
+declare function createDurableHost<F extends AnyWizard>(flow: F, options: DurableHostOptions<F>): DurableHost<F>;
 //#endregion
 //#region src/memory-store.d.ts
 /**
+ * Options for the in-memory store. Its clock is read inside each operation, so
+ * a mutable clock can exercise expiry and retention without sleeping.
+ *
+ * @public
+ */
+interface MemoryDurableStoreOptions {
+  readonly now?: () => number;
+  /** Lease TTL when a caller omits `ttlMs`. Default 30 000 ms. */
+  readonly leaseTtlMs?: number;
+  /** How long a timer claim blocks other claims. Default 30 000 ms. */
+  readonly timerClaimTtlMs?: number;
+  /** Default: completed command claims 7 days, timer claims 5 minutes. */
+  readonly retention?: RetentionPolicy;
+}
+/**
+ * The in-memory store: the exact `DurableStore` contract plus inspection
+ * helpers for tests.
+ *
+ * @public
+ */
+interface MemoryDurableStore extends DurableStore {
+  /** Return the keys that have acquired a lease or stored metadata. */
+  keys(): readonly string[];
+  /** Remove all rows and coordination metadata. */
+  clear(): void;
+}
+/**
  * In-memory `DurableStore` with synchronous linearization points and JSON
- * round trips at every persistence boundary.
+ * round trips at every persistence boundary. For tests and single-process
+ * development.
  *
  * @public
  */
 declare function createMemoryDurableStore(options?: MemoryDurableStoreOptions): MemoryDurableStore;
 //#endregion
-export { type AcquireLeaseResult, type CommitInput, type CommitResult, type DedupeClaimInput, type DedupeClaimResult, type DedupeCompletion, type DedupeKind, type DurableCommandOptions, type DurableCommandResult, type DurableEventOptions, type DurableEventResult, type DurableRecord, type DurableResultCode, type DurableResumeOptions, type DurableRunFailureCode, type DurableRunHost, type DurableRunOpenResult, type DurableRunOptions, type DurableStore, DurableStoreError, type DurableStoreErrorCode, type FenceToken, type Lease, type LeaseOptions, type MemoryDurableStore, type MemoryDurableStoreOptions, type ReleaseLeaseResult, type RenewLeaseResult, type RetentionPolicy, type RetentionSweepOptions, type RetentionSweepResult, type TimerClaimInput, type TimerClaimResult, type TimerCompletion, type Version, createDurableRun, createMemoryDurableStore, resumeDurableRun };
+export { type DurableCommandOptions, type DurableCommandResult, type DurableCreateOptions, type DurableEventOptions, type DurableEventResult, type DurableHost, type DurableHostFailure, type DurableHostOpenFailure, type DurableHostOpenResult, type DurableHostOptions, type DurableLeaseLossCode, type DurableResumeOptions, type DurableRunFailureCode, type DurableRunHost, type DurableRunOpenFailure, type DurableRunOpenResult, type DurableRunOptions, type HostOpenContext, type HostOpenResult, type HostRegistryDisposed, type HostRegistryOpenResult, type MemoryDurableStore, type MemoryDurableStoreOptions, createDurableHost, createDurableRun, createHostRegistry, createMemoryDurableStore, resumeDurableRun };
 //# sourceMappingURL=index.d.ts.map

@@ -1,4 +1,4 @@
-import { createRun, type RunEvent } from '@openwizard/core'
+import type { RunEvent } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { type Deps, type PostFailure, syncInvoiceFlow } from './sync-invoice'
@@ -25,11 +25,7 @@ const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 function make(deps: Deps) {
   const scheduler = createTestScheduler({ now: 1_000 }) // doubles as the clock
-  const run = createRun(syncInvoiceFlow, {
-    context: { invoiceId: 'INV-7', amount: 120 },
-    deps,
-    scheduler: scheduler,
-  })
+  const run = syncInvoiceFlow.create({ invoiceId: 'INV-7', amount: 120 }, { deps, scheduler })
   const events: RunEvent<typeof syncInvoiceFlow>[] = []
   run.observe((event) => events.push(event))
   const eventsOfType = <T extends RunEvent['type']>(type: T) =>
@@ -122,21 +118,27 @@ describe('02 recoverable failure: exponential retry through the test scheduler',
       1_200, 1_600, 2_400,
     ])
     expect(eventsOfType('step.failed')[0]).toMatchObject({ step: 'post', kind: 'run' })
-    expect(eventsOfType('flow.failed')[0]).toMatchObject({ step: 'post', code: 'STEP_FAILED' })
+    expect(eventsOfType('flow.halted')[0]).toMatchObject({
+      step: 'post',
+      error: { message: 'ledger unavailable (call 4)' },
+    })
     expect(run.getState().steps.post).toMatchObject({
       status: 'failed',
       error: { kind: 'run', message: 'ledger unavailable (call 4)' },
     })
-    // v0.2 mapError: the failure is also recorded as typed, JSON-safe data.
+    // mapError records a typed, JSON-safe failure value.
     const data: PostFailure | undefined = run.getState().steps.post.error?.data
     expect(data).toEqual({ code: 'LEDGER_UNAVAILABLE', attempt: 4 })
-    // v0.2 idempotent: every attempt carried the same key (the mapper's value).
+    // Every attempt carries the idempotent mapper's key.
     expect(new Set(state.keys)).toEqual(new Set(['invoice:INV-7']))
-    expect(run.getState().status).toBe('failed')
-    expect(run.explain('post')).toMatchObject({ status: 'failed', reasons: ['failed:run'] })
+    expect(run.getState().status).toBe('halted')
+    expect(run.explain('post')).toMatchObject({
+      status: 'failed',
+      reasons: ['flow-halted', 'failed:run'],
+    })
 
-    // A halt failure is recoverable: navigation is rejected as a value, retry() is accepted.
-    expect(await run.next()).toMatchObject({ ok: false, code: 'FLOW_TERMINAL' })
+    // A halted run is recoverable: navigation is rejected as a value, retry() is accepted.
+    expect(await run.next()).toMatchObject({ ok: false, code: 'FLOW_HALTED' })
     state.failures = 0 // the ledger is back
     const retried = run.retry('post')
     // The retry command commits synchronously (attempt counter reset); the async run lands later.

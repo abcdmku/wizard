@@ -23,21 +23,33 @@ export interface ResolveDepsInput {
   readonly childDef: CompiledFlow
   /** The parent's deps (passed through when there is no mapper). */
   readonly parentDeps: unknown
+  /** A declared parent boundary may intentionally supply undefined. */
+  readonly parentDeclaresDeps?: boolean
   /** Builds the mapper's arguments (lazily — only when there is a mapper). */
   readonly args: () => HookArgs
 }
 
 export function resolveDeps(input: ResolveDepsInput): DepsResolution {
   const { step, mapper, childDef } = input
-  if (mapper === undefined) return { ok: true, value: input.parentDeps }
   let mapped: unknown
   try {
-    mapped = mapper(input.args())
+    mapped = mapper === undefined ? input.parentDeps : mapper(input.args())
   } catch (error) {
     return { ok: false, error: describe(error, `deps mapper of '${step}' threw`) }
   }
   if (isThenable(mapped)) {
     return { ok: false, error: mustBeSync(`deps mapper of '${step}'`) }
+  }
+  if (
+    mapper === undefined &&
+    input.parentDeclaresDeps !== true &&
+    mapped === undefined &&
+    childDef.deps !== undefined
+  )
+    mapped = {}
+  if (childDef.providedDeps !== undefined) {
+    const inherited = typeof mapped === 'object' && mapped !== null ? mapped : {}
+    mapped = { ...childDef.providedDeps, ...inherited }
   }
   const boundary = childDef.deps
   if (boundary === undefined) return { ok: true, value: mapped }

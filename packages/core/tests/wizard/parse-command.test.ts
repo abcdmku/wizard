@@ -1,31 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { boundary } from '../../src/authoring/boundary'
-import { defineFlow } from '../../src/authoring/define-flow'
+import { defineWizard } from '../../src/wizard/define-wizard'
 import { decodeCommand, parseCommand } from '../../src/wizard/parse-command'
 
 // A flow with every id kind the decoder checks: views (a, v), tasks (t), a declared event (e),
 // a flow step (f) whose child has its own view (g) and grandchild flow step (h) with view (v).
-const leaf = defineFlow({ name: 'leaf', context: boundary.trusted() })
-const leafFlow = leaf.steps({ v: leaf.view({ next: 'end' }), end: leaf.final() })
-const mid = defineFlow({ name: 'mid', context: boundary.trusted() })
-const midFlow = mid.steps({
-  g: mid.view({ next: 'h' }),
-  h: mid.flow(leafFlow, { context: () => ({}), next: 'end' }),
-  end: mid.final(),
-})
-const root = defineFlow({
-  name: 'root',
-  context: boundary.trusted<{ n: number }>(),
-  events: { e: z.object({ id: z.number() }) },
-})
-const flow = root.steps({
-  a: root.view({ input: z.object({ x: z.number(), list: z.array(z.unknown()) }), next: 't' }),
-  t: root.task(async () => 1, { next: 'f' }),
-  f: root.flow(midFlow, { context: () => ({}), next: 'v' }),
-  v: root.view({ next: 'x' }),
-  x: root.final(),
-})
+const leafFlow = defineWizard(
+  { name: 'leaf', context: boundary.trusted() },
+  ({ view, step, steps }) =>
+    steps({ v: view({ input: z.object({}), next: 'end' }), end: step({ run: () => undefined }) }),
+)
+const midFlow = defineWizard(
+  { name: 'mid', context: boundary.trusted() },
+  ({ view, flow, step, steps }) =>
+    steps({
+      g: view({ input: z.object({}), next: 'h' }),
+      h: flow(leafFlow, { context: () => ({}), next: 'end' }),
+      end: step({ run: () => undefined }),
+    }),
+)
+const flow = defineWizard(
+  {
+    name: 'root',
+    context: boundary.trusted<{ n: number }>(),
+    events: { e: z.object({ id: z.number() }) },
+  },
+  ({ view, step, flow, steps }) =>
+    steps({
+      a: view({ input: z.object({ x: z.number(), list: z.array(z.unknown()) }), next: 't' }),
+      t: step({ run: async () => 1, next: 'f' }),
+      f: flow(midFlow, { context: () => ({}), next: 'v' }),
+      v: view({ input: z.object({}), next: 'x' }),
+      x: step({ run: () => undefined }),
+    }),
+)
 
 describe('parseCommand(flow, input)', () => {
   it('accepts every wire command shape (ids checked against the flow) and returns a fresh copy', () => {
@@ -33,14 +42,14 @@ describe('parseCommand(flow, input)', () => {
       { type: 'start' },
       { type: 'next' },
       { type: 'back' },
-      { type: 'runReady' },
+      { type: 'startReady' },
       { type: 'reset' },
       { type: 'go', step: 'a' },
       { type: 'go', step: 'a', reason: 'why' },
       { type: 'setInput', step: 'a', patch: { x: 1, list: [1, 'a', null, { y: true }] } },
       { type: 'setInput', step: 'a', patch: null },
       { type: 'resetInput', step: 'a' },
-      { type: 'run', step: 't' },
+      { type: 'startStep', step: 't' },
       { type: 'retry', step: 't' },
       { type: 'send', event: 'e', payload: { id: 1 } },
       { type: 'send', event: 'e', payload: 'raw', correlationId: 'c' },
@@ -84,9 +93,9 @@ describe('parseCommand(flow, input)', () => {
     expect(parseCommand(flow, { type: 'resetInput', step: 'f' })).toMatchObject({ ok: false })
     expect(parseCommand(flow, { type: 'retry', step: 'a' })).toMatchObject({
       ok: false,
-      issues: [{ message: "'a' is not a task step" }],
+      issues: [{ message: "'a' is not a retryable step" }],
     })
-    expect(parseCommand(flow, { type: 'run', step: 'ghost' })).toMatchObject({ ok: false })
+    expect(parseCommand(flow, { type: 'startStep', step: 'ghost' })).toMatchObject({ ok: false })
     expect(parseCommand(flow, { type: 'send', event: 'zzz', payload: {} })).toMatchObject({
       ok: false,
       issues: [{ message: "unknown event 'zzz'", path: ['event'] }],

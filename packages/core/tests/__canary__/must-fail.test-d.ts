@@ -9,6 +9,15 @@
  * It is excluded from the normal test/typecheck configs.
  */
 
-const canary: number = 'this is deliberately not a number'
+import { z } from 'zod'
+import { defineWizard } from '../../src/wizard/define-wizard'
 
-export { canary }
+const canary = defineWizard(
+  { name: 'type-canary', context: z.object({}), events: { ready: z.string() } },
+  ({ step, steps }) =>
+    steps({
+      work: step({ run: () => 1, next: 'missing-step' }),
+    }),
+)
+
+canary.create({}).send('undeclared-event', 1)

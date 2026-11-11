@@ -18,7 +18,14 @@ import { StepGraph } from './graph'
 import { chain } from './hooks'
 import type { FlowWarning } from './index'
 import { compileRetry, durationMs } from './policies'
-import { DEFAULT_TTL_MS, isRecord, isStepRecord, type Rec, trustedBoundary } from './shared'
+import {
+  compileProse,
+  DEFAULT_TTL_MS,
+  isRecord,
+  isStepRecord,
+  type Rec,
+  trustedBoundary,
+} from './shared'
 import { compileStep } from './steps'
 
 export interface NestingProblem {
@@ -89,14 +96,20 @@ export function compileFlow(flow: AnyFlow, ctx: Ctx): CompiledFlow {
   for (const id of order) {
     const raw = rawSteps?.[id]
     if (!isStepRecord(raw)) {
-      problem(
-        `steps['${id}'] is not a step (build steps with flow.view/task/wait/decision/flow/final)`,
-      )
+      problem(`steps['${id}'] is not a step (build steps with step(), view(), or flow())`)
       continue
     }
-    steps[id] = compileStep(id, raw, { ctx, problem, ids, events: eventNames, graph })
+    steps[id] = compileStep(id, raw, {
+      ctx,
+      problem,
+      ids,
+      events: eventNames,
+      graph,
+    })
   }
-
+  if (flow.output !== undefined) {
+    if (typeof flow.output !== 'function') problem("'output' must be a synchronous function")
+  }
   let start: readonly string[]
   const rawStart: unknown = flow.start
   if (rawStart === undefined) start = order.length > 0 ? [order[0] as string] : []
@@ -104,6 +117,7 @@ export function compileFlow(flow: AnyFlow, ctx: Ctx): CompiledFlow {
     if (!ids.has(rawStart)) problem(`start: unknown step '${rawStart}'`)
     start = [rawStart]
   } else if (Array.isArray(rawStart) && rawStart.every((s: unknown) => typeof s === 'string')) {
+    if (rawStart.length === 0) problem('start must contain at least one step')
     for (const s of rawStart as string[]) if (!ids.has(s)) problem(`start: unknown step '${s}'`)
     start = [...(rawStart as string[])]
   } else {
@@ -117,23 +131,56 @@ export function compileFlow(flow: AnyFlow, ctx: Ctx): CompiledFlow {
   graph.warnUnreachable(start, ctx.path, ctx.warnings)
   graph.warnNavigationCycles(ctx.path, ctx.warnings)
 
+  const feeds: Record<string, string[]> = Object.create(null)
+  for (const consumer of order) {
+    for (const need of Object.values(steps[consumer]?.needs ?? {})) {
+      for (const producer of need.steps) {
+        const consumers = feeds[producer] ?? []
+        feeds[producer] = consumers
+        if (!consumers.includes(consumer)) consumers.push(consumer)
+      }
+    }
+  }
+  // Fallback and timeout destinations are alternate edges. Happy-path outputs remain sinks.
+  const sinks = order.filter((id) => steps[id]?.next.kind === 'none' && feeds[id] === undefined)
+  if (flow.output === undefined && sinks.length !== 1)
+    ctx.warnings.push({
+      code: sinks.length === 0 ? 'NO_SINKS' : 'MULTIPLE_SINKS',
+      message:
+        sinks.length === 0
+          ? 'wizard has no static sink; provide an output selector to define its result'
+          : `wizard has multiple sinks (${sinks.join(', ')}); its output is the last completed sink, so provide an output selector for a stable result`,
+      path: ctx.path,
+    })
+  const prose: { description?: string; meta?: NonNullable<CompiledFlow['meta']> } = {}
+  compileProse(flow as unknown as Rec, prose, problem)
+
   return {
+    ...(typeof flow.output === 'function'
+      ? { output: flow.output as NonNullable<CompiledFlow['output']> }
+      : {}),
     name: name ?? '',
     version: typeof version === 'number' ? version : 1,
+    ...prose,
     context: context ?? trustedBoundary(),
     ...(deps !== undefined ? { deps } : {}),
+    ...(flow.providedDeps !== undefined
+      ? { providedDeps: flow.providedDeps as Readonly<Record<string, unknown>> }
+      : {}),
     events,
     ...(on !== undefined ? { on } : {}),
     ...(correlate !== undefined ? { correlate } : {}),
     steps,
     order,
     start,
+    feeds,
+    sinks,
     policies: compilePolicies(flow, problem),
     identity: flow,
   }
 }
 
-/** `defineFlow({ on })` → `def.on`: handlers keyed by DECLARED events, results normalised to `{ cancel? }`. */
+/** Definition-level event handlers, with a closed cancel result contract. */
 function compileFlowOn(
   raw: unknown,
   events: ReadonlySet<string>,
@@ -165,7 +212,7 @@ function compileFlowOn(
 }
 
 /**
- * `defineFlow({ correlate })` → `def.correlate`: extractors keyed by DECLARED events. A
+ * Correlation extractors keyed by declared events. A
  * non-string result is `undefined` (no correlation for that payload) — nothing here throws.
  */
 function compileCorrelate(
@@ -239,6 +286,8 @@ function emptyFlow(identity: unknown): CompiledFlow {
     steps: {},
     order: [],
     start: [],
+    feeds: {},
+    sinks: [],
     policies: {
       onFailure: 'halt',
       autoRun: 'ready',

@@ -1,5 +1,14 @@
 # Drizzle API
 
-Use the generated [`@openwizard/drizzle` reference](/typedoc/modules/_openwizard_drizzle.html) for PostgreSQL and SQLite schema and store adapters.
+The generated [`@openwizard/drizzle` reference](/typedoc/modules/_openwizard_drizzle.html) covers the PostgreSQL and SQLite schema helpers and store adapters.
 
-Read the [Drizzle storage guide](/packages/drizzle) first.
+Read the [Drizzle guide](/packages/drizzle) first.
+
+| Export | Purpose |
+|---|---|
+| `definePgDurableSchema(options?)` | PostgreSQL tables (`@openwizard/drizzle/pg`) |
+| `createPgDrizzleDurableStore(db, schema, options?)` | PostgreSQL `DurableStore` adapter |
+| `defineSqliteDurableSchema(options?)` | Async SQLite tables (`@openwizard/drizzle/sqlite`) |
+| `createSqliteDrizzleDurableStore(db, schema, options?)` | Async SQLite `DurableStore` adapter |
+| `PgDurableSchemaOptions`, `SqliteDurableSchemaOptions` | `tablePrefix` and table naming |
+| `DrizzleDurableStoreOptions` | `now`, `leaseTtlMs`, `timerClaimTtlMs`, `retention` |

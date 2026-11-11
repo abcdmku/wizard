@@ -2,7 +2,8 @@
  * The UI. Every component reads and writes ONLY through the hooks of `checkout` (a Mirror behind a
  * Provider). Nothing here imports the run, the flow module or the server.
  */
-import type { Issue, Mirror } from '@openwizard/core'
+import type { Issue } from '@openwizard/core'
+import type { Mirror } from '@openwizard/core/mirror'
 import { type ReactNode, useId, useState } from 'react'
 import { checkout } from './client'
 import type { checkoutClient } from './flow'
@@ -54,7 +55,7 @@ function Checkout() {
 /** Step rail. `useSnapshot()` re-renders on every frame, fine for a summary of everything. */
 function Progress() {
   const state = checkout.useSnapshot()
-  const order = ['shipping', 'payment', 'reserve', 'charge', 'receipt'] as const
+  const order = ['shipping', 'payment', 'reserve', 'charge'] as const
   return (
     <ol className="rail">
       {order.map((id) => {

@@ -2,7 +2,7 @@
  * Navigation pipeline (§1) — start, hookless `next`, and every veto point of a transaction.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, guard, of, view } from '../helpers/fixtures'
+import { createHarness, flow, guard, of, routingStep, view } from '../helpers/fixtures'
 
 const linear = () =>
   flow({
@@ -11,7 +11,7 @@ const linear = () =>
       a: view({ next: 'b' }),
       b: view({ next: 'c' }),
       c: view({ next: 'end' }),
-      end: final(),
+      end: routingStep(),
     },
   })
 
@@ -86,18 +86,14 @@ describe('nav pipeline — start and hookless next', () => {
     expect(settle).toMatchObject({ kind: 'settle', outcome: 'ok', value: { from: 'a', to: 'b' } })
   })
 
-  it('reaching a final ends the flow (step.done + flow.done) and rejects further commands', () => {
+  it('the run finishes after its last step drains and rejects further commands', () => {
     const h = createHarness(linear())
     h.start()
     h.cmd('next')
     h.cmd('next')
     const r = h.cmd('next')
-    expect(r.types.slice(-4)).toEqual([
-      'transition.committed',
-      'step.entered',
-      'step.done',
-      'flow.done',
-    ])
+    expect(r.types.slice(-3)).toEqual(['transition.committed', 'step.entered', 'step.done'])
+    expect(h.step({ type: 'settle' }).types).toEqual(['flow.done'])
     expect(h.state.status).toBe('done')
     expect(h.state.current).toBeNull()
     expect(h.state.active).toEqual([])
@@ -120,7 +116,7 @@ describe('nav pipeline — veto points', () => {
           next: 'b',
         }),
         b: view({ canEnter: () => true, enter: () => undefined, next: 'end' }),
-        end: final(),
+        end: routingStep(),
       },
     })
 

@@ -1,35 +1,36 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { defineFlow } from '../../src/authoring/define-flow'
 import type {
   FlowFailure,
-  FlowRun,
+  Run,
+  RunHalted,
   RunLifecycleError,
+  RunOutcome,
   RunResult,
+  WaitingFor,
 } from '../../src/wizard/create-wizard'
+import { defineWizard } from '../../src/wizard/define-wizard'
 
-const childBuilder = defineFlow({ name: 'result-child', context: z.object({ id: z.string() }) })
-const child = childBuilder.steps({
-  done: childBuilder.final({ output: ({ context }) => context.id }),
-})
+const child = defineWizard(
+  { name: 'result-child', context: z.object({ id: z.string() }) },
+  ({ step, steps }) => steps({ done: step({ run: ({ context }) => context.id }) }),
+)
 
-interface Down {
-  readonly code: 'DOWN'
-}
+type Down = { readonly code: 'DOWN' }
 
-const builder = defineFlow({ name: 'result-root', context: z.object({ id: z.string() }) })
-const root = builder.steps({
-  work: builder.task(() => 1, {
-    mapError: (): Down => ({ code: 'DOWN' }),
-    next: 'child',
-  }),
-  child: builder.flow(child, { context: ({ context }) => ({ id: context.id }), next: 'end' }),
-  end: builder.final({ output: () => ({ ok: true as const }) }),
-})
+const root = defineWizard(
+  { name: 'result-root', context: z.object({ id: z.string() }) },
+  ({ step, flow, steps }) =>
+    steps({
+      work: step({ run: () => 1, mapError: (): Down => ({ code: 'DOWN' }), next: 'child' }),
+      child: flow(child, { context: ({ context }) => ({ id: context.id }), next: 'end' }),
+      end: step({ run: () => ({ ok: true as const }) }),
+    }),
+)
 
-declare const run: FlowRun<typeof root>
+declare const run: Run<typeof root>
 
-describe('FlowRun terminal result types', () => {
+describe('Run terminal result types', () => {
   it('carries the flow output and typed failure channel', () => {
     expectTypeOf(run.result()).toEqualTypeOf<RunResult<typeof root> | undefined>()
     expectTypeOf(run.awaitResult()).toEqualTypeOf<Promise<RunResult<typeof root>>>()
@@ -40,7 +41,7 @@ describe('FlowRun terminal result types', () => {
 
     run.subscribeResult((result) => {
       if (result.status === 'done') {
-        expectTypeOf(result.output).toMatchTypeOf<{ readonly ok: boolean } | undefined>()
+        expectTypeOf(result.output).toEqualTypeOf<{ ok: true }>()
       } else if (result.status === 'failed') {
         expectTypeOf(result.failure).toEqualTypeOf<
           Exclude<FlowFailure<typeof root>, { kind: 'cancelled' }>
@@ -56,9 +57,29 @@ describe('FlowRun terminal result types', () => {
     })
   })
 
-  it('keeps child FlowRun result typing recursive', () => {
+  it('keeps child Run result typing recursive', () => {
     const childRun = run.child('child')
     expectTypeOf(childRun.result()).toEqualTypeOf<RunResult<typeof child> | undefined>()
     expectTypeOf(childRun.awaitResult()).toEqualTypeOf<Promise<RunResult<typeof child>>>()
+  })
+})
+
+describe('Run outcome types', () => {
+  it('awaitOutcome narrows to a result, a halt or a flat waitingFor list', async () => {
+    expectTypeOf(run.awaitOutcome()).toEqualTypeOf<Promise<RunOutcome<typeof root>>>()
+    expectTypeOf(run.waitingFor()).toEqualTypeOf<readonly WaitingFor<typeof root>[]>()
+    expectTypeOf(run.explain('work').waitingFor).toEqualTypeOf<readonly WaitingFor<typeof root>[]>()
+    const outcome = await run.awaitOutcome()
+    if (outcome.status === 'halted') {
+      if (outcome.failure.step === 'child') {
+        expectTypeOf(outcome.failure.child).toEqualTypeOf<
+          RunResult<typeof child> | RunHalted<typeof child> | undefined
+        >()
+      }
+    } else if (outcome.status === 'waiting') {
+      const [first] = outcome.waitingFor
+      if (first !== undefined && first.kind !== 'view')
+        expectTypeOf(first.deadline).toEqualTypeOf<number | undefined>()
+    }
   })
 })

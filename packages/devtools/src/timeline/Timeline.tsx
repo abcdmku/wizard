@@ -5,6 +5,7 @@
  */
 
 import type { RunEvent } from '@openwizard/core'
+import { traceLine } from '@openwizard/core/inspect'
 import {
   type ChangeEvent,
   type CSSProperties,
@@ -13,8 +14,7 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { eventDetail, eventStep } from '../events/format'
-import type { DevtoolsTheme, FlowRunSource } from '../types'
+import type { DevtoolsTheme, RunSource } from '../types'
 import {
   type ReplayState,
   type ReplayWindowStore,
@@ -24,14 +24,14 @@ import {
 } from './replay-window'
 
 /**
- * `<Timeline>` props: the run `source`; `context` (the input `createRun` received) lets the
+ * `<Timeline>` props: the run `source`; `context` (the input `wizard.create` received) lets the
  * window start from the initial state when the whole log is still available, else scrubbing
  * starts where the timeline attached; `onScrub` receives the replayed state (or `null` when
  * following the live end); `maxEvents` bounds the window (default 5000).
  * @public
  */
 export interface TimelineProps {
-  readonly source: FlowRunSource
+  readonly source: RunSource
   readonly context?: unknown
   readonly onScrub?: (state: ReplayState | null, seq: number) => void
   readonly maxEvents?: number
@@ -155,6 +155,7 @@ function StateSummary({
   readonly live: boolean
 }): ReactElement {
   const steps = Object.values(state.steps)
+  const line = event === undefined ? undefined : traceLine(event)
   return (
     <div className="owd-timeline-state" data-live={live ? 'true' : undefined}>
       <div className="owd-kv-list">
@@ -174,12 +175,11 @@ function StateSummary({
             {state.active.length === 0 ? '—' : state.active.join(', ')}
           </span>
         </div>
-        {event !== undefined && (
+        {line !== undefined && (
           <div className="owd-kv">
             <span className="owd-kv-key">event</span>
             <span className="owd-kv-value owd-mono">
-              {event.type} {eventStep(event)}{' '}
-              <span className="owd-subtle">{eventDetail(event)}</span>
+              {line.type} {line.step} <span className="owd-subtle">{line.detail}</span>
             </span>
           </div>
         )}

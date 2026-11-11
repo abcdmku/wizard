@@ -1,0 +1,143 @@
+@media (max-width: 800px), (pointer: coarse) {
+  .mission-strip {
+    top: 8px;
+    width: calc(100vw - 16px);
+    justify-content: space-between;
+  }
+
+  .self-card {
+    top: 52px;
+    left: 8px;
+    width: 210px;
+  }
+
+  .team-card {
+    top: 52px;
+    right: 8px;
+    left: auto;
+    width: min(180px, 42vw);
+  }
+
+  .inventory {
+    right: 8px;
+    bottom: 8px;
+    left: auto;
+    width: min(250px, 58vw);
+  }
+
+  .action-tray {
+    right: 8px;
+    bottom: 86px;
+    flex-direction: column-reverse;
+  }
+
+  .action-button {
+    min-width: 116px;
+  }
+
+  .action-button kbd,
+  .keyboard-note {
+    display: none;
+  }
+
+  .touch-pad {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(2, 52px);
+    gap: 5px;
+  }
+
+  .direction-button {
+    border: 1px solid #7d7566;
+    border-radius: 11px;
+    background: rgb(19 23 27 / 91%);
+    box-shadow: 0 5px 16px rgb(0 0 0 / 32%);
+    font-size: 1.3rem;
+    touch-action: none;
+  }
+
+  .move-up {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .move-left {
+    grid-row: 2;
+    grid-column: 1;
+  }
+
+  .move-down {
+    grid-row: 2;
+    grid-column: 2;
+  }
+
+  .move-right {
+    grid-row: 2;
+    grid-column: 3;
+  }
+
+  .boss-bar {
+    top: 98px;
+  }
+}
+
+@media (max-width: 520px) {
+  .entry-shell {
+    display: block;
+    padding: 0;
+  }
+
+  .entry-card {
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .join-form {
+    grid-template-columns: 1fr;
+  }
+
+  .join-form label,
+  .join-form label:first-child,
+  .join-form label:last-of-type,
+  .join-form button {
+    grid-column: 1;
+  }
+
+  .mission-strip {
+    gap: 0.4rem;
+    font-size: 0.6rem;
+  }
+
+  .team-card {
+    display: none;
+  }
+
+  .inventory {
+    width: calc(100vw - 188px);
+  }
+
+  .inventory button {
+    min-height: 54px;
+    font-size: 0;
+  }
+
+  .inventory button kbd,
+  .inventory button small {
+    font-size: 0.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    transition: none;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

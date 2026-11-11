@@ -1,0 +1,265 @@
+:root {
+  color-scheme: light;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ink: #172b3d;
+  --ink-soft: #526474;
+  --navy: #163b59;
+  --navy-dark: #0d2a42;
+  --teal: #0f766e;
+  --teal-dark: #0b5e58;
+  --gold: #d5a83e;
+  --canvas: #f4f6f3;
+  --surface: #fffefa;
+  --surface-muted: #edf2ef;
+  --line: #d5dedb;
+  --line-strong: #aebdb8;
+  --focus: #f0b429;
+  --danger: #982f2a;
+  --radius: 0.75rem;
+  --shadow: 0 1px 2px rgb(13 42 66 / 0.08), 0 10px 28px rgb(13 42 66 / 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 20rem;
+  background: var(--canvas);
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: var(--teal-dark);
+  text-underline-offset: 0.16em;
+}
+
+a:hover {
+  color: var(--navy-dark);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--navy-dark);
+  line-height: 1.18;
+  letter-spacing: -0.018em;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip: rect(0, 0, 0, 0);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--navy-dark);
+  font-weight: 750;
+  transform: translateY(-180%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.topbar {
+  border-bottom: 1px solid rgb(255 255 255 / 0.15);
+  background: var(--navy-dark);
+  color: white;
+}
+
+.topbar__inner,
+.app-main,
+.site-footer__inner {
+  width: min(100% - 2rem, 74rem);
+  margin-inline: auto;
+}
+
+.topbar__inner {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: white;
+  font-weight: 780;
+  letter-spacing: -0.025em;
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: white;
+}
+
+.brand__mark {
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.55);
+  border-radius: 0.5rem;
+  background: var(--teal);
+  box-shadow: inset 0 -2px rgb(0 0 0 / 0.12);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.brand__name {
+  font-size: 1.08rem;
+}
+
+.topbar__context {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.85rem;
+}
+
+.topbar__workspace {
+  color: #dce7ec;
+}
+
+.topbar__identity {
+  max-width: 15rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid rgb(255 255 255 / 0.25);
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+}
+
+.app-main {
+  flex: 1;
+  padding-block: clamp(1.5rem, 4vw, 3.5rem);
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  background: #e9eeeb;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.site-footer__inner {
+  display: flex;
+  min-height: 4.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.portal-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.stack--large {
+  gap: 1.5rem;
+}
+
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.form-grid {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.form-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+.eyebrow {
+  margin-bottom: 0.35rem;
+  color: var(--teal-dark);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}

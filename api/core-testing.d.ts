@@ -1,4 +1,5 @@
-import { Clock, MirrorSource, Scheduler, Transport } from "@openwizard/core";
+import { Clock, Scheduler } from "@openwizard/core";
+import { MirrorSource, Transport } from "@openwizard/core/mirror";
 //#region src/interpreter/test-scheduler.d.ts
 /**
  * Virtual-time scheduler + clock for tests (what `createTestScheduler()` returns): `advance(ms)`
@@ -39,7 +40,8 @@ interface LocalTransportOptions {
 }
 /**
  * Loopback transport over a `MirrorSource` (same process, no wire). With the defaults, frames
- * reach the Mirror synchronously on every commit and `send` resolves with the source's ack.
+ * reach the Mirror synchronously on every commit, `send` resolves with the source's ack, and the
+ * source's `dispose()` closes the stream (`onClose`).
  * @public
  */
 declare function createLocalTransport<S>(source: MirrorSource<S>, options?: LocalTransportOptions): Transport<S>;

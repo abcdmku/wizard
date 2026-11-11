@@ -2,7 +2,7 @@
  * Saga (§5.2 / plan §8.5) — grace period, resume during settle, repeated completions and timeouts.
  */
 import { describe, expect, it } from 'vitest'
-import { createHarness, final, flow, flowStep, of, task, view } from '../helpers/fixtures'
+import { createHarness, flow, flowStep, of, routingStep, runStep, view } from '../helpers/fixtures'
 
 const comp = () => undefined
 
@@ -11,14 +11,14 @@ const saga = (opts: { boomRetry?: number } = {}) =>
   flow({
     start: 't1',
     steps: {
-      t1: task({ compensate: comp, next: 't2' }),
-      t2: task({ compensate: comp, next: 't3' }),
-      t3: task({ compensate: comp, next: 'boom' }),
-      boom: task({
+      t1: runStep({ compensate: comp, next: 't2' }),
+      t2: runStep({ compensate: comp, next: 't3' }),
+      t3: runStep({ compensate: comp, next: 'boom' }),
+      boom: runStep({
         next: 'end',
         ...(opts.boomRetry !== undefined ? { retry: { attempts: opts.boomRetry } } : {}),
       }),
-      end: final(),
+      end: routingStep(),
     },
     policies: { onFailure: 'compensate' },
   })
@@ -35,9 +35,9 @@ describe('review follow-ups — grace, resume during settle, repeated completion
     flow({
       start: ['a', 'b'],
       steps: {
-        a: task({ compensate: comp, next: 'end' }),
-        b: task({ compensate: comp, next: 'end' }),
-        end: final({ dependsOn: ['a', 'b'] }),
+        a: runStep({ compensate: comp, next: 'end' }),
+        b: runStep({ compensate: comp, next: 'end' }),
+        end: routingStep({ dependsOn: ['a', 'b'] }),
       },
       policies: { onFailure: 'compensate', compensationGraceMs: 5_000 },
     })
@@ -105,9 +105,9 @@ describe('review follow-ups — grace, resume during settle, repeated completion
       flow({
         start: 't',
         steps: {
-          t: task({ compensate: comp, timeoutMs: 700, next: 'u' }),
-          u: task(),
-          end: final(),
+          t: runStep({ compensate: comp, timeoutMs: 700, next: 'u' }),
+          u: runStep(),
+          end: routingStep(),
         },
         policies: { onFailure: 'compensate' },
       }),
@@ -124,10 +124,10 @@ describe('review follow-ups — grace, resume during settle, repeated completion
         start: 'v',
         steps: {
           v: view({ next: 't' }),
-          t: task({ compensate: comp, next: 'w' }),
+          t: runStep({ compensate: comp, next: 'w' }),
           w: view({ next: 'boom' }),
-          boom: task({ next: 'end' }),
-          end: final(),
+          boom: runStep({ next: 'end' }),
+          end: routingStep(),
         },
         policies: { onFailure: 'compensate' },
       }),
@@ -170,14 +170,14 @@ describe('review follow-ups — grace, resume during settle, repeated completion
   })
 
   it('a done child summary during parent compensation is not a success; only phase:compensated (or failed/cancelled) completes the entry', () => {
-    const child = flow({ name: 'child', start: 'x', steps: { x: final() } })
+    const child = flow({ name: 'child', start: 'x', steps: { x: routingStep() } })
     const h = createHarness(
       flow({
         start: 'sub',
         steps: {
           sub: flowStep(child, { compensate: comp, next: 'boom' }),
-          boom: task({ next: 'end' }),
-          end: final(),
+          boom: runStep({ next: 'end' }),
+          end: routingStep(),
         },
         policies: { onFailure: 'compensate' },
       }),

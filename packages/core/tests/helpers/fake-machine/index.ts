@@ -6,7 +6,7 @@
  * - `createToyMachine()` is a small but real `Machine` (decide/apply/plan)
  *   covering start, next (with `canExit`), tasks (`run` + timeout), waits
  *   (`on` + timeout timers), inbox buffering, decisions-as-static-next,
- *   flow steps (child bridge), final, cancel, retry, reset, resume and
+ *   flow steps (child bridge), sinks, cancel, retry, reset, resume and
  *   `context.patch`. Every hook result goes through the real token check.
  *   Tests can override `decide` / `plan` per case to script edge cases.
  *
@@ -85,6 +85,21 @@ export function flow(spec: FlowSpec): CompiledFlow {
   const order = Object.keys(spec.steps)
   const steps: Record<string, CompiledStep> = {}
   for (const id of order) steps[id] = step(id, spec.steps[id]!)
+  const feeds: Record<string, string[]> = {}
+  for (const id of order) {
+    for (const need of Object.values(steps[id]!.needs ?? {})) {
+      for (const producer of need.steps) {
+        feeds[producer] ??= []
+        const consumers = feeds[producer]
+        if (!consumers.includes(id)) consumers.push(id)
+      }
+    }
+  }
+  const sinks = order.filter((id) => {
+    const next = steps[id]!.next
+    const successors = next.kind === 'none' ? [] : (next.targets ?? [])
+    return successors.length === 0 && (feeds[id]?.length ?? 0) === 0
+  })
   return {
     name: spec.name ?? 'test-flow',
     version: spec.version ?? 1,
@@ -93,6 +108,8 @@ export function flow(spec: FlowSpec): CompiledFlow {
     steps,
     order,
     start: spec.start ?? [order[0]!],
+    feeds,
+    sinks,
     policies: {
       onFailure: 'halt',
       autoRun: 'ready',
@@ -165,17 +182,26 @@ export interface ToyOverrides {
 }
 
 export function createToyMachine(overrides: ToyOverrides = {}): Machine {
-  const base: Machine = { decide: toyDecide, apply: toyApply, plan: toyPlan }
+  const apply: Machine['apply'] = (env, state, event) =>
+    overrides.apply?.(env, state, event, () => toyApply(env, state, event)) ??
+    toyApply(env, state, event)
   return {
-    decide: (env, state, msg) =>
-      overrides.decide?.(env, state, msg, () => base.decide(env, state, msg)) ??
-      base.decide(env, state, msg),
-    apply: (env, state, event) =>
-      overrides.apply?.(env, state, event, () => base.apply(env, state, event)) ??
-      base.apply(env, state, event),
+    // The toy decides bodies; the decision folds them like the real machine's batch does.
+    decide: (env, state, msg) => {
+      const events =
+        overrides.decide?.(env, state, msg, () => toyDecide(env, state, msg)) ??
+        toyDecide(env, state, msg)
+      const at = env.now()
+      let next = state
+      events.forEach((body, i) => {
+        next = apply(env, next, { ...body, seq: state.seq + i + 1, at, path: env.path })
+      })
+      return { events, state: next, at }
+    },
+    apply,
     plan: (env, state, batch) =>
-      overrides.plan?.(env, state, batch, () => base.plan(env, state, batch)) ??
-      base.plan(env, state, batch),
+      overrides.plan?.(env, state, batch, () => toyPlan(env, state, batch)) ??
+      toyPlan(env, state, batch),
   }
 }
 
@@ -190,6 +216,7 @@ export function testEnv(
     def,
     path: [],
     now: () => t,
+    random: () => 0.5,
     id: (prefix) => {
       const n = (counters.get(prefix) ?? 0) + 1
       counters.set(prefix, n)

@@ -1,0 +1,91 @@
+name: openwizard-dungeon
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DUNGEON_DB_NAME:-dungeon}
+      POSTGRES_USER: ${DUNGEON_DB_USER:-dungeon}
+      POSTGRES_PASSWORD: ${DUNGEON_DB_PASSWORD:-local-only}
+    ports:
+      - "${DUNGEON_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - dungeon-postgres-data:/var/lib/postgresql/data
+    networks:
+      - dungeon
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  dungeon-api:
+    build:
+      context: ../..
+      dockerfile: systems/04-dungeon/server/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: 0.0.0.0
+      PORT: 8080
+      DATABASE_URL: postgresql://${DUNGEON_DB_USER:-dungeon}:${DUNGEON_DB_PASSWORD:-local-only}@postgres:5432/${DUNGEON_DB_NAME:-dungeon}
+      DUNGEON_DATABASE_URL: postgresql://${DUNGEON_DB_USER:-dungeon}:${DUNGEON_DB_PASSWORD:-local-only}@postgres:5432/${DUNGEON_DB_NAME:-dungeon}
+      SESSION_SECRET: ${DUNGEON_SESSION_SECRET:-local-session-secret-change-me}
+      JWT_SECRET: ${DUNGEON_JWT_SECRET:-local-jwt-secret-change-me}
+      DUNGEON_JWT_SECRET: ${DUNGEON_JWT_SECRET:-local-jwt-secret-change-me}
+      SEED_KEY: ${DUNGEON_SEED_KEY:-local-seed-key}
+      DUNGEON_SEED_KEY: ${DUNGEON_SEED_KEY:-local-seed-key}
+      CORS_ORIGIN: ${DUNGEON_CORS_ORIGIN:-http://localhost:4400}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8080"
+    ports:
+      - "${DUNGEON_API_PORT:-4410}:8080"
+    networks:
+      dungeon:
+        aliases:
+          - dungeon-server
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "fetch('http://127.0.0.1:8080/health').then((r) =>
+          process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  web:
+    build:
+      context: ../..
+      dockerfile: systems/04-dungeon/web/Dockerfile
+      args:
+        VITE_API_URL: ${DUNGEON_BROWSER_API_URL:-http://localhost:4410}
+        VITE_WS_URL: ${DUNGEON_BROWSER_WS_URL:-/ws}
+    depends_on:
+      dungeon-api:
+        condition: service_healthy
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${DUNGEON_WEB_PORT:-4400}:80"
+    networks:
+      - dungeon
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  dungeon-postgres-data:
+    name: ${DUNGEON_DB_VOLUME:-openwizard-dungeon-postgres}
+
+networks:
+  dungeon:
+    name: ${DUNGEON_NETWORK_NAME:-openwizard-dungeon}
+    driver: bridge

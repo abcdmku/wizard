@@ -4,8 +4,8 @@
 
 ### Minor Changes
 
-- Add the stable Effect 3.22 task adapter, typed durable failures, and native
-  Effect helpers for starting and awaiting a FlowRun.
+- Add the original Effect 3.22 task adapter, typed durable failures, and native Effect helpers for
+  starting and awaiting a FlowRun.
 
 ### Patch Changes
 

@@ -5,15 +5,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   createHarness,
-  decision,
-  final,
+  eventStep,
   flow,
   flowStep,
   of,
   replay,
-  task,
+  routingStep,
+  runStep,
   view,
-  wait,
 } from '../helpers/fixtures'
 
 const on = () => undefined
@@ -70,7 +69,7 @@ describe('on — routing to every kind', () => {
         start: 'v',
         steps: {
           v: view({ canExit: yes, on: { ping: on }, next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
         policies: { unmatchedEvents: { buffer: false, ttlMs: 500 } },
       }),
@@ -103,7 +102,7 @@ describe('on — routing to every kind', () => {
         start: 'v',
         steps: {
           v: view({ canExit: yes, on: { go: on }, next: 'end' }),
-          end: final(),
+          end: routingStep(),
         },
       }),
     )
@@ -124,9 +123,9 @@ describe('on — routing to every kind', () => {
       flow({
         start: 't',
         steps: {
-          t: task({ on: { progress: on }, next: 'end' }),
-          other: final(),
-          end: final(),
+          t: runStep({ on: { progress: on }, next: 'end' }),
+          other: routingStep(),
+          end: routingStep(),
         },
       }),
     )
@@ -145,27 +144,28 @@ describe('on — routing to every kind', () => {
     h.cmd({ type: 'send', event: 'progress', payload: 43 })
     expect(h.ok(h.call('on', 't'), undefined).types).toEqual([])
     h.ok(h.call('run', 't'), 'ok')
+    h.step({ type: 'settle' })
     expect(h.state.status).toBe('done')
     expect(h.rec('other').status).toBe('idle')
   })
 
-  it('raw results a kind cannot honour are ignored (reason: kind) — decision / flow / final, a view returning keep / done / fail; a view { next: typo } fails the view (UNKNOWN_STEP)', () => {
-    const child = flow({ start: 'end', steps: { end: final() } })
+  it('passive handler results that a step cannot honor are ignored; unknown view routing fails the view', () => {
+    const child = flow({ start: 'end', steps: { end: routingStep() } })
     const h = createHarness(
       flow({
         start: ['v', 'd', 'f', 'z'],
         steps: {
           v: view({ on: { e: on }, next: 'end' }),
-          d: decision({ on: { e: on }, decide: () => null }),
+          d: routingStep({ on: { e: on }, decide: () => null, targets: ['end'] }),
           f: flowStep(child, { on: { e: on }, next: 'end' }),
-          z: final({ output: on, on: { e: on } }),
-          end: final(),
+          z: runStep({ run: on, on: { e: on } }),
+          end: routingStep(),
         },
       }),
     )
     h.start()
     h.ok(h.call('childContext', 'f'), {})
-    // `d`'s next hook and `z`'s output hook are still pending: every step is active and listening.
+    // The next and run hooks are still pending, so every step is active and listening.
     h.cmd({ type: 'send', event: 'e', payload: 1 })
     const results: Record<string, unknown> = {
       v: { keep: true },
@@ -188,7 +188,7 @@ describe('on — routing to every kind', () => {
     expect(h.ok(h.call('on', 'v'), { next: null }).types).toEqual([])
     h.cmd({ type: 'send', event: 'e', payload: 3 })
     const bad = h.ok(h.call('on', 'v'), { next: 'typo' })
-    expect(bad.types).toEqual(['step.failed', 'flow.failed'])
+    expect(bad.types).toEqual(['step.failed', 'flow.halted'])
     expect(of(bad, 'step.failed')[0]).toMatchObject({
       step: 'v',
       kind: 'hook',
@@ -202,9 +202,9 @@ describe('on — routing to every kind', () => {
       flow({
         start: ['t', 'w'],
         steps: {
-          t: task({ on: { e: on }, next: 'end' }),
-          w: wait({ on: { e: on }, next: 'end' }),
-          end: final({ dependsOn: ['t', 'w'] }),
+          t: runStep({ on: { e: on }, next: 'end' }),
+          w: eventStep({ on: { e: on }, next: 'end' }),
+          end: routingStep({ dependsOn: ['t', 'w'] }),
         },
       }),
     )
@@ -219,7 +219,7 @@ describe('on — routing to every kind', () => {
       error: { message: 'task handler bug' },
     })
     expect(h.rec('t').status).toBe('active')
-    expect(h.err(forW!, 'wait handler bug').types).toEqual(['step.failed', 'flow.failed'])
+    expect(h.err(forW!, 'wait handler bug').types).toEqual(['step.failed', 'flow.halted'])
   })
 
   it('a task drains buffered events when it starts (one per drain), then the next after each handler result', () => {
@@ -228,8 +228,8 @@ describe('on — routing to every kind', () => {
         start: 'v',
         steps: {
           v: view({ next: 't' }),
-          t: task({ on: { tick: on }, next: 'end' }),
-          end: final(),
+          t: runStep({ on: { tick: on }, next: 'end' }),
+          end: routingStep(),
         },
       }),
     )

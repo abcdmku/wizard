@@ -1,0 +1,222 @@
+.workflow-section {
+  padding: 1.3rem 0;
+}
+.live-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #4e6d3e;
+  font-size: 0.64rem;
+  font-weight: 750;
+}
+.live-chip > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #78a84c;
+  box-shadow: 0 0 0 4px rgba(120, 168, 76, 0.12);
+}
+.customer-workflow {
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.workflow-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 0.65rem;
+  min-height: 64px;
+  padding-bottom: 0.8rem;
+}
+.workflow-stage:not(:last-child)::before {
+  position: absolute;
+  z-index: 0;
+  top: 28px;
+  bottom: -2px;
+  left: 14px;
+  width: 1px;
+  background: #d8ddd4;
+  content: "";
+}
+.stage-marker {
+  z-index: 1;
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d7ddd1;
+  border-radius: 50%;
+  background: #f8f9f4;
+  color: #5b6a63;
+}
+.stage-content {
+  min-width: 0;
+  padding: 0.3rem 0.15rem 0;
+}
+.stage-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.stage-title-row > span {
+  display: grid;
+  gap: 0.15rem;
+}
+.stage-title-row strong {
+  font-size: 0.75rem;
+}
+.stage-title-row small {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.parallel-stage {
+  padding-bottom: 1rem;
+}
+.parallel-branches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+}
+.branch-card {
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fafbf7;
+}
+.branch-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.branch-card strong {
+  font-size: 0.7rem;
+}
+.branch-card > span {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+.branch-running {
+  border-color: #bed8df;
+  background: #f1f8fa;
+}
+.branch-failed {
+  border-color: #e8bcb2;
+  background: #fff4f1;
+}
+.branch-compensating,
+.branch-compensated {
+  border-color: #e1d1ab;
+  background: #fffaed;
+}
+.tracking-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.2rem;
+  padding: 0.8rem;
+  border: 1px solid #cce0e4;
+  border-radius: 10px;
+  background: #f3f9fa;
+}
+.tracking-icon {
+  width: 35px;
+  height: 35px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #dcecef;
+  color: #426d76;
+}
+.tracking-card > div {
+  display: grid;
+}
+.tracking-card small {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+.tracking-card strong {
+  font-size: 0.72rem;
+}
+.tracking-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #376878;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+.order-summary {
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.line-items {
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.line-items li {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #eceee8;
+}
+.line-items li:last-child {
+  border-bottom: 0;
+}
+.line-thumb {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #ecefe7;
+  color: #718076;
+}
+.line-items li > span:nth-child(2) {
+  display: grid;
+  gap: 0.15rem;
+}
+.line-items strong,
+.line-items li > span:last-child {
+  font-size: 0.7rem;
+}
+.line-items small {
+  color: var(--muted);
+  font-size: 0.6rem;
+}
+.cancel-zone {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 0.8rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+.confirm-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.confirm-row p {
+  max-width: 30rem;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+}
+.confirm-row > div {
+  display: flex;
+  gap: 0.5rem;
+}

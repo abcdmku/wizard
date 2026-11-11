@@ -1,49 +1,65 @@
-# How save and resume survive a restart
+# Save and resume
 
-A live run is a JavaScript object in one process. If that process stops, the object disappears. A snapshot records enough state to create a replacement run that continues from the same point.
-
-A snapshot includes the run id, flow name and version, context, step state, timers, event inbox, and child runs. It does not contain the flow definition or service clients. Your application supplies those again when it resumes.
+A live run belongs to one process. A snapshot records its state so another run object can continue after that process stops.
 
 ```ts file="packages/docs/snippets/learn/persistence.mts"
 ```
 
-Follow the ownership change in the example:
+1. `first` starts and waits at the `contact` view with a saved draft.
+2. `save()` writes the snapshot under `signup-1` and waits for storage.
+3. `dispose()` frees the old object. The stored snapshot stays.
+4. `signupFlow.resume(snapshot, options)` creates `second` using the same wizard definition.
+5. `second.next()` continues with the draft.
 
-1. `first` starts and waits at the `contact` view.
-2. `setInput()` stores an email draft in that step's state.
-3. `save()` waits until the snapshot has been written under `signup-1`.
-4. `dispose()` releases resources owned by the old in-memory run. It does not delete the stored snapshot.
-5. The application loads that snapshot and passes it to `resumeRun()` with the same `signupFlow` definition.
-6. `second` starts at the saved view with the saved draft, so `next()` can continue the signup.
+Each resume increments `run.epoch`, which distinguishes new snapshot and mirror frames from those emitted before resume.
 
-The second object is a new live run for the same persisted instance. Its `epoch` increases so stale commands from the older owner can be rejected.
+## What is saved
 
-## Choose when snapshots are written
+A snapshot includes the run id, definition name and version, context, step records, timers, buffered events, recent event ids, and child snapshots. Item work also retains its input list and finished results. The snapshot does not include the wizard definition or service dependencies.
 
-Pass a `store` to `createRun()` to enable persistence. By default, OpenWizard schedules a write after state changes. The store key is the run's `instanceId` unless you configure another key through the runtime options.
+Use the same wizard to resume and supply the services it still needs. Dependencies bound with `wizard.provide(deps)` are available when that wizard resumes a run too.
 
 ```ts
-const run = createRun(flow, {
-  context,
-  instanceId: 'run-42',
-  store,
-})
+const saved = await store.get('signup-1')
+const second = signupFlow.resume(saved, { store })
 ```
 
-Automatic saving is useful during normal progress, but the write may still be pending when your code continues. Call `save()` when the next operation depends on the snapshot already being durable. It writes the current snapshot immediately and waits for the store.
+Resume uses the original absolute timer deadlines. Each run handles overdue timers before recovering its own interrupted work. Finished steps and finished items stay finished; external calls interrupted before their result was saved require idempotent recovery. See [retries and idempotency](/advanced/recovery).
 
-Set `autoSave: 'off'` if your application wants full control and will call `save()` itself.
+## When snapshots are written
 
-Core's `createMemoryStore()` is useful for tests and examples. It loses everything when the process stops, so it does not demonstrate restart safety by itself.
+```ts
+const run = signupFlow.create({}, { instanceId: 'signup-1', store })
+```
 
-Implement the small `Store` interface for your database when one process at a time owns each run. The interface needs `get`, `set`, and `delete` for one snapshot per key.
+With a `store`, each state change schedules a write. Call `save()` when your next action requires that write to finish. Set `autoSave: 'off'` in run options to write only on `save()`.
 
-Core storage does not coordinate competing processes. Use [`@openwizard/durable`](/packages/durable) when several workers may try to run commands or timers for the same key. Use [`@openwizard/drizzle`](/packages/drizzle) to store that durable data in PostgreSQL or SQLite.
+`createMemoryStore()` is for tests and examples. For a database, implement `Store` with `get`, `set`, and `delete` for one snapshot per key.
 
-## Keep saved state serializable
+## Outcomes with snapshots
 
-Before a write, OpenWizard checks that the snapshot can survive a JSON round trip. Do not put functions, class instances, `Map`, database clients, or unhandled `Date` objects in context or step outputs.
+`wizard.run(input)` disposes its live run after reaching an outcome. A `waiting` or `halted` outcome carries the snapshot you need to continue:
 
-Store a date as an ISO string unless a schema boundary parses it back into a `Date` during resume. Put service clients in `deps`, which are not part of the snapshot. Pass the same dependency shape again when you call `resumeRun()`.
+```ts
+const outcome = await signupFlow.run({})
+if (outcome.status === 'waiting') {
+  const resumed = signupFlow.resume(outcome.snapshot)
+  await resumed.setInput('contact', { email: 'grace@example.com' })
+  await resumed.next()
+  resumed.dispose()
+}
+```
 
-If a value is not serializable, the write fails with `SNAPSHOT_NOT_SERIALIZABLE` and identifies its path. OpenWizard does this before calling the store so a broken snapshot does not silently replace a good one.
+`run.awaitOutcome()` gives the same outcome kinds while keeping an existing run alive. It is useful when your process owns the run and will send more input itself.
+
+## Keep it serializable
+
+Snapshots must survive a JSON round trip. Store dates as ISO strings and keep functions, class instances, `Map`, and `Date` out of context and outputs. Invalid data fails the write with `SNAPSHOT_NOT_SERIALIZABLE` and its path before the store overwrites anything.
+
+## One owner per run
+
+Core expects one process to own each run. When several workers can touch the same key, use [`@openwizard/durable`](/packages/durable) for leases, fencing, and command deduplication. [Snapshots and migrations](/advanced/persistence) covers stored state when the definition changes.
+
+## Next
+
+[Testing](/learn/testing) drives a run without a server, UI, or real time.

@@ -1,5 +1,5 @@
 /**
- * FlowRun runtime — subscriptions and snapshots, nested flows, dispose, and the sync-commit guarantee for `send()`.
+ * Run runtime — subscriptions and snapshots, nested flows, dispose, and the sync-commit guarantee for `send()`.
  */
 import { describe, expect, it } from 'vitest'
 import type { CompiledFlow } from '../../src/authoring/compiled'
@@ -45,7 +45,7 @@ const twoViews = (extra: Record<string, any> = {}) =>
     steps: {
       a: { kind: 'view', next: { kind: 'static', targets: ['b'] }, ...extra.a },
       b: { kind: 'view', next: { kind: 'static', targets: ['end'] }, ...extra.b },
-      end: { kind: 'final' },
+      end: { kind: 'step' },
     },
   })
 
@@ -95,18 +95,18 @@ describe('run runtime: nested flows', () => {
     name: 'child',
     steps: {
       t: {
-        kind: 'task',
+        kind: 'step',
         hooks: { run: ({ context }: any) => ({ echo: context }) },
         next: { kind: 'static', targets: ['cend'] },
       },
-      cend: { kind: 'final' },
+      cend: { kind: 'step' },
     },
   })
   const parent = flow({
     name: 'parent',
     steps: {
       f: { kind: 'flow', child, next: { kind: 'static', targets: ['end'] } },
-      end: { kind: 'final' },
+      end: { kind: 'step' },
     },
   })
 
@@ -124,16 +124,37 @@ describe('run runtime: nested flows', () => {
     expect(run.getSnapshot().children.f?.instanceId).toBe(c.id)
   })
 
+  it('after dispose: child() returns the disposed child, attach() never calls its source, listeners are inert (D20)', async () => {
+    const { run } = make(parent)
+    await run.start()
+    const live = run.child('f')
+    run.dispose()
+    expect(run.child('f')).toBe(live)
+    expect(await live.start()).toEqual({
+      ok: false,
+      code: 'DISPOSED',
+      message: 'the run is disposed; create or resume a new run',
+    })
+    let called = false
+    const detach = run.attach(() => {
+      called = true
+      return () => {}
+    })
+    detach()
+    expect(called).toBe(false)
+    expect(run.observe(() => {})).toBeTypeOf('function')
+  })
+
   it('dispatch({ type: "child" }) goes through the parent FIFO: the parent machine gates it and plans child.send', async () => {
     const asyncChild = flow({
       name: 'child',
       steps: {
         w: {
-          kind: 'wait',
-          hooks: { on: { ping: () => ({ done: 'pinged' }) } },
+          kind: 'step',
+          hooks: { waitFor: { ping: () => ({ done: 'pinged' }) } },
           next: { kind: 'static', targets: ['cend'] },
         },
-        cend: { kind: 'final' },
+        cend: { kind: 'step' },
       },
     })
     const p = flow({
@@ -141,16 +162,16 @@ describe('run runtime: nested flows', () => {
       events: { ping: stringsBoundary('id') },
       steps: {
         f: { kind: 'flow', child: asyncChild, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'final' },
+        end: { kind: 'step' },
       },
     })
     const { run, events } = make(p)
     // Not started yet: the toy machine rejects (terminal/idle gates live in the parent machine).
     expect(
-      await run.dispatch({ type: 'child', path: ['end'], command: { type: 'runReady' } }),
+      await run.dispatch({ type: 'child', path: ['end'], command: { type: 'startReady' } }),
     ).toMatchObject({ ok: false, code: 'NOT_A_FLOW_STEP' })
     expect(
-      await run.dispatch({ type: 'child', path: ['f'], command: { type: 'runReady' } }),
+      await run.dispatch({ type: 'child', path: ['f'], command: { type: 'startReady' } }),
     ).toMatchObject({ ok: false, code: 'NOT_ACTIVE' })
     await run.start()
     const seqBefore = run.getState().seq
@@ -193,15 +214,21 @@ describe('run runtime: dispose', () => {
     const pending = run.next()
     run.dispose()
     expect(run.isDisposed()).toBe(true)
-    expect(await pending).toEqual({
+    const disposedNav = {
       ok: false,
       reason: 'failed',
       code: 'DISPOSED',
-      message: 'run disposed',
+      message: 'the run is disposed; create or resume a new run',
+    }
+    expect(await pending).toEqual(disposedNav)
+    // D20: after dispose every command resolves a DISPOSED value; subscriptions are inert.
+    expect(await run.next()).toEqual(disposedNav)
+    expect(await run.dispatch({ type: 'start' })).toEqual({
+      ok: false,
+      code: 'DISPOSED',
+      message: 'the run is disposed; create or resume a new run',
     })
-    await expect(run.next()).rejects.toMatchObject({ code: 'DISPOSED' })
-    await expect(run.dispatch({ type: 'start' })).rejects.toMatchObject({ code: 'DISPOSED' })
-    expect(() => run.subscribe(() => {})).toThrow(WizardError)
+    expect(run.subscribe(() => {})).toBeTypeOf('function')
     // Reads still work for post-mortem.
     expect(run.getState().current).toBe('a')
     run.dispose() // idempotent
@@ -211,11 +238,11 @@ describe('run runtime: dispose', () => {
     const def = flow({
       steps: {
         t: {
-          kind: 'task',
+          kind: 'step',
           hooks: { run: async () => 1 },
           next: { kind: 'static', targets: ['end'] },
         },
-        end: { kind: 'final' },
+        end: { kind: 'step' },
       },
     })
     const { run } = make(def, { strict: 'sync' })
@@ -249,9 +276,11 @@ describe('run runtime: dispose', () => {
       ok: false,
       reason: 'dropped',
       code: 'DISPOSED',
-      message: 'run disposed',
+      message: 'the run is disposed; create or resume a new run',
     })
-    await expect(validating).rejects.toMatchObject({ code: 'DISPOSED' })
+    expect(await validating).toEqual([
+      { message: 'the run is disposed; create or resume a new run' },
+    ])
     expect(signal?.aborted).toBe(true)
     // The abandoned boundary settling later is harmless (handlers attached; nothing enqueued).
     releaseBoundary({ ok: true, value: {} })
@@ -267,11 +296,11 @@ describe('run runtime: sync-commit guarantee for send()', () => {
       events: { ping: stringsBoundary('id') },
       steps: {
         w: {
-          kind: 'wait',
-          hooks: { on: { ping: () => ({ done: 'ok' }) } },
+          kind: 'step',
+          hooks: { waitFor: { ping: () => ({ done: 'ok' }) } },
           next: { kind: 'static', targets: ['end'] },
         },
-        end: { kind: 'final' },
+        end: { kind: 'step' },
       },
     })
     const { run, events } = make(def)

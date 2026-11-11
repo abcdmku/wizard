@@ -1,20 +1,39 @@
 # Devtools
 
-`@openwizard/devtools` helps answer questions such as "why is this step waiting?" and "which event changed the context?" It renders the flow graph, current step records, event log, and replay timeline for a run-like source.
+`@openwizard/devtools` renders a run's flow graph, step records, event log, and replay timeline in a dockable React panel. You need it when you are asking "why is this step waiting?" or "which event changed the context?".
 
 ```sh
 npm install @openwizard/devtools @xyflow/react elkjs react react-dom
 ```
 
-Import the stylesheet once and render the panel with a live run:
-
 ```tsx file="packages/docs/snippets/packages/devtools.tsx"
 ```
 
-`source={run}` subscribes the panel to that run. The panel is closed by default, and `Ctrl+Shift+D` toggles it. Mount it somewhere that stays alive for as long as you want to inspect the run.
+1. Import `@openwizard/devtools/style.css` once, anywhere in the app.
+2. `<Devtools source={run} />` subscribes the panel to that run or mirror.
+3. The panel starts closed; `Ctrl+Shift+D` toggles it.
+4. Clicking a graph node opens the step inspector for that step.
+5. The timeline slider replays the state at any event `seq`.
 
-Devtools shows the data supplied by its source. In a local development screen, that may be the full run. In a browser connected to a server, use a projection and mirror so the client receives only approved fields.
+## Props and pieces
 
-Do not treat hiding the panel as an authorization boundary. Remove it from production builds or secure the data source with the same care as any other debugging endpoint.
+| Export | What it does |
+|---|---|
+| `Devtools` | The composite panel; `source` is a `Run` or a `Mirror` |
+| `defaultOpen`, `position`, `defaultSize` | Initial visibility, dock side, and size |
+| `hotkey` | Toggle shortcut; `false` disables it |
+| `theme` | `'system'`, or force light or dark |
+| `context`, `maxEvents` | Initial context for replay; event log cap |
+| `FlowGraph`, `EventLog`, `StepInspector`, `Timeline` | The panel's parts, usable on their own |
+| `buildGraphModel`, `layoutGraph` | Lower-level graph model and ELK layout |
+| `RunSource`, `isRunSource` | Local-run source contract and discriminator for custom panels |
 
-[Devtools API lookup](/api/devtools)
+## Boundaries
+
+Devtools shows whatever its source exposes. On a local development screen that is the full run. In a browser connected to a server, pass a mirror over a projection so the client receives only approved fields. Hiding the panel is not an authorization boundary; remove it from production builds or protect the data source like any other debugging endpoint.
+
+## Next
+
+See the [devtools example](/examples) for a full setup, or read [explain, observe, and replay](/advanced/operations) for the events and phases the panel reads.
+
+[Devtools API](/api/devtools)

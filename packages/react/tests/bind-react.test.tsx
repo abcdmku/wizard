@@ -1,5 +1,5 @@
 /**
- * `bindReact<typeof flow>()` over a real FlowRun: typed hooks, render counters (a step re-renders
+ * `bindReact<typeof wizard>()` over a real Run: typed hooks, render counters (a step re-renders
  * only when its slice changes), `useSelector` equality, stable action identities, errors outside
  * the Provider, StrictMode.
  */
@@ -95,7 +95,7 @@ const Status = {
   ),
 }
 
-describe('bindReact over a FlowRun', () => {
+describe('bindReact over a Run', () => {
   it('renders view → task → final through the hooks and re-renders only the touched slices', async () => {
     const { deps, release } = controlledDeps()
     const run = makeRun(deps)
@@ -191,7 +191,7 @@ describe('bindReact over a FlowRun', () => {
     expect(run.getState().steps.shipping.input).toEqual({ express: true })
     expect(seen.length).toBeGreaterThan(1)
     expect(new Set(seen).size).toBe(1) // one actions object per source
-    // NavResult (not the ack shape) comes back from a FlowRun source.
+    // NavResult (not the ack shape) comes back from a Run source.
     let nav: unknown
     await act(async () => {
       nav = await (seen[0] as ReturnType<typeof owFlow.useActions>).next()
@@ -248,7 +248,7 @@ describe('bindReact over a FlowRun', () => {
     expect(() => render(<Lost />)).toThrow(/useSnapshot\(\) must be used inside the <Provider>/)
   })
 
-  it('useActions carries the whole FlowRun sugar (start/run/reset/compensate, send with correlationId)', async () => {
+  it('useActions carries the whole Run sugar (start/run/reset/compensate, send with correlationId)', async () => {
     const run = makeRun()
     let actions: ReturnType<typeof owFlow.useActions> | undefined
     function Probe() {
@@ -261,7 +261,14 @@ describe('bindReact over a FlowRun', () => {
       </owFlow.Provider>,
     )
     if (actions === undefined) throw new Error('not rendered')
-    for (const name of ['start', 'run', 'reset', 'compensate', 'runReady', 'cancel'] as const) {
+    for (const name of [
+      'start',
+      'startStep',
+      'reset',
+      'compensate',
+      'startReady',
+      'cancel',
+    ] as const) {
       expect(typeof actions[name]).toBe('function')
     }
     await act(async () => {

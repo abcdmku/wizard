@@ -1,13 +1,11 @@
-import { defineFlow } from '@openwizard/core'
+import { defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
-const hello = defineFlow({
-  name: 'hello',
-  context: z.object({ name: z.string() }),
-})
-
-export const helloFlow = hello.steps({
-  done: hello.final({
-    output: ({ context }) => `Hello, ${context.name}!`,
-  }),
-})
+export const helloFlow = defineWizard(
+  { name: 'hello', context: z.object({ name: z.string() }) },
+  ({ step, steps }) =>
+    steps({
+      // With one sink and no output selector, the wizard returns this step's result.
+      greet: step({ run: ({ context }) => `Hello, ${context.name}!` }),
+    }),
+)

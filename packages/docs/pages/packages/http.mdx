@@ -1,0 +1,52 @@
+# HTTP
+
+`@openwizard/http` turns a wizard into HTTP routes: a run API, signed webhook receivers and outbound callbacks, with an OpenAPI 3.1 document. You need it when browsers, other services or webhook senders talk to a run.
+
+```sh
+npm install @openwizard/http @openwizard/core
+```
+
+```ts file="packages/docs/snippets/packages/http.ts"
+```
+
+1. `createHTTP` generates only the routes `access` lists; nothing is exposed by default.
+2. A carrier POSTs a signed `delivered` webhook to `/webhooks/delivery/delivered`.
+3. The receiver verifies the signature, then `resolve` finds the run.
+4. The receiver hashes its identity and `webhook-id` into an event id, so delivery ids from different receivers do not collide.
+5. The flow's event schema validates the payload before the wait handler sees it.
+
+## Exports
+
+| Export | What it does |
+|---|---|
+| `createHTTP(wizard, options)` | Run API (`runs`, `auth`, `access`) and signed receivers (`receive`) with `fetch` and `openAPI` |
+| `combineHTTP(sources, options?)` | Serves several `createHTTP` results and subscriptions as one handler and one document |
+| `createWebhookSubscriptions(options)` | Outgoing callbacks for a declared allowlist of public events |
+| `createMemoryWebhookStore()`, `createMemoryIdempotencyStore()` | In-memory stores for tests and single processes |
+| `createBearerScopeProvider`, `createOAuth2ScopeProvider` | Authentication and scope checks for generated routes |
+| `httpTransport(url)` | A Mirror transport from `@openwizard/http/client`: a typed browser client without code generation |
+| `withNitro(config, options)` | Nitro adapter from `@openwizard/http/nitro` |
+
+Pass the wizard directly to `createHTTP`; the returned handler's `wizard` property points to it. Import `createMirror` from `@openwizard/core/mirror` and pair it with `httpTransport` for a typed browser client.
+
+## Retries and durable handles
+
+`Idempotency-Key` identifies an API write; `webhook-id` identifies a signed delivery. HTTP hashes each id with its tenant, route, and receiver scope before forwarding it. A refused request that the run never recorded can be retried. Stored answers replay for repeated keys.
+
+Return a durable handle from `runs.get` or a receiver's `resolve` so writes pass through the host's lease and deduplication gates. If a command was applied before a crash and its final result cannot be recovered, the response is HTTP 409 `IDEMPOTENCY_INTERRUPTED`. Read the run state before deciding whether to send a new command with a new key.
+
+Set `optimisticConcurrency: true` on a mirror to reject commands based on an older frame. HTTP forwards the expected sequence to the run, which checks it after asynchronous payload validation. A concurrent state change returns `STALE`; a stored durable receipt still replays first.
+
+## Idempotency store adapters
+
+A successful `IdempotencyStore.claim(key, fingerprint)` returns a fresh `claimId`. Both `complete(key, claimId, response)` and `release(key, claimId)` must atomically compare that id with the live pending owner before changing the record. They return `false` after expiry, eviction, completion, or replacement. This prevents a delayed request from overwriting or releasing a newer request's claim.
+
+## Security
+
+A valid signature proves the sender knows the secret; it does not decide which tenant or run the sender may touch, so `resolve` must enforce that. Load secrets from your platform's secret manager, not from source. `maxBodyBytes` defaults to 1 MiB for receivers and 64 KiB for the run API. `validateWebhookEndpoint()` rejects obvious SSRF targets for outgoing callback URLs.
+
+## Next
+
+Read [external events](/advanced/events) for how `waitFor` consumes what the webhook delivers.
+
+[HTTP API](/api/http)

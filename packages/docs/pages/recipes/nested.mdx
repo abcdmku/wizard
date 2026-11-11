@@ -1,30 +1,44 @@
 # Use a child flow
 
-Use a `flow` step when one stage of a larger workflow has its own workflow. A checkout may run an address flow that is also used by account settings.
-
-The parent and child remain separate runs. Each has its own context, steps, state, and final result.
+Use `flow(childWizard, config)` when one stage is a workflow of its own, such as an address wizard shared by checkout and account settings. Pass the child wizard itself.
 
 ```ts file="packages/docs/snippets/recipes/nested.ts"
 ```
 
-When the checkout reaches its `address` step, this happens:
+## What happens
 
-1. The parent's `context` function creates `{ city: context.city }` for the child.
-2. OpenWizard checks that object against the child flow's context schema.
-3. The child starts and the parent `address` step stays active.
-4. The child reaches its final step and returns the city.
-5. That value becomes the output of the parent's `address` step.
-6. The parent follows `next: 'done'`.
+1. The parent reaches `address` and calls `context` to build the child's input.
+2. OpenWizard checks that value against the child's context schema.
+3. The child runs with its own state while the parent step stays active.
+4. The child's completed output becomes the parent `address` step's output.
+5. The parent follows its declared `next`, or completes when this was its final step.
 
-The child does not automatically share the parent's context. The mapping function makes the data crossing that boundary explicit.
+## Separate runs, explicit data
 
-Get the live child after the parent step has started it:
+Parent and child each own their context, drafts, and step records. The `context` mapper supplies child input, and the child returns its completed output. A later parent step can consume it with `needs: { address }`.
+
+The child also needs its services. Dependencies bound with `childWizard.provide(deps)` travel with it. OpenWizard can use compatible parent dependencies for remaining services; when they do not satisfy the child's requirements, the `deps` mapper is required.
+
+A child halt halts the parent for recovery. `fallback` on the parent flow step can route around a halted or failed child instead. A parent `awaitOutcome()` includes waits in its children, with paths that identify the flow step.
+
+## Reach the live child
 
 ```ts
 const child = run.child('address')
-console.log(child.getState())
+child.getState()
+await child.next()
 ```
 
-The parent can send commands to that child object while it is live. A snapshot also stores active child runs so they can resume with the parent.
+`child()` accepts ids of `flow` steps. An ordinary child takes only its step id. Parent snapshots contain child snapshots, so children resume with the parent. Dispose the parent when you no longer need either run.
 
-Use a child flow when the child has several stages, its own tests, or more than one parent. A plain task is easier to understand for one function call.
+## Run a child for each item
+
+Add `each` when every item needs the same child workflow. The `context` and `deps` mappers receive `item` and `index`; `concurrency` bounds active item children. The parent step returns child outputs in input order and retains finished item results across resume.
+
+A mapped child requires a selector. Use `run.child('batch', 0)` for the first input item, or `run.child('batch', 'order-42')` for its configured item key. The selected child must be live. Public event and wait paths use the input index, such as `['batch', '0']`, even when you selected by key.
+
+Mirror commands use numeric indices, such as `mirror.child('batch', 0)`. React bindings also use `useChild('batch', 0)`. Ordinary children use `mirror.child('address')` or `useChild('address')` without a selector. See [React](/packages/react) for child bindings.
+
+After an item fails, `run.retry('batch')` retries failed items and keeps completed child results. The mapped flow step is part of `RetryStepId<typeof wizard>`.
+
+[Nested flows](/advanced/nested) covers snapshots, event paths, and live child access.

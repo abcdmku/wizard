@@ -9,14 +9,17 @@
 
 import { describeError, WizardError } from '../../errors'
 import { buildHookArgs } from '../../interpreter/hook-args'
-import { getThen } from '../../interpreter/thenable'
+import { isThenable } from '../../interpreter/thenable'
 import type { Command } from '../../machine/commands'
 import type { Issue } from '../../machine/state'
 import { decodeCommand } from '../parse-command'
 import type { CommandResult, NavResult, SendResult } from '../results'
 import type { RuntimeContext } from './context'
+import { issueText } from './messages'
 import {
   commandResult,
+  DISPOSED_ISSUES,
+  DISPOSED_NAV,
   DROPPED_DISPOSED,
   findRejected,
   navToCommandResult,
@@ -28,34 +31,40 @@ import {
   toNavResult,
 } from './results'
 import { terminalIn, toOutcome } from './transactions'
+import type { DispatchOptions, SendOptions } from './types'
 
 type MaybePromise<T> = T | Promise<T>
-
-function isPromiseLike<T>(value: MaybePromise<T>): value is Promise<T> {
-  return getThen(value) !== undefined
-}
 
 /** Continue synchronously when possible; otherwise chain. */
 function after<T, R>(
   value: MaybePromise<T>,
   fn: (resolved: T) => MaybePromise<R>,
 ): MaybePromise<R> {
-  return isPromiseLike(value) ? value.then(fn) : fn(value)
+  return isThenable(value) ? (value as Promise<T>).then(fn) : fn(value)
 }
 
 /** A promise that is already fulfilled for sync values (no extra tick). */
 function asPromise<T>(value: MaybePromise<T>): Promise<T> {
-  return isPromiseLike(value) ? value : Promise.resolve(value)
+  return isThenable(value) ? (value as Promise<T>) : Promise.resolve(value)
 }
 
 export interface Commands {
-  /** Reject on misuse (disposed / thrown), otherwise run — sync work yields an already-fulfilled promise. */
-  guarded<T>(fn: () => MaybePromise<T>): Promise<T>
+  /**
+   * Run a command — sync work yields an already-fulfilled promise; a throw (misuse) rejects.
+   * After `dispose()` nothing runs: the promise resolves with `disposed` (never a throw).
+   */
+  guarded<T>(fn: () => MaybePromise<T>, disposed: T): Promise<T>
   run(command: Command): Promise<CommandResult>
   nav(command: Command): Promise<NavResult>
-  send(event: string, payload: unknown, correlationId: string | undefined): MaybePromise<SendResult>
+  send(
+    event: string,
+    payload: unknown,
+    options: SendOptions | undefined,
+    source?: Command,
+    dispatchOptions?: DispatchOptions,
+  ): MaybePromise<SendResult>
   validate(step: string): MaybePromise<readonly Issue[]>
-  dispatch(input: Command): MaybePromise<CommandResult>
+  dispatch(input: Command, options?: DispatchOptions): MaybePromise<CommandResult>
 }
 
 export function createCommands(ctx: RuntimeContext): Commands {
@@ -66,8 +75,14 @@ export function createCommands(ctx: RuntimeContext): Commands {
    * before returning (the common case), otherwise a promise (re-entrant calls made from inside a
    * drain).
    */
-  const enqueue = (command: Command): MaybePromise<Processed> => {
+  const enqueue = (
+    command: Command,
+    source: Command = command,
+    result?: CommandResult,
+    options?: DispatchOptions,
+  ): MaybePromise<Processed> => {
     if (ctx.disposed) return { batch: [], seq: interp.getState().seq, disposed: true }
+    ctx.commandCommits.register(command, source, result)
     let sync: Processed | undefined
     let later: ((processed: Processed) => void) | undefined
     pendingMessages.set(command, (processed) => {
@@ -75,7 +90,7 @@ export function createCommands(ctx: RuntimeContext): Commands {
       else sync = processed
     })
     try {
-      interp.send(command)
+      interp.send(command, undefined, options?.expectedVersion)
     } catch (error) {
       pendingMessages.delete(command)
       throw error
@@ -88,18 +103,14 @@ export function createCommands(ctx: RuntimeContext): Commands {
 
   /**
    * Façade-side async work (a thenable boundary or validate hook) must not outlive the run:
-   * `dispose()` settles it with `onDisposed()`; the abandoned thenable keeps its handlers so it
-   * never rejects unhandled.
+   * `dispose()` resolves it with `onDisposed()` (a DISPOSED value, never a throw, D20); the
+   * abandoned thenable keeps its handlers so it never rejects unhandled.
    */
   const untilDisposed = <T>(work: Promise<T>, onDisposed: () => T): Promise<T> =>
     new Promise<T>((resolve, reject) => {
       const settle = (): void => {
         pendingOps.delete(settle)
-        try {
-          resolve(onDisposed())
-        } catch (error) {
-          reject(error)
-        }
+        resolve(onDisposed())
       }
       pendingOps.add(settle)
       work.then(
@@ -115,7 +126,7 @@ export function createCommands(ctx: RuntimeContext): Commands {
   /** The `NavResult` of a processed navigation command: settled in its batch, later in the drain, or on dispose. */
   const navResult = (processed: Processed): MaybePromise<NavResult> => {
     if (processed.disposed) {
-      return { ok: false, reason: 'failed', code: 'DISPOSED', message: 'run disposed' }
+      return DISPOSED_NAV
     }
     const rejected = findRejected(processed.batch)
     if (rejected !== undefined) return rejectedNavResult(rejected)
@@ -137,7 +148,9 @@ export function createCommands(ctx: RuntimeContext): Commands {
     return after(tx.await(txId), toNavResult)
   }
 
-  const send: Commands['send'] = (event, payload, correlationId) => {
+  const send: Commands['send'] = (event, payload, options, source, dispatchOptions) => {
+    const correlationId = options?.correlationId
+    const eventId = options?.eventId
     const boundary = def.events[event]
     if (boundary === undefined) {
       throw new WizardError('UNKNOWN_EVENT', `flow '${def.name}' declares no event '${event}'`)
@@ -147,27 +160,55 @@ export function createCommands(ctx: RuntimeContext): Commands {
       if (!parsed.ok) {
         const issues = parsed.issues
         return after(
-          enqueue({ type: 'sendRejected', event, issues }),
-          (): SendResult => ({
-            ok: false,
-            reason: 'rejected',
-            code: 'BOUNDARY_REJECTED',
-            message: 'payload rejected by the event boundary',
-            issues,
-          }),
+          enqueue(
+            { type: 'sendRejected', event, issues },
+            source,
+            {
+              ok: false,
+              code: 'BOUNDARY_REJECTED',
+              issues,
+              message: `the payload of '${event}' was rejected by its event boundary: ${issueText(issues)}`,
+            },
+            dispatchOptions,
+          ),
+          (processed): SendResult => {
+            const rejected = findRejected(processed.batch)
+            if (rejected?.code === 'STALE')
+              return {
+                ok: false,
+                reason: 'dropped',
+                code: rejected.code,
+                message: rejected.message,
+              }
+            return {
+              ok: false,
+              reason: 'rejected',
+              code: 'BOUNDARY_REJECTED',
+              message: `the payload of '${event}' was rejected by its event boundary: ${issueText(issues)}`,
+              issues,
+            }
+          },
         )
       }
       return after(
-        enqueue({
-          type: 'send',
-          event,
-          payload: parsed.value,
-          ...(correlationId !== undefined ? { correlationId } : {}),
-        }),
-        (processed) => sendResult(event, processed),
+        enqueue(
+          {
+            type: 'send',
+            event,
+            payload: parsed.value,
+            ...(correlationId !== undefined ? { correlationId } : {}),
+            ...(eventId !== undefined ? { eventId } : {}),
+          },
+          source,
+          undefined,
+          dispatchOptions,
+        ),
+        (processed) => sendResult(event, processed, eventId),
       )
     })
-    return isPromiseLike(routed) ? untilDisposed(routed, () => DROPPED_DISPOSED) : routed
+    return isThenable(routed)
+      ? untilDisposed(routed as Promise<SendResult>, () => DROPPED_DISPOSED)
+      : routed
   }
 
   const validate: Commands['validate'] = (step) => {
@@ -197,7 +238,9 @@ export function createCommands(ctx: RuntimeContext): Commands {
       const onError = (error: unknown): readonly Issue[] => [{ message: describeError(error) }]
       try {
         const result = hook(args)
-        return isPromiseLike(result) ? result.then(toIssues, onError) : toIssues(result)
+        return isThenable(result)
+          ? (result as Promise<unknown>).then(toIssues, onError)
+          : toIssues(result)
       } catch (error) {
         return onError(error)
       }
@@ -208,15 +251,15 @@ export function createCommands(ctx: RuntimeContext): Commands {
         : after(stepDef.input.parse(draft), (parsed) =>
             parsed.ok ? runHook(parsed.value) : parsed.issues,
           )
-    if (!isPromiseLike(issues)) return issues
-    return untilDisposed(issues, () => {
+    if (!isThenable(issues)) return issues
+    return untilDisposed(issues as Promise<readonly Issue[]>, () => {
       controller.abort(ctx.disposedError())
-      throw ctx.disposedError()
+      return DISPOSED_ISSUES
     })
   }
 
-  const dispatch: Commands['dispatch'] = (input) => {
-    const parsed = decodeCommand(input)
+  const dispatch: Commands['dispatch'] = (input, options) => {
+    const parsed = decodeCommand(input, def, false)
     if (!parsed.ok) {
       return {
         ok: false,
@@ -230,27 +273,30 @@ export function createCommands(ctx: RuntimeContext): Commands {
       case 'next':
       case 'back':
       case 'go':
-        return after(enqueue(command), (processed) =>
-          after(navResult(processed), navToCommandResult),
-        )
+        return after(enqueue(command, input, undefined, options), (processed) => {
+          const rejected = findRejected(processed.batch)
+          return rejected?.code === 'STALE'
+            ? rejected
+            : after(navResult(processed), navToCommandResult)
+        })
       case 'send':
         // The wire door runs the event boundary too (plan §1.3): a client cannot bypass it.
         if (def.events[command.event] === undefined) {
           return { ok: false, code: 'UNKNOWN_EVENT', message: `unknown event '${command.event}'` }
         }
         return after(
-          send(command.event, command.payload, command.correlationId),
+          send(command.event, command.payload, command, input, options),
           sendToCommandResult,
         )
       default:
         // `child` commands are ordinary commands: the parent machine gates them and plans `child.send`.
-        return after(enqueue(command), commandResult)
+        return after(enqueue(command, input, undefined, options), commandResult)
     }
   }
 
   return {
-    guarded(fn) {
-      if (ctx.disposed) return Promise.reject(ctx.disposedError())
+    guarded(fn, disposed) {
+      if (ctx.disposed) return Promise.resolve(disposed)
       try {
         return asPromise(fn())
       } catch (error) {

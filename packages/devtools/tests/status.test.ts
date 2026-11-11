@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { collectStatuses, overlayOf, runPhaseReader } from '../src/status'
-import { isFlowRunSource, stepKey } from '../src/types'
+import { isRunSource, stepKey } from '../src/types'
 import { makeMirror, makeRun, runToWait, settle } from './fixture'
 
 describe('collectStatuses / overlayOf', () => {
@@ -38,7 +38,7 @@ describe('collectStatuses / overlayOf', () => {
     const { run, mirror } = makeMirror()
     await runToWait(run)
     await settle()
-    expect(isFlowRunSource(mirror)).toBe(false)
+    expect(isRunSource(mirror)).toBe(false)
     const atWait = overlayOf(mirror, mirror.getSnapshot())
     expect(atWait.statuses.awaitPayment).toEqual({ status: 'active', phase: 'waiting' })
     expect(atWait.statuses.gate).toEqual({ status: 'done' })

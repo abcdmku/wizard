@@ -1,11 +1,11 @@
-import { propagation } from '@opentelemetry/api'
+import { propagation, ROOT_CONTEXT, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
-import { boundary, createRun, defineFlow, resumeRun } from '@openwizard/core'
+import { boundary, defineWizard } from '@openwizard/core'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { describe, expect, it } from 'vitest'
 import { instrumentRun } from '../src/index'
@@ -25,19 +25,12 @@ async function settle(): Promise<void> {
 
 describe('instrumentRun', () => {
   it('emits a workflow and task span without copying payloads or errors', async () => {
-    const privacy = defineFlow({
-      name: 'privacy',
-      version: 4,
-      context: boundary.trusted<{}>(),
-    })
-    const flow = privacy.steps(
-      {
-        charge: privacy.task(() => ({ secretOutput: 'do-not-export' }), { next: 'done' }),
-        done: privacy.final(),
-      },
-      { start: 'charge' },
+    const wizard = defineWizard(
+      { name: 'privacy', version: 4, context: boundary.trusted<{}>() },
+      ({ step, steps }) =>
+        steps({ charge: step({ run: () => ({ secretOutput: 'do-not-export' }) }) }),
     )
-    const run = createRun(flow, { context: {}, instanceId: 'order-42' })
+    const run = wizard.create({}, { instanceId: 'order-42' })
     const { exporter, tracer } = tracerFixture()
     const instrumentation = instrumentRun(run, { tracer })
 
@@ -65,23 +58,22 @@ describe('instrumentRun', () => {
 
   it('creates one task span for each retry attempt and closes it on stop', async () => {
     let calls = 0
-    const retry = defineFlow({ name: 'retry', context: boundary.trusted<{}>() })
-    const flow = retry.steps(
-      {
-        work: retry.task(
-          () => {
-            calls += 1
-            if (calls === 1) throw new Error('private failure')
-            return 'ok'
-          },
-          { retry: { attempts: 2, backoff: 5 }, next: 'done' },
-        ),
-        done: retry.final(),
-      },
-      { start: 'work' },
+    const wizard = defineWizard(
+      { name: 'retry', context: boundary.trusted<{}>() },
+      ({ step, steps }) =>
+        steps({
+          work: step({
+            run: () => {
+              calls += 1
+              if (calls === 1) throw new Error('private failure')
+              return 'ok'
+            },
+            retry: { attempts: 2, backoff: 5 },
+          }),
+        }),
     )
     const scheduler = createTestScheduler({ now: 100 })
-    const run = createRun(flow, { context: {}, scheduler })
+    const run = wizard.create({}, { scheduler })
     const { exporter, tracer } = tracerFixture()
     const instrumentation = instrumentRun(run, { tracer })
 
@@ -109,19 +101,18 @@ describe('instrumentRun', () => {
 
   it('links external event context and supports inject/extract helpers', async () => {
     propagation.setGlobalPropagator(new W3CTraceContextPropagator())
-    const external = defineFlow({
-      name: 'external',
-      context: boundary.trusted<{}>(),
-      events: { 'payment.captured': boundary.trusted<unknown>() },
-    })
-    const flow = external.steps(
+    const wizard = defineWizard(
       {
-        wait: external.wait({ on: { 'payment.captured': () => undefined }, next: 'done' }),
-        done: external.final(),
+        name: 'external',
+        context: boundary.trusted<{}>(),
+        events: { 'payment.captured': boundary.trusted<unknown>() },
       },
-      { start: 'wait' },
+      ({ step, steps }) =>
+        steps({
+          wait: step({ waitFor: { 'payment.captured': () => ({ done: true }) } }),
+        }),
     )
-    const run = createRun(flow, { context: {}, instanceId: 'external-1' })
+    const run = wizard.create({}, { instanceId: 'external-1' })
     const { exporter, tracer } = tracerFixture()
     const instrumentation = instrumentRun(run, { tracer })
     const incomingSpan = tracer.startSpan('incoming-request')
@@ -161,21 +152,16 @@ describe('instrumentRun', () => {
     ).not.toContain('secret-correlation')
   })
 
-  it('parents child workflow spans by path and links compensation to the task', async () => {
-    const childSpec = defineFlow({ name: 'child', context: boundary.trusted<{}>() })
-    const child = childSpec.steps(
-      { work: childSpec.task(() => 'child-output', { next: 'done' }), done: childSpec.final() },
-      { start: 'work' },
+  it('parents child workflow spans by path', async () => {
+    const child = defineWizard(
+      { name: 'child', context: boundary.trusted<{}>() },
+      ({ step, steps }) => steps({ work: step({ run: () => 'child-output' }) }),
     )
-    const parentSpec = defineFlow({ name: 'parent', context: boundary.trusted<{}>() })
-    const parent = parentSpec.steps(
-      {
-        child: parentSpec.flow(child, { context: () => ({}), next: 'done' }),
-        done: parentSpec.final(),
-      },
-      { start: 'child' },
+    const parent = defineWizard(
+      { name: 'parent', context: boundary.trusted<{}>() },
+      ({ flow, steps }) => steps({ child: flow(child, { context: () => ({}) }) }),
     )
-    const run = createRun(parent, { context: {} })
+    const run = parent.create({})
     const { exporter, tracer } = tracerFixture()
     const instrumentation = instrumentRun(run, { tracer })
     await run.start()
@@ -197,21 +183,116 @@ describe('instrumentRun', () => {
     expect(childSpan?.parentSpanContext?.spanId).toBe(root?.spanContext().spanId)
   })
 
-  it('links a compensation span to the completed task attempt', async () => {
-    const saga = defineFlow({
-      name: 'saga',
-      context: boundary.trusted<{}>(),
-      events: { abort: boundary.trusted<unknown>() },
-      onFailure: 'compensate',
-    })
-    const flow = saga.steps(
+  it('preserves delivery and correlation ids when an instrumented event is redelivered', async () => {
+    const wizard = defineWizard(
       {
-        reserve: saga.task(() => 'reserved', { next: 'hold', compensate: () => undefined }),
-        hold: saga.wait({ on: { abort: () => undefined } }),
+        name: 'delivery',
+        context: boundary.trusted<{ count: number }>(),
+        events: { paid: boundary.trusted<{ amount: number }>() },
       },
-      { start: 'reserve' },
+      ({ step, steps }) =>
+        steps({
+          tally: step({
+            waitFor: {
+              paid: ({ context, payload, update }) => {
+                update({ count: context.count + payload.amount })
+                return { keep: true }
+              },
+            },
+          }),
+        }),
     )
-    const run = createRun(flow, { context: {} })
+    const run = wizard.create({ count: 0 }, { correlationId: 'invoice-7' })
+    const { exporter, tracer } = tracerFixture()
+    const instrumentation = instrumentRun(run, { tracer })
+    const incoming = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId: '12345678901234567890123456789012',
+      spanId: '1234567890123456',
+      traceFlags: 1,
+    })
+    const options = { eventId: 'delivery-1', correlationId: 'invoice-7', context: incoming }
+    await run.start()
+    expect(await instrumentation.send('paid', { amount: 1 }, options)).toMatchObject({
+      ok: true,
+      delivered: ['tally'],
+    })
+    const seq = run.getState().seq
+    expect(await instrumentation.send('paid', { amount: 1 }, options)).toEqual({
+      ok: true,
+      duplicate: true,
+      delivered: [],
+      buffered: false,
+      seq,
+    })
+    expect(run.getState().context).toEqual({ count: 1 })
+    expect(
+      run
+        .log()
+        .filter((event) => event.type === 'event.received')
+        .map((event) => ({
+          event: event.event,
+          eventId: event.eventId,
+          correlationId: event.correlationId,
+        })),
+    ).toEqual([{ event: 'paid', eventId: 'delivery-1', correlationId: 'invoice-7' }])
+    instrumentation.stop()
+    const workflow = exporter.getFinishedSpans().find((span) => span.name === 'openwizard.workflow')
+    expect(
+      workflow?.links.filter(
+        (link) => link.attributes?.['openwizard.link.type'] === 'external-event',
+      ),
+    ).toHaveLength(1)
+    expect(
+      workflow?.events.filter((event) => event.name === 'openwizard.event.received'),
+    ).toHaveLength(1)
+    expect(JSON.stringify(workflow?.events)).not.toContain('delivery-1')
+    expect(JSON.stringify(workflow?.events)).not.toContain('invoice-7')
+    run.dispose()
+  })
+
+  it('traces tasks started through startStep and startReady', async () => {
+    const wizard = defineWizard(
+      { name: 'manual', context: boundary.trusted<{}>(), autoRun: 'manual' },
+      ({ step, steps }) =>
+        steps(
+          {
+            one: step({ run: () => 1 }),
+            two: step({ run: () => 2 }),
+          },
+          { start: ['one', 'two'] },
+        ),
+    )
+    const run = wizard.create({})
+    const { exporter, tracer } = tracerFixture()
+    const instrumentation = instrumentRun(run, { tracer })
+    await run.start()
+    await run.startStep('one')
+    await run.startReady()
+    instrumentation.stop()
+    expect(
+      exporter
+        .getFinishedSpans()
+        .filter((span) => span.name === 'openwizard.task')
+        .map((span) => span.attributes['openwizard.step']),
+    ).toEqual(['one', 'two'])
+    run.dispose()
+  })
+
+  it('links a compensation span to the completed task attempt', async () => {
+    const wizard = defineWizard(
+      {
+        name: 'saga',
+        context: boundary.trusted<{}>(),
+        events: { abort: boundary.trusted<unknown>() },
+        onFailure: 'compensate',
+      },
+      ({ step, steps }) =>
+        steps({
+          reserve: step({ run: () => 'reserved', next: 'hold', compensate: () => undefined }),
+          hold: step({ waitFor: { abort: () => ({ done: true }) } }),
+        }),
+    )
+    const run = wizard.create({})
     const { exporter, tracer } = tracerFixture()
     const instrumentation = instrumentRun(run, { tracer })
     await run.start()
@@ -229,16 +310,15 @@ describe('instrumentRun', () => {
   })
 
   it('links a resumed epoch and makes teardown idempotent', async () => {
-    const resume = defineFlow({
-      name: 'resume',
-      context: boundary.trusted<{}>(),
-      events: { ping: boundary.trusted<unknown>() },
-    })
-    const flow = resume.steps(
-      { wait: resume.wait({ on: { ping: () => undefined } }) },
-      { start: 'wait' },
+    const wizard = defineWizard(
+      {
+        name: 'resume',
+        context: boundary.trusted<{}>(),
+        events: { ping: boundary.trusted<unknown>() },
+      },
+      ({ step, steps }) => steps({ wait: step({ waitFor: { ping: () => ({ done: true }) } }) }),
     )
-    const first = createRun(flow, { context: {}, instanceId: 'resume-1' })
+    const first = wizard.create({}, { instanceId: 'resume-1' })
     const firstFixture = tracerFixture()
     const prior = instrumentRun(first, { tracer: firstFixture.tracer })
     await first.start()
@@ -246,7 +326,7 @@ describe('instrumentRun', () => {
     const priorContext = prior.context()
     prior.stop()
 
-    const resumed = resumeRun(flow, snapshot, {})
+    const resumed = wizard.resume(snapshot)
     const secondFixture = tracerFixture()
     const next = instrumentRun(resumed, {
       tracer: secondFixture.tracer,

@@ -50,8 +50,8 @@ function setup(
 const taskThenFinal = (run: (args: any) => unknown, extra: Record<string, unknown> = {}) =>
   flow({
     steps: {
-      t: { kind: 'task', hooks: { run }, next: { kind: 'static', targets: ['end'] }, ...extra },
-      end: { kind: 'final' },
+      t: { kind: 'step', hooks: { run }, next: { kind: 'static', targets: ['end'] }, ...extra },
+      end: { kind: 'step', hooks: { run: () => undefined } },
     },
   })
 
@@ -175,11 +175,11 @@ describe('interpreter: timers', () => {
     const def = flow({
       steps: {
         w: {
-          kind: 'wait',
-          hooks: { on: { ping: ({ payload }: any) => ({ done: { got: payload } }) } },
+          kind: 'step',
+          hooks: { waitFor: { ping: ({ payload }: any) => ({ done: { got: payload } }) } },
           waitTimeout: { afterMs: 1_000, next: 'end' },
         },
-        end: { kind: 'final' },
+        end: { kind: 'step', hooks: { run: () => undefined } },
       },
     })
     const { interp, sched, events } = setup(def)
@@ -197,8 +197,8 @@ describe('interpreter: timers', () => {
   it('fires the wait timeout at exactly `at` and routes to waitTimeout.next', () => {
     const def = flow({
       steps: {
-        w: { kind: 'wait', hooks: { on: {} }, waitTimeout: { afterMs: 300, next: 'end' } },
-        end: { kind: 'final' },
+        w: { kind: 'step', hooks: { waitFor: {} }, waitTimeout: { afterMs: 300, next: 'end' } },
+        end: { kind: 'step', hooks: { run: () => undefined } },
       },
     })
     const { interp, sched } = setup(def)
@@ -214,8 +214,8 @@ describe('interpreter: timers', () => {
     let signal: AbortSignal | undefined
     const def = flow({
       steps: {
-        w: { kind: 'wait', hooks: { on: {} }, waitTimeout: { afterMs: 300, next: 'end' } },
-        end: { kind: 'final' },
+        w: { kind: 'step', hooks: { waitFor: {} }, waitTimeout: { afterMs: 300, next: 'end' } },
+        end: { kind: 'step', hooks: { run: () => undefined } },
       },
     })
     const { interp, sched, events } = setup(def)
@@ -266,7 +266,7 @@ describe('interpreter: persist coalescing and listener isolation', () => {
     )
     interp.send({ type: 'start' })
     expect(interp.getState().status).toBe('done')
-    expect(commits).toHaveLength(2)
+    expect(commits).toHaveLength(3)
     expect(errors.length).toBeGreaterThan(0)
     expect((errors[0] as Error).message).toBe('listener boom')
   })

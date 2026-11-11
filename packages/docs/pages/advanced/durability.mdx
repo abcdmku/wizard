@@ -1,50 +1,67 @@
-# Keep one effective owner across workers
+# Multi-worker durability
 
-Saving a snapshot does not stop two workers from loading it and both charging the customer. Multi-worker execution needs coordination around the run, not only storage underneath it.
-
-`@openwizard/durable` puts five checks around a core run:
-
-1. A lease gives one owner temporary control of a key.
-2. A fencing token stops an expired owner from committing after a replacement takes over.
-3. Compare-and-swap checks the expected `{ epoch, seq }` before replacing a snapshot.
-4. Command and event ids store completed results for duplicate requests.
-5. Timer claims stop two workers from firing the same persisted deadline.
-
-This tested docs example applies one command, replays its duplicate result, and rejects a second owner while the lease is live:
+Two workers can resume the same snapshot and both charge a customer. `@openwizard/durable` gives one worker a lease, fences its writes, and adds compare-and-swap commits, command deduplication, and timer claims.
 
 ```ts file="packages/docs/snippets/advanced/durable.ts"
 ```
 
-## Expected races return values
+Here `worker-a` owns the run key. Dispatching `start` with a `commandId` records the command result; dispatching that id again replays the result. A competing worker receives `LEASE_BUSY` with a retry time.
 
-Opening a key owned by another worker returns:
+## Own runs through a host
 
 ```ts
-{ ok: false, code: 'LEASE_BUSY', retryAt }
+const runs = createDurableHost(wizard, { store, ownerId: 'worker-a' })
+const opened = await runs.create('orders/o-1', { orderId: 'o-1' })
+if (!opened.ok) {
+  // LEASE_BUSY includes retryAt; opening a missing key returns RUN_NOT_FOUND.
+}
 ```
 
-That is normal contention. Retry after `retryAt` instead of treating it as a server crash.
+The host owns renewal, terminal lease release, reopening, and disposal. Use `runs.open(key)` for an existing run, `runs.send(key, event, payload, { eventId })` for events, and `runs.dispatch(key, command, { commandId })` for commands. A provided wizard carries its bound dependencies; `deps(key)` supplies remaining services when required.
 
-An external command should go through `host.dispatch()` with a stable `commandId`. The first request returns `status: 'applied'`. A duplicate with the same id and request digest returns the stored result with `status: 'replayed'`. Reusing the id for different content returns `DEDUPLICATE_CONFLICT`.
+Handles returned by this host reacquire the current lease generation for `send` and `dispatch`. Their `run` property is the current local run generation; direct commands and subscriptions on it live only as long as that lease. Use host methods across I/O awaits or automatic terminal release. Explicit release or disposal ends that handle's lifecycle.
 
-Pass `expectedVersion` when a client command depends on state it previously read. If another command changed the run first, the durable host returns `CAS_CONFLICT` with the actual version.
+Use `createMemoryDurableStore()` in tests and [`@openwizard/drizzle`](/packages/drizzle) for PostgreSQL or SQLite. Store implementers import the protocol from `@openwizard/durable/store` and its conformance suite from `@openwizard/durable/testing`.
 
-## Persistence happens before newly planned effects
+## Command ids and event ids
 
-The durable host installs a commit barrier in core. After a command changes state, it writes the fenced snapshot before OpenWizard starts any new task, child flow, or timer effect planned by that state.
+```ts
+await runs.dispatch(key, command, {
+  commandId,
+  digest,
+  expectedVersion,
+})
+await runs.send(key, 'payment.captured', payload, { eventId: webhookId })
+```
 
-This ordering prevents a worker from starting work whose ready state was never committed. It does not make the outside task effect atomic with the database write.
+A completed `commandId` replays its stored result across workers. Reusing it for a different digest returns `DEDUPLICATE_CONFLICT`. An expected-version mismatch returns `CAS_CONFLICT` with the actual version.
 
-## Failover rejects the old owner
+An `eventId` deduplicates event delivery through the run's bounded snapshot retention policy. It is separate from replaying a command result. Use the original provider delivery id and keep retention long enough for its retry window.
 
-When a lease expires, another worker can acquire a new fencing token and resume the record. A late task result from the old owner cannot pass the fence. The old host stops and later commands return `LEASE_LOST`.
+## Fence HTTP request claims
 
-An idempotent task interrupted by that failover may run under the new owner with the same task key. This is still at-least-once execution. The remote service must enforce the key.
+The [HTTP adapter](/packages/http) can store a response under an `Idempotency-Key` or `webhook-id`. Its `IdempotencyStore.claim(key, fingerprint)` returns a fresh `claimId` when ownership is acquired. `complete(key, claimId, response)` and `release(key, claimId)` must atomically verify that the live pending record still belongs to that claim.
 
-## Timers use the saved version
+If a claim expires or is evicted, an old request must not complete or release its replacement. The store returns `false` for that old identity. Share a database-backed store across workers; the memory implementation owns claims within one process. This response-cache claim is separate from the durable host's fenced command receipt.
 
-A timer claim includes its id, due time, and expected snapshot version. A worker cannot claim a timer before it is due, after another worker claimed it, or after a later snapshot replaced it.
+## Commit before effects
 
-The timer completion marker and the next snapshot commit happen atomically in the durable store. A failover can therefore continue the deadline without two successful firings.
+The host installs a core commit barrier. It writes staged state under the fence before newly planned runnable hooks, child work, or timers begin. Public readers continue to see committed state while that write is pending. A failed commit stops the local run before its new effects execute.
 
-The in-memory durable store only tests this contract in one process. Use [`@openwizard/drizzle`](/packages/drizzle) for PostgreSQL or asynchronous SQLite coordination.
+The state commit still cannot transact with a remote service. A worker can crash after the service applies a request and before its result reaches the snapshot. Mark safe-to-repeat work `idempotent` and send its stable key to that service.
+
+## Recover command results after a crash
+
+When a command reaches its final result, the store saves that result atomically with the snapshot for that command or its final navigation transition. A retry can replay it even if the worker stopped before replying.
+
+If an async navigation command was applied but the worker stopped before its final transition result committed, the host returns `COMMAND_INTERRUPTED`. It does not execute that claimed command again. Read the run state and reconcile the operation before issuing a new command id. Command replay prevents reapplying recorded intent; it does not guarantee exactly-once external effects.
+
+## Failover and timers
+
+After a lease expires, another worker takes a new fencing token and resumes. An old owner's late write fails the fence; that host stops and its later local calls return `LEASE_LOST`. An interrupted idempotent hook may run again under the new owner with the same key.
+
+A timer claim checks its due time and expected snapshot version. The completion marker and next snapshot commit atomically. Duplicate or stale claims cannot apply the same recorded deadline twice; side effects started by that deadline still need their own idempotency.
+
+<Diagram name="durability" />
+
+Next: [External event routing](/advanced/events). Related: [`@openwizard/durable`](/packages/durable).

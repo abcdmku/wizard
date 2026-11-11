@@ -13,6 +13,10 @@ import '@openwizard/devtools/style.css'
 export const Tools = ({ run }) => <Devtools source={run} />
 ```
 
+The source is a local `Run` or a `Mirror` over a projection. For custom panels, `RunSource` and
+`isRunSource` identify the local-run source. Import graph inspection and static graph types from
+`@openwizard/core/inspect`.
+
 Read the [devtools package guide](../docs/pages/packages/devtools.mdx).
 
 ## Exports
@@ -23,52 +27,50 @@ Read the [devtools package guide](../docs/pages/packages/devtools.mdx).
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `buildGraphModel` | function | Build the drawable model of a `FlowGraph` (`inspect(flow)`): one entry marker per flow, a card | [src](../../packages/devtools/src/layout/model.ts#L93) |
+| `buildGraphModel` | function | Build the drawable model of a `FlowGraph` (`inspect(flow)`): one entry marker per flow, a card | [src](../../packages/devtools/src/layout/model.ts#L96) |
 | `bundledElk` | function | The bundled elkjs engine (no worker) — loaded once, lazily, so importing the package stays | [src](../../packages/devtools/src/layout/elk.ts#L84) |
-| `collectStatuses` | function | Flatten a run snapshot (`getSnapshot()`: state + children, recursively) or a projected | [src](../../packages/devtools/src/status.ts#L36) |
+| `collectStatuses` | function | Flatten a run snapshot (`getSnapshot()`: state + children, recursively) or a projected | [src](../../packages/devtools/src/status.ts#L40) |
 | `createReplayWindow` | function | Create the replay window of a run: the base is the run's state when `attach()` runs (or | [src](../../packages/devtools/src/timeline/replay-window.ts#L61) |
 | `Devtools` | function | The composite devtools panel: the flow graph with the live overlay (and the time-travelled | [src](../../packages/devtools/src/devtools/Devtools.tsx#L59) |
-| `DevtoolsProps` | interface | `<Devtools>` props: the `source` (a `FlowRun` or a `Mirror`), the graph (`flow` / `graph`; a | [src](../../packages/devtools/src/devtools/Devtools.tsx#L32) |
-| `DevtoolsSource` | type | What the components accept as `source`: a live `FlowRun` or a `Mirror`. | [src](../../packages/devtools/src/types.ts#L120) |
+| `DevtoolsProps` | interface | `<Devtools>` props: the `source` (a `Run` or a `Mirror`), the graph (`flow` / `graph`; a | [src](../../packages/devtools/src/devtools/Devtools.tsx#L32) |
+| `DevtoolsSource` | type | What the components accept as `source`: a live `Run` or a `Mirror`. | [src](../../packages/devtools/src/types.ts#L121) |
 | `DevtoolsTheme` | type | Colour scheme of the devtools: `'system'` follows `prefers-color-scheme`, the others force it | [src](../../packages/devtools/src/types.ts#L25) |
 | `DockPosition` | type | Where the `<Devtools>` panel docks. | [src](../../packages/devtools/src/devtools/use-resize.ts#L12) |
 | `EventLog` | function | The event log of a run: `seq`, `at`, `type`, `step`, `path` and a one-line detail per event. | [src](../../packages/devtools/src/events/EventLog.tsx#L53) |
 | `EventLogProps` | interface | `<EventLog>` props: a live `source` (run) or a static `events` array; an optional `filter` | [src](../../packages/devtools/src/events/EventLog.tsx#L29) |
-| `FlowGraph` | function | The static graph of a flow, laid out with ELK (left → right layers; cycles broken for the | [src](../../packages/devtools/src/graph/FlowGraph.tsx#L80) |
-| `FlowGraphEdge` | type | One edge of a `FlowGraph` (`inspect(flow).edges[i]`): `from` (`null` for `start`), `to`, kind, path. | [src](../../packages/devtools/src/types.ts#L198) |
-| `FlowGraphNode` | type | One node of a `FlowGraph` (`inspect(flow).nodes[i]`): id, kind, path, hooks, `dependsOn`, | [src](../../packages/devtools/src/types.ts#L192) |
-| `FlowGraphProps` | interface | `<FlowGraph>` props: the graph (`graph` from `inspect(flow)`, or `flow`), the live overlay | [src](../../packages/devtools/src/graph/FlowGraph.tsx#L48) |
-| `FlowRunSource` | interface | The structural view of a `FlowRun` the devtools read (`FlowRun<F>` of any flow satisfies it): | [src](../../packages/devtools/src/types.ts#L87) |
-| `GraphInput` | interface | The static graph the components draw: a ready `FlowGraph` (`inspect(flow)`, plain JSON — a | [src](../../packages/devtools/src/types.ts#L182) |
-| `GraphModel` | interface | The drawable model of a `FlowGraph`: nodes (parents before children), edges and the warnings | [src](../../packages/devtools/src/layout/model.ts#L70) |
-| `GraphSelection` | interface | What a graph click reports: the step `id`, the run `path` of its flow and the combined | [src](../../packages/devtools/src/types.ts#L56) |
-| `isFlowRunSource` | function | True for a `FlowRunSource` (it has `observe` / `log` / `explain`); false for a Mirror. | [src](../../packages/devtools/src/types.ts#L126) |
-| `isProjectedState` | function | True when a Mirror's projected value looks like a `ClientState` (an `expose` projection): | [src](../../packages/devtools/src/types.ts#L170) |
+| `FlowGraph` | function | The static graph of a flow, laid out with ELK (left → right layers; cycles broken for the | [src](../../packages/devtools/src/graph/FlowGraph.tsx#L83) |
+| `FlowGraphProps` | interface | `<FlowGraph>` props: the graph (`graph` from `inspect(flow)`, or `flow`), the live overlay | [src](../../packages/devtools/src/graph/FlowGraph.tsx#L49) |
+| `GraphInput` | interface | The static graph the components draw: a ready `FlowGraph` (`inspect(flow)`, plain JSON — a | [src](../../packages/devtools/src/types.ts#L184) |
+| `GraphModel` | interface | The drawable model of a `FlowGraph`: nodes (parents before children), edges and the warnings | [src](../../packages/devtools/src/layout/model.ts#L72) |
+| `GraphSelection` | interface | What a graph click reports: the step `id`, the run `path` of its flow and the combined | [src](../../packages/devtools/src/types.ts#L57) |
+| `isProjectedState` | function | True when a Mirror's projected value looks like a `ClientState` (an `expose` projection): | [src](../../packages/devtools/src/types.ts#L172) |
+| `isRunSource` | function | True for a `RunSource` (it has `getState` / `log` / `explain`); false for a Mirror (which | [src](../../packages/devtools/src/types.ts#L128) |
 | `LayoutEngine` | interface | What runs the layout: anything with ELK's `layout(graph)` — the bundled elkjs (default), a | [src](../../packages/devtools/src/layout/elk.ts#L37) |
 | `layoutGraph` | function | Lay a graph model out with ELK (layered, left → right, 150 px between layers, splines, network | [src](../../packages/devtools/src/layout/elk.ts#L99) |
 | `LayoutResult` | interface | What `layoutGraph` returns: the placements, the edges left out of the layered layout (drawn | [src](../../packages/devtools/src/layout/elk.ts#L46) |
-| `MirrorSource` | interface | The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies | [src](../../packages/devtools/src/types.ts#L107) |
-| `ModelEdge` | interface | One drawable edge between two model keys (`label` for `dependsOn` / `timeout` edges). | [src](../../packages/devtools/src/layout/model.ts#L54) |
-| `ModelEdgeKind` | type | Kind of a drawable edge: the `FlowGraph` kinds plus `dynamic` (a step → its `?` port). | [src](../../packages/devtools/src/layout/model.ts#L32) |
-| `ModelNode` | interface | One drawable node. `key` is unique across nesting levels (`stepKey(path, id)`, `#entry` / | [src](../../packages/devtools/src/layout/model.ts#L39) |
-| `ModelNodeKind` | type | Kind of a drawable node: a step card, a group (a `flow` step containing its child flow), a | [src](../../packages/devtools/src/layout/model.ts#L26) |
-| `overlayOf` | function | The live overlay of a source for one of its snapshots (`source.getSnapshot()`): statuses (with | [src](../../packages/devtools/src/status.ts#L107) |
+| `MirrorSource` | interface | The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies | [src](../../packages/devtools/src/types.ts#L108) |
+| `ModelEdge` | interface | One drawable edge between two model keys, with labels for routing, joins and alternate paths. | [src](../../packages/devtools/src/layout/model.ts#L56) |
+| `ModelEdgeKind` | type | Kind of a drawable edge: the `FlowGraph` kinds (`route` = a declared target of a dynamic | [src](../../packages/devtools/src/layout/model.ts#L34) |
+| `ModelNode` | interface | One drawable node. `key` is unique across nesting levels (`stepKey(path, id)`, `#entry` / | [src](../../packages/devtools/src/layout/model.ts#L41) |
+| `ModelNodeKind` | type | Kind of a drawable node: a step card, a group (a `flow` step containing its child flow), a | [src](../../packages/devtools/src/layout/model.ts#L27) |
+| `overlayOf` | function | The live overlay of a source for one of its snapshots (`source.getSnapshot()`): statuses (with | [src](../../packages/devtools/src/status.ts#L142) |
 | `Placement` | interface | Box of a laid-out node: absolute at the root, relative to its group inside a child flow. | [src](../../packages/devtools/src/layout/elk.ts#L19) |
 | `Placements` | type | Placements by model key. | [src](../../packages/devtools/src/layout/elk.ts#L30) |
-| `ProjectedState` | interface | A projected (`ClientState`) state as the devtools read it: `status`, `current`, the exposed | [src](../../packages/devtools/src/types.ts#L154) |
-| `ProjectedStep` | interface | The projected step facts a `ClientState` carries for every step (`ClientStepState` base) plus | [src](../../packages/devtools/src/types.ts#L135) |
+| `ProjectedState` | interface | A projected (`ClientState`) state as the devtools read it: `status`, `current`, the exposed | [src](../../packages/devtools/src/types.ts#L156) |
+| `ProjectedStep` | interface | The projected step facts a `ClientState` carries for every step (`ClientStepState` base) plus | [src](../../packages/devtools/src/types.ts#L137) |
 | `ReplayState` | type | A (typed-erased) run state as `replay` returns it. | [src](../../packages/devtools/src/timeline/replay-window.ts#L18) |
 | `ReplayWindow` | interface | The replay window: a base state and the root events since it (`latest` = the newest seq). | [src](../../packages/devtools/src/timeline/replay-window.ts#L24) |
 | `ReplayWindowStore` | interface | A live replay window over a run (`createReplayWindow`): subscribe to it, `attach()` it to | [src](../../packages/devtools/src/timeline/replay-window.ts#L38) |
-| `runPhaseReader` | function | The phase reader for a live run: `explain(id).phase` on the run for root steps and on | [src](../../packages/devtools/src/status.ts#L85) |
-| `SnapshotLike` | interface | A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by | [src](../../packages/devtools/src/types.ts#L76) |
-| `StepInspector` | function | The record of a step (status, attempt, error, input / output), why it is where it is | [src](../../packages/devtools/src/inspector/StepInspector.tsx#L57) |
-| `StepInspectorProps` | interface | `<StepInspector>` props: the `source` (run or Mirror), the `step` id and the run `path` | [src](../../packages/devtools/src/inspector/StepInspector.tsx#L26) |
-| `stepKey` | function | The key of a step in a `StepStatusMap` / graph selection: `[...path, id].join('/')` — the bare | [src](../../packages/devtools/src/types.ts#L67) |
+| `runPhaseReader` | function | The phase reader for a live run: `explain(id).phase` on the run for root steps and on | [src](../../packages/devtools/src/status.ts#L112) |
+| `RunSource` | interface | The structural view of a `Run` the devtools read (`Run<F>` of any flow satisfies it): | [src](../../packages/devtools/src/types.ts#L88) |
+| `SnapshotLike` | interface | A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by | [src](../../packages/devtools/src/types.ts#L77) |
+| `StepInspector` | function | The record of a step (status, attempt, error, input / output), why it is where it is | [src](../../packages/devtools/src/inspector/StepInspector.tsx#L52) |
+| `StepInspectorProps` | interface | `<StepInspector>` props: the `source` (run or Mirror), the `step` id and the run `path` | [src](../../packages/devtools/src/inspector/StepInspector.tsx#L21) |
+| `stepKey` | function | The key of a step in a `StepStatusMap` / graph selection: `[...path, id].join('/')` — the bare | [src](../../packages/devtools/src/types.ts#L68) |
 | `StepPhase` | type | Live phase of a step as `run.explain(step).phase` / `ClientStepState.phase` report it | [src](../../packages/devtools/src/types.ts#L32) |
 | `StepStatusInfo` | interface | Live facts of one step for the graph overlay: its stored `status` and, when known, its `phase`. | [src](../../packages/devtools/src/types.ts#L38) |
 | `StepStatusMap` | type | Statuses keyed by step key (`stepKey(path, id)`: the step id for the root flow, | [src](../../packages/devtools/src/types.ts#L49) |
 | `Timeline` | function | Time travel over a run's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any | [src](../../packages/devtools/src/timeline/Timeline.tsx#L52) |
-| `TimelineProps` | interface | `<Timeline>` props: the run `source`; `context` (the input `createRun` received) lets the | [src](../../packages/devtools/src/timeline/Timeline.tsx#L33) |
+| `TimelineProps` | interface | `<Timeline>` props: the run `source`; `context` (the input `wizard.create` received) lets the | [src](../../packages/devtools/src/timeline/Timeline.tsx#L33) |
 
 <!-- exports:end -->

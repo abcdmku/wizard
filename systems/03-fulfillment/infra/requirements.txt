@@ -1,0 +1,1 @@
+pulumi-local==1.3.0

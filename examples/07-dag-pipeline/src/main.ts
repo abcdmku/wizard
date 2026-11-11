@@ -3,7 +3,7 @@
  * Prints the static graph, then a timeline of the run: both branches start together, the gate
  * waits for both (explain() shows why), then persist → done.
  */
-import { createRun, inspect } from '@openwizard/core'
+import { inspect } from '@openwizard/core/inspect'
 import { createTestScheduler } from '@openwizard/core/testing'
 import { type Deps, pipeline } from './pipeline'
 
@@ -21,7 +21,7 @@ const deps: Deps = {
   enricher: { run: (rows) => after(500, { enriched: rows, quality: 0.9 }) },
   warehouse: { write: () => ({ batchId: 'b-1' }) },
 }
-const run = createRun(pipeline, { context: { source: 'crm-export' }, deps, scheduler: scheduler })
+const run = pipeline.create({ source: 'crm-export' }, { deps, scheduler })
 run.observe((event) => {
   if (event.type === 'step.runStarted' || event.type === 'step.done')
     console.log(`t=${String(scheduler.now()).padStart(3)}  ${event.type.padEnd(16)} ${event.step}`)

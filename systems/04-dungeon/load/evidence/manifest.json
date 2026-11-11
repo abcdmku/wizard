@@ -1,0 +1,1217 @@
+{
+  "schemaVersion": 1,
+  "k6": {
+    "image": "grafana/k6",
+    "digest": "sha256:5221b620a4f874faff6e32ba597aa667c058391fe4898b1c6f6377f062c6cdec"
+  },
+  "profiles": {
+    "20x4-smoke": {
+      "activeMs": 20000,
+      "deadline": "35s",
+      "driveIntervalMs": 250,
+      "parties": 20,
+      "playersPerParty": 4
+    },
+    "20x4-client-smoke": {
+      "activeMs": 20000,
+      "deadline": "35s",
+      "driveIntervalMs": 100,
+      "parties": 20,
+      "playersPerParty": 4
+    },
+    "5m": {
+      "activeMs": 300000,
+      "deadline": "5m15s",
+      "driveIntervalMs": 100,
+      "parties": 20,
+      "playersPerParty": 4
+    }
+  },
+  "greenRuns": {
+    "20x4-smoke": {
+      "capturedAt": "2026-08-24T07:11:40.366Z",
+      "git": {
+        "revision": "e8141ca14456e5d1eac447b85e5e2e39cf399db6",
+        "dirty": true
+      },
+      "images": {
+        "apiId": "sha256:64528ede6d10a8aedcbd4136b5f83a48d273e299713bc347238c1d2d13d39666",
+        "webId": "sha256:98c0596ce957e294acbfe66b3fd4c548034507d3ea568b805bb7f338eef001c3"
+      },
+      "k6": {
+        "image": "grafana/k6",
+        "digest": "sha256:5221b620a4f874faff6e32ba597aa667c058391fe4898b1c6f6377f062c6cdec"
+      },
+      "cleanHealthPrecondition": {
+        "requiredActiveParties": 0,
+        "observedActiveParties": 0
+      },
+      "profile": "20x4-smoke",
+      "thresholds": {
+        "evaluated": 26,
+        "passed": 26,
+        "failed": 0,
+        "results": [
+          {
+            "metric": "ack_rejections_fatal",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_command_frames",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_completion_ratio",
+            "threshold": "rate>=0.99",
+            "passed": true
+          },
+          {
+            "metric": "command_resolution_ratio",
+            "threshold": "rate==1",
+            "passed": true
+          },
+          {
+            "metric": "command_to_frame_ms",
+            "threshold": "p(95)<250",
+            "passed": true
+          },
+          {
+            "metric": "commands_completed",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_resolved",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_sent",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_unresolved",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "completed_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_closed",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_opened",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "early_connection_closes",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_bytes",
+            "threshold": "max<=25000",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_count",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_after_seed",
+            "threshold": "value==20",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_before_seed",
+            "threshold": "value==0",
+            "passed": true
+          },
+          {
+            "metric": "late_sample_vus",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "oversized_full_frames",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "protocol_errors",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "sampled_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "stale_pending_commands",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_advances_per_vu",
+            "threshold": "min>=180",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_interval_samples",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_rate_hz",
+            "threshold": "min>=9",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_sampled_vus",
+            "threshold": "count==80",
+            "passed": true
+          }
+        ],
+        "failures": []
+      },
+      "dungeonLoadResult": {
+        "profile": "20x4-smoke",
+        "parties": 20,
+        "players": 80,
+        "activeMs": 20000,
+        "deadline": "35s",
+        "driveIntervalMs": 250,
+        "worldTickCadenceSemantics": "distinct-increasing-snapshot",
+        "requiredWorldTickAdvancesPerVu": 180,
+        "requiredWorldTickRateHz": 9,
+        "requiredAuthoritativeSuccessRatio": 0.99,
+        "commandToFrameP95Ms": 121.64999999999964,
+        "commandsSent": 6253,
+        "achievedCommandsPerSecond": 301.0376132100088,
+        "commandsCompleted": 6248,
+        "commandsResolved": 6253,
+        "commandsLifecycleRejected": 5,
+        "commandsUnresolved": 0,
+        "resolutionRatio": 1,
+        "completionRatio": 0.9992003838157685,
+        "authoritativeSuccessRatio": 0.9992003838157685,
+        "ackRejections": {
+          "total": 5,
+          "lifecycle": 5,
+          "fatal": 0,
+          "byCode": {
+            "unauthorized": 0,
+            "forbidden": 0,
+            "invalid-command": 5,
+            "not-found": 0,
+            "sequence-conflict": 0,
+            "out-of-range": 0,
+            "key-not-owned": 0,
+            "door-already-open": 0,
+            "rate-limited": 0,
+            "server-error": 0,
+            "unknown": 0,
+            "malformed": 0
+          },
+          "byReason": {
+            "defeated-player": 0,
+            "party-not-in-lobby": 0,
+            "party-not-active": 5,
+            "attack-cooling-down": 0,
+            "health-full": 0,
+            "item-not-consumable": 0,
+            "not-awaiting-rematch": 0,
+            "command-id-reused": 0,
+            "player-not-connected": 0,
+            "viewer-party-mismatch": 0,
+            "player-not-in-party": 0,
+            "player-disconnected": 0,
+            "objective-incomplete": 0,
+            "fixture-not-found": 0,
+            "enemy-not-found": 0,
+            "loot-not-found": 0,
+            "inventory-slot-empty": 0,
+            "fixture-too-far": 0,
+            "enemy-too-far": 0,
+            "loot-too-far": 0,
+            "key-bound-to-other": 0,
+            "required-key-not-owned": 0,
+            "door-open": 0,
+            "party-state-changed": 0,
+            "command-pending": 0,
+            "host-ownership-lost": 0,
+            "missing-domain-result": 0,
+            "other": 0,
+            "malformed": 0
+          }
+        },
+        "connectionsOpened": 80,
+        "connectionsClosed": 80,
+        "completedConnections": 80,
+        "authoritativeCommandSampledConnections": 80,
+        "earlyConnectionCloses": 0,
+        "authoritativeCommandFrames": 6248,
+        "lastAuthoritativeSnapshotOffsetMsMin": 19887,
+        "lastAuthoritativeSnapshotOffsetMsMax": 20000,
+        "activeDurationMsMin": 19999,
+        "worldTickAdvancesMinPerVu": 195,
+        "worldTickAdvancesAveragePerVu": 196.65,
+        "worldTickRateHzMin": 9.75,
+        "worldTickRateHzAverage": 9.832795046002296,
+        "worldTickIntervalP95Ms": 154,
+        "worldTickSampledVus": 80,
+        "worldTickIntervalSamples": 15732,
+        "healthActivePartiesBeforeSeed": 0,
+        "healthActivePartiesAfterSeed": 20,
+        "fullFrameCount": 38877,
+        "fullFrameBytesTotal": 115420268,
+        "fullFrameBytesMax": 3010,
+        "oversizedFullFrames": 0,
+        "protocolErrors": 0,
+        "stalePendingCommands": 0,
+        "lateAuthoritativeSnapshotVus": 80,
+        "thresholdsPassed": true,
+        "thresholdsEvaluated": 26,
+        "thresholdsFailed": 0,
+        "failedThresholds": [],
+        "thresholdResults": [
+          {
+            "metric": "ack_rejections_fatal",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_command_frames",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_completion_ratio",
+            "threshold": "rate>=0.99",
+            "passed": true
+          },
+          {
+            "metric": "command_resolution_ratio",
+            "threshold": "rate==1",
+            "passed": true
+          },
+          {
+            "metric": "command_to_frame_ms",
+            "threshold": "p(95)<250",
+            "passed": true
+          },
+          {
+            "metric": "commands_completed",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_resolved",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_sent",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_unresolved",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "completed_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_closed",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_opened",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "early_connection_closes",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_bytes",
+            "threshold": "max<=25000",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_count",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_after_seed",
+            "threshold": "value==20",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_before_seed",
+            "threshold": "value==0",
+            "passed": true
+          },
+          {
+            "metric": "late_sample_vus",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "oversized_full_frames",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "protocol_errors",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "sampled_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "stale_pending_commands",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_advances_per_vu",
+            "threshold": "min>=180",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_interval_samples",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_rate_hz",
+            "threshold": "min>=9",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_sampled_vus",
+            "threshold": "count==80",
+            "passed": true
+          }
+        ],
+        "triggers": {
+          "latencyP95AtLeast250Ms": false,
+          "fullFrameOver25000Bytes": false
+        }
+      }
+    },
+    "20x4-client-smoke": {
+      "capturedAt": "2026-08-24T07:13:42.371Z",
+      "git": {
+        "revision": "e8141ca14456e5d1eac447b85e5e2e39cf399db6",
+        "dirty": true
+      },
+      "images": {
+        "apiId": "sha256:64528ede6d10a8aedcbd4136b5f83a48d273e299713bc347238c1d2d13d39666",
+        "webId": "sha256:98c0596ce957e294acbfe66b3fd4c548034507d3ea568b805bb7f338eef001c3"
+      },
+      "k6": {
+        "image": "grafana/k6",
+        "digest": "sha256:5221b620a4f874faff6e32ba597aa667c058391fe4898b1c6f6377f062c6cdec"
+      },
+      "cleanHealthPrecondition": {
+        "requiredActiveParties": 0,
+        "observedActiveParties": 0
+      },
+      "profile": "20x4-client-smoke",
+      "thresholds": {
+        "evaluated": 26,
+        "passed": 26,
+        "failed": 0,
+        "results": [
+          {
+            "metric": "ack_rejections_fatal",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_command_frames",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_completion_ratio",
+            "threshold": "rate>=0.99",
+            "passed": true
+          },
+          {
+            "metric": "command_resolution_ratio",
+            "threshold": "rate==1",
+            "passed": true
+          },
+          {
+            "metric": "command_to_frame_ms",
+            "threshold": "p(95)<250",
+            "passed": true
+          },
+          {
+            "metric": "commands_completed",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_resolved",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_sent",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_unresolved",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "completed_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_closed",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_opened",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "early_connection_closes",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_bytes",
+            "threshold": "max<=25000",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_count",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_after_seed",
+            "threshold": "value==20",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_before_seed",
+            "threshold": "value==0",
+            "passed": true
+          },
+          {
+            "metric": "late_sample_vus",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "oversized_full_frames",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "protocol_errors",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "sampled_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "stale_pending_commands",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_advances_per_vu",
+            "threshold": "min>=180",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_interval_samples",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_rate_hz",
+            "threshold": "min>=9",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_sampled_vus",
+            "threshold": "count==80",
+            "passed": true
+          }
+        ],
+        "failures": []
+      },
+      "dungeonLoadResult": {
+        "profile": "20x4-client-smoke",
+        "parties": 20,
+        "players": 80,
+        "activeMs": 20000,
+        "deadline": "35s",
+        "driveIntervalMs": 100,
+        "worldTickCadenceSemantics": "distinct-increasing-snapshot",
+        "requiredWorldTickAdvancesPerVu": 180,
+        "requiredWorldTickRateHz": 9,
+        "requiredAuthoritativeSuccessRatio": 0.99,
+        "commandToFrameP95Ms": 199,
+        "commandsSent": 8567,
+        "achievedCommandsPerSecond": 332.94130538102485,
+        "commandsCompleted": 8540,
+        "commandsResolved": 8567,
+        "commandsLifecycleRejected": 27,
+        "commandsUnresolved": 0,
+        "resolutionRatio": 1,
+        "completionRatio": 0.9968483716586903,
+        "authoritativeSuccessRatio": 0.9968483716586903,
+        "ackRejections": {
+          "total": 27,
+          "lifecycle": 27,
+          "fatal": 0,
+          "byCode": {
+            "unauthorized": 0,
+            "forbidden": 0,
+            "invalid-command": 27,
+            "not-found": 0,
+            "sequence-conflict": 0,
+            "out-of-range": 0,
+            "key-not-owned": 0,
+            "door-already-open": 0,
+            "rate-limited": 0,
+            "server-error": 0,
+            "unknown": 0,
+            "malformed": 0
+          },
+          "byReason": {
+            "defeated-player": 3,
+            "party-not-in-lobby": 0,
+            "party-not-active": 24,
+            "attack-cooling-down": 0,
+            "health-full": 0,
+            "item-not-consumable": 0,
+            "not-awaiting-rematch": 0,
+            "command-id-reused": 0,
+            "player-not-connected": 0,
+            "viewer-party-mismatch": 0,
+            "player-not-in-party": 0,
+            "player-disconnected": 0,
+            "objective-incomplete": 0,
+            "fixture-not-found": 0,
+            "enemy-not-found": 0,
+            "loot-not-found": 0,
+            "inventory-slot-empty": 0,
+            "fixture-too-far": 0,
+            "enemy-too-far": 0,
+            "loot-too-far": 0,
+            "key-bound-to-other": 0,
+            "required-key-not-owned": 0,
+            "door-open": 0,
+            "party-state-changed": 0,
+            "command-pending": 0,
+            "host-ownership-lost": 0,
+            "missing-domain-result": 0,
+            "other": 0,
+            "malformed": 0
+          }
+        },
+        "connectionsOpened": 80,
+        "connectionsClosed": 80,
+        "completedConnections": 80,
+        "authoritativeCommandSampledConnections": 80,
+        "earlyConnectionCloses": 0,
+        "authoritativeCommandFrames": 8540,
+        "lastAuthoritativeSnapshotOffsetMsMin": 19802,
+        "lastAuthoritativeSnapshotOffsetMsMax": 20000,
+        "activeDurationMsMin": 19998,
+        "worldTickAdvancesMinPerVu": 188,
+        "worldTickAdvancesAveragePerVu": 190.925,
+        "worldTickRateHzMin": 9.400470023501176,
+        "worldTickRateHzAverage": 9.546613738730773,
+        "worldTickIntervalP95Ms": 180,
+        "worldTickSampledVus": 80,
+        "worldTickIntervalSamples": 15274,
+        "healthActivePartiesBeforeSeed": 0,
+        "healthActivePartiesAfterSeed": 20,
+        "fullFrameCount": 34778,
+        "fullFrameBytesTotal": 103155486,
+        "fullFrameBytesMax": 3010,
+        "oversizedFullFrames": 0,
+        "protocolErrors": 0,
+        "stalePendingCommands": 0,
+        "lateAuthoritativeSnapshotVus": 80,
+        "thresholdsPassed": true,
+        "thresholdsEvaluated": 26,
+        "thresholdsFailed": 0,
+        "failedThresholds": [],
+        "thresholdResults": [
+          {
+            "metric": "ack_rejections_fatal",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_command_frames",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_completion_ratio",
+            "threshold": "rate>=0.99",
+            "passed": true
+          },
+          {
+            "metric": "command_resolution_ratio",
+            "threshold": "rate==1",
+            "passed": true
+          },
+          {
+            "metric": "command_to_frame_ms",
+            "threshold": "p(95)<250",
+            "passed": true
+          },
+          {
+            "metric": "commands_completed",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_resolved",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_sent",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_unresolved",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "completed_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_closed",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_opened",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "early_connection_closes",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_bytes",
+            "threshold": "max<=25000",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_count",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_after_seed",
+            "threshold": "value==20",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_before_seed",
+            "threshold": "value==0",
+            "passed": true
+          },
+          {
+            "metric": "late_sample_vus",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "oversized_full_frames",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "protocol_errors",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "sampled_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "stale_pending_commands",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_advances_per_vu",
+            "threshold": "min>=180",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_interval_samples",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_rate_hz",
+            "threshold": "min>=9",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_sampled_vus",
+            "threshold": "count==80",
+            "passed": true
+          }
+        ],
+        "triggers": {
+          "latencyP95AtLeast250Ms": false,
+          "fullFrameOver25000Bytes": false
+        }
+      }
+    },
+    "5m": {
+      "capturedAt": "2026-08-24T07:21:03.037Z",
+      "git": {
+        "revision": "e8141ca14456e5d1eac447b85e5e2e39cf399db6",
+        "dirty": true
+      },
+      "images": {
+        "apiId": "sha256:64528ede6d10a8aedcbd4136b5f83a48d273e299713bc347238c1d2d13d39666",
+        "webId": "sha256:98c0596ce957e294acbfe66b3fd4c548034507d3ea568b805bb7f338eef001c3"
+      },
+      "k6": {
+        "image": "grafana/k6",
+        "digest": "sha256:5221b620a4f874faff6e32ba597aa667c058391fe4898b1c6f6377f062c6cdec"
+      },
+      "cleanHealthPrecondition": {
+        "requiredActiveParties": 0,
+        "observedActiveParties": 0
+      },
+      "profile": "5m",
+      "thresholds": {
+        "evaluated": 26,
+        "passed": 26,
+        "failed": 0,
+        "results": [
+          {
+            "metric": "ack_rejections_fatal",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_command_frames",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_completion_ratio",
+            "threshold": "rate>=0.99",
+            "passed": true
+          },
+          {
+            "metric": "command_resolution_ratio",
+            "threshold": "rate==1",
+            "passed": true
+          },
+          {
+            "metric": "command_to_frame_ms",
+            "threshold": "p(95)<250",
+            "passed": true
+          },
+          {
+            "metric": "commands_completed",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_resolved",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_sent",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_unresolved",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "completed_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_closed",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_opened",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "early_connection_closes",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_bytes",
+            "threshold": "max<=25000",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_count",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_after_seed",
+            "threshold": "value==20",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_before_seed",
+            "threshold": "value==0",
+            "passed": true
+          },
+          {
+            "metric": "late_sample_vus",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "oversized_full_frames",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "protocol_errors",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "sampled_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "stale_pending_commands",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_advances_per_vu",
+            "threshold": "min>=2700",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_interval_samples",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_rate_hz",
+            "threshold": "min>=9",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_sampled_vus",
+            "threshold": "count==80",
+            "passed": true
+          }
+        ],
+        "failures": []
+      },
+      "dungeonLoadResult": {
+        "profile": "5m",
+        "parties": 20,
+        "players": 80,
+        "activeMs": 300000,
+        "deadline": "5m15s",
+        "driveIntervalMs": 100,
+        "worldTickCadenceSemantics": "distinct-increasing-snapshot",
+        "requiredWorldTickAdvancesPerVu": 2700,
+        "requiredWorldTickRateHz": 9,
+        "requiredAuthoritativeSuccessRatio": 0.99,
+        "commandToFrameP95Ms": 171,
+        "commandsSent": 131573,
+        "achievedCommandsPerSecond": 430.50058702036154,
+        "commandsCompleted": 131509,
+        "commandsResolved": 131573,
+        "commandsLifecycleRejected": 64,
+        "commandsUnresolved": 0,
+        "resolutionRatio": 1,
+        "completionRatio": 0.9995135780137262,
+        "authoritativeSuccessRatio": 0.9995135780137262,
+        "ackRejections": {
+          "total": 64,
+          "lifecycle": 64,
+          "fatal": 0,
+          "byCode": {
+            "unauthorized": 0,
+            "forbidden": 0,
+            "invalid-command": 64,
+            "not-found": 0,
+            "sequence-conflict": 0,
+            "out-of-range": 0,
+            "key-not-owned": 0,
+            "door-already-open": 0,
+            "rate-limited": 0,
+            "server-error": 0,
+            "unknown": 0,
+            "malformed": 0
+          },
+          "byReason": {
+            "defeated-player": 46,
+            "party-not-in-lobby": 0,
+            "party-not-active": 18,
+            "attack-cooling-down": 0,
+            "health-full": 0,
+            "item-not-consumable": 0,
+            "not-awaiting-rematch": 0,
+            "command-id-reused": 0,
+            "player-not-connected": 0,
+            "viewer-party-mismatch": 0,
+            "player-not-in-party": 0,
+            "player-disconnected": 0,
+            "objective-incomplete": 0,
+            "fixture-not-found": 0,
+            "enemy-not-found": 0,
+            "loot-not-found": 0,
+            "inventory-slot-empty": 0,
+            "fixture-too-far": 0,
+            "enemy-too-far": 0,
+            "loot-too-far": 0,
+            "key-bound-to-other": 0,
+            "required-key-not-owned": 0,
+            "door-open": 0,
+            "party-state-changed": 0,
+            "command-pending": 0,
+            "host-ownership-lost": 0,
+            "missing-domain-result": 0,
+            "other": 0,
+            "malformed": 0
+          }
+        },
+        "connectionsOpened": 80,
+        "connectionsClosed": 80,
+        "completedConnections": 80,
+        "authoritativeCommandSampledConnections": 80,
+        "earlyConnectionCloses": 0,
+        "authoritativeCommandFrames": 131509,
+        "lastAuthoritativeSnapshotOffsetMsMin": 299845,
+        "lastAuthoritativeSnapshotOffsetMsMax": 299985,
+        "activeDurationMsMin": 299985,
+        "worldTickAdvancesMinPerVu": 2904,
+        "worldTickAdvancesAveragePerVu": 2920.7625,
+        "worldTickRateHzMin": 9.680419484844343,
+        "worldTickRateHzAverage": 9.736335850046817,
+        "worldTickIntervalP95Ms": 167,
+        "worldTickSampledVus": 80,
+        "worldTickIntervalSamples": 233661,
+        "healthActivePartiesBeforeSeed": 0,
+        "healthActivePartiesAfterSeed": 20,
+        "fullFrameCount": 572164,
+        "fullFrameBytesTotal": 1711672568,
+        "fullFrameBytesMax": 3012,
+        "oversizedFullFrames": 0,
+        "protocolErrors": 0,
+        "stalePendingCommands": 0,
+        "lateAuthoritativeSnapshotVus": 80,
+        "thresholdsPassed": true,
+        "thresholdsEvaluated": 26,
+        "thresholdsFailed": 0,
+        "failedThresholds": [],
+        "thresholdResults": [
+          {
+            "metric": "ack_rejections_fatal",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_command_frames",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "authoritative_completion_ratio",
+            "threshold": "rate>=0.99",
+            "passed": true
+          },
+          {
+            "metric": "command_resolution_ratio",
+            "threshold": "rate==1",
+            "passed": true
+          },
+          {
+            "metric": "command_to_frame_ms",
+            "threshold": "p(95)<250",
+            "passed": true
+          },
+          {
+            "metric": "commands_completed",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_resolved",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_sent",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "commands_unresolved",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "completed_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_closed",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "connections_opened",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "early_connection_closes",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_bytes",
+            "threshold": "max<=25000",
+            "passed": true
+          },
+          {
+            "metric": "full_frame_count",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_after_seed",
+            "threshold": "value==20",
+            "passed": true
+          },
+          {
+            "metric": "health_active_parties_before_seed",
+            "threshold": "value==0",
+            "passed": true
+          },
+          {
+            "metric": "late_sample_vus",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "oversized_full_frames",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "protocol_errors",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "sampled_connections",
+            "threshold": "count==80",
+            "passed": true
+          },
+          {
+            "metric": "stale_pending_commands",
+            "threshold": "count==0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_advances_per_vu",
+            "threshold": "min>=2700",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_interval_samples",
+            "threshold": "count>0",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_rate_hz",
+            "threshold": "min>=9",
+            "passed": true
+          },
+          {
+            "metric": "world_tick_sampled_vus",
+            "threshold": "count==80",
+            "passed": true
+          }
+        ],
+        "triggers": {
+          "latencyP95AtLeast250Ms": false,
+          "fullFrameOver25000Bytes": false
+        }
+      }
+    }
+  }
+}

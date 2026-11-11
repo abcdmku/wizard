@@ -1,54 +1,49 @@
 /**
  * @openwizard/durable is the storage and coordination contract for a multi-owner
  * host. It supplies leases, fencing, snapshot CAS, idempotency records, timer
- * claims, metadata retention, and an opt-in `FlowRun` host integration.
+ * claims, metadata retention, and an opt-in `Run` host integration.
  *
- * The normal `@openwizard/core` `createRun` and `Store` remain separate and
- * single-owner. Durable task execution is at-least-once; this package makes no
+ * Core wizard creators and `Store` remain single-owner. Durable task execution is at-least-once; this package makes no
  * exactly-once claim.
  *
  * @packageDocumentation
  */
 
+// Durable runs of one flow, addressed by key.
 export {
-  type AcquireLeaseResult,
-  type CommitInput,
-  type CommitResult,
-  type DedupeClaimInput,
-  type DedupeClaimResult,
-  type DedupeCompletion,
-  type DedupeKind,
-  type DurableRecord,
-  type DurableResultCode,
-  type DurableStore,
-  DurableStoreError,
-  type DurableStoreErrorCode,
-  type FenceToken,
-  type Lease,
-  type LeaseOptions,
-  type MemoryDurableStore,
-  type MemoryDurableStoreOptions,
-  type ReleaseLeaseResult,
-  type RenewLeaseResult,
-  type RetentionPolicy,
-  type RetentionSweepOptions,
-  type RetentionSweepResult,
-  type TimerClaimInput,
-  type TimerClaimResult,
-  type TimerCompletion,
-  type Version,
-} from './contracts'
+  createDurableHost,
+  type DurableCreateOptions,
+  type DurableHost,
+  type DurableHostOpenFailure,
+  type DurableHostOpenResult,
+  type DurableHostOptions,
+} from './durable-host'
+// The run host.
 export {
   createDurableRun,
   type DurableCommandOptions,
   type DurableCommandResult,
   type DurableEventOptions,
   type DurableEventResult,
+  type DurableHostFailure,
   type DurableResumeOptions,
   type DurableRunFailureCode,
   type DurableRunHost,
+  type DurableRunOpenFailure,
   type DurableRunOpenResult,
   type DurableRunOptions,
   resumeDurableRun,
 } from './durable-run'
-export { createMemoryDurableStore } from './memory-store'
+export type { DurableLeaseLossCode } from './durable-run-state'
+export {
+  createHostRegistry,
+  type HostOpenContext,
+  type HostOpenResult,
+  type HostRegistryDisposed,
+  type HostRegistryOpenResult,
+} from './host-registry'
+export {
+  createMemoryDurableStore,
+  type MemoryDurableStore,
+  type MemoryDurableStoreOptions,
+} from './memory-store'

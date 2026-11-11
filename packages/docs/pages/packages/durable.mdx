@@ -1,28 +1,50 @@
-# Durable runs
+# Durable
 
-A core store saves snapshots but assumes one live process controls each run. That assumption breaks when two server instances handle commands for the same order or two workers wake the same timer.
-
-`@openwizard/durable` coordinates those processes. A worker must hold a time-limited lease before it changes a run. Fencing prevents an old lease holder from writing after a newer owner takes over. Command ids prevent the same request from being applied twice, and timer claims prevent two workers from firing one timer.
+`@openwizard/durable` coordinates several processes that can touch the same run with leases, fencing tokens, command deduplication, and timer claims. You need it when two servers can handle commands for one run or two workers can wake one timer.
 
 ```sh
 npm install @openwizard/durable @openwizard/core
 ```
 
-This local example opens a durable host with the in-memory durable store:
-
 ```ts file="packages/docs/snippets/packages/durable.mts"
 ```
 
-`key: 'hello-1'` identifies the durable run. `ownerId: 'worker-a'` identifies the process trying to own it. On success, `opened.host.run` is the normal typed core run, and the host keeps its lease and persistence rules around it.
+1. `createDurableHost(helloFlow, { store, ownerId })` hosts runs of the wizard by key.
+2. `host.create('hello-1', input)` creates the run, or opens its existing record.
+3. `host.dispatch(key, command, { commandId })` routes a command through lease, persistence, and deduplication gates.
+4. `host.send(key, event, payload, { eventId })` delivers an external event through the same host.
+5. `host.dispose()` waits for in-flight work, stops renewal, and releases its leases.
 
-`createDurableRun()` may return `LEASE_BUSY` when another worker owns the key. That is expected contention, not corrupted state. Do not run the command outside the durable host. Retry at or after the returned `retryAt` time.
+## Exports
 
-The in-memory durable store only demonstrates the contract in one process. It cannot coordinate separate machines. Use a database implementation in production. [`@openwizard/drizzle`](/packages/drizzle) provides PostgreSQL and SQLite adapters.
+| Export | What it does |
+|---|---|
+| `createDurableHost(wizard, options)` | Owns a keyed registry, leases, renewal, takeover, and disposal |
+| `createDurableRun(wizard, options)` | Acquires a lease and creates or resumes one run |
+| `resumeDurableRun(wizard, options)` | Acquires a lease and resumes only an existing record |
+| `createMemoryDurableStore()` | In-memory `DurableStore` for tests and single-process demos |
+| `createHostRegistry()` | Keyed host cache shared by a server's request handlers |
+| `@openwizard/durable/store` | `DurableStore`, versions, lease, command, and timer protocols |
+| `@openwizard/durable/testing` | Store adapter conformance suite |
+| `DurableRunHost` | The run plus its lease, commit, dedupe, and timer gates |
+| `DurableRunOpenResult` | `ok` or a code such as `LEASE_BUSY` with a `retryAt` |
 
-Durable execution is at-least-once. A worker can call an outside service successfully and crash before saving the result. The next owner may run that task again. Pass OpenWizard's idempotency key to the outside service and make that service reject or reuse duplicate requests.
+## Boundaries
 
-Call `host.dispose()` when the worker is finished. It waits for in-flight persistence barriers, stops lease renewal, and releases the lease.
+`LEASE_BUSY` means another worker owns the key; retry at `retryAt` and never run the command outside the host. The memory store cannot coordinate separate machines, so use [Drizzle](/packages/drizzle) or another database adapter in production. Execution is at-least-once: a worker can call an outside service and crash before saving the result. Pass the task's `idempotencyKey` to that service so it rejects or reuses duplicates.
 
-Read [multi-worker durability](/advanced/durability) for the lease, fencing, compare-and-swap, deduplication, failover, and timer-claim model.
+## Command recovery
 
-[Durable API lookup](/api/durable)
+A repeated `commandId` replays its stored result and version. A different command using the same id returns `DEDUPLICATE_CONFLICT`. Completed results recover from their atomic state commit after a worker stops. If an applied command has no recoverable final result, the retry returns `COMMAND_INTERRUPTED`; inspect the run before choosing a new command id.
+
+Pass `expectedVersion: { epoch, seq }` with a command id when the command depends on a state you already read. The host replays completed receipts first, rejects a new claim at the wrong version with `CAS_CONFLICT`, and checks again after asynchronous validation. A race during validation records `STALE`, so retries replay that refusal.
+
+Event ids use the run's persisted deduplication window, which defaults to 24 hours and 1000 ids. These command and event checks coordinate stored state; external effects still need service-level idempotency.
+
+Adapter authors import the protocol from `@openwizard/durable/store`. `CommitInput.applyDedupe` marks the claim `applied` atomically with the snapshot, preventing a new owner from applying it again. Run `durableStoreContract` from `@openwizard/durable/testing` against your store.
+
+## Next
+
+Read [multi-worker durability](/advanced/durability) for the lease, fencing, compare-and-swap, failover, and timer-claim model.
+
+[Durable API](/api/durable)

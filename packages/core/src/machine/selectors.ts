@@ -11,8 +11,11 @@
  * @internal
  */
 
-import type { CompiledFlow } from '../authoring/compiled'
+import type { CompiledFlow, CompiledStep } from '../authoring/compiled'
+import { childActivity } from './child-activity'
+import { needsSatisfied, unmetNeeds } from './needs'
 import type { NavCause, NavState, SagaEntryRef, StepRecord, WizardState } from './state'
+import { stepIndex } from './step-index'
 
 /** UI-facing live phase of a step (undefined when the step has no live phase: idle/done/failed/…). */
 export type StepPhase =
@@ -39,7 +42,7 @@ interface Memo {
   readonly phase: Map<string, StepPhase | undefined>
 }
 
-/** v0.2 (§9.6): completion counters over the non-final steps; `skipped` counts as done. */
+/** Completion counters over all steps; `skipped` counts as done. */
 export interface Progress {
   readonly done: number
   readonly total: number
@@ -66,16 +69,46 @@ function isComplete(rec: StepRecord | undefined): boolean {
   return rec !== undefined && (rec.status === 'done' || rec.status === 'skipped')
 }
 
-/** `depsSatisfied(id) = !dependsOn || (all: every dep done|skipped) || (any: some dep done|skipped)`. */
+export function isRunnableStep(def: CompiledStep | undefined): def is CompiledStep & {
+  readonly kind: 'step'
+  readonly hooks: CompiledStep['hooks'] & {
+    readonly run: NonNullable<CompiledStep['hooks']['run']>
+  }
+} {
+  return def?.kind === 'step' && def.hooks.run !== undefined
+}
+
+export function isEventStep(def: CompiledStep | undefined): def is CompiledStep & {
+  readonly hooks: CompiledStep['hooks'] & {
+    readonly waitFor: NonNullable<CompiledStep['hooks']['waitFor']>
+  }
+} {
+  return def?.hooks.waitFor !== undefined
+}
+
+export function isRoutingStep(
+  def: CompiledStep | undefined,
+): def is CompiledStep & { readonly kind: 'step' } {
+  return (
+    def?.kind === 'step' &&
+    def.hooks.run === undefined &&
+    def.hooks.waitFor === undefined &&
+    def.sleep === undefined &&
+    def.each === undefined &&
+    def.next.kind === 'dynamic'
+  )
+}
+
+/** Control deps accept done/skipped; data needs require outputs or an optional skip. */
 export function depsSatisfied(def: CompiledFlow, state: WizardState, id: string): boolean {
   const m = memo(state)
   const cached = m.deps.get(id)
   if (cached !== undefined) return cached
   const deps = def.steps[id]?.dependsOn
-  let ok = true
+  let ok = needsSatisfied(def, state, id)
   if (deps !== undefined) {
-    if ('all' in deps) ok = deps.all.every((d) => isComplete(state.steps[d]))
-    else ok = deps.any.some((d) => isComplete(state.steps[d]))
+    if ('all' in deps) ok = ok && deps.all.every((d) => isComplete(state.steps[d]))
+    else ok = ok && deps.any.some((d) => isComplete(state.steps[d]))
   }
   m.deps.set(id, ok)
   return ok
@@ -84,11 +117,12 @@ export function depsSatisfied(def: CompiledFlow, state: WizardState, id: string)
 /** Ids of unmet dependencies (for `explain`). */
 export function unmetDeps(def: CompiledFlow, state: WizardState, id: string): readonly string[] {
   const deps = def.steps[id]?.dependsOn
-  if (deps === undefined) return []
+  const needs = unmetNeeds(def, state, id)
+  if (deps === undefined) return needs
   const list = 'all' in deps ? deps.all : deps.any
   const unmet = list.filter((d) => !isComplete(state.steps[d]))
-  if ('any' in deps && unmet.length < list.length) return []
-  return unmet
+  if ('any' in deps && unmet.length < list.length) return needs
+  return [...new Set([...unmet, ...needs])]
 }
 
 /**
@@ -112,20 +146,11 @@ export function ready(def: CompiledFlow, state: WizardState, id: string): boolea
   return eligible(def, state, id) && !awaitingWhen(def, state, id)
 }
 
-function byArrival(state: WizardState, ids: readonly string[]): readonly string[] {
-  return [...ids].sort(
-    (a, b) => (state.steps[a]?.arrivedSeq ?? 0) - (state.steps[b]?.arrivedSeq ?? 0),
-  )
-}
-
 /** Eligible steps (ready ignoring `when`) in ascending `arrivedSeq` order. */
 export function eligibleSteps(def: CompiledFlow, state: WizardState): readonly string[] {
   const m = memo(state)
   if (m.eligibleSteps !== undefined) return m.eligibleSteps
-  const list = byArrival(
-    state,
-    def.order.filter((id) => eligible(def, state, id)),
-  )
+  const list = stepIndex(state.steps).pending.filter((id) => eligible(def, state, id))
   m.eligibleSteps = list
   return list
 }
@@ -151,10 +176,10 @@ export function viewsAwaitingWhen(def: CompiledFlow, state: WizardState): readon
   )
 }
 
-/** Number of tasks currently active (concurrency budget consumer). */
-export function activeTaskCount(def: CompiledFlow, state: WizardState): number {
+/** Number of active run effects consuming the concurrency budget. */
+export function activeRunCount(def: CompiledFlow, state: WizardState): number {
   let n = 0
-  for (const id of state.active) if (def.steps[id]?.kind === 'task') n++
+  for (const id of state.active) if (isRunnableStep(def.steps[id])) n++
   return n
 }
 
@@ -185,18 +210,6 @@ export function cursorTarget(
 // Flow-level helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Halt-failure that `retry(step)` can recover from: status 'failed', the flow never
- * compensated (`saga.outcome` unset) and at least one step record is still failed.
- */
-export function isRecoverableFailure(state: WizardState): boolean {
-  return (
-    state.status === 'failed' &&
-    state.saga.outcome === undefined &&
-    Object.values(state.steps).some((r) => r.status === 'failed')
-  )
-}
-
 /** A transition initiated by the cursor (user `next/go/back`, cursor rule): `from` is a view or null. */
 export function cursorInitiated(def: CompiledFlow, nav: NavState): boolean {
   return nav.from == null || def.steps[nav.from]?.kind === 'view'
@@ -217,17 +230,16 @@ export function sameEntry(a: SagaEntryRef, b: SagaEntryRef): boolean {
   return a.step === b.step && a.runId === b.runId
 }
 
-/** Terminal = done | cancelled | non-recoverable failed. */
+/** Terminal = done | cancelled | failed (a recoverable failure is `halted`). */
 export function isTerminal(state: WizardState): boolean {
-  if (state.status === 'done' || state.status === 'cancelled') return true
-  return state.status === 'failed' && !isRecoverableFailure(state)
+  return state.status === 'done' || state.status === 'cancelled' || state.status === 'failed'
 }
 
-/** True while a task's `run` effect is in flight (result still expected). */
+/** True while a step's `run` effect is in flight. */
 export function runInFlight(rec: StepRecord | undefined): boolean {
   return (
     rec !== undefined &&
-    rec.kind === 'task' &&
+    rec.kind === 'step' &&
     rec.status === 'active' &&
     rec.attempt >= 1 &&
     rec.retryAt === undefined &&
@@ -274,12 +286,14 @@ function computePhase(def: CompiledFlow, state: WizardState, id: string): StepPh
       }
       return 'waiting'
     }
-    case 'task':
-      return rec.retryAt !== undefined ? 'retrying' : 'running'
-    case 'wait':
-      return 'waiting'
+    case 'step':
+      return isEventStep(def.steps[id]) || def.steps[id]?.sleep !== undefined
+        ? 'waiting'
+        : rec.retryAt !== undefined
+          ? 'retrying'
+          : 'running'
     case 'flow':
-      return rec.child?.status === 'waiting' ? 'waiting' : 'running'
+      return childActivity(rec) === 'waiting' ? 'waiting' : 'running'
     default:
       return 'running'
   }
@@ -293,23 +307,17 @@ export function available(def: CompiledFlow, state: WizardState, id: string): bo
 }
 
 /**
- * v0.2 (§9.6): `{ done, total, ratio }` over the non-final steps (`done` = status `done` or
- * `skipped`); `ratio` is 1 once the flow is `done` (branches never taken do not count against a
- * finished flow). Memoized per state. `ChildSummary.progress` and `ClientState.progress` use it.
+ * `{ done, total, ratio }` over all steps (`done` = status `done` or
+ * `skipped`). Once the flow is `done`, branches never taken drop out: `total = done`, `ratio = 1`.
+ * Memoized per state. `ChildSummary.progress` and `ClientState.progress` use it.
  */
 export function progress(state: WizardState, def: CompiledFlow): Progress {
   const m = memo(state)
   if (m.progress !== undefined) return m.progress
-  let done = 0
-  let total = 0
-  for (const id of def.order) {
-    const rec = state.steps[id]
-    if (rec === undefined || (def.steps[id]?.kind ?? rec.kind) === 'final') continue
-    total += 1
-    if (rec.status === 'done' || rec.status === 'skipped') done += 1
-  }
-  const ratio = state.status === 'done' ? 1 : total === 0 ? 0 : done / total
-  const p: Progress = { done, total, ratio }
+  const done = stepIndex(state.steps).completed
+  let total = def.order.length
+  if (state.status === 'done') total = done
+  const p: Progress = { done, total, ratio: total === 0 ? 0 : done / total }
   m.progress = p
   return p
 }
@@ -321,9 +329,36 @@ export function progress(state: WizardState, def: CompiledFlow): Progress {
 export function readyOrCurrentViews(def: CompiledFlow, state: WizardState): readonly string[] {
   const m = memo(state)
   if (m.readyOrCurrentViews !== undefined) return m.readyOrCurrentViews
-  const list = def.order.filter(
-    (id) => def.steps[id]?.kind === 'view' && (id === state.current || ready(def, state, id)),
-  )
+  const order = declarationOrder(def)
+  const candidates = readyViews(def, state).filter((id) => id !== state.current)
+  if (state.current !== null) candidates.push(state.current)
+  const list = candidates.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
   m.readyOrCurrentViews = list
   return list
+}
+
+// ---------------------------------------------------------------------------
+// Per-definition facts (memoized per compiled flow)
+// ---------------------------------------------------------------------------
+
+interface DefFacts {
+  readonly order: ReadonlyMap<string, number>
+}
+
+const defFacts = new WeakMap<CompiledFlow, DefFacts>()
+
+function facts(def: CompiledFlow): DefFacts {
+  let f = defFacts.get(def)
+  if (f === undefined) {
+    f = {
+      order: new Map(def.order.map((id, i) => [id, i])),
+    }
+    defFacts.set(def, f)
+  }
+  return f
+}
+
+/** Step id -> declaration index. */
+function declarationOrder(def: CompiledFlow): ReadonlyMap<string, number> {
+  return facts(def).order
 }
