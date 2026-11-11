@@ -15,8 +15,3 @@ Run a wizard as one step of another wizard.
 ## Run one child for each item
 
 Add `each` to the child step. `context` then receives `item` and `index`, and the step's output is an array in item order. Reach one child with `run.child('batch', 0)`. After a failure, `run.retry('batch')` reruns only the items that failed.
-
-## Next
-
-- [Test](/guide/test)
-- [Child options](/reference/core#declare-a-child)

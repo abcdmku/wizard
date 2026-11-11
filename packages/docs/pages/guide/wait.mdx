@@ -27,8 +27,3 @@ Pause a run until another system reports back, a deadline passes, or both.
 
 - An event that arrives before a step waits for it is kept for five minutes and delivered when the wait starts. Change this with `unmatchedEvents` in the wizard options.
 - Pass the sender's delivery id as `run.send(event, payload, { eventId })`. A repeat returns `{ ok: true, duplicate: true }` and calls no handler.
-
-## Next
-
-- [Handle failures](/guide/failures)
-- [Events](/reference/core#send-events)

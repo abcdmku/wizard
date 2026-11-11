@@ -27,9 +27,3 @@ Send a browser the fields it may see, and take its commands back.
 ## Limit a projection to one viewer
 
 Add `scope: boundary.trusted<Viewer>()` to a `select` projection. The selector then receives `{ state, scope }`, and `run.project(projection, viewer)` and `createMirrorSource(run, projection, { scope: viewer })` require the viewer. The client cannot supply it.
-
-## Next
-
-- [HTTP API and webhooks](/production/http)
-- [React reference](/reference/react)
-- [Projection options](/reference/core#project-a-run)

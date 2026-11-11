@@ -20,8 +20,3 @@ A step is skipped when a [branch](/guide/branch) does not choose it, when its `w
 | `needs: { a }` | The output of `a` | This step is skipped too |
 | `needs: { first: { any: [a, b] } }` | The output of the first one to finish | This step is skipped only if all of them are |
 | `needs: { a: { optional: a } }` | The output of `a`, or `undefined` | This step still runs |
-
-## Next
-
-- [Forms](/guide/forms)
-- [Step options](/reference/core#declare-a-step)

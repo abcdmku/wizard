@@ -37,8 +37,3 @@ Check a wizard against these facts before you run it in production.
 | A core `Store` assumes one process per run | Use a [durable host](/production/server) when two processes can reach a run |
 | Memory stores coordinate one process | Use a database store for runs, HTTP idempotency and webhook subscriptions |
 | A run you `create` holds timers and listeners | Call `run.dispose()`, and `host.dispose()` on shutdown |
-
-## Next
-
-- [Reference](/reference)
-- [Examples](/examples)

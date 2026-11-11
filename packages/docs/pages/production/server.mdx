@@ -37,8 +37,3 @@ Every call returns a value. Check `ok`, then `code`.
 - A lease lasts 30 seconds and the host renews it. When a process dies, another process takes the lease after it expires and resumes the run.
 - The step that was running runs again there if it declares `idempotencyKey`. The host saves state before each step starts. It cannot save your service call, so [pass the key to the service](/guide/failures#retry-a-step).
 - On a runtime that lives for one request, set `renew: 'manual'` and dispose the host before the request ends.
-
-## Next
-
-- [Show a run to a client](/production/client)
-- [Durable reference](/reference/durable)

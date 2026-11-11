@@ -15,8 +15,3 @@ Store a run as JSON and continue it later, in another process.
 ## Resume a snapshot from older code
 
 Give the wizard a `version`. When a stored snapshot has another version, `resume(snapshot, { migrate })` calls `migrate(snapshot, from)` and resumes what it returns. `renameSteps(snapshot, { oldId: 'newId' })` handles a renamed step.
-
-## Next
-
-- [Child wizards](/guide/children)
-- [Run options](/reference/core#create-a-run)

@@ -30,8 +30,3 @@ When `live` fails and has no retries left, it is skipped and `list` starts. The 
 - With `onFailure: 'compensate'`, the run does not halt. It calls the `compensate` function of every finished step, newest first, and ends as `failed`.
 - `compensate` receives the step's `output` and an `idempotencyKey` of its own. An undo can repeat too.
 - The result's `failure.compensation.outcome` is `'partial'` when an undo failed. Call `run.compensate({ from: 'flight' })` to try again from that step.
-
-## Next
-
-- [Save and resume](/guide/save-resume)
-- [Step options](/reference/core#declare-a-step)
