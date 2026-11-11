@@ -10,6 +10,8 @@ COPY packages/durable/package.json packages/durable/tsconfig.json packages/durab
 COPY packages/durable/src ./packages/durable/src
 COPY packages/drizzle/package.json packages/drizzle/tsconfig.json packages/drizzle/tsdown.config.ts ./packages/drizzle/
 COPY packages/drizzle/src ./packages/drizzle/src
+COPY packages/store-kit/package.json packages/store-kit/tsconfig.json ./packages/store-kit/
+COPY packages/store-kit/src ./packages/store-kit/src
 COPY systems/01-intake/package.json systems/01-intake/tsconfig.json ./systems/01-intake/
 COPY systems/01-intake/shared ./systems/01-intake/shared
 COPY systems/01-intake/api/db ./systems/01-intake/api/db
