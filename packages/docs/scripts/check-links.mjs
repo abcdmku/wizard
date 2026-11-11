@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
- * Every internal link in `pages/**` must point at a page that exists (`/learn/steps`, with an
+ * Every internal link in `pages/**` must point at a page that exists (`/guide/forms`, with an
  * optional `#hash` / `?query`), at a route the app serves (`/`, `/playground`) or at a generated
- * directory (`/typedoc/`, `/pagefind/`). Hardcoded `_splat` slugs in `src/**` are checked too.
+ * directory (`/typedoc/`, `/pagefind/`). Hardcoded `_splat` slugs in `src/**` are checked too,
+ * and every redirect in `lib/redirects.mjs` must lead from a retired route to a page.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { extname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildDocsManifest } from '../lib/docs-manifest.mjs'
+import { redirects } from '../lib/redirects.mjs'
 
 const docsRoot = fileURLToPath(new URL('..', import.meta.url))
 const pagesRoot = resolve(docsRoot, 'pages')
@@ -63,9 +65,17 @@ for (const file of listFiles(resolve(docsRoot, 'src'), new Set(['.ts', '.tsx']))
   }
 }
 
+// A redirect leads from a route that no longer exists to a page that does.
+for (const [from, to] of Object.entries(redirects)) {
+  if (ROUTES.has(from)) errors.push(`lib/redirects.mjs "${from}" is a live page`)
+  if (!ROUTES.has(routeOf(to))) errors.push(`lib/redirects.mjs "${from}" leads to "${to}"`)
+}
+
 if (errors.length > 0) {
   console.error('[check-links] broken links:')
   for (const error of errors) console.error(`- ${error}`)
   process.exit(1)
 }
-console.log(`[check-links] ${ROUTES.size} routes, all internal links resolve`)
+console.log(
+  `[check-links] ${ROUTES.size} routes and ${Object.keys(redirects).length} redirects, all internal links resolve`,
+)

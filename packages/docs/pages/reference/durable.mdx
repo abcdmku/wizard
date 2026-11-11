@@ -14,7 +14,7 @@ await host.create('orders/42', { orderId: 'o-42' })
 await host.dispatch('orders/42', { type: 'start' }, { commandId: 'request-1' })
 ```
 
-[Run on a server](/advanced/server) explains the example and every result code.
+[Run on a server](/production/server) explains the example and every result code.
 
 | Export | Meaning |
 |---|---|
@@ -42,7 +42,7 @@ The `host` in an open result has `run`, `version`, `dispatch`, `send`, `renew`, 
 | `lease` | `{ ttlMs }`. Default: the store's, 30 seconds |
 | `renew` | `{ everyMs }`, default a third of the lease. `'manual'` starts no timer |
 | `onLeaseLost` | `(key, code) => void`, called when this process loses a run |
-| `redact`, `eventIds`, `migrate`, `scheduler`, `clock`, `logSize` | As in the [run options](/packages/core#create-a-run) |
+| `redact`, `eventIds`, `migrate`, `scheduler`, `clock`, `logSize` | As in the [run options](/reference/core#create-a-run) |
 
 | Store option | Meaning |
 |---|---|

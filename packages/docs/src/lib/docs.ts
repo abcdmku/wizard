@@ -1,4 +1,10 @@
-import { type DocsPage, docsNavItems, docsPages, docsSections } from 'virtual:docs-manifest'
+import {
+  type DocsPage,
+  docsNavItems,
+  docsPages,
+  docsRedirects,
+  docsSections,
+} from 'virtual:docs-manifest'
 import { type ComponentType, lazy } from 'react'
 
 export type { DocsPage, DocsSection } from 'virtual:docs-manifest'
@@ -17,6 +23,16 @@ function normalizeSlug(value: string | undefined): string {
 
 export function pageBySlug(slug: string | undefined): DocsPage | undefined {
   return docsPageMap.get(normalizeSlug(slug))
+}
+
+/** Where an old route moved to: the new slug, and the heading to open when the entry names one. */
+export function redirectFor(
+  slug: string | undefined,
+): { readonly slug: string; readonly hash?: string } | undefined {
+  const target = docsRedirects[`/${normalizeSlug(slug)}`]
+  if (!target) return undefined
+  const [path = '', hash] = target.split('#')
+  return { slug: normalizeSlug(path), ...(hash ? { hash } : {}) }
 }
 
 /** The page before (`-1`) or after (`1`) `slug` in reading order. */

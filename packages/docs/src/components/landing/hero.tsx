@@ -32,14 +32,14 @@ export function Hero() {
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 lg:justify-end">
         <Link
           to="/$"
-          params={{ _splat: 'getting-started' }}
+          params={{ _splat: 'quickstart' }}
           className="text-[13px] font-medium text-neutral-500 no-underline transition-colors hover:text-ink dark:text-neutral-400 dark:hover:text-white"
         >
           Get started &rarr;
         </Link>
         <Link
           to="/$"
-          params={{ _splat: 'advanced' }}
+          params={{ _splat: 'production' }}
           className="text-[13px] font-medium text-neutral-500 no-underline transition-colors hover:text-ink dark:text-neutral-400 dark:hover:text-white"
         >
           See the production features &rarr;

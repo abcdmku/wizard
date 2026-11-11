@@ -9,7 +9,7 @@ Serve a wizard over HTTP: a run API for your clients and signed webhook routes f
 - `access` lists what callers may do. A capability you leave out gets no route.
 - `verify` turns a bearer token into a tenant, a principal and scopes. The routes require `approval:read`, `approval:create` and `approval:command`.
 - `runs.get` receives the caller's `tenantId` and must return only that tenant's runs. `resolve` receives a verified delivery and decides which run its sender may reach. A valid signature proves the sender knows the secret, nothing more.
-- Return a [durable host](/advanced/server) handle from `runs.get` and `resolve` when several processes serve the routes.
+- Return a [durable host](/production/server) handle from `runs.get` and `resolve` when several processes serve the routes.
 
 ## Know the routes
 
@@ -46,5 +46,5 @@ The stream sends the projection built from `access`, or the one you pass as `pro
 
 ## Next
 
-- [Tracing](/advanced/tracing)
-- [HTTP reference](/packages/http)
+- [Tracing](/production/tracing)
+- [HTTP reference](/reference/http)

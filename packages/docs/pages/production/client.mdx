@@ -19,7 +19,7 @@ Send a browser the fields it may see, and take its commands back.
 ```
 
 - `createMirror` keeps a copy of the projected state in the browser and sends commands to the source. It has the same command methods as a run.
-- A transport carries frames one way and commands the other. [`httpTransport(url)`](/advanced/http#connect-a-browser) is the one for HTTP. `createLocalTransport(source)` from `@openwizard/core/testing` connects both ends in one process.
+- A transport carries frames one way and commands the other. [`httpTransport(url)`](/production/http#connect-a-browser) is the one for HTTP. `createLocalTransport(source)` from `@openwizard/core/testing` connects both ends in one process.
 - `bindReact<typeof checkoutClient>()` types the hooks from the projection. Reading a field the projection leaves out is a compile error.
 - `useRun` creates the mirror once and disposes it when the component unmounts. `fallback` renders until the first frame arrives.
 - Mirror commands never reject. Offline, they resolve to `{ ok: false, code: 'TRANSPORT_FAILED' }`.
@@ -30,6 +30,6 @@ Add `scope: boundary.trusted<Viewer>()` to a `select` projection. The selector t
 
 ## Next
 
-- [HTTP API and webhooks](/advanced/http)
-- [React reference](/packages/react)
-- [Projection options](/packages/core#project-a-run)
+- [HTTP API and webhooks](/production/http)
+- [React reference](/reference/react)
+- [Projection options](/reference/core#project-a-run)

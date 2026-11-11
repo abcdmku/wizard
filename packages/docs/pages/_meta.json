@@ -1,7 +1,7 @@
 {
-  "getting-started": "Quickstart",
-  "learn": { "title": "Guide" },
-  "advanced": { "title": "Production" },
-  "packages": { "title": "Reference" },
+  "quickstart": "Quickstart",
+  "guide": { "title": "Guide", "numbered": true },
+  "production": { "title": "Production" },
+  "reference": { "title": "Reference" },
   "examples": "Examples"
 }

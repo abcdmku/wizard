@@ -10,7 +10,7 @@ Store a run as JSON and continue it later, in another process.
 - Finished steps stay finished. A step that was running when the process stopped runs again if it declares `idempotencyKey`. Otherwise it fails as `interrupted` and the run halts, so you can check the service before `run.retry(step)`.
 - Keep `Date`, `Map`, functions and class instances out of context and outputs. A value that is not JSON fails the write with `SNAPSHOT_NOT_SERIALIZABLE`.
 - A store saves one snapshot per key through `get`, `set` and `delete`. `createMemoryStore()` is for tests.
-- One process owns a run at a time. If two can reach the same run, read [Run on a server](/advanced/server).
+- One process owns a run at a time. If two can reach the same run, read [Run on a server](/production/server).
 
 ## Resume a snapshot from older code
 
@@ -18,5 +18,5 @@ Give the wizard a `version`. When a stored snapshot has another version, `resume
 
 ## Next
 
-- [Child wizards](/learn/children)
-- [Run options](/packages/core#create-a-run)
+- [Child wizards](/guide/children)
+- [Run options](/reference/core#create-a-run)

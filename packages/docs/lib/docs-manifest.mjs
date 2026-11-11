@@ -78,14 +78,15 @@ export function buildDocsManifest(docsRoot) {
 
   for (const [key, value] of Object.entries(rootMeta)) {
     if (typeof value === 'string') {
-      // A single top-level page: "getting-started": "Getting started"
+      // A single top-level page: "quickstart": "Quickstart"
       const slug = routeSlug(key)
       place(slug, null, value)
       navItems.push({ type: 'page', slug })
       continue
     }
     if (value && typeof value === 'object') {
-      // A section folder: "learn": { "title": "Learn" }, ordered by pages/learn/_meta.json.
+      // A section folder: "guide": { "title": "Guide" }, ordered by pages/guide/_meta.json.
+      // "numbered": true numbers its pages in the sidebar, for a section read in order.
       const sectionId = key
       const sectionMeta = readJson(resolve(pagesRoot, sectionId, '_meta.json')) ?? {}
       const slugs = []
@@ -105,6 +106,7 @@ export function buildDocsManifest(docsRoot) {
       sections.push({
         id: sectionId,
         title: typeof value.title === 'string' ? value.title : humanize(sectionId),
+        numbered: value.numbered === true,
         slugs,
       })
       navItems.push({ type: 'section', id: sectionId })

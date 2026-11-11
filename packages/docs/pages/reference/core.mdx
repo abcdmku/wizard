@@ -66,7 +66,7 @@ Every `step`, `view` and `child` takes these.
 
 | Option | Meaning |
 |---|---|
-| `needs` | `{ alias: step }`, `{ alias: { any: [a, b] } }` or `{ alias: { optional: step } }`. See [Pass data between steps](/learn/needs) |
+| `needs` | `{ alias: step }`, `{ alias: { any: [a, b] } }` or `{ alias: { optional: step } }`. See [Pass data between steps](/guide/needs) |
 | `next` | A step or its id, an array of them, `null`, or a function that returns one |
 | `targets` | Required with a function `next`. Every step it can return. Returning another step fails this one |
 | `when` | Return `false` to skip the step |
@@ -88,7 +88,7 @@ A `step` has one behaviour: `run`, `waitFor` or `sleep`. With none, it only rout
 | `idempotencyKey` | `true`, or a function that returns your key. Marks the step safe to run again after a crash |
 | `compensate` | The undo function. Runs under `onFailure: 'compensate'` and `run.compensate()` |
 | `mapError` | `(error, args) => json`. Stored as `error.data`, typed by `ErrorOf`, passed to `retry.when`. Write it above `retry` so `retry.when` gets its type |
-| `waitFor` | `{ event: handler }`. See [Decide in the handler](/learn/wait#decide-in-the-handler) |
+| `waitFor` | `{ event: handler }`. See [Decide in the handler](/guide/wait#decide-in-the-handler) |
 | `sleep` | A duration, or a function that returns one |
 
 | Field of `retry` | Meaning |
@@ -242,7 +242,7 @@ Bad data and refused commands come back as `{ ok: false, code }`. Misuse throws 
 
 | Call | Use |
 |---|---|
-| `run.send(event, payload, options?)` | Deliver one event. See [Wait for events and time](/learn/wait) |
+| `run.send(event, payload, options?)` | Deliver one event. See [Wait for events and time](/guide/wait) |
 | `run.attach((send) => stop)` | Feed a queue or socket into the run |
 | `parseCommand(wizard, input)` | Check a command from the network. Returns `{ ok, value }` or `{ ok, issues }` |
 

@@ -7,7 +7,7 @@ Pause a run until another system reports back, a deadline passes, or both.
 
 - Declare every event and its payload schema in `events`. `run.send(event, payload)` validates the payload. An invalid one returns `{ ok: false, code: 'BOUNDARY_REJECTED', issues }` and the step keeps waiting.
 - With `timeout: { after, next }`, a wait that gets no event in time is skipped and `next` starts. A step with a plain need on the wait is skipped with it. `close` runs either way because its need is `optional`.
-- `approval.run(input)` returns `{ status: 'waiting', waitingFor, snapshot }` when the run stops at a wait or a view. [Save and resume](/learn/save-resume) continues from that snapshot.
+- `approval.run(input)` returns `{ status: 'waiting', waitingFor, snapshot }` when the run stops at a wait or a view. [Save and resume](/guide/save-resume) continues from that snapshot.
 - A deadline is a stored point in time. A restart does not extend it.
 
 ## Decide in the handler
@@ -30,5 +30,5 @@ Pause a run until another system reports back, a deadline passes, or both.
 
 ## Next
 
-- [Handle failures](/learn/failures)
-- [Events](/packages/core#send-events)
+- [Handle failures](/guide/failures)
+- [Events](/reference/core#send-events)

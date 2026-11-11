@@ -33,10 +33,10 @@ export function Landing() {
       <footer className="flex shrink-0 items-center justify-between px-6 py-3 text-[11px] text-neutral-400 lg:px-10 xl:px-14 dark:text-neutral-600">
         <span suppressHydrationWarning>&copy; {year} OpenWizard, MIT</span>
         <div className="flex items-center gap-4">
-          <Link to="/$" params={{ _splat: 'getting-started' }} className={FOOTER_LINK}>
+          <Link to="/$" params={{ _splat: 'quickstart' }} className={FOOTER_LINK}>
             Docs
           </Link>
-          <Link to="/$" params={{ _splat: 'advanced' }} className={FOOTER_LINK}>
+          <Link to="/$" params={{ _splat: 'production' }} className={FOOTER_LINK}>
             Production
           </Link>
           <Link to="/$" params={{ _splat: 'examples' }} className={FOOTER_LINK}>

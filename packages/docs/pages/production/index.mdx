@@ -6,8 +6,8 @@ Check a wizard against these facts before you run it in production.
 
 | Fact | Do |
 |---|---|
-| A step can run twice. A retry repeats it, and so does a crash between the service call and the save. No store can prevent that | Declare [`idempotencyKey`](/learn/failures#retry-a-step) on every step that charges, sends or books, and pass it to the service |
-| An undo can run twice for the same reason | Pass the [`compensate`](/learn/failures#undo-finished-steps) key to the service too |
+| A step can run twice. A retry repeats it, and so does a crash between the service call and the save. No store can prevent that | Declare [`idempotencyKey`](/guide/failures#retry-a-step) on every step that charges, sends or books, and pass it to the service |
+| An undo can run twice for the same reason | Pass the [`compensate`](/guide/failures#undo-finished-steps) key to the service too |
 | An undo is a new call and can fail | Check `failure.compensation.outcome` on a failed result |
 | A sender retries its deliveries | Pass its id as `eventId` or `commandId`. A run remembers 1,000 event ids for 24 hours. Change that with `eventIds` in the run options |
 
@@ -19,26 +19,26 @@ Check a wizard against these facts before you run it in production.
 | TypeScript types do not check data at run time, and `boundary.trusted<T>()` checks nothing | Use a schema for context, events and view input. Parse a command from the network with `parseCommand(wizard, input)` before `run.dispatch` |
 | The `name` and `message` of a thrown error are stored in the snapshot | Keep secrets out of error messages |
 | A snapshot must survive `JSON.stringify` | Store dates as strings |
-| Old snapshots outlive a deploy | Set `version` on the wizard and [migrate](/learn/save-resume#resume-a-snapshot-from-older-code) |
+| Old snapshots outlive a deploy | Set `version` on the wizard and [migrate](/guide/save-resume#resume-a-snapshot-from-older-code) |
 
 ## Control access
 
 | Fact | Do |
 |---|---|
-| A [projection](/advanced/client) sends only what it lists, but `input: true` sends a whole draft | List fields one by one. Test the JSON a client receives |
+| A [projection](/production/client) sends only what it lists, but `input: true` sends a whole draft | List fields one by one. Test the JSON a client receives |
 | A projection, a correlation id and a webhook signature do not say who may open a run | Authenticate the caller and look the run up inside their tenant first |
-| [HTTP](/advanced/http) routes exist only for capabilities in `access` | Grant the smallest set |
+| [HTTP](/production/http) routes exist only for capabilities in `access` | Grant the smallest set |
 | Devtools shows everything its source holds | Leave it out of production builds, or give it a mirror of a projection |
 
 ## Coordinate processes
 
 | Fact | Do |
 |---|---|
-| A core `Store` assumes one process per run | Use a [durable host](/advanced/server) when two processes can reach a run |
+| A core `Store` assumes one process per run | Use a [durable host](/production/server) when two processes can reach a run |
 | Memory stores coordinate one process | Use a database store for runs, HTTP idempotency and webhook subscriptions |
 | A run you `create` holds timers and listeners | Call `run.dispose()`, and `host.dispose()` on shutdown |
 
 ## Next
 
-- [Reference](/packages)
+- [Reference](/reference)
 - [Examples](/examples)

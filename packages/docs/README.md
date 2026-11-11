@@ -4,10 +4,10 @@ The pages live in [`pages`](./pages). A code fence with a `file` attribute loads
 
 | Section | Folder | Read |
 |---|---|---|
-| Quickstart | `pages/getting-started.mdx` | [Quickstart](./pages/getting-started.mdx) |
-| Guide | `pages/learn` | [Steps](./pages/learn/index.mdx), then the next nine pages in order |
-| Production | `pages/advanced` | [Production checklist](./pages/advanced/index.mdx) |
-| Reference | `pages/packages` | [Packages](./pages/packages/index.mdx) |
+| Quickstart | `pages/quickstart.mdx` | [Quickstart](./pages/quickstart.mdx) |
+| Guide | `pages/guide` | [Steps](./pages/guide/index.mdx), then the next nine pages in order |
+| Production | `pages/production` | [Production checklist](./pages/production/index.mdx) |
+| Reference | `pages/reference` | [Packages](./pages/reference/index.mdx) |
 | Examples | `pages/examples.mdx` | [Examples](./pages/examples.mdx) |
 
 ## Run the site

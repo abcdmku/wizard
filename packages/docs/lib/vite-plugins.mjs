@@ -2,7 +2,8 @@
  * Docs-site Vite plugins (build-time only, plain ESM so `vite.config.ts` and the scripts can
  * share them):
  *
- * - `docsManifestPlugin` — `virtual:docs-manifest`: the navigation model built from `pages/`.
+ * - `docsManifestPlugin` — `virtual:docs-manifest`: the navigation model built from `pages/`, and
+ *   the table of old routes from `redirects.mjs`.
  * - `monacoLibsPlugin`  — `virtual:monaco-libs`: the `.d.ts` files the in-browser editor needs
  *   for real type checking — the BUILT `@openwizard/core` declarations and the real `zod` types
  *   (crawled from `node_modules/zod`), keyed by the `file:///node_modules/…` URI Monaco resolves.
@@ -11,6 +12,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
 import { buildDocsManifest } from './docs-manifest.mjs'
+import { redirects } from './redirects.mjs'
 
 const toPosix = (value) => value.replace(/\\/g, '/')
 
@@ -30,6 +32,7 @@ export function docsManifestPlugin(docsRoot) {
         `export const docsPages = ${JSON.stringify(manifest.pages)};`,
         `export const docsSections = ${JSON.stringify(manifest.sections)};`,
         `export const docsNavItems = ${JSON.stringify(manifest.navItems)};`,
+        `export const docsRedirects = ${JSON.stringify(redirects)};`,
       ].join('\n')
     },
     configureServer(server) {
