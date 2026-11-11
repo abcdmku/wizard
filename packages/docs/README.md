@@ -1,6 +1,14 @@
 # OpenWizard documentation
 
-The public guides live in [`pages`](./pages). Code blocks with a `file` attribute load their content from real TypeScript files under [`snippets`](./snippets) or [`examples`](../../examples).
+The pages live in [`pages`](./pages). A code fence with a `file` attribute loads its content from a tested file under [`snippets`](./snippets).
+
+| Section | Folder | Read |
+|---|---|---|
+| Quickstart | `pages/getting-started.mdx` | [Quickstart](./pages/getting-started.mdx) |
+| Guide | `pages/learn` | [Steps](./pages/learn/index.mdx), then the next nine pages in order |
+| Production | `pages/advanced` | [Production checklist](./pages/advanced/index.mdx) |
+| Reference | `pages/packages` | [Packages](./pages/packages/index.mdx) |
+| Examples | `pages/examples.mdx` | [Examples](./pages/examples.mdx) |
 
 ## Run the site
 
@@ -12,7 +20,7 @@ pnpm build
 pnpm docs:dev
 ```
 
-The local site opens at `http://localhost:3000`.
+The site opens at `http://localhost:3000`.
 
 ## Check a change
 
@@ -21,9 +29,9 @@ pnpm --filter @openwizard/docs check
 pnpm check:docs
 ```
 
-The first command type-checks the site and snippets against package source, runs snippet tests with the same source aliases, checks internal links, builds every page, and generates TypeDoc. The second checks documented package exports, imports in code fences, and the root quickstart.
+The first command type-checks the snippets, runs their tests, checks internal links and builds every page. The second checks the export tables, the imports in code fences and the root quickstart.
 
-During a code change, run focused checks without building the site:
+While you write, run one check at a time:
 
 ```sh
 pnpm --filter @openwizard/docs exec tsc --noEmit -p tsconfig.test.json
@@ -31,4 +39,4 @@ pnpm --filter @openwizard/docs check:snippets
 pnpm --filter @openwizard/docs check:links
 ```
 
-Start reading at [getting started](./pages/getting-started.mdx). The [advanced path](./pages/advanced/index.mdx) explains recovery, graph execution, durability, event routing, projections, and replay from tested source.
+[CONTRIBUTING.md](../../CONTRIBUTING.md#change-the-docs) has the rules for writing a page.

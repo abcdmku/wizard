@@ -1,23 +1,21 @@
 # @openwizard/drizzle
 
-PostgreSQL and SQLite adapters for `@openwizard/durable`.
+PostgreSQL and SQLite stores for `@openwizard/durable`, through Drizzle ORM.
 
 ```sh
 npm install @openwizard/drizzle @openwizard/durable drizzle-orm
 ```
 
 ```ts
-import { defineSqliteDurableSchema } from '@openwizard/drizzle/sqlite'
+import { createPgDrizzleDurableStore, definePgDurableSchema } from '@openwizard/drizzle/pg'
 
-export const workflowTables = defineSqliteDurableSchema()
+// Export the tables from your Drizzle schema, then generate and run a migration.
+export const workflowTables = definePgDurableSchema()
+
+export const store = createPgDrizzleDurableStore(db, workflowTables)
 ```
 
-Export the tables from your Drizzle schema, run your normal migration, then create the store with your database connection.
-
-Pass the store to `createDurableHost(wizard, { store })`. Import `DurableStore`, `Version`, and
-other adapter protocol types from `@openwizard/durable/store`.
-
-Read the [Drizzle storage guide](../docs/pages/packages/drizzle.mdx).
+Read the [Drizzle reference](../docs/pages/packages/drizzle.mdx).
 
 ## Exports
 

@@ -1,9 +1,9 @@
 # @openwizard/devtools
 
-A React panel for inspecting a wizard graph, events, step state, and replay history.
+A React panel that shows a run's graph, steps, events and history.
 
 ```sh
-npm install @openwizard/devtools @xyflow/react elkjs react react-dom
+npm install @openwizard/devtools
 ```
 
 ```tsx
@@ -13,11 +13,7 @@ import '@openwizard/devtools/style.css'
 export const Tools = ({ run }) => <Devtools source={run} />
 ```
 
-The source is a local `Run` or a `Mirror` over a projection. For custom panels, `RunSource` and
-`isRunSource` identify the local-run source. Import graph inspection and static graph types from
-`@openwizard/core/inspect`.
-
-Read the [devtools package guide](../docs/pages/packages/devtools.mdx).
+Read the [devtools reference](../docs/pages/packages/devtools.mdx).
 
 ## Exports
 

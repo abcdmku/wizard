@@ -1,6 +1,6 @@
 # @openwizard/opentelemetry
 
-Create OpenTelemetry spans from the events a run records.
+Record a run as OpenTelemetry spans.
 
 ```sh
 npm install @openwizard/opentelemetry @opentelemetry/api
@@ -11,16 +11,13 @@ import { instrumentRun } from '@openwizard/opentelemetry'
 
 const telemetry = instrumentRun(run)
 await run.start()
+await run.awaitResult()
 telemetry.stop()
 ```
 
-The package does not configure an OpenTelemetry SDK or exporter.
+Your application sets up the OpenTelemetry SDK and exporter.
 
-`telemetry.send(event, payload, { context, eventId, correlationId })` links an incoming trace
-context and forwards both ids to the run. Repeated event ids use core's persisted deduplication
-window and return the normal duplicate result.
-
-Read the [OpenTelemetry package guide](../docs/pages/packages/opentelemetry.mdx).
+Read the [OpenTelemetry reference](../docs/pages/packages/opentelemetry.mdx).
 
 ## Exports
 

@@ -1,8 +1,6 @@
-# Build a wizard
+# Quickstart
 
-OpenWizard runs a typed graph of steps. A step can collect input, run work, wait for an event or a timer, choose a branch, or run a child wizard. A run keeps its context, outputs, drafts, and deadlines while execution pauses.
-
-The [core API reference](/api/core) lists options. The [production guides](/advanced) explain persistence and hosting.
+Install OpenWizard, define a wizard, run it and read the result.
 
 ## Install
 
@@ -10,93 +8,24 @@ The [core API reference](/api/core) lists options. The [production guides](/adva
 npm install @openwizard/core zod
 ```
 
-Core runs in browsers and server JavaScript runtimes with timers, promises, and `AbortController`. Repository tooling requires Node.js 22 or newer. Zod is optional; any Standard Schema validator works.
+OpenWizard runs on Node.js 20 or newer and in browsers. Zod is optional. Any [Standard Schema](https://standardschema.dev) validator works.
 
-## Define and execute
+## Define and run a wizard
 
-```ts file="packages/docs/snippets/learn/factory.ts"
+```ts file="packages/docs/snippets/learn/factory.ts" lines="1-10,12-13"
 ```
 
-`defineWizard(options, build)` calls the builder once. The callback creates steps, then returns `steps(map, { start? })` to check references against the assembled map. Schemas infer context and input; functions infer step outputs. The first step starts by default.
+Save the file as `hello.ts` and run `npx tsx hello.ts`. It prints `Hello, Ada!`.
 
-The returned Wizard is the definition itself. Pass it directly to `inspect(wizard)`, `defineProjection(wizard, ...)`, `createHTTP(wizard, ...)`, or a durable host. Every call to `wizard.create(input)` produces independent run state.
+- `defineWizard` returns a wizard. It is a definition, and each call to `runSync` is a separate run.
+- `context` is the schema of the input a run starts with.
+- `step({ run })` runs a function. The return value is the step's output.
+- The output of the last step is the wizard's output.
+- `runSync` returns an outcome. Check `status` before you read `output`.
+- For async steps call `await hello.run({ name: 'Ada' })`. `runSync` throws `SYNC_VIOLATION` when a step returns a promise.
 
-`runSync` returns a discriminated outcome and disposes its run. Check `status` before reading `output`. If a callback returns a promise or execution needs a timer, it throws `SYNC_VIOLATION` with the step name.
+## Next
 
-## Collect input
-
-```ts file="packages/docs/snippets/learn/factory-form.ts"
-```
-
-`create(input)` validates starting context and returns an idle Run. `start()` enters `contact`. `setInput` merges a draft; `next()` validates it and leaves the view only after validation succeeds. Invalid input produces `ok: false` with issues.
-
-The parsed draft is the view's output. `contact` is the only step, so `{ email: string }` is also the wizard's result. `go`, `setInput`, and `child` accept only appropriate step IDs.
-
-Keep a live Run while a user edits input or a server waits for an event. Dispose it when its owner unmounts or shuts down. [React](/packages/react) supplies subscriptions without adding UI code to the definition.
-
-## Run work and supply services
-
-```ts file="packages/docs/snippets/learn/factory-services.ts"
-```
-
-`step({ run, ...options })` infers the awaited return value. It accepts retry, timeout, compensation, error mapping, and fallback. `lookup` is the only step, so its return value is the wizard's result, and its `exit` hook logs that value. A wizard with several endings can pick its result with an `output: ({ context }) => ...` selector in the options. That selector is synchronous and runs after work and exit hooks finish.
-
-Put database clients and other services in `deps`. They never enter snapshots. `provide` returns a new Wizard and tracks the keys it supplies. Providing only `log` leaves `lookup` required. Providing both lets this example call `run` without a deps option.
-
-`DepsOf<typeof wizard>` describes all services hooks receive. `RequiredDepsOf<typeof providedWizard>` describes the services still required at creation. Provided services also reach child wizards, HTTP run creators, and durable hosts. Per-run deps can override a provided key.
-
-## Join typed outputs
-
-```ts file="packages/docs/snippets/recipes/parallel.ts"
-```
-
-Create producers first, then refer to their step objects in `needs`. The join starts when both producers finish, even though neither declares a `next` edge to it. `needs.loadProfile` and `needs.loadOrders` have their producer's output types.
-
-Two options link steps:
-
-| Option | Meaning |
-|---|---|
-| `next` | Activate the named step or steps after this step finishes |
-| `needs` | Wait for typed producer data and activate the consumer |
-
-A plain need requires its producer's output. `{ any: [a, b] }` uses the first completed producer's output. `{ optional: a }` permits a skipped producer and supplies `undefined`. A skipped required need skips its consumer; an any need skips only if all alternatives skip. Read [graphs](/advanced/graphs) for branch joins and item maps.
-
-## Compose wizards and step modules
-
-```ts file="packages/docs/snippets/learn/factory-composition.ts"
-```
-
-A module is an ordinary function returning named steps. Spreading modules into the map checks references against the whole graph. Keep distinct keys; object spread overwrites duplicates.
-
-Pass a child wizard directly to `child(childWizard, { context })`. The child owns its context and output. Its output becomes the child step's output, so `welcome` reads `needs.account.email` with the child's type. `welcome` also needs `audit`, only to run after it. Provided child services stay attached to the child. The parent must supply or map the child's remaining required services.
-
-A dynamic `next` must declare `targets`. Unchosen targets become skipped, which lets joins distinguish an untaken branch from unfinished work. Use a separate `step({ waitFor })` before work that needs an event. A view or runnable step can use `on` for events delivered while it is active.
-
-## Choose the execution boundary
-
-| Method | Behavior |
-|---|---|
-| `wizard.create(input, options?)` | Validate synchronous creation boundaries and return a live Run |
-| `wizard.createAsync(input, options?)` | Await creation boundary validation and return a live Run |
-| `wizard.runSync(input, options?)` | Return a synchronous outcome and dispose the run |
-| `wizard.run(input, options?)` | Return when terminal, halted, or parked on a view or external event, then dispose |
-| `wizard.resume(snapshot, options?)` | Restore a live Run with synchronous boundary validation |
-| `wizard.resumeAsync(snapshot, options?)` | Restore a live Run with asynchronous boundary validation |
-
-Async work functions work with `create`. `createAsync` is needed when creation boundaries validate asynchronously.
-
-Convenience execution returns `done`, `failed`, `cancelled`, `halted`, or `waiting`. Halted and waiting outcomes include a snapshot you can resume. Step failures are outcomes; invalid starting context and other API misuse can still throw.
-
-For a live Run, `whenIdle()` waits for the current drain, `awaitOutcome()` waits for the next terminal or parked state, and `awaitResult()` waits only for a terminal result. `awaitOutcome` keeps the Run alive. Pure sleeps and retry backoff keep async convenience execution going.
-
-`runSync` checks synchronous execution at runtime. TypeScript cannot prove that every nested callback or service is synchronous. It cannot undo an external side effect started before a callback returns a promise.
-
-## Keep private data at the host
-
-Import the same Wizard in browser tests, a UI, and a server. Inject platform-specific services at the host. Core opens no database connections.
-
-A snapshot contains context, drafts, outputs, and errors. Use a [projection](/advanced/projections) for a server-owned run's client state. Hook progress is transient, but its payload can still contain private data. Forward it only through explicit per-step progress exposure.
-
-The public constructors accept object configurations only. Assembly checks step references and needs cycles. Duplicate step objects and some identical-type reference mistakes still need runtime checks. Untrusted input still needs schemas even when TypeScript accepts a caller's type.
-
-Continue with [events](/learn/events), [failure handling](/learn/failures), or [save and resume](/learn/persistence).
+- [Guide](/learn). Ten short pages, read in order.
+- [Playground](/playground). Edit and run a wizard in the browser.
+- [Reference](/packages). Every option of every package.

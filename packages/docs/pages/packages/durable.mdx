@@ -1,50 +1,56 @@
 # Durable
 
-`@openwizard/durable` coordinates several processes that can touch the same run with leases, fencing tokens, command deduplication, and timer claims. You need it when two servers can handle commands for one run or two workers can wake one timer.
+`@openwizard/durable` lets several processes serve the same runs, one process per run at a time.
 
 ```sh
-npm install @openwizard/durable @openwizard/core
+npm install @openwizard/durable
 ```
 
-```ts file="packages/docs/snippets/packages/durable.mts"
+```ts
+import { createDurableHost, createMemoryDurableStore } from '@openwizard/durable'
+
+const host = createDurableHost(wizard, { store: createMemoryDurableStore() })
+await host.create('orders/42', { orderId: 'o-42' })
+await host.dispatch('orders/42', { type: 'start' }, { commandId: 'request-1' })
 ```
 
-1. `createDurableHost(hello, { store, ownerId })` hosts runs of the wizard by key.
-2. `host.create('hello-1', input)` creates the run, or opens its existing record.
-3. `host.dispatch(key, command, { commandId })` routes a command through lease, persistence, and deduplication gates.
-4. `host.send(key, event, payload, { eventId })` delivers an external event through the same host.
-5. `host.dispose()` waits for in-flight work, stops renewal, and releases its leases.
+[Run on a server](/advanced/server) explains the example and every result code.
 
-## Exports
-
-| Export | What it does |
+| Export | Meaning |
 |---|---|
-| `createDurableHost(wizard, options)` | Owns a keyed registry, leases, renewal, takeover, and disposal |
-| `createDurableRun(wizard, options)` | Acquires a lease and creates or resumes one run |
-| `resumeDurableRun(wizard, options)` | Acquires a lease and resumes only an existing record |
-| `createMemoryDurableStore()` | In-memory `DurableStore` for tests and single-process demos |
-| `createHostRegistry()` | Keyed host cache shared by a server's request handlers |
-| `@openwizard/durable/store` | `DurableStore`, versions, lease, command, and timer protocols |
-| `@openwizard/durable/testing` | Store adapter conformance suite |
-| `DurableRunHost` | The run plus its lease, commit, dedupe, and timer gates |
-| `DurableRunOpenResult` | `ok` or a code such as `LEASE_BUSY` with a `retryAt` |
+| `createDurableHost(wizard, options)` | Hosts the runs of one wizard by key |
+| `createDurableRun(wizard, options)` | Takes the lease of one key and creates or resumes its run |
+| `resumeDurableRun(wizard, options)` | The same, for a run that must exist |
+| `createMemoryDurableStore(options?)` | A store in memory, for tests and one process |
+| `createHostRegistry({ key, open, close })` | The keyed cache `createDurableHost` is built on |
 
-## Boundaries
+| Method of the host | Meaning |
+|---|---|
+| `create(key, input, { instanceId?, correlationId? })` | Creates the run, or opens the stored one. Returns `{ ok: true, host }` |
+| `open(key)` | Opens a stored run |
+| `dispatch(key, command, { commandId, expectedVersion?, digest? })` | Applies a command once. Returns `{ ok: true, status: 'applied' or 'replayed', result, version }` |
+| `send(key, event, payload, { eventId, correlationId? })` | Delivers an event once |
+| `dispose()` | Releases every lease after the calls in flight finish |
 
-`LEASE_BUSY` means another worker owns the key; retry at `retryAt` and never run the command outside the host. The memory store cannot coordinate separate machines, so use [Drizzle](/packages/drizzle) or another database adapter in production. Execution is at-least-once: a worker can call an outside service and crash before saving the result. Pass the task's `idempotencyKey` to that service so it rejects or reuses duplicates.
+The `host` in an open result has `run`, `version`, `dispatch`, `send`, `renew`, `release` and `dispose` for that one key.
 
-## Command recovery
+| Host option | Meaning |
+|---|---|
+| `store` | Required. A `DurableStore` |
+| `deps` | `(key) => services`, for services not supplied with `provide` |
+| `ownerId` | Name of this process on its leases. Default: a random id |
+| `lease` | `{ ttlMs }`. Default: the store's, 30 seconds |
+| `renew` | `{ everyMs }`, default a third of the lease. `'manual'` starts no timer |
+| `onLeaseLost` | `(key, code) => void`, called when this process loses a run |
+| `redact`, `eventIds`, `migrate`, `scheduler`, `clock`, `logSize` | As in the [run options](/packages/core#create-a-run) |
 
-A repeated `commandId` replays its stored result and version. A different command using the same id returns `DEDUPLICATE_CONFLICT`. Completed results recover from their atomic state commit after a worker stops. If an applied command has no recoverable final result, the retry returns `COMMAND_INTERRUPTED`; inspect the run before choosing a new command id.
+| Store option | Meaning |
+|---|---|
+| `leaseTtlMs`, `timerClaimTtlMs` | Default 30 seconds each |
+| `retention` | `{ completedDedupeMs, timerClaimMs }`. A finished `commandId` is kept 7 days by default |
 
-Pass `expectedVersion: { epoch, seq }` with a command id when the command depends on a state you already read. The host replays completed receipts first, rejects a new claim at the wrong version with `CAS_CONFLICT`, and checks again after asynchronous validation. A race during validation records `STALE`, so retries replay that refusal.
+## Write a store
 
-Event ids use the run's persisted deduplication window, which defaults to 24 hours and 1000 ids. These command and event checks coordinate stored state; external effects still need service-level idempotency.
+Implement `DurableStore` from `@openwizard/durable/store`, then run `durableStoreContract(name, createStore)` from `@openwizard/durable/testing` in Vitest. A commit must write the snapshot and its command claim in one transaction.
 
-Adapter authors import the protocol from `@openwizard/durable/store`. `CommitInput.applyDedupe` marks the claim `applied` atomically with the snapshot, preventing a new owner from applying it again. Run `durableStoreContract` from `@openwizard/durable/testing` against your store.
-
-## Next
-
-Read [multi-worker durability](/advanced/durability) for the lease, fencing, compare-and-swap, failover, and timer-claim model.
-
-[Durable API](/api/durable)
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_durable.html).

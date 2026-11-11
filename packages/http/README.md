@@ -1,81 +1,27 @@
 # @openwizard/http
 
-A wizard over HTTP: a run API, signed webhook receivers and outbound callbacks as one
-framework-neutral `fetch` handler with an OpenAPI 3.1 document, and a typed browser client.
+Serve a wizard over HTTP: a run API, signed webhook routes, outgoing webhooks and an OpenAPI 3.1
+document.
 
 ```sh
-npm install @openwizard/http @openwizard/core
+npm install @openwizard/http
 ```
 
 ```ts
 import { createBearerScopeProvider, createHTTP } from '@openwizard/http'
 
-const http = createHTTP(checkout, {
+const http = createHTTP(wizard, {
   runs: { get: ({ tenantId, runId }) => findRun(tenantId, runId) },
   auth: createBearerScopeProvider({ verify: verifyToken }),
-  access: { context: ['orderId'], run: ['read', 'cancel'], events: ['payment.captured'] },
-  receive: { events: ['payment.captured'], secret: pspSecrets, resolve: runForDelivery },
+  access: { run: ['read'] },
 })
 
 export default { fetch: http.fetch }
-const document = http.openAPI({ title: 'Checkout', version: '1.0.0' })
 ```
 
-Nothing is exposed unless `access` lists it. Receivers verify the Standard Webhooks signature
-before `resolve` runs. The `webhook-id` (or a request's `Idempotency-Key`), hashed with its
-receiver or route, is the event id, so a redelivered event is accepted once and ids never
-collide. A refusal the run never recorded, such as a disposed run or an event sent before
-`start()`, is not replayed, so the sender's retry reaches the run. Return a `@openwizard/durable`
-host from `runs.get` or `resolve` and every command and event goes through its lease and dedupe
-checks.
+Nothing is exposed unless `access` lists it.
 
-An `IdempotencyStore` gives each successful claim a fresh `claimId`. Pass that identity to
-`complete(key, claimId, response)` or `release(key, claimId)`. Store adapters must compare it
-atomically with the current pending record and return `false` if the claim expired, was
-evicted, or was replaced. A delayed request can still answer its caller, but cannot overwrite
-or remove a newer request's replay record. TTL and capacity limits still apply.
-
-## Browser client
-
-```ts
-import { createMirror } from '@openwizard/core/mirror'
-import { httpTransport } from '@openwizard/http/client'
-
-const mirror = createMirror<typeof projection>({
-  transport: httpTransport(`/api/checkout/${runId}/stream`, { headers: { authorization } }),
-})
-await mirror.cancel()
-```
-
-The Mirror reads the run's server-sent frames and sends typed commands; no code generation.
-
-Pass the wizard itself to `createHTTP`; the returned handler exposes it as `http.wizard`.
-An applied durable command with no recoverable final result returns HTTP 409
-`IDEMPOTENCY_INTERRUPTED`. Read the current run state before sending a new command with a new key.
-
-## Outbound callbacks
-
-```ts
-import { combineHTTP, createWebhookSubscriptions } from '@openwizard/http'
-
-const subscriptions = createWebhookSubscriptions({ id: 'checkout', events, store, auth })
-const app = combineHTTP([http, subscriptions])
-await subscriptions.publish({ tenantId, type: 'order.paid', data: { orderId } })
-await subscriptions.work()
-```
-
-Only the declared `events` are ever published. Tenants manage their subscriptions under
-`/subscriptions/checkout`; deliveries are signed, retried and logged.
-
-## Nitro
-
-```ts
-import { withNitro } from '@openwizard/http/nitro'
-
-export default defineConfig(withNitro({}, { http, source: new URL('./server/http.ts', import.meta.url) }))
-```
-
-Read the [HTTP package guide](../docs/pages/packages/http.mdx).
+Read the [HTTP reference](../docs/pages/packages/http.mdx).
 
 ## Exports
 

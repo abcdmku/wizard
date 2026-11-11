@@ -1,12 +1,7 @@
 {
-  "index": "Overview",
-  "recovery": "Retries and idempotency",
-  "compensation": "Compensation",
-  "graphs": "Graphs and parallel work",
-  "persistence": "Snapshots and migrations",
-  "durability": "Multi-worker durability",
-  "events": "External event routing",
-  "nested": "Nested wizards",
-  "projections": "Projections and mirrors",
-  "operations": "Explain, observe, replay"
+  "server": "Run on a server",
+  "client": "Show a run to a client",
+  "http": "HTTP API and webhooks",
+  "tracing": "Tracing",
+  "index": "Production checklist"
 }

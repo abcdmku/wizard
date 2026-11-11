@@ -56,11 +56,18 @@ pnpm check:docs
 
 ## Change the docs
 
-Write for someone who has not used a workflow engine before. Introduce one idea at a time and use a complete example before adding options.
+Write for someone who has not used a workflow engine. A page teaches one idea, in this order:
 
-Code fences with `file="..."` load the named repository file during the docs build. Put reusable examples in `packages/docs/snippets` and make sure they type-check.
+1. The title, then one sentence that says what the reader will be able to do.
+2. A complete example, loaded from a tested file with a `file="packages/docs/snippets/..."` fence. Keep it under about 30 lines.
+3. Three to six short statements or one small table. Cut a sentence that would not change what the reader types.
+4. At most three links: the next page and the reference entry.
 
-Use `defineWizard(options, ({ step, steps }) => steps(map))` in public examples. A Wizard is the definition passed to integrations. Keep executable snippets and the root quickstart in sync. Generated export tables come from `pnpm docs:gen`; edit the source documentation comments instead of those tables.
+State each fact once in the site and link to it from other pages. Option lists belong on the reference pages in `packages/docs/pages/packages`. Word budgets, not counting code and tables: 200 for the Quickstart, 250 for a Guide page, 350 for a Production page.
+
+Every snippet a page shows needs a test in `packages/docs/snippets` that asserts the result the page states. Write snippets the way `snippets/agents/refund.ts` is written: `needs` for hand-offs and `deps` for services. The `_meta.json` file of each folder in `packages/docs/pages` sets the order and titles of the navigation.
+
+`README.md` and `packages/core/AGENTS.md` copy snippet files into fences with `title="..."`. After you change one of those files, run `node scripts/check-readme-quickstart.mjs --write README.md packages/core/AGENTS.md`. The export tables in the package READMEs come from `pnpm docs:gen`. Edit the doc comments in the source, not the tables.
 
 Run both checks after changing docs:
 

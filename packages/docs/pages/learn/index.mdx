@@ -1,18 +1,38 @@
-# Overview
+# Steps
 
-Start with [Build a wizard](/getting-started) for a complete definition and run. These pages explain the same API one behavior at a time.
+Define steps that run in order, call your services and process a list.
 
-| Page | You learn |
-|---|---|
-| [Wizards and runs](/learn/mental-model) | A wizard is a definition; a run records one execution |
-| [Step kinds](/learn/steps) | Work, typed joins, event waits, timers, views, and children |
-| [Views and input](/learn/input) | Drafts, validation, and moving accepted data into context |
-| [Commands, state, results](/learn/results) | Command responses, live state, parked outcomes, and terminal results |
-| [Retries and failures](/learn/failures) | Retry policies, fallback, halted runs, and manual recovery |
-| [Events and waiting](/learn/events) | Declaring events and delivering them to a waiting step |
-| [Save and resume](/learn/persistence) | Snapshots, stores, and continuing after a restart |
-| [Testing](/learn/testing) | Driving a run in a test without a server or UI |
+```ts file="packages/docs/snippets/learn/steps.ts"
+```
 
-Read the first four pages for a local wizard that runs code and collects input. Continue when a run must survive a restart, wait on another system, or recover from failure.
+- `steps({ ... })` lists the steps. The first key starts first. To start elsewhere, pass `{ start: 'id' }` or an array of ids as the second argument.
+- `next` names the step that starts when this one finishes. When no step is left, the run is `done` and its output is the output of the last step.
+- `run` receives `context`, the validated input, and `deps`, your services. It may return a promise.
+- Call databases and APIs through `deps`. `boundary.trusted<ReportDeps>()` declares their type. A test can replace them, and they are never saved with the run.
+- `report.run(input, { deps })` creates a run, executes it and returns the outcome. `report.provide({ reports })` returns a wizard with that service already supplied.
 
-The [Production](/advanced) section covers idempotency, compensation, graphs, migrations, worker ownership, projections, and replay.
+## Pick a step declaration
+
+| Declaration | The step | Read |
+|---|---|---|
+| `step({ run })` | Runs work | This page |
+| `step({ each, run })` | Runs work for each item | This page |
+| `view({ input })` | Collects a form from a person | [Forms](/learn/forms) |
+| `step({ next, targets })` | Chooses a branch | [Branch](/learn/branch) |
+| `step({ waitFor })` | Waits for an event | [Wait for events and time](/learn/wait) |
+| `step({ sleep })` | Waits for a duration | [Wait for events and time](/learn/wait) |
+| `child(wizard, { context })` | Runs another wizard | [Child wizards](/learn/children) |
+
+## Run work for each item
+
+```ts file="packages/docs/snippets/learn/each.ts"
+```
+
+- `each` returns the items. `run` receives `item` and `index`.
+- The output is an array in item order, whatever order the calls finish in.
+- `concurrency` limits how many items run at the same time.
+
+## Next
+
+- [Pass data between steps](/learn/needs)
+- [Step options](/packages/core#declare-a-step)

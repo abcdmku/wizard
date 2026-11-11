@@ -6,29 +6,16 @@ Run Effect 4 programs as OpenWizard steps.
 npm install @openwizard/effect effect@^4.0.0-beta.107
 ```
 
-Use `step({ run: runEffect(program, { mapError? }) })` to run a program as a step. The program receives the
-step's typed args and runs on the `ManagedRuntime` the run gets in its deps (`EffectDeps<Services>`),
-so a test passes a runtime built from another Layer without redefining the wizard. A program that
-needs a service the runtime does not provide fails type checking.
+```ts
+import { runEffect } from '@openwizard/effect'
 
-The step output is the program's success value. A typed failure (from the program or the runtime's
-Layer) is recorded as failure kind `typed`, with `mapError`'s value as the step's `error.data`
-(`ErrorOf`); a defect is kind `defect` and an interruption kind `interrupted`. A step timeout, a
-cancel or a dispose interrupts the fiber. Dispose the runtime with the rest of your application
-resources.
+const charge = step({
+  run: runEffect(({ context }) => Payments.use((payments) => payments.charge(context.orderId))),
+})
+```
 
-Declare `deps: boundary.trusted<EffectDeps<Services>>()`, then supply `{ deps: { runtime } }` at
-creation or bind it with `wizard.provide({ runtime })`. Mapping on `runEffect` supplies the default
-JSON error channel. Step-level `output` and `mapError` can replace the adapter's output boundary
-and mapped error data; `retry.when` receives the step's mapped error.
-
-For `each` or `needs`, create the adapter inside `run`, such as
-`run: args => runEffect(() => program(args.item, args.needs))`. The step callback infers those
-arguments first. Declare a static step `output` boundary to restore parsed values such as Dates
-from saved JSON. A callback-created adapter validates execution but cannot supply a restore
-schema. JSON outputs need no extra boundary.
-
-Read the [Effect package guide](../docs/pages/packages/effect.mdx).
+The run's `deps` hold the `ManagedRuntime` that provides `Payments`. The
+[Effect reference](../docs/pages/packages/effect.mdx) has the complete example.
 
 ## Exports
 

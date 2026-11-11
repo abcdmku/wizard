@@ -1,9 +1,7 @@
 {
-  "getting-started": "Getting started",
-  "learn": { "title": "Learn" },
+  "getting-started": "Quickstart",
+  "learn": { "title": "Guide" },
   "advanced": { "title": "Production" },
-  "recipes": { "title": "Recipes" },
-  "packages": { "title": "Packages" },
-  "examples": { "title": "Examples" },
-  "api": { "title": "API reference" }
+  "packages": { "title": "Reference" },
+  "examples": "Examples"
 }

@@ -1,6 +1,6 @@
 # OpenWizard
 
-OpenWizard runs typed wizards and workflows in TypeScript. Steps collect input, run work, wait for events or timers, branch, join typed outputs, and compose child wizards.
+OpenWizard runs typed wizards and workflows in TypeScript. A step runs work, collects a form, waits for an event or a deadline, chooses a branch or runs another wizard, and a run can be saved as JSON and resumed later.
 
 ```sh
 npm install @openwizard/core zod
@@ -22,17 +22,16 @@ if (result.status === 'done') {
 }
 ```
 
-Use `wizard.create(input)` for a live Run. Use `wizard.run(input)` to return an outcome when the run finishes, halts, or waits for input or an event. Halted and waiting outcomes include a snapshot to resume. `wizard.provide(services)` binds deps and leaves missing keys required by the type.
+## Read next
 
-A Wizard is the definition itself. Pass it directly to React bindings, projections, inspectors, HTTP APIs, and durable hosts. Each creation call has independent state.
-
-Read [Build a wizard](./packages/docs/pages/getting-started.mdx) for forms, typed data joins, services, composition, and execution. The [core API reference](./packages/docs/pages/api/core.mdx) lists contracts.
-
-For production, read [recovery and hosting](./packages/docs/pages/advanced/index.mdx). External effects may repeat after a crash. Pass stable idempotency keys to services that enforce them. The [reference systems](./packages/docs/pages/examples/reference-systems.mdx) exercise browser, API, worker, and persistence boundaries.
+- [Quickstart](./packages/docs/pages/getting-started.mdx). Install, define, run.
+- [Guide](./packages/docs/pages/learn/index.mdx). Ten short pages, read in order.
+- [Reference](./packages/docs/pages/packages/index.mdx). Every option of every package.
+- [AGENTS.md for wizards](./packages/core/AGENTS.md). The model, the rules and one full example for coding agents. It ships inside `@openwizard/core`.
 
 ## Work on the repository
 
-Node.js 22 or newer and pnpm 10. The published packages run on Node.js 20.
+Node.js 22 or newer and pnpm 10.
 
 ```sh
 pnpm install

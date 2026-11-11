@@ -1,18 +1,18 @@
-# Overview
+# Packages
 
-Every application installs `@openwizard/core`; add another package only when a run crosses a boundary such as React, a database, several workers, tracing, or HTTP.
+Find the package for a job and its reference page.
 
-| Package | Adds | Install when |
+Every application installs `@openwizard/core`. Add another package when you need what it does.
+
+| Package | Install it to | Guide |
 |---|---|---|
-| [`@openwizard/core`](/packages/core) | Wizard definitions, local runs, outcomes, snapshots, events, replay | Always |
-| [`@openwizard/react`](/packages/react) | Typed hooks over a run or a browser mirror | React renders the run |
-| [`@openwizard/devtools`](/packages/devtools) | Live graph, event log, timeline, step inspector | You need to see why a step is waiting |
-| [`@openwizard/durable`](/packages/durable) | Leases, fencing, deduplication, timer claims | Several processes can touch one run |
-| [`@openwizard/drizzle`](/packages/drizzle) | PostgreSQL and SQLite tables for durable records | Durable needs a real database |
-| [`@openwizard/effect`](/packages/effect) | Effect 4 step adapters using the runtime in wizard deps | Your runnable work is an Effect program |
-| [`@openwizard/opentelemetry`](/packages/opentelemetry) | Spans created from run events | An OpenTelemetry pipeline already exists |
-| [`@openwizard/http`](/packages/http) | A run API, signed incoming events and outbound callbacks over HTTP | Browsers or external systems call the run |
+| [`@openwizard/core`](/packages/core) | Define wizards and run them | [Quickstart](/getting-started) |
+| [`@openwizard/react`](/packages/react) | Render a run with React hooks | [Show a run to a client](/advanced/client) |
+| [`@openwizard/devtools`](/packages/devtools) | See a run's graph, events and steps in a panel | [Inspect and debug](/learn/inspect) |
+| [`@openwizard/durable`](/packages/durable) | Serve a run from several processes | [Run on a server](/advanced/server) |
+| [`@openwizard/drizzle`](/packages/drizzle) | Store durable runs in PostgreSQL or SQLite | [Run on a server](/advanced/server#store-runs-in-a-database) |
+| [`@openwizard/http`](/packages/http) | Expose a run API and receive webhooks | [HTTP API and webhooks](/advanced/http) |
+| [`@openwizard/effect`](/packages/effect) | Run Effect programs as steps | [Effect](/packages/effect) |
+| [`@openwizard/opentelemetry`](/packages/opentelemetry) | Record runs as spans | [Tracing](/advanced/tracing) |
 
-## Typical stacks
-
-A CLI or single Node.js server needs core only, plus a core `Store` when a run must outlive the process. A React app adds `react`, and `devtools` during development. A multi-worker service adds `durable` and `drizzle`. Add `opentelemetry` and `http` when tracing or external HTTP callers appear. Use `effect` when runnable work already uses Effect programs.
+Full type signatures are in the [generated API reference](/typedoc/).

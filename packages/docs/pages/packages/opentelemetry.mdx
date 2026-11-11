@@ -1,40 +1,40 @@
 # OpenTelemetry
 
-`@openwizard/opentelemetry` turns a run's event stream into workflow, step-attempt, compensation, and nested run spans. You need it when an OpenTelemetry pipeline already exists and should show run timing and failures.
+`@openwizard/opentelemetry` records a run as OpenTelemetry spans.
 
 ```sh
 npm install @openwizard/opentelemetry @opentelemetry/api
 ```
 
-```ts file="packages/docs/snippets/packages/opentelemetry.mts"
+```ts
+import { instrumentRun } from '@openwizard/opentelemetry'
+
+const telemetry = instrumentRun(run)
+await run.start()
+await run.awaitResult()
+telemetry.stop()
 ```
 
-1. `instrumentRun(run)` subscribes to the run's events before `start()` so it sees the whole lifecycle.
-2. The workflow span opens on start; step attempts and child runs become child spans.
-3. Failures set the span status; successes leave it unset unless `successStatus` is on.
-4. `telemetry.stop()` ends open spans and unsubscribes.
-5. Dispose the run after stopping instrumentation.
+[Tracing](/advanced/tracing) explains what the spans hold.
 
-## Options and handle
+| Option of `instrumentRun(run, options?)` | Meaning | Default |
+|---|---|---|
+| `tracer` | The tracer to use | `trace.getTracer('@openwizard/opentelemetry')` |
+| `parentContext` | The parent of the run's span | None |
+| `resumeContext` | The context of an earlier process. Added as a span link | None |
+| `children` | Trace child runs | `true` |
+| `recordEvents` | Run events added to spans: `'none'`, `'lifecycle'` or `'all'` | `'lifecycle'` |
+| `instanceId` | The run id on spans: `'raw'`, `'none'`, or a function that maps it | `'raw'` |
+| `successStatus` | Set the status of a successful span to `OK` | `false` |
+| `onError` | Called when the tracer throws. Never called for a failure of the run | None |
 
-| Export | What it does |
+| Method of the handle | Meaning |
 |---|---|
-| `instrumentRun(run, options?)` | Attaches spans and returns a `RunInstrumentation` |
-| `tracer`, `parentContext` | Tracer to use; parent of the root workflow span |
-| `resumeContext` | Context from an earlier process, added as a span link |
-| `recordEvents` | `'none'`, `'lifecycle'` (default), or `'all'` |
-| `children`, `instanceId`, `onError` | Trace child runs; instance id handling; adapter error hook |
-| `span(path)`, `context(path)`, `inject()`, `extract()` | Read or propagate the current span context |
-| `send(event, payload, options?)` | Link the incoming trace context and forward `eventId` and `correlationId` to the run |
+| `stop()` | Ends open spans and stops observing |
+| `span(path?)`, `context(path?)` | The span of the run, or of the child at `path`, and a context that holds it |
+| `inject(carrier, path?)` | Writes the trace headers into `carrier` |
+| `extract(carrier, base?)` | Reads a context from trace headers |
+| `send(event, payload, { context?, eventId?, correlationId? })` | Calls `run.send` and links the event to `context` |
+| `withExternalContext(context, fn)` | Runs `fn` with `context` as the source of the events it sends |
 
-Pass the delivery's stable id as `eventId` when the sender may retry. The run's persisted deduplication window handles repeats; instrumentation returns the same duplicate result as `run.send()`.
-
-## Boundaries
-
-Your application configures the SDK, tracer provider, and exporter; this package only calls the OpenTelemetry API. By default no context, input, output, event payload, idempotency key, or error message is copied into spans. Turn on extra attributes only after deciding what your tracing backend may store.
-
-## Next
-
-Read [explain, observe, and replay](/advanced/operations) for the events and phases the spans are built from.
-
-[OpenTelemetry API](/api/opentelemetry)
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_opentelemetry.html).

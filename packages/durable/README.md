@@ -1,65 +1,23 @@
 # @openwizard/durable
 
-Leases and fenced storage for runs that several workers may try to own.
+Serve the same runs from several processes, one process per run at a time.
 
 ```sh
-npm install @openwizard/durable @openwizard/core
+npm install @openwizard/durable
 ```
 
 ```ts
 import { createDurableHost, createMemoryDurableStore } from '@openwizard/durable'
 
-const orders = createDurableHost(orderWizard, {
-  store: createMemoryDurableStore(),
-  deps: (key) => ({ payments: paymentsFor(key) }),
-})
-
-await orders.create('order-42', { customerId: 'c-7' })
-await orders.dispatch('order-42', { type: 'start' }, { commandId: 'start-order-42' })
-await orders.send('order-42', 'paid', { amount: 120 }, { eventId: 'stripe-evt-9' })
+const host = createDurableHost(wizard, { store: createMemoryDurableStore() })
+await host.create('orders/42', { orderId: 'o-42' })
+await host.dispatch('orders/42', { type: 'start' }, { commandId: 'request-1' })
+await host.send('orders/42', 'paid', { amount: 120 }, { eventId: 'delivery-9' })
 ```
 
-The memory store is for tests and single-process development. Use `@openwizard/drizzle` for
-PostgreSQL or SQLite. Task effects stay at-least-once, so outside services still need idempotency.
+A step can still run twice after a crash. Pass its `idempotencyKey` to the service it calls.
 
-## Hosting runs by key
-
-`createDurableHost` keeps each live run open behind its lease and renews it in the background.
-When another worker takes a run over, the call that finds out returns `LEASE_LOST` and drops the
-run; later calls reopen it or return `{ ok: false, code: 'LEASE_BUSY', retryAt }`. A run that
-reaches a terminal result releases its lease and reopens on demand. `dispose()` releases every
-lease.
-
-## Idempotent commands and events
-
-A repeated `commandId` replays the stored result and version, even after the run has moved on or
-changed owner; the same id with a different command returns `DEDUPLICATE_CONFLICT`. Completed
-command results recover from their atomic state commit after a worker stops. An applied command
-without a recoverable final result returns `COMMAND_INTERRUPTED`; read the run state before
-choosing a new command id. A repeated
-`eventId` returns `{ ok: true, duplicate: true, delivered: [] }`: the run records delivered ids in
-its snapshot (`eventIds` sets the window, default 24 hours and 1000 ids).
-
-## Leases on request-scoped runtimes
-
-`renew: 'manual'` starts no renewal timer, for edge runtimes that open, act, and dispose within
-one request. Call `host.renew()` when work may outlive the lease TTL.
-
-## Redaction
-
-`redact` runs on every snapshot before the store sees it. A worker that takes the run over resumes
-from the redacted copy.
-
-## Writing a store adapter
-
-`@openwizard/durable/store` holds the `DurableStore` protocol. Run `durableStoreContract` from
-`@openwizard/durable/testing` against your adapter in Vitest.
-
-`CommitInput.applyDedupe` marks a command claim `applied` atomically with its snapshot write.
-Another owner cannot apply that command again. Result completion must commit with the state that
-produced it. These rules protect stored state; outside effects still need service-level idempotency.
-
-Read the [durable runs guide](../docs/pages/packages/durable.mdx).
+Read the [durable reference](../docs/pages/packages/durable.mdx).
 
 ## Exports
 

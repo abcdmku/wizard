@@ -1,41 +1,31 @@
-import type { Run } from '@openwizard/core'
-import { bindReact } from '@openwizard/react'
-import type { signupWizard } from '../learn/form'
+import { bindReact, useRun } from '@openwizard/react'
+import { useEffect } from 'react'
+import { signup } from '../learn/form' // the wizard from Forms
 
-const signup = bindReact<typeof signupWizard>()
+const ui = bindReact<typeof signup>()
 
-function ContactForm() {
-  const { status } = signup.useSnapshot()
-  const contact = signup.useStep('contact')
-  const actions = signup.useActions()
-
+function Contact() {
+  const contact = ui.useStep('contact')
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        void contact.next()
-      }}
-    >
+    <div>
       <input
         value={contact.input?.email ?? ''}
         onChange={(event) => void contact.setInput({ email: event.target.value })}
       />
-      {contact.issues?.map((issue) => (
-        <p key={issue.message}>{issue.message}</p>
-      ))}
-      <button type="submit">Continue</button>
-      <button type="button" onClick={() => void actions.cancel()}>
-        Cancel
+      <p>{contact.issues?.[0]?.message}</p>
+      <button type="button" onClick={() => void contact.next()}>
+        Continue
       </button>
-      <p>Run status: {status}</p>
-    </form>
+    </div>
   )
 }
 
-export function Signup({ run }: { run: Run<typeof signupWizard> }) {
+export function Signup() {
+  const run = useRun(() => signup.create({}))
+  useEffect(() => void run.start(), [run])
   return (
-    <signup.Provider source={run}>
-      <ContactForm />
-    </signup.Provider>
+    <ui.Provider source={run}>
+      <Contact />
+    </ui.Provider>
   )
 }

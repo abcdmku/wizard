@@ -1,42 +1,26 @@
 # @openwizard/react
 
-React hooks for a local run or a browser mirror of a server run.
+React hooks for a run, or for a mirror of a run that lives on a server.
 
 ```sh
-npm install @openwizard/react react
+npm install @openwizard/react
 ```
 
 ```tsx
 import { bindReact, useRun } from '@openwizard/react'
 import { useEffect } from 'react'
-import { checkout } from './checkout'
+import { signup } from './signup'
 
-const ow = bindReact<typeof checkout>()
+const ui = bindReact<typeof signup>()
 
-export function Checkout({ cartId }: { cartId: string }) {
-  const run = useRun(() => checkout.create({ cartId }), [cartId])
+export function Signup() {
+  const run = useRun(() => signup.create({}))
   useEffect(() => void run.start(), [run])
-  return <ow.Provider source={run}>{/* components calling ow.useStep */}</ow.Provider>
+  return <ui.Provider source={run}>{/* components that call ui.useStep('contact') */}</ui.Provider>
 }
 ```
 
-`useRun` owns the run: created once during render, kept through StrictMode's simulated remount,
-disposed after the component unmounts. For a run that lives on a server, bind its projection
-(`bindReact<typeof clientView>()`) and own a Mirror instead:
-`useRun(() => createMirror({ initial, transport }))`, where `initial` is the frame the server
-rendered with (no fallback flash, commands work at once). `ow.useConnection()` reads the Mirror's
-transport state for offline banners.
-
-Import `createMirror` from `@openwizard/core/mirror`. View helpers send step-scoped `next` and
-`back` commands, and `setInput` clears only the issues of changed fields.
-
-Mapped children use a numeric input index, such as `ow.useChild('batch', 0)`; ordinary children
-use only their step id. A mirrored child needs a nested projection spec. Its state is `null`
-until the child exists, so render its step hooks in a separate component after a
-`useSnapshot()` readiness check. The [checked mapped-child component](../docs/snippets/packages/mapped-react.tsx)
-shows that pattern. Retry actions accept mapped child steps and retain completed item outputs.
-
-Read the [React package guide](../docs/pages/packages/react.mdx).
+Read the [React reference](../docs/pages/packages/react.mdx).
 
 ## Exports
 

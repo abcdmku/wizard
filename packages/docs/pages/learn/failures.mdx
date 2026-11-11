@@ -1,83 +1,37 @@
-# Retries and failures
+# Handle failures
 
-A thrown error or rejected promise fails a work attempt. A retry policy schedules another attempt. After retries run out, the wizard applies its failure policy; the default policy halts for manual recovery.
+Retry a failing step, continue at a fallback, undo finished steps, or recover by hand.
+
+## Retry a step
 
 ```ts file="packages/docs/snippets/learn/retry.ts"
 ```
 
-1. Attempt 1 throws. The step stays `active` with phase `retrying` and a deadline 1,000 ms ahead.
-2. Attempt 2 throws. Another 1,000 ms wait.
-3. Attempt 3 succeeds. The output is stored and the step follows `next`.
+- `retries: 2` allows two more calls after the first one fails, three in total. `backoff` is a delay in milliseconds or `'exponential'`.
+- A retry can call the service twice, and so can a restart after a crash. Pass `idempotencyKey` to the service. Every attempt gets the same key.
+- `timeout: '30s'` fails an attempt that runs too long and aborts the `signal` that `run` receives.
 
-`retries` is the number of extra calls after the first one fails, so `retries: 2` allows three calls in total. `backoff` can be a fixed delay in milliseconds or `'exponential'`. Use `baseMs`, `factor`, `maxBackoffMs`, and `jitter` to tune exponential backoff. `retry.when(error)` can refuse a retry for an error that another call cannot fix.
+## Recover a halted run
 
-## When retries run out
+When a step fails and has no retries left, the run halts. `run.awaitOutcome()` and `upload.run()` return `{ status: 'halted', failure, snapshot }`. Fix the cause, then call `run.retry('save')`. `run.skip('save')` and `run.cancel()` are the other ways out.
 
-Under the default `onFailure: 'halt'` policy, the step becomes `failed` and the run becomes `halted`. The error and attempt count stay in state, and the run remains recoverable.
+## Continue at a fallback
 
-```ts
-const state = run.getState()
-console.error(state.steps.save.error)
-
-const retried = await run.retry('save')
-if (!retried.ok) console.error(retried.code, retried.message)
+```ts file="packages/docs/snippets/learn/fallback.ts"
 ```
 
-`retry()` starts a fresh retry cycle. Use `run.retry('save', { patch: { destination: 'backup' } })` to change context before the new attempt. A mapped `each` step keeps finished item results and retries failed items.
+When `live` fails and has no retries left, it is skipped and `list` starts. The run does not halt. `quote` reads whichever step produced a value.
 
-Mapped child steps also support `run.retry('batch')` after item failure. It keeps completed children and retries failed items. `RetryStepId<typeof wizard>` includes runnable steps and mapped child steps. Recover an ordinary halted child through `run.child('address')` and its own retry command.
+## Undo finished steps
 
-`run.awaitOutcome()` returns a halted outcome with the failure and snapshot. `run.awaitResult()` waits for a terminal result and remains pending while the run is halted. A run with terminal `failed` status cannot recover with `retry()`.
-
-## Continue through a fallback
-
-A runnable or child step can route to a fallback after it fails for good:
-
-```ts
-load: step({
-  run: ({ deps }) => deps.fetchLiveData(),
-  retry: { retries: 2, backoff: 1_000 },
-  fallback: 'cached',
-}),
-cached: step({ run: ({ deps }) => deps.readCachedData() }),
+```ts file="packages/docs/snippets/learn/compensate.ts"
 ```
 
-The failed step becomes `skipped` with reason `fallback` and retains its error. The run activates `cached` instead of applying the wizard's halt or compensation policy. Fallback also handles an exhausted item failure and a halted or failed child. A consumer with a plain need for the failed producer still follows the normal skipped-need rule; join alternate outputs with `{ any: [load, cached] }`.
-
-## Typed error data
-
-`mapError` turns the thrown value into JSON data at `steps.save.error.data`:
-
-```ts
-mapError: (error, { attempt }) => ({
-  code: error instanceof Error && /busy/.test(error.message) ? 'BUSY' : 'REJECTED',
-  attempt,
-}),
-```
-
-`ErrorOf<typeof wizard, 'save'>` gives UI and operator code that type. `retry.when` receives the mapped value when `mapError` exists. The serialized error keeps its message for diagnostics.
-
-Declare inline `mapError` before `retry` when `retry.when` reads inferred mapped fields, as the example above does. A reusable mapper with typed parameters supports either property order.
-
-## Timeouts
-
-`timeout: '30s'` fails a work attempt that runs too long. Its `run` function receives a `signal`; pass it to `fetch` or another API that accepts abort signals. An event wait uses `timeout: { after: '48h', next: 'expired' }` to take an alternate route when its deadline passes.
-
-## Safe retries
-
-A retry can call an outside service twice. A crash can also happen between the service succeeding and its result reaching storage. Each `run` function receives an `idempotencyKey`:
-
-```ts
-charge: step({
-  run: ({ context, deps, idempotencyKey }) =>
-    deps.payments.charge(context.orderId, context.total, { idempotencyKey }),
-  idempotencyKey: ({ context }) => `order:${context.orderId}:charge`,
-  next: 'done',
-}),
-```
-
-The key stays stable across retries and resume. The remote service must enforce it; OpenWizard supplies the key. Compensation hooks also receive a stable key for repeated undo calls. [Retries and idempotency](/advanced/recovery) covers crashes during work.
+- With `onFailure: 'compensate'`, the run does not halt. It calls the `compensate` function of every finished step, newest first, and ends as `failed`.
+- `compensate` receives the step's `output` and an `idempotencyKey` of its own. An undo can repeat too.
+- The result's `failure.compensation.outcome` is `'partial'` when an undo failed. Call `run.compensate({ from: 'flight' })` to try again from that step.
 
 ## Next
 
-[Events and waiting](/learn/events) covers work that another system finishes.
+- [Save and resume](/learn/save-resume)
+- [Step options](/packages/core#declare-a-step)

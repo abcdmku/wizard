@@ -1,8 +1,8 @@
 import type { Run } from '@openwizard/core'
 import { Devtools } from '@openwizard/devtools'
 import '@openwizard/devtools/style.css'
-import type { hello } from '../../../../examples/01-happy-path/src/hello'
+import type { signup } from '../learn/form' // the wizard from Forms
 
-export function WorkflowTools({ run }: { run: Run<typeof hello> }) {
+export function SignupTools({ run }: { run: Run<typeof signup> }) {
   return <Devtools source={run} />
 }

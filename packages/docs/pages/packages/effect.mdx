@@ -1,43 +1,36 @@
 # Effect
 
-`@openwizard/effect` runs Effect 4 programs as runnable wizard steps. Each run gets a caller-owned `ManagedRuntime` through its dependencies.
+`@openwizard/effect` runs Effect 4 programs as steps.
 
 ```sh
-npm install @openwizard/effect effect@4.0.0-beta.107
+npm install @openwizard/effect effect@^4.0.0-beta.107
 ```
 
-```ts file="packages/effect/snippets/basic.ts"
+```ts file="packages/effect/snippets/basic.ts" lines="1-34"
 ```
 
-1. `ManagedRuntime.make(layer)` builds the runtime that provides `Payments`.
-2. The wizard declares `deps: boundary.trusted<EffectDeps<Payments>>()`.
-3. `step({ run: runEffect(program) })` runs the program with typed step args and the runtime from `deps`.
-4. OpenWizard still owns retries, waits, timers, and approvals.
-5. `runtime.dispose()` runs during application shutdown, not per run.
+```ts file="packages/effect/snippets/basic.ts" lines="63-70"
+```
 
-For `each` and `needs`, create the adapter inside the step callback, as `batchCheckout` does. `run: args => runEffect(() => program(args.item, args.needs.load))` lets that callback infer the item and joined data before building the Effect. The returned adapter executes with the same step arguments and abort signal. Ordinary steps can pass `runEffect(program)` directly.
+- The run's `deps` hold a `ManagedRuntime` that provides the program's services. Pass it for each run, or supply it once with `wizard.provide({ runtime })`. A program that needs a service the runtime lacks does not compile.
+- The program's success value is the step's output.
+- Retries, timeouts, waits and snapshots stay with the wizard. A step timeout, `run.cancel()` and `run.dispose()` interrupt the fiber.
+- Dispose the runtime when the application shuts down, not after each run.
+- With `each` or `needs`, build the adapter inside `run`: `run: (args) => runEffect(() => program(args.item, args.needs))`.
 
-Declare a static step `output` boundary when saved output must revive parsed values such as Dates. For a Date, `output: z.coerce.date()` can parse its JSON form on resume. A boundary created only inside the callback cannot supply that restore rule. JSON results need no extra boundary.
-
-## Exports
-
-| Export | What it does |
+| Export | Meaning |
 |---|---|
-| `runEffect(program, { mapError? })` | Run adapter for `step({ run: ... })` |
-| `EffectDeps<Services, RuntimeError>` | Runtime services and layer error in wizard deps |
-| `RunEffectOptions` | JSON mapping for typed program or runtime-layer failures |
-| `RuntimeErrorOf<Deps>` | Extracts the runtime-layer error type |
+| `runEffect(program, { mapError? })` | A value for `step({ run })`. `program(args)` returns the Effect to run |
+| `EffectDeps<Services, RuntimeError?>` | The type of `deps`: `{ runtime }` |
+| `RuntimeErrorOf<Deps>` | The error type of the runtime's layer |
+| `RunEffectOptions` | The type of the second argument of `runEffect` |
 
-## Errors and cancellation
+| The program | Step `error.kind` | Notes |
+|---|---|---|
+| Fails with a typed error | `typed` | `mapError` returns the JSON stored as `error.data`, typed by `ErrorOf` |
+| Dies with a defect | `defect` | |
+| Is interrupted | `interrupted` | |
 
-The step output is the Effect's success value. A typed failure has kind `typed`; `runEffect(program, { mapError })` stores the returned JSON value in `error.data`, typed by `ErrorOf`. The mapper also receives failures while building the runtime's Layer. Without a mapper, the failure has no typed data. Defects have kind `defect`; interruption has kind `interrupted`.
+A `mapError` or `output` on the step replaces the one `runEffect` supplies.
 
-A step-level `output` boundary replaces the adapter's default result boundary. A step-level `mapError` maps the original failure and replaces adapter-mapped data; `retry.when` receives that step-mapped JSON value. Put shared mapping on `runEffect`, and override it on the step when that wizard needs a different error shape.
-
-The adapter forwards the step's abort signal to Effect, so timeouts, cancellation, and disposal interrupt its fiber. TypeScript rejects a program whose services the runtime does not provide. Pass `{ deps: { runtime } }` when creating a run, or bind it with `wizard.provide({ runtime })`. Keep the runtime open across runs and dispose it during application shutdown. This package targets Effect 4 beta.
-
-## Next
-
-Read [recovery](/advanced/recovery) for how OpenWizard treats a rejected task hook.
-
-[Effect API](/api/effect)
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_effect.html).

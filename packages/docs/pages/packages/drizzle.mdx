@@ -1,39 +1,28 @@
 # Drizzle
 
-`@openwizard/drizzle` implements the [Durable](/packages/durable) store contract on PostgreSQL and asynchronous SQLite through Drizzle ORM. You need it when workers coordinate through a shared database.
+`@openwizard/drizzle` stores durable runs in PostgreSQL or SQLite through Drizzle ORM.
 
 ```sh
 npm install @openwizard/drizzle @openwizard/durable drizzle-orm
 ```
 
-```ts file="packages/docs/snippets/packages/drizzle.ts"
+```ts file="packages/docs/snippets/advanced/drizzle.ts"
 ```
 
-1. `defineSqliteDurableSchema()` returns Drizzle table definitions prefixed with `workflow_`.
-2. Export those tables from your schema module so Drizzle Kit sees them.
-3. Generate and run a migration with your normal Drizzle workflow.
-4. Pass your database and the same tables to `createSqliteDrizzleDurableStore(db, tables)`.
-5. Give that store to `createDurableHost(wizard, { store })`.
+Pass the store to [`createDurableHost`](/advanced/server). The package opens no connection and runs no migration. Generate the migration with Drizzle Kit, as for your own tables.
 
-## Exports
+| Export | From | Meaning |
+|---|---|---|
+| `definePgDurableSchema(options?)` | `@openwizard/drizzle/pg` | The PostgreSQL tables |
+| `createPgDrizzleDurableStore(db, schema, options?)` | `@openwizard/drizzle/pg` | A `DurableStore` on a PostgreSQL database |
+| `defineSqliteDurableSchema(options?)` | `@openwizard/drizzle/sqlite` | The SQLite tables |
+| `createSqliteDrizzleDurableStore(db, schema, options?)` | `@openwizard/drizzle/sqlite` | A `DurableStore` on an async SQLite driver |
 
-Import from `@openwizard/drizzle/pg` or `@openwizard/drizzle/sqlite`.
+| Option | Of | Meaning |
+|---|---|---|
+| `tablePrefix` | The schema | Prefix of the table names. Default `openwizard_` |
+| `leaseTtlMs`, `timerClaimTtlMs` | The store | Default 30 seconds each |
+| `retention` | The store | `{ completedDedupeMs, timerClaimMs }`. A finished `commandId` is kept 7 days by default |
+| `now` | The store | The clock, for tests |
 
-| Export | What it does |
-|---|---|
-| `definePgDurableSchema(options?)` | PostgreSQL tables for snapshots, leases, dedupe, and timers |
-| `createPgDrizzleDurableStore(db, schema, options?)` | Adapts a PostgreSQL Drizzle database to `DurableStore` |
-| `defineSqliteDurableSchema(options?)` | The same tables for async SQLite drivers |
-| `createSqliteDrizzleDurableStore(db, schema, options?)` | Adapts an async SQLite Drizzle database to `DurableStore` |
-| `tablePrefix` (schema option) | Namespaces the table names |
-| `leaseTtlMs`, `timerClaimTtlMs`, `retention` (store options) | Lease timing and record cleanup |
-
-## Boundaries
-
-The package returns table definitions; it does not open connections, generate migrations, or run them. Choose a `tablePrefix` that cannot collide with your other tables. Keep the generated tables in one migration so the durable contract updates as a unit. Store protocol types such as `DurableStore` and `Version` come from `@openwizard/durable/store`.
-
-## Next
-
-Read [persistence](/advanced/persistence) for the snapshot model, then [multi-worker durability](/advanced/durability) for what the tables coordinate.
-
-[Drizzle API](/api/drizzle)
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_drizzle.html).

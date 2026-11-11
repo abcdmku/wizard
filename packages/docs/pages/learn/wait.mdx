@@ -1,0 +1,34 @@
+# Wait for events and time
+
+Pause a run until another system reports back, a deadline passes, or both.
+
+```ts file="packages/docs/snippets/learn/wait.ts"
+```
+
+- Declare every event and its payload schema in `events`. `run.send(event, payload)` validates the payload. An invalid one returns `{ ok: false, code: 'BOUNDARY_REJECTED', issues }` and the step keeps waiting.
+- With `timeout: { after, next }`, a wait that gets no event in time is skipped and `next` starts. A step with a plain need on the wait is skipped with it. `close` runs either way because its need is `optional`.
+- `approval.run(input)` returns `{ status: 'waiting', waitingFor, snapshot }` when the run stops at a wait or a view. [Save and resume](/learn/save-resume) continues from that snapshot.
+- A deadline is a stored point in time. A restart does not extend it.
+
+## Decide in the handler
+
+| The handler returns | Effect |
+|---|---|
+| Nothing | The wait ends. The payload is its output |
+| `{ done: value }` | The wait ends. `value` is its output |
+| `{ keep: true }` | The step keeps waiting |
+| `{ fail: 'reason' }` | The step fails |
+
+## Wait for a duration
+
+`step({ sleep: '10m', next: 'remind' })` finishes after ten minutes, then starts `remind`.
+
+## Handle early and repeated events
+
+- An event that arrives before a step waits for it is kept for five minutes and delivered when the wait starts. Change this with `unmatchedEvents` in the wizard options.
+- Pass the sender's delivery id as `run.send(event, payload, { eventId })`. A repeat returns `{ ok: true, duplicate: true }` and calls no handler.
+
+## Next
+
+- [Handle failures](/learn/failures)
+- [Events](/packages/core#send-events)

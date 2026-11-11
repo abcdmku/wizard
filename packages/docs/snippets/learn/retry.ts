@@ -1,22 +1,25 @@
-import { defineWizard } from '@openwizard/core'
+import { boundary, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
+export interface UploadDeps {
+  storage: {
+    save(fileId: string, options: { idempotencyKey: string }): Promise<{ url: string }>
+  }
+}
+
 export const upload = defineWizard(
-  { name: 'upload', context: z.object({ fileId: z.string() }) },
+  {
+    name: 'upload',
+    context: z.object({ fileId: z.string() }),
+    deps: boundary.trusted<UploadDeps>(),
+  },
   ({ step, steps }) =>
     steps({
       save: step({
-        run: async ({ attempt, context }) => {
-          if (attempt < 3) throw new Error('storage is busy')
-          return { saved: context.fileId }
-        },
-        mapError: (error, { attempt }) => ({
-          code: error instanceof Error && error.message === 'storage is busy' ? 'BUSY' : 'REJECTED',
-          attempt,
-        }),
-        retry: { retries: 2, backoff: 1_000, when: (error) => error.code === 'BUSY' },
-        next: 'done',
+        run: ({ context, deps, idempotencyKey }) =>
+          deps.storage.save(context.fileId, { idempotencyKey }),
+        idempotencyKey: ({ context }) => `save:${context.fileId}`,
+        retry: { retries: 2, backoff: 1_000 },
       }),
-      done: step({ run: () => 'saved' }),
     }),
 )

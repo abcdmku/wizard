@@ -1,40 +1,44 @@
-# Overview
+# Production checklist
 
-These pages cover what happens when a run stops halfway, waits longer than one process lives, receives duplicate messages, splits into branches, or exposes progress over a network. Each page opens with the smallest example that shows one feature; the sections below it go deeper.
+Check a wizard against these facts before you run it in production.
 
-## Pick the page for your failure
+## Make side effects safe to repeat
 
-| You hit | Read |
+| Fact | Do |
 |---|---|
-| A call failed, and a restart may repeat it | [Retries and idempotency](/advanced/recovery) |
-| A later step failed after earlier side effects | [Compensation](/advanced/compensation) |
-| Branches must join typed results, or a collection needs bounded parallel work | [Graphs and parallel work](/advanced/graphs) |
-| Saved state came from older code | [Snapshots and migrations](/advanced/persistence) |
-| Two workers loaded the same run | [Multi-worker durability](/advanced/durability) |
-| A webhook arrived early or for another run | [External event routing](/advanced/events) |
-| A stage deserves its own run and snapshot | [Nested wizards](/advanced/nested) |
-| A browser needs a safe subset of state | [Projections and mirrors](/advanced/projections) |
-| An operator asks why a step is stuck | [Explain, observe, replay](/advanced/operations) |
+| A step can run twice. A retry repeats it, and so does a crash between the service call and the save. No store can prevent that | Declare [`idempotencyKey`](/learn/failures#retry-a-step) on every step that charges, sends or books, and pass it to the service |
+| An undo can run twice for the same reason | Pass the [`compensate`](/learn/failures#undo-finished-steps) key to the service too |
+| An undo is a new call and can fail | Check `failure.compensation.outcome` on a failed result |
+| A sender retries its deliveries | Pass its id as `eventId` or `commandId`. A run remembers 1,000 event ids for 24 hours. Change that with `eventIds` in the run options |
 
-## All of them in one wizard
+## Protect data
 
-The order example uses idempotent runnable steps, exponential retry, typed error data, compensation, a correlated webhook, and a persisted 24-hour timeout in one wizard:
+| Fact | Do |
+|---|---|
+| A snapshot holds the context, drafts, outputs and errors of a run | Keep secrets and clients in `deps`. `redact` in the run options strips fields before a write, and a resumed run starts without them |
+| TypeScript types do not check data at run time, and `boundary.trusted<T>()` checks nothing | Use a schema for context, events and view input. Parse a command from the network with `parseCommand(wizard, input)` before `run.dispatch` |
+| The `name` and `message` of a thrown error are stored in the snapshot | Keep secrets out of error messages |
+| A snapshot must survive `JSON.stringify` | Store dates as strings |
+| Old snapshots outlive a deploy | Set `version` on the wizard and [migrate](/learn/save-resume#resume-a-snapshot-from-older-code) |
 
-```ts file="examples/11-order-workflow/src/order-workflow.ts"
-```
+## Control access
 
-<Diagram name="order" />
+| Fact | Do |
+|---|---|
+| A [projection](/advanced/client) sends only what it lists, but `input: true` sends a whole draft | List fields one by one. Test the JSON a client receives |
+| A projection, a correlation id and a webhook signature do not say who may open a run | Authenticate the caller and look the run up inside their tenant first |
+| [HTTP](/advanced/http) routes exist only for capabilities in `access` | Grant the smallest set |
+| Devtools shows everything its source holds | Leave it out of production builds, or give it a mirror of a projection |
 
-The snapshot records attempt counts, retry deadlines, compensation order, buffered events, and timers together. A durable host coordinates that saved state across workers. External services still need idempotency for calls that a crash can interrupt.
+## Coordinate processes
 
-```sh
-pnpm --filter example-11-order-workflow start
-```
+| Fact | Do |
+|---|---|
+| A core `Store` assumes one process per run | Use a [durable host](/advanced/server) when two processes can reach a run |
+| Memory stores coordinate one process | Use a database store for runs, HTTP idempotency and webhook subscriptions |
+| A run you `create` holds timers and listeners | Call `run.dispose()`, and `host.dispose()` on shutdown |
 
-## What core does not do
+## Next
 
-- It cannot make a remote call exactly once. Pass the task's `idempotencyKey` to a service that enforces it.
-- Compensation is a new side effect, not a rollback. It can fail, and the failure is recorded.
-- There is no HTTP server, auth, or database driver in core. Your host owns those and feeds the run typed commands.
-
-Next: start with [Retries and idempotency](/advanced/recovery).
+- [Reference](/packages)
+- [Examples](/examples)
