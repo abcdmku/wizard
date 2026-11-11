@@ -60,7 +60,7 @@ Read the [core reference](../docs/pages/packages/core.mdx).
 | `defineProjection` | function | Define a projection of a wizard. `{ expose }` returns only the selected fields and base facts. | [src](../../packages/core/src/projection/define-projection.ts#L266) |
 | `defineWizard` | function | Define a wizard. Return `steps(map, { start? })` from the callback. | [src](../../packages/core/src/wizard/define-wizard.ts#L39) |
 | `DepsOf` | type | All dependencies seen by hooks, including supplied dependencies. | [src](../../packages/core/src/authoring/types/extractors.ts#L13) |
-| `DispatchOptions` | interface | Optimistic concurrency checked atomically when dispatch reaches the machine. | [src](../../packages/core/src/wizard/runtime/types.ts#L267) |
+| `DispatchOptions` | interface | Optimistic concurrency checked atomically when dispatch reaches the machine. | [src](../../packages/core/src/wizard/runtime/types.ts#L262) |
 | `DraftOf` | type | A partial patch of a view boundary input. | [src](../../packages/core/src/authoring/types/extractors.ts#L64) |
 | `Duration` | type | A duration: milliseconds as a number, or a string with a unit (`'250ms'`, `'15m'`, `'2h'`, `'1d'`). | [src](../../packages/core/src/authoring/types/primitives.ts#L23) |
 | `EachRunArgs` | interface | Run arguments for one item in a mapped runnable step. | [src](../../packages/core/src/authoring/types/hook-args.ts#L58) |
@@ -125,7 +125,7 @@ Read the [core reference](../docs/pages/packages/core.mdx).
 | `RunStepId` | type | The ids of runnable steps. | [src](../../packages/core/src/authoring/types/extractors.ts#L87) |
 | `RunWaiting` | interface | A run parked on a view or an external event: `waitingFor` lists every wait (sleeps included), | [src](../../packages/core/src/wizard/results.ts#L247) |
 | `Scheduler` | interface | Timer scheduler the runtime arms retries, wait timeouts and inbox TTLs with | [src](../../packages/core/src/interpreter/env.ts#L28) |
-| `SendOptions` | interface | `send()` options: correlation and event deduplication. | [src](../../packages/core/src/wizard/runtime/types.ts#L181) |
+| `SendOptions` | interface | `send()` options: correlation and event deduplication. | [src](../../packages/core/src/wizard/runtime/types.ts#L178) |
 | `SendResult` | type | Result of `send(event, payload, options)`: delivered/buffered, a duplicate (`duplicate: true`: | [src](../../packages/core/src/wizard/results.ts#L84) |
 | `SerializedError` | interface | A serializable error (`name`, `message`, optional `code`). It never carries a stack. | [src](../../packages/core/src/machine/state-support.ts#L22) |
 | `SetInputCommand` | type | `setInput` correlated per view: `step: K` with `patch: DraftOf<F, K>`. | [src](../../packages/core/src/wizard/create-wizard/command.ts#L39) |
