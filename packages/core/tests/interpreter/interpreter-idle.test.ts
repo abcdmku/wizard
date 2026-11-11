@@ -6,8 +6,9 @@ import {
   type InterpreterOptions,
 } from '../../src/interpreter/interpreter'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
+import { initialState, machine } from '../../src/machine/index'
 import type { MachineEnv } from '../../src/machine/types'
-import { createToyMachine, flow, initialState } from '../helpers/fake-machine'
+import { eventStep, flow, runStep, view } from '../helpers/fixtures'
 
 function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
   let release = (): void => {}
@@ -46,7 +47,7 @@ function setup(
   }
   const interp = createInterpreter({
     def,
-    machine: createToyMachine(),
+    machine,
     path: [],
     env,
     initialState: initialState(machineEnv, {
@@ -62,7 +63,7 @@ function setup(
 describe('interpreter idle boundary', () => {
   it('notifies only after an async barrier and listener-enqueued follow-up batch drain', async () => {
     const gate = deferred()
-    const def = flow({ steps: { form: { kind: 'view' } } })
+    const def = flow({ start: 'form', steps: { form: view() } })
     let firstBarrier = true
     let queued = false
     let interp: Interpreter
@@ -97,13 +98,9 @@ describe('interpreter idle boundary', () => {
     const def = flow({
       start: ['work', 'waiting'],
       steps: {
-        work: { kind: 'step', hooks: { run: () => new Promise<never>(() => {}) } },
-        waiting: {
-          kind: 'step',
-          hooks: { waitFor: {} },
-          waitTimeout: { afterMs: 60_000, next: 'expired' },
-        },
-        expired: { kind: 'step', hooks: { run: () => undefined } },
+        work: runStep({ run: () => new Promise<never>(() => {}) }),
+        waiting: eventStep({ on: {}, timeout: { afterMs: 60_000, next: 'expired' } }),
+        expired: runStep({ run: () => undefined }),
       },
     })
     const { interp, scheduler } = setup(def)
@@ -121,7 +118,7 @@ describe('interpreter idle boundary', () => {
       const failure = new Error(`hostile ${mode}`)
       const fatal: unknown[] = []
       const listenerErrors: unknown[] = []
-      const def = flow({ steps: { form: { kind: 'view' } } })
+      const def = flow({ start: 'form', steps: { form: view() } })
       const { interp } = setup(def, {
         beforeEffects: () => hostileBarrier(mode, failure),
         onFatal: (error) => fatal.push(error),

@@ -1,71 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { createSequentialIds } from '../../src/interpreter/env'
-import { createInterpreter, type InterpreterOptions } from '../../src/interpreter/interpreter'
-import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import type { Message } from '../../src/machine/commands'
-import type { Effect } from '../../src/machine/effects'
-import type { DomainEvent } from '../../src/machine/events'
-import type { WizardState } from '../../src/machine/state'
-import type { MachineEnv } from '../../src/machine/types'
-import {
-  createToyMachine,
-  flow,
-  initialState,
-  type ToyOverrides,
-  types,
-} from '../helpers/fake-machine'
-
-function setup(
-  def: ReturnType<typeof flow>,
-  overrides: ToyOverrides = {},
-  extra: Partial<InterpreterOptions> = {},
-  context: unknown = { n: 0 },
-) {
-  const sched = createTestScheduler({ now: 1_000 })
-  const ids = createSequentialIds()
-  const env = { clock: sched, scheduler: sched, ids }
-  const menv: MachineEnv = { def, path: [], now: () => sched.now(), id: (p) => ids.id(p) }
-  const events: DomainEvent[] = []
-  const commits: WizardState[] = []
-  const effects: Effect[] = []
-  const processed: Array<{ msg: Message; batch: readonly DomainEvent[] }> = []
-  const interp = createInterpreter({
-    def,
-    machine: createToyMachine(overrides),
-    path: [],
-    env,
-    initialState: initialState(menv, { instanceId: 'w1', context, now: sched.now() }),
-    onEvent: (e) => events.push(e),
-    onCommit: (s) => commits.push(s),
-    onEffect: (fx) => effects.push(fx),
-    onProcessed: (msg, batch) => processed.push({ msg, batch }),
-    ...extra,
-  })
-  return { interp, sched, ids, events, commits, effects, processed }
-}
-
-const taskThenFinal = (run: (args: any) => unknown, extra: Record<string, unknown> = {}) =>
-  flow({
-    steps: {
-      t: { kind: 'step', hooks: { run }, next: { kind: 'static', targets: ['end'] }, ...extra },
-      end: { kind: 'step', hooks: { run: () => undefined } },
-    },
-  })
+import { eventStep, flow, runStep, view } from '../helpers/fixtures'
+import { setup, taskThenFinal, types } from './harness'
 
 describe('interpreter: batch atomicity', () => {
   it('event listeners only ever observe post-batch state', () => {
     const def = taskThenFinal(() => 'out')
     const seen: Array<{ type: string; status: string; attempt: number }> = []
-    const { interp } = setup(
-      def,
-      {},
-      {
-        onEvent: (e) => {
-          const s = interp.getState()
-          seen.push({ type: e.type, status: s.steps.t!.status, attempt: s.steps.t!.attempt })
-        },
+    const { interp } = setup(def, {
+      onEvent: (e) => {
+        const s = interp.getState()
+        seen.push({ type: e.type, status: s.steps.t!.status, attempt: s.steps.t!.attempt })
       },
-    )
+    })
     interp.send({ type: 'start' })
     // The very first event of the first batch already sees the whole batch applied
     // (task active with attempt 1, set by the last event of that batch).
@@ -77,11 +23,11 @@ describe('interpreter: batch atomicity', () => {
   })
 
   it('reports a message the machine ignores as processed with an empty batch (no commit)', () => {
-    const def = flow({ steps: { v: { kind: 'view' } } })
+    const def = flow({ start: 'v', steps: { v: view() } })
     const { interp, commits, processed } = setup(def)
     interp.send({ type: 'start' })
     expect(commits).toHaveLength(1)
-    interp.send({ type: 'startReady' }) // toy machine: [] for this command
+    interp.send({ type: 'startReady' }) // nothing is ready to start: the machine decides no event
     expect(commits).toHaveLength(1)
     expect(processed.at(-1)?.msg).toEqual({ type: 'startReady' })
     expect(processed.at(-1)?.batch).toEqual([])
@@ -124,59 +70,46 @@ describe('interpreter: sync-commit guarantee', () => {
     expect(interp.getState().steps.t!.status).toBe('done')
     expect(interp.getState().steps.t!.output).toBe('later')
     expect(interp.getState().status).toBe('done')
-    expect(commits).toHaveLength(3)
+    // One batch each for the run result of `t`, the entry of `end` and the result of `end`.
+    expect(commits).toHaveLength(4)
   })
 
   it("strict: 'sync' turns a thenable into res.err { syncViolation } in the same drain", () => {
     const def = taskThenFinal(() => Promise.resolve('never'))
-    const messages: Message[] = []
-    const { interp, events } = setup(
-      def,
-      {
-        decide: (_e, _s, msg) => {
-          messages.push(msg)
-          return undefined
-        },
-      },
-      { strict: 'sync' },
-    )
+    const { interp, events, results } = setup(def, { strict: 'sync' })
     interp.send({ type: 'start' })
-    const err = messages.find((m) => m.type === 'res.err')
+    const err = results().find((m) => m.type === 'res.err')
     expect(err).toMatchObject({ type: 'res.err', hook: 'run', syncViolation: true })
     expect(err && err.type === 'res.err' ? err.error.code : undefined).toBe('SYNC_VIOLATION')
     expect(interp.getState().steps.t!.status).toBe('failed')
     expect(interp.getState().steps.t!.error?.kind).toBe('sync-violation')
-    expect(types(events)).toContain('run.failed')
+    expect(types(events)).toContain('run.halted')
   })
 })
 
 describe('interpreter: re-entrancy', () => {
   it('send() from a listener is enqueued and processed before the outer call returns', () => {
     const def = flow({
-      steps: {
-        v: { kind: 'view', next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'step', hooks: { run: () => undefined } },
-      },
+      start: 'v',
+      steps: { v: view({ next: 'end' }), end: runStep({ run: () => undefined }) },
     })
     let inputSeenInsideListener: unknown = 'unset'
     let sent = false
-    const { interp, events } = setup(
-      def,
-      {},
-      {
-        onCommit: () => {
-          if (sent) return
-          sent = true
-          interp.send({ type: 'setInput', step: 'v', patch: { name: 'x' } })
-          // Not processed yet: we are inside the outer drain.
-          inputSeenInsideListener = interp.getState().steps.v!.input
-        },
+    const { interp, events } = setup(def, {
+      onCommit: () => {
+        if (sent) return
+        sent = true
+        interp.send({ type: 'setInput', step: 'v', patch: { name: 'x' } })
+        // Not processed yet: we are inside the outer drain.
+        inputSeenInsideListener = interp.getState().steps.v!.input
       },
-    )
+    })
     interp.send({ type: 'start' })
     expect(inputSeenInsideListener).toBeUndefined()
     expect(interp.getState().steps.v!.input).toEqual({ name: 'x' })
-    expect(types(events)).toEqual(['run.started', 'step.arrived', 'step.entered', 'input.changed'])
+    const order = types(events)
+    expect(order.slice(0, 2)).toEqual(['run.started', 'step.arrived'])
+    expect(order.slice(-3)).toEqual(['step.entered', 'transition.committed', 'input.changed'])
   })
 
   it('a hook calling update() enqueues context.patch, applied before the hook result', () => {
@@ -184,7 +117,7 @@ describe('interpreter: re-entrancy', () => {
       update({ touched: true })
       return 'r'
     })
-    const { interp, events } = setup(def, {}, {}, { touched: false })
+    const { interp, events } = setup(def, {}, { touched: false })
     interp.send({ type: 'start' })
     const order = types(events)
     expect(order.indexOf('context.changed')).toBeLessThan(order.indexOf('step.runSucceeded'))
@@ -210,13 +143,10 @@ describe('interpreter: causality', () => {
 
   it('links timer-fired messages to the timer.scheduled event', () => {
     const def = flow({
+      start: 'w',
       steps: {
-        w: {
-          kind: 'step',
-          hooks: { waitFor: { ping: () => undefined } },
-          waitTimeout: { afterMs: 50, next: 'end' },
-        },
-        end: { kind: 'step', hooks: { run: () => undefined } },
+        w: eventStep({ on: { ping: () => undefined }, timeout: { afterMs: 50, next: 'end' } }),
+        end: runStep({ run: () => undefined }),
       },
     })
     const { interp, events, sched } = setup(def)
@@ -232,7 +162,7 @@ describe('interpreter: causality', () => {
 describe('interpreter: log ring', () => {
   it('keeps at most logSize events, newest last', () => {
     const def = taskThenFinal(() => 'x')
-    const { interp, events } = setup(def, {}, { logSize: 5 })
+    const { interp, events } = setup(def, { logSize: 5 })
     interp.send({ type: 'start' })
     expect(events.length).toBeGreaterThan(5)
     const log = interp.log()
