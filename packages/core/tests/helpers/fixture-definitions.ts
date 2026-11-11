@@ -35,6 +35,24 @@ export const guard = (check: (v: unknown) => boolean, message = 'invalid'): Runt
   parse: (value) => (check(value) ? { ok: true, value } : { ok: false, issues: [{ message }] }),
 })
 
+/** Boundary from a parse function, for cases that transform or reject a value. */
+export const parsing = (parse: RuntimeBoundary['parse']): RuntimeBoundary => ({
+  kind: 'parse',
+  parse,
+})
+
+/** Accepts objects whose listed keys are strings; rejects everything else with issues. */
+export const stringsBoundary = (...keys: string[]): RuntimeBoundary =>
+  parsing((value) => {
+    if (typeof value !== 'object' || value === null)
+      return { ok: false, issues: [{ message: 'expected an object' }] }
+    const rec = value as Record<string, unknown>
+    const issues = keys
+      .filter((k) => typeof rec[k] !== 'string')
+      .map((k) => ({ message: `${k} must be a string`, path: [k] }))
+    return issues.length > 0 ? { ok: false, issues } : { ok: true, value: rec }
+  })
+
 // ---------------------------------------------------------------------------
 // Step builders
 // ---------------------------------------------------------------------------
@@ -204,6 +222,8 @@ export interface FlowCfg {
   readonly start: string | readonly string[]
   readonly steps: Readonly<Record<string, StepSpec>>
   readonly policies?: Partial<CompiledWizard['policies']>
+  /** Context boundary. Default: trusted. */
+  readonly context?: RuntimeBoundary
   readonly events?: Readonly<Record<string, RuntimeBoundary>>
   /** Flow-level `on[event]` handlers. */
   readonly on?: Readonly<Record<string, Hook<WizardOnHandlerResult>>>
@@ -218,7 +238,7 @@ export function flow(cfg: FlowCfg): CompiledWizard {
   return {
     name: cfg.name ?? 'test',
     version: cfg.version ?? 1,
-    context: trusted(),
+    context: cfg.context ?? trusted(),
     events: cfg.events ?? {},
     ...(cfg.on !== undefined ? { on: cfg.on } : {}),
     ...(cfg.correlate !== undefined ? { correlate: cfg.correlate } : {}),
