@@ -9,25 +9,13 @@ import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { DomainEvent } from '../../src/machine/events'
 import type { WizardState } from '../../src/machine/state'
 import { createWizardRuntime, type WizardRuntimeOptions } from '../../src/wizard/runtime'
-import {
-  createToyMachine,
-  flow,
-  initialState,
-  stringsBoundary,
-  type ToyOverrides,
-  types,
-} from '../helpers/fake-machine'
+import { eventStep, flow, flowStep, runStep, stringsBoundary, view } from '../helpers/fixtures'
+import { types } from '../interpreter/harness'
 
-function make(
-  def: CompiledWizard,
-  opts: Partial<WizardRuntimeOptions> = {},
-  overrides: ToyOverrides = {},
-) {
+function make(def: CompiledWizard, opts: Partial<WizardRuntimeOptions> = {}) {
   const sched = createTestScheduler({ now: 1_000 })
   const run = createWizardRuntime(def, {
     context: { tenant: 't1' },
-    machine: createToyMachine(overrides),
-    initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     instanceId: 'wiz-1',
@@ -42,10 +30,11 @@ function make(
 
 const twoViews = (extra: Record<string, any> = {}) =>
   flow({
+    start: 'a',
     steps: {
-      a: { kind: 'view', next: { kind: 'static', targets: ['b'] }, ...extra.a },
-      b: { kind: 'view', next: { kind: 'static', targets: ['end'] }, ...extra.b },
-      end: { kind: 'step' },
+      a: { ...view({ next: 'b' }), ...extra.a },
+      b: { ...view({ next: 'end' }), ...extra.b },
+      end: runStep(),
     },
   })
 
@@ -57,13 +46,17 @@ describe('run runtime: subscriptions and snapshots', () => {
     const off1 = run.subscribe((s) => seen.push(s.seq))
     const off2 = run.observe((e) => evs.push(e.type))
     await run.start()
-    expect(seen).toEqual([3])
-    expect(evs).toEqual(['run.started', 'step.arrived', 'step.entered'])
+    const started = run.getState().seq
+    expect(seen).toEqual([started])
+    expect(evs).toHaveLength(started)
+    expect(evs.slice(0, 2)).toEqual(['run.started', 'step.arrived'])
+    expect(evs).toContain('step.entered')
     off1()
     off2()
     await run.next()
-    expect(seen).toEqual([3])
-    expect(evs).toHaveLength(3)
+    expect(run.getState().seq).toBeGreaterThan(started)
+    expect(seen).toEqual([started])
+    expect(evs).toHaveLength(started)
   })
 
   it('getSnapshot() is cached per state and carries the envelope', async () => {
@@ -71,7 +64,7 @@ describe('run runtime: subscriptions and snapshots', () => {
     const s0 = run.getSnapshot()
     expect(s0).toMatchObject({
       v: 1,
-      wizard: { name: 'test-flow', version: 1 },
+      wizard: { name: 'test', version: 1 },
       instanceId: 'wiz-1',
       epoch: 0,
       seq: 0,
@@ -83,30 +76,29 @@ describe('run runtime: subscriptions and snapshots', () => {
     await run.start()
     const s1 = run.getSnapshot()
     expect(s1).not.toBe(s0)
-    expect(s1.seq).toBe(3)
+    expect(s1.seq).toBe(run.getState().seq)
+    expect(s1.seq).toBeGreaterThan(0)
     expect(s1.state).toBe(run.getState())
     expect(s1.children).toEqual({})
-    expect(run.log().map((e) => e.seq)).toEqual([1, 2, 3])
+    expect(run.log().map((e) => e.seq)).toEqual(Array.from({ length: s1.seq }, (_, i) => i + 1))
   })
 })
 
 describe('run runtime: nested flows', () => {
   const child = flow({
     name: 'child',
+    start: 't',
     steps: {
-      t: {
-        kind: 'step',
-        hooks: { run: ({ context }: any) => ({ echo: context }) },
-        next: { kind: 'static', targets: ['cend'] },
-      },
-      cend: { kind: 'step' },
+      t: runStep({ run: ({ context }: any) => ({ echo: context }), next: 'cend' }),
+      cend: runStep(),
     },
   })
   const parent = flow({
     name: 'parent',
+    start: 'f',
     steps: {
-      f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
-      end: { kind: 'step' },
+      f: flowStep(child, { context: ({ context }) => context, next: 'end' }),
+      end: runStep(),
     },
   })
 
@@ -148,32 +140,34 @@ describe('run runtime: nested flows', () => {
   it('dispatch({ type: "child" }) goes through the parent FIFO: the parent machine gates it and plans child.send', async () => {
     const asyncChild = flow({
       name: 'child',
+      start: 'w',
       steps: {
-        w: {
-          kind: 'step',
-          hooks: { waitFor: { ping: () => ({ done: 'pinged' }) } },
-          next: { kind: 'static', targets: ['cend'] },
-        },
-        cend: { kind: 'step' },
+        w: eventStep({ on: { ping: () => ({ done: 'pinged' }) }, next: 'cend' }),
+        cend: runStep(),
       },
     })
     const p = flow({
       name: 'parent',
       events: { ping: stringsBoundary('id') },
+      start: 'f',
       steps: {
-        f: { kind: 'child', child: asyncChild, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'step' },
+        f: flowStep(asyncChild, { next: 'g' }),
+        g: flowStep(asyncChild, { next: 'end' }),
+        end: runStep(),
       },
     })
     const { run, events } = make(p)
-    // Not started yet: the toy machine rejects (terminal/idle gates live in the parent machine).
+    // The gates live in the parent machine: not started, not a child step, child not running.
+    expect(
+      await run.dispatch({ type: 'child', path: ['f'], command: { type: 'startReady' } }),
+    ).toMatchObject({ ok: false, code: 'RUN_NOT_STARTED' })
+    await run.start()
     expect(
       await run.dispatch({ type: 'child', path: ['end'], command: { type: 'startReady' } }),
     ).toMatchObject({ ok: false, code: 'NOT_A_CHILD_STEP' })
     expect(
-      await run.dispatch({ type: 'child', path: ['f'], command: { type: 'startReady' } }),
+      await run.dispatch({ type: 'child', path: ['g'], command: { type: 'startReady' } }),
     ).toMatchObject({ ok: false, code: 'NOT_ACTIVE' })
-    await run.start()
     const seqBefore = run.getState().seq
     // Accepted: one parent event (child.command) → the promise resolves with the PARENT seq;
     // the child receives the command through the bridge (child.send) inside the same drain.
@@ -192,7 +186,7 @@ describe('run runtime: nested flows', () => {
     expect(events.find((e) => e.path[0] === 'f' && e.type === 'command.rejected')).toMatchObject({
       command: { type: 'setInput', step: 'w' },
     })
-    // Nested path: the parent forwards `{ type: 'child', path: rest, command }` down the chain (toy: 1 level).
+    // Nested path: the parent forwards `{ type: 'child', path: rest, command }` down the chain.
     // A `send` addressed to the child runs the CHILD's boundary/routing (child.send → child.dispatch).
     const before = run.child('f').getState().seq
     await run.dispatch({
@@ -236,14 +230,8 @@ describe('run runtime: dispose', () => {
 
   it("strict: 'sync' is honoured", async () => {
     const def = flow({
-      steps: {
-        t: {
-          kind: 'step',
-          hooks: { run: async () => 1 },
-          next: { kind: 'static', targets: ['end'] },
-        },
-        end: { kind: 'step' },
-      },
+      start: 't',
+      steps: { t: runStep({ run: async () => 1, next: 'end' }), end: runStep() },
     })
     const { run } = make(def, { strict: 'sync' })
     await run.start()
@@ -255,16 +243,14 @@ describe('run runtime: dispose', () => {
     let signal: AbortSignal | undefined
     const def = flow({
       events: { slow: { kind: 'parse', parse: () => new Promise((r) => (releaseBoundary = r)) } },
+      start: 'a',
       steps: {
-        a: {
-          kind: 'view',
-          hooks: {
-            validate: (args: any) => {
-              signal = args.signal
-              return new Promise(() => {})
-            },
+        a: view({
+          validate: (args: any) => {
+            signal = args.signal
+            return new Promise(() => {})
           },
-        },
+        }),
       },
     })
     const { run } = make(def)
@@ -294,13 +280,10 @@ describe('run runtime: sync-commit guarantee for send()', () => {
   it('a sync boundary enqueues before send() returns and the promise is already fulfilled', async () => {
     const def = flow({
       events: { ping: stringsBoundary('id') },
+      start: 'w',
       steps: {
-        w: {
-          kind: 'step',
-          hooks: { waitFor: { ping: () => ({ done: 'ok' }) } },
-          next: { kind: 'static', targets: ['end'] },
-        },
-        end: { kind: 'step' },
+        w: eventStep({ on: { ping: () => ({ done: 'ok' }) }, next: 'end' }),
+        end: runStep(),
       },
     })
     const { run, events } = make(def)
@@ -342,7 +325,8 @@ describe('run runtime: sync-commit guarantee for send()', () => {
   })
 
   it("preserves a hook error's WizardError code (SYNC_VIOLATION) through NavResult and CommandResult", async () => {
-    const def = twoViews({ a: { hooks: { canExit: async () => true } } })
+    // A guard that fails vetoes; a failing `exit` hook fails the navigation with its error.
+    const def = twoViews({ a: { hooks: { exit: async () => {} } } })
     const { run } = make(def, { strict: 'sync' })
     await run.start()
     const nav = await run.next()

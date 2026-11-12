@@ -1,23 +1,22 @@
 import { describe, expect, it } from 'vitest'
+import { initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
 import { type Snapshot, toSnapshot, validateSnapshot } from '../../src/wizard/snapshot'
-import { flow, initialState, testEnv } from '../helpers/fake-machine'
-import { trusted } from '../helpers/fixtures'
+import { createEnv, flow, flowStep, runStep, trusted, view } from '../helpers/fixtures'
 
-const child = flow({ name: 'child', steps: { c: { kind: 'view' } } })
+const child = flow({ name: 'child', start: 'c', steps: { c: view() } })
 const def = flow({
   name: 'main',
   version: 2,
   events: { ping: trusted() },
-  steps: {
-    a: { kind: 'view', next: { kind: 'static', targets: ['f'] } },
-    f: { kind: 'child', child },
-    end: { kind: 'step' },
-  },
+  start: 'a',
+  steps: { a: view({ next: 'f' }), f: flowStep(child), end: runStep() },
 })
 
 function base(patch: (s: WizardState) => WizardState = (s) => s): Snapshot {
-  const state = patch(initialState(testEnv(def), { instanceId: 'i1', context: { x: 1 }, now: 5 }))
+  const state = patch(
+    initialState(createEnv(def).env, { instanceId: 'i1', context: { x: 1 }, now: 5 }),
+  )
   return toSnapshot(state, {}, 99)
 }
 
@@ -341,7 +340,7 @@ describe('toSnapshot / validateSnapshot', () => {
   it('validates children recursively with prefixed reasons', () => {
     const snap = base()
     const childSnap = toSnapshot(
-      initialState(testEnv(child), { instanceId: 'c1', context: {}, now: 1 }),
+      initialState(createEnv(child).env, { instanceId: 'c1', context: {}, now: 1 }),
       {},
       1,
     )

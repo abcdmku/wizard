@@ -6,16 +6,13 @@ import { createMemoryStore } from '../../src/persistence/memory-store'
 import type { Store } from '../../src/persistence/store'
 import { createWizardRuntime, type WizardRuntimeOptions } from '../../src/wizard/runtime'
 import type { Snapshot } from '../../src/wizard/snapshot'
-import { createToyMachine, flow, initialState } from '../helpers/fake-machine'
+import { eventStep, flow, flowStep, runStep, view } from '../helpers/fixtures'
 
 const settle = () => new Promise<void>((r) => setTimeout(r, 0))
 
 const twoViews = flow({
-  steps: {
-    a: { kind: 'view', next: { kind: 'static', targets: ['b'] } },
-    b: { kind: 'view', next: { kind: 'static', targets: ['end'] } },
-    end: { kind: 'step' },
-  },
+  start: 'a',
+  steps: { a: view({ next: 'b' }), b: view({ next: 'end' }), end: runStep() },
 })
 
 /** A store that records every call and can be made slow / failing. */
@@ -46,8 +43,6 @@ function make(opts: Partial<WizardRuntimeOptions> & { store: Store }) {
   const sched = createTestScheduler({ now: 100 })
   const run = createWizardRuntime(twoViews, {
     context: { secret: 'hunter2', tenant: 't' },
-    machine: createToyMachine(),
-    initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     instanceId: 'w1',
@@ -124,7 +119,8 @@ describe('persistence via the run runtime', () => {
     await settle()
     expect(store.writes).toHaveLength(0)
     await run.save()
-    expect(await store.get('w1')).toMatchObject({ instanceId: 'w1', seq: 3 })
+    expect(run.getState().seq).toBeGreaterThan(0)
+    expect(await store.get('w1')).toMatchObject({ instanceId: 'w1', seq: run.getState().seq })
   })
 
   it('redact() runs on the snapshot before it reaches the store', async () => {
@@ -181,8 +177,6 @@ describe('persistence via the run runtime', () => {
     const sched = createTestScheduler()
     const run = createWizardRuntime(twoViews, {
       context: {},
-      machine: createToyMachine(),
-      initialState,
       scheduler: sched,
     })
     await expect(run.save()).resolves.toBeUndefined()
@@ -196,20 +190,16 @@ describe('persistence via the run runtime', () => {
   })
 
   it('a child never persists on its own; the root snapshot carries it', async () => {
-    const child = flow({ name: 'child', steps: { w: { kind: 'step', hooks: { waitFor: {} } } } })
+    const child = flow({ name: 'child', start: 'w', steps: { w: eventStep({ on: {} }) } })
     const parent = flow({
       name: 'parent',
-      steps: {
-        f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] } },
-        end: { kind: 'step' },
-      },
+      start: 'f',
+      steps: { f: flowStep(child, { next: 'end' }), end: runStep() },
     })
     const store = recordingStore()
     const sched = createTestScheduler()
     const run = createWizardRuntime(parent, {
       context: {},
-      machine: createToyMachine(),
-      initialState,
       scheduler: sched,
       store,
       key: 'root',

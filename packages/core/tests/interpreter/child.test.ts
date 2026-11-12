@@ -8,17 +8,12 @@ import {
   type InterpreterOptions,
 } from '../../src/interpreter/interpreter'
 import { createTestScheduler, type TestScheduler } from '../../src/interpreter/test-scheduler'
-import type { Effect } from '../../src/machine/effects'
 import type { DomainEvent } from '../../src/machine/events'
+import { initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
 import { toSnapshot } from '../../src/wizard/snapshot'
-import {
-  createToyMachine,
-  flow,
-  initialState,
-  type ToyOverrides,
-  types,
-} from '../helpers/fake-machine'
+import { eventStep, flow, flowStep, runStep } from '../helpers/fixtures'
+import { types } from './harness'
 
 interface Handle extends ChildHandle {
   readonly interp: Interpreter<Handle>
@@ -32,13 +27,11 @@ function makeHandle(
   sched: TestScheduler,
   ids: ReturnType<typeof createSequentialIds>,
   factory: ChildFactory<Handle>,
-  overrides: ToyOverrides = {},
 ): Handle {
   const stateListeners = new Set<(s: WizardState) => void>()
   const eventListeners = new Set<(e: DomainEvent) => void>()
   const interp: Interpreter<Handle> = createInterpreter<Handle>({
     def,
-    machine: createToyMachine(overrides),
     path,
     env: { clock: sched, scheduler: sched, ids },
     initialState: state,
@@ -69,11 +62,7 @@ function makeHandle(
   }
 }
 
-function setup(
-  parentDef: CompiledWizard,
-  extra: Partial<InterpreterOptions<Handle>> = {},
-  overrides: ToyOverrides = {},
-) {
+function setup(parentDef: CompiledWizard, extra: Partial<InterpreterOptions<Handle>> = {}) {
   const sched = createTestScheduler({ now: 500 })
   const ids = createSequentialIds()
   const env = { clock: sched, scheduler: sched, ids }
@@ -102,7 +91,6 @@ function setup(
   const menv = { def: parentDef, path: [], now: () => sched.now(), id: (p: string) => ids.id(p) }
   const interp = createInterpreter<Handle>({
     def: parentDef,
-    machine: createToyMachine(overrides),
     path: [],
     env,
     initialState: initialState(menv, {
@@ -117,21 +105,25 @@ function setup(
   return { interp, events, sched, ids, restored, factory }
 }
 
-const childDef = (run: () => unknown = () => 'child-out') =>
+const childDef = (
+  run: () => unknown = () => 'child-out',
+  policies: Partial<CompiledWizard['policies']> = {},
+) =>
   flow({
     name: 'child',
-    steps: {
-      t: { kind: 'step', hooks: { run }, next: { kind: 'static', targets: ['cend'] } },
-      cend: { kind: 'step', hooks: { run: () => undefined } },
-    },
+    policies,
+    start: 't',
+    steps: { t: runStep({ run, next: 'cend' }), cend: runStep({ run: () => undefined }) },
   })
 
-const parentDef = (child: CompiledWizard, extraSteps: Record<string, any> = {}) =>
+/** A parent whose child step `f` hands its own context to the child. */
+const parentDef = (child: CompiledWizard) =>
   flow({
     name: 'parent',
+    start: 'f',
     steps: {
-      f: { kind: 'child', child, next: { kind: 'static', targets: ['end'] }, ...extraSteps.f },
-      end: { kind: 'step', hooks: { run: () => undefined } },
+      f: flowStep(child, { context: ({ context }) => context, next: 'end' }),
+      end: runStep({ run: () => undefined }),
     },
   })
 
@@ -149,7 +141,13 @@ describe('child bridge', () => {
       'step.runStarted',
       'step.runSucceeded',
       'step.done',
+      'transition.started',
+      'transition.phase',
+      'transition.phase',
+      'transition.phase',
+      'transition.phase',
       'step.arrived',
+      'transition.committed',
       'step.entered',
       'step.runStarted',
       'step.runSucceeded',
@@ -158,7 +156,7 @@ describe('child bridge', () => {
     ])
     // Child events are NOT in the parent's own log ring.
     expect(interp.log().every((e) => e.path.length === 0)).toBe(true)
-    // The parent saw the summary and finished (toy: res.child{done} → step.done → final).
+    // The parent saw the summary and finished.
     expect(types(events.filter((e) => e.path.length === 0))).toContain('child.summary')
     const parent = interp.getState()
     expect(parent.steps.f!.status).toBe('done')
@@ -190,17 +188,12 @@ describe('child bridge', () => {
   it('sends done/failed flags only on the transition into that status', () => {
     const child = childDef()
     const summaries: Array<{ done: boolean; failed: boolean }> = []
-    const { interp } = setup(
-      parentDef(child),
-      {},
-      {
-        decide: (_e, _s, msg, base) => {
-          if (msg.type === 'res.child')
-            summaries.push({ done: msg.done !== undefined, failed: msg.failed !== undefined })
-          return base()
-        },
+    const { interp } = setup(parentDef(child), {
+      onProcessed: (msg) => {
+        if (msg.type === 'res.child')
+          summaries.push({ done: msg.done !== undefined, failed: msg.failed !== undefined })
       },
-    )
+    })
     interp.send({ type: 'start' })
     // Poke the (terminal) child again: it commits a command.rejected batch → summary without `done`.
     interp.child('f')?.dispatch({ type: 'start' })
@@ -209,9 +202,13 @@ describe('child bridge', () => {
   })
 
   it('a failed child fails the flow step (kind child)', () => {
-    const child = childDef(() => {
-      throw new Error('child exploded')
-    })
+    // `compensate` ends the child `failed`; the default `halt` would leave it recoverable.
+    const child = childDef(
+      () => {
+        throw new Error('child exploded')
+      },
+      { onFailure: 'compensate' },
+    )
     const { interp } = setup(parentDef(child))
     interp.send({ type: 'start' })
     expect(interp.child('f')?.getState().status).toBe('failed')
@@ -220,47 +217,33 @@ describe('child bridge', () => {
       kind: 'child',
       message: 'child exploded',
     })
-    expect(interp.getState().status).toBe('failed')
+    // The parent's own policy is `halt`: the failed step leaves it recoverable.
+    expect(interp.getState().status).toBe('halted')
   })
 
-  it('routes child.send effects to the child and honours child.dispose', () => {
+  it('routes a child command to the child (child.send) and disposes it on reset (child.dispose)', () => {
     const child = flow({
       name: 'child',
+      start: 'w',
       steps: {
-        w: {
-          kind: 'step',
-          hooks: { waitFor: { ping: ({ payload }: any) => ({ done: { got: payload } }) } },
-          next: { kind: 'static', targets: ['cend'] },
-        },
-        cend: { kind: 'step', hooks: { run: () => undefined } },
+        w: eventStep({
+          on: { ping: ({ payload }: any) => ({ done: { got: payload } }) },
+          next: 'cend',
+        }),
+        cend: runStep({ run: () => undefined }),
       },
     })
-    const { interp } = setup(
-      parentDef(child),
-      {},
-      {
-        plan: (_e, _s, batch, base) => {
-          const out: Effect[] = [...base()]
-          for (const ev of batch) {
-            if (ev.type === 'context.changed') {
-              out.push({
-                kind: 'child.send',
-                step: 'f',
-                command: { type: 'send', event: 'ping', payload: 'hi' },
-              })
-            }
-            if (ev.type === 'input.changed') out.push({ kind: 'child.dispose', step: 'f' })
-          }
-          return out
-        },
-      },
-    )
+    const { interp } = setup(parentDef(child))
     interp.send({ type: 'start' })
     expect(interp.child('f')?.getState().status).toBe('waiting')
-    interp.send({ type: 'context.patch', patch: { go: 1 } })
+    interp.send({
+      type: 'child',
+      path: ['f'],
+      command: { type: 'send', event: 'ping', payload: 'hi' },
+    })
     expect(interp.child('f')?.getState().steps.w?.output).toEqual({ got: 'hi' })
     expect(interp.getState().status).toBe('done')
-    interp.send({ type: 'reset' }) // toy: run.reset → interpreter disposes children
+    interp.send({ type: 'reset' }) // run.reset plans child.dispose for every child step
     expect(interp.child('f')).toBeUndefined()
   })
 
@@ -325,7 +308,6 @@ describe('child bridge', () => {
     const menv = { def, path: [], now: () => sched.now(), id: (p: string) => ids.id(p) }
     const interp = createInterpreter({
       def,
-      machine: createToyMachine(),
       path: [],
       env: { clock: sched, scheduler: sched, ids },
       initialState: initialState(menv, { instanceId: 'p', context: {}, now: 0 }),

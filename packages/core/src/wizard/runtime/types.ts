@@ -15,7 +15,7 @@ import type { Command } from '../../machine/commands'
 import type { DomainEvent } from '../../machine/events'
 import type { RuntimeResult } from '../../machine/run-result'
 import type { Issue, WizardState } from '../../machine/state'
-import type { EventIdPolicy, InitialState, Machine } from '../../machine/types'
+import type { EventIdPolicy } from '../../machine/types'
 import type { WaitingFor } from '../../machine/waiting-for'
 import type { Store } from '../../persistence/store'
 import type { CommandResult, NavResult, SendResult } from '../results'
@@ -28,9 +28,6 @@ export interface WizardRuntimeOptions {
   /** Injected dependencies (already through `def.deps`, if declared); `args.deps` in hooks. */
   readonly deps?: unknown
   readonly instanceId?: string
-  /** The pure machine (`decide/apply/plan`) and its initial-state builder. */
-  readonly machine: Machine
-  readonly initialState: InitialState
   readonly store?: Store
   /** Store key; defaults to the instance id. */
   readonly key?: string
@@ -195,8 +192,6 @@ interface RetryOptions {
 export interface RuntimeConfig {
   /** A child's link to the run that embeds it; absent on a root. */
   readonly parent?: ParentLink
-  readonly machine: Machine
-  readonly initialState: InitialState
   readonly env: RuntimeEnv
   /** This runtime's deps (`args.deps` in its hooks; the default for its children). */
   readonly deps: unknown

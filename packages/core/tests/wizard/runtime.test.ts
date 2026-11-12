@@ -6,25 +6,14 @@ import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { DomainEvent } from '../../src/machine/events'
 import type { WizardState } from '../../src/machine/state'
 import { createWizardRuntime, type WizardRuntimeOptions } from '../../src/wizard/runtime'
-import {
-  createToyMachine,
-  flow,
-  initialState,
-  stringsBoundary,
-  type ToyOverrides,
-  types,
-} from '../helpers/fake-machine'
+import { findRejected } from '../../src/wizard/runtime/results'
+import { eventStep, flow, runStep, stringsBoundary, view } from '../helpers/fixtures'
+import { types } from '../interpreter/harness'
 
-function make(
-  def: CompiledWizard,
-  opts: Partial<WizardRuntimeOptions> = {},
-  overrides: ToyOverrides = {},
-) {
+function make(def: CompiledWizard, opts: Partial<WizardRuntimeOptions> = {}) {
   const sched = createTestScheduler({ now: 1_000 })
   const run = createWizardRuntime(def, {
     context: { tenant: 't1' },
-    machine: createToyMachine(overrides),
-    initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     instanceId: 'wiz-1',
@@ -39,10 +28,11 @@ function make(
 
 const twoViews = (extra: Record<string, any> = {}) =>
   flow({
+    start: 'a',
     steps: {
-      a: { kind: 'view', next: { kind: 'static', targets: ['b'] }, ...extra.a },
-      b: { kind: 'view', next: { kind: 'static', targets: ['end'] }, ...extra.b },
-      end: { kind: 'step' },
+      a: { ...view({ next: 'b' }), ...extra.a },
+      b: { ...view({ next: 'end' }), ...extra.b },
+      end: runStep(),
     },
   })
 
@@ -60,10 +50,15 @@ describe('run runtime: identity and options', () => {
   it('start() resolves { ok, seq } and a second start is a rejected command', async () => {
     const { run, states } = make(twoViews())
     const r1 = await run.start()
-    expect(r1).toEqual({ ok: true, seq: 3 })
+    expect(r1).toEqual({ ok: true, seq: run.getState().seq })
+    expect(r1).toMatchObject({ seq: states[0]!.seq })
     expect(states).toHaveLength(1)
     const r2 = await run.start()
-    expect(r2).toEqual({ ok: false, code: 'INVALID_COMMAND', message: 'already started' })
+    expect(r2).toEqual({
+      ok: false,
+      code: 'INVALID_COMMAND',
+      message: 'start: the run has already started',
+    })
   })
 })
 
@@ -75,33 +70,33 @@ describe('run runtime: dispatch result mapping', () => {
     expect(r).toEqual({
       ok: false,
       code: 'NOT_RUNNABLE',
-      message: 'not a failed runnable step',
+      message: "'a' has no run function; only runnable steps can be run or retried",
       step: 'a',
     })
-    // Unknown codes degrade to INVALID_COMMAND.
-    const custom = make(
-      twoViews(),
-      {},
+  })
+
+  it('degrades an unknown rejection code to INVALID_COMMAND', () => {
+    const command = { type: 'startReady' } as const
+    const rejected = findRejected([
       {
-        decide: (_e, _s, msg) =>
-          msg.type === 'startReady'
-            ? [{ type: 'command.rejected', command: msg, reason: 'nope', code: 'WHATEVER' }]
-            : undefined,
+        type: 'command.rejected',
+        command,
+        reason: 'nope',
+        code: 'WHATEVER',
+        seq: 1,
+        at: 0,
+        path: [],
       },
-    )
-    await custom.run.start()
-    expect(await custom.run.startReady()).toEqual({
-      ok: false,
-      code: 'INVALID_COMMAND',
-      message: 'nope',
-    })
+    ])
+    expect(rejected).toEqual({ ok: false, code: 'INVALID_COMMAND', message: 'nope' })
   })
 
   it('a message the machine ignores resolves { ok: true } with the current seq', async () => {
     const { run } = make(twoViews())
     await run.start()
-    expect(await run.startReady()).toEqual({ ok: true, seq: 3 })
-    expect(await run.compensate({ reason: 'x' })).toEqual({ ok: true, seq: 3 })
+    const seq = run.getState().seq
+    expect(await run.startReady()).toEqual({ ok: true, seq })
+    expect(run.getState().seq).toBe(seq)
   })
 
   it('validates wire shapes: invalid input never throws', async () => {
@@ -116,10 +111,11 @@ describe('run runtime: dispatch result mapping', () => {
   it('setInput/resetInput/cancel are plain command results', async () => {
     const { run } = make(twoViews())
     await run.start()
-    expect(await run.setInput('a', { name: 'x' })).toEqual({ ok: true, seq: 4 })
+    const started = run.getState().seq
+    expect(await run.setInput('a', { name: 'x' })).toEqual({ ok: true, seq: started + 1 })
     expect(run.getState().steps.a!.input).toEqual({ name: 'x' })
     expect(await run.setInput('end', {})).toMatchObject({ ok: false, code: 'NOT_A_VIEW' })
-    expect(await run.cancel('bye')).toEqual({ ok: true, seq: 7 })
+    expect(await run.cancel('bye')).toEqual({ ok: true, seq: run.getState().seq })
     expect(run.getState().status).toBe('cancelled')
     expect(await run.next()).toMatchObject({
       ok: false,
@@ -137,14 +133,14 @@ describe('run runtime: navigation promises', () => {
     // Sync-commit guarantee at the façade level.
     expect(run.getState().current).toBe('b')
     const r = await p
-    expect(r).toEqual({ ok: true, from: 'a', to: 'b', seq: 8 })
+    expect(r).toEqual({ ok: true, from: 'a', to: 'b', seq: run.getState().seq })
     expect(types(events)).toContain('transition.committed')
   })
 
-  it('an async canExit settles the nav promise later; false → guard rejection; throw → failed', async () => {
+  it('an async canExit settles the nav promise later; false or a throw → guard rejection', async () => {
     let answer: unknown = true
     const def = twoViews({ a: { hooks: { canExit: () => Promise.resolve(answer) } } })
-    const { run } = make(def)
+    const { run, events } = make(def)
     await run.start()
 
     const p = run.next()
@@ -161,18 +157,44 @@ describe('run runtime: navigation promises', () => {
       code: 'GUARD_BLOCKED',
       step: 'a',
     })
+    // A guard that throws vetoes like `false`; the event keeps the thrown message as the reason.
     answer = Promise.reject(new Error('guard exploded'))
-    const failed = await run.next()
-    expect(failed).toMatchObject({
+    expect(await run.next()).toMatchObject({
       ok: false,
-      reason: 'failed',
-      code: 'HOOK_FAILED',
-      message: 'guard exploded',
+      reason: 'guard-canExit',
+      code: 'GUARD_BLOCKED',
       step: 'a',
+    })
+    expect(events.filter((e) => e.type === 'step.guardEvaluated').at(-1)).toMatchObject({
+      hook: 'canExit',
+      ok: false,
+      reason: 'guard exploded',
     })
   })
 
-  it('nav-busy, not-active and unknown-step rejections carry reason + code', async () => {
+  it('a hook that throws while leaving a view fails the navigation', async () => {
+    const def = twoViews({
+      a: {
+        hooks: {
+          exit: () => {
+            throw new Error('exit exploded')
+          },
+        },
+      },
+    })
+    const { run } = make(def)
+    await run.start()
+    expect(await run.next()).toMatchObject({
+      ok: false,
+      reason: 'failed',
+      code: 'HOOK_FAILED',
+      message: 'exit exploded',
+      step: 'a',
+    })
+    expect(run.getState().current).toBe('a')
+  })
+
+  it('not-started, nav-busy and not-a-view rejections carry reason + code', async () => {
     const def = twoViews({ a: { hooks: { canExit: () => new Promise(() => {}) } } })
     const { run } = make(def)
     expect(await run.next()).toMatchObject({
@@ -183,8 +205,16 @@ describe('run runtime: navigation promises', () => {
     await run.start()
     void run.next() // hangs in canExit
     expect(await run.next()).toMatchObject({ ok: false, reason: 'nav-busy', code: 'NAV_BUSY' })
-    expect(await run.go('nope')).toMatchObject({ ok: false, code: 'UNKNOWN_STEP' })
-    expect(await run.go('end')).toMatchObject({
+
+    const idle = make(twoViews()).run
+    await idle.start()
+    // An id that names no step is not a view to go to.
+    expect(await idle.go('nope')).toMatchObject({
+      ok: false,
+      reason: 'not-a-view',
+      code: 'NOT_A_VIEW',
+    })
+    expect(await idle.go('end')).toMatchObject({
       ok: false,
       reason: 'not-a-view',
       code: 'NOT_A_VIEW',
@@ -195,7 +225,9 @@ describe('run runtime: navigation promises', () => {
   it('dispatch() of a nav command maps the NavResult to a CommandResult', async () => {
     const { run } = make(twoViews())
     await run.start()
-    expect(await run.dispatch({ type: 'next' })).toEqual({ ok: true, seq: 8 })
+    const moved = await run.dispatch({ type: 'next' })
+    expect(moved).toEqual({ ok: true, seq: run.getState().seq })
+    expect(run.getState().current).toBe('b')
     expect(await run.dispatch({ type: 'go', step: 'end' })).toMatchObject({
       ok: false,
       code: 'NOT_A_VIEW',
@@ -209,13 +241,13 @@ describe('run runtime: external events', () => {
     flow({
       events: { ping: stringsBoundary('id'), other: stringsBoundary('id') },
       policies: { unmatchedEvents: { buffer, ttlMs: 1_000 } },
+      start: 'w',
       steps: {
-        w: {
-          kind: 'step',
-          hooks: { waitFor: { ping: ({ payload }: any) => ({ done: { got: payload } }) } },
-          next: { kind: 'static', targets: ['end'] },
-        },
-        end: { kind: 'step' },
+        w: eventStep({
+          on: { ping: ({ payload }: any) => ({ done: { got: payload } }) },
+          next: 'end',
+        }),
+        end: runStep(),
       },
     })
 
@@ -285,15 +317,13 @@ describe('run runtime: external events', () => {
 describe('run runtime: validate() is a pure query', () => {
   it('returns boundary issues, then validate-hook issues, without touching state or events', async () => {
     const def = flow({
+      start: 'a',
       steps: {
-        a: {
-          kind: 'view',
+        a: view({
+          validate: ({ input }: any) =>
+            input.name === 'bad' ? [{ message: 'bad name' }] : undefined,
           input: stringsBoundary('name'),
-          hooks: {
-            validate: ({ input }: any) =>
-              input.name === 'bad' ? [{ message: 'bad name' }] : undefined,
-          },
-        },
+        }),
       },
     })
     const { run, events } = make(def)

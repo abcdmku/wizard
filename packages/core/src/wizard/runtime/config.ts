@@ -28,8 +28,6 @@ export function toConfig(opts: ResumeWizardRuntimeOptions, restore: RestoreChild
   const scheduler = opts.scheduler ?? createRealScheduler()
   const clock = opts.clock ?? (isClock(scheduler) ? scheduler : createRealClock())
   return {
-    machine: opts.machine,
-    initialState: opts.initialState,
     env: { clock, scheduler, ids: opts.ids ?? createIdGenerator() },
     deps: opts.deps,
     strict: opts.strict,

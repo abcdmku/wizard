@@ -1,8 +1,7 @@
 /**
  * Machine barrel — the pure engine (`machine` bundles `decide` / `apply` / `plan`), the initial
  * state builder, `explain` and the selectors that callers outside `machine/` read. Consumed by
- * the runtime (`createWizardRuntime(def, { machine, initialState, … })`), replay, the projection
- * and tests.
+ * the interpreter, the runtime, replay, the projection and tests.
  *
  * @internal
  */

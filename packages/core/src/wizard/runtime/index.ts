@@ -35,7 +35,7 @@ import type { CompiledWizard } from '../../authoring/compiled'
 import { WizardError } from '../../errors'
 import type { ChildFactory } from '../../interpreter/child'
 import { eachChildAddress } from '../../interpreter/each-child'
-import { explain, progress, readyOrCurrentViews } from '../../machine'
+import { explain, initialState, progress, readyOrCurrentViews } from '../../machine'
 import { createCommands } from './commands'
 import { machineEnv, toConfig } from './config'
 import { createContext, type RuntimeContext } from './context'
@@ -78,7 +78,7 @@ export function createWizardRuntime(
     throw new Error('children are only restored on the resume path')
   })
   const instanceId = opts.instanceId ?? cfg.env.ids.id('wiz')
-  const state = cfg.initialState(machineEnv(def, [], cfg.env), {
+  const state = initialState(machineEnv(def, [], cfg.env), {
     instanceId,
     context: opts.context,
     now: cfg.env.clock.now(),
@@ -101,7 +101,7 @@ function childFactory(
   return {
     create: (args) => {
       const correlationId = ctx().interp.getState().correlationId
-      const state = cfg.initialState(machineEnv(args.def, args.path, cfg.env), {
+      const state = initialState(machineEnv(args.def, args.path, cfg.env), {
         instanceId: cfg.env.ids.id('wiz'),
         context: args.context,
         now: cfg.env.clock.now(),

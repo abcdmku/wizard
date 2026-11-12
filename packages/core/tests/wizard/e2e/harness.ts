@@ -8,7 +8,6 @@ import type { CompiledWizard } from '../../../src/authoring/compiled'
 import { createSequentialIds } from '../../../src/interpreter/env'
 import { createTestScheduler, type TestScheduler } from '../../../src/interpreter/test-scheduler'
 import type { DomainEvent, DomainEventType } from '../../../src/machine/events'
-import { initialState, machine } from '../../../src/machine/index'
 import type { WizardState } from '../../../src/machine/state'
 import { resumeWizardRuntime } from '../../../src/wizard/resume'
 import {
@@ -42,8 +41,6 @@ export function e2e(
   const { now: _now, ...rest } = opts
   const run = createWizardRuntime(def, {
     context: {},
-    machine,
-    initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     instanceId: 'e2e',
@@ -60,8 +57,6 @@ export function e2eResume(
   const sched = createTestScheduler({ now: opts.now ?? 10_000 })
   const { now: _now, ...rest } = opts
   const run = resumeWizardRuntime(def, snapshot, {
-    machine,
-    initialState,
     scheduler: sched,
     ids: createSequentialIds(),
     ...rest,

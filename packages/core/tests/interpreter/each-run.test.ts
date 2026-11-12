@@ -5,7 +5,7 @@ import { createInterpreter } from '../../src/interpreter/interpreter'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import { eachItem } from '../../src/machine/each-state'
 import type { DomainEvent } from '../../src/machine/events'
-import { initialState, machine } from '../../src/machine/index'
+import { initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
 import { flow, runStep } from '../helpers/fixtures'
 
@@ -28,7 +28,6 @@ function runner(def: CompiledWizard, saved?: WizardState) {
   const env = { def, path: [], now: () => sched.now(), id: (prefix: string) => ids.id(prefix) }
   const interp = createInterpreter({
     def,
-    machine,
     path: [],
     env: { clock: sched, scheduler: sched, ids },
     initialState:

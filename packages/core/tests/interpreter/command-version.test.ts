@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { createSequentialIds } from '../../src/interpreter/env'
 import { createInterpreter } from '../../src/interpreter/interpreter'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
-import { initialState, machine } from '../../src/machine/index'
+import { initialState } from '../../src/machine/index'
 import { flow, view } from '../helpers/fixtures'
 
 it('checks optimistic versions after the preceding host barrier commits', async () => {
@@ -13,7 +13,6 @@ it('checks optimistic versions after the preceding host barrier commits', async 
   let release: () => void = () => {}
   const interpreter = createInterpreter({
     def,
-    machine,
     path: [],
     env: { clock: scheduler, scheduler, ids },
     initialState: initialState(

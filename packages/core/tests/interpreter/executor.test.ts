@@ -4,8 +4,18 @@ import { createExecutor } from '../../src/interpreter/executor'
 import { createTestScheduler } from '../../src/interpreter/test-scheduler'
 import type { Message } from '../../src/machine/commands'
 import type { CallEffect } from '../../src/machine/effects'
+import { initialState } from '../../src/machine/index'
 import type { WizardState } from '../../src/machine/state'
-import { flow, initialState, stringsBoundary, testEnv } from '../helpers/fake-machine'
+import {
+  createEnv,
+  eventStep,
+  flow,
+  flowStep,
+  parsing,
+  runStep,
+  stringsBoundary,
+  view,
+} from '../helpers/fixtures'
 
 function harness(
   def: ReturnType<typeof flow>,
@@ -13,8 +23,9 @@ function harness(
   strict?: 'sync',
 ) {
   const sched = createTestScheduler({ now: 100 })
-  const menv = testEnv(def)
-  const state = patch(initialState(menv, { instanceId: 'inst', context: { c: 1 }, now: 100 }))
+  const state = patch(
+    initialState(createEnv(def).env, { instanceId: 'inst', context: { c: 1 }, now: 100 }),
+  )
   const sent: Array<{ msg: Message; causedBy: number | undefined }> = []
   const executor = createExecutor({
     def,
@@ -59,16 +70,14 @@ describe('executor: sync and async results', () => {
   it('reports a sync return value as res.ok immediately with the effect token and causedBy', () => {
     let received: HookArgs | undefined
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: (a) => {
-              received = a
-              return { v: a.attempt }
-            },
+        t: runStep({
+          run: (a) => {
+            received = a
+            return { v: a.attempt }
           },
-        },
+        }),
       },
     })
     const { executor, sent } = harness(def, activate('t'))
@@ -91,15 +100,13 @@ describe('executor: sync and async results', () => {
 
   it('serializes a sync throw into res.err (name/message/code, no stack)', () => {
     const def = flow({
+      start: 't',
       steps: {
-        t: {
-          kind: 'step',
-          hooks: {
-            run: () => {
-              throw Object.assign(new Error('boom'), { code: 'E_BOOM' })
-            },
+        t: runStep({
+          run: () => {
+            throw Object.assign(new Error('boom'), { code: 'E_BOOM' })
           },
-        },
+        }),
       },
     })
     const { executor, sent } = harness(def, activate('t'))
@@ -114,7 +121,8 @@ describe('executor: sync and async results', () => {
   it('reports an async result later, measuring durationMs with the injected clock', async () => {
     let resolveIt: (v: unknown) => void = () => {}
     const def = flow({
-      steps: { t: { kind: 'step', hooks: { run: () => new Promise((r) => (resolveIt = r)) } } },
+      start: 't',
+      steps: { t: runStep({ run: () => new Promise((r) => (resolveIt = r)) }) },
     })
     const { executor, sent, sched } = harness(def, activate('t'))
     executor.execute(call('t', 'run'))
@@ -129,7 +137,8 @@ describe('executor: sync and async results', () => {
 
   it('reports an async rejection as res.err', async () => {
     const def = flow({
-      steps: { t: { kind: 'step', hooks: { run: () => Promise.reject(new TypeError('bad')) } } },
+      start: 't',
+      steps: { t: runStep({ run: () => Promise.reject(new TypeError('bad')) }) },
     })
     const { executor, sent } = harness(def, activate('t'))
     executor.execute(call('t', 'run'))
@@ -143,7 +152,8 @@ describe('executor: sync and async results', () => {
 
   it("strict: 'sync' reports a thenable as res.err { syncViolation } and swallows the promise", async () => {
     const def = flow({
-      steps: { t: { kind: 'step', hooks: { run: () => Promise.reject(new Error('later')) } } },
+      start: 't',
+      steps: { t: runStep({ run: () => Promise.reject(new Error('later')) }) },
     })
     const { executor, sent } = harness(def, activate('t'), 'sync')
     executor.execute(call('t', 'run'))
@@ -161,7 +171,7 @@ describe('executor: sync and async results', () => {
 
 describe('executor: boundaries', () => {
   it('parseInput runs the view input boundary over the draft and returns the parsed value', () => {
-    const def = flow({ steps: { v: { kind: 'view', input: stringsBoundary('name') } } })
+    const def = flow({ start: 'v', steps: { v: view({ input: stringsBoundary('name') }) } })
     const { executor, sent } = harness(def, activate('v', { input: { name: 'ann', extra: 1 } }))
     executor.execute(call('v', 'parseInput'))
     expect(sent[0]!.msg).toMatchObject({
@@ -172,7 +182,7 @@ describe('executor: boundaries', () => {
   })
 
   it('parseInput reports boundary issues as res.err { issues }', () => {
-    const def = flow({ steps: { v: { kind: 'view', input: stringsBoundary('name') } } })
+    const def = flow({ start: 'v', steps: { v: view({ input: stringsBoundary('name') }) } })
     const { executor, sent } = harness(def, activate('v', { input: { name: 42 } }))
     executor.execute(call('v', 'parseInput'))
     expect(sent[0]!.msg).toMatchObject({
@@ -184,7 +194,7 @@ describe('executor: boundaries', () => {
   })
 
   it('parseInput without an input boundary passes the draft through', () => {
-    const def = flow({ steps: { v: { kind: 'view' } } })
+    const def = flow({ start: 'v', steps: { v: view() } })
     const { executor, sent } = harness(def, activate('v', { input: 'raw' }))
     executor.execute(call('v', 'parseInput'))
     expect(sent[0]!.msg).toMatchObject({ type: 'res.ok', value: 'raw' })
@@ -192,13 +202,10 @@ describe('executor: boundaries', () => {
 
   it('run pipes the hook value through the output boundary (sync and async)', async () => {
     const def = flow({
+      start: ['ok', 'bad'],
       steps: {
-        ok: { kind: 'step', hooks: { run: () => ({ id: 'x' }) }, output: stringsBoundary('id') },
-        bad: {
-          kind: 'step',
-          hooks: { run: async () => ({ id: 7 }) },
-          output: stringsBoundary('id'),
-        },
+        ok: runStep({ run: () => ({ id: 'x' }), output: stringsBoundary('id') }),
+        bad: runStep({ run: async () => ({ id: 7 }), output: stringsBoundary('id') }),
       },
     })
     const { executor, sent } = harness(def, (s) => activate('bad')(activate('ok')(s)))
@@ -217,20 +224,16 @@ describe('executor: boundaries', () => {
 
 describe('executor: child context boundary', () => {
   const child = (parse: (v: unknown) => any) =>
-    flow({
-      name: 'child',
-      context: { kind: 'parse', parse },
-      steps: { c: { kind: 'view' } },
-    })
+    flow({ name: 'child', context: parsing(parse), start: 'c', steps: { c: view() } })
 
   it('pipes the childContext value through the child flow context boundary (transformed value wins)', () => {
     const def = flow({
+      start: 'f',
       steps: {
-        f: {
-          kind: 'child',
-          child: child((v) => ({ ok: true, value: { ...(v as object), normalized: true } })),
-          hooks: { childContext: ({ context }: any) => ({ tenant: context.c }) },
-        },
+        f: flowStep(
+          child((v) => ({ ok: true, value: { ...(v as object), normalized: true } })),
+          { context: ({ context }: any) => ({ tenant: context.c }) },
+        ),
       },
     })
     const { executor, sent } = harness(def, activate('f'))
@@ -241,9 +244,10 @@ describe('executor: child context boundary', () => {
   it('reports a rejected child context as res.err with the boundary issues (sync and async)', async () => {
     const reject = () => ({ ok: false, issues: [{ message: 'tenant required' }] })
     const def = flow({
+      start: ['f', 'g'],
       steps: {
-        f: { kind: 'child', child: child(reject), hooks: { childContext: () => ({}) } },
-        g: { kind: 'child', child: child(reject), hooks: { childContext: async () => ({}) } },
+        f: flowStep(child(reject), { context: () => ({}) }),
+        g: flowStep(child(reject), { context: async () => ({}) }),
       },
     })
     const { executor, sent } = harness(def, (s) => activate('g')(activate('f')(s)))
@@ -264,12 +268,12 @@ describe('executor: child context boundary', () => {
 
   it("strict: 'sync' treats an async child context boundary as a violation", () => {
     const def = flow({
+      start: 'f',
       steps: {
-        f: {
-          kind: 'child',
-          child: child(async (v: unknown) => ({ ok: true, value: v })),
-          hooks: { childContext: () => ({}) },
-        },
+        f: flowStep(
+          child(async (v: unknown) => ({ ok: true, value: v })),
+          { context: () => ({}) },
+        ),
       },
     })
     const { executor, sent } = harness(def, activate('f'), 'sync')
@@ -281,12 +285,8 @@ describe('executor: child context boundary', () => {
 describe('executor: hook resolution', () => {
   it("'on' resolves hooks.on[extra.event]; a missing handler is a HOOK_MISSING error", () => {
     const def = flow({
-      steps: {
-        w: {
-          kind: 'step',
-          hooks: { waitFor: { ping: ({ payload }) => ({ done: { echoed: payload } }) } },
-        },
-      },
+      start: 'w',
+      steps: { w: eventStep({ on: { ping: ({ payload }) => ({ done: { echoed: payload } }) } }) },
     })
     const { executor, sent } = harness(def, activate('w'))
     executor.execute(call('w', 'on', { extra: { event: 'ping', payload: 5 } }))
@@ -296,7 +296,7 @@ describe('executor: hook resolution', () => {
   })
 
   it('unknown steps and missing hooks fail fast with coded errors', () => {
-    const def = flow({ steps: { t: { kind: 'step' } } })
+    const def = flow({ start: 't', steps: { t: runStep() } })
     const { executor, sent } = harness(def, activate('t'))
     executor.execute(call('ghost', 'run'))
     expect(sent[0]!.msg).toMatchObject({ type: 'res.err', error: { code: 'UNKNOWN_STEP' } })
