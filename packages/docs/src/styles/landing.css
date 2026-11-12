@@ -184,10 +184,6 @@
   gap: 12px;
   margin-top: 20px;
 }
-/* Four points read better two to a row than three and one. */
-.landing-features.is-pair {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
-}
 .landing-features li {
   display: flex;
   flex-direction: column;
@@ -208,7 +204,6 @@
   color: #fff;
 }
 .landing-features p {
-  flex: 1;
   margin-top: 6px;
   color: #525252;
   font-size: 14.5px;
@@ -256,4 +251,85 @@
 }
 .landing-close + .landing-actions {
   margin-top: 20px;
+}
+/* Generated output, shown as it is printed. */
+.landing-output {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 12px;
+  border-radius: 7px;
+  background: #f5f5f5;
+  padding: 11px 12px;
+  color: #262626;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.dark .landing-output {
+  background: #171717;
+  color: #e5e5e5;
+}
+.landing-output [data-tone="bad"] {
+  color: #b91c1c;
+}
+.dark .landing-output [data-tone="bad"] {
+  color: #f87171;
+}
+.landing-output [data-tone="good"] {
+  color: #15803d;
+}
+.dark .landing-output [data-tone="good"] {
+  color: #4ade80;
+}
+.landing-output [data-tone="dim"] {
+  color: #525252;
+}
+.dark .landing-output [data-tone="dim"] {
+  color: #a3a3a3;
+}
+/* The chores a workflow engine replaces, crossed out. */
+.landing-byhand {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  gap: 6px 28px;
+  margin-top: 14px;
+  color: #737373;
+  font-size: 16px;
+  line-height: 1.5;
+  text-decoration: line-through;
+  text-decoration-color: #dc2626;
+  text-decoration-thickness: 1.5px;
+}
+.dark .landing-byhand {
+  color: #a3a3a3;
+  text-decoration-color: #f87171;
+}
+/* Three claims about agents, each answered in a sentence. */
+.landing-agents {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+  gap: 24px 28px;
+  margin-top: 18px;
+}
+.landing-agents dt {
+  color: #0a0a0a;
+  font-size: 1.35rem;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+.dark .landing-agents dt {
+  color: #fff;
+}
+.landing-agents dd {
+  margin-top: 8px;
+  color: #525252;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.dark .landing-agents dd {
+  color: #a3a3a3;
 }

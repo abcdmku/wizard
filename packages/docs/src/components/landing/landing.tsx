@@ -7,9 +7,9 @@ import { mdxComponents } from '../mdx/mdx-components'
 import { RunDiagram } from '../run-diagram/run-diagram'
 import { SiteHeader } from '../site-header'
 import Example from './example.mdx'
-import { agentPoints, extras, features } from './features'
+import { agentPoints, byHand, extras, outputs } from './features'
 
-/** The pitch, a run you can watch, the core features, the wizard that produced the run and the way forward. */
+/** The pitch, what you stop maintaining, a run you can watch, what the wizard generates, why agents need it and the code. */
 export function Landing() {
   return (
     <div className="flex min-h-dvh flex-col">
@@ -17,14 +17,13 @@ export function Landing() {
       <main className="landing">
         <p className="landing-name">{site.name}</p>
         <h1>
-          <span className="landing-line">Define the workflow once.</span>{' '}
-          <span className="landing-line">Get the orchestrator, the API and the docs.</span>
+          <span className="landing-line">Write the workflow.</span>{' '}
+          <span className="landing-line">Skip the backend around it.</span>
         </h1>
         <p className="landing-sentence">
-          OpenWizard is a type-safe orchestrator for async work that calls services, waits for
-          people and webhooks, retries, and resumes after a crash. From one TypeScript definition it
-          generates the HTTP API, the signed webhook routes, the OpenAPI document and the
-          documentation page, and it keeps every run in your own database.
+          One TypeScript file becomes a type-checked orchestrator, an HTTP API, signed webhooks and
+          its own docs. Runs survive crashes and deploys. Built for work that takes days, and for
+          the agents doing it.
         </p>
 
         <div className="landing-hero-actions">
@@ -44,37 +43,44 @@ export function Landing() {
         </div>
 
         <section className="landing-section">
-          <h2>Watch a refund run</h2>
-          <p>
-            A customer asks for a refund while the order loads. A large refund waits for a manager,
-            then the payment goes out. This is a recording of the real run, not a drawing. Press
-            play, or pick the small refund.
-          </p>
+          <h2>What you stop maintaining</h2>
+          <ul className="landing-byhand">
+            {byHand.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="landing-section">
+          <h2>Watch it run</h2>
+          <p>A refund that waits for a manager. This is a recording of the real run. Press play.</p>
           <RunDiagram name="refund" />
         </section>
 
         <section className="landing-section">
-          <h2>What one definition gives you</h2>
-          <p>
-            Each of these is usually a separate project: a job runner, an API layer, a webhook
-            receiver, a docs page and a recovery plan. Here they come from the wizard.
-          </p>
+          <h2>That one file also produced this</h2>
+          <p>Real output from the refund wizard above. None of it is written by hand.</p>
           <ul className="landing-features">
-            {features.map((feature) => (
-              <li key={feature.title}>
-                <h3>{feature.title}</h3>
-                <p>{feature.body}</p>
-                {feature.to ? (
-                  <Link to="/$" params={{ _splat: feature.to }}>
-                    {feature.link}
-                    <ArrowRight aria-hidden="true" />
-                  </Link>
-                ) : null}
+            {outputs.map((output) => (
+              <li key={output.title}>
+                <h3>{output.title}</h3>
+                <p>{output.body}</p>
+                <pre className="landing-output">
+                  {output.lines.map((line) => (
+                    <span key={line.text} data-tone={line.tone}>
+                      {line.text}
+                    </span>
+                  ))}
+                </pre>
+                <Link to="/$" params={{ _splat: output.to }}>
+                  {output.link}
+                  <ArrowRight aria-hidden="true" />
+                </Link>
               </li>
             ))}
           </ul>
           <p className="landing-extras">
-            Also included:{' '}
+            Also in the box:{' '}
             {extras.map((extra, index) => (
               <span key={extra.to}>
                 <Link to="/$" params={{ _splat: extra.to }}>
@@ -87,26 +93,22 @@ export function Landing() {
         </section>
 
         <section className="landing-section">
-          <h2>Built for agentic work</h2>
-          <p>
-            Agents run workflows that outlive a request, and they write workflow code. Both need an
-            orchestrator that checks its inputs and can explain itself.
-          </p>
-          <ul className="landing-features is-pair">
+          <h2>Built for agents</h2>
+          <dl className="landing-agents">
             {agentPoints.map((point) => (
-              <li key={point.title}>
-                <h3>{point.title}</h3>
-                <p>{point.body}</p>
-              </li>
+              <div key={point.claim}>
+                <dt>{point.claim}</dt>
+                <dd>{point.answer}</dd>
+              </div>
             ))}
-          </ul>
+          </dl>
         </section>
 
         <section className="landing-section">
-          <h2>The code that ran</h2>
+          <h2>The whole file</h2>
           <p>
-            This is the whole refund wizard, 48 lines. Each step in the diagram is one entry here,
-            and <code>needs</code> draws the arrows.
+            48 lines. Each step in the diagram is one entry, and <code>needs</code> draws the
+            arrows.
           </p>
           <div className="docs-article landing-example">
             <MDXProvider components={mdxComponents}>
@@ -116,11 +118,8 @@ export function Landing() {
         </section>
 
         <section className="landing-section landing-close">
-          <h2>Ship the first flow today</h2>
-          <p>
-            The quickstart takes one install and one file. The playground runs wizards in the
-            browser with nothing to install.
-          </p>
+          <h2>Ship the first one today</h2>
+          <p>One install, one file. Or run a wizard in the browser right now.</p>
         </section>
         <div className="landing-actions">
           <Link to="/$" params={{ _splat: 'quickstart' }} className="landing-action">
