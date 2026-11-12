@@ -3,7 +3,7 @@ import { createDurableRun, createMemoryDurableStore, resumeDurableRun } from '@o
 import { Effect, ManagedRuntime } from 'effect'
 import { expect, it } from 'vitest'
 import { makeDeliveryEffectsLayer } from '../src/delivery-effects'
-import { makeDeliveryFlow } from '../src/delivery-flow'
+import { makeDeliveryWizard } from '../src/delivery-wizard'
 import { dispatchIntervention } from '../src/durable-commands'
 
 it('keeps intervention version fences, digest conflicts, and saved results across owners', async () => {
@@ -14,7 +14,7 @@ it('keeps intervention version fences, digest conflicts, and saved results acros
       Effect.succeed({ action: command.action, recordedAtMs: scheduler.now() }),
     ),
   )
-  const wizard = makeDeliveryFlow(runtime)
+  const wizard = makeDeliveryWizard(runtime)
   const opened = await createDurableRun(wizard, {
     context: {
       tenantId: 'tenant-lakeshore',

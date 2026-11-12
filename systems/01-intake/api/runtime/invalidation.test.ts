@@ -7,7 +7,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import type { IntakeContext, PrefillResult } from '../../shared/index.js'
 import type { ApplicationRecord } from '../db/index.js'
-import { type IntakeDeps, type IntakeFlow, intakeFlow } from '../workflow/index.js'
+import { type IntakeDeps, type IntakeWizard, intakeWizard } from '../workflow/index.js'
 import { invalidateAfterDraftMutation } from './invalidation.js'
 import { projectApplication } from './projection.js'
 
@@ -35,11 +35,11 @@ const deps: IntakeDeps = {
   enqueueRisk: async (_applicationId, _input, idempotencyKey) => idempotencyKey,
 }
 
-type DraftMutation = Extract<Command<IntakeFlow>, { readonly type: 'setInput' | 'resetInput' }>
+type DraftMutation = Extract<Command<IntakeWizard>, { readonly type: 'setInput' | 'resetInput' }>
 
 describe('runtime downstream invalidation', () => {
   it('skips idle downstream work, then invalidates completed work after a back edit', async () => {
-    const opened = await createDurableRun(intakeFlow, {
+    const opened = await createDurableRun(intakeWizard, {
       context,
       deps,
       store: createMemoryDurableStore(),
@@ -84,7 +84,7 @@ describe('runtime downstream invalidation', () => {
   })
 
   it('publishes the authoritative durable host version in projected views', async () => {
-    const opened = await createDurableRun(intakeFlow, {
+    const opened = await createDurableRun(intakeWizard, {
       context,
       deps,
       store: createMemoryDurableStore(),

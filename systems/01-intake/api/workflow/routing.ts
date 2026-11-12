@@ -1,8 +1,8 @@
 import type {
   ApplicationStatus,
   BusinessProfileInput,
+  DocumentsInput,
   EligibilityResult,
-  IntakeContext,
   PrefillResult,
   RiskInput,
 } from '../../shared/index.js'
@@ -22,47 +22,50 @@ export function initialBusinessProfile(prefill: PrefillResult | undefined) {
   } satisfies Partial<BusinessProfileInput>
 }
 
-export function evaluateEligibility(context: IntakeContext): EligibilityResult {
-  const profile = requireBusinessProfile(context)
+/** Chooses the evidence path from the submitted business profile. */
+export function evaluateEligibility(
+  profile: BusinessProfileInput,
+  checkedAt: string,
+): EligibilityResult {
   if (profile.tradingMonths < 6 || profile.requestedAmount > profile.annualRevenue) {
     return {
       path: 'appeal',
       reasons: ['The request needs an eligibility appeal before financial review.'],
-      checkedAt: context.prefill?.fetchedAt ?? new Date(0).toISOString(),
+      checkedAt,
     }
   }
   if (profile.experiencedHardship || (profile.revenueDropPercent ?? 0) >= 20) {
     return {
       path: 'hardship',
       reasons: ['The reported hardship requires evidence and a recovery plan.'],
-      checkedAt: context.prefill?.fetchedAt ?? new Date(0).toISOString(),
+      checkedAt,
     }
   }
   return {
     path: 'standard',
     reasons: ['The application qualifies for the standard financial route.'],
-    checkedAt: context.prefill?.fetchedAt ?? new Date(0).toISOString(),
+    checkedAt,
   }
 }
 
-export function buildRiskInput(context: IntakeContext): RiskInput {
-  const profile = requireBusinessProfile(context)
-  if (context.eligibility === undefined) throw new Error('Eligibility result is missing')
-  if (context.documents === undefined) throw new Error('Document metadata is missing')
+/** The step outputs the risk assessment is built from. */
+export interface RiskInputSources {
+  readonly businessProfile: BusinessProfileInput
+  readonly eligibility: EligibilityResult
+  readonly documents: DocumentsInput
+}
+
+export function buildRiskInput(sources: RiskInputSources): RiskInput {
+  const profile = sources.businessProfile
   return {
     requestedAmount: profile.requestedAmount,
     annualRevenue: profile.annualRevenue,
     tradingMonths: profile.tradingMonths,
     employeeCount: profile.employeeCount,
     revenueDropPercent: profile.revenueDropPercent ?? 0,
-    eligibilityPath: context.eligibility.path,
-    documentCount: context.documents.documents.length,
+    eligibilityPath: sources.eligibility.path,
+    documentCount: sources.documents.documents.length,
   }
-}
-
-export function requireBusinessProfile(context: IntakeContext): BusinessProfileInput {
-  if (context.businessProfile === undefined) throw new Error('Business profile is missing')
-  return context.businessProfile
 }
 
 export function statusForCurrentStep(current: string | null): ApplicationStatus {

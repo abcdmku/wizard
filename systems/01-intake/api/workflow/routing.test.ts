@@ -3,7 +3,6 @@ import {
   BeneficialOwnersInputSchema,
   type BusinessProfileInput,
   BusinessProfileInputSchema,
-  type IntakeContext,
 } from '../../shared/index.js'
 import { evaluateEligibility } from './routing.js'
 
@@ -19,16 +18,7 @@ const profile = {
   revenueDropPercent: 19,
 } satisfies BusinessProfileInput
 
-function context(overrides: Partial<BusinessProfileInput> = {}): IntakeContext {
-  return {
-    applicationId: 'routing-test',
-    tenantId: 'demo-grants',
-    applicantId: 'routing-applicant',
-    applicantName: 'Threshold Bakery',
-    businessProfile: { ...profile, ...overrides },
-    changeRequestCount: 0,
-  }
-}
+const checkedAt = '2026-08-23T10:00:00.000Z'
 
 describe('intake eligibility routing', () => {
   it.each([
@@ -38,7 +28,9 @@ describe('intake eligibility routing', () => {
     ['appeal below six trading months', { tradingMonths: 5 }, 'appeal'],
     ['appeal above annual revenue', { requestedAmount: 100_001 }, 'appeal'],
   ] as const)('%s', (_name, overrides, expected) => {
-    expect(evaluateEligibility(context(overrides)).path).toBe(expected)
+    const result = evaluateEligibility({ ...profile, ...overrides }, checkedAt)
+    expect(result.path).toBe(expected)
+    expect(result.checkedAt).toBe(checkedAt)
   })
 })
 

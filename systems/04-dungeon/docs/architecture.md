@@ -66,9 +66,14 @@ reconnect still begins with a full snapshot.
 Postgres stores the room snapshot, durable command receipt, idempotency key, and
 player-to-item binding. Synchronous `waitFor` handlers calculate the next world
 and singleton `lastCommandReceipt`, then call `update()` and return `{ keep: true }`
-or `{ done: phase }`. The step's `next` reads that phase from committed context;
-its declared `targets` includes every legal phase. Routing belongs to the step
-config, so event handlers cannot return a redirect.
+or `{ done: phase }`. That phase is the step's output, and the step's `next`
+returns it; its declared `targets` includes every legal phase. Routing belongs
+to the step config, so event handlers cannot return a redirect.
+
+The context holds the world, which is known when the run is created and which
+every event reduces, and the receipt of the last player command, which the
+durable host reads. No step reads a value that another step wrote, so the
+wizard declares no `needs`.
 
 Internal ticks bypass dedupe. An accepted command claims its receipt, persists
 the world and phase transition through fenced snapshot commits, then completes

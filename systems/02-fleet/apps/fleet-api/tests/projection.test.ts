@@ -2,8 +2,8 @@ import type { Viewer } from '@openwizard/fleet-shared'
 import { Effect, ManagedRuntime } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { makeDeliveryEffectsLayer } from '../src/delivery-effects'
-import { makeDeliveryFlow } from '../src/delivery-flow'
 import type { ActionCommand, ActionReceipt, DeliveryContext } from '../src/delivery-model'
+import { makeDeliveryWizard } from '../src/delivery-wizard'
 import { makeDeliveryDispatchProjection } from '../src/dispatch-projection'
 
 const context: DeliveryContext = {
@@ -20,9 +20,9 @@ describe('fleet scoped projections', () => {
         Effect.succeed<ActionReceipt>({ action: command.action, recordedAtMs: 0 }),
       ),
     )
-    const flow = makeDeliveryFlow(runtime)
-    const run = flow.create(context, { instanceId: 'projection-run' })
-    const projection = makeDeliveryDispatchProjection(flow)
+    const wizard = makeDeliveryWizard(runtime)
+    const run = wizard.create(context, { instanceId: 'projection-run' })
+    const projection = makeDeliveryDispatchProjection(wizard)
 
     for (const role of ['dispatcher', 'manager'] as const) {
       const viewer: Viewer = { tenantId: 'tenant-lakeshore', role }

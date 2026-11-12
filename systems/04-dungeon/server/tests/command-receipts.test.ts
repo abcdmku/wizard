@@ -6,7 +6,7 @@ import {
   commandResultKey,
   createMemoryPartyRepository,
   createPartyRuntime,
-  dungeonFlow,
+  dungeonWizard,
   migrateDungeonSnapshot,
   type PartyRuntime,
   resumePartyRuntime,
@@ -55,7 +55,7 @@ const resultKeys = (runtime: PartyRuntime): readonly string[] => {
 }
 
 describe('durable command receipts', () => {
-  it('strictly bounds failed results retained in the flow snapshot', async () => {
+  it('strictly bounds failed results retained in the run snapshot', async () => {
     const { runtime } = await open()
     for (let index = 0; index < 129; index += 1) {
       const ack = await runtime.command(viewer, {
@@ -209,16 +209,16 @@ describe('durable command receipts', () => {
         },
       },
     }
-    const migrated = migrateDungeonSnapshot(legacy, { name: dungeonFlow.name, version: 1 })
+    const migrated = migrateDungeonSnapshot(legacy, { name: dungeonWizard.name, version: 1 })
     expect(migrated).toMatchObject({
-      wizard: { name: dungeonFlow.name, version: dungeonFlow.version },
+      wizard: { name: dungeonWizard.name, version: dungeonWizard.version },
       state: {
-        wizard: { name: dungeonFlow.name, version: dungeonFlow.version },
+        wizard: { name: dungeonWizard.name, version: dungeonWizard.version },
         context: { world },
       },
     })
     expect(JSON.stringify(migrated)).not.toContain('commandResults')
-    const resumed = dungeonFlow.resume(legacy, { migrate: migrateDungeonSnapshot })
+    const resumed = dungeonWizard.resume(legacy, { migrate: migrateDungeonSnapshot })
     expect(resumed.getState().context).toEqual({ world })
     resumed.dispose()
     await runtime.dispose()

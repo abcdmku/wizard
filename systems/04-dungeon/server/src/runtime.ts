@@ -11,8 +11,8 @@ import type {
   Viewer,
   WorldState,
 } from './domain.js'
-import { type DungeonFlowContext, dungeonFlow, migrateDungeonSnapshot } from './flow.js'
 import { createInitialWorld } from './generate.js'
+import { type DungeonWizardContext, dungeonWizard, migrateDungeonSnapshot } from './wizard.js'
 
 export interface RuntimeCommand {
   readonly commandId: string
@@ -47,7 +47,7 @@ export type RuntimeOpenResult =
 export interface PartyRuntime {
   readonly partyId: string
   readonly runKey: string
-  readonly host: DurableRunHost<typeof dungeonFlow>
+  readonly host: DurableRunHost<typeof dungeonWizard>
   state(): WorldState
   sequence(): number
   hasLivePlayers(): boolean
@@ -60,7 +60,7 @@ export interface PartyRuntime {
   dispose(): Promise<void>
 }
 
-const contextOf = (host: DurableRunHost<typeof dungeonFlow>): DungeonFlowContext =>
+const contextOf = (host: DurableRunHost<typeof dungeonWizard>): DungeonWizardContext =>
   host.run.getState().context
 
 const failure = (code: CommandFailureCode, message: string): DomainResult => ({
@@ -70,7 +70,7 @@ const failure = (code: CommandFailureCode, message: string): DomainResult => ({
 })
 
 const currentAck = (
-  host: DurableRunHost<typeof dungeonFlow>,
+  host: DurableRunHost<typeof dungeonWizard>,
   result: DomainResult,
   replayed: boolean,
   world: WorldState,
@@ -82,7 +82,7 @@ const currentAck = (
 })
 
 const expectedVersion = (
-  host: DurableRunHost<typeof dungeonFlow>,
+  host: DurableRunHost<typeof dungeonWizard>,
   expectedSequence: number | undefined,
 ) =>
   expectedSequence === undefined ? undefined : { epoch: host.version.epoch, seq: expectedSequence }
@@ -90,7 +90,7 @@ const expectedVersion = (
 const makeRuntime = (
   partyId: string,
   store: DurableStore,
-  host: DurableRunHost<typeof dungeonFlow>,
+  host: DurableRunHost<typeof dungeonWizard>,
   invalidate: (() => void) | undefined,
 ): PartyRuntime => {
   const runKey = `party:${partyId}`
@@ -237,7 +237,7 @@ const finishOpen = async (
   partyId: string,
   store: DurableStore,
   onUnavailable: (() => void) | undefined,
-  opened: Awaited<ReturnType<typeof createDurableRun<typeof dungeonFlow>>>,
+  opened: Awaited<ReturnType<typeof createDurableRun<typeof dungeonWizard>>>,
 ): Promise<RuntimeOpenResult> => {
   if (!opened.ok) {
     if (opened.code === 'LEASE_BUSY') return { ok: false, code: 'BUSY', retryAt: opened.retryAt }
@@ -275,7 +275,7 @@ export const createPartyRuntime = async (
     options.partyId,
     options.store,
     options.onLeaseLost,
-    await createDurableRun(dungeonFlow, {
+    await createDurableRun(dungeonWizard, {
       ...hostOptions(options),
       context: {
         world: createInitialWorld(options.partyId, options.seed, options.players),
@@ -289,7 +289,7 @@ export const resumePartyRuntime = async (options: RuntimeOptions): Promise<Runti
     options.partyId,
     options.store,
     options.onLeaseLost,
-    await resumeDurableRun(dungeonFlow, {
+    await resumeDurableRun(dungeonWizard, {
       ...hostOptions(options),
       migrate: migrateDungeonSnapshot,
     }),

@@ -1,11 +1,12 @@
+import { inspect } from '@openwizard/core/inspect'
 import { createTestScheduler, type TestScheduler } from '@openwizard/core/testing'
 import type { Severity, VehicleTelemetry } from '@openwizard/fleet-shared'
 import { Clock, Duration, Effect, Layer, ManagedRuntime } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { makeDeliveryEffectsLayer } from '../src/delivery-effects'
-import type { DeliveryFlow } from '../src/delivery-flow'
-import { makeDeliveryFlow } from '../src/delivery-flow'
 import type { ActionCommand, ActionReceipt, DeliveryContext } from '../src/delivery-model'
+import type { DeliveryWizard } from '../src/delivery-wizard'
+import { makeDeliveryWizard } from '../src/delivery-wizard'
 import { runColdChainBreachDrill } from '../src/simulator'
 
 const settle = async (): Promise<void> => {
@@ -29,7 +30,8 @@ function effectClock(scheduler: TestScheduler): Clock.Clock {
 interface Harness {
   readonly scheduler: TestScheduler
   readonly calls: ActionCommand[]
-  readonly run: import('@openwizard/core').Run<DeliveryFlow>
+  readonly wizard: DeliveryWizard
+  readonly run: import('@openwizard/core').Run<DeliveryWizard>
   readonly close: () => Promise<void>
 }
 
@@ -48,17 +50,18 @@ function harness(): Harness {
       Layer.succeed(Clock.Clock, effectClock(scheduler)),
     ),
   )
-  const flow = makeDeliveryFlow(runtime)
+  const wizard = makeDeliveryWizard(runtime)
   const context: DeliveryContext = {
     tenantId: 'tenant-lakeshore',
     deliveryId: 'delivery-1',
     procedureState: 'assignment',
     anomalyResolved: false,
   }
-  const run = flow.create(context, { scheduler, instanceId: 'delivery-run-1' })
+  const run = wizard.create(context, { scheduler, instanceId: 'delivery-run-1' })
   return {
     scheduler,
     calls,
+    wizard,
     run,
     close: async () => {
       run.dispose()
@@ -99,6 +102,42 @@ async function enterDispatcherIntervention(
 }
 
 describe('fleet delivery workflow', () => {
+  it('hands each score to its actions and its route through needs', async () => {
+    const h = harness()
+    try {
+      const manifest = inspect(h.wizard)
+      const needs = (id: string) =>
+        Object.keys(manifest.nodes.find((node) => node.id === id)?.needs ?? {})
+      expect(manifest.description).toContain('cold-chain delivery')
+      expect(manifest.nodes.filter((node) => node.description === undefined)).toEqual([])
+      expect(needs('actInitial')).toEqual(['score'])
+      expect(needs('initialRoute')).toEqual(['score', 'receipts'])
+      expect(needs('react')).toEqual(['score'])
+      expect(needs('escalationRoute')).toEqual(['score', 'receipts'])
+      expect(new Set(manifest.warnings.map((warning) => warning.code))).toEqual(
+        new Set(['NAV_CYCLE']),
+      )
+
+      await start(h)
+      await enterDispatcherIntervention(h, 'high')
+      const first = h.run.getState().steps
+      expect(first.scoreInitial.output).toMatchObject({ score: 5, band: 'P2' })
+      expect(first.actInitial.output?.map((receipt) => receipt.action)).toEqual(['queue'])
+
+      h.scheduler.advance(5_000)
+      await settle()
+      const second = h.run.getState().steps
+      expect(second.rescore.output).toMatchObject({ score: 6, band: 'P1' })
+      expect(second.react.output?.map((receipt) => receipt.action)).toEqual([
+        'stop_assignments',
+        'page_dispatcher',
+      ])
+      expect(h.run.getState().active).toContain('dispatcherIntervention')
+    } finally {
+      await h.close()
+    }
+  })
+
   it('keeps the pickup wait active when assignment metadata arrives', async () => {
     const h = harness()
     try {

@@ -14,7 +14,7 @@ import {
   startThroughFraud,
 } from './support/fulfillment'
 
-describe('production fulfillment flow', () => {
+describe('production fulfillment wizard', () => {
   it('runs parallel partner branches, joins, captures, and waits for shipment', async () => {
     const calls: string[] = []
     const run = makeRun(calls)

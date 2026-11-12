@@ -3,7 +3,7 @@ import {
   type FraudReviewedEventSchema,
   type FulfillmentContext,
   type FulfillmentFailure,
-  type fulfillmentFlow,
+  type fulfillmentWizard,
 } from '@fulfillment/domain'
 import {
   boundary,
@@ -73,20 +73,20 @@ expectTypeOf<FulfillmentFailure>().toMatchTypeOf<{
   retryable: boolean
 }>()
 
-expectTypeOf<Ctx<typeof fulfillmentFlow>>().toEqualTypeOf<FulfillmentContext>()
-expectTypeOf<ContextInput<typeof fulfillmentFlow>>().toMatchTypeOf<FulfillmentContext>()
-expectTypeOf<OutputOf<typeof fulfillmentFlow, 'requestPaymentAuthorization'>>().toMatchTypeOf<{
+expectTypeOf<Ctx<typeof fulfillmentWizard>>().toEqualTypeOf<FulfillmentContext>()
+expectTypeOf<ContextInput<typeof fulfillmentWizard>>().toMatchTypeOf<FulfillmentContext>()
+expectTypeOf<OutputOf<typeof fulfillmentWizard, 'requestPaymentAuthorization'>>().toMatchTypeOf<{
   accepted: true
   requestId: string
   duplicate: boolean
 }>()
 expectTypeOf<
-  ErrorOf<typeof fulfillmentFlow, 'requestPaymentAuthorization'>
+  ErrorOf<typeof fulfillmentWizard, 'requestPaymentAuthorization'>
 >().toEqualTypeOf<FulfillmentFailure>()
-expectTypeOf<PayloadOf<typeof fulfillmentFlow, 'fraud.reviewed'>>().toEqualTypeOf<
+expectTypeOf<PayloadOf<typeof fulfillmentWizard, 'fraud.reviewed'>>().toEqualTypeOf<
   z.infer<typeof FraudReviewedEventSchema>
 >()
-expectTypeOf<WizardOutput<typeof fulfillmentFlow>>().toEqualTypeOf<
+expectTypeOf<WizardOutput<typeof fulfillmentWizard>>().toEqualTypeOf<
   { orderId: string; shipmentId: string | undefined } | undefined
 >()
 
@@ -97,7 +97,7 @@ expectTypeOf<ProjectionScope<typeof customerOrderProjection>>().toMatchTypeOf<{
 }>()
 expectTypeOf<ProjectionOutput<typeof customerOrderProjection>>().toEqualTypeOf<CustomerOrder>()
 
-declare const run: Run<typeof fulfillmentFlow>
+declare const run: Run<typeof fulfillmentWizard>
 const customerPrincipal: CustomerPrincipal = {
   tenantId: 'tenant-acme',
   subjectId: 'customer-alice',
@@ -111,11 +111,11 @@ interface Viewer {
   readonly role: 'customer' | 'operator'
 }
 
-const otherFlow = defineWizard(
+const otherWizard = defineWizard(
   { name: 'other', context: boundary.trusted<{ orderId: string }>() },
   ({ step, steps }) => steps({ done: step({ run: () => undefined }) }),
 )
-const otherProjection = defineProjection(otherFlow, {
+const otherProjection = defineProjection(otherWizard, {
   scope: boundary.trusted<Viewer>(),
   select: ({ state }) => state.context.orderId,
 })

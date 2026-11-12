@@ -2,8 +2,8 @@ import { createTestScheduler } from '@openwizard/core/testing'
 import { Effect, ManagedRuntime } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { makeDeliveryEffectsLayer } from '../src/delivery-effects'
-import { makeDeliveryFlow } from '../src/delivery-flow'
 import type { AutomatedAction, DeliveryContext } from '../src/delivery-model'
+import { makeDeliveryWizard } from '../src/delivery-wizard'
 
 const settle = async (): Promise<void> => {
   for (let index = 0; index < 12; index += 1) await Promise.resolve()
@@ -27,7 +27,7 @@ describe('fleet delivery interventions', () => {
       procedureState: 'assignment',
       anomalyResolved: true,
     }
-    const run = makeDeliveryFlow(runtime).create(context, {
+    const run = makeDeliveryWizard(runtime).create(context, {
       scheduler,
       instanceId: 'intervention-delivery-run',
     })
@@ -61,7 +61,7 @@ describe('fleet delivery interventions', () => {
         Effect.succeed({ action: command.action, recordedAtMs: scheduler.now() }),
       ),
     )
-    const run = makeDeliveryFlow(runtime).create(
+    const run = makeDeliveryWizard(runtime).create(
       {
         tenantId: 'tenant-lakeshore',
         deliveryId: 'delivery-1',

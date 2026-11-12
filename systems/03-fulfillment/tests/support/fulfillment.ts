@@ -2,7 +2,7 @@ import type { PartnerAccepted, PartnerCallback } from '@fulfillment/contracts'
 import {
   type FulfillmentContext,
   type FulfillmentDependencies,
-  fulfillmentFlow,
+  fulfillmentWizard,
   type PartnerGateway,
 } from '@fulfillment/domain'
 import type { Run, Store } from '@openwizard/core'
@@ -96,12 +96,12 @@ export function makeRun(
     readonly instanceId?: string
     readonly scheduler?: TestScheduler
   } = {},
-): Run<typeof fulfillmentFlow> {
+): Run<typeof fulfillmentWizard> {
   const dependencies: FulfillmentDependencies = {
     gateway: createGateway(calls, options),
     now: () => NOW,
   }
-  return fulfillmentFlow.create(context(), {
+  return fulfillmentWizard.create(context(), {
     deps: dependencies,
     scheduler: options.scheduler ?? createTestScheduler({ now: Date.parse(NOW) }),
     ...(options.store === undefined ? {} : { store: options.store }),
@@ -168,7 +168,7 @@ export async function flush(): Promise<void> {
   for (let index = 0; index < 8; index += 1) await Promise.resolve()
 }
 
-export async function startThroughFraud(run: Run<typeof fulfillmentFlow>): Promise<void> {
+export async function startThroughFraud(run: Run<typeof fulfillmentWizard>): Promise<void> {
   await run.start()
   await flush()
   await run.send('payment.authorization.succeeded', paymentAuthorized())

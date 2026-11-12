@@ -1,8 +1,9 @@
+import { inspect } from '@openwizard/core/inspect'
 import { createTestScheduler, type TestScheduler } from '@openwizard/core/testing'
 import { createMemoryDurableStore, type MemoryDurableStore } from '@openwizard/durable'
 import {
   createPartyRuntime,
-  dungeonFlow,
+  dungeonWizard,
   type PartyRuntime,
   resumePartyRuntime,
 } from '@wizard/dungeon-server'
@@ -55,12 +56,12 @@ async function connectParty(runtime: PartyRuntime): Promise<void> {
   await runtime.tick()
 }
 
-describe('durable dungeonFlow runtime', () => {
+describe('durable dungeonWizard runtime', () => {
   it('drives lobby generation with virtual time and explicit deterministic ticks', async () => {
     const { runtime, scheduler } = await createFixture()
     expect(runtime.host.run.getSnapshot().wizard).toEqual({
-      name: dungeonFlow.name,
-      version: dungeonFlow.version,
+      name: dungeonWizard.name,
+      version: dungeonWizard.version,
     })
     expect(scheduler.now()).toBe(25_000)
 
@@ -83,7 +84,23 @@ describe('durable dungeonFlow runtime', () => {
     expect(runtime.state().phase).toBe('exploration')
     expect(runtime.state().tick).toBe(3)
     expect(scheduler.now()).toBe(25_000)
+
+    const run = runtime.host.run.getState()
+    expect(run.steps.lobby.output).toBe('ready')
+    expect(run.steps.ready.output).toBe('generated')
+    expect(run.steps.generated.output).toBe('exploration')
+    expect(run.active).toEqual(['exploration'])
     await runtime.dispose()
+  })
+
+  it('describes the wizard and every phase', () => {
+    const manifest = inspect(dungeonWizard)
+    expect(manifest.description).toContain('one party through a dungeon')
+    expect(manifest.nodes).toHaveLength(10)
+    expect(manifest.nodes.filter((node) => node.description === undefined)).toEqual([])
+    expect(new Set(manifest.warnings.map((warning) => warning.code))).toEqual(
+      new Set(['NAV_CYCLE', 'NO_SINKS']),
+    )
   })
 
   it('rejects stale and cross-party commands without changing state', async () => {

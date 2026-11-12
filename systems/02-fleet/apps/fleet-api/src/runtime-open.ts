@@ -45,7 +45,7 @@ export interface DeliveryHostOptions {
 type Awaitable<T> = T | PromiseLike<T>
 
 export interface DeliveryRuntimeOpenDependencies<F extends AnyWizard> {
-  readonly flow: F
+  readonly wizard: F
   readonly store: DurableStore
   readonly scheduler: Scheduler
   readonly clock: Clock
@@ -103,14 +103,14 @@ export class DeliveryRuntimeOpener<F extends AnyWizard> {
       if (mode === 'resume') {
         resumeOptions ??= await this.dependencies.resumeOptions(identity, hostOptions)
         this.ensureUsable()
-        result = await resumeDurableRun(this.dependencies.flow, {
+        result = await resumeDurableRun(this.dependencies.wizard, {
           ...resumeOptions,
           ...hostOptions,
         })
       } else {
         createOptions ??= await this.dependencies.createOptions(identity, hostOptions)
         this.ensureUsable()
-        result = await createDurableRun(this.dependencies.flow, {
+        result = await createDurableRun(this.dependencies.wizard, {
           ...createOptions,
           ...hostOptions,
         })

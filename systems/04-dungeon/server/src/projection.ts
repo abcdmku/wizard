@@ -15,7 +15,7 @@ import {
 } from '@wizard/dungeon-shared'
 import type { FixtureState, InventoryItem, PlayerEffect, WorldState } from './domain.js'
 import { sortedValues, UNITS_PER_TILE } from './domain.js'
-import { dungeonFlow } from './flow.js'
+import { dungeonWizard } from './wizard.js'
 
 const worldPosition = (state: WorldState, point: WorldPosition): WorldPosition => ({
   x: (point.x / UNITS_PER_TILE) * state.map.tileSize,
@@ -227,7 +227,7 @@ export const projectState = (
   return projected
 }
 
-export const dungeonProjection = defineProjection(dungeonFlow, {
+export const dungeonProjection = defineProjection(dungeonWizard, {
   scope: boundary.trusted<Viewer>(),
   select: ({ state, scope }) => projectState(state.context.world, scope, state.seq, state.epoch),
 })

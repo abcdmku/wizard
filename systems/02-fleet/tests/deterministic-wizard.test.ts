@@ -3,12 +3,12 @@ import { Effect, ManagedRuntime } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, it } from 'vitest'
 import { makeDeliveryEffectsLayer } from '../apps/fleet-api/src/delivery-effects'
-import { makeDeliveryFlow } from '../apps/fleet-api/src/delivery-flow'
 import type {
   ActionCommand,
   ActionReceipt,
   DeliveryContext,
 } from '../apps/fleet-api/src/delivery-model'
+import { makeDeliveryWizard } from '../apps/fleet-api/src/delivery-wizard'
 
 const settle = async (): Promise<void> => {
   for (let index = 0; index < 8; index += 1) await Promise.resolve()
@@ -31,13 +31,13 @@ const context: DeliveryContext = {
   anomalyResolved: false,
 }
 
-describe('cold-chain delivery flow determinism', () => {
-  it('runs the real delivery flow with the Wizard virtual scheduler', async () => {
+describe('cold-chain delivery wizard determinism', () => {
+  it('runs the real delivery wizard with the Wizard virtual scheduler', async () => {
     const calls: ActionCommand[] = []
     const runtime = testRuntime(calls)
-    const flow = makeDeliveryFlow(runtime)
+    const wizard = makeDeliveryWizard(runtime)
     const scheduler = createTestScheduler({ now: 10_000 })
-    const run = flow.create(context, { scheduler })
+    const run = wizard.create(context, { scheduler })
 
     await run.start()
     await settle()

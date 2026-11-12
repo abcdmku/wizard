@@ -102,19 +102,34 @@ release stock without refunding a captured payment. Shipping is idempotent and
 ends in a wait; the callback completes the run only after signature, timestamp,
 tenant, order, and event checks pass.
 
-The domain exports `fulfillmentFlow`, a wizard built with
+The domain exports `fulfillmentWizard`, a wizard built with
 `defineWizard(options, ({ step, steps }) => steps(map, { start: 'begin' }))`.
 The callback passes its bound `step` constructor to the readiness and delivery
 modules so those modules share the context, dependency, and event types.
-`fulfillmentFlow.create(context, { deps })` creates a run;
-`fulfillmentFlow.resume(snapshot, { deps })` restores one. Projections and the
+`fulfillmentWizard.create(context, { deps })` creates a run;
+`fulfillmentWizard.resume(snapshot, { deps })` restores one. Projections and the
 durable registry consume that same wizard.
 
 Static `next` edges activate the parallel branches. The readiness join `needs`
 both branch-completion nodes, so it waits until both are done. Fraud review returns
-`{ done: decision }`; its `next` callback reads the updated context and chooses
+`{ done: decision }`; its `next` callback reads that output and chooses
 one of the declared `targets`. Timeout edges lead to explicit failure steps.
 The final `complete` step returns the order and shipment IDs as its run output.
+
+A partner wait keeps the callback that completed it as its output, and the
+steps after it read that callback with `needs`. A gate or a failure step joins
+the wait with its timeout step, `{ any: [waitShipment, markShipmentTimeout] }`,
+so it runs on either path and receives `undefined` after a timeout. A request
+step declares the wait as `{ optional: wait }` and takes the partner id from
+the callback: `requestPaymentCapture` reads `needs.authorization`, and
+`requestShipment` reads `needs.reservation`.
+
+The context holds the order and the partner state that the projections and
+the orders table show: `paymentAuthorization`, `inventoryReservation`, `fraud`,
+`paymentCapture`, `shipment`, `lastFailure` and `updatedAt`. Steps write that
+state and only the `compensate` hooks read it. An undo hook needs the id that
+a callback delivered after its step finished, and `needs` cannot point at a
+later step.
 
 ## Boundary rules
 

@@ -1,18 +1,18 @@
 import type { Command, StepId, ViewId } from '@openwizard/core'
 import type { DurableCommandResult, DurableRunHost } from '@openwizard/durable'
-import { type IntakeFlow, invalidationRootFor } from '../workflow/index.js'
+import { type IntakeWizard, invalidationRootFor } from '../workflow/index.js'
 
 const INVALIDATABLE = new Set(['done', 'failed', 'skipped'])
 
 export function isDraftMutation(
-  command: Command<IntakeFlow>,
-): command is Extract<Command<IntakeFlow>, { readonly type: 'setInput' | 'resetInput' }> {
+  command: Command<IntakeWizard>,
+): command is Extract<Command<IntakeWizard>, { readonly type: 'setInput' | 'resetInput' }> {
   return command.type === 'setInput' || command.type === 'resetInput'
 }
 
 export async function invalidateAfterDraftMutation(
-  host: DurableRunHost<IntakeFlow>,
-  command: Extract<Command<IntakeFlow>, { readonly type: 'setInput' | 'resetInput' }>,
+  host: DurableRunHost<IntakeWizard>,
+  command: Extract<Command<IntakeWizard>, { readonly type: 'setInput' | 'resetInput' }>,
   commandId: string,
 ): Promise<DurableCommandResult | undefined> {
   const root = selectRoot(host, command.step)
@@ -24,9 +24,9 @@ export async function invalidateAfterDraftMutation(
 }
 
 function selectRoot(
-  host: DurableRunHost<IntakeFlow>,
-  step: ViewId<IntakeFlow>,
-): StepId<IntakeFlow> | undefined {
+  host: DurableRunHost<IntakeWizard>,
+  step: ViewId<IntakeWizard>,
+): StepId<IntakeWizard> | undefined {
   const state = host.run.getState()
   if (step === 'businessProfile') {
     const owners = state.steps.beneficialOwners

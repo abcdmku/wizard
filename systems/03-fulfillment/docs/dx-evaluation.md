@@ -12,7 +12,7 @@ whole domain package.
 
 These measurements describe the August drill, before the October authoring API
 migration. The current workflow uses bound step factories inside `defineWizard`
-and separates configuration into `workflow-options.ts`. The source typecheck
+and separates configuration into `wizard-options.ts`. The source typecheck
 in `docs/testing.md` verifies that migration; the historical timing below does
 not measure it.
 
@@ -34,7 +34,7 @@ not measure it.
 | `packages/domain/src/readiness-steps.ts` | 193 | parallel join and fraud wait |
 | `packages/domain/src/projections.ts` | 188 | customer/operator scope and leak boundary |
 | `apps/orchestrator/src/operator-routes.ts` | 46 | operator decision route and policy |
-| `tests/flow.test.ts` | 233 | deterministic approval/rejection proof |
+| `tests/wizard.test.ts` | 233 | deterministic approval/rejection proof |
 
 These are existing handwritten paths, not a claim that all six change on every
 edit. A normal fraud-review change should stay at or below six touched files.

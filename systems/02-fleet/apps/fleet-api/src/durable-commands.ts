@@ -14,7 +14,7 @@ import {
   type Viewer,
 } from '@openwizard/fleet-shared'
 import { Effect } from 'effect'
-import type { DeliveryFlow } from './delivery-flow'
+import type { DeliveryWizard } from './delivery-wizard'
 import type { DeliveryDurableCommands } from './runtime-registry'
 
 export type FleetDurableResult = DurableCommandResult | DurableEventResult
@@ -73,7 +73,7 @@ function requestDigest(request: DeliverySignal | InterventionRequest): string {
 }
 
 export function dispatchIntervention(
-  host: DeliveryDurableCommands<DeliveryFlow>,
+  host: DeliveryDurableCommands<DeliveryWizard>,
   request: InterventionRequest,
   viewer: Viewer,
   at: number,
@@ -102,7 +102,7 @@ export function dispatchIntervention(
 }
 
 export function dispatchDeliverySignal(
-  host: DeliveryDurableCommands<DeliveryFlow>,
+  host: DeliveryDurableCommands<DeliveryWizard>,
   request: DeliverySignal,
   viewer: Viewer,
   at: number,
@@ -175,7 +175,7 @@ export function dispatchDeliverySignal(
   }
 }
 
-export async function initializeDeliveryHost(host: DurableRunHost<DeliveryFlow>): Promise<void> {
+export async function initializeDeliveryHost(host: DurableRunHost<DeliveryWizard>): Promise<void> {
   const start = await host.dispatch({ type: 'start' }, { commandId: 'fleet:bootstrap:start' })
   if (!start.ok) throw new Error(`Durable start failed: ${start.code}`)
   const pickup = await host.send(

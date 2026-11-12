@@ -67,12 +67,20 @@ in both REST and SSE snapshots. The browser freezes that version with its comman
 as `expectedVersion`; exact retries reuse a request-derived digest, while stale or changed requests
 return `409`.
 
-The delivery definition in `apps/fleet-api/src/delivery-flow.ts` uses `defineWizard(options,
+The delivery definition in `apps/fleet-api/src/delivery-wizard.ts` uses `defineWizard(options,
 ({ step, steps }) => steps(...))`. Its Effect steps read the runtime from declared dependencies;
-`makeDeliveryFlow(runtime)` binds it with `provide({ runtime })`, so local and durable run
+`makeDeliveryWizard(runtime)` binds it with `provide({ runtime })`, so local and durable run
 creation use the same services. Local callers use `wizard.create(context, { scheduler })`.
 Event waits return `{ done: target }`; `next` reads that output and chooses among declared
 `targets`. The escalation loop keeps its five-second timeout across restarts.
+
+A score reaches the steps that use it through `needs`: `actInitial` and `initialRoute` read
+`needs.score` from `scoreInitial`, and `react` and `escalationRoute` read it from `rescore`.
+The context holds the delivery identity and the state that events change while the run moves
+between waits: the open anomaly (`severity`, `anomalyOpenedAtMs`, `anomalyResolved`), the last
+telemetry reading, `vehicleId`, `lastActionBand` and `procedureState`. Five waits handle
+`telemetry`, so no single step owns that state. The context also holds the latest `score` and
+`band` for the dispatch projection, which no step reads.
 
 Operator commands use durable `dispatch`, including event delivery commands, to preserve the
 payload digest and `expectedVersion` fence. Telemetry uses `send` with `eventId` for redelivery

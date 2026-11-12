@@ -2,8 +2,8 @@ import { createTestScheduler, type TestScheduler } from '@openwizard/core/testin
 import { Clock, Duration, Effect, Layer, ManagedRuntime } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { makeDeliveryEffectsLayer } from '../src/delivery-effects'
-import { makeDeliveryFlow } from '../src/delivery-flow'
 import type { AutomatedAction, DeliveryContext } from '../src/delivery-model'
+import { makeDeliveryWizard } from '../src/delivery-wizard'
 
 const settle = async (): Promise<void> => {
   for (let index = 0; index < 12; index += 1) await Promise.resolve()
@@ -38,7 +38,7 @@ describe('hydrated fleet delivery recovery', () => {
         Layer.succeed(Clock.Clock, effectClock(scheduler)),
       ),
     )
-    const flow = makeDeliveryFlow(runtime)
+    const wizard = makeDeliveryWizard(runtime)
     const context: DeliveryContext = {
       tenantId: 'tenant-lakeshore',
       deliveryId: 'delivery-1',
@@ -50,7 +50,7 @@ describe('hydrated fleet delivery recovery', () => {
       lastActionBand: null,
       anomalyResolved: false,
     }
-    const run = flow.create(context, { scheduler, instanceId: 'hydrated-delivery-run' })
+    const run = wizard.create(context, { scheduler, instanceId: 'hydrated-delivery-run' })
 
     try {
       await run.start()
