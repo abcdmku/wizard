@@ -11,7 +11,16 @@ export default defineDev({
       deps: { orders: { find: async () => ({ total: 250 }) } },
       // Say where each event comes from, so the UI labels the wait.
       events: { 'refund.approved': { source: 'webhook', from: 'Back office' } },
+      // What each editor opens with, so one click sends a valid value.
+      examples: {
+        forms: { request: { amount: 900, reason: 'never arrived' } },
+        events: { 'refund.approved': { by: 'grace' } },
+        calls: { 'payments.refund': { refundId: 'refund-1' } },
+      },
     }),
-    devWizard(approval, { events: { approved: { source: 'queue', from: 'approvals topic' } } }),
+    devWizard(approval, {
+      events: { approved: { source: 'queue', from: 'approvals topic' } },
+      examples: { events: { approved: { by: 'grace' } } },
+    }),
   ],
 })

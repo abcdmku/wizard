@@ -5,7 +5,7 @@ Define steps that run in order, call your services and process a list.
 ```ts file="packages/docs/snippets/learn/steps.ts"
 ```
 
-<RunDiagram name="steps" />
+<Portal name="steps" />
 
 - `steps({ ... })` lists the steps. The first key starts first. To start elsewhere, pass `{ start: 'id' }` or an array of ids as the second argument.
 - `next` names the step that starts when this one finishes. When no step is left, the run is `done` and its output is the output of the last step.

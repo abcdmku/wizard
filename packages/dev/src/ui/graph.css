@@ -1,0 +1,165 @@
+/* ---- the steps of a wizard, top to bottom ---- */
+.g-graphs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-width: min-content;
+}
+.g-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.g-child {
+  display: flex;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+  border: 1px dashed var(--quiet);
+  border-radius: 10px;
+  padding: 0 14px 4px;
+}
+/* The label sits on the top edge of the box, like a legend on a fieldset. */
+.g-child-label {
+  margin-top: -0.75em;
+  background: var(--surface);
+  padding: 0 6px;
+  color: var(--quiet);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.g-child-label b {
+  color: var(--text);
+  font-weight: 600;
+}
+.g-node {
+  --tone: var(--line);
+  outline: none;
+}
+.g-node[role="button"] {
+  cursor: pointer;
+}
+.g-node rect {
+  fill: color-mix(in srgb, var(--tone) 12%, var(--surface));
+  stroke: var(--tone);
+  stroke-width: 1.25;
+  transition:
+    fill 0.3s ease,
+    stroke 0.3s ease;
+}
+.g-node[data-look="idle"] rect,
+.g-node[data-look="blocked"] rect,
+.g-node[data-look="skipped"] rect {
+  fill: var(--surface);
+}
+.g-node .g-id {
+  fill: var(--strong);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+.g-node .g-status {
+  fill: var(--tone);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.g-node[data-look="idle"] .g-id,
+.g-node[data-look="skipped"] .g-id {
+  fill: var(--quiet);
+}
+.g-node[data-look="idle"] .g-status,
+.g-node[data-look="blocked"] .g-status,
+.g-node[data-look="skipped"] .g-status {
+  fill: var(--quiet);
+}
+.g-node[data-look="blocked"] rect {
+  stroke-dasharray: 5 4;
+}
+.g-node[data-look="running"] {
+  --tone: var(--info);
+}
+.g-node[data-look="running"] rect,
+.g-node[data-look="undoing"] rect {
+  stroke-width: 2;
+  animation: g-pulse 1.1s ease-in-out infinite;
+}
+.g-node[data-look="waiting"] {
+  --tone: var(--warn);
+}
+.g-node[data-look="waiting"] rect {
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.g-node[data-look="done"] {
+  --tone: var(--good);
+}
+.g-node[data-look="skipped"] rect {
+  stroke-dasharray: 3 4;
+}
+.g-node[data-look="skipped"] .g-id {
+  text-decoration: line-through;
+}
+.g-node[data-look="failed"] {
+  --tone: var(--bad);
+}
+.g-node[data-look="failed"] rect {
+  stroke-width: 2;
+}
+.g-node[data-look="undoing"],
+.g-node[data-look="undone"] {
+  --tone: var(--undo);
+}
+.g-node[data-selected] rect,
+.g-node:focus-visible rect {
+  stroke: var(--strong);
+  stroke-width: 2;
+  stroke-dasharray: none;
+}
+@keyframes g-pulse {
+  50% {
+    stroke-opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .g-node[data-look] rect {
+    animation: none;
+    transition: none;
+  }
+}
+.g-edge {
+  fill: none;
+  stroke: var(--quiet);
+  stroke-width: 1.4;
+  stroke-opacity: 0.7;
+  transition: stroke 0.3s ease;
+}
+.g-edge[data-dashed] {
+  stroke-dasharray: 4 4;
+}
+.g-edge[data-tone="lit"] {
+  stroke: var(--good);
+  stroke-width: 1.8;
+  stroke-opacity: 1;
+}
+.g-edge[data-tone="off"] {
+  stroke-opacity: 0.3;
+}
+.g-arrow {
+  fill: var(--quiet);
+}
+.g-arrow[data-tone="lit"] {
+  fill: var(--good);
+}
+.g-gap {
+  fill: var(--surface);
+}
+.g-label {
+  fill: var(--quiet);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.g-label[data-tone="off"] {
+  fill-opacity: 0.55;
+}

@@ -4,14 +4,12 @@ import { ArrowRight } from 'lucide-react'
 import { site } from '../../lib/site'
 import { CopyButton } from '../mdx/copy-button'
 import { mdxComponents } from '../mdx/mdx-components'
-import { RunDiagram } from '../run-diagram/run-diagram'
+import { Portal } from '../portal/portal'
 import { SiteHeader } from '../site-header'
-import devDark from './dev-ui-dark.png'
-import devLight from './dev-ui-light.png'
 import Example from './example.mdx'
 import { agentPoints, extras, outputs, replacements } from './features'
 
-/** The pitch, what you stop maintaining, a run you can drive, what the wizard generates, why agents need it and the code. */
+/** The pitch, what you stop maintaining, the dev UI with a run to drive, what the wizard generates, why agents need it and the code. */
 export function Landing() {
   return (
     <div className="flex min-h-dvh flex-col">
@@ -59,38 +57,13 @@ export function Landing() {
         </section>
 
         <section className="landing-section">
-          <h2>Try it</h2>
-          <p>
-            The refund wizard from the file below, running in your browser. You are the customer,
-            the manager and the payment service. A refund of 100 or more waits for you to approve
-            it.
-          </p>
-          <RunDiagram name="refund" />
-        </section>
-
-        <section className="landing-section">
           <h2>Run it by hand</h2>
           <p>
-            <code>npx openwizard dev</code> opens every wizard in your browser. Start a run, fill in
-            the form, answer each service call, send the webhook and skip the timer. A webhook, a
-            queue event, a form and a service call each have their own badge.
+            <code>npx openwizard dev</code> opens this UI on your machine. Here it runs in the page,
+            with the refund wizard from the file below. Start a run, then be the customer, the order
+            service, the manager and the payment service.
           </p>
-          <img
-            className="landing-shot is-light"
-            src={devLight}
-            width={1280}
-            height={820}
-            loading="lazy"
-            alt="The dev UI showing a refund run that waits for a webhook, with the live graph below."
-          />
-          <img
-            className="landing-shot is-dark"
-            src={devDark}
-            width={1280}
-            height={820}
-            loading="lazy"
-            alt="The dev UI showing a refund run that waits for a webhook, with the live graph below."
-          />
+          <Portal name="refund" />
           <div className="landing-actions">
             <Link to="/$" params={{ _splat: 'guide/dev' }} className="landing-action is-quiet">
               Read about the dev server
@@ -101,7 +74,7 @@ export function Landing() {
 
         <section className="landing-section">
           <h2>That one file also produced this</h2>
-          <p>Real output from the refund wizard above. None of it is written by hand.</p>
+          <p>Real output from the same refund wizard. None of it is written by hand.</p>
           <ul className="landing-features">
             {outputs.map((output) => (
               <li key={output.title}>

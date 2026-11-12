@@ -104,6 +104,46 @@ it('drives a refund by hand: form, service calls, event and result', async () =>
   expect((await get<RunSummary[]>('/api/runs')).map((item) => item.id)).toContain(id)
 })
 
+it('opens each editor with the example from the dev config', async () => {
+  const id = await start('refund', { orderId: 'o-5' })
+  let run = await detail(id)
+  expect(run.pending.find((item) => item.kind === 'view')).toMatchObject({
+    draft: { amount: 900 },
+  })
+  const call = run.pending.find((item) => item.kind === 'call') as { id: string }
+  expect(call).toMatchObject({ name: 'orders.find', example: { total: 250 } })
+
+  await act(id, { type: 'submit', path: [], step: 'request', input: { amount: 900 } })
+  await act(id, { type: 'resolve', id: call.id, value: { total: 250 } })
+  run = await detail(id)
+  expect(run.pending[0]).toMatchObject({
+    events: [{ name: 'refund.approved', example: { by: 'grace' } }],
+  })
+})
+
+it('stops a run and resumes it from its snapshot with finished steps kept', async () => {
+  const id = await start('refund', { orderId: 'o-6' })
+  await act(id, { type: 'submit', path: [], step: 'request', input: { amount: 900 } })
+  const call = (await detail(id)).pending.find((item) => item.kind === 'call') as { id: string }
+  await act(id, { type: 'resolve', id: call.id, value: { total: 250 } })
+  expect(kinds(await detail(id))).toEqual(['event managerApproval'])
+  const before = (await detail(id)).events.length
+
+  expect(await act(id, { type: 'restart' })).toEqual({ ok: true })
+  const run = await detail(id)
+  expect(run.id).toBe(id)
+  expect(kinds(run)).toEqual(['event managerApproval'])
+  expect(run.events.length).toBeGreaterThanOrEqual(before)
+
+  await act(id, { type: 'send', event: 'refund.approved', payload: { by: 'grace' } })
+  const pay = (await detail(id)).pending.find((item) => item.kind === 'call') as { id: string }
+  await act(id, { type: 'resolve', id: pay.id, value: { refundId: 'r-9' } })
+  expect((await detail(id)).result).toMatchObject({
+    status: 'done',
+    output: { refundId: 'r-9', amount: 250, approvedBy: 'grace' },
+  })
+})
+
 it('halts on a rejected service call and retries the step', async () => {
   const id = await start('refund', { orderId: 'o-3' })
   const call = (await detail(id)).pending.find((item) => item.kind === 'call') as { id: string }

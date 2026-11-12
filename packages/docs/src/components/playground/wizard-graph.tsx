@@ -6,7 +6,7 @@ import {
   layoutGraph,
   type PlacedNode,
   wizardsOf,
-} from '../run-diagram/layout'
+} from '../../../../dev/src/ui/graph-layout'
 import {
   captionOf,
   EDGE_TONES,

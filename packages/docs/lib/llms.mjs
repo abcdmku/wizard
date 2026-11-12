@@ -35,9 +35,8 @@ function expandFences(markdown, repoRoot, sourcePath) {
   })
 }
 
-/** A diagram is a component of the site. Its code and the page text already say what it shows. */
-const withoutDiagrams = (markdown) =>
-  markdown.replace(/^<(?:RunDiagram|Sequence)\b[^>]*\/>\n\n?/gm, '')
+/** A portal or a diagram is a component of the site. The code and the page text say what it shows. */
+const withoutDiagrams = (markdown) => markdown.replace(/^<(?:Portal|Sequence)\b[^>]*\/>\n\n?/gm, '')
 
 /** `[text](/guide/forms)` to `[text](https://.../guide/forms)`. */
 const absoluteLinks = (markdown, siteUrl) =>

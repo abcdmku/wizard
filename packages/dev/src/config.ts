@@ -14,6 +14,19 @@ export interface EventSource {
 }
 
 /**
+ * Values the UI opens its editors with, so a person can press the button without typing:
+ * `forms` by the id of a view, `events` by event name, and `calls` by the service call a step
+ * makes, such as `orders.find`. A call has no schema, so its example is the only hint of what
+ * the service returns.
+ * @public
+ */
+export interface DevExamples {
+  readonly forms?: Readonly<Record<string, unknown>>
+  readonly events?: Readonly<Record<string, unknown>>
+  readonly calls?: Readonly<Record<string, unknown>>
+}
+
+/**
  * One wizard in a dev config, made by `devWizard`.
  * @public
  */
@@ -25,6 +38,8 @@ export interface DevWizard {
   readonly input?: unknown
   /** Where each event comes from in production, by event name. */
   readonly events?: Readonly<Record<string, EventSource>>
+  /** What the form, event and service call editors start with. */
+  readonly examples?: DevExamples
 }
 
 /**
@@ -43,6 +58,7 @@ export interface DevConfig {
  * devWizard(refund, {
  *   input: { orderId: 'o-2' },
  *   events: { 'refund.approved': { source: 'webhook', from: 'Back office' } },
+ *   examples: { calls: { 'orders.find': { total: 250 } } },
  * })
  * ```
  * @public
@@ -53,6 +69,11 @@ export function devWizard<F extends AnyWizard>(
     readonly deps?: Partial<DepsOf<F>>
     readonly input?: ContextInput<F>
     readonly events?: { readonly [E in EventType<F>]?: EventSource }
+    readonly examples?: {
+      readonly forms?: Readonly<Record<string, unknown>>
+      readonly events?: { readonly [E in EventType<F>]?: unknown }
+      readonly calls?: Readonly<Record<string, unknown>>
+    }
   } = {},
 ): DevWizard {
   return {
@@ -62,6 +83,7 @@ export function devWizard<F extends AnyWizard>(
     ...(options.events === undefined
       ? {}
       : { events: options.events as Readonly<Record<string, EventSource>> }),
+    ...(options.examples === undefined ? {} : { examples: options.examples as DevExamples }),
   }
 }
 

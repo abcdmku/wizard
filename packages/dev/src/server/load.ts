@@ -2,12 +2,7 @@ import { type FSWatcher, watch } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { inspect, toMarkdown } from '@openwizard/core/inspect'
 import { register } from 'tsx/esm/api'
-
-/** The two functions of `@openwizard/core/inspect` the dev server calls. */
-export interface Inspector {
-  readonly inspect: typeof inspect
-  readonly toMarkdown: typeof toMarkdown
-}
+import type { Inspector } from './registry'
 
 /** One load of the entry file. */
 export interface LoadedEntry {

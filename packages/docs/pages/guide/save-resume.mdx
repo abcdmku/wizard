@@ -5,7 +5,9 @@ Store a run as JSON and continue it later, in another process.
 ```ts file="packages/docs/snippets/learn/save-resume.ts"
 ```
 
-<RunDiagram name="save-resume" />
+<Portal name="save-resume" />
+
+Start a run, then press "Stop and resume" before you submit the form. The run is disposed and resumed from its snapshot, and the form is still waiting.
 
 - A snapshot is plain JSON. It holds the context, drafts, step outputs, errors, deadlines and child runs. It does not hold `deps` or the wizard, so resume with the same wizard and pass `deps` again.
 - With a `store`, every state change schedules a write. `await run.save()` when the next action depends on that write. `autoSave: 'off'` writes only on `save()`.

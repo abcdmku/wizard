@@ -14,7 +14,11 @@ export function pendingOf(item: Held): readonly Pending[] {
   const state = item.run.getState()
   const out: Pending[] = []
 
-  for (const call of item.manual.pending()) out.push({ kind: 'call', ...call })
+  const { examples } = item.loaded.info
+  for (const call of item.manual.pending()) {
+    const example = examples.calls?.[call.name]
+    out.push({ kind: 'call', ...call, ...(example === undefined ? {} : { example }) })
+  }
 
   if (state.status === 'halted') {
     for (const [step, record] of Object.entries(state.steps)) {
@@ -34,7 +38,7 @@ export function pendingOf(item: Held): readonly Pending[] {
     if (wait.kind === 'view') {
       const where = manifestPath(item.run, path)
       const node = manifest.nodes.find((entry) => entry.id === step && same(entry.path, where))
-      const draft = stepAt(item.run, path, step)?.input
+      const draft = stepAt(item.run, path, step)?.input ?? examples.forms?.[step]
       out.push({
         kind: 'view',
         path,
@@ -50,10 +54,12 @@ export function pendingOf(item: Held): readonly Pending[] {
         events: wait.events.map((name) => {
           const schema: Schema | undefined = manifest.schemas.events[String(name)]
           const origin = item.loaded.info.events[String(name)]
+          const example = examples.events?.[String(name)]
           return {
             name: String(name),
             ...(schema === undefined ? {} : { schema }),
             ...(origin === undefined ? {} : { origin }),
+            ...(example === undefined ? {} : { example }),
           }
         }),
         ...(wait.deadline === undefined ? {} : { deadline: wait.deadline }),

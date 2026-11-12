@@ -79,6 +79,11 @@ export default defineDev({
     devWizard(refund, {
       input: { orderId: 'o-2' },
       events: { 'refund.approved': { source: 'webhook', from: 'Back office' } },
+      examples: {
+        forms: { request: { amount: 900 } },
+        events: { 'refund.approved': { by: 'grace' } },
+        calls: { 'orders.find': { total: 250 } },
+      },
     }),
     devWizard(reminder, { deps: { mail: { send: async (to) => `sent to ${to}` } } }),
   ],

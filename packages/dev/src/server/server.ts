@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { configFrom } from '../config'
 import { handleApi } from './api'
 import { loadEntry, watchFiles } from './load'
 import { failedRegistry, type Registry, registryFrom } from './registry'
@@ -82,7 +83,7 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
   const reload = async (): Promise<void> => {
     try {
       const load = await loadEntry(entry)
-      registry = registryFrom(entry, load, Date.now())
+      registry = registryFrom(entry, configFrom(load.exports), load.inspector, Date.now())
       files?.set(load.files)
     } catch (error) {
       registry = failedRegistry(entry, error, Date.now())

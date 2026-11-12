@@ -7,7 +7,7 @@ Retry a failing step, continue at a fallback, undo finished steps, or recover by
 ```ts file="packages/docs/snippets/learn/retry.ts"
 ```
 
-<RunDiagram name="retry" />
+<Portal name="retry" />
 
 - `retries: 2` allows two more calls after the first one fails, three in total. `backoff` is a delay in milliseconds or `'exponential'`.
 - A retry can call the service twice, and so can a restart after a crash. Pass `idempotencyKey` to the service. Every attempt gets the same key.
@@ -22,7 +22,7 @@ When a step fails and has no retries left, the run halts. `run.awaitOutcome()` a
 ```ts file="packages/docs/snippets/learn/fallback.ts"
 ```
 
-<RunDiagram name="fallback" />
+<Portal name="fallback" />
 
 When `live` fails and has no retries left, it is skipped and `list` starts. The run does not halt. `quote` reads whichever step produced a value.
 
@@ -31,7 +31,7 @@ When `live` fails and has no retries left, it is skipped and `list` starts. The 
 ```ts file="packages/docs/snippets/learn/compensate.ts"
 ```
 
-<RunDiagram name="compensate" />
+<Portal name="compensate" />
 
 - With `onFailure: 'compensate'`, the run does not halt. It calls the `compensate` function of every finished step, newest first, and ends as `failed`.
 - `compensate` receives the step's `output` and an `idempotencyKey` of its own. An undo can repeat too.

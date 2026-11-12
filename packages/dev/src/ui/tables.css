@@ -2,7 +2,11 @@
 .tabs {
   display: flex;
   gap: 2px;
+  overflow-x: auto;
   margin: 22px 0 -1px;
+}
+.tabs button {
+  flex: none;
 }
 .tabs button {
   height: 34px;
@@ -82,21 +86,39 @@ tr.clickable:hover {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 860px) {
+/* A narrow host: the wizards and runs become one row above the page. */
+@container frame (max-width: 880px) {
   .shell {
-    grid-template: 48px auto 1fr / minmax(0, 1fr);
-    height: auto;
+    grid-template: 44px auto minmax(0, 1fr) / minmax(0, 1fr);
   }
   .side {
-    max-height: 220px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: auto hidden;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+    padding: 6px 12px;
   }
-  .start {
-    grid-template-columns: minmax(0, 1fr);
+  .side h2 {
+    flex: none;
+    padding: 0 4px 0 8px;
+  }
+  .side h2:first-child {
+    padding-left: 0;
+  }
+  .nav-item {
+    flex: none;
+  }
+  .nav-main {
+    overflow: visible;
+  }
+  .pad {
+    flex: none;
+    padding: 0 4px;
   }
   .main {
-    padding: 18px 16px 48px;
+    padding: 16px 16px 40px;
   }
   .top .entry {
     display: none;
