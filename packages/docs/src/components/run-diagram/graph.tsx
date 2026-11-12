@@ -1,6 +1,6 @@
 import type { Manifest } from '@openwizard/core/inspect'
 import { useId, useMemo } from 'react'
-import { type DagLayout, type LaidOutEdge, layoutWizard, wizardsOf } from '../playground/dag-layout'
+import { arrowPath, type GraphLayout, layoutGraph, wizardsOf } from './layout'
 import { type Frame, type StepFrame, stepKey } from './record'
 
 /** The look of a step: what colour it gets and which word sits under its name. */
@@ -43,61 +43,6 @@ function captionOf(step: StepFrame | undefined): string | null {
   return step.status
 }
 
-const formatMs = (ms: number): string =>
-  ms % 3_600_000 === 0 ? `${ms / 3_600_000}h` : ms % 1000 === 0 ? `${ms / 1000}s` : `${ms}ms`
-
-function edgeLabel({ edge, from }: LaidOutEdge): string | null {
-  switch (edge.kind) {
-    case 'needs':
-      // A solid arrow already reads as "needs". Only the special kinds get a word.
-      return edge.mode && edge.mode !== 'all'
-        ? edge.mode === 'any'
-          ? 'first to finish'
-          : edge.mode
-        : null
-    case 'route':
-      return 'may choose'
-    case 'fallback':
-      return 'fallback'
-    case 'timeout':
-      return from.node.timeout === undefined ? 'timeout' : `after ${formatMs(from.node.timeout)}`
-    default:
-      return null
-  }
-}
-
-/** Room at each side of the drawing for edges that go around a row of steps. */
-const SIDE = 44
-
-/**
- * The curve of an edge. One that skips a row of steps bows out to the side of that row, so it
- * does not run behind the steps in between.
- */
-function edgePath({ from, to, back }: LaidOutEdge, layout: DagLayout): string {
-  const x1 = from.x + from.width / 2
-  const y1 = from.y + from.height
-  const x2 = to.x + to.width / 2
-  const y2 = to.y
-  if (back) {
-    const right = Math.max(from.x + from.width, to.x + to.width) + 26
-    const sy = from.y + from.height / 2
-    return `M ${from.x + from.width} ${sy} C ${right} ${sy}, ${right} ${y2 - 30}, ${x2 + to.width / 4} ${y2 - 2}`
-  }
-  const between = layout.nodes.filter((node) => node.y > from.y && node.y < to.y)
-  if (between.length === 0) {
-    const bend = Math.max(18, (y2 - y1) / 2)
-    return `M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2 - 2}`
-  }
-  const leftward = x1 <= x2
-  const edgeOfRow = leftward
-    ? Math.min(...between.map((node) => node.x)) - 18
-    : Math.max(...between.map((node) => node.x + node.width)) + 18
-  // A cubic reaches three quarters of the way to its control points, so overshoot.
-  const reach = leftward ? Math.min(x1, edgeOfRow) : Math.max(x1, edgeOfRow)
-  const pull = reach + (reach - (x1 + x2) / 2) * 0.34
-  return `M ${x1} ${y1} C ${pull} ${y1 + (y2 - y1) * 0.3}, ${pull} ${y1 + (y2 - y1) * 0.7}, ${x2} ${y2 - 2}`
-}
-
 const STARTED: ReadonlySet<Look> = new Set(['running', 'waiting', 'done', 'undoing', 'undone'])
 
 /** An edge lights up once its source has finished and its target has started. */
@@ -114,31 +59,18 @@ function WizardSvg({
   steps,
   name,
 }: {
-  readonly layout: DagLayout
+  readonly layout: GraphLayout
   readonly path: readonly string[]
   readonly steps: Frame['steps']
   readonly name: string
 }) {
   const marker = useId()
   const look = (id: string) => lookOf(steps[stepKey(path, id)])
-  const skipsARow = layout.edges.some(
-    (edge) => !edge.back && layout.nodes.some((node) => node.y > edge.from.y && node.y < edge.to.y),
-  )
-  const side = skipsARow ? SIDE : 0
-  const arrows = layout.edges
-    .filter(
-      (edge, index, all) =>
-        all.findIndex((other) => other.from === edge.from && other.to === edge.to) === index,
-    )
-    .map((laid) => ({
-      laid,
-      twins: layout.edges.filter((other) => other.from === laid.from && other.to === laid.to),
-    }))
   return (
     <svg
-      viewBox={`${-side} 0 ${layout.width + side * 2} ${layout.height}`}
+      viewBox={`0 0 ${layout.width} ${layout.height}`}
       className="rd-svg"
-      style={{ width: `min(100%, ${Math.round((layout.width + side * 2) * 1.25)}px)` }}
+      style={{ width: `min(100%, ${Math.round(layout.width * 1.2)}px)` }}
       role="img"
       aria-label={`Steps of the ${name} wizard and how they connect`}
     >
@@ -148,7 +80,7 @@ function WizardSvg({
             key={tone}
             id={`${marker}-${tone}`}
             viewBox="0 0 10 10"
-            refX="8"
+            refX="9"
             refY="5"
             markerWidth="8"
             markerHeight="8"
@@ -159,33 +91,27 @@ function WizardSvg({
           </marker>
         ))}
       </defs>
-      {arrows.map(({ laid, twins }) => {
-        // Two connections between the same steps share one arrow and one label.
-        const tones = twins.map((twin) =>
-          edgeLook(look(twin.edge.from ?? ''), look(twin.edge.to), twin.edge.kind),
+      {layout.arrows.map((arrow) => {
+        const tones = arrow.edges.map((edge) =>
+          edgeLook(look(arrow.from), look(arrow.to), edge.kind),
         )
         const tone = tones.includes('lit') ? 'lit' : (tones[0] ?? 'plain')
-        const label = [...new Set(twins.map(edgeLabel).filter(Boolean))].join(', ') || null
-        // Put the label near the end that this edge does not share with its siblings.
-        const fanOut = arrows.filter((other) => other.laid.from === laid.from).length
-        const fanIn = arrows.filter((other) => other.laid.to === laid.to).length
-        const along = fanOut > 1 ? 0.7 : fanIn > 1 ? 0.3 : 0.5
-        const x1 = laid.from.x + laid.from.width / 2
-        const x2 = laid.to.x + laid.to.width / 2
-        const y1 = laid.from.y + laid.from.height
-        const midX = x1 + (x2 - x1) * along
-        const midY = y1 + (laid.to.y - y1) * along + (fanOut > 1 ? 0 : 5)
-        const dashed = twins.every(({ edge }) => edge.kind !== 'next' && edge.kind !== 'needs')
+        const dashed = arrow.edges.every((edge) => edge.kind !== 'next' && edge.kind !== 'needs')
         return (
-          <g key={`${laid.edge.from}-${laid.edge.to}-${laid.edge.kind}`}>
+          <g key={`${arrow.from}-${arrow.to}`}>
             <path
-              d={edgePath(laid, layout)}
+              d={arrowPath(arrow.points)}
               markerEnd={`url(#${marker}-${tone})`}
               className={`rd-edge is-${tone}${dashed ? ' is-dashed' : ''}`}
             />
-            {label && (
-              <text x={midX} y={midY} textAnchor="middle" className={`rd-edge-label is-${tone}`}>
-                {label}
+            {arrow.label && (
+              <text
+                x={arrow.labelX}
+                y={arrow.labelY + 3}
+                textAnchor="middle"
+                className={`rd-edge-label is-${tone}`}
+              >
+                {arrow.label}
               </text>
             )}
           </g>
@@ -204,11 +130,11 @@ function WizardSvg({
               height={laid.height}
               rx={laid.node.kind === 'view' ? 22 : 8}
             />
-            <text x={centre} y={laid.y + (caption ? 18 : 26)} textAnchor="middle" className="rd-id">
+            <text x={centre} y={laid.y + (caption ? 19 : 27)} textAnchor="middle" className="rd-id">
               {laid.node.id}
             </text>
             {caption && (
-              <text x={centre} y={laid.y + 33} textAnchor="middle" className="rd-status">
+              <text x={centre} y={laid.y + 34} textAnchor="middle" className="rd-status">
                 {caption}
               </text>
             )}
@@ -231,7 +157,7 @@ export function RunGraph({
     () =>
       wizardsOf(manifest).map((wizard) => ({
         path: wizard.path,
-        layout: layoutWizard(wizard.nodes, wizard.edges),
+        layout: layoutGraph(wizard.nodes, wizard.edges),
       })),
     [manifest],
   )

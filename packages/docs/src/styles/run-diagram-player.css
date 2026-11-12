@@ -1,0 +1,193 @@
+/* ---------- Run diagram: the panel beside the graph and the controls ---------- */
+/* What the caller did and what happened */
+.rd-panel {
+  display: flex;
+  min-height: 15.5rem;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+}
+.run-diagram .rd-run {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--rd-muted);
+}
+.rd-run-status {
+  margin-left: 4px;
+  border: 1px solid var(--rd-line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--rd-text);
+}
+.rd-run-status.is-running {
+  border-color: var(--rd-running);
+  color: var(--rd-running);
+}
+.rd-run-status.is-waiting,
+.rd-run-status.is-halted {
+  border-color: var(--rd-waiting);
+  color: var(--rd-waiting);
+}
+.rd-run-status.is-done {
+  border-color: var(--rd-done);
+  color: var(--rd-done);
+}
+.rd-run-status.is-failed {
+  border-color: var(--rd-failed);
+  color: var(--rd-failed);
+}
+.rd-run-status.is-compensating {
+  border-color: var(--rd-undo);
+  color: var(--rd-undo);
+}
+.run-diagram .rd-call {
+  margin: 0;
+  overflow-x: auto;
+  border: 1px solid var(--rd-line);
+  border-radius: 8px;
+  background: var(--rd-node);
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--rd-text);
+}
+.run-diagram .rd-call code {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+.run-diagram .rd-returned {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+  color: var(--rd-muted);
+}
+.rd-returned::before {
+  content: "returns ";
+}
+.run-diagram .rd-note {
+  margin: 2px 0 0;
+  color: var(--rd-text);
+}
+.run-diagram .rd-events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--rd-muted);
+}
+.run-diagram .rd-events li {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.run-diagram .rd-events li::before {
+  content: "· ";
+}
+
+/* Controls */
+.rd-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--rd-line);
+  padding: 8px 12px;
+}
+.rd-controls > button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rd-line);
+  border-radius: 8px;
+  background: var(--rd-node);
+  color: var(--rd-text);
+  cursor: pointer;
+}
+.rd-controls > button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.rd-controls > button.rd-play {
+  border-color: var(--rd-text);
+  background: var(--rd-text);
+  color: var(--rd-surface);
+}
+.rd-controls svg {
+  width: 14px;
+  height: 14px;
+}
+.run-diagram .rd-track {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0 4px;
+  padding: 0;
+  list-style: none;
+}
+.run-diagram .rd-track li {
+  margin: 0;
+}
+.rd-track button {
+  display: block;
+  width: 16px;
+  height: 20px;
+  cursor: pointer;
+  background:
+    radial-gradient(circle, var(--rd-line) 0 3px, transparent 3.5px) center / 100% 100% no-repeat;
+}
+.rd-track button.is-call {
+  background-image: radial-gradient(circle, var(--rd-line) 0 4.5px, transparent 5px);
+}
+.rd-track button.is-past {
+  background-image: radial-gradient(circle, var(--rd-muted) 0 3px, transparent 3.5px);
+}
+.rd-track button.is-call.is-past {
+  background-image: radial-gradient(circle, var(--rd-muted) 0 4.5px, transparent 5px);
+}
+.rd-track button.is-current {
+  background-image: radial-gradient(circle, var(--rd-text) 0 5.5px, transparent 6px);
+}
+.rd-count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--rd-muted);
+}
+.run-diagram button:focus-visible {
+  outline: 2px solid var(--rd-running);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .rd-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rd-stage {
+    border-right: 0;
+    border-bottom: 1px solid var(--rd-line);
+  }
+  .rd-panel {
+    min-height: 13rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rd-node rect,
+  .rd-node text,
+  .rd-edge {
+    transition: none;
+    animation: none;
+  }
+}

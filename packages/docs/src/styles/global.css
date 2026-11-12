@@ -4,6 +4,7 @@
 @import "./base.css";
 @import "./article.css";
 @import "./run-diagram.css";
+@import "./run-diagram-player.css";
 @import "./sequence.css";
 @import "./shell-layout.css";
 @import "./shell-navigation.css";
