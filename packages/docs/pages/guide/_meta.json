@@ -8,5 +8,6 @@
   "save-resume": "Save and resume",
   "children": "Child wizards",
   "test": "Test",
-  "inspect": "Inspect and debug"
+  "inspect": "Inspect and debug",
+  "dev": "Dev server"
 }

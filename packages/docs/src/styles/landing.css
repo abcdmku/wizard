@@ -367,3 +367,22 @@
 .dark .landing-agents dd {
   color: #a3a3a3;
 }
+/* A screenshot of the dev UI, one per theme. */
+.landing-shot {
+  width: 100%;
+  height: auto;
+  margin-top: 18px;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+}
+.landing-shot.is-dark,
+.dark .landing-shot.is-light {
+  display: none;
+}
+.dark .landing-shot.is-dark {
+  display: block;
+  border-color: #262626;
+}
+.landing-section > .landing-actions {
+  margin-top: 16px;
+}

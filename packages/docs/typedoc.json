@@ -13,6 +13,7 @@
     "typedoc/effect.ts",
     "typedoc/react.ts",
     "typedoc/devtools.ts",
+    "typedoc/dev.ts",
     "typedoc/opentelemetry.ts",
     "typedoc/http.ts"
   ],

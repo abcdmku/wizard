@@ -17,6 +17,7 @@
       "@openwizard/drizzle/sqlite": ["./packages/drizzle/src/sqlite.ts"],
       "@openwizard/react": ["./packages/react/src/index.ts"],
       "@openwizard/devtools": ["./packages/devtools/src/index.ts"],
+      "@openwizard/dev": ["./packages/dev/src/index.ts"],
       "@openwizard/effect": ["./packages/effect/src/index.ts"],
       "@openwizard/opentelemetry": ["./packages/opentelemetry/src/index.ts"],
       "@openwizard/http": ["./packages/http/src/index.ts"],

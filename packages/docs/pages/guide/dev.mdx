@@ -1,0 +1,67 @@
+# Dev server
+
+See your wizards in a browser, start runs and supply everything a run waits for by hand.
+
+```sh
+npm install -D @openwizard/dev
+npx openwizard dev src/refund.ts
+```
+
+Open `http://127.0.0.1:4400`. The server shows every wizard the file exports and loads them again when a file they import changes.
+
+## Drive a run by hand
+
+Start a run from a wizard's page. The run page lists what the run waits for, and each item has the control that supplies it.
+
+| Badge | The run waits for | You |
+|---|---|---|
+| Form | A person to type a draft | Enter the draft and submit it. A draft the schema refuses comes back with its issues |
+| Webhook | Another system to post an event to a signed route | Enter the payload and send it |
+| Queue event | A consumer to read a message and send it to the run | Enter the payload and send it |
+| Event | Your own code to send an event | Enter the payload and send it |
+| Service call | The reply to a call the run made through `deps` | Enter the return value, or make the call throw |
+| Timer | A sleep, a timeout or a retry delay | Skip to the next timer. The run's clock jumps to it and later deadlines keep their distance |
+| Failed step | You, after a step threw | Retry it or skip it |
+
+Each kind has its own badge, colour and icon, so a webhook wait does not look like a service call or a form.
+
+Below that, the graph shows the status of each step as it changes. The history lists every event of the run, and a click on a step shows its stored input, output and error.
+
+## Say where events come from
+
+A wizard declares its events and their schemas. It does not say who sends them, so the UI labels every wait as Event until you tell it.
+
+```ts
+devWizard(refund, {
+  events: { 'refund.approved': { source: 'webhook', from: 'Back office' } },
+})
+```
+
+`source` is `'webhook'`, `'queue'` or `'code'`, and `from` names the sender. The wait then carries the Webhook or Queue event badge and the sender's name.
+
+A wizard's page has an "Outside the run" tab that lists everything the wizard depends on outside itself: each form and its fields, each event with its sender and the step that waits for it, each sleep and timeout, and each configured service.
+
+## Answer service calls yourself
+
+A wizard with no services configured still runs. Every call through `deps` stops and shows its name and arguments, such as `payments.refund("o-2", 250)`. You decide what it returns. That lets you walk a branch that is hard to reach with real services, such as a declined payment on the third attempt.
+
+## Configure services and inputs
+
+Export a config from `openwizard.dev.ts` and run `npx openwizard dev` with no file.
+
+```ts file="packages/docs/snippets/dev/openwizard.dev.ts"
+```
+
+- `devWizard(wizard, { deps })` supplies real services. A service you leave out waits for your answer.
+- `input` is what the Start form opens with. Without it the form opens with the shape of the context schema.
+- `events` says where each event comes from.
+- On the Start form, "I answer each call" ignores `deps` for that run.
+
+## Know its limits
+
+- Runs live in the server's memory and end when it stops. Use [save and resume](/guide/save-resume) for runs that must last.
+- A run started before an edit keeps the old definition. The run page says so. Start it again to use the new one.
+- The server has no sign-in. It listens on `127.0.0.1` and refuses a write from another origin. Keep it on your own machine.
+- A child run's forms and events appear in the list. Its steps appear in the graph.
+
+The [reference](/reference/dev) lists the command's options and the functions behind it.
