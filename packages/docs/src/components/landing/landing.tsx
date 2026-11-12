@@ -7,7 +7,7 @@ import { mdxComponents } from '../mdx/mdx-components'
 import { RunDiagram } from '../run-diagram/run-diagram'
 import { SiteHeader } from '../site-header'
 import Example from './example.mdx'
-import { extras, features } from './features'
+import { agentPoints, extras, features } from './features'
 
 /** The pitch, a run you can watch, the core features, the wizard that produced the run and the way forward. */
 export function Landing() {
@@ -17,13 +17,14 @@ export function Landing() {
       <main className="landing">
         <p className="landing-name">{site.name}</p>
         <h1>
-          <span className="landing-line">Write the whole flow once.</span>{' '}
-          <span className="landing-line">Run it for a second or a month.</span>
+          <span className="landing-line">Define the workflow once.</span>{' '}
+          <span className="landing-line">Get the orchestrator, the API and the docs.</span>
         </h1>
         <p className="landing-sentence">
-          Refunds, onboarding and approvals cross forms, service calls and days of waiting. Most
-          teams build each one from status columns, cron jobs and retry code. OpenWizard runs the
-          flow from one typed TypeScript definition and saves each run as JSON in your own database.
+          OpenWizard is a type-safe orchestrator for async work that calls services, waits for
+          people and webhooks, retries, and resumes after a crash. From one TypeScript definition it
+          generates the HTTP API, the signed webhook routes, the OpenAPI document and the
+          documentation page, and it keeps every run in your own database.
         </p>
 
         <div className="landing-hero-actions">
@@ -53,17 +54,22 @@ export function Landing() {
         </section>
 
         <section className="landing-section">
-          <h2>What you get</h2>
-          <p>Six things you would otherwise build yourself, and rebuild for the next flow.</p>
+          <h2>What one definition gives you</h2>
+          <p>
+            Each of these is usually a separate project: a job runner, an API layer, a webhook
+            receiver, a docs page and a recovery plan. Here they come from the wizard.
+          </p>
           <ul className="landing-features">
             {features.map((feature) => (
               <li key={feature.title}>
                 <h3>{feature.title}</h3>
                 <p>{feature.body}</p>
-                <Link to="/$" params={{ _splat: feature.to }}>
-                  {feature.link}
-                  <ArrowRight aria-hidden="true" />
-                </Link>
+                {feature.to ? (
+                  <Link to="/$" params={{ _splat: feature.to }}>
+                    {feature.link}
+                    <ArrowRight aria-hidden="true" />
+                  </Link>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -78,6 +84,22 @@ export function Landing() {
               </span>
             ))}
           </p>
+        </section>
+
+        <section className="landing-section">
+          <h2>Built for agentic work</h2>
+          <p>
+            Agents run workflows that outlive a request, and they write workflow code. Both need an
+            orchestrator that checks its inputs and can explain itself.
+          </p>
+          <ul className="landing-features is-pair">
+            {agentPoints.map((point) => (
+              <li key={point.title}>
+                <h3>{point.title}</h3>
+                <p>{point.body}</p>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="landing-section">

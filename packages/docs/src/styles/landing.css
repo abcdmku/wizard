@@ -184,6 +184,10 @@
   gap: 12px;
   margin-top: 20px;
 }
+/* Four points read better two to a row than three and one. */
+.landing-features.is-pair {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+}
 .landing-features li {
   display: flex;
   flex-direction: column;
