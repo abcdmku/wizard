@@ -38,7 +38,9 @@ export function SiteHeader({ currentSlug }: SiteHeaderProps) {
             {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
           </button>
           <Link to="/" className="site-wordmark" aria-label="OpenWizard home">
-            <span>OW</span>
+            <span>
+              <WandMark />
+            </span>
             <strong>{site.name}</strong>
           </Link>
           <span className="site-header-divider" aria-hidden="true" />
@@ -72,6 +74,19 @@ export function SiteHeader({ currentSlug }: SiteHeaderProps) {
       </div>
       {menuOpen && <MobileNav currentSlug={currentSlug ?? ''} onClose={closeMenu} />}
     </header>
+  )
+}
+
+/** The OpenWizard mark: a wand with a spark at its tip. The favicon draws the same paths. */
+function WandMark() {
+  return (
+    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+      <path d="M7.5 24.5L17 15" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <path
+        d="M21.5 4.5Q22.3 9.7 27.5 10.5Q22.3 11.3 21.5 16.5Q20.7 11.3 15.5 10.5Q20.7 9.7 21.5 4.5Z"
+        fill="currentColor"
+      />
+    </svg>
   )
 }
 

@@ -4,8 +4,9 @@ import { site } from '../lib/site'
 import globalCss from '../styles/global.css?url'
 import { ThemeProvider, themeBootScript } from '../theme/theme-provider'
 
+// The same wand and spark as the header mark, on a dark tile.
 const FAVICON =
-  'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%230a0a0a%22/><path d=%22M8 22 L12 10 L16 19 L20 10 L24 22%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223%22 stroke-linejoin=%22round%22 stroke-linecap=%22round%22/></svg>'
+  'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%230a0a0a%22/><path d=%22M7.5 24.5L17 15%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/><path d=%22M21.5 4.5Q22.3 9.7 27.5 10.5Q22.3 11.3 21.5 16.5Q20.7 11.3 15.5 10.5Q20.7 9.7 21.5 4.5Z%22 fill=%22white%22/></svg>'
 
 export const Route = createRootRoute({
   head: () => ({
