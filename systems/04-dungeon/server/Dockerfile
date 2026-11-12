@@ -1,7 +1,7 @@
 FROM node:22-alpine AS dependencies
 WORKDIR /app
 RUN corepack enable
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.source.json ./
 COPY packages/core/package.json packages/core/package.json
 COPY packages/drizzle/package.json packages/drizzle/package.json
 COPY packages/durable/package.json packages/durable/package.json

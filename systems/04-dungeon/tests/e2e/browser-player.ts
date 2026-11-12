@@ -106,7 +106,27 @@ export function ackFor(player: BrowserPlayer, commandId: string): AckFrame | und
   return player.acks.find((frame) => frame.commandId === commandId)
 }
 
+const FRAME_INTERVAL_MS = 100
+
+/**
+ * Draws the page ten times a second, once for each server tick.
+ *
+ * The map is a WebGL canvas. A CI runner has no GPU, so every frame of every player's page
+ * is drawn in software, and at the browser's own frame rate four pages want more processor
+ * time than the runner has. The pages then send moves a third as fast as the server ticks,
+ * and enemies that move on the server's clock outrun the players. The journey checks what
+ * the game does and not how smooth it looks.
+ */
+async function capFrameRate(page: Page): Promise<void> {
+  await page.addInitScript((interval) => {
+    window.requestAnimationFrame = (callback) =>
+      window.setTimeout(() => callback(performance.now()), interval)
+    window.cancelAnimationFrame = (handle) => window.clearTimeout(handle)
+  }, FRAME_INTERVAL_MS)
+}
+
 export async function openPlayerPage(player: BrowserPlayer, partyId: string): Promise<void> {
+  await capFrameRate(player.page)
   const token = tokenFor(partyId, player.id, `e2e-session-${player.id}`)
   const query = new URLSearchParams({ party: partyId, name: player.name, token })
   await player.page.goto(`/?${query.toString()}`)
@@ -134,6 +154,41 @@ export async function waitForMovementToSettle(
     .toBeGreaterThanOrEqual(2)
 }
 
+const WALK_STALL_MS = 10_000
+
+/**
+ * Waits while a held key walks the player, until `arrived`.
+ *
+ * The page sends one move, waits for its acknowledgement and sends the next, so a busy
+ * machine walks slower: three steps a second were measured on a starved one, against ten
+ * on a free one. A fixed time for the whole walk therefore fails long walks that are going
+ * fine. This fails when the player stops making progress, which is what a wall, a
+ * dead player or a lost key press looks like, however fast the rest of the walk went.
+ */
+async function walkUntil(
+  player: BrowserPlayer,
+  axis: 'x' | 'y',
+  goal: string,
+  arrived: () => boolean | Promise<boolean>,
+): Promise<void> {
+  let last = projectionOf(player).self.position[axis]
+  let lastProgress = Date.now()
+  while (!(await arrived())) {
+    const projection = projectionOf(player)
+    const current = projection.self.position[axis]
+    if (current !== last) {
+      last = current
+      lastProgress = Date.now()
+    } else if (Date.now() - lastProgress > WALK_STALL_MS) {
+      const { x, y } = projection.self.position
+      throw new Error(
+        `${player.id} stopped at ${x},${y} for ${WALK_STALL_MS}ms on the way to ${goal}; phase=${projection.phase}, tick=${projection.tick}, health=${projection.self.health}`,
+      )
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 export async function moveAxis(
   player: BrowserPlayer,
   axis: 'x' | 'y',
@@ -150,15 +205,9 @@ export async function moveAxis(
     await player.page.keyboard.down(keyFor[direction])
     try {
       const position = () => projectionOf(player).self.position[axis]
-      if (increasing) {
-        await expect
-          .poll(position, { timeout: 12_000, intervals: [50, 100] })
-          .toBeGreaterThanOrEqual(target - tolerance)
-      } else {
-        await expect
-          .poll(position, { timeout: 12_000, intervals: [50, 100] })
-          .toBeLessThanOrEqual(target + tolerance)
-      }
+      await walkUntil(player, axis, `${axis} ${target}`, () =>
+        increasing ? position() >= target - tolerance : position() <= target + tolerance,
+      )
     } finally {
       await player.page.keyboard.up(keyFor[direction])
     }
@@ -193,7 +242,7 @@ export async function moveUntilVisible(
   await player.page.bringToFront()
   await player.page.keyboard.down(keyFor[direction])
   try {
-    await expect(target).toBeVisible({ timeout: 12_000 })
+    await walkUntil(player, axis, testId, () => target.isVisible())
   } finally {
     await player.page.keyboard.up(keyFor[direction])
   }

@@ -50,7 +50,7 @@ export async function durableCommandResult(
     'fleet',
     '-At',
     '-c',
-    `SELECT result FROM fleet_wizard_dedupe WHERE run_key = '${runKey}' AND kind = 'command' AND dedupe_id = '${commandId}' AND status = 'completed'`,
+    `SELECT result FROM fleet_wizard_dedupe WHERE run_key = '${runKey}' AND dedupe_id = '${commandId}' AND status = 'completed'`,
   )
   const result = output.trim()
   if (result.length === 0) throw new Error(`No completed durable command found for ${commandId}`)
