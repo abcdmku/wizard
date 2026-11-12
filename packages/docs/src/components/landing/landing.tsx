@@ -8,7 +8,7 @@ import { RunDiagram } from '../run-diagram/run-diagram'
 import { SiteHeader } from '../site-header'
 import Example from './example.mdx'
 
-/** One sentence, the install command, a run you can watch, the smallest wizard and the way forward. */
+/** One sentence, the install command, a run you can watch, the wizard that produced it and the way forward. */
 export function Landing() {
   return (
     <div className="flex min-h-dvh flex-col">
@@ -37,7 +37,11 @@ export function Landing() {
         </section>
 
         <section className="landing-section">
-          <h2>The smallest wizard</h2>
+          <h2>The code that ran</h2>
+          <p>
+            This is the whole wizard. Each step in the diagram is one entry here, and{' '}
+            <code>needs</code> draws the arrows.
+          </p>
           <div className="docs-article landing-example">
             <MDXProvider components={mdxComponents}>
               <Example />

@@ -78,6 +78,16 @@
 .dark .landing-section > p {
   color: #a3a3a3;
 }
+.landing-section > p code {
+  border: 1px solid #e5e5e5;
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+.dark .landing-section > p code {
+  border-color: #333;
+}
 .landing-section .run-diagram {
   margin: 20px 0 0;
 }
