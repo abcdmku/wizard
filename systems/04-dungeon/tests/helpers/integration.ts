@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { signPlayerToken } from '@wizard/dungeon-server'
+import { signPlayerToken } from '../../server/src/auth.js'
 import { connectWs, type WsPeer } from './ws-peer.js'
 
 const execFileAsync = promisify(execFile)

@@ -2,10 +2,11 @@ FROM node:22-alpine AS build
 
 RUN corepack enable && corepack prepare pnpm@10.19.0 --activate
 WORKDIR /workspace
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.source.json ./
 COPY packages/core/package.json packages/core/tsconfig.json packages/core/tsdown.config.ts ./packages/core/
 COPY packages/http/package.json ./packages/http/package.json
 COPY systems/02-fleet/packages/shared/package.json ./systems/02-fleet/packages/shared/package.json
+COPY systems/02-fleet/tsconfig.json ./systems/02-fleet/tsconfig.json
 COPY systems/02-fleet/apps/web/package.json ./systems/02-fleet/apps/web/package.json
 RUN pnpm install --frozen-lockfile --prod=false
 COPY systems/02-fleet/packages/shared/src ./systems/02-fleet/packages/shared/src

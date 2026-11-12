@@ -77,7 +77,6 @@ async function createDurableTables(db: IntakeDrizzleDatabase): Promise<void> {
   await db.execute(sql`
     create table if not exists intake_wizard_dedupe (
       run_key text not null references intake_wizard_runs(run_key) on delete cascade,
-      kind text not null,
       dedupe_id text not null,
       digest text not null,
       status text not null,
@@ -87,9 +86,8 @@ async function createDurableTables(db: IntakeDrizzleDatabase): Promise<void> {
       request text,
       result text,
       completed_at_ms bigint,
-      primary key (run_key, kind, dedupe_id),
-      check (kind in ('command', 'event')),
-      check (status in ('pending', 'completed'))
+      primary key (run_key, dedupe_id),
+      check (status in ('pending', 'applied', 'completed'))
     )
   `)
   await db.execute(sql`
