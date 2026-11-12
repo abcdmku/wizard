@@ -5,7 +5,7 @@ Pause a run until another system reports back, a deadline passes, or both.
 ```ts file="packages/docs/snippets/learn/wait.ts"
 ```
 
-<RunDiagram name="wait" />
+<Portal name="wait" />
 
 - Declare every event and its payload schema in `events`. `run.send(event, payload)` validates the payload. An invalid one returns `{ ok: false, code: 'BOUNDARY_REJECTED', issues }` and the step keeps waiting.
 - With `timeout: { after, next }`, a wait that gets no event in time is skipped and `next` starts. A step with a plain need on the wait is skipped with it. `close` runs either way because its need is `optional`.

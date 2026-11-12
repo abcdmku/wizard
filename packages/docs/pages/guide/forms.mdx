@@ -5,7 +5,7 @@ Collect input from a person, validate it and continue.
 ```ts file="packages/docs/snippets/learn/form.ts"
 ```
 
-<RunDiagram name="forms" />
+<Portal name="forms" />
 
 - `view({ input })` pauses the run until a person submits the form. `run.getState().current` is the id of the view to show.
 - `setInput(view, patch)` merges the patch into a draft. `next()` validates the whole draft, and the parsed value becomes the view's output.

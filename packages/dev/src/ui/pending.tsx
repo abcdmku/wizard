@@ -1,18 +1,20 @@
 import { type ReactElement, type ReactNode, useState } from 'react'
 import { exampleOf } from '../server/example'
 import type { Action, ActionResult, Pending, RunDetail } from '../wire'
-import { api } from './api'
+import { useBackend } from './backend'
+import { ValueEditor } from './fields'
 import { brief, span, stepLabel } from './format'
 import { JsonEditor, Refusal, useJsonDraft } from './json'
 import { Kind, MEANING, type OutsideKind } from './kind'
 
 /** Sends one action and keeps what the run answered. */
 function useAction(run: string): [ActionResult | undefined, boolean, (action: Action) => void] {
+  const backend = useBackend()
   const [result, setResult] = useState<ActionResult>()
   const [busy, setBusy] = useState(false)
   const send = (action: Action) => {
     setBusy(true)
-    void api
+    void backend
       .act(run, action)
       .then(setResult)
       .finally(() => setBusy(false))
@@ -46,7 +48,12 @@ function ViewCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kind
   const [result, busy, send] = useAction(run.id)
   return (
     <Card kind="form" title={<code>{stepLabel(item.path, item.step)}</code>}>
-      <JsonEditor draft={draft} onChange={setDraft} label="What the person enters" />
+      <ValueEditor
+        schema={item.schema}
+        draft={draft}
+        onChange={setDraft}
+        label="What the person enters"
+      />
       <Refusal result={result} />
       <button
         type="button"
@@ -70,7 +77,10 @@ function EventCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kin
   const kind: OutsideKind =
     origin?.source === 'webhook' ? 'webhook' : origin?.source === 'queue' ? 'queue' : 'event'
   const sender = origin?.from === undefined ? '' : ` Sender: ${origin.from}.`
-  const [draft, setDraft] = useJsonDraft(exampleOf(schema), `${run.id}:${item.step}:${name}`)
+  const [draft, setDraft] = useJsonDraft(
+    chosen?.example ?? exampleOf(schema),
+    `${run.id}:${item.step}:${name}`,
+  )
   const [result, busy, send] = useAction(run.id)
   return (
     <Card
@@ -88,7 +98,7 @@ function EventCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kin
           </select>
         </label>
       )}
-      <JsonEditor draft={draft} onChange={setDraft} label={`Payload of ${name}`} />
+      <ValueEditor schema={schema} draft={draft} onChange={setDraft} label={`Payload of ${name}`} />
       {item.deadline !== undefined && (
         <p className="quiet">Times out in {span(item.deadline - run.now)}.</p>
       )}
@@ -106,7 +116,7 @@ function EventCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kin
 }
 
 function CallCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kind: 'call' }> }) {
-  const [draft, setDraft] = useJsonDraft({}, `${run.id}:${item.id}`)
+  const [draft, setDraft] = useJsonDraft(item.example ?? {}, `${run.id}:${item.id}`)
   const [message, setMessage] = useState('Service unavailable')
   const [result, busy, send] = useAction(run.id)
   return (

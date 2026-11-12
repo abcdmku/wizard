@@ -14,7 +14,8 @@ const MAX_EVENTS = 5_000
 export interface Held {
   readonly id: string
   readonly loaded: Loaded
-  readonly run: AnyRun
+  /** The live run. `restart` replaces it. */
+  run: AnyRun
   readonly input: unknown
   readonly services: Services
   readonly clock: DevClock
@@ -23,6 +24,8 @@ export interface Held {
   readonly createdAt: number
   updatedAt: number
   readonly stop: () => void
+  /** Disposes the run and resumes it from its snapshot, as a restarted process would. */
+  readonly restart: () => ActionResult
 }
 
 /** The runs of a dev server. They live in memory and end with the process. */
@@ -36,6 +39,7 @@ export interface RunStore {
 }
 
 type Create = (input: unknown, options: Record<string, unknown>) => AnyRun
+type Resume = (snapshot: unknown, options: Record<string, unknown>) => AnyRun
 
 /** Reads the message and the issues from an error `wizard.create` threw. */
 function refusal(error: unknown): ActionResult {
@@ -89,27 +93,29 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
       }
       const clock = createDevClock(touch)
       const manual = createManualDeps(touch, services === 'real' ? loaded.dev.deps : undefined)
+      const options = { deps: manual.deps, clock, scheduler: clock }
       let run: AnyRun
       try {
-        run = (loaded.dev.wizard.create as unknown as Create)(request.input, {
-          deps: manual.deps,
-          clock,
-          scheduler: clock,
-        })
+        run = (loaded.dev.wizard.create as unknown as Create)(request.input, options)
       } catch (error) {
         clock.dispose()
         return refusal(error)
       }
       const events: RunEvent<AnyWizardDefinition>[] = []
-      const stops = [
-        run.subscribe(touch),
-        run.observe((event) => {
+      const follow = (live: AnyRun) => [
+        live.subscribe(touch),
+        live.observe((event) => {
           events.push(event)
           if (events.length > MAX_EVENTS) events.shift()
           touch()
         }),
       ]
-      item = {
+      let stops = follow(run)
+      const stop = () => {
+        for (const end of stops) end()
+        stops = []
+      }
+      const current: Held = {
         id: run.id,
         loaded,
         run,
@@ -120,10 +126,25 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
         events,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        stop: () => {
-          for (const stop of stops) stop()
+        stop,
+        restart() {
+          // What a store would hold: the snapshot as JSON, with no reference to the old run.
+          const snapshot: unknown = JSON.parse(JSON.stringify(current.run.getSnapshot()))
+          stop()
+          current.run.dispose()
+          manual.dispose()
+          clock.dispose()
+          try {
+            current.run = (loaded.dev.wizard.resume as unknown as Resume)(snapshot, options)
+          } catch (error) {
+            return refusal(error)
+          }
+          stops = follow(current.run)
+          touch()
+          return { ok: true }
         },
       }
+      item = current
       held.set(item.id, item)
       // A step may wait on a service call for as long as the person takes, so do not await.
       void run.start().then(touch, touch)

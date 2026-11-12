@@ -47,6 +47,8 @@ export async function perform(item: Held, action: Action): Promise<ActionResult>
       return answer(await run.retry(action.step as never))
     case 'skip':
       return answer(await run.skip(action.step as never, 'Skipped from the dev UI'))
+    case 'restart':
+      return item.restart()
     case 'cancel':
       return answer(await run.cancel('Cancelled from the dev UI'))
   }

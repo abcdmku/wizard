@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import type { MDXComponents } from 'mdx/types'
 import { type ComponentPropsWithoutRef, useRef } from 'react'
 import { withBase } from '../../lib/site'
-import { RunDiagram } from '../run-diagram/run-diagram'
+import { Portal } from '../portal/portal'
 import { Sequence } from '../sequence/sequence'
 import { CopyButton } from './copy-button'
 import { Table } from './table'
@@ -71,6 +71,6 @@ export const mdxComponents: MDXComponents = {
   a: MdxAnchor,
   pre: Pre,
   table: Table,
-  RunDiagram,
+  Portal,
   Sequence,
 }

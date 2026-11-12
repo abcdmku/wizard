@@ -12,6 +12,18 @@ interface EventSource {
   readonly from?: string;
 }
 /**
+ * Values the UI opens its editors with, so a person can press the button without typing:
+ * `forms` by the id of a view, `events` by event name, and `calls` by the service call a step
+ * makes, such as `orders.find`. A call has no schema, so its example is the only hint of what
+ * the service returns.
+ * @public
+ */
+interface DevExamples {
+  readonly forms?: Readonly<Record<string, unknown>>;
+  readonly events?: Readonly<Record<string, unknown>>;
+  readonly calls?: Readonly<Record<string, unknown>>;
+}
+/**
  * One wizard in a dev config, made by `devWizard`.
  * @public
  */
@@ -23,6 +35,8 @@ interface DevWizard {
   readonly input?: unknown;
   /** Where each event comes from in production, by event name. */
   readonly events?: Readonly<Record<string, EventSource>>;
+  /** What the form, event and service call editors start with. */
+  readonly examples?: DevExamples;
 }
 /**
  * What `defineDev` takes: the wizards the dev server shows.
@@ -39,6 +53,7 @@ interface DevConfig {
  * devWizard(refund, {
  *   input: { orderId: 'o-2' },
  *   events: { 'refund.approved': { source: 'webhook', from: 'Back office' } },
+ *   examples: { calls: { 'orders.find': { total: 250 } } },
  * })
  * ```
  * @public
@@ -47,6 +62,11 @@ declare function devWizard<F extends AnyWizard>(wizard: F, options?: {
   readonly deps?: Partial<DepsOf<F>>;
   readonly input?: ContextInput<F>;
   readonly events?: { readonly [E in EventType<F>]?: EventSource; };
+  readonly examples?: {
+    readonly forms?: Readonly<Record<string, unknown>>;
+    readonly events?: { readonly [E in EventType<F>]?: unknown; };
+    readonly calls?: Readonly<Record<string, unknown>>;
+  };
 }): DevWizard;
 /**
  * Declares what `openwizard dev` shows. Export the result as the default export of the entry
@@ -114,6 +134,8 @@ interface WizardInfo {
   readonly services: readonly string[];
   /** Where each event comes from in production, when the dev config says. */
   readonly events: Readonly<Record<string, EventSource>>;
+  /** What the editors start with, when the dev config says. */
+  readonly examples: DevExamples;
 }
 /**
  * Everything the dev server loaded from the entry file, and the error when loading failed.
@@ -148,6 +170,8 @@ type Pending = {
     readonly name: string;
     readonly schema?: Schema;
     readonly origin?: EventSource;
+    /** The payload the editor starts with. */
+    readonly example?: unknown;
   }[];
   readonly deadline?: number;
 } | {
@@ -160,6 +184,8 @@ type Pending = {
   readonly id: string;
   readonly name: string;
   readonly args: readonly unknown[];
+  /** The return value the editor starts with. */
+  readonly example?: unknown;
 } | {
   readonly kind: 'failed';
   readonly step: string;
@@ -230,6 +256,10 @@ type Action = {
   readonly step: string;
 } | {
   readonly type: 'cancel';
+} |
+/** Disposes the run and resumes it from its snapshot, as a restarted process would. */
+{
+  readonly type: 'restart';
 };
 /**
  * The answer to an action. `issues` lists what a schema refused.

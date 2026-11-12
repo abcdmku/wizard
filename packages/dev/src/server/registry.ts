@@ -1,7 +1,13 @@
-import { configFrom, type DevWizard } from '../config'
+import type { inspect, toMarkdown } from '@openwizard/core/inspect'
+import type { DevConfig, DevWizard } from '../config'
 import type { Catalog, WizardInfo } from '../wire'
 import { exampleOf } from './example'
-import type { LoadedEntry } from './load'
+
+/** The two functions of `@openwizard/core/inspect` a registry calls. */
+export interface Inspector {
+  readonly inspect: typeof inspect
+  readonly toMarkdown: typeof toMarkdown
+}
 
 /** A loaded wizard: its dev entry and the facts the UI shows. */
 export interface Loaded {
@@ -15,12 +21,21 @@ export interface Registry {
   find(name: string): Loaded | undefined
 }
 
-/** Builds a registry from a load of the entry file. A wizard that cannot be inspected is reported, not dropped. */
-export function registryFrom(entry: string, load: LoadedEntry, now: number): Registry {
-  const { inspect, toMarkdown } = load.inspector
+/**
+ * Builds a registry from a dev config. `inspector` must come from the copy of
+ * `@openwizard/core` that defined the wizards. A wizard that cannot be inspected is reported,
+ * not dropped.
+ */
+export function registryFrom(
+  entry: string,
+  config: DevConfig,
+  inspector: Inspector,
+  now: number,
+): Registry {
+  const { inspect, toMarkdown } = inspector
   const loaded = new Map<string, Loaded>()
   const problems: string[] = []
-  for (const dev of configFrom(load.exports).wizards) {
+  for (const dev of config.wizards) {
     try {
       const manifest = inspect(dev.wizard)
       loaded.set(manifest.name, {
@@ -35,6 +50,7 @@ export function registryFrom(entry: string, load: LoadedEntry, now: number): Reg
           hasDeps: dev.deps !== undefined,
           services: Object.keys(dev.deps ?? {}),
           events: dev.events ?? {},
+          examples: dev.examples ?? {},
         },
       })
     } catch (error) {

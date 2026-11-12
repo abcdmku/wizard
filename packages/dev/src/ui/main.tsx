@@ -1,15 +1,12 @@
-import '@openwizard/devtools/style.css'
-import './styles.css'
-import './page.css'
-import './tables.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App } from './app'
+import { httpBackend } from './api'
+import { DevPortal } from './portal'
 
 const root = document.getElementById('root')
 if (root !== null)
   createRoot(root).render(
     <StrictMode>
-      <App />
+      <DevPortal backend={httpBackend()} nav="hash" style={{ height: '100dvh' }} />
     </StrictMode>,
   )

@@ -15,6 +15,7 @@ import { docsManifestPlugin, monacoLibsPlugin } from './lib/vite-plugins.mjs'
 const docsRoot = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 const pagesRoot = fileURLToPath(new URL('./pages', import.meta.url))
+const devConfigSource = fileURLToPath(new URL('../dev/src/config.ts', import.meta.url))
 const githubUrl = `https://github.com/${process.env.GITHUB_REPOSITORY ?? 'abcdmku/wizard'}`
 
 const base = resolveBasePath()
@@ -24,7 +25,11 @@ export default defineConfig({
   base,
   // Markdown imported from outside this package (READMEs, design docs) is compiled to modules
   // importing react / @mdx-js/react: `dedupe` resolves those from here, not from the repo root.
-  resolve: { dedupe: ['react', 'react-dom', '@mdx-js/react'] },
+  resolve: {
+    dedupe: ['react', 'react-dom', '@mdx-js/react'],
+    // The package entry starts a Node server. A page needs only `defineDev` and `devWizard`.
+    alias: [{ find: /^@openwizard\/dev$/, replacement: devConfigSource }],
+  },
   optimizeDeps: { exclude: ['virtual:docs-manifest', 'virtual:monaco-libs'] },
   worker: { format: 'es' },
   plugins: [

@@ -9,7 +9,5 @@ export default defineConfig({
   build: {
     outDir: '../../dist/ui',
     emptyOutDir: true,
-    // elkjs, the graph layout engine, is a 1.4 MB chunk by nature.
-    chunkSizeWarningLimit: 1_600,
   },
 })

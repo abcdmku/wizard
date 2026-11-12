@@ -9,9 +9,13 @@ npx openwizard dev src/refund.ts
 
 Open `http://127.0.0.1:4400`. The server shows every wizard the file exports and loads them again when a file they import changes.
 
+This is that UI, running in the page with the config from [Configure services and inputs](#configure-services-and-inputs). On your machine it talks to the dev server. Here it holds the runs itself.
+
+<Portal name="dev" />
+
 ## Drive a run by hand
 
-Start a run from a wizard's page. The run page lists what the run waits for, and each item has the control that supplies it.
+Start a run from a wizard's page. The run page shows the steps on the left and what the run waits for on the right. Each item has the control that supplies it.
 
 | Badge | The run waits for | You |
 |---|---|---|
@@ -25,7 +29,13 @@ Start a run from a wizard's page. The run page lists what the run waits for, and
 
 Each kind has its own badge, colour and icon, so a webhook wait does not look like a service call or a form.
 
-Below that, the graph shows the status of each step as it changes. The history lists every event of the run, and a click on a step shows its stored input, output and error.
+The graph shows the status of each step as it changes. The history lists every event of the run, and a click on a step shows its stored input, output and error.
+
+A form, a payload or an input whose schema is a flat object gets one field per property. "Edit as JSON" switches to the raw value.
+
+## Stop a run and resume it
+
+"Stop and resume" disposes the run and resumes it from its snapshot, which is what a restarted process does. Finished steps stay finished. A step that was running runs again if it declares `idempotencyKey`, and otherwise fails as `interrupted` so you can retry it.
 
 ## Say where events come from
 
@@ -55,6 +65,7 @@ Export a config from `openwizard.dev.ts` and run `npx openwizard dev` with no fi
 - `devWizard(wizard, { deps })` supplies real services. A service you leave out waits for your answer.
 - `input` is what the Start form opens with. Without it the form opens with the shape of the context schema.
 - `events` says where each event comes from.
+- `examples` is what each editor opens with: `forms` by view id, `events` by event name and `calls` by the service call, such as `payments.refund`. A service call has no schema, so its example is the only hint of what the service returns.
 - On the Start form, "I answer each call" ignores `deps` for that run.
 
 ## Know its limits
@@ -62,6 +73,6 @@ Export a config from `openwizard.dev.ts` and run `npx openwizard dev` with no fi
 - Runs live in the server's memory and end when it stops. Use [save and resume](/guide/save-resume) for runs that must last.
 - A run started before an edit keeps the old definition. The run page says so. Start it again to use the new one.
 - The server has no sign-in. It listens on `127.0.0.1` and refuses a write from another origin. Keep it on your own machine.
-- A child run's forms and events appear in the list. Its steps appear in the graph.
+- A child run's forms and events appear in the list. Its steps appear in the graph, in a box of their own. A child that runs once per item is drawn once.
 
 The [reference](/reference/dev) lists the command's options and the functions behind it.

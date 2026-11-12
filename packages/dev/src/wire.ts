@@ -7,7 +7,7 @@
 
 import type { AnyWizardDefinition, RunEvent, RunResult } from '@openwizard/core'
 import type { Manifest } from '@openwizard/core/inspect'
-import type { EventSource } from './config'
+import type { DevExamples, EventSource } from './config'
 
 /** A JSON Schema as `inspect` reports it. */
 export type Schema = NonNullable<Manifest['schemas']['context']>
@@ -31,6 +31,8 @@ export interface WizardInfo {
   readonly services: readonly string[]
   /** Where each event comes from in production, when the dev config says. */
   readonly events: Readonly<Record<string, EventSource>>
+  /** What the editors start with, when the dev config says. */
+  readonly examples: DevExamples
 }
 
 /**
@@ -70,6 +72,8 @@ export type Pending =
         readonly name: string
         readonly schema?: Schema
         readonly origin?: EventSource
+        /** The payload the editor starts with. */
+        readonly example?: unknown
       }[]
       readonly deadline?: number
     }
@@ -84,6 +88,8 @@ export type Pending =
       readonly id: string
       readonly name: string
       readonly args: readonly unknown[]
+      /** The return value the editor starts with. */
+      readonly example?: unknown
     }
   | {
       readonly kind: 'failed'
@@ -145,6 +151,8 @@ export type Action =
   | { readonly type: 'retry'; readonly step: string }
   | { readonly type: 'skip'; readonly step: string }
   | { readonly type: 'cancel' }
+  /** Disposes the run and resumes it from its snapshot, as a restarted process would. */
+  | { readonly type: 'restart' }
 
 /**
  * The answer to an action. `issues` lists what a schema refused.

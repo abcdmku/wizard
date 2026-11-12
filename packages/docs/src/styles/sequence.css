@@ -1,3 +1,40 @@
+/* The colours of a sequence diagram. */
+.seq-diagram {
+  --rd-line: #d4d4d4;
+  --rd-edge: #a3a3a3;
+  --rd-muted: #737373;
+  --rd-text: #171717;
+  --rd-surface: #fafafa;
+  --rd-node: #ffffff;
+  --rd-running: #2563eb;
+  --rd-running-bg: #eff6ff;
+  --rd-waiting: #b45309;
+  --rd-waiting-bg: #fffbeb;
+  --rd-done: #15803d;
+  --rd-done-bg: #f0fdf4;
+  --rd-failed: #b91c1c;
+  --rd-failed-bg: #fef2f2;
+  --rd-undo: #7e22ce;
+  --rd-undo-bg: #faf5ff;
+}
+.dark .seq-diagram {
+  --rd-line: #333333;
+  --rd-edge: #5c5c5c;
+  --rd-muted: #a3a3a3;
+  --rd-text: #f5f5f5;
+  --rd-surface: #111111;
+  --rd-node: #171717;
+  --rd-running: #60a5fa;
+  --rd-running-bg: #172554;
+  --rd-waiting: #fbbf24;
+  --rd-waiting-bg: #3a2a06;
+  --rd-done: #4ade80;
+  --rd-done-bg: #0d2a17;
+  --rd-failed: #f87171;
+  --rd-failed-bg: #3b1212;
+  --rd-undo: #c084fc;
+  --rd-undo-bg: #2a1440;
+}
 /* ---------- Sequence diagram: who sends what to whom ---------- */
 .seq-diagram {
   margin: 1.75rem 0;

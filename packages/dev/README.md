@@ -16,10 +16,11 @@ In a run you can:
 - answer a service call with a return value, or make it throw
 - skip to the next sleep, timeout or retry delay
 - retry or skip a failed step, and cancel the run
+- stop the run and resume it from its snapshot, as a restarted process would
 
 Each kind of wait has its own badge: Form, Webhook, Queue event, Event, Service call and Timer.
 
-To give a wizard real services, a starting input and the sender of each event, export a config:
+To give a wizard real services, a starting input, the sender of each event and the values its editors open with, export a config:
 
 ```ts
 import { defineDev, devWizard } from '@openwizard/dev'
@@ -30,6 +31,7 @@ export default defineDev({
     devWizard(refund, {
       input: { orderId: 'o-2' },
       events: { 'refund.approved': { source: 'webhook', from: 'Back office' } },
+      examples: { calls: { 'orders.find': { total: 250 } } },
     }),
   ],
 })
@@ -47,22 +49,22 @@ Read the [dev server guide](https://abcdmku.github.io/wizard/guide/dev).
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `Action` | type | What the UI can ask a run to do. | [src](../../packages/dev/src/wire.ts#L134) |
-| `ActionResult` | interface | The answer to an action. `issues` lists what a schema refused. | [src](../../packages/dev/src/wire.ts#L153) |
-| `Catalog` | interface | Everything the dev server loaded from the entry file, and the error when loading failed. | [src](../../packages/dev/src/wire.ts#L40) |
-| `defineDev` | function | Declares what `openwizard dev` shows. Export the result as the default export of the entry | [src](../../packages/dev/src/config.ts#L77) |
-| `DevConfig` | interface | What `defineDev` takes: the wizards the dev server shows. | [src](../../packages/dev/src/config.ts#L34) |
-| `DevServer` | interface | A running dev server: its `url`, `reload()` to load the entry file again and `close()`. | [src](../../packages/dev/src/server/server.ts#L28) |
-| `DevServerOptions` | interface | What `startDevServer` takes: the `entry` file that exports the wizards or a `defineDev` | [src](../../packages/dev/src/server/server.ts#L17) |
-| `devWizard` | function | Adds a wizard to a dev config, with the services and the starting input it should use and | [src](../../packages/dev/src/config.ts#L50) |
-| `DevWizard` | interface | One wizard in a dev config, made by `devWizard`. | [src](../../packages/dev/src/config.ts#L20) |
+| `Action` | type | What the UI can ask a run to do. | [src](../../packages/dev/src/wire.ts#L140) |
+| `ActionResult` | interface | The answer to an action. `issues` lists what a schema refused. | [src](../../packages/dev/src/wire.ts#L161) |
+| `Catalog` | interface | Everything the dev server loaded from the entry file, and the error when loading failed. | [src](../../packages/dev/src/wire.ts#L42) |
+| `defineDev` | function | Declares what `openwizard dev` shows. Export the result as the default export of the entry | [src](../../packages/dev/src/config.ts#L99) |
+| `DevConfig` | interface | What `defineDev` takes: the wizards the dev server shows. | [src](../../packages/dev/src/config.ts#L49) |
+| `DevServer` | interface | A running dev server: its `url`, `reload()` to load the entry file again and `close()`. | [src](../../packages/dev/src/server/server.ts#L29) |
+| `DevServerOptions` | interface | What `startDevServer` takes: the `entry` file that exports the wizards or a `defineDev` | [src](../../packages/dev/src/server/server.ts#L18) |
+| `devWizard` | function | Adds a wizard to a dev config, with the services and the starting input it should use and | [src](../../packages/dev/src/config.ts#L66) |
+| `DevWizard` | interface | One wizard in a dev config, made by `devWizard`. | [src](../../packages/dev/src/config.ts#L33) |
 | `EventSource` | interface | Where an event comes from in production, so the UI can say what the run is waiting for: a | [src](../../packages/dev/src/config.ts#L11) |
-| `Pending` | type | Something a run waits for that the UI can supply. | [src](../../packages/dev/src/wire.ts#L57) |
-| `RunDetail` | interface | Everything the UI shows for one run. | [src](../../packages/dev/src/wire.ts#L115) |
-| `RunSummary` | interface | One row of the run list. | [src](../../packages/dev/src/wire.ts#L98) |
-| `Services` | type | Who answers a service call: the `deps` from the dev config, or the person at the UI. | [src](../../packages/dev/src/wire.ts#L51) |
-| `startDevServer` | function | Starts the dev server: loads the entry file, serves the browser UI and the API it uses, and | [src](../../packages/dev/src/server/server.ts#L54) |
-| `StartRequest` | interface | What `POST /api/runs` accepts. | [src](../../packages/dev/src/wire.ts#L163) |
+| `Pending` | type | Something a run waits for that the UI can supply. | [src](../../packages/dev/src/wire.ts#L59) |
+| `RunDetail` | interface | Everything the UI shows for one run. | [src](../../packages/dev/src/wire.ts#L121) |
+| `RunSummary` | interface | One row of the run list. | [src](../../packages/dev/src/wire.ts#L104) |
+| `Services` | type | Who answers a service call: the `deps` from the dev config, or the person at the UI. | [src](../../packages/dev/src/wire.ts#L53) |
+| `startDevServer` | function | Starts the dev server: loads the entry file, serves the browser UI and the API it uses, and | [src](../../packages/dev/src/server/server.ts#L55) |
+| `StartRequest` | interface | What `POST /api/runs` accepts. | [src](../../packages/dev/src/wire.ts#L171) |
 | `WizardInfo` | interface | One wizard the dev server loaded: what `inspect` knows about it, the page `toMarkdown` | [src](../../packages/dev/src/wire.ts#L20) |
 
 <!-- exports:end -->

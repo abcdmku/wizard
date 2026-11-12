@@ -1,15 +1,19 @@
-import { WizardGraph } from '@openwizard/devtools'
 import { type ReactElement, useState } from 'react'
 import type { ActionResult, RunSummary, Services, WizardInfo } from '../wire'
-import { api } from './api'
-import { href, Status } from './app'
+import { Status } from './app'
+import { useBackend } from './backend'
+import { ValueEditor } from './fields'
 import { clock, shortId } from './format'
-import { JsonEditor, JsonView, Refusal, useJsonDraft } from './json'
+import { Graph } from './graph'
+import { JsonView, Refusal, useJsonDraft } from './json'
+import { Go, useNav } from './nav'
 import { Outside } from './outside'
 
 type Tab = 'outside' | 'steps' | 'schemas' | 'docs' | 'runs'
 
 function StartForm({ wizard }: { readonly wizard: WizardInfo }): ReactElement {
+  const backend = useBackend()
+  const nav = useNav()
   const [draft, setDraft] = useJsonDraft(
     wizard.exampleInput,
     `${wizard.name}:${wizard.manifest.fingerprint}`,
@@ -20,17 +24,22 @@ function StartForm({ wizard }: { readonly wizard: WizardInfo }): ReactElement {
 
   const start = async () => {
     setBusy(true)
-    const started = await api.start({ wizard: wizard.name, input: draft.value, services })
+    const started = await backend.start({ wizard: wizard.name, input: draft.value, services })
     setBusy(false)
     setResult(started)
-    if (started.ok && started.id !== undefined) location.hash = href.run(started.id)
+    if (started.ok && started.id !== undefined) nav.go({ page: 'run', id: started.id })
   }
 
   return (
     <section className="card start">
       <h2>Start a run</h2>
-      <JsonEditor draft={draft} onChange={setDraft} label="Input" />
-      <div className="start-side">
+      <ValueEditor
+        schema={wizard.manifest.schemas.context}
+        draft={draft}
+        onChange={setDraft}
+        label="Input"
+      />
+      {wizard.hasDeps ? (
         <fieldset className="choice">
           <legend>Service calls</legend>
           <label>
@@ -41,26 +50,29 @@ function StartForm({ wizard }: { readonly wizard: WizardInfo }): ReactElement {
             />
             I answer each call
           </label>
-          <label title={wizard.hasDeps ? undefined : 'The dev config gives this wizard no deps.'}>
+          <label>
             <input
               type="radio"
               checked={services === 'real'}
-              disabled={!wizard.hasDeps}
               onChange={() => setServices('real')}
             />
             Use the configured services
           </label>
         </fieldset>
-        <Refusal result={result} />
-        <button
-          type="button"
-          className="primary"
-          disabled={busy || draft.error !== undefined}
-          onClick={() => void start()}
-        >
-          Start run
-        </button>
-      </div>
+      ) : (
+        <p className="quiet note">
+          No services are configured, so each service call waits for your answer.
+        </p>
+      )}
+      <Refusal result={result} />
+      <button
+        type="button"
+        className="primary"
+        disabled={busy || draft.error !== undefined}
+        onClick={() => void start()}
+      >
+        Start run
+      </button>
     </section>
   )
 }
@@ -159,10 +171,12 @@ export function WizardPage(props: {
         </p>
       ))}
 
-      <StartForm wizard={wizard} />
-      <section className="card graph">
-        <WizardGraph graph={wizard.manifest} minimap={false} theme="system" />
-      </section>
+      <div className="split">
+        <section className="card graph" aria-label="Steps">
+          <Graph manifest={wizard.manifest} />
+        </section>
+        <StartForm wizard={wizard} />
+      </div>
 
       <div className="tabs" role="tablist">
         {tabs.map(([id, label]) => (
@@ -199,9 +213,9 @@ export function WizardPage(props: {
                 {runs.map((run) => (
                   <tr key={run.id}>
                     <td>
-                      <a href={href.run(run.id)}>
+                      <Go to={{ page: 'run', id: run.id }}>
                         <code>{shortId(run.id)}</code>
-                      </a>
+                      </Go>
                     </td>
                     <td>
                       <Status status={run.status} />

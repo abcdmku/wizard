@@ -5,7 +5,7 @@ Give a step the typed output of earlier steps with `needs`.
 ```ts file="packages/docs/snippets/learn/needs.ts"
 ```
 
-<RunDiagram name="needs" />
+<Portal name="needs" />
 
 - Create the producing steps first, then list them in `needs`. Every function of `summary` receives `needs.profile` and `needs.orders`, typed as those steps' outputs.
 - A step with `needs` starts when all of them have finished. No `next` has to point at it.

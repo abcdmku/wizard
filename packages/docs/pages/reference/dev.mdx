@@ -19,7 +19,7 @@ npx openwizard dev [entry] [--port 4400] [--host 127.0.0.1] [--no-watch]
 | Function | Meaning |
 |---|---|
 | `defineDev({ wizards })` | The config `openwizard dev` reads from the default export of the entry file |
-| `devWizard(wizard, { deps?, input?, events? })` | One wizard of a config: its services, the input the Start form opens with, and where each event comes from (`{ source: 'webhook' \| 'queue' \| 'code', from? }`) |
+| `devWizard(wizard, { deps?, input?, events?, examples? })` | One wizard of a config: its services, the input the Start form opens with, where each event comes from (`{ source: 'webhook' \| 'queue' \| 'code', from? }`), and what the form, event and service call editors open with (`{ forms?, events?, calls? }`) |
 | `startDevServer({ entry, port?, host?, watch? })` | Starts the server from your own script. Returns `{ url, port, reload(), close() }` |
 
 The UI talks to a JSON API on the same port.
@@ -29,7 +29,7 @@ The UI talks to a JSON API on the same port.
 | `GET /api/catalog` | The loaded wizards, each with its `inspect` manifest and generated page, and the load error if there is one |
 | `GET /api/runs`, `POST /api/runs` | List the runs, or start one with `{ wizard, input, services? }` |
 | `GET /api/runs/:id`, `DELETE /api/runs/:id` | One run with its snapshot, events and what it waits for, or remove it |
-| `POST /api/runs/:id/actions` | Submit a form, send an event, answer a service call, skip a timer, retry, skip or cancel |
+| `POST /api/runs/:id/actions` | Submit a form, send an event, answer a service call, skip a timer, retry, skip, cancel, or stop the run and resume it from its snapshot |
 | `GET /api/stream` | Server-sent events that say which run changed |
 
 Full signatures are in the [generated reference](/typedoc/modules/_openwizard_dev.html).
