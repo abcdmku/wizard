@@ -40,6 +40,24 @@ function Card(props: {
   )
 }
 
+/** The call that does in code what the button does here. */
+function InCode({ children }: { readonly children: string }): ReactElement {
+  return (
+    <p className="incode">
+      <span>In code</span>
+      <code>{children}</code>
+    </p>
+  )
+}
+
+/** `run` for the root run, `run.child('shipping')` for a step inside a child. */
+const scope = (path: readonly string[]): string =>
+  path.reduce(
+    (text, part) =>
+      /^\d+$/.test(part) ? `${text.slice(0, -1)}, ${part})` : `${text}.child('${part}')`,
+    'run',
+  )
+
 function ViewCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kind: 'view' }> }) {
   const [draft, setDraft] = useJsonDraft(
     item.draft ?? exampleOf(item.schema),
@@ -65,6 +83,9 @@ function ViewCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kind
       >
         Submit form
       </button>
+      <InCode>
+        {`await ${scope(item.path)}.setInput('${item.step}', ${brief(draft.value, 60)})\nawait ${scope(item.path)}.next()`}
+      </InCode>
     </Card>
   )
 }
@@ -111,6 +132,7 @@ function EventCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kin
       >
         Send {name}
       </button>
+      <InCode>{`await run.send('${name}', ${brief(draft.value, 60)})`}</InCode>
     </Card>
   )
 }
@@ -189,6 +211,7 @@ function FailedCard({ run, item }: { run: RunDetail; item: Extract<Pending, { ki
           Skip
         </button>
       </div>
+      <InCode>{`await run.retry('${item.step}')\nawait run.skip('${item.step}')`}</InCode>
     </Card>
   )
 }

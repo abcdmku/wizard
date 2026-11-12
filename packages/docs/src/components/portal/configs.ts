@@ -1,10 +1,14 @@
 /**
- * The dev config behind each live portal on the site. Every wizard comes from
- * `packages/docs/snippets`, so the portal runs the code its page shows.
+ * The dev config behind each live portal on the site, and what a reader should try in it.
+ * Every wizard comes from `packages/docs/snippets`, so the portal runs the code its page shows.
  */
 import { type DevConfig, defineDev, devWizard } from '@openwizard/dev'
 import { refund } from '../../../snippets/agents/refund'
 import devConfig from '../../../snippets/dev/openwizard.dev'
+import { deploy } from '../../../snippets/home/deploy'
+import { incident } from '../../../snippets/home/incident'
+import { onboarding } from '../../../snippets/home/onboarding'
+import { research } from '../../../snippets/home/research'
 import { delivery } from '../../../snippets/learn/branch'
 import { checkout } from '../../../snippets/learn/children'
 import { trip } from '../../../snippets/learn/compensate'
@@ -15,53 +19,187 @@ import { upload } from '../../../snippets/learn/retry'
 import { report } from '../../../snippets/learn/steps'
 import { approval } from '../../../snippets/learn/wait'
 
-/** One portal: the file its wizards come from and what the UI loads. */
+/** One portal: the file its wizards come from, what the UI loads and what to try. */
 export interface PortalSpec {
   /** Shown in the top bar, where the dev server shows its entry file. */
   readonly file: string
   readonly config: DevConfig
+  /** What a reader does to see the point of the page, in order. */
+  readonly tries: readonly string[]
+  /** False to open on the wizard, so the reader picks the input. A run starts otherwise. */
+  readonly autostart?: false
 }
 
-const one = (file: string, wizard: DevConfig['wizards'][number]): PortalSpec => ({
+const one = (
+  file: string,
+  wizard: DevConfig['wizards'][number],
+  tries: readonly string[],
+  autostart?: false,
+): PortalSpec => ({
   file,
   config: defineDev({ wizards: [wizard] }),
+  tries,
+  ...(autostart === false ? { autostart } : {}),
+})
+
+const refundWizard = devWizard(refund, {
+  input: { orderId: 'o-2' },
+  events: { 'refund.approved': { source: 'webhook', from: 'Back office' } },
+  examples: {
+    forms: { request: { amount: 900, reason: 'never arrived' } },
+    events: { 'refund.approved': { by: 'grace' } },
+    calls: { 'orders.find': { total: 250 }, 'payments.refund': { refundId: 'refund-1' } },
+  },
+})
+
+/** Five wizards with little in common, so a reader sees how far one model stretches. */
+const home = defineDev({
+  wizards: [
+    refundWizard,
+    devWizard(research, {
+      input: { question: 'Which laptop should the design team buy?' },
+      examples: {
+        forms: { review: { approve: true, note: '' } },
+        calls: {
+          'model.plan': { queries: ['laptops for designers', 'colour accurate displays'] },
+          'search.run': 'Three models have a display that covers 100% of P3.',
+          'model.write': 'Buy the 16 inch model. Its display covers 100% of P3.',
+        },
+      },
+    }),
+    devWizard(onboarding, {
+      input: { name: 'Ada Example' },
+      events: { 'laptop.delivered': { source: 'queue', from: 'courier topic' } },
+      examples: {
+        forms: { details: { team: 'engineering', startDate: '2027-01-11' } },
+        events: { 'laptop.delivered': { tracking: 'TRACK-1' } },
+        calls: {
+          'directory.createAccount': { email: 'ada@example.com' },
+          'it.orderLaptop': { orderId: 'IT-1' },
+        },
+      },
+    }),
+    devWizard(incident, {
+      input: { service: 'checkout-api' },
+      events: {
+        'incident.acked': { source: 'webhook', from: 'Pager' },
+        'incident.resolved': { source: 'webhook', from: 'Monitoring' },
+      },
+      examples: {
+        events: {
+          'incident.acked': { by: 'grace' },
+          'incident.resolved': { fix: 'Rolled back release 42' },
+        },
+        calls: {
+          'pager.page': { pageId: 'page-1' },
+          'wiki.createPostmortem': { url: 'https://wiki.example.com/postmortems/1' },
+        },
+      },
+    }),
+    devWizard(deploy, {
+      input: { version: '2.4.0' },
+      examples: {
+        calls: {
+          'ci.build': { image: 'app:2.4.0' },
+          'cluster.release': { releaseId: 'rel-1' },
+          'cluster.rollback': null,
+          'metrics.errorRate': 0.002,
+        },
+      },
+    }),
+  ],
 })
 
 /** Portals by the name a page passes to `<Portal name="..." />`. */
 export const portals: Readonly<Record<string, PortalSpec>> = {
-  dev: { file: 'dev/openwizard.dev.ts', config: devConfig },
-  refund: one(
-    'agents/refund.ts',
-    devWizard(refund, {
-      input: { orderId: 'o-2' },
-      events: { 'refund.approved': { source: 'webhook', from: 'Back office' } },
-      examples: {
-        forms: { request: { amount: 900, reason: 'never arrived' } },
-        events: { 'refund.approved': { by: 'grace' } },
-        calls: { 'orders.find': { total: 250 }, 'payments.refund': { refundId: 'refund-1' } },
-      },
-    }),
-  ),
+  home: {
+    file: 'home/openwizard.dev.ts',
+    config: home,
+    autostart: false,
+    tries: [
+      'Pick a wizard in the list. Each one is a different job: a refund, a research agent, a new hire, an incident and a deploy.',
+      'Press Start run. You play every person and every system the run waits for.',
+      'In deploy, return an error rate of 0.2 at the health check. The run undoes the canary.',
+      'In incident, skip the five minute timer where it waits for an answer. The page goes to the manager.',
+    ],
+  },
+  dev: {
+    file: 'dev/openwizard.dev.ts',
+    config: devConfig,
+    autostart: false,
+    tries: [
+      'Start a refund. The order lookup uses a configured service, so it answers on its own.',
+      'Submit the form, then send the webhook the manager step waits for.',
+      'Answer payments.refund yourself, or make it throw and retry the step.',
+    ],
+  },
+  refund: one('agents/refund.ts', refundWizard, [
+    'Return the order, then submit the form. A refund of 900 goes to a manager.',
+    'Send refund.approved, then return the payment.',
+  ]),
   steps: one(
     'learn/steps.ts',
     devWizard(report, {
       input: { reportId: 'r-1' },
       examples: { calls: { 'reports.download': { pages: 3 } } },
     }),
+    [
+      'The run stopped at download, where the step called deps.reports.download. Press Return to be that service.',
+      'announce starts because download named it in next. Its output is the result of the run.',
+      'Open History to see each step enter and finish, in order.',
+    ],
   ),
-  needs: one('learn/needs.ts', devWizard(dashboard, { input: { userId: '7' } })),
+  needs: one(
+    'learn/needs.ts',
+    devWizard(dashboard, {
+      input: { userId: '7' },
+      examples: {
+        calls: {
+          'users.find': { name: 'User 7' },
+          'orders.list': [{ id: 'order-1' }, { id: 'order-2' }],
+        },
+      },
+    }),
+    [
+      'profile and orders both run, because both start the wizard. Return one of the two calls.',
+      'summary still says "waiting for needs". It starts only when both have finished.',
+      'Return the other call, then click summary in the graph to see the output it built from both.',
+    ],
+  ),
   forms: one(
     'learn/form.ts',
     devWizard(signup, { examples: { forms: { contact: { email: 'not-an-email' } } } }),
+    [
+      'Submit the form as it is. The schema refuses the email and the run stays on contact.',
+      'Enter a real address and submit again. welcome reads it through needs.',
+    ],
   ),
-  branch: one('learn/branch.ts', devWizard(delivery, { input: { speed: 'express' } })),
+  branch: one(
+    'learn/branch.ts',
+    devWizard(delivery, { input: { speed: 'express' } }),
+    [
+      'Start a run with speed express. choose starts express and skips standard.',
+      'Go back to delivery in the list, pick standard and start another run. The other branch runs, and label still gets a value.',
+    ],
+    false,
+  ),
   wait: one(
     'learn/wait.ts',
     devWizard(approval, { examples: { events: { approved: { by: 'Grace' } } } }),
+    [
+      'The run waits at decision for the approved event. Press Send approved.',
+      'Press Start again, then "Skip to it" on the timer. That is 48 hours passing. decision is skipped and close still runs.',
+      'Start again and send a payload with no "by". The schema refuses it and the step keeps waiting.',
+    ],
   ),
   'save-resume': one(
     'learn/form.ts',
     devWizard(signup, { examples: { forms: { contact: { email: 'ada@example.com' } } } }),
+    [
+      'Open the Snapshot tab. That JSON is the whole run, and it is what a store keeps.',
+      'Press "Stop and resume". The run is disposed and built again from that JSON, and the form still waits.',
+      'Submit the form. The resumed run finishes.',
+    ],
   ),
   children: one(
     'learn/children.ts',
@@ -69,6 +207,11 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       input: { country: 'NL' },
       examples: { forms: { street: { street: 'Keizersgracht 1' } } },
     }),
+    [
+      'shipping is a whole wizard running as one step. Its form shows as "shipping / street".',
+      'Submit it. The output of the child becomes the output of shipping, and confirm reads it.',
+      'Open Snapshot. The child run is stored inside the parent.',
+    ],
   ),
   retry: one(
     'learn/retry.ts',
@@ -76,6 +219,11 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       input: { fileId: 'f-1' },
       examples: { calls: { 'storage.save': { url: '/files/f-1' } } },
     }),
+    [
+      'Press Throw on storage.save. The step goes to "retrying" and a one second timer starts.',
+      'The call comes back with the same idempotency key. Throw twice more to use up the retries. The run halts.',
+      'Press Retry on the failed step, then Return.',
+    ],
   ),
   fallback: one(
     'learn/fallback.ts',
@@ -83,6 +231,10 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       input: { sku: 'sku-1', listPrice: 10 },
       examples: { calls: { 'live.price': 12 } },
     }),
+    [
+      'Press Throw on live.price. The run does not halt. live is skipped and list starts.',
+      'quote reads the list price. Start again and press Return to see it read the live price.',
+    ],
   ),
   compensate: one(
     'learn/compensate.ts',
@@ -96,5 +248,10 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
         },
       },
     }),
+    [
+      'Return flights.book. The flight is booked.',
+      'Press Throw on hotels.book. The run calls flights.cancel with the reference you returned.',
+      'Return flights.cancel. The run ends as failed, with the flight undone.',
+    ],
   ),
 }

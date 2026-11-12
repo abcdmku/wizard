@@ -252,3 +252,24 @@ textarea[aria-invalid="true"] {
   padding: 10px 14px;
   font-size: 13px;
 }
+
+/* The call that does in code what a button does here. */
+.incode {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  color: var(--quiet);
+  font-size: 12px;
+}
+.incode span {
+  flex: none;
+  font-weight: 600;
+}
+.incode code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
