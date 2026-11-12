@@ -1,4 +1,5 @@
 import { ArrowDownLeft, ArrowUpRight, SquarePen } from 'lucide-react'
+import { type CSSProperties, useMemo } from 'react'
 import type { OutsideCard } from './outside'
 
 const cardKey = (card: OutsideCard): string =>
@@ -89,40 +90,68 @@ const TONE: Readonly<Record<string, string>> = {
   rejected: 'failed',
 }
 
+const body = (card: OutsideCard) =>
+  card.kind === 'form' ? (
+    <FormBody card={card} />
+  ) : card.kind === 'call' ? (
+    <CallBody card={card} />
+  ) : (
+    <EventBody card={card} />
+  )
+
+/** Every card of a recording in the order they appear, each with all the versions it goes through. */
+function slotsOf(frames: readonly { readonly outside: readonly OutsideCard[] }[]) {
+  const slots = new Map<string, Map<string, OutsideCard>>()
+  for (const frame of frames) {
+    for (const card of frame.outside) {
+      const versions = slots.get(cardKey(card)) ?? new Map<string, OutsideCard>()
+      versions.set(JSON.stringify(card), card)
+      slots.set(cardKey(card), versions)
+    }
+  }
+  return [...slots].map(([key, versions]) => ({ key, versions: [...versions.values()] }))
+}
+
 /**
- * What is outside the run at one frame: forms, service calls and events. `all` is every card the
- * recording ever shows. A card that has not appeared yet keeps its place, so the diagram does not
- * change height while it plays.
+ * What is outside the run at one frame: forms, service calls and events. `frames` is the whole
+ * recording. Each card has a slot from the start, sized for its tallest version, so the diagram
+ * does not change height while it plays. A slot stays an empty outline until its card appears.
  */
 export function OutsideCards({
   now,
-  all,
+  frames,
 }: {
   readonly now: readonly OutsideCard[]
-  readonly all: readonly OutsideCard[]
+  readonly frames: readonly { readonly outside: readonly OutsideCard[] }[]
 }) {
-  if (all.length === 0) return null
+  const slots = useMemo(() => slotsOf(frames), [frames])
+  if (slots.length === 0) return null
   const current = new Map(now.map((card) => [cardKey(card), card]))
+  // Four cards sit in one row or two by two. Three columns would leave one alone on a second row.
+  const four = slots.length === 4
   return (
     <div className="rd-outside">
       <p className="rd-outside-title">Outside the run</p>
-      <ul>
-        {all.map((placeholder) => {
-          const card = current.get(cardKey(placeholder))
-          const shown = card ?? placeholder
+      <ul
+        style={{ '--rd-columns': four ? 2 : 3, '--rd-columns-wide': four ? 4 : 3 } as CSSProperties}
+      >
+        {slots.map(({ key, versions }) => {
+          const card = current.get(key)
+          const shown = card ? JSON.stringify(card) : undefined
           return (
-            <li
-              key={cardKey(placeholder)}
-              className={`rd-card is-${TONE[shown.state] ?? 'waiting'}${card ? '' : ' is-future'}`}
-              aria-hidden={card ? undefined : true}
-            >
-              {shown.kind === 'form' ? (
-                <FormBody card={shown} />
-              ) : shown.kind === 'call' ? (
-                <CallBody card={shown} />
-              ) : (
-                <EventBody card={shown} />
-              )}
+            <li key={key} className={`rd-slot${card ? '' : ' is-empty'}`}>
+              {versions.map((version) => {
+                const id = JSON.stringify(version)
+                return (
+                  <div
+                    key={id}
+                    className={`rd-card is-${TONE[version.state] ?? 'waiting'}${id === shown ? ' is-current' : ''}`}
+                    aria-hidden={id === shown ? undefined : true}
+                  >
+                    {body(version)}
+                  </div>
+                )
+              })}
             </li>
           )
         })}

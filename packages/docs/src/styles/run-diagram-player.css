@@ -1,11 +1,22 @@
 /* ---------- Run diagram: the panel beside the graph and the controls ---------- */
 /* What the caller did and what happened */
 .rd-panel {
+  display: grid;
+  min-height: 11rem;
+  align-items: start;
+  padding: 16px;
+}
+/* Every frame is laid out in the same cell and only the current one shows. */
+.rd-frame {
   display: flex;
-  min-height: 15.5rem;
+  min-width: 0;
   flex-direction: column;
   gap: 8px;
-  padding: 14px;
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
+.rd-frame.is-current {
+  visibility: visible;
 }
 .run-diagram .rd-run {
   margin: 0;
@@ -93,6 +104,12 @@
 }
 
 /* Controls */
+.run-diagram {
+  --rd-dot: #c4c4c4;
+}
+.dark .run-diagram {
+  --rd-dot: #4a4a4a;
+}
 .rd-controls {
   display: flex;
   align-items: center;
@@ -102,8 +119,8 @@
 }
 .rd-controls > button {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -130,26 +147,27 @@
   display: flex;
   min-width: 0;
   flex: 1;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
   margin: 0 4px;
   padding: 0;
   list-style: none;
 }
+/* The dots share one row and narrow together when a long run meets a small screen. */
 .run-diagram .rd-track li {
+  min-width: 0;
+  flex: 0 1 20px;
   margin: 0;
 }
 .rd-track button {
   display: block;
-  width: 16px;
-  height: 20px;
+  width: 100%;
+  height: 32px;
   cursor: pointer;
   background:
-    radial-gradient(circle, var(--rd-line) 0 3px, transparent 3.5px) center / 100% 100% no-repeat;
+    radial-gradient(circle, var(--rd-dot) 0 3px, transparent 3.5px) center / 100% 100% no-repeat;
 }
 .rd-track button.is-call {
-  background-image: radial-gradient(circle, var(--rd-line) 0 4.5px, transparent 5px);
+  background-image: radial-gradient(circle, var(--rd-dot) 0 4.5px, transparent 5px);
 }
 .rd-track button.is-past {
   background-image: radial-gradient(circle, var(--rd-muted) 0 3px, transparent 3.5px);
@@ -158,7 +176,16 @@
   background-image: radial-gradient(circle, var(--rd-muted) 0 4.5px, transparent 5px);
 }
 .rd-track button.is-current {
-  background-image: radial-gradient(circle, var(--rd-text) 0 5.5px, transparent 6px);
+  background-image: radial-gradient(
+    circle,
+    var(--rd-text) 0 3.5px,
+    var(--rd-surface) 4px 5px,
+    var(--rd-text) 5.5px 6.5px,
+    transparent 7px
+  );
+}
+.rd-track button:hover:not(.is-current) {
+  background-image: radial-gradient(circle, var(--rd-text) 0 4.5px, transparent 5px);
 }
 .rd-count {
   flex: none;
@@ -179,14 +206,27 @@
     border-right: 0;
     border-bottom: 1px solid var(--rd-line);
   }
-  .rd-panel {
-    min-height: 13rem;
+}
+/* Fingers need larger targets than a pointer does. */
+@media (pointer: coarse) {
+  .rd-controls > button {
+    width: 40px;
+    height: 40px;
+  }
+  .rd-track button {
+    height: 40px;
+  }
+  .rd-tabs button {
+    min-height: 36px;
+    padding: 6px 12px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .rd-node rect,
   .rd-node text,
-  .rd-edge {
+  .rd-edge,
+  .rd-edge-label,
+  .rd-card {
     transition: none;
     animation: none;
   }
