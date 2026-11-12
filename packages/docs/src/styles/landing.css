@@ -2,12 +2,12 @@
 .landing {
   display: flex;
   width: 100%;
-  max-width: 56rem;
+  max-width: 64rem;
   flex: 1;
   flex-direction: column;
   align-items: flex-start;
   margin: 0 auto;
-  padding: 72px 20px 88px;
+  padding: 52px 22px 80px;
 }
 .landing h1 {
   color: #0a0a0a;
@@ -30,15 +30,25 @@
 .dark .landing-sentence {
   color: #a3a3a3;
 }
+/* The install command and the way into the docs share one row. */
+.landing-hero-actions {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 26px;
+}
 .landing-install {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
+  min-width: 0;
+  height: 42px;
   gap: 10px;
-  margin-top: 28px;
   border: 1px solid #e5e5e5;
   border-radius: 8px;
-  padding: 7px 8px 7px 14px;
+  padding: 0 8px 0 14px;
   color: #404040;
   font-family: var(--font-mono);
   font-size: 13px;
@@ -55,9 +65,17 @@
   overflow-x: auto;
   white-space: nowrap;
 }
+/* On the narrowest phones the command still fits on one line. */
+@media (max-width: 380px) {
+  .landing-install {
+    gap: 8px;
+    padding-left: 11px;
+    font-size: 12px;
+  }
+}
 .landing-section {
   width: 100%;
-  margin-top: 56px;
+  margin-top: 48px;
 }
 .landing-section h2 {
   color: #0a0a0a;
@@ -99,7 +117,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 28px;
+  margin-top: 32px;
 }
 .landing-action.is-quiet {
   border: 1px solid #d4d4d4;
@@ -122,7 +140,6 @@
   height: 42px;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
   border-radius: 8px;
   background: #171717;
   padding: 0 18px;

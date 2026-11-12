@@ -28,7 +28,7 @@ export function ThemeToggle({ className = '' }: { readonly className?: string })
             aria-label={label}
             title={label}
             onClick={() => setTheme(value)}
-            className={`rounded-full p-1.5 transition-colors ${
+            className={`inline-flex items-center justify-center rounded-full p-1.5 transition-colors ${
               active
                 ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
                 : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'
