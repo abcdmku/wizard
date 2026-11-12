@@ -44,9 +44,32 @@
   color: var(--rd-muted);
 }
 
+/* The graph sets the height of a live diagram. The side never does: it fills that height and
+   scrolls inside, so the page does not move while the reader clicks. */
+.live-run .rd-body {
+  min-height: 27rem;
+}
+.lv-side {
+  position: relative;
+  min-width: 0;
+}
+.lv-side-inner {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .lv-portal {
-  border-top: 1px solid var(--rd-line);
-  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--rd-line);
+  padding: 12px;
+}
+.lv-panel {
+  padding: 12px 16px 16px;
+}
+@media (max-width: 640px) {
+  .lv-side {
+    height: 30rem;
+  }
 }
 .run-diagram .lv-portal-title {
   margin: 0 0 8px 2px;
@@ -58,7 +81,7 @@
 }
 .run-diagram .lv-portal ul {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 232px), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin: 0;
   padding: 0;

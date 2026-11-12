@@ -106,14 +106,24 @@ export function RunDiagram({ name }: { readonly name: string }) {
         <div className="rd-stage">
           <RunGraph manifest={manifest} steps={state?.steps ?? idle} />
         </div>
-        <div className="rd-panel lv-panel">
-          <CallLog state={state} />
+        {/* The side has a fixed size and scrolls inside, so a click never moves the page. */}
+        <div className="lv-side">
+          <div className="lv-side-inner">
+            {live && state && (
+              <LivePortal
+                key={`${variant}:${generation}`}
+                live={live}
+                state={state}
+                restart={restart}
+              />
+            )}
+            <div className="lv-panel">
+              <p className="lv-portal-title">Calls this page made</p>
+              <CallLog state={state} />
+            </div>
+          </div>
         </div>
       </div>
-
-      {live && state && (
-        <LivePortal key={`${variant}:${generation}`} live={live} state={state} restart={restart} />
-      )}
     </figure>
   )
 }
