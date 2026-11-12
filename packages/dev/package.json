@@ -1,6 +1,6 @@
 {
   "name": "@openwizard/dev",
-  "version": "0.1.0-next.0",
+  "version": "0.1.0-next.1",
   "description": "A local dev server and browser UI to view OpenWizard wizards, start runs and drive them by hand.",
   "license": "MIT",
   "type": "module",

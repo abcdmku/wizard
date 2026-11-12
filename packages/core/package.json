@@ -1,6 +1,6 @@
 {
   "name": "@openwizard/core",
-  "version": "0.1.0-next.0",
+  "version": "0.1.0-next.1",
   "description": "Define TypeScript workflows and run them. Wait, retry, save, and resume.",
   "license": "MIT",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@openwizard/drizzle",
-  "version": "0.1.0-next.0",
+  "version": "0.1.0-next.1",
   "description": "PostgreSQL and SQLite storage for durable OpenWizard runs, through Drizzle.",
   "license": "MIT",
   "type": "module",
