@@ -1,18 +1,9 @@
 import { expect } from '@playwright/test'
-import {
-  ackFor,
-  type BrowserPlayer,
-  movePlayers,
-  projectionOf,
-  sentCommandAfter,
-} from './browser-player.js'
+import { ackFor, type BrowserPlayer, projectionOf, sentCommandAfter } from './browser-player.js'
 
-const safeAttackRangeTiles = 1.625
-
-export interface CombatWaypoint {
-  readonly axis: 'x' | 'y'
-  readonly target: number
-}
+// A player's attack reaches 1.75 tiles and an enemy's reaches 1.15. Striking as soon as the
+// enemy is this close leaves it the longest walk before it can hit back.
+const attackRangeTiles = 1.7
 
 const enemy = (player: BrowserPlayer, enemyId: string) =>
   player.projection?.enemies.find((candidate) => candidate.id === enemyId)
@@ -31,7 +22,7 @@ const projectedRange = (player: BrowserPlayer, tiles: number): number => {
 }
 
 async function awaitEnemyInAttackRange(player: BrowserPlayer, enemyId: string): Promise<void> {
-  const safeAttackRange = projectedRange(player, safeAttackRangeTiles)
+  const attackRange = projectedRange(player, attackRangeTiles)
   await expect
     .poll(
       () => {
@@ -43,9 +34,10 @@ async function awaitEnemyInAttackRange(player: BrowserPlayer, enemyId: string): 
         if (self.health <= 0) {
           return `downed tick=${projection.tick} self=${self.position.x},${self.position.y} enemy=${target.position.x},${target.position.y} distance=${distance}`
         }
-        return distance <= safeAttackRange ? 'in-range' : `waiting distance=${distance}`
+        return distance <= attackRange ? 'in-range' : `waiting distance=${distance}`
       },
-      { timeout: 8_000, intervals: [50, 100] },
+      // The enemy walks here at its own speed, so this waits on the game and not on the machine.
+      { timeout: 15_000, intervals: [50, 100] },
     )
     .toBe('in-range')
   expect(projectionOf(player).self.health).toBeGreaterThan(0)
@@ -64,10 +56,14 @@ async function useHealthPotionIfNeeded(player: BrowserPlayer): Promise<void> {
     .toBe(true)
 }
 
+/**
+ * Strikes with every player each time their attacks are ready, until the enemy is dead.
+ * The callers put the players where the fight does not depend on how fast the rounds run:
+ * a kill in one round, or a spot the enemy cannot reach.
+ */
 export async function defeatEnemy(
   players: readonly BrowserPlayer[],
   enemyId: string,
-  retreatWaypoints: readonly CombatWaypoint[] = [],
 ): Promise<void> {
   const leader = players[0]
   if (leader === undefined) throw new Error('combat requires at least one player')
@@ -127,11 +123,6 @@ export async function defeatEnemy(
       .toBeGreaterThanOrEqual(committedSequence)
     expect(enemy(leader, enemyId)?.health ?? 0).toBeLessThan(beforeHealth)
     if (enemy(leader, enemyId)?.health === 0) return
-    const waypoint = retreatWaypoints[round]
-    if (waypoint === undefined) {
-      throw new Error(`${enemyId} survived round ${round + 1} without a retreat waypoint`)
-    }
-    await movePlayers(players, waypoint.axis, waypoint.target, 8)
     nextAttackTick = projectionOf(leader).tick + 5
   }
   expect(enemy(leader, enemyId)?.health).toBe(0)

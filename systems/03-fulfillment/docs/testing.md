@@ -71,6 +71,12 @@ assertions run through the real Postgres container. Queue assertions call
 `awslocal` inside the real LocalStack container. Webhook assertions sign the
 exact request bytes.
 
+Retry and DLQ cases shorten a work queue's visibility timeout with
+`setVisibilityTimeout` from `tests/support/localstack.ts`. A receive reads the
+timeout when it starts, so the helper waits for the Lambda poll that is already
+open to end before the test publishes. Without that wait the first delivery can
+keep the old 120-second timeout and the retry arrives after the test deadline.
+
 REST cases cover missing, unknown, and malformed credentials, missing role
 scope, malformed JSON, invalid commands, customer and operator cross-tenant
 IDs, tenant-scoped operator lists, duplicate commands, and projection

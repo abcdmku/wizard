@@ -7,7 +7,7 @@ import {
 } from '@fulfillment/contracts'
 import { describe, expect, it } from 'vitest'
 import { auth, integrationReady, parseBody, requestJson, route, tokens } from './support/http'
-import { localstack, queueUrl } from './support/localstack'
+import { localstack, queueUrl, setVisibilityTimeout } from './support/localstack'
 
 const orderInput = CreateOrderSchema.parse({
   currency: 'USD',
@@ -97,14 +97,7 @@ describe.skipIf(!integrationReady)('LocalStack fulfillment topology', () => {
     ])
     expect(originalRedrive).toMatch(/"maxReceiveCount"\s*:\s*"?5"?/)
     try {
-      await localstack([
-        'sqs',
-        'set-queue-attributes',
-        '--queue-url',
-        workUrl,
-        '--attributes',
-        JSON.stringify({ VisibilityTimeout: '1' }),
-      ])
+      await setVisibilityTimeout(workUrl, 1)
       const orderId = await createOrder(
         CreateOrderSchema.parse({
           ...orderInput,
@@ -153,14 +146,7 @@ describe.skipIf(!integrationReady)('LocalStack fulfillment topology', () => {
   it('retries transient inventory work and eventually reaches the fraud wait', async () => {
     const inventoryUrl = await queueUrl('fulfillment-inventory-work')
     try {
-      await localstack([
-        'sqs',
-        'set-queue-attributes',
-        '--queue-url',
-        inventoryUrl,
-        '--attributes',
-        JSON.stringify({ VisibilityTimeout: '1' }),
-      ])
+      await setVisibilityTimeout(inventoryUrl, 1)
       const order = await waitForFraudReview(await createOrder(retryInput))
       expect(order.partnerState.paymentAuthorization.state).toBe('authorized')
       expect(order.partnerState.inventoryReservation.state).toBe('reserved')

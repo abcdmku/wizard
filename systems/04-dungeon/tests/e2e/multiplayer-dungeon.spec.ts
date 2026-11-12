@@ -12,7 +12,7 @@ import {
   sentCommandAfter,
 } from './browser-player.js'
 import { defeatEnemy } from './combat.js'
-import { moveToDoorRow, routeToDoorRow } from './dungeon-route.js'
+import { leaveBossGate, moveToDoorRow, routeToDoorRow, takeBossCover } from './dungeon-route.js'
 
 const requestedPlayers = Number(process.env.DUNGEON_E2E_PLAYERS ?? '2')
 if (!Number.isInteger(requestedPlayers) || requestedPlayers < 2 || requestedPlayers > 4) {
@@ -212,17 +212,29 @@ test('2-4 players clear the dungeon with an owner-bound key and vote for a remat
       })
     }
 
+    // The warden comes down to whoever stands in the doorway, and one round kills it. Waiting
+    // there lets the fighters strike first, however long the walk to the door took.
     await routeToDoorRow(fighters, sharedDoor.position.y)
-    await movePlayers(fighters, 'x', 430, 20)
-    await movePlayers(fighters, 'y', 145, 24)
-    await defeatEnemy(fighters, 'enemy:warden:1', [{ axis: 'x', target: 430 }])
-    await moveUntilVisible(owner, 'south', 'pickup-button')
+    await movePlayers(fighters, 'x', sharedDoor.position.x, 8)
+    await defeatEnemy(fighters, 'enemy:warden:1')
+    await expect
+      .poll(() => projectionOf(owner).visibleLoot.some((loot) => loot.id.includes('sigil')))
+      .toBe(true)
+    const sigil = projectionOf(owner).visibleLoot.find((loot) => loot.id.includes('sigil'))
+    if (sigil === undefined) throw new Error('the warden dropped no sigil')
+    await moveAxis(owner, 'x', sigil.position.x, 8)
+    await moveUntilVisible(
+      owner,
+      sigil.position.y < projectionOf(owner).self.position.y ? 'north' : 'south',
+      'pickup-button',
+    )
     await owner.page.getByTestId('pickup-button').click()
     await expect.poll(() => owner.projection?.objective.progress).toBe(1)
 
     const healthPotion = projectionOf(owner).visibleLoot.find((loot) => loot.id.includes('potion'))
     if (healthPotion === undefined) throw new Error('generated dungeon has no health potion')
-    await routeToDoorRow([owner], sharedDoor.position.y)
+    // The potion lies two tiles below the door row, with open floor between them.
+    await moveToDoorRow([owner], sharedDoor.position.y)
     await moveAxis(owner, 'x', healthPotion.position.x, 8)
     await moveUntilVisible(owner, 'south', 'pickup-button')
     await owner.page.getByTestId('pickup-button').click()
@@ -234,14 +246,20 @@ test('2-4 players clear the dungeon with an owner-bound key and vote for a remat
       )
       .toBeGreaterThanOrEqual(0)
 
-    await routeToDoorRow([owner], sharedDoor.position.y)
-    await moveAxis(owner, 'x', 430, 20)
     await moveToDoorRow(fighters, sharedDoor.position.y)
-    await movePlayers(fighters, 'x', 560, 8)
+    await moveAxis(owner, 'x', 430, 20)
+    // The boss needs four rounds and kills a fighter who stands in its reach for four
+    // seconds, so the fight is held where it cannot reach. The teammate waits there while
+    // the key owner opens the gate and walks away from the boss, which is slower.
+    await takeBossCover(teammate)
+    await moveAxis(owner, 'x', 560, 8)
     await moveUntilVisible(owner, 'south', 'interact-button')
-    const bossFormation = projectionOf(owner).self.position
-    await moveAxis(teammate, 'y', bossFormation.y, 8)
-    await moveAxis(teammate, 'x', bossFormation.x, 8)
+    await owner.page.getByTestId('interact-button').click()
+    await Promise.all([
+      leaveBossGate(owner).then(() => takeBossCover(owner)),
+      ...fighters.map((player) => expect.poll(() => player.projection?.phase).toBe('boss')),
+    ])
+    await expect(owner.page.getByTestId('boss-health')).toBeVisible()
     await expect
       .poll(() => {
         const ownerPosition = projectionOf(owner).self.position
@@ -252,17 +270,8 @@ test('2-4 players clear the dungeon with an owner-bound key and vote for a remat
         )
       })
       .toBeLessThanOrEqual(12)
-    await owner.page.getByTestId('interact-button').click()
-    await Promise.all(
-      fighters.map((player) => expect.poll(() => player.projection?.phase).toBe('boss')),
-    )
-    await expect(owner.page.getByTestId('boss-health')).toBeVisible()
 
-    await defeatEnemy(fighters, 'enemy:boss', [
-      { axis: 'y', target: 277 },
-      { axis: 'y', target: 277 },
-      { axis: 'y', target: 277 },
-    ])
+    await defeatEnemy(fighters, 'enemy:boss')
     await Promise.all(
       players.map((player) =>
         expect(player.page.getByTestId('outcome-dialog')).toContainText('Victory'),
