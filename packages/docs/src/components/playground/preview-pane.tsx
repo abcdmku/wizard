@@ -1,5 +1,5 @@
-import { Play } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { type KeyboardEvent, useEffect, useState } from 'react'
+import { FOCUS_RING, RunButton, tabClass } from './controls'
 import { ExplainView } from './explain-view'
 import { GraphView, type StepRef } from './graph-view'
 import type { RunnerSnapshot } from './runner'
@@ -19,42 +19,47 @@ interface PreviewPaneProps {
   readonly canRun: boolean
 }
 
+const STATUS_TEXT: Readonly<Record<RunnerSnapshot['status'], string>> = {
+  idle: 'Not run yet',
+  compiling: 'Compiling…',
+  running: 'Running…',
+  error: 'Failed',
+  done: 'Done',
+}
+
 function StatusLabel({ snapshot }: { readonly snapshot: RunnerSnapshot }) {
   const errors = snapshot.diagnostics.filter((d) => d.category === 'error').length
-  const text =
-    snapshot.status === 'idle'
-      ? 'Ready'
-      : snapshot.status === 'compiling'
-        ? 'Compiling…'
-        : snapshot.status === 'running'
-          ? 'Running…'
-          : snapshot.status === 'error'
-            ? 'Failed'
-            : 'Done'
+  const { status } = snapshot
   return (
-    <span className="flex items-center gap-2 font-mono text-[11px] text-neutral-500">
+    <span
+      className="flex min-w-0 items-center gap-2 font-mono text-[11px] text-neutral-500 dark:text-neutral-400"
+      role="status"
+    >
       <span
-        className={`inline-block h-1.5 w-1.5 rounded-full ${
-          snapshot.status === 'running' || snapshot.status === 'compiling'
+        className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+          status === 'running' || status === 'compiling'
             ? 'animate-pulse bg-neutral-900 dark:bg-neutral-100'
-            : snapshot.status === 'error'
+            : status === 'error'
               ? 'bg-red-500'
-              : snapshot.status === 'done'
+              : status === 'done'
                 ? 'bg-emerald-500'
                 : 'bg-neutral-400'
         }`}
       />
-      {text}
-      {errors > 0 && (
-        <span title="TypeScript errors (the code still runs, like tsx)">
-          · {errors} type error{errors === 1 ? '' : 's'}
-        </span>
-      )}
+      <span className="truncate">
+        {STATUS_TEXT[status]}
+        {errors > 0 && (
+          <span title="TypeScript errors. The code still runs, as it does under tsx.">
+            {' '}
+            · {errors} type error{errors === 1 ? '' : 's'}
+          </span>
+        )}
+      </span>
     </span>
   )
 }
 
-/** Run button, the four preview tabs and the run selector; the tabs read the runner snapshot. */
+/** The run status and Run button, the four preview tabs, and the tab that is open. */
 export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
   const [tab, setTab] = useState<Tab>('graph')
   const [selectedRun, setSelectedRun] = useState<string | null>(null)
@@ -77,82 +82,124 @@ export function PreviewPane({ snapshot, onRun, canRun }: PreviewPaneProps) {
     setTab('explain')
   }
 
+  const onTabKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+    if (step === 0) return
+    event.preventDefault()
+    const index = TABS.findIndex((item) => item.id === tab)
+    const next = TABS[(index + step + TABS.length) % TABS.length]
+    if (!next) return
+    setTab(next.id)
+    event.currentTarget.querySelector<HTMLElement>(`#preview-tab-${next.id}`)?.focus()
+  }
+
   const errorDiagnostics = snapshot.diagnostics.filter((d) => d.category === 'error')
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-paper dark:bg-ink">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
-        <div className="flex items-center gap-1" role="tablist" aria-label="Preview">
-          {TABS.map((item) => (
+    <div className="@container/preview flex h-full min-h-0 flex-col bg-paper dark:bg-ink">
+      <div className="flex min-h-10 shrink-0 items-center justify-between gap-2 border-b border-neutral-200 px-3 py-1.5 dark:border-neutral-800">
+        <StatusLabel snapshot={snapshot} />
+        <div className="flex min-w-0 items-center gap-2">
+          {snapshot.runs.length > 1 && (
+            <select
+              aria-label="Run to show"
+              value={handle?.label ?? ''}
+              onChange={(event) => setSelectedRun(event.target.value)}
+              className={`h-7 min-w-0 max-w-[11rem] rounded-md border border-neutral-200 bg-transparent px-1.5 font-mono text-[11px] text-neutral-700 dark:border-neutral-700 dark:text-neutral-300 [@media(pointer:coarse)]:h-9 ${FOCUS_RING}`}
+            >
+              {snapshot.runs.map((candidate) => (
+                <option key={candidate.label} value={candidate.label}>
+                  {candidate.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {/* On a narrow screen the Run button sits next to the Code / Preview switch instead. */}
+          <span className="@2xl/ide:inline-flex hidden">
+            <RunButton onRun={onRun} canRun={canRun} status={snapshot.status} />
+          </span>
+        </div>
+      </div>
+
+      <div
+        className="flex shrink-0 overflow-x-auto border-b border-neutral-200 px-1 dark:border-neutral-800"
+        role="tablist"
+        aria-label="Preview"
+        onKeyDown={onTabKey}
+      >
+        {TABS.map((item) => {
+          const count =
+            item.id === 'trace'
+              ? snapshot.trace.length
+              : item.id === 'console'
+                ? snapshot.console.length
+                : 0
+          return (
             <button
               key={item.id}
+              id={`preview-tab-${item.id}`}
               type="button"
               role="tab"
               aria-selected={tab === item.id}
+              aria-controls="preview-panel"
+              tabIndex={tab === item.id ? 0 : -1}
               onClick={() => setTab(item.id)}
-              className={`rounded px-2 py-1 font-mono text-[11px] transition-colors ${
-                tab === item.id
-                  ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-              }`}
+              className={tabClass(tab === item.id)}
             >
               {item.label}
-              {item.id === 'trace' && snapshot.trace.length > 0 && (
-                <span className="ml-1 text-neutral-400">{snapshot.trace.length}</span>
-              )}
-              {item.id === 'console' && snapshot.console.length > 0 && (
-                <span className="ml-1 text-neutral-400">{snapshot.console.length}</span>
+              {count > 0 && (
+                <span className="ml-1.5 text-neutral-400 dark:text-neutral-500">{count}</span>
               )}
             </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={onRun}
-          disabled={!canRun || snapshot.status === 'compiling'}
-          className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1 font-mono text-[11px] font-medium text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
-        >
-          <Play className="h-3 w-3" aria-hidden="true" />
-          Run
-        </button>
-      </div>
-
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-100 px-3 py-1 dark:border-neutral-800/70">
-        <StatusLabel snapshot={snapshot} />
-        {snapshot.runs.length > 1 && (
-          <select
-            aria-label="Run"
-            value={handle?.label ?? ''}
-            onChange={(event) => setSelectedRun(event.target.value)}
-            className="rounded border border-neutral-200 bg-transparent px-1 py-0.5 font-mono text-[11px] text-neutral-700 dark:border-neutral-700 dark:text-neutral-300"
-          >
-            {snapshot.runs.map((candidate) => (
-              <option key={candidate.label} value={candidate.label}>
-                {candidate.label}
-              </option>
-            ))}
-          </select>
-        )}
+          )
+        })}
       </div>
 
       {snapshot.error && (
-        <pre className="shrink-0 whitespace-pre-wrap border-b border-neutral-200 bg-neutral-100 px-3 py-2 font-mono text-[11px] text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100">
-          {snapshot.error}
-        </pre>
+        <div
+          role="alert"
+          className="max-h-40 shrink-0 overflow-auto border-b border-neutral-200 border-l-2 border-l-red-600 bg-red-50/70 px-3 py-2 dark:border-neutral-800 dark:border-l-red-500 dark:bg-red-950/25"
+        >
+          <p className="font-mono text-[11px] font-medium text-red-700 dark:text-red-400">
+            The run stopped with an error
+          </p>
+          <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[11.5px] leading-5 text-neutral-900 dark:text-neutral-100">
+            {snapshot.error}
+          </pre>
+        </div>
       )}
       {snapshot.status !== 'idle' && errorDiagnostics.length > 0 && tab !== 'console' && (
-        <ul className="max-h-24 shrink-0 overflow-auto border-b border-neutral-200 px-3 py-1.5 font-mono text-[11px] text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
+        <ul className="max-h-24 shrink-0 overflow-auto border-b border-neutral-200 px-3 py-1.5 font-mono text-[11px] leading-5 text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
           {errorDiagnostics.slice(0, 6).map((d) => (
-            <li key={`${d.file}:${d.line}:${d.column}:${d.message}`} className="truncate">
-              {d.file}:{d.line}:{d.column} · {d.message}
+            <li
+              key={`${d.file}:${d.line}:${d.column}:${d.message}`}
+              className="truncate"
+              title={d.message}
+            >
+              <span className="text-neutral-900 dark:text-neutral-100">
+                {d.file}:{d.line}:{d.column}
+              </span>{' '}
+              {d.message}
             </li>
           ))}
+          {errorDiagnostics.length > 6 && <li>and {errorDiagnostics.length - 6} more</li>}
         </ul>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div
+        id="preview-panel"
+        role="tabpanel"
+        aria-labelledby={`preview-tab-${tab}`}
+        className="min-h-0 flex-1 overflow-auto"
+      >
         {tab === 'graph' && (
-          <GraphView wizard={wizard} run={run} selected={selectedStep} onSelect={selectStep} />
+          <GraphView
+            wizard={wizard}
+            run={run}
+            selected={selectedStep}
+            onSelect={selectStep}
+            status={snapshot.status}
+          />
         )}
         {tab === 'trace' && (
           <TraceView trace={snapshot.trace} multiRun={snapshot.runs.length > 1} />
