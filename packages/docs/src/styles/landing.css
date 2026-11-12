@@ -290,22 +290,56 @@
 .dark .landing-output [data-tone="dim"] {
   color: #a3a3a3;
 }
-/* The chores a workflow engine replaces, crossed out. */
-.landing-byhand {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
-  gap: 6px 28px;
-  margin-top: 14px;
-  color: #737373;
-  font-size: 16px;
-  line-height: 1.5;
-  text-decoration: line-through;
-  text-decoration-color: #dc2626;
-  text-decoration-thickness: 1.5px;
+/* Each chore beside the line of a wizard that replaces it. */
+.landing-replaces {
+  margin-top: 16px;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
 }
-.dark .landing-byhand {
+.dark .landing-replaces {
+  border-color: #262626;
+}
+.landing-replaces li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  color: #525252;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.dark .landing-replaces li {
   color: #a3a3a3;
-  text-decoration-color: #f87171;
+}
+.landing-replaces li + li {
+  border-top: 1px solid #e5e5e5;
+}
+.dark .landing-replaces li + li {
+  border-top-color: #262626;
+}
+.landing-replaces svg {
+  width: 16px;
+  height: 16px;
+  color: #a3a3a3;
+}
+.landing-replaces code {
+  overflow-wrap: anywhere;
+  color: #0a0a0a;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.dark .landing-replaces code {
+  color: #fafafa;
+}
+@media (max-width: 640px) {
+  .landing-replaces li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .landing-replaces svg {
+    display: none;
+  }
 }
 /* Three claims about agents, each answered in a sentence. */
 .landing-agents {
