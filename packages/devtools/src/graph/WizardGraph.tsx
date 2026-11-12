@@ -27,6 +27,7 @@ import {
 } from 'react'
 import type { LayoutEngine } from '../layout/elk'
 import type { DevtoolsTheme, GraphInput, GraphSelection, StepStatusMap } from '../types'
+import { Follow } from './Follow'
 import { GraphEdgeComponent } from './GraphEdge'
 import { definitionPath, instanceGraph } from './instances'
 import { MarkerNodeComponent } from './MarkerNode'
@@ -59,6 +60,11 @@ export interface WizardGraphProps extends GraphInput {
   readonly theme?: DevtoolsTheme
   /** Custom ELK-compatible layout engine (a worker-backed ELK, a stub in tests). */
   readonly layoutEngine?: LayoutEngine
+  /**
+   * Keep the graph readable: a graph too wide to read whole is drawn larger, centred on the
+   * steps that are running, waiting or failed, and the view moves as the run does.
+   */
+  readonly follow?: boolean
   /** Show the minimap (default `true`). */
   readonly minimap?: boolean
   readonly className?: string
@@ -172,6 +178,7 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
         deleteKeyCode={null}
         className="owd-canvas"
       >
+        {props.follow === true && <Follow statuses={overlay.statuses} />}
         <Background gap={24} />
         <Controls showInteractive={false} />
         {props.minimap !== false && <MiniMap pannable zoomable className="owd-minimap" />}

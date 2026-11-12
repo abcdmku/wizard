@@ -318,6 +318,11 @@ interface WizardGraphProps extends GraphInput {
   readonly theme?: DevtoolsTheme;
   /** Custom ELK-compatible layout engine (a worker-backed ELK, a stub in tests). */
   readonly layoutEngine?: LayoutEngine;
+  /**
+   * Keep the graph readable: a graph too wide to read whole is drawn larger, centred on the
+   * steps that are running, waiting or failed, and the view moves as the run does.
+   */
+  readonly follow?: boolean;
   /** Show the minimap (default `true`). */
   readonly minimap?: boolean;
   readonly className?: string;
