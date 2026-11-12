@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS fulfillment_wizard_runs (
 );
 CREATE TABLE IF NOT EXISTS fulfillment_wizard_dedupe (
   run_key text NOT NULL REFERENCES fulfillment_wizard_runs(run_key) ON DELETE CASCADE,
-  kind text NOT NULL,
   dedupe_id text NOT NULL,
   digest text NOT NULL,
   status text NOT NULL,
@@ -24,7 +23,7 @@ CREATE TABLE IF NOT EXISTS fulfillment_wizard_dedupe (
   request text,
   result text,
   completed_at_ms bigint,
-  PRIMARY KEY (run_key, kind, dedupe_id)
+  PRIMARY KEY (run_key, dedupe_id)
 );
 CREATE INDEX IF NOT EXISTS fulfillment_wizard_dedupe_retention_idx
   ON fulfillment_wizard_dedupe(status, completed_at_ms);

@@ -1,7 +1,7 @@
 FROM node:22-alpine AS build
 WORKDIR /workspace
 RUN corepack enable
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.source.json ./
 COPY packages ./packages
 COPY systems/02-fleet ./systems/02-fleet
 RUN pnpm install --frozen-lockfile
