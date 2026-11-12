@@ -46,7 +46,7 @@
 .docs-pager {
   display: grid;
   /* The article's own width, so the pager ends where the text does. */
-  max-width: 46rem;
+  max-width: 48rem;
   margin: 64px 0 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
@@ -104,7 +104,7 @@
 }
 .docs-page-footer {
   display: flex;
-  max-width: 46rem;
+  max-width: 48rem;
   align-items: center;
   gap: 6px;
   padding: 16px 1px 0;
