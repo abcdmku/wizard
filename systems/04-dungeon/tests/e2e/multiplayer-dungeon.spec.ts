@@ -233,7 +233,8 @@ test('2-4 players clear the dungeon with an owner-bound key and vote for a remat
 
     const healthPotion = projectionOf(owner).visibleLoot.find((loot) => loot.id.includes('potion'))
     if (healthPotion === undefined) throw new Error('generated dungeon has no health potion')
-    await routeToDoorRow([owner], sharedDoor.position.y)
+    // The potion lies two tiles below the door row, with open floor between them.
+    await moveToDoorRow([owner], sharedDoor.position.y)
     await moveAxis(owner, 'x', healthPotion.position.x, 8)
     await moveUntilVisible(owner, 'south', 'pickup-button')
     await owner.page.getByTestId('pickup-button').click()
@@ -245,9 +246,8 @@ test('2-4 players clear the dungeon with an owner-bound key and vote for a remat
       )
       .toBeGreaterThanOrEqual(0)
 
-    await routeToDoorRow([owner], sharedDoor.position.y)
-    await moveAxis(owner, 'x', 430, 20)
     await moveToDoorRow(fighters, sharedDoor.position.y)
+    await moveAxis(owner, 'x', 430, 20)
     // The boss needs four rounds and kills a fighter who stands in its reach for four
     // seconds, so the fight is held where it cannot reach. The teammate waits there while
     // the key owner opens the gate and walks away from the boss, which is slower.
