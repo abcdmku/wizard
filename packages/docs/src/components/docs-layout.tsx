@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, ArrowRight, ChevronRight, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronRight } from 'lucide-react'
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react'
 import { type DocsPage, docsSections, prefetchPage, siblingPage } from '../lib/docs'
 import { site } from '../lib/site'
@@ -73,61 +73,22 @@ export function DocsLayout({
   readonly children: ReactNode
 }) {
   const articleRef = useRef<HTMLElement | null>(null)
-  const [menuOpen, setMenuOpen] = useState(false)
   const { items, activeId } = useToc(articleRef)
   const progress = useReadingProgress(articleRef)
   const previous = siblingPage(page.slug, -1)
   const next = siblingPage(page.slug, 1)
   const section = docsSections.find((candidate) => candidate.id === page.section)
 
-  useEffect(() => {
-    if (!menuOpen) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
-    }
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [menuOpen])
-
   return (
     <div className="docs-page-shell">
-      <SiteHeader menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((open) => !open)} />
+      <SiteHeader currentSlug={page.slug} />
       <div className="docs-reading-progress" aria-hidden="true">
         <span style={{ width: `${progress * 100}%` }} />
       </div>
 
-      {menuOpen && (
-        <div className="docs-mobile-nav-layer">
-          <button
-            type="button"
-            className="docs-mobile-nav-backdrop"
-            aria-label="Close navigation"
-            onClick={() => setMenuOpen(false)}
-          />
-          <aside className="docs-mobile-nav-panel">
-            <div className="docs-mobile-nav-header">
-              <span>Documentation</span>
-              <button
-                type="button"
-                onClick={() => setMenuOpen(false)}
-                aria-label="Close navigation"
-              >
-                <X aria-hidden="true" />
-              </button>
-            </div>
-            <DocsNav currentSlug={page.slug} onNavigate={() => setMenuOpen(false)} />
-          </aside>
-        </div>
-      )}
-
       <div className="docs-layout-grid">
         <aside className="docs-sidebar">
-          <div className="docs-sidebar-sticky">
+          <div className="docs-sidebar-sticky" data-nav-scroller>
             <DocsNav currentSlug={page.slug} />
           </div>
         </aside>

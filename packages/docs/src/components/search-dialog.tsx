@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface SearchHit {
   readonly id: string
@@ -47,7 +48,7 @@ async function runSearch(query: string): Promise<readonly SearchHit[]> {
   )
 }
 
-/** Header search button + modal; `/` opens it, `Escape` closes it. */
+/** Header search button + modal; `/` or Ctrl/Cmd+K opens it, `Escape` closes it. */
 export function SearchDialog() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -61,7 +62,9 @@ export function SearchDialog() {
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
         target?.isContentEditable === true
-      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !typing) {
+      const slash = event.key === '/' && !event.metaKey && !event.ctrlKey && !typing
+      const commandK = event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey)
+      if (slash || commandK) {
         event.preventDefault()
         setOpen(true)
       } else if (event.key === 'Escape') {
@@ -109,59 +112,62 @@ export function SearchDialog() {
     <>
       <button type="button" onClick={() => setOpen(true)} className="site-search-button">
         <Search className="h-3.5 w-3.5" aria-hidden="true" />
-        <span>Search documentation</span>
+        <span>Search docs</span>
         <kbd>/</kbd>
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]">
-          <button
-            type="button"
-            aria-label="Close search"
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 cursor-default bg-black/40 backdrop-blur-[2px]"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Search the docs"
-            className="relative w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-paper shadow-2xl dark:border-neutral-800 dark:bg-ink-2"
-          >
-            <input
-              // biome-ignore lint/a11y/noAutofocus: a search dialog should focus its input when opened
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search the docs…"
-              className="w-full border-b border-neutral-200 bg-transparent px-4 py-3 text-sm outline-none dark:border-neutral-800"
+      {/* Rendered into the body: the header blurs its backdrop, which would confine a fixed layer to it. */}
+      {open &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]">
+            <button
+              type="button"
+              aria-label="Close search"
+              onClick={() => setOpen(false)}
+              className="absolute inset-0 cursor-default bg-black/40 dark:bg-black/60"
             />
-            <div className="max-h-[60vh] overflow-y-auto">
-              <p className="px-4 py-2 text-xs text-neutral-500">{hint}</p>
-              <ul className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
-                {hits.map((hit) => (
-                  <li key={hit.id}>
-                    <a
-                      // Pagefind resolves result URLs against its bundle location, so they already carry the base.
-                      href={hit.url}
-                      onClick={() => setOpen(false)}
-                      className="block px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900"
-                    >
-                      <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                        {hit.title}
-                      </div>
-                      <div
-                        className="mt-0.5 text-xs leading-5 text-neutral-500"
-                        // biome-ignore lint/security/noDangerouslySetInnerHtml: Pagefind excerpts are generated from our own prerendered pages
-                        dangerouslySetInnerHTML={{ __html: hit.excerpt }}
-                      />
-                    </a>
-                  </li>
-                ))}
-              </ul>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Search the docs"
+              className="relative w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-paper shadow-2xl dark:border-neutral-800 dark:bg-ink-2"
+            >
+              <input
+                // biome-ignore lint/a11y/noAutofocus: a search dialog should focus its input when opened
+                autoFocus
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search the docs…"
+                className="w-full border-b border-neutral-200 bg-transparent px-4 py-3 text-sm outline-none dark:border-neutral-800"
+              />
+              <div className="max-h-[60vh] overflow-y-auto">
+                <p className="px-4 py-2 text-xs text-neutral-500 dark:text-neutral-400">{hint}</p>
+                <ul className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
+                  {hits.map((hit) => (
+                    <li key={hit.id}>
+                      <a
+                        // Pagefind resolves result URLs against its bundle location, so they already carry the base.
+                        href={hit.url}
+                        onClick={() => setOpen(false)}
+                        className="block px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                      >
+                        <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                          {hit.title}
+                        </div>
+                        <div
+                          className="mt-0.5 text-xs leading-5 text-neutral-500 dark:text-neutral-400"
+                          // biome-ignore lint/security/noDangerouslySetInnerHtml: Pagefind excerpts are generated from our own prerendered pages
+                          dangerouslySetInnerHTML={{ __html: hit.excerpt }}
+                        />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }

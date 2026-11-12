@@ -17,14 +17,20 @@ export function Landing() {
         <h1>{site.name}</h1>
         <p className="landing-sentence">{site.description}</p>
 
-        <div className="landing-install">
-          <span aria-hidden="true">$</span>
-          <code>{site.installCommand}</code>
-          <CopyButton
-            text={site.installCommand}
-            label="Copy install command"
-            className="border-0 bg-transparent"
-          />
+        <div className="landing-hero-actions">
+          <div className="landing-install">
+            <span aria-hidden="true">$</span>
+            <code>{site.installCommand}</code>
+            <CopyButton
+              text={site.installCommand}
+              label="Copy install command"
+              className="border-0 bg-transparent"
+            />
+          </div>
+          <Link to="/$" params={{ _splat: 'quickstart' }} className="landing-action">
+            Read the quickstart
+            <ArrowRight aria-hidden="true" />
+          </Link>
         </div>
 
         <section className="landing-section">

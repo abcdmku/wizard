@@ -1,6 +1,8 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, Menu, X } from 'lucide-react'
-import { site, withBase } from '../lib/site'
+import { Menu, X } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { site } from '../lib/site'
+import { MobileNav } from './mobile-nav'
 import { SearchDialog } from './search-dialog'
 import { ThemeToggle } from './theme-toggle'
 
@@ -13,26 +15,28 @@ const TOP_LINKS = [
 ] as const
 
 interface SiteHeaderProps {
-  readonly menuOpen?: boolean
-  readonly onToggleMenu?: () => void
+  /** The docs page being read. Pages without a sidebar, such as the home page, leave it out. */
+  readonly currentSlug?: string
 }
 
-export function SiteHeader({ menuOpen = false, onToggleMenu }: SiteHeaderProps) {
+export function SiteHeader({ currentSlug }: SiteHeaderProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
+  // A page without a sidebar needs the menu as soon as the top links no longer fit.
+  const standalone = currentSlug === undefined
   return (
-    <header className="site-header">
+    <header className={`site-header ${standalone ? 'site-header-standalone' : ''}`}>
       <div className="site-header-inner">
         <div className="site-header-brand-group">
-          {onToggleMenu && (
-            <button
-              type="button"
-              onClick={onToggleMenu}
-              aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
-              aria-expanded={menuOpen}
-              className="site-menu-button"
-            >
-              {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
+            aria-expanded={menuOpen}
+            className="site-menu-button"
+          >
+            {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+          </button>
           <Link to="/" className="site-wordmark" aria-label="OpenWizard home">
             <span>OW</span>
             <strong>{site.name}</strong>
@@ -53,7 +57,9 @@ export function SiteHeader({ menuOpen = false, onToggleMenu }: SiteHeaderProps) 
               {link.label}
             </Link>
           ))}
-          <a href={withBase('/typedoc/')}>API</a>
+          <Link to="/playground" activeProps={{ className: 'site-header-nav-active' }}>
+            Playground
+          </Link>
         </nav>
 
         <div className="site-header-actions">
@@ -61,13 +67,10 @@ export function SiteHeader({ menuOpen = false, onToggleMenu }: SiteHeaderProps) 
           <a href={site.repositoryUrl} aria-label="GitHub repository" className="site-icon-action">
             <GithubMark />
           </a>
-          <ThemeToggle />
-          <Link to="/playground" className="site-playground-link">
-            Playground
-            <ArrowUpRight aria-hidden="true" />
-          </Link>
+          <ThemeToggle className="site-theme-toggle" />
         </div>
       </div>
+      {menuOpen && <MobileNav currentSlug={currentSlug ?? ''} onClose={closeMenu} />}
     </header>
   )
 }

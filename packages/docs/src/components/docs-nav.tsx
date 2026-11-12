@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { ChevronRight, FlaskConical } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { docsNavItems, docsPageMap, docsPages, docsSections, prefetchPage } from '../lib/docs'
 
 function NavLink({
@@ -44,8 +45,27 @@ export function DocsNav({
   readonly currentSlug: string
   readonly onNavigate?: (() => void) | undefined
 }) {
+  const navRef = useRef<HTMLElement | null>(null)
+
+  // The list is taller than most screens, so bring the current page into view inside its scroller.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs again when the page changes
+  useEffect(() => {
+    // Wait a frame, so the list is measured after layout has settled.
+    const frame = requestAnimationFrame(() => {
+      const link = navRef.current?.querySelector<HTMLElement>('.docs-nav-link-active')
+      const scroller = link?.closest<HTMLElement>('[data-nav-scroller]')
+      if (!link || !scroller) return
+      const box = scroller.getBoundingClientRect()
+      const rect = link.getBoundingClientRect()
+      if (rect.top < box.top + 48 || rect.bottom > box.bottom - 64) {
+        scroller.scrollTop += rect.top - box.top - box.height / 2 + rect.height / 2
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [currentSlug])
+
   return (
-    <nav className="docs-nav" aria-label="Documentation">
+    <nav ref={navRef} className="docs-nav" aria-label="Documentation">
       <p className="docs-nav-eyebrow">Browse</p>
       {docsNavItems.map((item) => {
         if (item.type === 'page') {
