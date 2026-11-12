@@ -17,8 +17,8 @@ export function Landing() {
       <main className="landing">
         <p className="landing-name">{site.name}</p>
         <h1>
-          <span className="landing-line">Write the workflow.</span>{' '}
-          <span className="landing-line">The API, retries and docs come with it.</span>
+          <span className="landing-line">Write the business logic.</span>{' '}
+          <span className="landing-line">APIs, retries, webhooks and docs are generated.</span>
         </h1>
         <p className="landing-sentence">
           One TypeScript file becomes a type-checked orchestrator, an HTTP API, signed webhooks and
