@@ -68,6 +68,8 @@ export interface PlaygroundRunner {
   getSnapshot(): RunnerSnapshot
   /** Compile `files` (model names) with `api`, import `entry`, call its exported `drive` if any. */
   run(files: readonly string[], entry: string, api: MonacoApi): Promise<void>
+  /** Drop the runs and their output, so another example does not open on the last one's result. */
+  reset(): Promise<void>
   dispose(): void
 }
 
@@ -324,6 +326,15 @@ export function createRunner(): PlaygroundRunner {
     getSnapshot: () => snapshot,
     run(files, entry, api) {
       runChain = runChain.then(() => execute(files, entry, api))
+      return runChain
+    },
+    reset() {
+      runChain = runChain.then(() => {
+        disposeRuns()
+        restoreConsole?.()
+        draft = { ...EMPTY, runs: [], wizards: [], trace: [], console: [] }
+        notify()
+      })
       return runChain
     },
     dispose() {

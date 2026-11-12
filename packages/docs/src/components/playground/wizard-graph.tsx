@@ -1,18 +1,21 @@
-import type { StepStatus } from '@openwizard/core'
-import type { Manifest, ManifestStep } from '@openwizard/core/inspect'
-import { useMemo } from 'react'
+import type { Manifest } from '@openwizard/core/inspect'
+import { useId, useMemo } from 'react'
 import {
-  type DagLayout,
-  type LaidOutEdge,
-  type LaidOutNode,
-  layoutWizard,
+  arrowPath,
+  type GraphLayout,
+  layoutGraph,
+  type PlacedNode,
   wizardsOf,
-} from './dag-layout'
-
-interface NodeLiveState {
-  readonly status: StepStatus
-  readonly phase?: string
-}
+} from '../run-diagram/layout'
+import {
+  captionOf,
+  EDGE_TONES,
+  edgeTone,
+  LOOK_CLASSES,
+  type Look,
+  lookOf,
+  type NodeLiveState,
+} from './graph-look'
 
 export type NodeStateLookup = (path: readonly string[], id: string) => NodeLiveState | undefined
 
@@ -23,222 +26,159 @@ interface WizardGraphViewProps {
   readonly onSelect?: ((path: readonly string[], id: string) => void) | undefined
 }
 
-const KIND_GLYPH: Record<ManifestStep['kind'], string> = {
-  view: 'V',
-  step: 'S',
-  child: 'C',
-}
-
-function edgePath({ from, to, back }: LaidOutEdge): string {
-  const x1 = from.x + from.width / 2
-  const y1 = from.y + from.height
-  const x2 = to.x + to.width / 2
-  const y2 = to.y
-  if (!back) {
-    const bend = Math.max(18, (y2 - y1) / 2)
-    return `M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}`
-  }
-  // Loop out to the right of both nodes and back into the top of the target.
-  const right = Math.max(from.x + from.width, to.x + to.width) + 26
-  const sx = from.x + from.width
-  const sy = from.y + from.height / 2
-  return `M ${sx} ${sy} C ${right} ${sy}, ${right} ${y2 - 30}, ${x2 + to.width / 4} ${y2}`
-}
-
-const formatMs = (ms: number): string =>
-  ms % 3_600_000 === 0
-    ? `${ms / 3_600_000}h`
-    : ms % 60_000 === 0
-      ? `${ms / 60_000}m`
-      : ms % 1000 === 0
-        ? `${ms / 1000}s`
-        : `${ms}ms`
-
-function edgeLabel({ edge, from }: LaidOutEdge): string | null {
-  if (edge.kind === 'route') return 'route'
-  if (edge.kind === 'needs') {
-    const alias = edge.alias ? ` ${edge.alias}` : ''
-    const mode = edge.mode && edge.mode !== 'all' ? ` (${edge.mode})` : ''
-    return `needs${alias}${mode}`
-  }
-  if (edge.kind === 'fallback') return 'fallback'
-  if (edge.kind === 'timeout') {
-    return from.node.timeout === undefined ? 'timeout' : `timeout ${formatMs(from.node.timeout)}`
-  }
-  return null
-}
-
-function nodeClasses(state: NodeLiveState | undefined, isSelected: boolean): string {
-  const status = state?.status ?? 'idle'
-  const base = 'cursor-pointer transition-colors'
-  const fill =
-    status === 'done'
-      ? 'fill-neutral-900 dark:fill-neutral-100'
-      : status === 'active'
-        ? 'fill-white dark:fill-neutral-900'
-        : 'fill-white dark:fill-ink-2'
-  const stroke =
-    status === 'active'
-      ? 'stroke-neutral-900 dark:stroke-neutral-100 [stroke-width:2]'
-      : status === 'failed'
-        ? 'stroke-neutral-900 dark:stroke-neutral-100 [stroke-dasharray:4_3] [stroke-width:1.5]'
-        : status === 'skipped' || status === 'cancelled'
-          ? 'stroke-neutral-400 dark:stroke-neutral-600 [stroke-dasharray:2_3]'
-          : 'stroke-neutral-400 dark:stroke-neutral-600'
-  const ring = isSelected ? 'drop-shadow-[0_0_0_3px_rgba(120,120,120,0.35)]' : ''
-  return `${base} ${fill} ${stroke} ${ring}`
-}
-
-function textClasses(state: NodeLiveState | undefined): string {
-  return state?.status === 'done'
-    ? 'fill-white dark:fill-neutral-900'
-    : state?.status === 'skipped' || state?.status === 'cancelled'
-      ? 'fill-neutral-400 dark:fill-neutral-500'
-      : 'fill-neutral-900 dark:fill-neutral-100'
-}
-
-function NodeShape({
-  node,
-  className,
-}: {
-  readonly node: LaidOutNode
-  readonly className: string
-}) {
-  const { x, y, width: w, height: h } = node
-  switch (node.node.kind) {
-    case 'child':
-      return (
-        <polygon
-          points={`${x + 10},${y} ${x + w},${y} ${x + w - 10},${y + h} ${x},${y + h}`}
-          className={className}
+/** A person's form is a pill, work is a box, and a child wizard is a box inside a box. */
+function NodeShape({ node, className }: { readonly node: PlacedNode; readonly className: string }) {
+  const { x, y, width, height } = node
+  return (
+    <>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={node.node.kind === 'view' ? height / 2 : 8}
+        className={className}
+      />
+      {node.node.kind === 'child' && (
+        <rect
+          x={x + 3.5}
+          y={y + 3.5}
+          width={width - 7}
+          height={height - 7}
+          rx={5}
+          className={`${className} fill-none`}
+          strokeWidth={1}
         />
-      )
-    case 'step':
-      return (
-        <>
-          <rect x={x} y={y} width={w} height={h} rx={4} className={className} />
-          <line
-            x1={x + 6}
-            y1={y}
-            x2={x + 6}
-            y2={y + h}
-            className="stroke-neutral-400 dark:stroke-neutral-600"
-          />
-          <line
-            x1={x + w - 6}
-            y1={y}
-            x2={x + w - 6}
-            y2={y + h}
-            className="stroke-neutral-400 dark:stroke-neutral-600"
-          />
-        </>
-      )
-    default:
-      return <rect x={x} y={y} width={w} height={h} rx={8} className={className} />
-  }
+      )}
+    </>
+  )
 }
 
 function WizardSvg({
   layout,
   path,
+  name,
   liveState,
   selected,
   onSelect,
 }: {
-  readonly layout: DagLayout
+  readonly layout: GraphLayout
   readonly path: readonly string[]
+  readonly name: string
 } & Pick<WizardGraphViewProps, 'liveState' | 'selected' | 'onSelect'>) {
-  const markerId = `arrow-${path.join('-') || 'root'}`
+  const marker = useId()
+  const states = new Map(layout.nodes.map(({ node }) => [node.id, liveState?.(path, node.id)]))
+  const look = (id: string): Look => lookOf(states.get(id))
   const isSelected = (id: string) =>
-    selected !== null &&
-    selected !== undefined &&
-    selected.id === id &&
-    selected.path.join('/') === path.join('/')
+    selected?.id === id && selected.path.join('/') === path.join('/')
   return (
+    // biome-ignore lint/a11y/useSemanticElements: the SVG groups step buttons; `img` would hide them
     <svg
       viewBox={`0 0 ${layout.width} ${layout.height}`}
-      width={layout.width}
-      height={layout.height}
-      className="block max-w-full font-mono text-[11px]"
-      style={{ height: 'auto' }}
-      role="img"
-      aria-label="Wizard graph"
+      className="block h-auto shrink-0 overflow-visible font-mono"
+      // Shrinks to fit a narrow pane, but never so far that the step names stop being readable.
+      style={{
+        width: `clamp(${Math.round(layout.width * MIN_SCALE)}px, 100%, ${Math.round(layout.width)}px)`,
+      }}
+      role="group"
+      aria-label={`Steps of the ${name} wizard and how they connect`}
     >
       <defs>
-        <marker
-          id={markerId}
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerWidth="7"
-          markerHeight="7"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-neutral-500 dark:fill-neutral-400" />
-        </marker>
+        {(['plain', 'lit', 'off'] as const).map((tone) => (
+          <marker
+            key={tone}
+            id={`${marker}-${tone}`}
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="8"
+            markerHeight="8"
+            markerUnits="userSpaceOnUse"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" className={EDGE_TONES[tone].head} />
+          </marker>
+        ))}
       </defs>
-      {layout.edges.map((laid) => {
-        const label = edgeLabel(laid)
-        const dashed = laid.edge.kind !== 'next' && laid.edge.kind !== 'start'
-        const midX = (laid.from.x + laid.from.width / 2 + laid.to.x + laid.to.width / 2) / 2
-        const midY = (laid.from.y + laid.from.height + laid.to.y) / 2
+      {layout.arrows.map((arrow) => {
+        const tones = arrow.edges.map((edge) =>
+          edgeTone(look(arrow.from), look(arrow.to), edge.kind),
+        )
+        const tone = tones.includes('lit') ? 'lit' : (tones[0] ?? 'plain')
+        const dashed = arrow.edges.every((edge) => edge.kind !== 'next' && edge.kind !== 'needs')
         return (
-          <g key={`${laid.edge.from}-${laid.edge.to}-${laid.edge.kind}`}>
+          <g key={`${arrow.from}-${arrow.to}`}>
             <path
-              d={edgePath(laid)}
+              d={arrowPath(arrow.points)}
               fill="none"
-              markerEnd={`url(#${markerId})`}
-              className={`stroke-neutral-500 dark:stroke-neutral-400 ${dashed ? '[stroke-dasharray:4_3]' : ''}`}
-              strokeWidth={1.2}
+              strokeWidth={1.25}
+              markerEnd={`url(#${marker}-${tone})`}
+              className={`${EDGE_TONES[tone].line} ${dashed ? '[stroke-dasharray:5_4]' : ''}`}
             />
-            {label && (
+            {arrow.label && (
               <text
-                x={midX + 6}
-                y={midY}
-                className="fill-neutral-500 text-[9.5px]"
-                dominantBaseline="middle"
+                x={arrow.labelX}
+                y={arrow.labelY + 3}
+                textAnchor="middle"
+                strokeWidth={4}
+                className={`stroke-paper text-[10px] [paint-order:stroke] dark:stroke-ink ${EDGE_TONES[tone].label}`}
               >
-                {label}
+                {arrow.label}
               </text>
             )}
           </g>
         )
       })}
       {layout.nodes.map((laid) => {
-        const state = liveState?.(path, laid.node.id)
-        const detail = state?.phase ?? (state && state.status !== 'idle' ? state.status : null)
+        const state = states.get(laid.node.id)
+        const classes = LOOK_CLASSES[lookOf(state)]
+        const caption = captionOf(state)
+        const centre = laid.x + laid.width / 2
+        const chosen = isSelected(laid.node.id)
         return (
           // biome-ignore lint/a11y/useSemanticElements: an SVG node group is the clickable target here
           <g
             key={laid.node.id}
             role="button"
             tabIndex={0}
-            aria-label={`${laid.node.id} (${laid.node.kind})`}
+            aria-pressed={chosen}
+            aria-label={`${laid.node.id} (${laid.node.kind}${caption ? `, ${caption}` : ''})`}
+            className="group cursor-pointer outline-none"
             onClick={() => onSelect?.(path, laid.node.id)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') onSelect?.(path, laid.node.id)
+              if (event.key !== 'Enter' && event.key !== ' ') return
+              event.preventDefault()
+              onSelect?.(path, laid.node.id)
             }}
           >
-            <NodeShape node={laid} className={nodeClasses(state, isSelected(laid.node.id))} />
+            <rect
+              x={laid.x - 4}
+              y={laid.y - 4}
+              width={laid.width + 8}
+              height={laid.height + 8}
+              rx={laid.node.kind === 'view' ? laid.height / 2 + 4 : 12}
+              strokeWidth={1.5}
+              className={`fill-transparent stroke-neutral-900 transition-opacity group-focus-visible:opacity-100 group-focus-visible:[stroke-dasharray:4_3] dark:stroke-neutral-100 ${
+                chosen ? 'opacity-100' : 'opacity-0 group-hover:opacity-25'
+              }`}
+            />
+            <NodeShape node={laid} className={`transition-colors ${classes.shape}`} />
             <text
-              x={laid.x + laid.width / 2}
-              y={laid.y + (detail ? 17 : laid.height / 2)}
+              x={centre}
+              y={laid.y + (caption ? 19 : 27)}
               textAnchor="middle"
-              dominantBaseline="middle"
-              className={`${textClasses(state)} text-[11.5px] font-medium`}
+              className={`text-[12px] font-semibold ${classes.id}`}
             >
-              <tspan className="opacity-60">{KIND_GLYPH[laid.node.kind]} </tspan>
               {laid.node.id}
             </text>
-            {detail && (
+            {caption && (
               <text
-                x={laid.x + laid.width / 2}
-                y={laid.y + 32}
+                x={centre}
+                y={laid.y + 34}
                 textAnchor="middle"
-                dominantBaseline="middle"
-                className={`${textClasses(state)} text-[9.5px] opacity-70`}
+                className={`text-[9.5px] ${classes.caption}`}
               >
-                {detail}
+                {caption}
               </text>
             )}
           </g>
@@ -248,40 +188,90 @@ function WizardSvg({
   )
 }
 
-/** Every wizard of the graph (root first, then each child wizard) as a stacked set of SVG graphs. */
+/** The smallest a graph is drawn, as a share of its natural size. Below it the pane scrolls. */
+const MIN_SCALE = 0.8
+
+const LEGEND = [
+  { kind: 'view', shape: 'rounded-full', label: 'form' },
+  { kind: 'step', shape: 'rounded-[3px]', label: 'step' },
+  {
+    kind: 'child',
+    shape: 'rounded-[3px] outline outline-1 outline-offset-1 outline-current',
+    label: 'child wizard',
+  },
+] as const
+
+/** Every wizard of the graph: the root first, then each child wizard in its own box. */
 export function WizardGraphView({ graph, liveState, selected, onSelect }: WizardGraphViewProps) {
   const wizards = useMemo(
     () =>
       wizardsOf(graph).map((wizard) => ({
-        ...wizard,
-        layout: layoutWizard(wizard.nodes, wizard.edges),
+        path: wizard.path,
+        layout: layoutGraph(wizard.nodes, wizard.edges),
       })),
     [graph],
   )
+  // The shapes need a key only when the wizard mixes them.
+  const kinds = new Set(graph.nodes.map((node) => node.kind))
   return (
-    <div className="flex flex-col gap-6">
-      {wizards.map((wizard) => (
-        <section key={wizard.path.join('/') || 'root'} className="flex flex-col items-center gap-2">
-          <h4 className="self-start font-mono text-[11px] text-neutral-500">
-            {wizard.path.length === 0
-              ? `${graph.name} v${graph.version}`
-              : `${wizard.path.join(' › ')} · child wizard`}
-          </h4>
-          <WizardSvg
-            layout={wizard.layout}
-            path={wizard.path}
-            liveState={liveState}
-            selected={selected}
-            onSelect={onSelect}
-          />
-        </section>
-      ))}
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[11px] text-neutral-500">
+        <h4 className="text-neutral-700 dark:text-neutral-300">
+          {graph.name} <span className="text-neutral-500">v{graph.version}</span>
+        </h4>
+        <ul className="flex items-center gap-3" aria-label="Legend">
+          {LEGEND.filter((item) => kinds.size > 1 && kinds.has(item.kind)).map((item) => (
+            <li key={item.label} className="flex items-center gap-1.5">
+              <span className={`inline-block h-2 w-3.5 border border-current ${item.shape}`} />
+              {item.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="-mx-4 flex flex-col gap-4 [align-items:safe_center] overflow-x-auto px-4 py-1 [&>*]:max-w-none">
+        {wizards.map(({ path, layout }) =>
+          path.length === 0 ? (
+            <WizardSvg
+              key="root"
+              layout={layout}
+              path={path}
+              name={graph.name}
+              liveState={liveState}
+              selected={selected}
+              onSelect={onSelect}
+            />
+          ) : (
+            <section
+              key={path.join('/')}
+              className="flex flex-col items-center rounded-[10px] border border-dashed border-neutral-300 px-3 pt-2 pb-1 dark:border-neutral-700"
+            >
+              <h5 className="self-start font-mono text-[10.5px] font-normal text-neutral-500">
+                inside {path.join(' / ')}
+              </h5>
+              <WizardSvg
+                layout={layout}
+                path={path}
+                name={path.join(' / ')}
+                liveState={liveState}
+                selected={selected}
+                onSelect={onSelect}
+              />
+            </section>
+          ),
+        )}
+      </div>
       {graph.warnings.length > 0 && (
-        <ul className="self-start font-mono text-[11px] text-neutral-500">
+        <ul className="flex flex-col gap-2">
           {graph.warnings.map((warning) => (
-            <li key={`${warning.code}-${warning.step ?? ''}`}>
-              ⚠ {warning.code}
-              {warning.step ? ` · ${warning.step}` : ''}: {warning.message}
+            <li
+              key={`${warning.code}-${warning.step ?? ''}`}
+              className="rounded-md border border-neutral-200 bg-paper-2 px-3 py-2 text-[12.5px] leading-5 text-neutral-600 dark:border-neutral-800 dark:bg-ink-2 dark:text-neutral-400"
+            >
+              <span className="mr-2 font-mono text-[11px] font-medium text-neutral-900 dark:text-neutral-100">
+                {warning.code}
+                {warning.step ? ` · ${warning.step}` : ''}
+              </span>
+              {warning.message}
             </li>
           ))}
         </ul>

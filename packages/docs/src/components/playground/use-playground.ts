@@ -64,6 +64,8 @@ export function usePlayground(initial: PlaygroundSample): PlaygroundState {
     setSample(next)
     setFiles(next.files)
     setActiveFile(next.files[0]?.name ?? '')
+    // The preview belongs to the code that ran: another example starts from an empty one.
+    void runnerRef.current?.then((created) => created.reset())
   }, [])
 
   const run = useCallback(() => {

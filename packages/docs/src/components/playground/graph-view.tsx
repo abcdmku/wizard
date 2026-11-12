@@ -2,6 +2,8 @@ import type { AnyWizardDefinition, Run, Snapshot } from '@openwizard/core'
 import { inspect, type Manifest } from '@openwizard/core/inspect'
 import { useMemo } from 'react'
 import { runAt } from './child-path'
+import { EmptyState } from './empty-state'
+import type { RunStatus } from './runner'
 import { type NodeStateLookup, WizardGraphView } from './wizard-graph'
 
 export interface StepRef {
@@ -50,23 +52,48 @@ interface GraphViewProps {
   readonly run: Run<AnyWizardDefinition> | undefined
   readonly selected: StepRef | null
   readonly onSelect: (ref: StepRef) => void
+  readonly status: RunStatus
 }
 
 /** The Graph tab: `inspect(wizard)` as a wizard graph, nodes coloured by the live run state. */
-export function GraphView({ wizard, run, selected, onSelect }: GraphViewProps) {
+export function GraphView({ wizard, run, selected, onSelect, status }: GraphViewProps) {
   const graph = useMemo(() => (wizard ? safeInspect(wizard) : null), [wizard])
   // The parent re-renders on every batch of events, so the lookup reads fresh statuses each time.
   const liveState = run ? liveStateLookup(run) : undefined
   if (!graph) {
+    if (status === 'compiling' || status === 'running') {
+      return (
+        <EmptyState title="Starting the run">The graph appears with the first wizard.</EmptyState>
+      )
+    }
+    if (status === 'error') {
+      return (
+        <EmptyState title="No graph to draw">
+          The code stopped before it created a wizard. The error is shown above.
+        </EmptyState>
+      )
+    }
+    if (status === 'done') {
+      return (
+        <EmptyState title="No wizard found">
+          The code ran, but it created no run and exported no wizard. Call{' '}
+          <code className="font-mono text-[12px]">wizard.create(...)</code> or export the wizard.
+        </EmptyState>
+      )
+    }
     return (
-      <p className="p-4 font-mono text-xs text-neutral-500">
-        Run code that creates a run or exports a wizard. Its <code>inspect(wizard)</code> graph
-        appears here.
-      </p>
+      <EmptyState title="No graph yet">
+        Press Run. Each step of the wizard is drawn here and coloured by what it did. Select a step
+        to read why.
+      </EmptyState>
     )
   }
   if ('error' in graph) {
-    return <p className="p-4 font-mono text-xs text-neutral-500">inspect() failed: {graph.error}</p>
+    return (
+      <EmptyState title="inspect(wizard) failed">
+        <span className="font-mono text-[12px]">{graph.error}</span>
+      </EmptyState>
+    )
   }
   return (
     <div className="p-4">
