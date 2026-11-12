@@ -22,7 +22,7 @@ const steps: Scenario = {
     const download = deferred<{ pages: number }>()
     const run = report.create(
       { reportId: 'r-1' },
-      { deps: { reports: { download: () => download.promise } } },
+      { deps: { reports: { download: tape.service('reports.download', () => download.promise) } } },
     )
     tape.track(run)
     await tape.beat(

@@ -6,6 +6,7 @@
 import type { AnyWizardDefinition, Run } from '@openwizard/core'
 import { inspect, type Manifest, traceLine } from '@openwizard/core/inspect'
 import { runAt } from '../playground/child-path'
+import { createOutside, type OutsideCard } from './outside'
 
 /** One step at one moment. `phase` is the live phase from `run.explain`, such as `waiting`. */
 export interface StepFrame {
@@ -27,12 +28,19 @@ export interface Frame {
   readonly steps: Readonly<Record<string, StepFrame>>
   /** The run's status, or `none` before a run exists. */
   readonly run: string
+  /** Forms, service calls and events outside the run, oldest first. */
+  readonly outside: readonly OutsideCard[]
 }
 
 /** What a scenario uses to tell its story. */
 export interface Tape {
   /** Follow this run from now on. A second call switches to another run, as after a resume. */
   track(run: { dispose(): void }): void
+  /** Wrap a service function, so the diagram shows each call to it and how it ended. */
+  service<A extends unknown[], R>(
+    name: string,
+    call: (...args: A) => Promise<R>,
+  ): (...args: A) => Promise<R>
   /** Run `action`, wait for the run to settle, and record the frames it caused. */
   beat(call: string, note: string, action?: () => unknown): Promise<void>
 }
@@ -119,6 +127,25 @@ export async function record(scenario: Scenario): Promise<Recording> {
     return next
   }
 
+  // A step calls its service just after the run reports that the step started. The call belongs
+  // to that frame, so the frame is updated when the call begins.
+  const outside = createOutside(() => {
+    const last = frames.at(-1)
+    if (last && framesThisBeat > 0) frames[frames.length - 1] = { ...last, outside: readOutside() }
+  })
+  const views = manifest.nodes
+    .filter((node) => node.kind === 'view')
+    .map((node) => ({ key: stepKey(node.path, node.id), path: node.path, id: node.id }))
+  const readOutside = (): readonly OutsideCard[] =>
+    outside.cards(views, (path) => {
+      if (!run) return undefined
+      try {
+        return runAt(run, path)
+      } catch {
+        return undefined
+      }
+    })
+
   const push = () => {
     steps = readSteps()
     const frame: Frame = {
@@ -126,6 +153,7 @@ export async function record(scenario: Scenario): Promise<Recording> {
       note,
       events,
       steps,
+      outside: readOutside(),
       run: run ? run.getState().status : 'none',
       ...(returned === undefined ? {} : { returned }),
     }
@@ -153,17 +181,20 @@ export async function record(scenario: Scenario): Promise<Recording> {
               ...last,
               run: next.getState().status,
               events: [...last.events, ...events],
+              outside: readOutside(),
             }
             events = []
           }
         }),
         next.observe((event) => {
+          outside.observe(event)
           if (QUIET.test(event.type)) return
           const text = traceLine(event).text
           if (!QUIET_TEXT.test(text) && events.at(-1) !== text) events.push(text)
         }),
       ]
     },
+    service: outside.service,
     async beat(nextCall, nextNote, action) {
       call = nextCall
       note = nextNote
@@ -175,11 +206,12 @@ export async function record(scenario: Scenario): Promise<Recording> {
       const last = frames.at(-1)
       if (framesThisBeat === 0 || !last) {
         push()
-      } else if (events.length > 0 || returned !== undefined) {
-        // The last change of this beat also carries what the call returned.
+      } else {
+        // The last change of this beat also carries what the call returned and what settled since.
         frames[frames.length - 1] = {
           ...last,
           events: [...last.events, ...events],
+          outside: readOutside(),
           ...(returned === undefined ? {} : { returned }),
         }
         events = []
