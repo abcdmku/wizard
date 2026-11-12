@@ -2,6 +2,7 @@ import { inspect } from '@openwizard/core/inspect'
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Look, lookOf, RunGraph } from './graph'
+import { OutsideCards } from './outside-cards'
 import { type Frame, type Recording, record, type Scenario, stepKey } from './record'
 import { scenarios } from './scenarios'
 
@@ -203,6 +204,8 @@ export function RunDiagram({ name }: { readonly name: string }) {
           )}
         </div>
       </div>
+
+      <OutsideCards now={frame?.outside ?? []} all={frames?.at(-1)?.outside ?? []} />
 
       <div className="rd-controls">
         <button

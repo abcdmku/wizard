@@ -84,3 +84,49 @@ it('children: records the steps of the child run', async () => {
   expect(frames.some((frame) => frame.steps['shipping/street']?.status === 'active')).toBe(true)
   expect(end?.steps.confirm?.status).toBe('done')
 })
+
+it('outside: records the form, the service calls and the event of a refund', async () => {
+  const { frames, end } = await last('refund')
+  const kinds = (frame: Frame | undefined) =>
+    (frame?.outside ?? []).map((card) =>
+      card.kind === 'form'
+        ? `form ${card.step} ${card.state}`
+        : `${card.kind} ${card.name} ${card.state}`,
+    )
+  const loading = frames.find((frame) => frame.call === 'await run.start()')
+  expect(kinds(loading)).toEqual(['form request open', 'call orders.find pending'])
+  expect(kinds(end)).toEqual([
+    'form request submitted',
+    'call orders.find returned',
+    'event refund.approved delivered',
+    'call payments.refund returned',
+  ])
+  const form = end?.outside.find((card) => card.kind === 'form')
+  expect(form).toMatchObject({ fields: { amount: '900', reason: 'never arrived' } })
+})
+
+it('outside: shows a refused draft, a refused event and each attempt of a retried call', async () => {
+  const forms = await last('forms')
+  const refused = forms.frames.find((frame) => frame.returned?.includes("'INVALID_INPUT'"))
+  expect(refused?.outside).toMatchObject([
+    { kind: 'form', state: 'invalid', issue: 'Invalid email address' },
+  ])
+
+  const wait = await last('wait', 0)
+  expect(wait.end?.outside.map((card) => card.kind === 'event' && card.state)).toEqual([
+    'rejected',
+    'delivered',
+  ])
+
+  const retry = await last('retry', 0)
+  const secondAttempt = retry.frames.filter((frame) => frame.steps.save?.phase === 'running')[1]
+  expect(secondAttempt?.outside.map((card) => card.kind === 'call' && card.state)).toEqual([
+    'threw',
+    'pending',
+  ])
+  expect(retry.end?.outside.map((card) => card.kind === 'call' && card.state)).toEqual([
+    'threw',
+    'threw',
+    'returned',
+  ])
+})

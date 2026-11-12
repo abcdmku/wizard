@@ -18,11 +18,11 @@ const retrySucceeds: Scenario = {
         scheduler,
         deps: {
           storage: {
-            save: async (fileId) => {
+            save: tape.service('storage.save', async (fileId: string) => {
               calls += 1
               if (calls < 3) throw new Error('storage is busy')
               return { url: `/files/${fileId}` }
-            },
+            }),
           },
         },
       },
@@ -62,10 +62,10 @@ const retryHalts: Scenario = {
         scheduler,
         deps: {
           storage: {
-            save: async (fileId) => {
+            save: tape.service('storage.save', async (fileId: string) => {
               if (down) throw new Error('storage is down')
               return { url: `/files/${fileId}` }
-            },
+            }),
           },
         },
       },
@@ -109,7 +109,7 @@ const fallback: Scenario = {
     const live = deferred<number>()
     const run = price.create(
       { sku: 'sku-1', listPrice: 10 },
-      { deps: { live: { price: () => live.promise } } },
+      { deps: { live: { price: tape.service('live.price', (_sku: string) => live.promise) } } },
     )
     tape.track(run)
     await tape.beat(
@@ -136,8 +136,11 @@ const compensate: Scenario = {
     const hotel = deferred<{ ref: string }>()
     const cancel = deferred<void>()
     const deps: TripDeps = {
-      flights: { book: async () => ({ ref: 'FL-1' }), cancel: () => cancel.promise },
-      hotels: { book: () => hotel.promise },
+      flights: {
+        book: tape.service('flights.book', async (_tripId: string) => ({ ref: 'FL-1' })),
+        cancel: tape.service('flights.cancel', (_ref: string) => cancel.promise),
+      },
+      hotels: { book: tape.service('hotels.book', (_tripId: string) => hotel.promise) },
     }
     const run = trip.create({ tripId: 't-1' }, { deps })
     tape.track(run)
