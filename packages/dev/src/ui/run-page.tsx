@@ -163,6 +163,7 @@ export function RunPage(props: {
             selected={selected}
             onSelect={(selection) => select(selection?.key ?? null)}
             minimap={false}
+            follow
             theme={scheme}
           />
         </section>

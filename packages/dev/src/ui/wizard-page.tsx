@@ -174,7 +174,7 @@ export function WizardPage(props: {
       ))}
 
       <section className="card graph" aria-label="Steps">
-        <WizardGraph graph={wizard.manifest} minimap={false} theme={scheme} />
+        <WizardGraph graph={wizard.manifest} minimap={false} follow theme={scheme} />
       </section>
       <StartForm wizard={wizard} />
 

@@ -66,7 +66,7 @@ Read the [devtools reference](https://abcdmku.github.io/wizard/reference/devtool
 | `StepStatusMap` | type | Statuses keyed by step key (`stepKey(path, id)`: the step id for the root wizard, | [src](../../packages/devtools/src/types.ts#L49) |
 | `Timeline` | function | Time travel over a run's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any | [src](../../packages/devtools/src/timeline/Timeline.tsx#L52) |
 | `TimelineProps` | interface | `<Timeline>` props: the run `source`; `context` (the input `wizard.create` received) lets the | [src](../../packages/devtools/src/timeline/Timeline.tsx#L33) |
-| `WizardGraph` | function | The static graph of a wizard, laid out with ELK (left → right layers; cycles broken for the | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L83) |
-| `WizardGraphProps` | interface | `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L49) |
+| `WizardGraph` | function | The static graph of a wizard, laid out with ELK (left → right layers; cycles broken for the | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L89) |
+| `WizardGraphProps` | interface | `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L50) |
 
 <!-- exports:end -->
