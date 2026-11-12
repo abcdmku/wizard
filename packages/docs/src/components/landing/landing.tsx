@@ -9,7 +9,7 @@ import { SiteHeader } from '../site-header'
 import Example from './example.mdx'
 import { agentPoints, extras, outputs, replacements } from './features'
 
-/** The pitch, what you stop maintaining, a run you can watch, what the wizard generates, why agents need it and the code. */
+/** The pitch, what you stop maintaining, a run you can drive, what the wizard generates, why agents need it and the code. */
 export function Landing() {
   return (
     <div className="flex min-h-dvh flex-col">
@@ -57,8 +57,12 @@ export function Landing() {
         </section>
 
         <section className="landing-section">
-          <h2>Watch it run</h2>
-          <p>A refund that waits for a manager. This is a recording of the real run. Press play.</p>
+          <h2>Try it</h2>
+          <p>
+            The refund wizard from the file below, running in your browser. You are the customer,
+            the manager and the payment service. A refund of 100 or more waits for you to approve
+            it.
+          </p>
           <RunDiagram name="refund" />
         </section>
 

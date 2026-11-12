@@ -1,144 +1,70 @@
 import { inspect } from '@openwizard/core/inspect'
-import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from 'lucide-react'
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import { RotateCcw } from 'lucide-react'
+import { type CSSProperties, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { graphWidth, RunGraph } from './graph'
-import { OutsideCards } from './outside-cards'
-import { type Frame, type Recording, record, type Scenario, stepKey } from './record'
-import { scenarios } from './scenarios'
+import { createLive, type Live, type LiveState, stepKey } from './live'
+import { LivePortal } from './live-portal'
+import { liveSpecs } from './live-specs'
 
-const FRAME_MS = 1400
+const noop = () => () => {}
 
-/** Recordings are deterministic, so one per scenario serves every diagram on the site. */
-const recordings = new WeakMap<Scenario, Promise<Recording>>()
-const recordingOf = (scenario: Scenario): Promise<Recording> => {
-  let pending = recordings.get(scenario)
-  if (!pending) {
-    pending = record(scenario)
-    recordings.set(scenario, pending)
-  }
-  return pending
+/** Follows a live run, or nothing before the page has mounted. */
+function useLiveState(live: Live | undefined): LiveState | undefined {
+  return useSyncExternalStore(
+    live ? live.subscribe : noop,
+    () => live?.getState(),
+    () => undefined,
+  )
 }
 
-const prefersReducedMotion = (): boolean =>
-  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-/** Plays a recording: the current frame, and whether it advances by itself. */
-function usePlayer(frames: readonly Frame[] | undefined) {
-  const [index, setIndex] = useState(0)
-  const [playing, setPlaying] = useState(false)
-  const count = frames?.length ?? 0
-  const lastIndex = Math.max(0, count - 1)
-
-  useEffect(() => {
-    if (!playing) return
-    if (index >= lastIndex) {
-      setPlaying(false)
-      return
-    }
-    const timer = setTimeout(() => setIndex((current) => current + 1), FRAME_MS)
-    return () => clearTimeout(timer)
-  }, [playing, index, lastIndex])
-
-  return {
-    index: Math.min(index, lastIndex),
-    playing,
-    atEnd: index >= lastIndex,
-    seek(next: number) {
-      setPlaying(false)
-      setIndex(Math.max(0, Math.min(lastIndex, next)))
-    },
-    toggle() {
-      if (playing) return setPlaying(false)
-      if (index >= lastIndex) setIndex(0)
-      setPlaying(true)
-    },
-    play() {
-      setIndex(0)
-      setPlaying(true)
-    },
-    reset() {
-      setPlaying(false)
-      setIndex(0)
-    },
-  }
-}
-
-/** What the caller ran for one frame, what it returned and what the run reported. */
-function PanelFrame({ frame, current }: { readonly frame: Frame; readonly current: boolean }) {
+/** The calls the page made, newest first, each with what it returned and what the run reported. */
+function CallLog({ state }: { readonly state: LiveState | undefined }) {
+  if (!state) return <p className="rd-note">Loading the run.</p>
   return (
-    <div
-      className={`rd-frame${current ? ' is-current' : ''}`}
-      aria-hidden={current ? undefined : true}
-    >
-      <p className="rd-run">
-        run{' '}
-        <span className={`rd-run-status is-${frame.run}`}>
-          {frame.run === 'none' ? 'not created' : frame.run}
-        </span>
-      </p>
-      <pre className="rd-call">
-        <code>{frame.call}</code>
-      </pre>
-      {frame.returned && <p className="rd-returned">{frame.returned}</p>}
-      <p className="rd-note">{frame.note}</p>
-      {frame.events.length > 0 && (
-        <ul className="rd-events" aria-label="Events">
-          {frame.events.map((event) => (
-            <li key={event}>{event}</li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <ol className="lv-log" aria-label="Calls this page made" aria-live="polite">
+      {[...state.log].reverse().map((entry, index) => (
+        <li key={entry.id} className={index === 0 ? 'is-latest' : ''}>
+          <pre className="rd-call">
+            <code>{entry.call}</code>
+          </pre>
+          {entry.returned && <p className="rd-returned">{entry.returned}</p>}
+          {entry.events.length > 0 && (
+            <ul className="rd-events" aria-label="Events">
+              {entry.events.map((event) => (
+                <li key={event}>{event}</li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ol>
   )
 }
 
 /**
- * A diagram of a wizard that replays a real run of it. `name` picks the scenarios from
- * `scenarios.ts`. With several, the reader switches between them.
+ * A wizard's steps next to a real run of it that the reader drives: they fill in the forms,
+ * send the events, answer the service calls and move time forward. `name` picks the examples
+ * from `live-specs.ts`. With several, the reader switches between them.
  */
 export function RunDiagram({ name }: { readonly name: string }) {
-  const variants = scenarios[name]
-  if (!variants || variants.length === 0) throw new Error(`RunDiagram: no scenario named '${name}'`)
+  const variants = liveSpecs[name]
+  if (!variants || variants.length === 0) throw new Error(`RunDiagram: no example named '${name}'`)
   const [variant, setVariant] = useState(0)
-  const scenario = variants[variant] ?? variants[0]
-  if (!scenario) throw new Error(`RunDiagram: no scenario named '${name}'`)
+  const [generation, setGeneration] = useState(0)
+  const spec = variants[variant] ?? variants[0]
+  if (!spec) throw new Error(`RunDiagram: no example named '${name}'`)
 
-  const manifest = useMemo(() => inspect(scenario.wizard), [scenario])
-  const [recording, setRecording] = useState<Recording>()
-  const player = usePlayer(recording?.frames)
-  const figure = useRef<HTMLElement>(null)
-  const started = useRef(false)
-
+  const manifest = useMemo(() => inspect(spec.wizard), [spec])
+  const [live, setLive] = useState<Live>()
+  // The run is created in the browser only, and again for each restart.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `generation` restarts the run
   useEffect(() => {
-    let current = true
-    setRecording(undefined)
-    recordingOf(scenario).then((next) => {
-      if (current) setRecording(next)
-    })
-    return () => {
-      current = false
-    }
-  }, [scenario])
-
-  // Play once when the reader scrolls the diagram into view.
-  const { play } = player
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `play` is stable enough; the effect must run once per recording
-  useEffect(() => {
-    const element = figure.current
-    if (!recording || started.current || !element || prefersReducedMotion()) return
-    if (typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting) || started.current) return
-        started.current = true
-        observer.disconnect()
-        play()
-      },
-      { threshold: 0.6 },
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [recording])
+    const next = createLive(spec)
+    setLive(next)
+    return () => next.dispose()
+  }, [spec, generation])
+  const state = useLiveState(live)
+  const restart = () => setGeneration((count) => count + 1)
 
   const idle = useMemo(
     () =>
@@ -147,14 +73,12 @@ export function RunDiagram({ name }: { readonly name: string }) {
       ),
     [manifest],
   )
-  const frames = recording?.frames
-  const frame = frames?.[player.index]
   return (
-    <figure ref={figure} className="run-diagram not-prose" data-run-diagram={name}>
+    <figure className="run-diagram live-run not-prose" data-run-diagram={name}>
       <div className="rd-head">
-        <span className="rd-title">Watch it run</span>
+        <span className="rd-title">Live run · in your browser</span>
         {variants.length > 1 && (
-          <div className="rd-tabs" role="tablist" aria-label="Scenario">
+          <div className="rd-tabs" role="tablist" aria-label="Example">
             {variants.map((option, i) => (
               <button
                 key={option.label}
@@ -162,17 +86,17 @@ export function RunDiagram({ name }: { readonly name: string }) {
                 role="tab"
                 aria-selected={i === variant}
                 className={i === variant ? 'is-selected' : ''}
-                onClick={() => {
-                  started.current = true
-                  player.reset()
-                  setVariant(i)
-                }}
+                onClick={() => setVariant(i)}
               >
                 {option.label}
               </button>
             ))}
           </div>
         )}
+        <button type="button" className="lv-restart" onClick={restart} disabled={!state?.started}>
+          <RotateCcw aria-hidden="true" />
+          Start over
+        </button>
       </div>
 
       <div
@@ -180,74 +104,16 @@ export function RunDiagram({ name }: { readonly name: string }) {
         style={{ '--rd-graph': `${graphWidth(manifest)}px` } as CSSProperties}
       >
         <div className="rd-stage">
-          <RunGraph manifest={manifest} steps={frame?.steps ?? idle} />
+          <RunGraph manifest={manifest} steps={state?.steps ?? idle} />
         </div>
-        {/* Every frame's text shares one cell, so the panel is as tall as its longest frame. */}
-        <div className="rd-panel">
-          {frames ? (
-            frames.map((item, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: frames are a fixed, ordered recording
-              <PanelFrame key={i} frame={item} current={i === player.index} />
-            ))
-          ) : (
-            <p className="rd-note">{variants.length > 1 ? scenario.label : 'Loading the run.'}</p>
-          )}
+        <div className="rd-panel lv-panel">
+          <CallLog state={state} />
         </div>
       </div>
 
-      <OutsideCards now={frame?.outside ?? []} frames={frames ?? []} />
-
-      <div className="rd-controls">
-        <button
-          type="button"
-          className="rd-play"
-          onClick={player.toggle}
-          disabled={!frames}
-          aria-label={player.playing ? 'Pause' : player.atEnd ? 'Play again' : 'Play'}
-        >
-          {player.playing ? (
-            <Pause aria-hidden="true" />
-          ) : player.atEnd && frames ? (
-            <RotateCcw aria-hidden="true" />
-          ) : (
-            <Play aria-hidden="true" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => player.seek(player.index - 1)}
-          disabled={!frames || player.index === 0}
-          aria-label="Previous change"
-        >
-          <ChevronLeft aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => player.seek(player.index + 1)}
-          disabled={!frames || player.atEnd}
-          aria-label="Next change"
-        >
-          <ChevronRight aria-hidden="true" />
-        </button>
-        <ol className="rd-track">
-          {(frames ?? []).map((item, i) => {
-            const newCall = i === 0 || frames?.[i - 1]?.call !== item.call
-            return (
-              // biome-ignore lint/suspicious/noArrayIndexKey: frames are a fixed, ordered recording
-              <li key={i}>
-                <button
-                  type="button"
-                  className={`${newCall ? 'is-call' : ''} ${i === player.index ? 'is-current' : i < player.index ? 'is-past' : ''}`}
-                  onClick={() => player.seek(i)}
-                  aria-label={`Change ${i + 1} of ${frames?.length}: ${item.call}`}
-                  aria-current={i === player.index ? 'step' : undefined}
-                />
-              </li>
-            )
-          })}
-        </ol>
-        <span className="rd-count">{frames ? `${player.index + 1} / ${frames.length}` : ''}</span>
-      </div>
+      {live && state && (
+        <LivePortal key={`${variant}:${generation}`} live={live} state={state} restart={restart} />
+      )}
     </figure>
   )
 }

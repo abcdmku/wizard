@@ -8,7 +8,7 @@ import {
   layoutGraph,
   wizardsOf,
 } from './layout'
-import { type Frame, type StepFrame, stepKey } from './record'
+import { type LiveState, type StepFrame, stepKey } from './live'
 
 /** The look of a step: what colour it gets and which word sits under its name. */
 export type Look =
@@ -69,7 +69,7 @@ function WizardSvg({
 }: {
   readonly layout: GraphLayout
   readonly path: readonly string[]
-  readonly steps: Frame['steps']
+  readonly steps: LiveState['steps']
   readonly name: string
   /** `wide` and `narrow` are two layouts of one graph. CSS shows the one that fits the screen. */
   readonly fit?: 'wide' | 'narrow'
@@ -177,7 +177,7 @@ export function RunGraph({
   steps,
 }: {
   readonly manifest: Manifest
-  readonly steps: Frame['steps']
+  readonly steps: LiveState['steps']
 }) {
   const wizards = useMemo(
     () =>
