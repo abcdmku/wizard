@@ -5,6 +5,8 @@ Serve runs from several processes without two of them working on the same run at
 ```ts file="packages/docs/snippets/advanced/server.ts"
 ```
 
+<Sequence name="lease" />
+
 - A durable host gives one process at a time a lease on a run, and the store refuses writes from a process that lost it. Use a host as soon as two processes can reach the same run. Without one, both can resume the same snapshot and both call your services.
 - `host.create(key, input)` creates the run at `key`, or opens the one stored there. `host.open(key)` opens only a run that exists.
 - Send commands and events through the host, with `host.dispatch` and `host.send`. They check the ids and reopen the run when its lease was released or lost. Use `opened.host.run` to read state.

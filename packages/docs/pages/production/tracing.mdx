@@ -19,7 +19,3 @@ Record a run as OpenTelemetry spans.
 | Link an incoming event to its sender's trace | `telemetry.send(event, payload, { context, eventId })` |
 | Pass the run's trace to a service you call | `telemetry.inject(headers)` |
 | Read trace headers from a request | `telemetry.extract(headers)` |
-
-## Read a trace without a collector
-
-`formatTrace(run.log())` prints the same events as text. See [Inspect and debug](/guide/inspect).

@@ -5,6 +5,8 @@ Store a run as JSON and continue it later, in another process.
 ```ts file="packages/docs/snippets/learn/save-resume.ts"
 ```
 
+<RunDiagram name="save-resume" />
+
 - A snapshot is plain JSON. It holds the context, drafts, step outputs, errors, deadlines and child runs. It does not hold `deps` or the wizard, so resume with the same wizard and pass `deps` again.
 - With a `store`, every state change schedules a write. `await run.save()` when the next action depends on that write. `autoSave: 'off'` writes only on `save()`.
 - Finished steps stay finished. A step that was running when the process stopped runs again if it declares `idempotencyKey`. Otherwise it fails as `interrupted` and the run halts, so you can check the service before `run.retry(step)`.

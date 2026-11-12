@@ -1,0 +1,77 @@
+/* ---------- Sequence diagram: who sends what to whom ---------- */
+.seq-diagram {
+  margin: 1.75rem 0;
+  border: 1px solid var(--rd-line);
+  border-radius: 12px;
+  background: var(--rd-surface);
+  padding: 14px 14px 10px;
+  overflow-x: auto;
+}
+.seq-diagram svg {
+  display: block;
+  width: 100%;
+  min-width: 560px;
+  height: auto;
+}
+.seq-diagram figcaption {
+  margin-top: 8px;
+  border-top: 1px solid var(--rd-line);
+  padding-top: 8px;
+  font-size: 13px;
+  color: var(--rd-muted);
+}
+.seq-life {
+  stroke: var(--rd-line);
+  stroke-dasharray: 3 4;
+}
+.seq-actor {
+  fill: var(--rd-node);
+  stroke: var(--rd-edge);
+  stroke-width: 1.25;
+}
+.seq-actor-name {
+  fill: var(--rd-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.seq-arrow {
+  fill: var(--rd-muted);
+}
+.seq-message line {
+  stroke: var(--rd-muted);
+  stroke-width: 1.4;
+}
+.seq-message.is-reply line {
+  stroke-dasharray: 5 4;
+}
+.seq-message text {
+  fill: var(--rd-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: var(--rd-surface);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.seq-note rect {
+  fill: var(--rd-node);
+  stroke: var(--rd-line);
+}
+.seq-note text {
+  fill: var(--rd-muted);
+  font-size: 11.5px;
+}
+.seq-note.is-bad rect {
+  fill: var(--rd-failed-bg);
+  stroke: var(--rd-failed);
+}
+.seq-note.is-bad text {
+  fill: var(--rd-failed);
+}
+.seq-note.is-good rect {
+  fill: var(--rd-done-bg);
+  stroke: var(--rd-done);
+}
+.seq-note.is-good text {
+  fill: var(--rd-done);
+}

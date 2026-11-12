@@ -27,6 +27,8 @@ The prefix is the wizard's name. Change it with `id`, `path` or `receive.path`.
 
 A sender posts a [Standard Webhooks](https://www.standardwebhooks.com) message: a JSON body `{ type, timestamp, data, subject? }` with the `webhook-id`, `webhook-timestamp` and `webhook-signature` headers. The route verifies the signature, calls `resolve`, then sends `data` to the run through the event's schema. `signWebhook` builds the headers for a test.
 
+<Sequence name="webhook" />
+
 ## Make retries safe
 
 The `webhook-id` of a delivery and the `Idempotency-Key` header of an API write become the event or command id. A repeat gets the stored response. The default store for those responses lives in one process, so pass a shared `idempotency` store when several processes serve the routes.
