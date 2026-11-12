@@ -62,9 +62,9 @@ export function useHashNav(enabled: boolean): Nav | undefined {
   )
 }
 
-/** Keeps the route in memory, for a UI that shares its page with other content. */
-export function useMemoryNav(): Nav {
-  const [route, setRoute] = useState<Route>({ page: 'home' })
+/** Keeps the route in memory, for a UI that shares its page with other content. It opens at `initial`. */
+export function useMemoryNav(initial: Route = { page: 'home' }): Nav {
+  const [route, setRoute] = useState<Route>(initial)
   return useMemo(() => ({ route, go: setRoute, href: () => '#' }), [route])
 }
 

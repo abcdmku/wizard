@@ -33,6 +33,8 @@ The graph shows the status of each step as it changes. The history lists every e
 
 A form, a payload or an input whose schema is a flat object gets one field per property. "Edit as JSON" switches to the raw value.
 
+Under each control, "In code" shows the call that does the same thing, such as `await run.send('refund.approved', { by: 'grace' })`.
+
 ## Stop a run and resume it
 
 "Stop and resume" disposes the run and resumes it from its snapshot, which is what a restarted process does. Finished steps stay finished. A step that was running runs again if it declares `idempotencyKey`, and otherwise fails as `interrupted` so you can retry it.

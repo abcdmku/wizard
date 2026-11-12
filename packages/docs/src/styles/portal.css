@@ -3,7 +3,6 @@
   /* The UI draws in a shadow root. These two variables are how it gets the site's fonts. */
   --ow-dev-font: var(--font-sans);
   --ow-dev-mono: var(--font-mono);
-  height: 640px;
   margin: 1.75rem 0;
   overflow: hidden;
   border: 1px solid #d4d4d4;
@@ -14,6 +13,52 @@
   border-color: #333;
   background: #0a0a0a;
 }
+/* What to do in the UI below to see the point of the page. */
+.portal-tries {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 16px;
+  border-bottom: 1px solid #d4d4d4;
+  background: #fff;
+  padding: 14px 18px;
+  color: #404040;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.dark .portal-tries {
+  border-bottom-color: #333;
+  background: #111;
+  color: #d4d4d4;
+}
+.portal-tries > span {
+  padding-top: 1px;
+  color: #0a0a0a;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.dark .portal-tries > span {
+  color: #fff;
+}
+.portal-tries ol {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 0 1.25rem;
+  list-style: decimal;
+}
+.portal-tries ol li {
+  margin: 0;
+  padding: 0;
+}
+.portal-tries li::marker {
+  color: #737373;
+  font-variant-numeric: tabular-nums;
+}
+.portal-frame {
+  height: 600px;
+}
 .portal-host {
   height: 100%;
 }
@@ -23,12 +68,17 @@
   font-size: 14px;
 }
 .landing-section .portal {
-  height: 700px;
   margin: 20px 0 0;
 }
+.landing-section .portal-frame {
+  height: 700px;
+}
 @media (max-width: 640px) {
-  .portal,
-  .landing-section .portal {
+  .portal-tries {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .portal-frame,
+  .landing-section .portal-frame {
     height: 78dvh;
     min-height: 520px;
   }

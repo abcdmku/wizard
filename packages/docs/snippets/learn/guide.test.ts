@@ -46,7 +46,11 @@ it('steps: runs work for each item and keeps the input order', async () => {
 })
 
 it('needs: joins the typed outputs of two steps', async () => {
-  expect(await runDashboard()).toMatchObject({ status: 'done', output: 'User 7 has 2 orders' })
+  const deps = {
+    users: { find: async (userId: string) => ({ name: `User ${userId}` }) },
+    orders: { list: async () => [{ id: 'order-1' }, { id: 'order-2' }] },
+  }
+  expect(await runDashboard(deps)).toMatchObject({ status: 'done', output: 'User 7 has 2 orders' })
 })
 
 it('forms: accepts a valid draft and refuses an invalid one', async () => {

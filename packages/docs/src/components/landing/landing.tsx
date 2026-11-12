@@ -59,11 +59,10 @@ export function Landing() {
         <section className="landing-section">
           <h2>Run it by hand</h2>
           <p>
-            <code>npx openwizard dev</code> opens this UI on your machine. Here it runs in the page,
-            with the refund wizard from the file below. Start a run, then be the customer, the order
-            service, the manager and the payment service.
+            <code>npx openwizard dev</code> opens this UI on your machine. Here it runs in the page
+            with five wizards: a refund, a research agent, a new hire, an incident and a deploy.
           </p>
-          <Portal name="refund" />
+          <Portal name="home" />
           <div className="landing-actions">
             <Link to="/$" params={{ _splat: 'guide/dev' }} className="landing-action is-quiet">
               Read about the dev server

@@ -116,5 +116,12 @@ it('http: creates a run, then a signed webhook finishes it', async () => {
 })
 
 it('tracing: an instrumented run still finishes', async () => {
-  expect(await tracedDashboard()).toMatchObject({ status: 'done', output: 'User 7 has 2 orders' })
+  const deps = {
+    users: { find: async (userId: string) => ({ name: `User ${userId}` }) },
+    orders: { list: async () => [{ id: 'order-1' }, { id: 'order-2' }] },
+  }
+  expect(await tracedDashboard(deps)).toMatchObject({
+    status: 'done',
+    output: 'User 7 has 2 orders',
+  })
 })

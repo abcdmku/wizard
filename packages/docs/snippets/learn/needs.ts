@@ -1,11 +1,20 @@
-import { defineWizard } from '@openwizard/core'
+import { boundary, defineWizard } from '@openwizard/core'
 import { z } from 'zod'
 
+export interface DashboardDeps {
+  users: { find(userId: string): Promise<{ name: string }> }
+  orders: { list(userId: string): Promise<{ id: string }[]> }
+}
+
 export const dashboard = defineWizard(
-  { name: 'dashboard', context: z.object({ userId: z.string() }) },
+  {
+    name: 'dashboard',
+    context: z.object({ userId: z.string() }),
+    deps: boundary.trusted<DashboardDeps>(),
+  },
   ({ step, steps }) => {
-    const profile = step({ run: async ({ context }) => ({ name: `User ${context.userId}` }) })
-    const orders = step({ run: async () => [{ id: 'order-1' }, { id: 'order-2' }] })
+    const profile = step({ run: ({ context, deps }) => deps.users.find(context.userId) })
+    const orders = step({ run: ({ context, deps }) => deps.orders.list(context.userId) })
     const summary = step({
       needs: { profile, orders },
       run: ({ needs }) => `${needs.profile.name} has ${needs.orders.length} orders`,
@@ -14,5 +23,5 @@ export const dashboard = defineWizard(
   },
 )
 
-export const runDashboard = () => dashboard.run({ userId: '7' })
+export const runDashboard = (deps: DashboardDeps) => dashboard.run({ userId: '7' }, { deps })
 // { status: 'done', output: 'User 7 has 2 orders' }

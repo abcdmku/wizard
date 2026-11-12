@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { App } from './app'
 import { type Backend, BackendProvider } from './backend'
 import graphCss from './graph.css?inline'
-import { NavProvider, useHashNav, useMemoryNav } from './nav'
+import { NavProvider, type Route, useHashNav, useMemoryNav } from './nav'
 import pageCss from './page.css?inline'
 import shellCss from './styles.css?inline'
 import tablesCss from './tables.css?inline'
@@ -34,6 +34,8 @@ function useScheme(theme: PortalTheme): 'light' | 'dark' {
 export function DevPortal(props: {
   readonly backend: Backend
   readonly nav?: 'hash' | 'memory'
+  /** With `nav="memory"`, the wizard or run the UI opens on. */
+  readonly open?: Route
   readonly theme?: PortalTheme
   readonly className?: string
   readonly style?: CSSProperties
@@ -45,7 +47,7 @@ export function DevPortal(props: {
     if (element !== null) setRoot(element.shadowRoot ?? element.attachShadow({ mode: 'open' }))
   }, [])
   const hash = useHashNav(props.nav === 'hash')
-  const memory = useMemoryNav()
+  const memory = useMemoryNav(props.open)
   const scheme = useScheme(props.theme ?? 'system')
   return (
     <div ref={host} className={props.className} style={props.style}>
