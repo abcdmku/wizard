@@ -98,14 +98,28 @@ export const outputs: readonly Output[] = [
   },
 ]
 
-/** What you maintain by hand when a workflow has no engine. */
-export const byHand: readonly string[] = [
-  'A status column, and a cron job that polls it',
-  'A retry loop around every service call',
-  'An API route for every button',
-  'A webhook handler that checks signatures',
-  'A wiki page that describes last quarter',
-  'A run that dies with the deploy',
+/** A chore a workflow needs without an engine, and the line of a wizard that replaces it. */
+export interface Replacement {
+  readonly chore: string
+  readonly code: string
+}
+
+export const replacements: readonly Replacement[] = [
+  {
+    chore: 'A status column and a cron job that polls it',
+    code: "waitFor: { 'refund.approved': ... }",
+  },
+  {
+    chore: 'A retry loop around every service call',
+    code: "retry: { retries: 2, backoff: 'exponential' }",
+  },
+  { chore: 'An API route for every button', code: 'createHTTP(refund, { access })' },
+  {
+    chore: 'A webhook handler that checks signatures',
+    code: "receive: { events: ['refund.approved'] }",
+  },
+  { chore: 'A wiki page that describes last quarter', code: 'toMarkdown(inspect(refund))' },
+  { chore: 'A run that dies with the deploy', code: 'refund.resume(snapshot)' },
 ]
 
 /** Why this matters when an agent does the work or writes it. */

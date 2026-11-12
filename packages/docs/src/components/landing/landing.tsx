@@ -7,7 +7,7 @@ import { mdxComponents } from '../mdx/mdx-components'
 import { RunDiagram } from '../run-diagram/run-diagram'
 import { SiteHeader } from '../site-header'
 import Example from './example.mdx'
-import { agentPoints, byHand, extras, outputs } from './features'
+import { agentPoints, extras, outputs, replacements } from './features'
 
 /** The pitch, what you stop maintaining, a run you can watch, what the wizard generates, why agents need it and the code. */
 export function Landing() {
@@ -43,10 +43,15 @@ export function Landing() {
         </div>
 
         <section className="landing-section">
-          <h2>What you stop maintaining</h2>
-          <ul className="landing-byhand">
-            {byHand.map((item) => (
-              <li key={item}>{item}</li>
+          <h2>What it replaces</h2>
+          <p>Each chore on the left becomes the line on the right.</p>
+          <ul className="landing-replaces">
+            {replacements.map((item) => (
+              <li key={item.chore}>
+                <span>{item.chore}</span>
+                <ArrowRight aria-hidden="true" />
+                <code>{item.code}</code>
+              </li>
             ))}
           </ul>
         </section>
