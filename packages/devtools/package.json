@@ -1,6 +1,6 @@
 {
   "name": "@openwizard/devtools",
-  "version": "0.1.0-next.0",
+  "version": "0.1.0-next.1",
   "description": "A dockable graph, event log, inspector, and replay timeline for OpenWizard.",
   "license": "MIT",
   "type": "module",

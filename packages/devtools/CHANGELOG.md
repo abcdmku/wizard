@@ -1,5 +1,232 @@
 # @openwizard/devtools
 
+## 0.1.0-next.1
+
+### Minor Changes
+
+- 13cfc63: Move the wizard manifest to `@openwizard/core/inspect`: `inspect`, `toMermaid`, `toJSONSchema`,
+  `formatTrace`, `traceLine` and the `Manifest`, `ManifestStep`, `ManifestEdge`, `GraphRetry`,
+  `JSONSchema` and `ManifestWarning` types. The main entry no longer exports them.
+  
+  `inspect(wizard)` returns the full manifest: `description` and `meta`, draft 2020-12 JSON Schemas of
+  the context, event payloads, view input and step outputs (read through Standard JSON Schema, so
+  Zod 4 and ArkType work; other boundaries give `undefined`), and per step `waitsFor`, `completes`,
+  `compensable`, `retry`, `child` and declared `targets`, drawn as `route` edges. `fingerprint`
+  detects structure and schema drift. It is not a behaviour hash: hook bodies, `when` guards, retry
+  and timeouts do not change it. A new `EXCLUSIVE_JOIN` warning flags an AND-join over alternative
+  branches. `toMermaid` output now parses with Mermaid: quoted edge labels (`needs: first (any)`), a
+  title, step labels, event nodes, and child subgraphs titled with the child wizard name.
+  
+  Every entry of `@openwizard/core` shares one runtime, so `inspect()` accepts wizards built with
+  `boundary.trusted()` and the errors it throws pass `instanceof WizardError`.
+  
+  Devtools imports the manifest from `@openwizard/core/inspect`. It no longer re-exports
+  `ManifestStep` / `ManifestEdge`, so import them from there. Route edges are drawn dashed, with no
+  `?` port when targets are declared. The event log and timeline use `traceLine`.
+- 101aaee: Remove the `dependsOn` step option. Steps are now linked two ways: `next` starts a step, and
+  `needs` waits for another step and passes its output on. A definition that still sets
+  `dependsOn` fails to type-check and throws `DEFINITION_INVALID` when it is built.
+  
+  | Before | After |
+  |---|---|
+  | `dependsOn: ['audit']`, wait for a step | `needs: { audit }`, and ignore the value |
+  | The same, where a skipped `audit` should not stop the step | `needs: { audit: { optional: audit } }` |
+  | `dependsOn: { any: ['a', 'b'] }` | `needs: { first: { any: [a, b] } }` |
+  | `dependsOn` on a step listed in a router's `targets` | The same `needs`. The router still decides whether the step runs |
+  | `dependsOn` on a step another step starts with a static `next` | `needs` on both, for example `needs: { review, audit }` |
+  
+  `needs` takes step objects, so create the producers first with `const audit = step(...)`.
+  
+  Three differences from `dependsOn` matter when you migrate:
+  
+  - A skipped producer skips a step with a plain need on it. `dependsOn` let the step run. Use
+    `{ optional: producer }` to keep that.
+  - An `any` need waits for a producer that finished. A skipped producer does not satisfy it.
+  - A need starts its step once the producers finish, where `dependsOn` only held a step that
+    something else started. The exception is below.
+  
+  A step listed in the `targets` of a function `next` now starts only when that function returns
+  it. Its needs hold it and never start it. Before, a target with needs started as soon as its
+  producers finished, even when the router chose another branch, and a `not-taken` target came
+  back to life when a producer finished later.
+  
+  Also removed, because only `dependsOn` used them: the `dependsOn` field of `ManifestStep`, the
+  `dependsOn` edge kind, its Mermaid and devtools labels, and the `NEVER_ACTIVATES` warning. A step
+  whose producers cannot be reached is reported as `UNREACHABLE`. The reason code
+  `deps-unmet:<id>` and the error `DEPS_UNREACHABLE` stay and now always refer to a need.
+  `EXCLUSIVE_JOIN` still warns about a step with plain needs on exclusive branches.
+  
+  The manifest fingerprint of every wizard changes once, because the hashed structure no longer
+  has a `dependsOn` entry.
+- 28b48a1: `<WizardGraph follow>` keeps a wide graph readable: it draws the steps at a readable size, centred on the ones that are running, waiting or failed, and moves the view as the run does. The dev UI turns it on.
+- 92251c6: Use one vocabulary. The word "flow" is gone from the public API, the messages and the docs.
+  
+  | Word | Meaning |
+  |---|---|
+  | wizard | The definition returned by `defineWizard` |
+  | run | One execution of a wizard |
+  | step | One unit of a wizard. The three kinds are `step`, `view` and `child` |
+  | child | A step that runs another wizard, and the nested run it creates |
+  | manifest | What `inspect(wizard)` returns |
+  
+  There are no aliases for the old names. Snapshots saved by an earlier pre-release carry `flow`
+  where `wizard` is now expected, so `wizard.resume` rejects them with `SNAPSHOT_INCOMPATIBLE` and
+  the reason `wizard: expected { name, version }`.
+  
+  ### Events
+  
+  | Old | New |
+  |---|---|
+  | `flow.started` | `run.started` |
+  | `flow.done` | `run.done` |
+  | `flow.failed` | `run.failed` |
+  | `flow.halted` | `run.halted` |
+  | `flow.compensating` | `run.compensating` |
+  | `flow.compensated` | `run.compensated` |
+  | `flow.cancelled` | `run.cancelled` |
+  | `flow.resumed` | `run.resumed` |
+  | `flow.reset` | `run.reset` |
+  | `flow.status` | `run.status` |
+  | `event.flowDelivered` | `event.wizardDelivered` |
+  
+  `RUN_EVENT_TYPES` lists the new names. `event.wizardDelivered` means the wizard-level `on`
+  handler took the event.
+  
+  ### Step kind and constructor
+  
+  | Old | New |
+  |---|---|
+  | `flow(childWizard, config)` | `child(childWizard, config)` |
+  | `({ step, view, flow, steps }) => ...` | `({ step, view, child, steps }) => ...` |
+  | Step kind `'flow'` (`StepKind`, step records, manifest steps) | `'child'` |
+  | Mermaid subgraph id `<step>___flow` | `<step>___child` |
+  | Devtools `data-kind="flow"` | `data-kind="child"` |
+  | Devtools event log `data-family="flow"` | `data-family="run"` |
+  | Devtools canvas class `owd-flow` | `owd-canvas` |
+  
+  The manifest fingerprint of a wizard with a child step changes, because the step kind is part of
+  it.
+  
+  ### Types
+  
+  | Old | New |
+  |---|---|
+  | `Flow` | `WizardDefinition` |
+  | `AnyFlow` | `AnyWizardDefinition` |
+  | `WizardDefinition` (the options of `defineWizard`) | `WizardHeader` |
+  | `FlowStep` | `WizardStep` |
+  | `FlowOutput` | `WizardOutput` |
+  | `ChildFlowOf` | `ChildWizardOf` |
+  | `ProjectionFlow` | `ProjectionWizard` |
+  | `FlowOnArgs` | `WizardOnArgs` |
+  | `FlowFailure` | `TerminalFailure` |
+  | `FlowGraph` (`@openwizard/core/inspect`) | `Manifest` |
+  | `FlowGraphNode` | `ManifestStep` |
+  | `FlowGraphEdge` | `ManifestEdge` |
+  | `FlowWarning` | `ManifestWarning` |
+  | `FlowOf` (`@openwizard/react`) | `WizardOf` |
+  | `FlowGraph`, `FlowGraphProps` (`@openwizard/devtools`) | `WizardGraph`, `WizardGraphProps` |
+  | `FlowAccess` (`@openwizard/http`) | `RunAccess` |
+  
+  `Wizard` still extends `WizardDefinition`, and `AnyWizard` is still the constraint for code that
+  creates or resumes runs.
+  
+  ### Error codes and reasons
+  
+  | Old | New |
+  |---|---|
+  | `FLOW_TERMINAL` | `RUN_TERMINAL` |
+  | `FLOW_HALTED` | `RUN_HALTED` |
+  | `FLOW_NOT_STARTED` | `RUN_NOT_STARTED` |
+  | `FLOW_COMPENSATING` | `RUN_COMPENSATING` |
+  | `FLOW_FAILED` | `RUN_FAILED` |
+  | `NOT_A_FLOW_STEP` | `NOT_A_CHILD_STEP` |
+  | `flow-terminal` | `run-terminal` |
+  | `flow-halted` | `run-halted` |
+  | `flow-not-started` | `run-not-started` |
+  | `flow-compensating` | `run-compensating` |
+  | `not-a-flow-step` | `not-a-child-step` |
+  | Error name `FlowFailure` | `RunFailed` |
+  | Error names `ChildFlowFailed`, `ChildFlowCancelled`, `ChildFlowDisposed` | `ChildRunFailed`, `ChildRunCancelled`, `ChildRunDisposed` |
+  | Hook name `flowOn` in a `HOOK_MISSING` message | `wizardOn` |
+  
+  Messages say "wizard" for a definition (`wizard 'checkout' is invalid`), "run" for an execution
+  (`charge completes the run and cannot be skipped`) and "child step" for the step kind
+  (`'pay' is not a child step`).
+  
+  ### Snapshot and wire fields
+  
+  | Old | New |
+  |---|---|
+  | `snapshot.flow` | `snapshot.wizard` |
+  | `snapshot.state.flow` | `snapshot.state.wizard` |
+  | `run.flow` | `run.wizard` |
+  | `projection.flow` | `projection.wizard` |
+  | Devtools props `flow` (`Devtools`, `WizardGraph`, `GraphInput`) and `RunSource.flow` | `wizard` |
+  | HTTP `access: { flow: [...] }` | `access: { run: [...] }` |
+  | Span attributes `openwizard.flow.name`, `openwizard.flow.version` | `openwizard.wizard.name`, `openwizard.wizard.version` |
+  | Span attributes `openwizard.flow.outcome`, `openwizard.flow.error_code` | `openwizard.run.outcome`, `openwizard.run.error_code` |
+  
+  No SQL column or migration changes. The stores keep a snapshot as one JSON value. The `flows`
+  option of `createOAuth2ScopeProvider` keeps its name, because it is the OAuth flows object of
+  OpenAPI.
+  
+  Function parameters named `flow` are now `wizard` (`inspect`, `parseCommand`, `parseWireCommand`,
+  `replay`, `createDurableRun`, `resumeDurableRun`, `createDurableHost`). Calls do not change.
+- 13cfc63: React bindings and devtools accept a `Run` created by the wizard itself. React actions use
+  `startStep` and `startReady`, preserve event IDs in child commands, and accept typed retry
+  context patches. Mirror types and constructors come from `@openwizard/core/mirror`.
+  
+  `useChild(step, index)` selects one mapped child by its input index. Mapped steps require the
+  index, while ordinary children retain `useChild(step)`. Indexed bindings read exposed nullable
+  child arrays through a Mirror and preserve the selected item when sending scoped commands.
+  
+  Devtools exports `RunSource` and `isRunSource` for its structural local-run input. The old
+  `FlowRunSource` and `isFlowRunSource` names are removed.
+  
+  The graph labels named needs and fallback edges. Step cards and the inspector show map
+  concurrency, sleep durations, sink roles, and persisted item results.
+  Mapped child graphs and inspector selections use each child's input index and show exposed
+  per-item state from Mirrors.
+
+### Patch Changes
+
+- beafcb3: A step card in the graph shows its status with a border on all four sides. It used to show a
+  thick stripe on the left edge only.
+- ed29073: `<WizardGraph>` leaves less space between layers and around the graph, so the steps of a wide wizard are drawn larger.
+- Updated dependencies [13cfc63]
+- Updated dependencies [aa69846]
+- Updated dependencies [13cfc63]
+- Updated dependencies [aa69846]
+- Updated dependencies [13cfc63]
+- Updated dependencies [3f99cf0]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [101aaee]
+- Updated dependencies [13cfc63]
+- Updated dependencies [4d63ba7]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [4d63ba7]
+- Updated dependencies [0e93893]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [92251c6]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+- Updated dependencies [13cfc63]
+  - @openwizard/core@0.1.0-next.1
+
 ## 0.1.0-next.0
 
 ### Minor Changes

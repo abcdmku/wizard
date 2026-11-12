@@ -1,6 +1,6 @@
 {
   "name": "@openwizard/http",
-  "version": "0.1.0-next.0",
+  "version": "0.1.0-next.1",
   "description": "A generated HTTP API, signed webhook receivers, outbound callbacks and a typed browser client for OpenWizard runs.",
   "license": "MIT",
   "type": "module",
