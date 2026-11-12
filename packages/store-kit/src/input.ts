@@ -6,13 +6,12 @@ import {
   type DurableRecord,
   DurableStoreError,
   type Lease,
-  type LeaseOptions,
-  type RetentionSweepOptions,
   type TimerClaimInput,
   type TimerCompletion,
   type Version,
 } from '@openwizard/durable/store'
 
+/** A commit input whose every field has been checked and copied. */
 export interface NormalizedCommitInput {
   readonly lease: Lease
   readonly expected: Version | null
@@ -22,21 +21,7 @@ export interface NormalizedCommitInput {
   readonly completeTimers: readonly TimerCompletion[]
 }
 
-export function readTtl(options: LeaseOptions | undefined, fallback: number): number {
-  return requirePositiveFinite(options?.ttlMs ?? fallback, 'ttlMs')
-}
-
-export function readLimit(options: RetentionSweepOptions | undefined): number {
-  const limit = options?.limit ?? Number.POSITIVE_INFINITY
-  if (limit !== Number.POSITIVE_INFINITY && (!Number.isInteger(limit) || limit < 0)) {
-    throw new DurableStoreError(
-      'INVALID_ARGUMENT',
-      'retention limit must be a non-negative integer',
-    )
-  }
-  return limit
-}
-
+/** A key, owner, fence or claim id: a non-empty string. */
 export function requireIdentifier(value: unknown, name: string): string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new DurableStoreError('INVALID_ARGUMENT', `${name} must be a non-empty string`)
@@ -44,6 +29,7 @@ export function requireIdentifier(value: unknown, name: string): string {
   return value
 }
 
+/** Check a lease a caller handed back and copy the four fields the store reads. */
 export function normalizeLease(value: Lease): Lease {
   if (typeof value !== 'object' || value === null) {
     throw new DurableStoreError('INVALID_ARGUMENT', 'lease must be an object')
@@ -51,21 +37,18 @@ export function normalizeLease(value: Lease): Lease {
   const key = requireIdentifier(value.key, 'lease.key')
   const ownerId = requireIdentifier(value.ownerId, 'lease.ownerId')
   const fence = requireIdentifier(value.fence, 'lease.fence')
-  if (typeof value.expiresAt !== 'number' || !Number.isFinite(value.expiresAt)) {
-    throw new DurableStoreError('INVALID_ARGUMENT', 'lease.expiresAt must be a finite number')
-  }
-  return { key, ownerId, fence, expiresAt: value.expiresAt }
+  const expiresAt = requireFiniteNumber(value.expiresAt, 'lease.expiresAt')
+  return { key, ownerId, fence, expiresAt }
 }
 
+/** Check a record version: two non-negative safe integers. */
 export function normalizeVersion(value: Version, name: string): Version {
   if (typeof value !== 'object' || value === null) {
     throw new DurableStoreError('INVALID_VERSION', `${name} must be an object`)
   }
   if (
-    typeof value.epoch !== 'number' ||
     !Number.isSafeInteger(value.epoch) ||
     value.epoch < 0 ||
-    typeof value.seq !== 'number' ||
     !Number.isSafeInteger(value.seq) ||
     value.seq < 0
   ) {
@@ -77,6 +60,10 @@ export function normalizeVersion(value: Version, name: string): Version {
   return { epoch: value.epoch, seq: value.seq }
 }
 
+/**
+ * Check a commit. The lease and expected version are checked first, then the record and the
+ * completion markers. A commit that writes nothing throws `NOTHING_TO_COMMIT`.
+ */
 export function normalizeCommitInput(input: CommitInput): NormalizedCommitInput {
   if (typeof input !== 'object' || input === null) {
     throw new DurableStoreError('INVALID_ARGUMENT', 'commit input must be an object')
@@ -98,6 +85,7 @@ export function normalizeCommitInput(input: CommitInput): NormalizedCommitInput 
   return { lease, expected, next, applyDedupe, completeDedupe, completeTimers }
 }
 
+/** Check a command claim. `request` is kept only when the caller passed the key. */
 export function normalizeDedupeClaimInput(input: DedupeClaimInput): DedupeClaimInput {
   if (typeof input !== 'object' || input === null) {
     throw new DurableStoreError('INVALID_ARGUMENT', 'dedupe claim input must be an object')
@@ -113,6 +101,7 @@ export function normalizeDedupeClaimInput(input: DedupeClaimInput): DedupeClaimI
   }
 }
 
+/** Check a timer claim. */
 export function normalizeTimerClaimInput(input: TimerClaimInput): TimerClaimInput {
   if (typeof input !== 'object' || input === null) {
     throw new DurableStoreError('INVALID_ARGUMENT', 'timer claim input must be an object')
@@ -172,18 +161,8 @@ function normalizeTimerCompletion(input: TimerCompletion): TimerCompletion {
   }
 }
 
-function requirePositiveFinite(value: number, name: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    throw new DurableStoreError(
-      'INVALID_ARGUMENT',
-      `${name} must be a finite number greater than 0`,
-    )
-  }
-  return value
-}
-
 function requireFiniteNumber(value: number, name: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
+  if (!Number.isFinite(value)) {
     throw new DurableStoreError('INVALID_ARGUMENT', `${name} must be a finite number`)
   }
   return value

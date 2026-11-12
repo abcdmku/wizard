@@ -5,22 +5,21 @@ import {
   type TimerClaimInput,
   type TimerClaimResult,
 } from '@openwizard/durable/store'
-import { readNow } from './store-configuration'
-import { normalizeDedupeClaimInput, normalizeTimerClaimInput } from './store-input'
-import type { Configuration, DedupeRow, DrizzleDurableRepository } from './store-types'
 import {
-  isCurrentLease,
   nextCounter,
-  parseJson,
-  parseOptionalJson,
+  normalizeDedupeClaimInput,
+  normalizeTimerClaimInput,
+  readNow,
+  type StoreConfiguration,
   sameVersion,
   serializeJson,
-  versionFromRow,
-} from './store-values'
+} from '@openwizard/store-kit'
+import type { DedupeRow, DrizzleDurableRepository } from './store-types'
+import { isCurrentLease, parseJson, parseOptionalJson, versionFromRow } from './store-values'
 
 export async function claimDedupe(
   repository: DrizzleDurableRepository,
-  configuration: Configuration,
+  configuration: StoreConfiguration,
   input: DedupeClaimInput,
 ): Promise<DedupeClaimResult> {
   const normalized = normalizeDedupeClaimInput(input)
@@ -144,7 +143,7 @@ export async function claimDedupe(
 
 export async function claimTimer(
   repository: DrizzleDurableRepository,
-  configuration: Configuration,
+  configuration: StoreConfiguration,
   input: TimerClaimInput,
 ): Promise<TimerClaimResult> {
   const normalized = normalizeTimerClaimInput(input)

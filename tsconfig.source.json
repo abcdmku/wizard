@@ -11,6 +11,7 @@
       "@openwizard/durable": ["./packages/durable/src/index.ts"],
       "@openwizard/durable/store": ["./packages/durable/src/store.ts"],
       "@openwizard/durable/testing": ["./packages/durable/src/testing.ts"],
+      "@openwizard/store-kit": ["./packages/store-kit/src/store-kit.ts"],
       "@openwizard/drizzle": ["./packages/drizzle/src/index.ts"],
       "@openwizard/drizzle/pg": ["./packages/drizzle/src/pg.ts"],
       "@openwizard/drizzle/sqlite": ["./packages/drizzle/src/sqlite.ts"],

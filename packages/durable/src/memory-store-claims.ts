@@ -1,20 +1,20 @@
 import type { DurableStore } from '@openwizard/durable/store'
 import {
+  isCurrentLease,
   normalizeDedupeClaimInput,
   normalizeTimerClaimInput,
   readLimit,
-} from './memory-store-input'
+  readNow,
+  sameVersion,
+} from '@openwizard/store-kit'
 import {
   copyNullableVersion,
   copyOptionalValue,
   copyVersion,
-  isCurrentLease,
   type MemoryStoreState,
   nextClaimId,
   type OpenDedupe,
-  readNow,
   readRequest,
-  sameVersion,
 } from './memory-store-internals'
 
 type ClaimOperations = Pick<DurableStore, 'claimDedupe' | 'claimTimer' | 'sweep'>
@@ -25,7 +25,7 @@ export function createMemoryClaimOperations(state: MemoryStoreState): ClaimOpera
       const normalized = normalizeDedupeClaimInput(input)
       const now = readNow(state.configuration)
       const row = state.rows.get(normalized.lease.key)
-      if (row === undefined || !isCurrentLease(row, normalized.lease, now)) {
+      if (row === undefined || !isCurrentLease(row.lease, normalized.lease, now)) {
         return { ok: false, code: 'LEASE_LOST' }
       }
 
@@ -103,7 +103,7 @@ export function createMemoryClaimOperations(state: MemoryStoreState): ClaimOpera
       if (
         row === undefined ||
         currentLease === undefined ||
-        !isCurrentLease(row, normalized.lease, now)
+        !isCurrentLease(currentLease, normalized.lease, now)
       ) {
         return { ok: false, code: 'LEASE_LOST' }
       }

@@ -66,6 +66,15 @@ export default defineConfig({
       {
         resolve: { alias: sourceAliases },
         test: {
+          name: 'store-kit',
+          root: './packages/store-kit',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
           name: 'drizzle',
           root: './packages/drizzle',
           include: ['tests/**/*.test.ts'],

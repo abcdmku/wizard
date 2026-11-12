@@ -71,6 +71,7 @@
     "@electric-sql/pglite": "^0.3.14",
     "@libsql/client": "^0.15.15",
     "@openwizard/durable": "workspace:*",
+    "@openwizard/store-kit": "workspace:*",
     "@types/node": "^24.13.3",
     "drizzle-kit": "0.31.10",
     "drizzle-orm": "0.45.2"

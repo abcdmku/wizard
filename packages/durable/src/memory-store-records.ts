@@ -1,28 +1,24 @@
-import type {
-  DedupeApplication,
-  DedupeCompletion,
-  DurableStore,
-  TimerCompletion,
-} from '@openwizard/durable/store'
+import type { DurableStore } from '@openwizard/durable/store'
 import {
+  compareVersion,
+  isCompletableDedupe,
+  isCompletableTimer,
+  isCurrentLease,
+  isOpenClaim,
   normalizeCommitInput,
   normalizeLease,
+  readNow,
   readTtl,
   requireIdentifier,
-} from './memory-store-input'
+  sameVersion,
+} from '@openwizard/store-kit'
 import {
   cloneValue,
-  compareVersion,
   copyLease,
   copyRecord,
   getOrCreateRow,
-  type InternalDedupe,
-  isCurrentLease,
   type MemoryStoreState,
   nextFence,
-  readNow,
-  sameVersion,
-  type TimerClaim,
 } from './memory-store-internals'
 
 type RecordOperations = Pick<DurableStore, 'acquire' | 'read' | 'renew' | 'release' | 'commit'>
@@ -66,11 +62,7 @@ export function createMemoryRecordOperations(state: MemoryStoreState): RecordOpe
       const now = readNow(state.configuration)
       const row = state.rows.get(checkedLease.key)
       const currentLease = row?.lease
-      if (
-        row === undefined ||
-        currentLease === undefined ||
-        !isCurrentLease(row, checkedLease, now)
-      ) {
+      if (currentLease === undefined || !isCurrentLease(currentLease, checkedLease, now)) {
         return { ok: false, code: 'LEASE_LOST' }
       }
 
@@ -82,7 +74,7 @@ export function createMemoryRecordOperations(state: MemoryStoreState): RecordOpe
       const checkedLease = normalizeLease(lease)
       const now = readNow(state.configuration)
       const row = state.rows.get(checkedLease.key)
-      if (row === undefined || !isCurrentLease(row, checkedLease, now)) {
+      if (row === undefined || !isCurrentLease(row.lease, checkedLease, now)) {
         return { ok: false, code: 'LEASE_LOST' }
       }
 
@@ -94,7 +86,7 @@ export function createMemoryRecordOperations(state: MemoryStoreState): RecordOpe
       const normalized = normalizeCommitInput(input)
       const now = readNow(state.configuration)
       const row = state.rows.get(normalized.lease.key)
-      if (row === undefined || !isCurrentLease(row, normalized.lease, now)) {
+      if (row === undefined || !isCurrentLease(row.lease, normalized.lease, now)) {
         return { ok: false, code: 'LEASE_LOST' }
       }
 
@@ -161,41 +153,4 @@ export function createMemoryRecordOperations(state: MemoryStoreState): RecordOpe
       return { ok: true, version: row.record?.version ?? null }
     },
   }
-}
-
-/** A pending or applied claim this fence still holds. */
-function isOpenClaim(
-  entry: InternalDedupe | undefined,
-  claim: DedupeApplication,
-  fence: string,
-): boolean {
-  return (
-    entry !== undefined &&
-    entry.status !== 'completed' &&
-    entry.claimId === claim.claimId &&
-    entry.ownerFence === fence
-  )
-}
-
-function isCompletableDedupe(
-  entry: InternalDedupe | undefined,
-  completion: DedupeCompletion,
-  fence: string,
-): boolean {
-  return isOpenClaim(entry, completion, fence) && entry?.digest === completion.digest
-}
-
-function isCompletableTimer(
-  entry: TimerClaim | undefined,
-  completion: TimerCompletion,
-  fence: string,
-): boolean {
-  return (
-    entry !== undefined &&
-    entry.timerId === completion.timerId &&
-    entry.dueAt === completion.dueAt &&
-    sameVersion(entry.expected, completion.expected) &&
-    entry.claimId === completion.claimId &&
-    entry.ownerFence === fence
-  )
 }

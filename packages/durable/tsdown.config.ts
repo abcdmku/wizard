@@ -8,6 +8,9 @@ const shared: UserConfig = {
   sourcemap: true,
   minify: false,
   treeshake: true,
+  // `@openwizard/store-kit` is a private workspace package: its source is inlined into every
+  // entry that imports it, so the published package never names it.
+  noExternal: ['@openwizard/store-kit'],
 }
 
 // One build per entry so each emitted declaration file is self-contained (a shared build would

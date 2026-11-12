@@ -5,6 +5,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig
 COPY packages/core/package.json packages/core/package.json
 COPY packages/drizzle/package.json packages/drizzle/package.json
 COPY packages/durable/package.json packages/durable/package.json
+COPY packages/store-kit/package.json packages/store-kit/package.json
 COPY systems/04-dungeon/shared/package.json systems/04-dungeon/shared/package.json
 COPY systems/04-dungeon/server/package.json systems/04-dungeon/server/package.json
 RUN pnpm install --frozen-lockfile --prod=false
@@ -16,6 +17,8 @@ COPY packages/durable/src packages/durable/src
 COPY packages/durable/tsconfig.json packages/durable/tsdown.config.ts packages/durable/
 COPY packages/drizzle/src packages/drizzle/src
 COPY packages/drizzle/tsconfig.json packages/drizzle/tsdown.config.ts packages/drizzle/
+COPY packages/store-kit/src packages/store-kit/src
+COPY packages/store-kit/tsconfig.json packages/store-kit/
 COPY systems/04-dungeon/shared/src systems/04-dungeon/shared/src
 COPY systems/04-dungeon/shared/tsconfig.json systems/04-dungeon/shared/vitest.config.ts systems/04-dungeon/shared/
 COPY systems/04-dungeon/server/src systems/04-dungeon/server/src

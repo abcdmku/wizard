@@ -1,0 +1,19 @@
+{
+  "name": "@openwizard/store-kit",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Input checks and claim predicates shared by the OpenWizard durable stores. Bundled into @openwizard/durable and @openwizard/drizzle; never published.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/store-kit.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm -w exec vitest run --project store-kit"
+  },
+  "devDependencies": {
+    "@openwizard/durable": "workspace:*"
+  }
+}

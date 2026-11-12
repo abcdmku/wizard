@@ -1,12 +1,4 @@
-import type {
-  DedupeApplication,
-  DedupeCompletion,
-  DurableRecord,
-  Lease,
-  RetentionPolicy,
-  TimerCompletion,
-  Version,
-} from '@openwizard/durable/store'
+import type { DurableRecord, Lease, RetentionPolicy, Version } from '@openwizard/durable/store'
 
 /** Options shared by the Drizzle durable-store adapters. @public */
 export interface DrizzleDurableStoreOptions {
@@ -110,21 +102,4 @@ export interface DrizzleDurableRepository {
     readonly timerClaimedBefore: number
     readonly limit: number
   }): Promise<{ readonly dedupeRemoved: number; readonly timerClaimsRemoved: number }>
-}
-
-export interface Configuration {
-  now: () => number
-  leaseTtlMs: number
-  timerClaimTtlMs: number
-  completedDedupeMs: number
-  timerClaimMs: number
-}
-
-export interface NormalizedCommitInput {
-  lease: Lease
-  expected: Version | null
-  next: DurableRecord | undefined
-  applyDedupe: DedupeApplication | undefined
-  completeDedupe: DedupeCompletion | undefined
-  completeTimers: readonly TimerCompletion[]
 }
