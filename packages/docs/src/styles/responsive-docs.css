@@ -35,7 +35,7 @@
   }
   .docs-mobile-toc {
     display: block;
-    max-width: 46rem;
+    max-width: 48rem;
     margin-bottom: 26px;
     border: 1px solid #e5e5e5;
     border-radius: 8px;
@@ -125,7 +125,7 @@
     display: none;
   }
   .docs-main {
-    max-width: 46rem;
+    max-width: 48rem;
     margin: 0 auto;
     padding-top: 25px;
   }
