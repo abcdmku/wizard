@@ -12,17 +12,16 @@ CREATE TABLE IF NOT EXISTS dungeon_runs (
 
 CREATE TABLE IF NOT EXISTS dungeon_dedupe (
   run_key text NOT NULL REFERENCES dungeon_runs(run_key) ON DELETE CASCADE,
-  kind text NOT NULL CHECK (kind IN ('command', 'event')),
   dedupe_id text NOT NULL,
   digest text NOT NULL,
-  status text NOT NULL CHECK (status IN ('pending', 'completed')),
+  status text NOT NULL CHECK (status IN ('pending', 'applied', 'completed')),
   claim_id text NOT NULL,
   owner_fence text NOT NULL,
   claimed_at_ms bigint NOT NULL,
   request text,
   result text,
   completed_at_ms bigint,
-  PRIMARY KEY (run_key, kind, dedupe_id)
+  PRIMARY KEY (run_key, dedupe_id)
 );
 
 CREATE INDEX IF NOT EXISTS dungeon_dedupe_retention_idx
