@@ -9,8 +9,12 @@ const refundOf = (amount: number): Scenario => ({
   async play(tape) {
     const order = deferred<{ total: number }>()
     const deps: RefundDeps = {
-      orders: { find: () => order.promise },
-      payments: { refund: async () => ({ refundId: 'refund-1' }) },
+      orders: { find: tape.service('orders.find', (_orderId: string) => order.promise) },
+      payments: {
+        refund: tape.service('payments.refund', async (_orderId: string, _amount: number) => ({
+          refundId: 'refund-1',
+        })),
+      },
     }
     const run = refund.create({ orderId: 'o-2' }, { deps })
     tape.track(run)
