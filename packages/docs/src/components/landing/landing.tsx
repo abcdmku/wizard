@@ -22,8 +22,8 @@ export function Landing() {
         </h1>
         <p className="landing-sentence">
           One TypeScript file becomes a type-checked orchestrator, an HTTP API, signed webhooks and
-          its own docs. Runs survive crashes and deploys. Built for work that takes days, and for
-          the agents doing it.
+          its own docs. Runs survive crashes and deploys. Built for complex work and the agents
+          implementing it.
         </p>
 
         <div className="landing-hero-actions">
