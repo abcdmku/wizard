@@ -1,0 +1,35 @@
+# Dev
+
+`@openwizard/dev` serves a browser UI for the wizards a file exports.
+
+```sh
+npm install -D @openwizard/dev
+npx openwizard dev [entry] [--port 4400] [--host 127.0.0.1] [--no-watch]
+```
+
+[Dev server](/guide/dev) explains what the UI does.
+
+| Option of `openwizard dev` | Meaning | Default |
+|---|---|---|
+| `entry` | The file that exports wizards, or a `defineDev` config as its default export | `openwizard.dev.ts`, `.mts`, `.js` or `.mjs` in the current folder |
+| `--port` | The port to listen on. `0` picks a free one | `4400` |
+| `--host` | The address to listen on | `127.0.0.1` |
+| `--no-watch` | Do not reload when a source file changes | Reloads |
+
+| Function | Meaning |
+|---|---|
+| `defineDev({ wizards })` | The config `openwizard dev` reads from the default export of the entry file |
+| `devWizard(wizard, { deps?, input?, events? })` | One wizard of a config: its services, the input the Start form opens with, and where each event comes from (`{ source: 'webhook' \| 'queue' \| 'code', from? }`) |
+| `startDevServer({ entry, port?, host?, watch? })` | Starts the server from your own script. Returns `{ url, port, reload(), close() }` |
+
+The UI talks to a JSON API on the same port.
+
+| Route | Meaning |
+|---|---|
+| `GET /api/catalog` | The loaded wizards, each with its `inspect` manifest and generated page, and the load error if there is one |
+| `GET /api/runs`, `POST /api/runs` | List the runs, or start one with `{ wizard, input, services? }` |
+| `GET /api/runs/:id`, `DELETE /api/runs/:id` | One run with its snapshot, events and what it waits for, or remove it |
+| `POST /api/runs/:id/actions` | Submit a form, send an event, answer a service call, skip a timer, retry, skip or cancel |
+| `GET /api/stream` | Server-sent events that say which run changed |
+
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_dev.html).

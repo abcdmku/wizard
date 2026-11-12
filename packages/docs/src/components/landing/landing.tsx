@@ -6,6 +6,8 @@ import { CopyButton } from '../mdx/copy-button'
 import { mdxComponents } from '../mdx/mdx-components'
 import { RunDiagram } from '../run-diagram/run-diagram'
 import { SiteHeader } from '../site-header'
+import devDark from './dev-ui-dark.png'
+import devLight from './dev-ui-light.png'
 import Example from './example.mdx'
 import { agentPoints, extras, outputs, replacements } from './features'
 
@@ -64,6 +66,37 @@ export function Landing() {
             it.
           </p>
           <RunDiagram name="refund" />
+        </section>
+
+        <section className="landing-section">
+          <h2>Run it by hand</h2>
+          <p>
+            <code>npx openwizard dev</code> opens every wizard in your browser. Start a run, fill in
+            the form, answer each service call, send the webhook and skip the timer. A webhook, a
+            queue event, a form and a service call each have their own badge.
+          </p>
+          <img
+            className="landing-shot is-light"
+            src={devLight}
+            width={1280}
+            height={820}
+            loading="lazy"
+            alt="The dev UI showing a refund run that waits for a webhook, with the live graph below."
+          />
+          <img
+            className="landing-shot is-dark"
+            src={devDark}
+            width={1280}
+            height={820}
+            loading="lazy"
+            alt="The dev UI showing a refund run that waits for a webhook, with the live graph below."
+          />
+          <div className="landing-actions">
+            <Link to="/$" params={{ _splat: 'guide/dev' }} className="landing-action is-quiet">
+              Read about the dev server
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </div>
         </section>
 
         <section className="landing-section">

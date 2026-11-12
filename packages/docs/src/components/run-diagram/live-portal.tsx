@@ -1,39 +1,56 @@
 /**
  * What the reader can do to a live run right now: start it, fill in a form, send an event,
- * answer a service call, move time forward, retry a halted step or restart the process.
+ * answer a service call, move time forward, retry a halted step or restart the process. Each
+ * card has the badge the dev UI gives the same kind of thing.
  */
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  Check,
-  Clock,
-  Play,
-  RotateCcw,
-  Save,
-  SquarePen,
-  TriangleAlert,
-} from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Live, LiveState } from './live'
 import { SchemaForm } from './live-fields'
 import { duration } from './live-format'
 
+type Kind = 'run' | 'form' | 'event' | 'service' | 'timer' | 'failed' | 'done'
+
+const LABEL: Readonly<Record<Kind, string>> = {
+  run: 'Run',
+  form: 'Form',
+  event: 'Event',
+  service: 'Service call',
+  timer: 'Timer',
+  failed: 'Failed step',
+  done: 'Done',
+}
+
+/** The same icons as the dev UI badges, drawn on a 16 by 16 grid. */
+const PATHS: Readonly<Record<Kind, string>> = {
+  run: 'M5 3.5v9l7-4.5z',
+  form: 'M3 13h10M4.5 10.5l.5-2.5 5.5-5.5 2 2L7 10z',
+  event: 'M9 2 4 9h3.5L7 14l5-7H8.5z',
+  service: 'M3 3v10M6 8h7.5M10.5 5l3 3-3 3',
+  timer: 'M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 5v3l2 1.5',
+  failed: 'M4 4l8 8M12 4l-8 8',
+  done: 'M3.5 8.5l3 3 6-7',
+}
+
 function Card({
-  icon,
+  kind,
   title,
-  tone,
   children,
 }: {
-  readonly icon: ReactNode
+  readonly kind: Kind
   readonly title: ReactNode
-  readonly tone: 'waiting' | 'running' | 'done' | 'failed'
-  readonly children: ReactNode
+  readonly children?: ReactNode
 }) {
   return (
-    <li className={`lv-card is-${tone}`}>
+    <li className="lv-card" data-kind={kind}>
       <p className="lv-card-title">
-        {icon}
-        {title}
+        <span className="lv-kind">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d={PATHS[kind]} />
+          </svg>
+          {LABEL[kind]}
+        </span>
+        <span>{title}</span>
       </p>
       {children}
     </li>
@@ -59,18 +76,11 @@ export function LivePortal({
   readonly restart: () => void
 }) {
   const busy = state.busy
-  const pending = state.calls.filter((call) => call.state === 'pending')
   const cards: ReactNode[] = []
 
   if (!state.started) {
     cards.push(
-      <Card
-        key="start"
-        icon={<Play aria-hidden="true" />}
-        title="Nothing has started"
-        tone="waiting"
-      >
-        <p className="lv-card-line">Start the run to see which steps begin.</p>
+      <Card key="start" kind="run" title="Nothing has started">
         <button type="button" className="lv-primary" disabled={busy} onClick={() => live.start()}>
           run.start()
         </button>
@@ -82,14 +92,13 @@ export function LivePortal({
     cards.push(
       <Card
         key={`form:${form.key}`}
-        icon={<SquarePen aria-hidden="true" />}
+        kind="form"
         title={
           <>
-            Form for <b>{form.id}</b>
-            {where(form.path)}
+            <b>{form.id}</b>
+            {where(form.path)} waits for a person
           </>
         }
-        tone={form.issue ? 'failed' : 'waiting'}
       >
         <SchemaForm
           schema={form.schema}
@@ -107,13 +116,12 @@ export function LivePortal({
     cards.push(
       <Card
         key={`event:${event.key}`}
-        icon={<ArrowDownLeft aria-hidden="true" />}
+        kind="event"
         title={
           <>
             <b>{event.step}</b> waits for <code>{event.name}</code>
           </>
         }
-        tone="waiting"
       >
         <SchemaForm
           schema={event.schema}
@@ -126,14 +134,9 @@ export function LivePortal({
     )
   }
 
-  for (const call of pending) {
+  for (const call of state.calls.filter((item) => item.state === 'pending')) {
     cards.push(
-      <Card
-        key={`call:${call.id}`}
-        icon={<ArrowUpRight aria-hidden="true" />}
-        title="A step called your service"
-        tone="running"
-      >
+      <Card key={`call:${call.id}`} kind="service" title="The run waits for the reply">
         <p className="lv-card-line">
           deps.{call.name}({call.args})
         </p>
@@ -164,12 +167,7 @@ export function LivePortal({
   if (state.halted) {
     const { step, message } = state.halted
     cards.push(
-      <Card
-        key="halted"
-        icon={<TriangleAlert aria-hidden="true" />}
-        title="The run halted"
-        tone="failed"
-      >
+      <Card key="halted" kind="failed" title="The run halted">
         <p className="lv-card-line">
           {step} failed: {message}
         </p>
@@ -187,8 +185,7 @@ export function LivePortal({
 
   if (state.nextTimer !== undefined) {
     cards.push(
-      <Card key="timer" icon={<Clock aria-hidden="true" />} title="A timer is set" tone="waiting">
-        <p className="lv-card-line">It fires in {duration(state.nextTimer)}.</p>
+      <Card key="timer" kind="timer" title={`Fires in ${duration(state.nextTimer)}`}>
         <button type="button" disabled={busy} onClick={() => live.advance()}>
           Skip {duration(state.nextTimer)} ahead
         </button>
@@ -198,7 +195,7 @@ export function LivePortal({
 
   if (state.canResume) {
     cards.push(
-      <Card key="resume" icon={<Save aria-hidden="true" />} title="Stop the process" tone="waiting">
+      <Card key="resume" kind="run" title="Stop the process">
         <p className="lv-card-line">
           Save the run, throw the object away and resume from the store.
         </p>
@@ -212,12 +209,7 @@ export function LivePortal({
   const ended = ENDED[state.run]
   if (ended) {
     cards.push(
-      <Card
-        key="ended"
-        icon={<Check aria-hidden="true" />}
-        title={ended}
-        tone={state.run === 'done' ? 'done' : 'failed'}
-      >
+      <Card key="ended" kind={state.run === 'done' ? 'done' : 'failed'} title={ended}>
         <button type="button" onClick={restart}>
           <RotateCcw aria-hidden="true" />
           Run it again
@@ -225,11 +217,7 @@ export function LivePortal({
       </Card>,
     )
   } else if (state.started && cards.length === 0) {
-    cards.push(
-      <Card key="working" icon={<Clock aria-hidden="true" />} title="Working" tone="running">
-        <p className="lv-card-line">The run is settling.</p>
-      </Card>,
-    )
+    cards.push(<Card key="working" kind="run" title="The run is settling" />)
   }
 
   return (

@@ -39,8 +39,8 @@
   height: 72px;
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid var(--owd-border);
-  border-left: 4px solid var(--owd-status, var(--owd-border));
+  border: 1.5px solid
+    color-mix(in srgb, var(--owd-status, var(--owd-border)) 60%, var(--owd-border));
   background: var(--owd-surface);
   color: var(--owd-text);
   box-shadow: var(--owd-shadow);
@@ -48,10 +48,10 @@
   cursor: pointer;
 }
 .owd-node-card[data-status="idle"] {
-  border-left-color: var(--owd-border);
+  border-color: var(--owd-border);
 }
 .owd-node-card[data-status="skipped"] {
-  border-left-style: dashed;
+  border-style: dashed;
   opacity: 0.75;
 }
 .owd-node-card[data-current="true"] {
