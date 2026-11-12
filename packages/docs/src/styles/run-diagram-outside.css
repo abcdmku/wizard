@@ -1,5 +1,6 @@
 /* ---------- Run diagram: forms, service calls and events outside the run ---------- */
 .rd-outside {
+  container-type: inline-size;
   border-top: 1px solid var(--rd-line);
   padding: 10px 12px 12px;
 }
@@ -13,11 +14,24 @@
 }
 .run-diagram .rd-outside ul {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  grid-template-columns: repeat(var(--rd-columns, 3), minmax(0, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+/* A slot holds every version of one card in the same cell, so it is as tall as the tallest. */
+.run-diagram .rd-slot {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  border-radius: 8px;
+  outline: 1px dashed transparent;
+  outline-offset: -1px;
+  transition: outline-color 0.35s ease;
+}
+.run-diagram .rd-slot.is-empty {
+  outline-color: var(--rd-line);
 }
 .run-diagram .rd-card {
   --rd-tone: var(--rd-waiting);
@@ -26,15 +40,17 @@
   min-width: 0;
   flex-direction: column;
   gap: 4px;
+  grid-area: 1 / 1;
+  visibility: hidden;
   margin: 0;
   border: 1px solid var(--rd-line);
   border-left: 3px solid var(--rd-tone);
   border-radius: 8px;
   background: var(--rd-node);
   padding: 8px 10px;
-  transition:
-    border-color 0.35s ease,
-    opacity 0.35s ease;
+}
+.run-diagram .rd-card.is-current {
+  visibility: visible;
 }
 .rd-card.is-running {
   --rd-tone: var(--rd-running);
@@ -47,9 +63,6 @@
 .rd-card.is-failed {
   --rd-tone: var(--rd-failed);
   --rd-tone-bg: var(--rd-failed-bg);
-}
-.rd-card.is-future {
-  visibility: hidden;
 }
 .run-diagram .rd-card p {
   margin: 0;
@@ -120,4 +133,16 @@
   font-size: 11px;
   overflow-wrap: anywhere;
   color: var(--rd-tone);
+}
+
+/* Four cards sit in one row when there is room and two by two when there is not. */
+@container (min-width: 800px) {
+  .run-diagram .rd-outside ul {
+    grid-template-columns: repeat(var(--rd-columns-wide, 3), minmax(0, 1fr));
+  }
+}
+@container (max-width: 560px) {
+  .run-diagram .rd-outside ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

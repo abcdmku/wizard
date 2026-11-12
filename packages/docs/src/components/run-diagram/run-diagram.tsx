@@ -1,23 +1,12 @@
 import { inspect } from '@openwizard/core/inspect'
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { type Look, lookOf, RunGraph } from './graph'
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import { graphWidth, RunGraph } from './graph'
 import { OutsideCards } from './outside-cards'
 import { type Frame, type Recording, record, type Scenario, stepKey } from './record'
 import { scenarios } from './scenarios'
 
 const FRAME_MS = 1400
-
-/** Every look a step can take, in the order the legend lists them. */
-const LEGEND: readonly (readonly [Look, string])[] = [
-  ['running', 'running'],
-  ['waiting', 'waiting'],
-  ['done', 'done'],
-  ['skipped', 'skipped'],
-  ['failed', 'failed'],
-  ['undoing', 'undoing'],
-  ['undone', 'undone'],
-]
 
 /** Recordings are deterministic, so one per scenario serves every diagram on the site. */
 const recordings = new WeakMap<Scenario, Promise<Recording>>()
@@ -72,6 +61,35 @@ function usePlayer(frames: readonly Frame[] | undefined) {
       setIndex(0)
     },
   }
+}
+
+/** What the caller ran for one frame, what it returned and what the run reported. */
+function PanelFrame({ frame, current }: { readonly frame: Frame; readonly current: boolean }) {
+  return (
+    <div
+      className={`rd-frame${current ? ' is-current' : ''}`}
+      aria-hidden={current ? undefined : true}
+    >
+      <p className="rd-run">
+        run{' '}
+        <span className={`rd-run-status is-${frame.run}`}>
+          {frame.run === 'none' ? 'not created' : frame.run}
+        </span>
+      </p>
+      <pre className="rd-call">
+        <code>{frame.call}</code>
+      </pre>
+      {frame.returned && <p className="rd-returned">{frame.returned}</p>}
+      <p className="rd-note">{frame.note}</p>
+      {frame.events.length > 0 && (
+        <ul className="rd-events" aria-label="Events">
+          {frame.events.map((event) => (
+            <li key={event}>{event}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -130,17 +148,7 @@ export function RunDiagram({ name }: { readonly name: string }) {
     [manifest],
   )
   const frames = recording?.frames
-  // The legend lists only the colours this run uses.
-  const legend = useMemo(() => {
-    const used = new Set<Look>()
-    for (const item of frames ?? []) {
-      for (const step of Object.values(item.steps)) used.add(lookOf(step))
-    }
-    return LEGEND.filter(([look]) => used.has(look))
-  }, [frames])
   const frame = frames?.[player.index]
-  const runStatus = frame?.run === 'none' ? 'not created' : (frame?.run ?? 'idle')
-
   return (
     <figure ref={figure} className="run-diagram not-prose" data-run-diagram={name}>
       <div className="rd-head">
@@ -167,45 +175,27 @@ export function RunDiagram({ name }: { readonly name: string }) {
         )}
       </div>
 
-      <div className="rd-body">
+      <div
+        className="rd-body"
+        style={{ '--rd-graph': `${graphWidth(manifest)}px` } as CSSProperties}
+      >
         <div className="rd-stage">
           <RunGraph manifest={manifest} steps={frame?.steps ?? idle} />
-          <ul className="rd-legend" aria-label="Step colours">
-            {legend.map(([look, label]) => (
-              <li key={look}>
-                <span className={`rd-swatch is-${look}`} aria-hidden="true" />
-                {label}
-              </li>
-            ))}
-          </ul>
         </div>
-
+        {/* Every frame's text shares one cell, so the panel is as tall as its longest frame. */}
         <div className="rd-panel">
-          <p className="rd-run">
-            run <span className={`rd-run-status is-${frame?.run ?? 'idle'}`}>{runStatus}</span>
-          </p>
-          {frame ? (
-            <>
-              <pre className="rd-call">
-                <code>{frame.call}</code>
-              </pre>
-              {frame.returned && <p className="rd-returned">{frame.returned}</p>}
-              <p className="rd-note">{frame.note}</p>
-              {frame.events.length > 0 && (
-                <ul className="rd-events" aria-label="Events">
-                  {frame.events.map((event) => (
-                    <li key={event}>{event}</li>
-                  ))}
-                </ul>
-              )}
-            </>
+          {frames ? (
+            frames.map((item, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: frames are a fixed, ordered recording
+              <PanelFrame key={i} frame={item} current={i === player.index} />
+            ))
           ) : (
             <p className="rd-note">{variants.length > 1 ? scenario.label : 'Loading the run.'}</p>
           )}
         </div>
       </div>
 
-      <OutsideCards now={frame?.outside ?? []} all={frames?.at(-1)?.outside ?? []} />
+      <OutsideCards now={frame?.outside ?? []} frames={frames ?? []} />
 
       <div className="rd-controls">
         <button

@@ -1,6 +1,13 @@
 import type { Manifest } from '@openwizard/core/inspect'
-import { useId, useMemo } from 'react'
-import { arrowPath, type GraphLayout, layoutGraph, wizardsOf } from './layout'
+import { Fragment, useId, useMemo } from 'react'
+import {
+  arrowPath,
+  COMPACT_BELOW,
+  type GraphLayout,
+  labelWidth,
+  layoutGraph,
+  wizardsOf,
+} from './layout'
 import { type Frame, type StepFrame, stepKey } from './record'
 
 /** The look of a step: what colour it gets and which word sits under its name. */
@@ -58,18 +65,21 @@ function WizardSvg({
   path,
   steps,
   name,
+  fit,
 }: {
   readonly layout: GraphLayout
   readonly path: readonly string[]
   readonly steps: Frame['steps']
   readonly name: string
+  /** `wide` and `narrow` are two layouts of one graph. CSS shows the one that fits the screen. */
+  readonly fit?: 'wide' | 'narrow'
 }) {
   const marker = useId()
   const look = (id: string) => lookOf(steps[stepKey(path, id)])
   return (
     <svg
       viewBox={`0 0 ${layout.width} ${layout.height}`}
-      className="rd-svg"
+      className={`rd-svg${fit ? ` is-${fit}` : ''}`}
       style={{ width: `min(100%, ${Math.round(layout.width * 1.2)}px)` }}
       role="img"
       aria-label={`Steps of the ${name} wizard and how they connect`}
@@ -105,14 +115,23 @@ function WizardSvg({
               className={`rd-edge is-${tone}${dashed ? ' is-dashed' : ''}`}
             />
             {arrow.label && (
-              <text
-                x={arrow.labelX}
-                y={arrow.labelY + 3}
-                textAnchor="middle"
-                className={`rd-edge-label is-${tone}`}
-              >
-                {arrow.label}
-              </text>
+              <>
+                <rect
+                  x={arrow.labelX - labelWidth(arrow.label) / 2}
+                  y={arrow.labelY - 9}
+                  width={labelWidth(arrow.label)}
+                  height={18}
+                  className="rd-edge-gap"
+                />
+                <text
+                  x={arrow.labelX}
+                  y={arrow.labelY + 4}
+                  textAnchor="middle"
+                  className={`rd-edge-label is-${tone}`}
+                >
+                  {arrow.label}
+                </text>
+              </>
             )}
           </g>
         )
@@ -145,6 +164,13 @@ function WizardSvg({
   )
 }
 
+/** The width of the widest wizard in a manifest, in the units its steps are drawn in. */
+export function graphWidth(manifest: Manifest): number {
+  return Math.round(
+    Math.max(...wizardsOf(manifest).map((wizard) => layoutGraph(wizard.nodes, wizard.edges).width)),
+  )
+}
+
 /** The wizard's steps, coloured by one frame of a run. A child wizard is drawn in its own box. */
 export function RunGraph({
   manifest,
@@ -155,24 +181,43 @@ export function RunGraph({
 }) {
   const wizards = useMemo(
     () =>
-      wizardsOf(manifest).map((wizard) => ({
-        path: wizard.path,
-        layout: layoutGraph(wizard.nodes, wizard.edges),
-      })),
+      wizardsOf(manifest).map((wizard) => {
+        const layout = layoutGraph(wizard.nodes, wizard.edges)
+        const compact =
+          layout.width > COMPACT_BELOW ? layoutGraph(wizard.nodes, wizard.edges, true) : undefined
+        return { path: wizard.path, layout, compact }
+      }),
     [manifest],
   )
   return (
     <div className="rd-graphs">
-      {wizards.map(({ path, layout }) =>
-        path.length === 0 ? (
-          <WizardSvg key="root" layout={layout} path={path} steps={steps} name={manifest.name} />
+      {wizards.map(({ path, layout, compact }) => {
+        const name = path.length === 0 ? manifest.name : path.join(' / ')
+        const drawn = (
+          <>
+            <WizardSvg
+              layout={layout}
+              path={path}
+              steps={steps}
+              name={name}
+              {...(compact ? { fit: 'wide' as const } : {})}
+            />
+            {compact && (
+              <WizardSvg layout={compact} path={path} steps={steps} name={name} fit="narrow" />
+            )}
+          </>
+        )
+        return path.length === 0 ? (
+          <Fragment key="root">{drawn}</Fragment>
         ) : (
           <div key={path.join('/')} className="rd-child">
-            <span className="rd-child-label">inside {path.join(' / ')}</span>
-            <WizardSvg layout={layout} path={path} steps={steps} name={path.join(' / ')} />
+            <span className="rd-child-label">
+              child wizard of <b>{path.join(' / ')}</b>
+            </span>
+            {drawn}
           </div>
-        ),
-      )}
+        )
+      })}
     </div>
   )
 }

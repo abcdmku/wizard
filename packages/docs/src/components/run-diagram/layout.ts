@@ -34,15 +34,25 @@ export interface GraphLayout {
 }
 
 const NODE_HEIGHT = 46
-const LABEL_CHAR = 5.9
+const LABEL_CHAR = 6.4
 const MARGIN = 12
 const ANCHOR = '\u0000anchor'
 
-const nodeWidth = (node: ManifestStep): number =>
-  Math.max(112, Math.min(230, node.id.length * 7.6 + 52))
+/** Wide enough for the id at 12px and for the longest caption, `waiting for needs`. */
+const nodeWidth = (node: ManifestStep, compact: boolean): number =>
+  Math.max(compact ? 110 : 116, Math.min(230, node.id.length * 7.3 + (compact ? 14 : 30)))
 
-const formatMs = (ms: number): string =>
-  ms % 3_600_000 === 0 ? `${ms / 3_600_000}h` : ms % 1000 === 0 ? `${ms / 1000}s` : `${ms}ms`
+/** The room an arrow's label takes, with a margin that keeps the line clear of the words. */
+export const labelWidth = (label: string): number => label.length * LABEL_CHAR + 10
+
+/** Graphs wider than this get a second, tighter layout for small screens. */
+export const COMPACT_BELOW = 340
+
+const formatMs = (ms: number): string => {
+  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`
+  if (ms % 60_000 === 0) return `${ms / 60_000}m`
+  return ms % 1000 === 0 ? `${ms / 1000}s` : `${ms}ms`
+}
 
 /** The word on an arrow. A plain solid arrow needs none. */
 function edgeWord(edge: ManifestEdge, from: ManifestStep | undefined): string | null {
@@ -80,23 +90,24 @@ export function wizardsOf(manifest: Manifest): readonly {
   return [...byPath.values()]
 }
 
-/** Lay out one wizard top to bottom. */
+/** Lay out one wizard top to bottom. `compact` packs the steps closer for a small screen. */
 export function layoutGraph(
   nodes: readonly ManifestStep[],
   edges: readonly ManifestEdge[],
+  compact = false,
 ): GraphLayout {
   const graph = new dagre.graphlib.Graph()
   graph.setGraph({
     rankdir: 'TB',
-    nodesep: 34,
+    nodesep: compact ? 10 : 26,
     ranksep: 46,
-    edgesep: 22,
-    marginx: 14,
+    edgesep: compact ? 6 : 18,
+    marginx: compact ? 3 : 8,
     marginy: MARGIN,
   })
   const byId = new Map(nodes.map((node) => [node.id, node]))
   for (const node of nodes) {
-    graph.setNode(node.id, { width: nodeWidth(node), height: NODE_HEIGHT })
+    graph.setNode(node.id, { width: nodeWidth(node, compact), height: NODE_HEIGHT })
   }
 
   const grouped = new Map<string, { from: string; to: string; edges: ManifestEdge[] }>()
@@ -117,8 +128,8 @@ export function layoutGraph(
     labels.set(key, label)
     graph.setEdge(group.from, group.to, {
       labelpos: 'c',
-      width: label ? label.length * LABEL_CHAR + 12 : 0,
-      height: label ? 16 : 0,
+      width: label ? labelWidth(label) : 0,
+      height: label ? 18 : 0,
     })
   }
 
