@@ -54,7 +54,7 @@ export interface LayoutResult {
 const ROOT_OPTIONS: Readonly<Record<string, string>> = {
   'elk.algorithm': 'layered',
   'elk.direction': 'RIGHT',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '150',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '96',
   'elk.spacing.nodeNode': '48',
   'elk.spacing.edgeNode': '40',
   'elk.spacing.edgeEdge': '24',

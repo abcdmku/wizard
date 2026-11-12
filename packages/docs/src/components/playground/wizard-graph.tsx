@@ -1,13 +1,6 @@
 import type { Manifest } from '@openwizard/core/inspect'
 import { useId, useMemo } from 'react'
 import {
-  arrowPath,
-  type GraphLayout,
-  layoutGraph,
-  type PlacedNode,
-  wizardsOf,
-} from '../../../../dev/src/ui/graph-layout'
-import {
   captionOf,
   EDGE_TONES,
   edgeTone,
@@ -16,6 +9,7 @@ import {
   lookOf,
   type NodeLiveState,
 } from './graph-look'
+import { arrowPath, type GraphLayout, layoutGraph, type PlacedNode, wizardsOf } from './layout'
 
 export type NodeStateLookup = (path: readonly string[], id: string) => NodeLiveState | undefined
 

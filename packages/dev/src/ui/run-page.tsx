@@ -1,18 +1,20 @@
+import {
+  collectStatuses,
+  type SnapshotLike,
+  type StepPhase,
+  stepKey,
+  WizardGraph,
+} from '@openwizard/devtools'
 import { type ReactElement, useMemo, useState } from 'react'
 import type { RunDetail, WizardInfo } from '../wire'
 import { Status } from './app'
 import { useBackend, useRun } from './backend'
 import { clock } from './format'
-import { framesOf, Graph } from './graph'
 import { History } from './history'
 import { JsonView } from './json'
 import { Go, useNav } from './nav'
 import { PendingList } from './pending'
-
-interface SnapshotLike {
-  readonly state: { readonly steps: Readonly<Record<string, unknown>> }
-  readonly children: Readonly<Record<string, SnapshotLike | undefined>>
-}
+import { useScheme } from './scheme'
 
 type Tab = 'history' | 'step' | 'data' | 'snapshot'
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
@@ -65,18 +67,22 @@ export function RunPage(props: {
 }): ReactElement {
   const backend = useBackend()
   const nav = useNav()
+  const scheme = useScheme()
   const run = useRun(props.id, props.version)
   const [tab, setTab] = useState<Tab>('history')
   const [selected, setSelected] = useState<string | null>(null)
   const wizard = props.wizards.find((item) => item.name === run?.wizard)
 
-  const frames = useMemo(
-    () => (run === null || run === undefined ? undefined : framesOf(run.snapshot, run.phases)),
-    [run],
-  )
+  const overlay = useMemo(() => {
+    if (run === null || run === undefined) return undefined
+    const phases = run.phases
+    return collectStatuses(run.snapshot as SnapshotLike, (path, id) =>
+      path.length === 0 ? (phases[stepKey(path, id)] as StepPhase | undefined) : undefined,
+    )
+  }, [run])
 
   if (run === undefined) return <p className="quiet">Loading…</p>
-  if (run === null || frames === undefined)
+  if (run === null || overlay === undefined)
     return (
       <p className="quiet">
         This run is gone. Runs live in memory and end when the{' '}
@@ -147,36 +153,37 @@ export function RunPage(props: {
         </p>
       )}
 
-      <div className="split">
-        {wizard !== undefined && (
-          <section className="card graph" aria-label="Steps">
-            <Graph
-              manifest={wizard.manifest}
-              frames={frames}
-              selected={selected}
-              onSelect={(key) => select(selected === key ? null : key)}
-            />
-          </section>
-        )}
-        <div className="stack">
-          {run.pending.length > 0 || run.nextTimer !== undefined ? (
-            <>
-              <h2 className="section">Waiting for you</h2>
-              <PendingList run={run} />
-            </>
-          ) : (
-            !TERMINAL.has(run.status) && (
-              <p className="quiet">Nothing is waiting for you. The run is working.</p>
-            )
-          )}
-          {run.result !== undefined && (
-            <section className="card result" data-status={run.result.status}>
-              <h2>Result</h2>
-              <JsonView value={run.result} />
-            </section>
-          )}
-        </div>
-      </div>
+      {wizard !== undefined && (
+        <section className="card graph" aria-label="Steps">
+          <WizardGraph
+            graph={wizard.manifest}
+            statuses={overlay.statuses}
+            childPaths={overlay.childPaths}
+            activeStep={overlay.current}
+            selected={selected}
+            onSelect={(selection) => select(selection?.key ?? null)}
+            minimap={false}
+            theme={scheme}
+          />
+        </section>
+      )}
+
+      {run.pending.length > 0 || run.nextTimer !== undefined ? (
+        <>
+          <h2 className="section">Waiting for you</h2>
+          <PendingList run={run} />
+        </>
+      ) : (
+        !TERMINAL.has(run.status) && (
+          <p className="quiet working">Nothing is waiting for you. The run is working.</p>
+        )
+      )}
+      {run.result !== undefined && (
+        <section className="card result" data-status={run.result.status}>
+          <h2>Result</h2>
+          <JsonView value={run.result} />
+        </section>
+      )}
 
       <div className="tabs" role="tablist">
         {tabs.map(([id, label]) => (

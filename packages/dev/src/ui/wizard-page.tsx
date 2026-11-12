@@ -1,13 +1,14 @@
+import { WizardGraph } from '@openwizard/devtools'
 import { type ReactElement, useState } from 'react'
 import type { ActionResult, RunSummary, Services, WizardInfo } from '../wire'
 import { Status } from './app'
 import { useBackend } from './backend'
 import { ValueEditor } from './fields'
 import { clock, shortId } from './format'
-import { Graph } from './graph'
 import { JsonView, Refusal, useJsonDraft } from './json'
 import { Go, useNav } from './nav'
 import { Outside } from './outside'
+import { useScheme } from './scheme'
 
 type Tab = 'outside' | 'steps' | 'schemas' | 'docs' | 'runs'
 
@@ -150,6 +151,7 @@ export function WizardPage(props: {
   readonly runs: readonly RunSummary[]
 }): ReactElement {
   const { wizard, runs } = props
+  const scheme = useScheme()
   const [tab, setTab] = useState<Tab>('outside')
   const tabs: readonly [Tab, string][] = [
     ['outside', 'Outside the run'],
@@ -171,12 +173,10 @@ export function WizardPage(props: {
         </p>
       ))}
 
-      <div className="split">
-        <section className="card graph" aria-label="Steps">
-          <Graph manifest={wizard.manifest} />
-        </section>
-        <StartForm wizard={wizard} />
-      </div>
+      <section className="card graph" aria-label="Steps">
+        <WizardGraph graph={wizard.manifest} minimap={false} theme={scheme} />
+      </section>
+      <StartForm wizard={wizard} />
 
       <div className="tabs" role="tablist">
         {tabs.map(([id, label]) => (

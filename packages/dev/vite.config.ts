@@ -7,6 +7,8 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   build: {
+    // elkjs, the graph layout engine, is a 1.4 MB chunk by nature.
+    chunkSizeWarningLimit: 1_600,
     outDir: '../../dist/ui',
     emptyOutDir: true,
   },
