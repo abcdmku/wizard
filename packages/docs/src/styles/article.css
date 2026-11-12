@@ -3,7 +3,8 @@
   @apply text-[15.5px] leading-7 text-neutral-700 dark:text-neutral-300;
   width: 100%;
   min-width: 0;
-  max-width: min(46rem, calc(100vw - 2rem));
+  /* The same width as the pager and the page footer under the article. */
+  max-width: min(48rem, calc(100vw - 2rem));
 }
 .docs-article > :first-child {
   margin-top: 0;
@@ -60,12 +61,19 @@
 .docs-article hr {
   @apply my-10 border-neutral-200 dark:border-neutral-800;
 }
+.docs-article .table-scroll {
+  @apply my-6 max-w-full overflow-x-auto;
+}
+/* Two tables in a row read as one without a wider gap. */
+.docs-article .table-scroll + .table-scroll {
+  @apply mt-10;
+}
 .docs-article table {
-  @apply my-6 block w-full max-w-full overflow-x-auto text-[14px] leading-6;
+  @apply w-full text-[14px] leading-6;
   border-collapse: collapse;
 }
 .docs-article thead th {
-  @apply border-b border-neutral-300 px-3 py-2 text-left font-mono text-[11.5px] font-medium tracking-wider text-neutral-500 uppercase dark:border-neutral-700 dark:text-neutral-400;
+  @apply border-b border-neutral-300 px-3 py-2 text-left align-bottom font-mono text-[11.5px] font-medium tracking-wider text-neutral-500 uppercase dark:border-neutral-700 dark:text-neutral-400;
 }
 .docs-article tbody td {
   @apply border-b border-neutral-200 px-3 py-2.5 align-top dark:border-neutral-800;
@@ -73,9 +81,17 @@
 .docs-article tbody tr:last-child td {
   border-bottom: none;
 }
+.docs-article th:first-child,
+.docs-article td:first-child {
+  padding-left: 0;
+}
 
 .docs-article :not(pre) > code {
   @apply rounded-[5px] border border-neutral-200 bg-neutral-100 px-1.5 py-0.5 font-mono text-[0.82em] text-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200;
+  /* A chip that wraps keeps its border and padding on both lines. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  overflow-wrap: break-word;
 }
 .docs-article a > code {
   color: inherit;
@@ -117,6 +133,80 @@
   content: counter(line);
   @apply mr-5 inline-block w-4 text-right text-neutral-400 dark:text-neutral-600;
 }
+
+/* ---------- Code in tables ---------- */
+/* A name in a header is code, and code keeps its case. */
+.docs-article thead th code {
+  @apply tracking-normal whitespace-nowrap normal-case;
+}
+@media (min-width: 641px) {
+  /* The first column names a thing. Keep each name on one line. */
+  .docs-article tbody td:first-child code {
+    white-space: nowrap;
+  }
+}
+
+/* ---------- Copy button ---------- */
+.docs-article .code-copy {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.docs-article .code-block:hover .code-copy,
+.docs-article .code-copy:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .docs-article .code-copy {
+    opacity: 1;
+  }
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 640px) {
+  .docs-article .code-block pre {
+    @apply px-3.5 text-[12.5px];
+  }
+  /* A row becomes a block: the name, then each other cell under its header. */
+  .docs-article table,
+  .docs-article thead,
+  .docs-article tbody,
+  .docs-article tbody tr,
+  .docs-article tbody td {
+    display: block;
+  }
+  /* The header row becomes one line that names the columns in order. */
+  .docs-article thead tr {
+    @apply flex flex-wrap gap-x-2 border-b border-neutral-300 pb-2 dark:border-neutral-700;
+  }
+  .docs-article thead th {
+    @apply border-0 p-0;
+  }
+  .docs-article thead th + th::before {
+    content: "/";
+    @apply mr-2 text-neutral-400 dark:text-neutral-600;
+  }
+  .docs-article tbody tr {
+    @apply border-b border-neutral-200 py-3 dark:border-neutral-800;
+  }
+  .docs-article tbody tr:last-child {
+    border-bottom: none;
+  }
+  /* The right padding holds the end of a chip that wraps at the edge. */
+  .docs-article tbody td {
+    @apply border-0 py-0 pr-2 pl-0;
+  }
+  .docs-article tbody td:first-child {
+    @apply font-medium text-neutral-900 dark:text-neutral-100;
+  }
+  .docs-article tbody td + td {
+    @apply mt-1.5;
+  }
+  .docs-article tbody td[data-label]::before {
+    content: attr(data-label);
+    @apply mr-2 font-mono text-[10.5px] tracking-wider text-neutral-500 uppercase dark:text-neutral-400;
+  }
+}
+
 pre::-webkit-scrollbar {
   height: 8px;
   width: 8px;

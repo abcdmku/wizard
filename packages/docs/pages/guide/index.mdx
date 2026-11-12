@@ -13,18 +13,6 @@ Define steps that run in order, call your services and process a list.
 - Call databases and APIs through `deps`. `boundary.trusted<ReportDeps>()` declares their type. A test can replace them, and they are never saved with the run.
 - `report.run(input, { deps })` creates a run, executes it and returns the outcome. `report.provide({ reports })` returns a wizard with that service already supplied.
 
-## Pick a step declaration
-
-| Declaration | The step | Read |
-|---|---|---|
-| `step({ run })` | Runs work | This page |
-| `step({ each, run })` | Runs work for each item | This page |
-| `view({ input })` | Collects a form from a person | [Forms](/guide/forms) |
-| `step({ next, targets })` | Chooses a branch | [Branch](/guide/branch) |
-| `step({ waitFor })` | Waits for an event | [Wait for events and time](/guide/wait) |
-| `step({ sleep })` | Waits for a duration | [Wait for events and time](/guide/wait) |
-| `child(wizard, { context })` | Runs another wizard | [Child wizards](/guide/children) |
-
 ## Run work for each item
 
 ```ts file="packages/docs/snippets/learn/each.ts"
@@ -33,3 +21,15 @@ Define steps that run in order, call your services and process a list.
 - `each` returns the items. `run` receives `item` and `index`.
 - The output is an array in item order, whatever order the calls finish in.
 - `concurrency` limits how many items run at the same time.
+
+## Pick a step declaration
+
+| Declaration | The step | Read |
+|---|---|---|
+| `step({ run })` | Runs work | This page |
+| `step({ each, run })` | Runs work for each item | [Run work for each item](#run-work-for-each-item) |
+| `view({ input })` | Collects a form from a person | [Forms](/guide/forms) |
+| `step({ next, targets })` | Chooses a branch | [Branch](/guide/branch) |
+| `step({ waitFor })` | Waits for an event | [Wait for events and time](/guide/wait) |
+| `step({ sleep })` | Waits for a duration | [Wait for events and time](/guide/wait) |
+| `child(wizard, { context })` | Runs another wizard | [Child wizards](/guide/children) |
