@@ -22,7 +22,8 @@
 .landing h1 {
   margin-top: 14px;
   color: #0a0a0a;
-  font-size: clamp(2.1rem, 5.6vw, 3.5rem);
+  /* The longer line of the heading fits the page at this size. */
+  font-size: clamp(2.1rem, 4.9vw, 3.05rem);
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: -0.04em;
