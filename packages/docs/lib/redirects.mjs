@@ -13,6 +13,7 @@ const packageSlugs = [
   'core',
   'react',
   'devtools',
+  'dev',
   'durable',
   'drizzle',
   'http',

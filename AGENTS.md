@@ -29,6 +29,7 @@ pnpm examples
 | `packages/core/src/inspect` | `inspect`, `toMarkdown`, `toMermaid`, `toJSONSchema`, `formatTrace` |
 | `packages/core/src/projection`, `mirror` | Client-safe state and the client replica |
 | `packages/react`, `devtools` | React bindings and inspection UI |
+| `packages/dev` | `openwizard dev`: a local server and browser UI that runs wizards by hand |
 | `packages/durable`, `drizzle` | Leases, fenced writes, PostgreSQL and SQLite stores |
 | `packages/http`, `effect`, `opentelemetry` | HTTP API and webhooks, Effect adapters, tracing |
 | `packages/docs` | The docs site. `snippets/` holds the code the pages show, type-checked and tested |

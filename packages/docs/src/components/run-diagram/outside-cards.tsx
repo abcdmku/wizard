@@ -41,7 +41,7 @@ function CallBody({ card }: { readonly card: Extract<OutsideCard, { kind: 'call'
     <>
       <p className="rd-card-title">
         <ArrowUpRight aria-hidden="true" />
-        Service call
+        Service call out
       </p>
       <p className="rd-card-line">
         deps.{card.name}({card.args})
@@ -62,7 +62,7 @@ function EventBody({ card }: { readonly card: Extract<OutsideCard, { kind: 'even
     <>
       <p className="rd-card-title">
         <ArrowDownLeft aria-hidden="true" />
-        Event sent to the run
+        Event coming in
       </p>
       <p className="rd-card-line">
         {card.name} {card.payload}
@@ -146,6 +146,7 @@ export function OutsideCards({
                   <div
                     key={id}
                     className={`rd-card is-${TONE[version.state] ?? 'waiting'}${id === shown ? ' is-current' : ''}`}
+                    data-kind={version.kind}
                     aria-hidden={id === shown ? undefined : true}
                   >
                     {body(version)}

@@ -44,7 +44,6 @@
   visibility: hidden;
   margin: 0;
   border: 1px solid var(--rd-line);
-  border-left: 3px solid var(--rd-tone);
   border-radius: 8px;
   background: var(--rd-node);
   padding: 8px 10px;
@@ -67,23 +66,45 @@
 .run-diagram .rd-card p {
   margin: 0;
 }
+/* The kind of thing outside the run: each has its own colour and icon, whatever its state. */
+.rd-card[data-kind="form"] {
+  --rd-kind: #7c3aed;
+}
+.rd-card[data-kind="call"] {
+  --rd-kind: #c2410c;
+}
+.rd-card[data-kind="event"] {
+  --rd-kind: #1d4ed8;
+}
+.dark .rd-card[data-kind="form"] {
+  --rd-kind: #c4b5fd;
+}
+.dark .rd-card[data-kind="call"] {
+  --rd-kind: #fdba74;
+}
+.dark .rd-card[data-kind="event"] {
+  --rd-kind: #93c5fd;
+}
 .run-diagram .rd-card-title {
   display: flex;
   align-items: center;
+  align-self: flex-start;
   gap: 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--rd-kind) 13%, transparent);
+  padding: 1px 7px 1px 5px;
   font-size: 11.5px;
-  color: var(--rd-muted);
+  font-weight: 600;
+  color: var(--rd-kind);
 }
 .rd-card-title svg {
   width: 13px;
   height: 13px;
   flex: none;
-  color: var(--rd-tone);
 }
 .rd-card-title b {
   font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--rd-text);
+  font-weight: 700;
 }
 .run-diagram .rd-card-line {
   font-family: var(--font-mono);

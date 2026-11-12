@@ -354,6 +354,46 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
 
+  packages/dev:
+    dependencies:
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+    devDependencies:
+      '@openwizard/core':
+        specifier: workspace:*
+        version: link:../core
+      '@openwizard/devtools':
+        specifier: workspace:*
+        version: link:../devtools
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.2.4
+        version: 19.2.4(@types/react@19.2.18)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.5
+        version: 6.0.5(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+      '@xyflow/react':
+        specifier: ^12.11.3
+        version: 12.11.3(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      elkjs:
+        specifier: ^0.12.0
+        version: 0.12.0
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.2.8(react@19.2.8)
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
   packages/devtools:
     dependencies:
       '@xyflow/react':
@@ -408,6 +448,9 @@ importers:
       '@openwizard/core':
         specifier: workspace:*
         version: link:../core
+      '@openwizard/dev':
+        specifier: workspace:*
+        version: link:../dev
       '@openwizard/devtools':
         specifier: workspace:*
         version: link:../devtools

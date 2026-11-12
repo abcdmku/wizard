@@ -3,6 +3,7 @@
   "core": "Core",
   "react": "React",
   "devtools": "Devtools",
+  "dev": "Dev",
   "durable": "Durable",
   "drizzle": "Drizzle",
   "http": "HTTP",

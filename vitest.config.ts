@@ -121,6 +121,15 @@ export default defineConfig({
       {
         resolve: { alias: sourceAliases },
         test: {
+          name: 'dev',
+          root: './packages/dev',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
+        resolve: { alias: sourceAliases },
+        test: {
           name: 'opentelemetry',
           root: './packages/opentelemetry',
           include: ['tests/**/*.test.ts'],
