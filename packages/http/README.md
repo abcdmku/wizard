@@ -21,7 +21,7 @@ export default { fetch: http.fetch }
 
 Nothing is exposed unless `access` lists it.
 
-Read the [HTTP reference](../docs/pages/packages/http.mdx).
+Read the [HTTP reference](https://abcdmku.github.io/wizard/reference/http).
 
 ## Exports
 

@@ -13,7 +13,7 @@ import '@openwizard/devtools/style.css'
 export const Tools = ({ run }) => <Devtools source={run} />
 ```
 
-Read the [devtools reference](../docs/pages/packages/devtools.mdx).
+Read the [devtools reference](https://abcdmku.github.io/wizard/reference/devtools).
 
 ## Exports
 

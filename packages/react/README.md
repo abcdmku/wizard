@@ -20,7 +20,7 @@ export function Signup() {
 }
 ```
 
-Read the [React reference](../docs/pages/packages/react.mdx).
+Read the [React reference](https://abcdmku.github.io/wizard/reference/react).
 
 ## Exports
 

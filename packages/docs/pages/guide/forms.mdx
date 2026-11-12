@@ -1,0 +1,13 @@
+# Forms
+
+Collect input from a person, validate it and continue.
+
+```ts file="packages/docs/snippets/learn/form.ts"
+```
+
+- `view({ input })` pauses the run until a person submits the form. `run.getState().current` is the id of the view to show.
+- `setInput(view, patch)` merges the patch into a draft. `next()` validates the whole draft, and the parsed value becomes the view's output.
+- Commands return a value and do not throw for bad data. Check `ok`. An invalid draft returns `reason: 'validation'` with `issues`, and the run stays on the view.
+- `back()` returns to the previous view and keeps the draft.
+- `signup.create(input)` returns a live run that you drive with commands. Call `run.dispose()` when you are done with it.
+- A view also takes `initial` to prefill the draft, `validate` for rules that span fields, and `canEnter` and `canExit` to refuse navigation.

@@ -15,7 +15,7 @@ const charge = step({
 ```
 
 The run's `deps` hold the `ManagedRuntime` that provides `Payments`. The
-[Effect reference](../docs/pages/packages/effect.mdx) has the complete example.
+[Effect reference](https://abcdmku.github.io/wizard/reference/effect) has the complete example.
 
 ## Exports
 

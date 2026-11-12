@@ -63,7 +63,7 @@ Write for someone who has not used a workflow engine. A page teaches one idea, i
 3. Three to six short statements or one small table. Cut a sentence that would not change what the reader types.
 4. At most three links: the next page and the reference entry.
 
-State each fact once in the site and link to it from other pages. Option lists belong on the reference pages in `packages/docs/pages/packages`. Word budgets, not counting code and tables: 200 for the Quickstart, 250 for a Guide page, 350 for a Production page.
+State each fact once in the site and link to it from other pages. Option lists belong on the reference pages in `packages/docs/pages/reference`. Word budgets, not counting code and tables: 200 for the Quickstart, 250 for a Guide page, 350 for a Production page.
 
 Every snippet a page shows needs a test in `packages/docs/snippets` that asserts the result the page states. Write snippets the way `snippets/agents/refund.ts` is written: `needs` for hand-offs and `deps` for services. The `_meta.json` file of each folder in `packages/docs/pages` sets the order and titles of the navigation.
 

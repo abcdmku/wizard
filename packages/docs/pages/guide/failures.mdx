@@ -1,0 +1,32 @@
+# Handle failures
+
+Retry a failing step, continue at a fallback, undo finished steps, or recover by hand.
+
+## Retry a step
+
+```ts file="packages/docs/snippets/learn/retry.ts"
+```
+
+- `retries: 2` allows two more calls after the first one fails, three in total. `backoff` is a delay in milliseconds or `'exponential'`.
+- A retry can call the service twice, and so can a restart after a crash. Pass `idempotencyKey` to the service. Every attempt gets the same key.
+- `timeout: '30s'` fails an attempt that runs too long and aborts the `signal` that `run` receives.
+
+## Recover a halted run
+
+When a step fails and has no retries left, the run halts. `run.awaitOutcome()` and `upload.run()` return `{ status: 'halted', failure, snapshot }`. Fix the cause, then call `run.retry('save')`. `run.skip('save')` and `run.cancel()` are the other ways out.
+
+## Continue at a fallback
+
+```ts file="packages/docs/snippets/learn/fallback.ts"
+```
+
+When `live` fails and has no retries left, it is skipped and `list` starts. The run does not halt. `quote` reads whichever step produced a value.
+
+## Undo finished steps
+
+```ts file="packages/docs/snippets/learn/compensate.ts"
+```
+
+- With `onFailure: 'compensate'`, the run does not halt. It calls the `compensate` function of every finished step, newest first, and ends as `failed`.
+- `compensate` receives the step's `output` and an `idempotencyKey` of its own. An undo can repeat too.
+- The result's `failure.compensation.outcome` is `'partial'` when an undo failed. Call `run.compensate({ from: 'flight' })` to try again from that step.

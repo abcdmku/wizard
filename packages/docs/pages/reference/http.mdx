@@ -1,0 +1,99 @@
+# HTTP
+
+`@openwizard/http` serves a wizard over HTTP: a run API, signed webhook routes, outgoing webhooks and an OpenAPI document.
+
+```sh
+npm install @openwizard/http
+```
+
+```ts
+import { createBearerScopeProvider, createHTTP } from '@openwizard/http'
+
+const http = createHTTP(wizard, {
+  runs: { get: ({ tenantId, runId }) => findRun(tenantId, runId) },
+  auth: createBearerScopeProvider({ verify: verifyToken }),
+  access: { run: ['read'] },
+})
+
+export default { fetch: http.fetch }
+```
+
+[HTTP API and webhooks](/production/http) has a complete example and the routes.
+
+| Export | Meaning |
+|---|---|
+| `createHTTP(wizard, options)` | The routes of one wizard. Returns `{ fetch, openAPI, wizard }` |
+| `combineHTTP(sources, { cors? })` | Several results of `createHTTP` and `createWebhookSubscriptions` as one handler and one document |
+| `createBearerScopeProvider({ verify })`, `createOAuth2ScopeProvider({ verify, flows })` | Turn a bearer token into `{ tenantId, principal, scopes }` |
+| `createWebhookSubscriptions(options)` | Outgoing webhooks that tenants subscribe to |
+| `signWebhook({ secret, id, body })` | The three signature headers for a body |
+| `validateWebhookEndpoint(url)` | Rejects a callback URL that points at a local or private address |
+| `createMemoryIdempotencyStore()`, `createMemoryWebhookStore()` | Stores in memory, for tests and one process |
+| `httpTransport(url, { headers?, fetch? })` | A mirror transport, from `@openwizard/http/client` |
+| `withNitro(config, { http, source })` | Adds the routes to a Nitro config, from `@openwizard/http/nitro` |
+
+| Option of `createHTTP` | Meaning |
+|---|---|
+| `runs` | `{ get, create? }`. Finds and creates a tenant's runs. Return a run or a durable host handle |
+| `auth` | A scope provider |
+| `access` | See the table below. `runs`, `auth` and `access` go together |
+| `receive` | Signed webhook routes. See the table below |
+| `projection` | Replaces the projection built from `access` |
+| `id`, `path` | Name used in paths and scopes, default the wizard's name. Path prefix, default `/api/<id>` |
+| `scopes` | `{ read, create, command }`. Default `<id>:read`, `<id>:create`, `<id>:command` |
+| `idempotency` | Store for repeated `Idempotency-Key` and `webhook-id` values. Default: in memory, 24 hours |
+| `maxBodyBytes` | Default 64 KiB |
+| `cors` | `{ origins, credentials?, maxAgeSeconds? }`. Off by default |
+| `onError` | Called for an unexpected failure. The caller gets a 500 |
+
+| Field of `access` | Values |
+|---|---|
+| `context` | The context keys a caller may read |
+| `run` | `'create'`, `'read'`, `'output'`, `'progress'`, `'start'`, `'next'`, `'back'`, `'cancel'`, `'compensate'`, `'reset'`, `'startReady'` |
+| `steps` | For each step: `'read'`, `'output'`, `'error'`, `'issues'`, `'skip'`, `'invalidate'`. A view adds `'input'`, `'setInput'`, `'resetInput'`, `'go'`. A step with `run` adds `'retry'`, `'startStep'`. A child step adds `'child'`, `'summary'` |
+| `events` | The events a caller may send |
+
+| Field of `receive` | Meaning |
+|---|---|
+| `events` | The events senders may deliver |
+| `secret` | A `whsec_` secret, several during a rotation, or a function of the request |
+| `resolve` | `(delivery) => run`. Receives `{ webhookId, envelope, request }` after the signature passed |
+| `correlationId` | Default: the envelope's `subject` |
+| `path` | Default `/webhooks/<id>` |
+| `toleranceSeconds` | Accepted age of `webhook-timestamp`. Default 300 |
+| `maxBodyBytes` | Default 1 MiB |
+
+| Response code | Meaning |
+|---|---|
+| `IDEMPOTENCY_CONFLICT` | Status 422. The key was used for a different request |
+| `IDEMPOTENCY_PENDING` | Status 409. A request with this key is still running. Try again shortly |
+| `IDEMPOTENCY_INTERRUPTED` | Status 409. A durable command was applied and its result was lost. Read the run before you send a new key |
+
+## Send webhooks
+
+```ts
+import { combineHTTP, createWebhookSubscriptions } from '@openwizard/http'
+
+const subscriptions = createWebhookSubscriptions({ id: 'checkout', events, store, auth })
+const app = combineHTTP([http, subscriptions])
+
+await subscriptions.publish({ tenantId, type: 'order.paid', data: { orderId } })
+await subscriptions.work()
+```
+
+- `events` maps each public event name to a schema. Nothing else can be published.
+- Tenants manage their subscriptions under `/subscriptions/<id>`.
+- `publish` queues one delivery for each matching subscription. `work()` sends the queued deliveries, signed. Call it from a worker or a timer.
+- A delivery is tried 8 times by default. Change that with `delivery`.
+
+## Write an idempotency store
+
+| Method | Must |
+|---|---|
+| `claim(key, fingerprint)` | Return `{ state: 'claimed', claimId }`, or the existing `pending` or `completed` record |
+| `complete(key, claimId, response)` | Store the response only if `claimId` still owns the key. Return whether it did |
+| `release(key, claimId)` | Remove the claim only if `claimId` still owns the key. Return whether it did |
+
+Compare and write in one atomic operation.
+
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_http.html).

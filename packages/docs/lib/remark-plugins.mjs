@@ -28,7 +28,7 @@ const LANG_BY_EXT = {
   '.sh': 'sh',
 }
 
-function selectLines(content, spec) {
+export function selectLines(content, spec) {
   const lines = content.split('\n')
   const picked = []
   for (const part of spec.split(',')) {
@@ -66,10 +66,10 @@ export function remarkCodeFrom({ repoRoot }) {
 /** Repo paths that have a page on the site (everything else links to GitHub). */
 function siteRouteFor(repoPath) {
   const path = repoPath.replace(/\/$/, '')
-  if (path === 'README.md') return '/getting-started'
+  if (path === 'README.md') return '/quickstart'
   if (path === 'examples') return '/examples'
   const packageReadme = path.match(/^packages\/([a-z0-9-]+)\/README\.md$/)
-  if (packageReadme && packageReadme[1] !== 'docs') return `/packages/${packageReadme[1]}`
+  if (packageReadme && packageReadme[1] !== 'docs') return `/reference/${packageReadme[1]}`
   if (/^examples\/\d\d-[a-z0-9-]+(?:\/README\.md)?$/.test(path)) return '/examples'
   return null
 }

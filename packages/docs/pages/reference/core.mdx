@@ -1,0 +1,316 @@
+# Core
+
+`@openwizard/core` defines wizards and runs them.
+
+```sh
+npm install @openwizard/core zod
+```
+
+```ts file="packages/docs/snippets/learn/factory.ts" lines="1-10,12-13"
+```
+
+## Glossary
+
+| Word | Meaning |
+|---|---|
+| Wizard | A definition of steps. `defineWizard` returns it. It holds no state |
+| Run | One execution of a wizard, with its own context, step outputs and deadlines |
+| Step | One unit of a wizard. It runs work, collects a form, waits or chooses a branch |
+| Child | A wizard that runs as one step of another wizard |
+| Manifest | The description of a wizard as JSON. `inspect(wizard)` returns it |
+
+## Import
+
+| Entry | Exports |
+|---|---|
+| `@openwizard/core` | `defineWizard`, `boundary`, `defineProjection`, `createMemoryStore`, `replay`, `parseCommand`, `renameSteps`, errors and types |
+| `@openwizard/core/inspect` | `inspect`, `toMarkdown`, `toMermaid`, `toJSONSchema`, `formatTrace` |
+| `@openwizard/core/mirror` | `createMirrorSource`, `createMirror`, `parseWireCommand`, `parseFrame` |
+| `@openwizard/core/testing` | `createTestScheduler`, `createLocalTransport` |
+
+## Define a wizard
+
+`defineWizard(options, ({ step, view, child, steps }) => steps(map, { start? }))`
+
+| Option | Meaning |
+|---|---|
+| `name` | Required. Stored in every snapshot |
+| `context` | Required. Schema of the input a run starts with |
+| `deps` | Type of your services, usually `boundary.trusted<Deps>()` |
+| `events` | `{ name: schema }` for every event a run accepts |
+| `output` | `({ context }) => value`, the wizard's output. Synchronous. Without it, the output is that of the last step to finish that nothing follows |
+| `version` | Integer, default `1`. A snapshot with another version needs `migrate` |
+| `description`, `meta` | Text and JSON copied to the manifest |
+| `onFailure` | `'halt'` (default) or `'compensate'` |
+| `retry` | Retry policy for every step with `run` that sets none |
+| `autoRun` | `'ready'` (default) starts work on its own. With `'manual'`, call `run.startStep(step)` or `run.startReady()` |
+| `concurrency` | Most steps with `run` working at once. Default: no limit |
+| `unmatchedEvents` | `{ buffer, ttl }` for an event no step waits for. Default `{ buffer: true, ttl: '5m' }` |
+| `on` | `{ event: handler }`. Runs after the steps' handlers. Return `{ cancel: reason }` to cancel the run |
+| `correlate` | `{ event: (payload) => id }`. A run drops an event whose id differs from its `correlationId` |
+
+A schema is any [Standard Schema](https://standardschema.dev) value, or a function wrapped with `boundary.parse(fn)`, `boundary.guard(fn)` or `boundary.assert(fn)`. `boundary.trusted<T>()` declares a type and checks nothing.
+
+| Wizard method | Returns |
+|---|---|
+| `create(input, options?)` | A live run |
+| `run(input, options?)` | The outcome, once the run ends, halts, or waits at a view or an event. Disposes the run |
+| `runSync(input, options?)` | The same outcome without a promise. Throws `SYNC_VIOLATION` when a step is async or needs a timer |
+| `resume(snapshot, options?)` | A live run restored from a snapshot |
+| `createAsync`, `resumeAsync` | The same, for an async context schema or an async `migrate` |
+| `provide(deps)` | A new wizard with those services supplied. The rest stay required |
+
+## Declare a step
+
+Every `step`, `view` and `child` takes these.
+
+| Option | Meaning |
+|---|---|
+| `needs` | `{ alias: step }`, `{ alias: { any: [a, b] } }` or `{ alias: { optional: step } }`. See [Pass data between steps](/guide/needs) |
+| `next` | A step or its id, an array of them, `null`, or a function that returns one |
+| `targets` | Required with a function `next`. Every step it can return. Returning another step fails this one |
+| `when` | Return `false` to skip the step |
+| `enter`, `exit` | Functions that run when the step starts and when it finishes |
+| `on` | `{ event: handler }` for events that arrive while the step is active |
+| `description`, `label`, `meta` | Text and JSON copied to the manifest |
+
+A `step` has one behaviour: `run`, `waitFor` or `sleep`. With none, it only routes through `next`.
+
+| Option of `step` | Meaning |
+|---|---|
+| `run` | The work. The return value is the output |
+| `each` | Returns the items. `run` is called for each with `item` and `index`. The output is an array in item order. Finished items are saved, `run.retry(step)` reruns only the failed ones, and observers get `{ done, total }` after each item |
+| `key`, `concurrency` | With `each`. A unique name for each item, and the most items at once |
+| `output` | Schema for the result. Declare it to get a `Date` or another non-JSON value back after a resume |
+| `retry` | See the table below |
+| `timeout` | With `run`, the longest one attempt may take. With `waitFor`, `{ after, next }` |
+| `fallback` | The step to start when this one fails for good |
+| `idempotencyKey` | `true`, or a function that returns your key. Marks the step safe to run again after a crash |
+| `compensate` | The undo function. Runs under `onFailure: 'compensate'` and `run.compensate()` |
+| `mapError` | `(error, args) => json`. Stored as `error.data`, typed by `ErrorOf`, passed to `retry.when`. Write it above `retry` so `retry.when` gets its type |
+| `waitFor` | `{ event: handler }`. See [Decide in the handler](/guide/wait#decide-in-the-handler) |
+| `sleep` | A duration, or a function that returns one |
+
+| Field of `retry` | Meaning |
+|---|---|
+| `retries` | Extra calls after the first failure |
+| `backoff` | Delay in milliseconds, or `'exponential'`. Without it, retries start at once |
+| `baseMs`, `factor`, `maxBackoffMs` | For `'exponential'`. Defaults `200`, `2`, `30000` |
+| `jitter` | Vary each delay by up to this fraction, from 0 to 1 |
+| `when` | `(error) => boolean`. Return `false` to stop retrying |
+
+A duration is a number of milliseconds or a string with a unit: `'250ms'`, `'30s'`, `'15m'`, `'2h'`, `'1d'`.
+
+## Declare a view
+
+| Option of `view` | Meaning |
+|---|---|
+| `input` | Schema of the form. The parsed value is the view's output |
+| `initial` | The first draft. An object, or a function of `{ context, deps }` |
+| `validate` | Return issues `[{ message, path? }]` after the schema passes |
+| `canEnter`, `canExit` | Return `false` to refuse entering or leaving. The command returns `GUARD_BLOCKED` |
+| `on` | An event handler of a view may return `{ next }` to move on |
+
+## Declare a child
+
+| Option of `child(wizard, options)` | Meaning |
+|---|---|
+| `context` | Required. Returns the child's input |
+| `deps` | Returns the child's services. Required when the parent's `deps` do not cover them |
+| `each`, `key`, `concurrency` | One child for each item |
+| `output` | Schema for the child's output |
+| `fallback` | The step to start when the child halts or fails |
+
+## Read function arguments
+
+| Argument | Given to | Meaning |
+|---|---|---|
+| `context`, `deps`, `needs` | Every function | The run's context, your services, the outputs of `needs` |
+| `update(patch)` | Every function | Merges a patch into the context. Pass a function of the current context when steps run in parallel |
+| `progress(value)` | Every function | Reports a JSON value to observers. Never saved |
+| `signal` | Every function | Aborted on timeout, cancel and dispose |
+| `step`, `path` | Every function | The step id, and the run's path: `[]`, or `['shipping']` inside a child |
+| `attempt`, `idempotencyKey` | `run`, `mapError` | The attempt number from 1, and the key to pass to a service |
+| `output` | `next`, `exit`, `validate`, `canExit`, `compensate` | The step's output |
+| `item`, `index` | With `each` | The current item |
+| `event`, `payload` | Event handlers | The event name and its parsed payload |
+
+## Create a run
+
+Options of `create`, `run` and `runSync`. `resume` takes the same ones except `instanceId` and `correlationId`, and adds `migrate`.
+
+| Option | Meaning |
+|---|---|
+| `deps` | The services not supplied with `provide`. A key given here replaces a provided one |
+| `instanceId` | The run's id. Default: generated |
+| `correlationId` | Compared with the id `correlate` extracts from an event |
+| `store`, `key` | Where snapshots go, and under which key. `key` defaults to the run's id |
+| `autoSave` | `'change'` (default with a store) or `'off'` |
+| `debounceMs` | Group writes that fall within this time |
+| `redact` | `(snapshot) => value`, applied before each write. A resumed run starts from the redacted copy |
+| `onPersistError` | Called when a write fails. Default: the error is thrown as an uncaught error |
+| `scheduler`, `clock` | Timers and time. `createTestScheduler()` is both |
+| `eventIds` | `{ ttl, limit }` for remembered event ids. Default `{ ttl: '24h', limit: 1000 }` |
+| `logSize` | Events kept by `run.log()`. Default `200` |
+| `migrate` | `(snapshot, from) => snapshot`, for a snapshot of another `version` |
+
+## Drive a run
+
+Each command returns a promise of a result with `ok`.
+
+| Command | Does |
+|---|---|
+| `start()` | Starts the first steps |
+| `setInput(view, patch)`, `resetInput(view)` | Changes or clears a draft |
+| `next()`, `back()`, `go(view)` | Leaves the current view forward, backward, or for another ready view |
+| `send(event, payload, { eventId?, correlationId? })` | Delivers an event |
+| `retry(step, { patch? })` | Runs a failed step again. `patch` changes the context first |
+| `skip(step, reason?)` | Skips a step. Steps with a plain need on it are skipped too |
+| `cancel(reason?)` | Ends the run as `cancelled` |
+| `compensate({ from?, reason? })` | Runs the undo functions |
+| `invalidate(step, { cascade? })` | Returns a finished step to idle, and by default the steps that need it |
+| `startStep(step)`, `startReady()` | Starts work under `autoRun: 'manual'` |
+| `reset()` | Returns the run to its first state |
+| `dispatch(command, { expectedVersion? })` | Applies a command object such as `{ type: 'next' }`. With `expectedVersion: { epoch, seq }`, a run that changed since returns `STALE` |
+| `save()` | Writes a snapshot now |
+| `dispose()` | Stops timers and listeners. Later commands return `DISPOSED` |
+
+## Read a run
+
+| Call | Returns |
+|---|---|
+| `getState()` | `{ status, current, active, context, steps, seq, epoch }`. `steps[id]` has `status`, `input`, `output`, `issues`, `error`, `attempt` and `skipReason` |
+| `getSnapshot()` | The JSON to store |
+| `subscribe(listener)` | Calls the listener after each state change |
+| `awaitResult()`, `result()` | The result once the run is `done`, `failed` or `cancelled` |
+| `awaitOutcome()` | The result, or a `halted` or `waiting` outcome. The run stays alive |
+| `whenIdle()` | Resolves when the current command has been applied. It does not wait for async steps or timers |
+| `waitingFor()` | `[{ kind: 'view' or 'event' or 'sleep', step, path, events?, deadline? }]`. `path` is `[]` for this run, `['shipping']` for a child, `['batch', '0']` for the first item of a child step with `each` |
+| `explain(step)` | `{ status, phase, reasons, waitingFor }` |
+| `validate(view)` | The issues of the current draft |
+| `readyViews()` | The views `go` can reach |
+| `progress()` | `{ done, total, ratio }`, counted in steps |
+| `observe(listener)`, `log()` | Every event as it happens, and the recent ones |
+| `child(step)`, `child(step, keyOrIndex)` | The live run of a child step, or of one item of it. A number is the item's index, a string is its `key` |
+| `project(projection, scope?)` | The state a projection lets a client see |
+| `attach(source)` | Connects an event source to `send`. Returns a function that disconnects it |
+| `id`, `epoch`, `wizard` | The run's id, the number of times it was resumed, and its wizard |
+
+## Read results
+
+| Outcome `status` | Carries | Meaning |
+|---|---|---|
+| `done` | `output` | The run finished |
+| `failed` | `failure` | The run ended and cannot continue |
+| `cancelled` | `failure.reason` | `cancel()` ended it |
+| `halted` | `failure`, `snapshot` | A step failed. `retry`, `skip`, `compensate` or `cancel` |
+| `waiting` | `waitingFor`, `snapshot` | The run needs a person or an event |
+
+| Result of | On success | On refusal |
+|---|---|---|
+| A command | `{ ok: true, seq }` | `{ ok: false, code, message, issues? }` |
+| `next`, `back`, `go` | `{ ok: true, from, to }` | The same, with `reason` |
+| `send` | `{ ok: true, delivered, buffered, duplicate? }` | `reason: 'rejected'` for a bad payload, `'dropped'` when nothing took the event |
+
+| Status of | Values |
+|---|---|
+| A run | `idle`, `running`, `waiting`, `halted`, `done`, `failed`, `compensating`, `cancelled` |
+| A step | `idle`, `active`, `done`, `failed`, `skipped`, `cancelled`, `compensating`, `compensated` |
+
+## Handle errors
+
+Bad data and refused commands come back as `{ ok: false, code }`. Misuse throws a `WizardError` with the same `code`. `isWizardError(error)` tests for it.
+
+| Code | Meaning |
+|---|---|
+| `INVALID_INPUT` | A draft failed its schema or `validate` |
+| `BOUNDARY_REJECTED` | A context, payload or output failed its schema |
+| `GUARD_BLOCKED` | `canEnter` or `canExit` returned `false` |
+| `NOT_ACTIVE` | The step is not active, or nothing took the event |
+| `RUN_NOT_STARTED`, `RUN_HALTED`, `RUN_TERMINAL` | The run's status does not allow the command |
+| `STALE` | The run changed since `expectedVersion` |
+| `CANCELLED` | The run was cancelled while the command was in progress |
+| `DISPOSED` | The run was disposed |
+| `DEFINITION_INVALID` | Thrown by `defineWizard`. The message lists every problem |
+| `SNAPSHOT_INCOMPATIBLE` | Thrown by `resume`. The snapshot is from another wizard or version |
+| `SNAPSHOT_NOT_SERIALIZABLE` | A snapshot holds a value that is not JSON. The message names its path |
+| `SYNC_VIOLATION` | Thrown by `runSync` when a step is async |
+
+`awaitResult()` and `awaitOutcome()` reject with `RunLifecycleError` when the run is disposed first.
+
+## Send events
+
+| Call | Use |
+|---|---|
+| `run.send(event, payload, options?)` | Deliver one event. See [Wait for events and time](/guide/wait) |
+| `run.attach((send) => stop)` | Feed a queue or socket into the run |
+| `parseCommand(wizard, input)` | Check a command from the network. Returns `{ ok, value }` or `{ ok, issues }` |
+
+## Inspect a wizard
+
+From `@openwizard/core/inspect`, except `replay`.
+
+| Call | Returns |
+|---|---|
+| `inspect(wizard)` | The manifest: `name`, `version`, `fingerprint`, `schemas`, `nodes`, `edges`, `warnings` |
+| `toMarkdown(manifest)` | One Markdown page |
+| `toMermaid(manifest)` | A Mermaid diagram |
+| `toJSONSchema(schema, 'input' or 'output')` | JSON Schema, or `undefined` when the validator cannot produce one |
+| `formatTrace(events, { all? })` | One line of text per event |
+| `replay(wizard, events, { context })` | The state those events lead to. Runs none of your functions |
+
+| Warning | Meaning |
+|---|---|
+| `UNREACHABLE` | Nothing can start the step |
+| `NAV_CYCLE` | `next` edges form a loop |
+| `EXCLUSIVE_JOIN` | A step has plain needs on steps of different branches, so it can never run |
+| `SKIPPED_NEED` | The target of a `timeout.next` or `fallback` has a plain need on the step that starts it, so it is skipped. Use `{ optional: step }` |
+| `MULTIPLE_SINKS` | Several steps can end the run. Set `output` |
+| `NO_SINKS` | No step ends the run. Set `output` |
+
+## Project a run
+
+| Call | Meaning |
+|---|---|
+| `defineProjection(wizard, { expose })` | Sends the listed fields. See the table below |
+| `defineProjection(wizard, { select, scope?, progress? })` | Sends what `select(state)` returns |
+| `createMirrorSource(run, projection, { authorize?, scope? })` | The server end. `subscribe`, `getFrame`, `dispatch`, `dispose` |
+| `createMirror<typeof projection>({ transport, initial?, optimisticConcurrency? })` | The client end. `getSnapshot`, `subscribe`, `observe`, `child`, `connect`, `dispose` and the run's commands. With `optimisticConcurrency: true`, a command based on an older frame returns `STALE` |
+
+| Field of `expose` | Sends |
+|---|---|
+| `context: ['key']` | Those context keys |
+| `output: true` | The wizard's output |
+| `progress: true` | `{ done, total, ratio }` |
+| `waitingFor: true` | The list from `run.waitingFor()` |
+| `steps: { id: { input, output, issues, error, progress } }` | Those fields of that step. `progress` forwards its `progress(value)` reports |
+| `steps: { id: { child: true } }` | The child's `{ status, current, progress }` |
+| `steps: { id: { child: { ... } } }` | The child's state, projected with a nested `expose` |
+
+A child step with `each` projects an array in item order, with `null` where a child has not started. A mirror reaches a child with `mirror.child(step)` or `mirror.child(step, index)`.
+
+## Test
+
+From `@openwizard/core/testing`.
+
+| Call | Use |
+|---|---|
+| `createTestScheduler({ now? })` | Pass as `scheduler`. `advance(ms)` fires due timers, `flush()` fires all, `pending()` counts them |
+| `createLocalTransport(source, { delayMs?, serialize? })` | Connects a mirror to a source in one process |
+| `createMemoryStore()` | A store in memory, with `keys()` and `clear()`. From `@openwizard/core` |
+
+## Extract types
+
+| Type | Meaning |
+|---|---|
+| `Run<typeof wizard>`, `Snapshot<typeof wizard>` | A live run and its stored form |
+| `Ctx<W>`, `ContextInput<W>` | The context functions read, and the input `create` takes |
+| `DepsOf<W>`, `RequiredDepsOf<W>` | All services, and those `create` still needs |
+| `StepId<W>`, `ViewId<W>`, `RunStepId<W>`, `ChildStepId<W>` | Step ids by kind |
+| `OutputOf<W, 'step'>`, `InputOf<W, 'view'>`, `ErrorOf<W, 'step'>` | One step's output, draft and `mapError` data |
+| `WizardOutput<W>`, `RunResult<W>`, `RunOutcome<W>` | The output, the result and the outcome |
+| `RunEvent<W>`, `Command<W>` | An observed event and a command object |
+| `ProjectionOutput<typeof projection>` | The state a client receives |
+| `StepApi<C, Ev, D>` | The argument of the build function, for a function that returns reusable steps |
+
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_core.html).

@@ -10,7 +10,7 @@
 .dark .docs-toc ul {
   border-color: #303030;
 }
-.docs-toc li a {
+.docs-toc a {
   display: block;
   margin-left: -1px;
   border-left: 1px solid transparent;
@@ -22,10 +22,10 @@
     color 150ms ease,
     border-color 150ms ease;
 }
-.docs-toc li a:hover {
+.docs-toc a:hover {
   color: #404040;
 }
-.dark .docs-toc li a:hover {
+.dark .docs-toc a:hover {
   color: #d4d4d4;
 }
 .docs-toc li .docs-toc-link-nested {

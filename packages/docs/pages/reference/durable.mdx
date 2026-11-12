@@ -1,0 +1,56 @@
+# Durable
+
+`@openwizard/durable` lets several processes serve the same runs, one process per run at a time.
+
+```sh
+npm install @openwizard/durable
+```
+
+```ts
+import { createDurableHost, createMemoryDurableStore } from '@openwizard/durable'
+
+const host = createDurableHost(wizard, { store: createMemoryDurableStore() })
+await host.create('orders/42', { orderId: 'o-42' })
+await host.dispatch('orders/42', { type: 'start' }, { commandId: 'request-1' })
+```
+
+[Run on a server](/production/server) explains the example and every result code.
+
+| Export | Meaning |
+|---|---|
+| `createDurableHost(wizard, options)` | Hosts the runs of one wizard by key |
+| `createDurableRun(wizard, options)` | Takes the lease of one key and creates or resumes its run |
+| `resumeDurableRun(wizard, options)` | The same, for a run that must exist |
+| `createMemoryDurableStore(options?)` | A store in memory, for tests and one process |
+| `createHostRegistry({ key, open, close })` | The keyed cache `createDurableHost` is built on |
+
+| Method of the host | Meaning |
+|---|---|
+| `create(key, input, { instanceId?, correlationId? })` | Creates the run, or opens the stored one. Returns `{ ok: true, host }` |
+| `open(key)` | Opens a stored run |
+| `dispatch(key, command, { commandId, expectedVersion?, digest? })` | Applies a command once. Returns `{ ok: true, status: 'applied' or 'replayed', result, version }` |
+| `send(key, event, payload, { eventId, correlationId? })` | Delivers an event once |
+| `dispose()` | Releases every lease after the calls in flight finish |
+
+The `host` in an open result has `run`, `version`, `dispatch`, `send`, `renew`, `release` and `dispose` for that one key.
+
+| Host option | Meaning |
+|---|---|
+| `store` | Required. A `DurableStore` |
+| `deps` | `(key) => services`, for services not supplied with `provide` |
+| `ownerId` | Name of this process on its leases. Default: a random id |
+| `lease` | `{ ttlMs }`. Default: the store's, 30 seconds |
+| `renew` | `{ everyMs }`, default a third of the lease. `'manual'` starts no timer |
+| `onLeaseLost` | `(key, code) => void`, called when this process loses a run |
+| `redact`, `eventIds`, `migrate`, `scheduler`, `clock`, `logSize` | As in the [run options](/reference/core#create-a-run) |
+
+| Store option | Meaning |
+|---|---|
+| `leaseTtlMs`, `timerClaimTtlMs` | Default 30 seconds each |
+| `retention` | `{ completedDedupeMs, timerClaimMs }`. A finished `commandId` is kept 7 days by default |
+
+## Write a store
+
+Implement `DurableStore` from `@openwizard/durable/store`, then run `durableStoreContract(name, createStore)` from `@openwizard/durable/testing` in Vitest. A commit must write the snapshot and its command claim in one transaction.
+
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_durable.html).

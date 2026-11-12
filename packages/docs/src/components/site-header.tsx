@@ -5,10 +5,10 @@ import { SearchDialog } from './search-dialog'
 import { ThemeToggle } from './theme-toggle'
 
 const TOP_LINKS = [
-  { label: 'Quickstart', slug: 'getting-started' },
-  { label: 'Guide', slug: 'learn' },
-  { label: 'Production', slug: 'advanced' },
-  { label: 'Reference', slug: 'packages' },
+  { label: 'Quickstart', slug: 'quickstart' },
+  { label: 'Guide', slug: 'guide' },
+  { label: 'Production', slug: 'production' },
+  { label: 'Reference', slug: 'reference' },
   { label: 'Examples', slug: 'examples' },
 ] as const
 

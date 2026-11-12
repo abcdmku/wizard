@@ -24,9 +24,9 @@ if (result.status === 'done') {
 
 ## Read next
 
-- [Quickstart](./packages/docs/pages/getting-started.mdx). Install, define, run.
-- [Guide](./packages/docs/pages/learn/index.mdx). Ten short pages, read in order.
-- [Reference](./packages/docs/pages/packages/index.mdx). Every option of every package.
+- [Quickstart](https://abcdmku.github.io/wizard/quickstart). Install, define, run.
+- [Guide](https://abcdmku.github.io/wizard/guide). Ten short pages, read in order.
+- [Reference](https://abcdmku.github.io/wizard/reference). Every option of every package.
 - [AGENTS.md for wizards](./packages/core/AGENTS.md). The model, the rules and one full example for coding agents. It ships inside `@openwizard/core`.
 
 ## Work on the repository

@@ -1,0 +1,29 @@
+# Show a run to a client
+
+Send a browser the fields it may see, and take its commands back.
+
+## Choose what the client sees
+
+```ts file="packages/docs/snippets/advanced/projection.ts"
+```
+
+- A projection with `expose` sends nothing you did not list. The client always gets the run's `status` and `current` view, and each step's `status`, `phase` and `attempt`.
+- `steps: { payment: { input: true } }` sends the whole draft, every field of it. To send one field of a draft or output, use `defineProjection(wizard, { select: (state) => ({ ... }) })` and return your own shape.
+- `createMirrorSource` checks every command it receives against the wizard, then calls `authorize`. A refusal returns `{ ok: false, code: 'FORBIDDEN' }` and changes nothing.
+- A projection limits fields. It does not decide who may open the run. Authenticate the caller and look the run up inside their tenant before you create a source.
+- Values a step reports with `progress(value)` stay on the server unless the projection sets `progress: true` for that step.
+
+## Render it in React
+
+```tsx file="packages/docs/snippets/advanced/client.tsx"
+```
+
+- `createMirror` keeps a copy of the projected state in the browser and sends commands to the source. It has the same command methods as a run.
+- A transport carries frames one way and commands the other. [`httpTransport(url)`](/production/http#connect-a-browser) is the one for HTTP. `createLocalTransport(source)` from `@openwizard/core/testing` connects both ends in one process.
+- `bindReact<typeof checkoutClient>()` types the hooks from the projection. Reading a field the projection leaves out is a compile error.
+- `useRun` creates the mirror once and disposes it when the component unmounts. `fallback` renders until the first frame arrives.
+- Mirror commands never reject. Offline, they resolve to `{ ok: false, code: 'TRANSPORT_FAILED' }`.
+
+## Limit a projection to one viewer
+
+Add `scope: boundary.trusted<Viewer>()` to a `select` projection. The selector then receives `{ state, scope }`, and `run.project(projection, viewer)` and `createMirrorSource(run, projection, { scope: viewer })` require the viewer. The client cannot supply it.

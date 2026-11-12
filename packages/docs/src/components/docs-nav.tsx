@@ -5,11 +5,14 @@ import { docsNavItems, docsPageMap, docsPages, docsSections, prefetchPage } from
 function NavLink({
   slug,
   title,
+  number,
   active,
   onNavigate,
 }: {
   readonly slug: string
   readonly title: string
+  /** The page's place in a section that is read in order. */
+  readonly number?: number | undefined
   readonly active: boolean
   readonly onNavigate?: (() => void) | undefined
 }) {
@@ -25,7 +28,10 @@ function NavLink({
       aria-current={active ? 'page' : undefined}
       className={`docs-nav-link ${active ? 'docs-nav-link-active' : ''}`}
     >
-      <span>{title}</span>
+      <span>
+        {number !== undefined && <span className="docs-nav-number">{number}</span>}
+        {title}
+      </span>
       {active && <span className="docs-nav-active-dot" aria-hidden="true" />}
     </Link>
   )
@@ -76,13 +82,14 @@ export function DocsNav({
               <ChevronRight aria-hidden="true" />
             </summary>
             <div className="docs-nav-section-links">
-              {section.slugs.map((slug) => {
+              {section.slugs.map((slug, index) => {
                 const page = docsPageMap.get(slug)
                 return page ? (
                   <NavLink
                     key={slug}
                     slug={slug}
                     title={page.title}
+                    number={section.numbered ? index + 1 : undefined}
                     active={slug === currentSlug}
                     onNavigate={onNavigate}
                   />

@@ -2,9 +2,7 @@ import { Link } from '@tanstack/react-router'
 import type { MDXComponents } from 'mdx/types'
 import { type ComponentPropsWithoutRef, useRef } from 'react'
 import { withBase } from '../../lib/site'
-import { Badge, Callout, Step, Steps, Tab, Tabs } from './blocks'
 import { CopyButton } from './copy-button'
-import { Diagram } from './diagram'
 
 /** Docs routes navigate client-side; generated files use base-prefixed ordinary anchors. */
 function MdxAnchor({ href, children, className, title }: ComponentPropsWithoutRef<'a'>) {
@@ -66,11 +64,4 @@ function Pre(props: ComponentPropsWithoutRef<'pre'>) {
 export const mdxComponents: MDXComponents = {
   a: MdxAnchor,
   pre: Pre,
-  Badge,
-  Callout,
-  Steps,
-  Step,
-  Tabs,
-  Tab,
-  Diagram,
 }

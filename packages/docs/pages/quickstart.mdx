@@ -1,0 +1,25 @@
+# Quickstart
+
+Install OpenWizard, define a wizard, run it and read the result.
+
+## Install
+
+```sh
+npm install @openwizard/core zod
+```
+
+OpenWizard runs on Node.js 20 or newer and in browsers. Zod is optional. Any [Standard Schema](https://standardschema.dev) validator works.
+
+## Define and run a wizard
+
+```ts file="packages/docs/snippets/learn/factory.ts" lines="1-10,12-13"
+```
+
+Save the file as `hello.ts` and run `npx tsx hello.ts`. It prints `Hello, Ada!`.
+
+- `defineWizard` returns a wizard. It is a definition, and each call to `runSync` is a separate run.
+- `context` is the schema of the input a run starts with.
+- `step({ run })` runs a function. The return value is the step's output.
+- The output of the last step is the wizard's output.
+- `runSync` returns an outcome. Check `status` before you read `output`.
+- For async steps call `await hello.run({ name: 'Ada' })`. `runSync` throws `SYNC_VIOLATION` when a step returns a promise.

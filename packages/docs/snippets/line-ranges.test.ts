@@ -7,7 +7,7 @@ const linesOf = (path: string) =>
     .replaceAll('\r\n', '\n')
     .split('\n')
 
-it('the Quickstart hides only the lint comment of factory.ts (lines="1-10,12-13")', () => {
+it('the Quickstart and the landing page hide only the lint comment of factory.ts (lines="1-10,12-13")', () => {
   const lines = linesOf('./learn/factory.ts')
 
   expect(lines[10]).toContain('biome-ignore')

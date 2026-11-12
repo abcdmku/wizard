@@ -41,7 +41,7 @@
   .docs-mobile-toc summary::-webkit-details-marker {
     display: none;
   }
-  .docs-mobile-toc summary span {
+  .docs-mobile-toc-count {
     color: #8a8a8a;
     font-family: var(--font-mono);
     font-size: 11px;

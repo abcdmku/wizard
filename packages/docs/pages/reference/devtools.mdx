@@ -1,0 +1,37 @@
+# Devtools
+
+`@openwizard/devtools` shows a run's graph, steps, events and history in a React panel.
+
+```sh
+npm install @openwizard/devtools
+```
+
+React 18 and 19 are supported.
+
+```tsx file="packages/docs/snippets/packages/devtools.tsx"
+```
+
+The panel starts closed. `Ctrl+Shift+D` opens it. Select a step in the graph to see its record, and drag the timeline to see the state at an earlier event.
+
+| Prop of `Devtools` | Meaning |
+|---|---|
+| `source` | Required. A run or a mirror |
+| `wizard`, `graph` | The wizard, or its manifest from `inspect(wizard)`. Needed with a mirror |
+| `defaultOpen` | Start open |
+| `position`, `defaultSize` | `'bottom'` or `'right'`, and the size in pixels |
+| `hotkey` | The shortcut that toggles the panel. `false` turns it off |
+| `theme` | `'light'`, `'dark'` or `'system'` |
+| `context` | The input the run was created with. Lets the timeline go back to the first event |
+| `maxEvents` | Events the panel keeps |
+| `title` | Text in the panel header |
+
+| Export | Meaning |
+|---|---|
+| `WizardGraph`, `StepInspector`, `EventLog`, `Timeline` | The parts of the panel, as components |
+| `buildGraphModel(manifest)`, `layoutGraph(model)` | The graph and its layout, for your own renderer |
+| `isRunSource(source)` | Tells a run from a mirror |
+
+- Over a mirror the panel shows the graph and the step inspector. The event log and the timeline need a run.
+- The panel shows everything its source holds. In a browser, give it a mirror of a [projection](/production/client), or leave it out of production builds.
+
+Full signatures are in the [generated reference](/typedoc/modules/_openwizard_devtools.html).

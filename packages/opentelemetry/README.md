@@ -17,7 +17,7 @@ telemetry.stop()
 
 Your application sets up the OpenTelemetry SDK and exporter.
 
-Read the [OpenTelemetry reference](../docs/pages/packages/opentelemetry.mdx).
+Read the [OpenTelemetry reference](https://abcdmku.github.io/wizard/reference/opentelemetry).
 
 ## Exports
 

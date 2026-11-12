@@ -1,0 +1,45 @@
+# HTTP API and webhooks
+
+Serve a wizard over HTTP: a run API for your clients and signed webhook routes for other systems.
+
+```ts file="packages/docs/snippets/advanced/http.ts"
+```
+
+- `http.fetch` takes a `Request` and returns a `Response`. Any runtime that serves those can host it, and `withNitro` adds it to a Nitro app. `http.openAPI({ title, version })` returns the OpenAPI 3.1 document.
+- `access` lists what callers may do. A capability you leave out gets no route.
+- `verify` turns a bearer token into a tenant, a principal and scopes. The routes require `approval:read`, `approval:create` and `approval:command`.
+- `runs.get` receives the caller's `tenantId` and must return only that tenant's runs. `resolve` receives a verified delivery and decides which run its sender may reach. A valid signature proves the sender knows the secret, nothing more.
+- Return a [durable host](/production/server) handle from `runs.get` and `resolve` when several processes serve the routes.
+
+## Know the routes
+
+| Route | Enabled by |
+|---|---|
+| `POST /api/approval` | `access.run: ['create']` and `runs.create` |
+| `GET /api/approval/:runId` and `/stream` | `access.run: ['read']` |
+| `POST /api/approval/:runId/commands` | Command capabilities such as `'next'`, `'cancel'` or a step's `'setInput'` |
+| `POST /api/approval/:runId/events/:event` | `access.events` |
+| `POST /webhooks/approval/:event` | `receive.events` |
+
+The prefix is the wizard's name. Change it with `id`, `path` or `receive.path`.
+
+## Receive a webhook
+
+A sender posts a [Standard Webhooks](https://www.standardwebhooks.com) message: a JSON body `{ type, timestamp, data, subject? }` with the `webhook-id`, `webhook-timestamp` and `webhook-signature` headers. The route verifies the signature, calls `resolve`, then sends `data` to the run through the event's schema. `signWebhook` builds the headers for a test.
+
+## Make retries safe
+
+The `webhook-id` of a delivery and the `Idempotency-Key` header of an API write become the event or command id. A repeat gets the stored response. The default store for those responses lives in one process, so pass a shared `idempotency` store when several processes serve the routes.
+
+## Connect a browser
+
+```ts
+import { createMirror } from '@openwizard/core/mirror'
+import { httpTransport } from '@openwizard/http/client'
+
+const mirror = createMirror<typeof projection>({
+  transport: httpTransport(`/api/approval/${runId}/stream`, { headers: { authorization } }),
+})
+```
+
+The stream sends the projection built from `access`, or the one you pass as `projection`. Set `cors` when the page is on another origin.

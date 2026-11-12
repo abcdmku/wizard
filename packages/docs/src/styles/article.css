@@ -74,30 +74,6 @@
   border-bottom: none;
 }
 
-.docs-diagram {
-  @apply my-8 w-full min-w-0 max-w-full;
-  contain: inline-size;
-}
-.docs-diagram svg {
-  --d-paper: #ffffff;
-  --d-surface: #fafafa;
-  --d-ink: #171717;
-  --d-muted: #737373;
-  --d-line: #d4d4d4;
-  --d-soft: #f5f5f5;
-  --d-inverse: #ffffff;
-  @apply block h-auto w-full max-w-full;
-}
-.dark .docs-diagram svg {
-  --d-paper: #0a0a0a;
-  --d-surface: #151515;
-  --d-ink: #fafafa;
-  --d-muted: #a3a3a3;
-  --d-line: #404040;
-  --d-soft: #1f1f1f;
-  --d-inverse: #0a0a0a;
-}
-
 .docs-article :not(pre) > code {
   @apply rounded-[5px] border border-neutral-200 bg-neutral-100 px-1.5 py-0.5 font-mono text-[0.82em] text-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200;
 }

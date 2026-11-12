@@ -25,6 +25,8 @@ declare module 'virtual:docs-manifest' {
   export interface DocsSection {
     readonly id: string
     readonly title: string
+    /** Number the pages in the sidebar: the section is read in order. */
+    readonly numbered: boolean
     readonly slugs: readonly string[]
   }
   export type DocsNavItem =
@@ -33,6 +35,8 @@ declare module 'virtual:docs-manifest' {
   export const docsPages: readonly DocsPage[]
   export const docsSections: readonly DocsSection[]
   export const docsNavItems: readonly DocsNavItem[]
+  /** Old route to the page it moved to, such as `/learn/forms` to `/guide/forms`. */
+  export const docsRedirects: Readonly<Record<string, string>>
 }
 
 declare module 'virtual:monaco-libs' {

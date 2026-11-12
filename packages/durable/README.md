@@ -17,7 +17,7 @@ await host.send('orders/42', 'paid', { amount: 120 }, { eventId: 'delivery-9' })
 
 A step can still run twice after a crash. Pass its `idempotencyKey` to the service it calls.
 
-Read the [durable reference](../docs/pages/packages/durable.mdx).
+Read the [durable reference](https://abcdmku.github.io/wizard/reference/durable).
 
 ## Exports
 

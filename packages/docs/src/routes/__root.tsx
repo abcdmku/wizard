@@ -49,12 +49,8 @@ function NotFound() {
         <Link to="/" className="underline underline-offset-4">
           Home
         </Link>
-        <Link
-          to="/$"
-          params={{ _splat: 'getting-started' }}
-          className="underline underline-offset-4"
-        >
-          Getting started
+        <Link to="/$" params={{ _splat: 'quickstart' }} className="underline underline-offset-4">
+          Quickstart
         </Link>
       </div>
     </main>

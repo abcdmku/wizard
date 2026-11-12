@@ -1,0 +1,14 @@
+# Test
+
+Test a wizard by running it with fake services and a clock you control.
+
+```ts file="packages/docs/snippets/learn/test.test.ts"
+```
+
+- Run the real wizard. Assert what a caller sees: command results, the outcome, `run.getState()` and the calls your fakes received.
+- Replace services through `deps`.
+- `createTestScheduler()` is the run's clock and timer. `advance(ms)` fires every retry delay, sleep and timeout due in that time.
+- The scheduler does not settle promises. After an async step fails, wait one tick (`await new Promise((r) => setTimeout(r))`) before you `advance` past its retry delay.
+- `awaitResult()` waits for `done`, `failed` or `cancelled`. For a run that should halt or wait, use `awaitOutcome()`.
+- Dispose every run you `create`. `wizard.run()` disposes its own.
+- `createMemoryStore()` backs a [save and resume](/guide/save-resume) test.

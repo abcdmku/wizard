@@ -15,7 +15,7 @@ export const workflowTables = definePgDurableSchema()
 export const store = createPgDrizzleDurableStore(db, workflowTables)
 ```
 
-Read the [Drizzle reference](../docs/pages/packages/drizzle.mdx).
+Read the [Drizzle reference](https://abcdmku.github.io/wizard/reference/drizzle).
 
 ## Exports
 
