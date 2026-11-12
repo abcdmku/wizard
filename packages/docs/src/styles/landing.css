@@ -2,13 +2,12 @@
 .landing {
   display: flex;
   width: 100%;
-  max-width: 46rem;
+  max-width: 56rem;
   flex: 1;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
   margin: 0 auto;
-  padding: 56px 20px 72px;
+  padding: 72px 20px 88px;
 }
 .landing h1 {
   color: #0a0a0a;
@@ -56,8 +55,57 @@
   overflow-x: auto;
   white-space: nowrap;
 }
+.landing-section {
+  width: 100%;
+  margin-top: 56px;
+}
+.landing-section h2 {
+  color: #0a0a0a;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.dark .landing-section h2 {
+  color: #fff;
+}
+.landing-section > p {
+  max-width: 40rem;
+  margin-top: 8px;
+  color: #525252;
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+.dark .landing-section > p {
+  color: #a3a3a3;
+}
+.landing-section .run-diagram {
+  margin: 20px 0 0;
+}
 .landing-example {
-  margin-top: 4px;
+  max-width: 100%;
+  margin-top: 12px;
+}
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+.landing-action.is-quiet {
+  border: 1px solid #d4d4d4;
+  background: transparent;
+  color: #171717;
+}
+.landing-action.is-quiet:hover {
+  background: #f5f5f5;
+}
+.dark .landing-action.is-quiet {
+  border-color: #404040;
+  background: transparent;
+  color: #f5f5f5;
+}
+.dark .landing-action.is-quiet:hover {
+  background: #1f1f1f;
 }
 .landing-action {
   display: inline-flex;

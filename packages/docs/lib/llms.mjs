@@ -35,6 +35,10 @@ function expandFences(markdown, repoRoot, sourcePath) {
   })
 }
 
+/** A diagram is a component of the site. Its code and the page text already say what it shows. */
+const withoutDiagrams = (markdown) =>
+  markdown.replace(/^<(?:RunDiagram|Sequence)\b[^>]*\/>\n\n?/gm, '')
+
 /** `[text](/guide/forms)` to `[text](https://.../guide/forms)`. */
 const absoluteLinks = (markdown, siteUrl) =>
   markdown.replace(/(\]\()(\/(?!\/)[^)\s]*)/g, (_, open, path) => `${open}${siteUrl}${path}`)
@@ -78,7 +82,10 @@ export function buildLlmsFiles({ docsRoot, repoRoot, siteUrl, name, description 
 
   const full = [`# ${name}`, '', `> ${description}`, '']
   for (const page of pages) {
-    const body = absoluteLinks(expandFences(read(page), repoRoot, page.sourcePath), siteUrl)
+    const body = absoluteLinks(
+      expandFences(withoutDiagrams(read(page)), repoRoot, page.sourcePath),
+      siteUrl,
+    )
     full.push('---', '', `Source: ${url(page)}`, '', body.trim(), '')
   }
   return { index: index.join('\n'), full: full.join('\n') }

@@ -14,7 +14,7 @@ const aliases = Object.fromEntries(
 export default defineConfig({
   resolve: { alias: aliases },
   test: {
-    include: ['snippets/**/*.test.ts'],
+    include: ['snippets/**/*.test.ts', 'src/**/*.test.ts'],
     environment: 'node',
   },
 })

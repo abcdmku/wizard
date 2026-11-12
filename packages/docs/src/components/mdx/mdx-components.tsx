@@ -2,6 +2,8 @@ import { Link } from '@tanstack/react-router'
 import type { MDXComponents } from 'mdx/types'
 import { type ComponentPropsWithoutRef, useRef } from 'react'
 import { withBase } from '../../lib/site'
+import { RunDiagram } from '../run-diagram/run-diagram'
+import { Sequence } from '../sequence/sequence'
 import { CopyButton } from './copy-button'
 
 /** Docs routes navigate client-side; generated files use base-prefixed ordinary anchors. */
@@ -64,4 +66,6 @@ function Pre(props: ComponentPropsWithoutRef<'pre'>) {
 export const mdxComponents: MDXComponents = {
   a: MdxAnchor,
   pre: Pre,
+  RunDiagram,
+  Sequence,
 }
