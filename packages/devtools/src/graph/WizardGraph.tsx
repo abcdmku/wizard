@@ -165,7 +165,7 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
         edgeTypes={EDGE_TYPES}
         colorMode={theme}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        fitViewOptions={{ padding: 0.06 }}
         minZoom={0.1}
         nodesConnectable={false}
         elementsSelectable

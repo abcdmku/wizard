@@ -57,7 +57,7 @@
   font-variant-numeric: tabular-nums;
 }
 .portal-frame {
-  height: 600px;
+  height: 760px;
 }
 .portal-host {
   height: 100%;
@@ -71,7 +71,7 @@
   margin: 20px 0 0;
 }
 .landing-section .portal-frame {
-  height: 700px;
+  height: 820px;
 }
 @media (max-width: 640px) {
   .portal-tries {

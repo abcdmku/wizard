@@ -1,19 +1,20 @@
+import devtoolsCss from '@openwizard/devtools/style.css?inline'
 import { type CSSProperties, type ReactElement, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { App } from './app'
 import { type Backend, BackendProvider } from './backend'
-import graphCss from './graph.css?inline'
 import { NavProvider, type Route, useHashNav, useMemoryNav } from './nav'
 import pageCss from './page.css?inline'
+import { type Scheme, SchemeContext } from './scheme'
 import shellCss from './styles.css?inline'
 import tablesCss from './tables.css?inline'
 
-const CSS = [shellCss, pageCss, tablesCss, graphCss].join('\n')
+const CSS = [devtoolsCss, shellCss, pageCss, tablesCss].join('\n')
 
 /** `light`, `dark`, or `system` to follow the device. */
 export type PortalTheme = 'light' | 'dark' | 'system'
 
-function useScheme(theme: PortalTheme): 'light' | 'dark' {
+function useResolved(theme: PortalTheme): Scheme {
   const [dark, setDark] = useState(false)
   useEffect(() => {
     const query = matchMedia('(prefers-color-scheme: dark)')
@@ -48,7 +49,7 @@ export function DevPortal(props: {
   }, [])
   const hash = useHashNav(props.nav === 'hash')
   const memory = useMemoryNav(props.open)
-  const scheme = useScheme(props.theme ?? 'system')
+  const scheme = useResolved(props.theme ?? 'system')
   return (
     <div ref={host} className={props.className} style={props.style}>
       {root !== undefined &&
@@ -56,11 +57,13 @@ export function DevPortal(props: {
           <>
             <style>{CSS}</style>
             <div className="frame" data-theme={scheme}>
-              <BackendProvider value={props.backend}>
-                <NavProvider value={hash ?? memory}>
-                  <App />
-                </NavProvider>
-              </BackendProvider>
+              <SchemeContext.Provider value={scheme}>
+                <BackendProvider value={props.backend}>
+                  <NavProvider value={hash ?? memory}>
+                    <App />
+                  </NavProvider>
+                </BackendProvider>
+              </SchemeContext.Provider>
             </div>
           </>,
           root,
