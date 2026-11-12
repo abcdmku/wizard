@@ -48,8 +48,11 @@ export const labelWidth = (label: string): number => label.length * LABEL_CHAR +
 /** Graphs wider than this get a second, tighter layout for small screens. */
 export const COMPACT_BELOW = 340
 
-const formatMs = (ms: number): string =>
-  ms % 3_600_000 === 0 ? `${ms / 3_600_000}h` : ms % 1000 === 0 ? `${ms / 1000}s` : `${ms}ms`
+const formatMs = (ms: number): string => {
+  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`
+  if (ms % 60_000 === 0) return `${ms / 60_000}m`
+  return ms % 1000 === 0 ? `${ms / 1000}s` : `${ms}ms`
+}
 
 /** The word on an arrow. A plain solid arrow needs none. */
 function edgeWord(edge: ManifestEdge, from: ManifestStep | undefined): string | null {
