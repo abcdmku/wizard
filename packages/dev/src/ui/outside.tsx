@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import type { Schema, WizardInfo } from '../wire'
+import { span } from './format'
 import { Kind, MEANING, type OutsideKind } from './kind'
 
 interface Row {
@@ -21,13 +22,6 @@ const sends = (from: string | undefined, schema: Schema | undefined): string => 
   const names = properties === undefined ? [] : Object.keys(properties)
   if (from === undefined) return fields(schema)
   return names.length === 0 ? `${from} sends it` : `${from} sends { ${names.join(', ')} }`
-}
-
-/** `5 min`, `48 h`, `1 s` or `250 ms`. */
-export const duration = (ms: number): string => {
-  if (ms % 3_600_000 === 0) return `${ms / 3_600_000} h`
-  if (ms % 60_000 === 0) return `${ms / 60_000} min`
-  return ms % 1000 === 0 ? `${ms / 1000} s` : `${ms} ms`
 }
 
 /** Every dependency of a wizard on something outside the run, read from its manifest. */
@@ -54,14 +48,14 @@ export function rowsOf(wizard: WizardInfo): readonly Row[] {
     if (node.sleep !== undefined)
       rows.push({
         kind: 'timer',
-        name: node.sleep === 'dynamic' ? 'sleep' : `sleep ${duration(node.sleep)}`,
+        name: node.sleep === 'dynamic' ? 'sleep' : `sleep ${span(node.sleep)}`,
         steps: label(node),
         detail: node.sleep === 'dynamic' ? 'length set when the step starts' : '',
       })
     if (node.timeout !== undefined)
       rows.push({
         kind: 'timer',
-        name: `timeout ${duration(node.timeout)}`,
+        name: `timeout ${span(node.timeout)}`,
         steps: label(node),
         detail: '',
       })

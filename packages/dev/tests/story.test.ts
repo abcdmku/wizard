@@ -48,7 +48,7 @@ it('tells the story of a run in sentences and hides the bookkeeping', () => {
     'managerApproval started waiting',
     'managerApproval received refund.approved',
     'pay attempt 1 failed: Service unavailable',
-    'pay will try again in 1.0s',
+    'pay will try again in 1s',
     'Run finished',
   ])
   // Every event still has a line for "All events".

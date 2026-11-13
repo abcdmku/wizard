@@ -95,12 +95,22 @@ const LABEL_HEIGHT = 20
 const LABEL_CHAR = 8
 const LABEL_PAD = 10
 
-function rootOptions(direction: LayoutDirection): Record<string, string> {
+/** What separates the two parts of a label that says two things; each part gets its own line. */
+export const LABEL_BREAK = ' · '
+
+/** The size of an edge label as the graph draws it: one line per part, 16px text. */
+export function labelSize(text: string): { readonly width: number; readonly height: number } {
+  const lines = text.split(LABEL_BREAK)
+  const longest = Math.max(...lines.map((line) => line.length))
+  return { width: longest * LABEL_CHAR + LABEL_PAD, height: lines.length * LABEL_HEIGHT }
+}
+
+function rootOptions(direction: LayoutDirection, compact: boolean): Record<string, string> {
   return {
     'elk.algorithm': 'layered',
     'elk.direction': direction === 'down' ? 'DOWN' : 'RIGHT',
     'elk.layered.spacing.nodeNodeBetweenLayers': direction === 'down' ? '28' : '40',
-    'elk.spacing.nodeNode': direction === 'down' ? '24' : '18',
+    'elk.spacing.nodeNode': direction === 'down' ? (compact ? '16' : '24') : '18',
     'elk.spacing.edgeNode': '14',
     'elk.spacing.edgeEdge': '10',
     'elk.layered.spacing.edgeNodeBetweenLayers': '14',
@@ -108,8 +118,13 @@ function rootOptions(direction: LayoutDirection): Record<string, string> {
     'elk.spacing.edgeLabel': '4',
     'elk.edgeLabels.inline': 'true',
     'elk.edgeRouting': 'ORTHOGONAL',
-    'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
-    'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+    // A narrow pane (a phone) gets the narrowest placement, so the graph is drawn larger.
+    ...(compact
+      ? { 'elk.layered.nodePlacement.strategy': 'SIMPLE' }
+      : {
+          'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+          'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+        }),
     'elk.layered.cycleBreaking.strategy': 'DEPTH_FIRST',
     'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
   }
@@ -149,14 +164,26 @@ export async function layoutGraph(
   engine?: LayoutEngine,
   options: LayoutOptions = {},
 ): Promise<LayoutResult> {
-  const direction = options.direction ?? 'right'
+  return layoutWith(model, engine, options.direction ?? 'right', false)
+}
+
+/**
+ * `layoutGraph`, and with `compact` the narrowest layout ELK finds, for a narrow pane where the
+ * width of the graph decides how large it is drawn.
+ */
+export async function layoutWith(
+  model: GraphModel,
+  engine: LayoutEngine | undefined,
+  direction: LayoutDirection,
+  compact: boolean,
+): Promise<LayoutResult> {
   const backEdges = findBackEdges(model.nodes, model.edges)
   const isolated = new Set<string>()
   for (const key of findIsolated(model.nodes, model.edges)) {
     const node = model.nodes.find((n) => n.key === key)
     if (node !== undefined && node.parent === undefined) isolated.add(key)
   }
-  const root = toElk(model, backEdges, isolated, direction)
+  const root = toElk(model, backEdges, isolated, direction, compact)
   const laidOut = await (engine ?? (await bundledElk())).layout(root)
   const placements: Record<string, Placement> = {}
   const routes: Record<string, EdgeRoute> = {}
@@ -171,10 +198,11 @@ function toElk(
   backEdges: ReadonlySet<string>,
   isolated: ReadonlySet<string>,
   direction: LayoutDirection,
+  compact: boolean,
 ): ElkNode {
   const root: ElkNode = {
     id: '__root__',
-    layoutOptions: rootOptions(direction),
+    layoutOptions: rootOptions(direction, compact),
     children: [],
     edges: [],
   }
@@ -203,8 +231,7 @@ function toElk(
               {
                 id: `${edge.key}:label`,
                 text: edge.label,
-                width: edge.label.length * LABEL_CHAR + LABEL_PAD,
-                height: LABEL_HEIGHT,
+                ...labelSize(edge.label),
               },
             ],
           }),

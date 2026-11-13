@@ -148,6 +148,9 @@ function namedCaller(item: Held, id: string) {
   return {
     step: found.step,
     path: found.path,
+    ...(found.item === undefined || found.items === undefined
+      ? {}
+      : { item: found.item, items: found.items }),
     ...(found.attempt === undefined ? {} : { attempt: found.attempt }),
     ...(attempts === undefined ? {} : { attempts }),
   }

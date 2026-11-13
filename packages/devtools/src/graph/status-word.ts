@@ -5,6 +5,9 @@
  * The words are a fixed set: `running`, `waiting on you`, `waiting`, `retrying`, `failed`,
  * `undoing`, `undone`, `done`, `skipped`, `cancelled`, `blocked` and `not run`.
  *
+ * An idle step is `blocked` while it can still start and `not run` once it cannot: the run ended
+ * or is undoing, or no way leads to it any more (`closedSteps`).
+ *
  * What a step is doing comes first. A step that is undoing says `undoing` even when a person has
  * to answer it; the card then shows that with its attention ring, not with its word.
  *
@@ -13,6 +16,7 @@
 
 import type { ManifestStep } from '@openwizard/core/inspect'
 import type { StepStatusInfo } from '../types'
+import type { NotRunReason } from './to-react-flow'
 
 /** The colour family of a status word. */
 export type StatusTone =
@@ -114,10 +118,14 @@ const BLOCKED: StatusWord = {
   text: 'blocked',
   title: 'Not started: it waits for the steps before it or the steps it needs',
 }
-const NOT_RUN: StatusWord = {
-  tone: 'not-run',
-  text: 'not run',
-  title: 'The run ended before this step started',
+const NOT_RUN_TITLE: Readonly<Record<NotRunReason, string>> = {
+  ended: 'The run ended before this step started',
+  undoing: 'The run is undoing its steps, so this one will not start',
+  closed: 'It will not start: the steps that lead to it went another way',
+}
+
+function notRun(reason: NotRunReason): StatusWord {
+  return { tone: 'not-run', text: 'not run', title: NOT_RUN_TITLE[reason] }
 }
 
 /** Statuses that say what a step is doing or did, which a person's turn does not replace. */
@@ -126,14 +134,14 @@ const OWN_WORD = new Set(['done', 'failed', 'skipped', 'cancelled', 'compensatin
 /**
  * The status word for a step's live facts, or `undefined` when there is nothing to say.
  * `attention` true makes a live or idle step `waiting on you`; a step that finished, failed or
- * is undoing keeps its own word. An idle step says `blocked` while the run goes on and `not run`
- * once the run has `ended`.
+ * is undoing keeps its own word. An idle step says `blocked` while it can still start, and `not
+ * run` once it cannot (`notRun`: the run ended or is undoing, or no way leads to it any more).
  */
 export function statusWord(
   live: StepStatusInfo | undefined,
   step: ManifestStep,
   attention?: Attention,
-  ended = false,
+  notRunReason?: NotRunReason | boolean,
 ): StatusWord | undefined {
   if (attention === true && (live === undefined || !OWN_WORD.has(live.status))) return ON_YOU
   if (live === undefined) return undefined
@@ -160,7 +168,8 @@ export function statusWord(
     case 'compensated':
       return { tone: 'undone', text: 'undone', title: 'Its undo hook has run' }
     case 'idle':
-      return ended ? NOT_RUN : BLOCKED
+      if (notRunReason === undefined || notRunReason === false) return BLOCKED
+      return notRun(notRunReason === true ? 'ended' : notRunReason)
     default:
       return undefined
   }

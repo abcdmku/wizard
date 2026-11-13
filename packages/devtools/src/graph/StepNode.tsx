@@ -1,20 +1,21 @@
 /**
  * The step card (`type: 'step'`) and the child wizard container (`type: 'group'`). A card is
  * compact: the step id, then one row with its live status word, or with its kind (`form`,
- * `wait`, ...) and the one fact that tells most when it has no status. Everything else is in
+ * `wait`, ...) and the one fact that tells most when it has no status, and for a join or an
+ * `each` step a third line that stays while the run is live. Everything else is in
  * the card's tooltip. `data-tone` tints the card for the status, `data-current` marks the
  * cursor view.
  */
 
 import type { NodeProps } from '@xyflow/react'
 import { memo, type ReactElement } from 'react'
-import { allFacts, kindWord, mainFact } from './card-facts'
+import { allFacts, kindWord, mainFact, subLine } from './card-facts'
 import { Handles } from './Handles'
 import { type StatusWord, statusWord } from './status-word'
 import type { GroupNode, StepNode, StepNodeData } from './to-react-flow'
 
 function wordOf(data: StepNodeData): StatusWord | undefined {
-  return statusWord(data.live, data.step, data.attention, data.ended)
+  return statusWord(data.live, data.step, data.attention, data.notRun)
 }
 
 /** The host says a person must act, and the word does not already say so. */
@@ -77,8 +78,9 @@ function Row({
       </div>
     )
   const named = kindWord(data.step)
-  // A kind that repeats the step id (a `route` step called `route`) says nothing new.
-  const kind = named === data.step.id ? undefined : named
+  // A kind that repeats the step id (a `route` step called `route`) says nothing new, and the
+  // third line of an `each` step already says `each`.
+  const kind = named === data.step.id || named === 'each' ? undefined : named
   const fact = mainFact(data.step)
   if (kind === undefined && fact === undefined) return null
   return (
@@ -93,14 +95,11 @@ function Row({
   )
 }
 
-/** One small tag at a join's input: the step starts when any one of the steps it needs is done. */
-function Join({ data }: { readonly data: StepNodeData }): ReactElement | null {
-  if (data.anyOf.length === 0) return null
-  return (
-    <span className="owd-join" aria-hidden="true">
-      any of
-    </span>
-  )
+/** The third line: `each · 2 at a time`, `any of a, b`. It stays while the run is live. */
+function Sub({ data }: { readonly data: StepNodeData }): ReactElement | null {
+  const text = subLine(data.step, data.anyOf)
+  if (text === undefined) return null
+  return <div className="owd-node-sub">{text}</div>
 }
 
 function StepNodeView({ data }: NodeProps<StepNode>): ReactElement {
@@ -120,8 +119,8 @@ function StepNodeView({ data }: NodeProps<StepNode>): ReactElement {
       >
         <Head data={data} />
         <Row data={data} word={word} />
+        <Sub data={data} />
       </div>
-      <Join data={data} />
     </>
   )
 }
@@ -142,9 +141,9 @@ function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
         <div className="owd-group-head" title={tooltipOf(data, word)}>
           <Head data={data} />
           <Row data={data} word={word} />
+          <Sub data={data} />
         </div>
       </div>
-      <Join data={data} />
     </>
   )
 }

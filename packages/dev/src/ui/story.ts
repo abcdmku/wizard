@@ -3,6 +3,8 @@
  * run by default and hides the machine's bookkeeping (navigation phases, arrivals, timers).
  */
 
+import { span } from './format'
+
 /** A run event as the history reads it: the envelope plus whatever fields its type carries. */
 export type LooseEvent = {
   readonly seq: number
@@ -153,7 +155,7 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
         ? line(`attempt ${num(e.attempt)} failed: ${message(e.error)}`, 'bad')
         : quiet(`attempt ${num(e.attempt)} failed: ${message(e.error)}`)
     case 'step.retryScheduled':
-      return line(`will try again in ${elapsed(num(e.dueAt) - e.at)}`, 'warn')
+      return line(`will try again in ${span(num(e.dueAt) - e.at)}`, 'warn')
     case 'step.skipped':
       if (str(e.reason) === 'fallback')
         return line(`failed and was skipped: ${message(e.error)}`, 'bad')
@@ -181,7 +183,7 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
     case 'step.eachItemFailed':
       return line(`item ${num(e.index)} failed: ${message(e.error)}`, 'bad', e.willRetry !== true)
     case 'step.eachRetryScheduled':
-      return line(`item ${num(e.index)} will try again in ${elapsed(num(e.dueAt) - e.at)}`, 'warn')
+      return line(`item ${num(e.index)} will try again in ${span(num(e.dueAt) - e.at)}`, 'warn')
     case 'child.started':
       return line('started a child run', 'info')
     case 'child.summary': {
@@ -227,8 +229,8 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
       return line('Context updated')
     case 'timer.scheduled':
       return str(e.purpose) === 'sleep'
-        ? line(`sleeps for ${elapsed(num(e.dueAt) - e.at)}`, 'warn')
-        : quiet(`${str(e.purpose)} timer set for ${elapsed(num(e.dueAt) - e.at)}`)
+        ? line(`sleeps for ${span(num(e.dueAt) - e.at)}`, 'warn')
+        : quiet(`${str(e.purpose)} timer set for ${span(num(e.dueAt) - e.at)}`)
     default:
       return quiet(technical(e))
   }

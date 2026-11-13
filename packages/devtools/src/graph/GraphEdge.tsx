@@ -15,7 +15,7 @@ import {
   useInternalNode,
 } from '@xyflow/react'
 import { memo, type ReactElement } from 'react'
-import type { Point } from '../layout/elk'
+import { LABEL_BREAK, type Point } from '../layout/elk'
 import type { ModelEdgeKind } from '../layout/model'
 import { edgePath, routePath } from './edge-path'
 import type { DevtoolsEdge } from './to-react-flow'
@@ -39,10 +39,31 @@ function still(node: InternalNode | undefined, at: Point | undefined): boolean {
   return Math.abs(p.x - at.x) < MOVED && Math.abs(p.y - at.y) < MOVED
 }
 
+/**
+ * A label that says two things (`optional need: by · times out after 48h`) takes one line for
+ * each. The separator stays in the text for screen readers and copy, but is not shown.
+ */
+function Lines({ text }: { readonly text: string }): ReactElement {
+  const [first, ...rest] = text.split(LABEL_BREAK)
+  return (
+    <>
+      <span className="owd-edge-line">{first}</span>
+      {rest.map((line, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the parts of one label never reorder
+        <span key={i}>
+          <span className="owd-edge-sep">{LABEL_BREAK}</span>
+          <span className="owd-edge-line">{line}</span>
+        </span>
+      ))}
+    </>
+  )
+}
+
 function GraphEdgeView(props: EdgeProps<DevtoolsEdge>): ReactElement {
   const kind = props.data?.kind ?? 'next'
-  const taken = props.data?.path
-  const style = STYLE[kind]
+  const carried = props.data?.path === 'carried'
+  const taken = carried ? 'taken' : props.data?.path
+  const style = carried ? STYLE.needs : STYLE[kind]
   const sourceNode = useInternalNode(props.source)
   const targetNode = useInternalNode(props.target)
   const route = props.data?.route
@@ -99,7 +120,7 @@ function GraphEdgeView(props: EdgeProps<DevtoolsEdge>): ReactElement {
             data-path={taken}
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           >
-            {label}
+            <Lines text={label} />
           </div>
         </EdgeLabelRenderer>
       )}

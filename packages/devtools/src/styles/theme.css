@@ -307,22 +307,34 @@
   opacity: 0.6;
 }
 
-/* The input of a step that needs any one of several steps. */
-.owd-join {
-  position: absolute;
-  top: -21px;
-  left: 6px;
-  z-index: 1;
-  padding: 0 6px;
-  border-radius: 999px;
-  border: 1px solid var(--owd-border);
-  background: var(--owd-surface);
+/* A card's third line: `each · 2 at a time`, `any of a, b`. It stays while the run is live. */
+.owd-node-sub {
+  min-width: 0;
+  overflow: hidden;
   color: var(--owd-subtle);
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 14px;
   line-height: 18px;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  pointer-events: none;
+}
+.owd-node-card:has(> .owd-node-sub) {
+  height: 70px;
+}
+.owd-group-head .owd-node-sub {
+  flex: 0 1 auto;
+}
+
+/* An edge label that says two things takes a line for each, centred on the edge. */
+.owd-edge-line {
+  display: block;
+  text-align: center;
+}
+.owd-edge-sep {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 /* ---- graph toolbar and zoom controls (the cards and edges are in graph.css) ---- */

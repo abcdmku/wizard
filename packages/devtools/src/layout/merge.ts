@@ -19,8 +19,13 @@ const RANK: Readonly<Record<ModelEdgeKind, number>> = {
   start: 6,
 }
 
+/** True for the label of a need on any one of several steps (`any need: owner`). */
+export function isAnyNeed(edge: Pick<ModelEdge, 'kind' | 'label'>): boolean {
+  return edge.kind === 'needs' && edge.label?.startsWith('any need') === true
+}
+
 /**
- * The label worth drawing. A dashed `route` line says it routes, and `needs request` on a line
+ * The label worth drawing. A dashed `route` line says it routes, and `need: request` on a line
  * that leaves `request` repeats the arrow, so only a renamed or optional need keeps one. A need
  * on any one of several steps is marked once on the step that joins them (`any of`), not on
  * each line into it.
@@ -28,14 +33,14 @@ const RANK: Readonly<Record<ModelEdgeKind, number>> = {
 function shownLabel(edge: ModelEdge): string | undefined {
   if (edge.kind === 'route') return undefined
   if (edge.kind !== 'needs' || edge.label === undefined) return edge.label
-  if (edge.label.endsWith('(any)')) return undefined
+  if (isAnyNeed(edge)) return undefined
   const sourceId = edge.source.slice(edge.source.lastIndexOf('/') + 1)
-  return edge.label === 'needs' || edge.label === `needs ${sourceId}` ? undefined : edge.label
+  return edge.label === 'need' || edge.label === `need: ${sourceId}` ? undefined : edge.label
 }
 
 /**
- * The label of two edges drawn as one line. When both say something (`timeout 2d` and
- * `needs decision (optional)`) the line says both, data first, so it does not read as the only
+ * The label of two edges drawn as one line. When both say something (`times out after 2d` and
+ * `optional need: decision`) the line says both, data first, so it does not read as the only
  * way from one step to the other.
  */
 function joined(win: string | undefined, lose: string | undefined, loseKind: ModelEdgeKind) {
@@ -84,4 +89,13 @@ export function drawnEdges(edges: readonly ModelEdge[]): ModelEdge[] {
     }
     return withLabel(edge, undefined)
   })
+}
+
+/** The text of every label the graph draws, by edge key. */
+export function drawnLabels(edges: readonly ModelEdge[]): ReadonlyMap<string, string> {
+  return new Map(
+    drawnEdges(edges).flatMap((edge) =>
+      edge.label === undefined ? [] : [[edge.key, edge.label] as const],
+    ),
+  )
 }

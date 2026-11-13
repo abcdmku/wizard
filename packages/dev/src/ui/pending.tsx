@@ -6,7 +6,7 @@ import { CallCard } from './call-card'
 import { fieldIssues, restOf, ValueEditor } from './fields'
 import { literal, stepLabel } from './format'
 import { Refusal, useJsonDraft } from './json'
-import { MEANING, type OutsideKind } from './kind'
+import { sentBy } from './kind'
 import { advanceCode, Card, Deadline, scope, useAction } from './need'
 import { nodeOf } from './step-facts'
 import { TimerCard } from './timer-card'
@@ -57,9 +57,8 @@ function EventCard(props: {
   const [name, setName] = useState(item.events[0]?.name ?? '')
   const chosen = item.events.find((event) => event.name === name)
   const origin = chosen?.origin
-  const kind: OutsideKind =
+  const kind =
     origin?.source === 'webhook' ? 'webhook' : origin?.source === 'queue' ? 'queue' : 'event'
-  const sender = origin?.from === undefined ? '' : ` Sent by: ${origin.from}.`
   const [draft, setDraft] = useJsonDraft(
     chosen?.example ?? exampleOf(chosen?.schema),
     `${run.id}:${item.step}:${name}`,
@@ -70,7 +69,7 @@ function EventCard(props: {
     <Card
       kind={kind}
       title={<code>{stepLabel(item.path, item.step)}</code>}
-      note={`${MEANING[kind]}${sender} Here you send it.`}
+      note={`${sentBy(kind, origin?.from)} Here you send it.`}
       code={`await run.send('${name}', ${literal(draft.value)})`}
     >
       {item.events.length > 1 && (
@@ -139,7 +138,13 @@ function SleepCard(props: {
   )
 }
 
-function FailedCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kind: 'failed' }> }) {
+function FailedCard(props: {
+  run: RunDetail
+  item: Extract<Pending, { kind: 'failed' }>
+  /** A person pressed Retry, so the next attempt starts with every throw panel closed. */
+  onRetry: () => void
+}) {
+  const { run, item } = props
   const [result, busy, send] = useAction(run.id)
   const message = (item.error as { message?: string } | undefined)?.message
   return (
@@ -156,7 +161,10 @@ function FailedCard({ run, item }: { run: RunDetail; item: Extract<Pending, { ki
           type="button"
           className="primary"
           disabled={busy}
-          onClick={() => send({ type: 'retry', step: item.step })}
+          onClick={() => {
+            props.onRetry()
+            send({ type: 'retry', step: item.step })
+          }}
         >
           Retry
         </button>
@@ -181,6 +189,18 @@ const keyOf = (item: Pending): string =>
     : item.kind === 'failed'
       ? `failed:${item.step}`
       : `${item.kind}:${stepLabel(item.path, item.step)}`
+
+/**
+ * Where a card's step sits in the manifest, which lists steps in the order the author wrote
+ * them. A card whose step is not known goes last.
+ */
+function placeOf(item: Pending, manifest: Manifest | undefined): number {
+  if (manifest === undefined || item.step === undefined) return Number.MAX_SAFE_INTEGER
+  const path = item.kind === 'failed' ? [] : (item.path ?? [])
+  const node = nodeOf(manifest, [...path, item.step].join('/'))
+  const at = node === undefined ? -1 : manifest.nodes.indexOf(node)
+  return at < 0 ? Number.MAX_SAFE_INTEGER : at
+}
 
 /** True when a card shows the run's next timer, so it needs no card of its own. */
 const ownsTimer = (run: RunDetail): boolean =>
@@ -215,9 +235,15 @@ export function PendingList(props: {
   readonly manifest: Manifest | undefined
 }): ReactElement | null {
   const { run } = props
-  // Service names whose "Make it throw" panel is open, kept across calls to the same service.
+  // Service names whose "Make it throw" panel is open, kept across the automatic retries of a
+  // call and closed when a person presses Retry on a failed step.
   const [throwing, setThrowing] = useState<ReadonlySet<string>>(() => new Set())
-  const forYou = run.pending.filter((item) => item.kind !== 'sleep')
+  // Cards in the order the author wrote the steps, so parallel work reads as the code does.
+  const forYou = run.pending
+    .filter((item) => item.kind !== 'sleep')
+    .map((item, index) => ({ item, index, place: placeOf(item, props.manifest) }))
+    .sort((a, b) => a.place - b.place || a.index - b.index)
+    .map(({ item }) => item)
   const sleeps = run.pending.filter((item) => item.kind === 'sleep')
   const loose = run.nextTimer !== undefined && !ownsTimer(run)
   const idle = forYou.length === 0 && sleeps.length === 0 && !loose
@@ -245,7 +271,15 @@ export function PendingList(props: {
             const key = keyOf(item)
             if (item.kind === 'view') return <ViewCard key={key} run={run} item={item} />
             if (item.kind === 'event') return <EventCard key={key} run={run} item={item} />
-            if (item.kind === 'failed') return <FailedCard key={key} run={run} item={item} />
+            if (item.kind === 'failed')
+              return (
+                <FailedCard
+                  key={key}
+                  run={run}
+                  item={item}
+                  onRetry={() => setThrowing(new Set())}
+                />
+              )
             if (item.kind !== 'call') return null
             return (
               <CallCard

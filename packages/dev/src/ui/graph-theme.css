@@ -21,8 +21,10 @@
   --owd-mono: var(--mono);
   border-radius: inherit;
 }
+/* No card shadow in dark mode. It must still be a shadow, not `none`, because the attention and
+   current-step rings list it first in a `box-shadow`, and `none` there drops the whole rule. */
 .frame[data-theme="dark"] .owd.owd-graph {
-  --owd-shadow: none;
+  --owd-shadow: 0 0 #0000;
 }
 
 /* Edges stay grey until the run takes them. A data edge is lighter than a control edge. */

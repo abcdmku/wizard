@@ -127,8 +127,13 @@ describe('<WizardGraph>', () => {
     if (node === null || node === undefined) throw new Error('no node')
     fireEvent.keyDown(node, { key: 'Enter' })
     expect(seen.at(-1)).toEqual({ id: 'gate', path: [], key: 'gate' })
+    fireEvent.keyDown(node, { key: 'Escape' })
+    expect(seen.at(-1)).toBeNull()
     const link = container.querySelector('.react-flow__attribution a')
     expect(link?.getAttribute('tabindex')).toBe('-1')
+    // The entry marker does nothing when pressed, so it is not a tab stop.
+    const marker = container.querySelector('.owd-marker')?.closest('.react-flow__node')
+    expect(marker?.getAttribute('tabindex')).toBeNull()
   })
 
   it('rings a step a person must answer while it is undoing, and says `not run` once the run ended', async () => {
@@ -160,5 +165,17 @@ describe('<WizardGraph>', () => {
     )
     expect(cardOf(container, 'form')?.dataset.attention).toBeUndefined()
     expect(container.querySelector('.react-flow__attribution')).toBeNull()
+    // While the run undoes its steps, a step it never started will not start either.
+    rerender(
+      <WizardGraph
+        graph={graph}
+        statuses={{ form: { status: 'compensating' }, ingest: { status: 'idle' } }}
+        runStatus="compensating"
+      />,
+    )
+    await waitFor(() => expect(cardOf(container, 'ingest')?.title).toMatch(/undoing its steps/))
+    expect(cardOf(container, 'ingest')?.querySelector('.owd-node-status')?.textContent).toBe(
+      'not run',
+    )
   })
 })

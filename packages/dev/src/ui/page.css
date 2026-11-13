@@ -309,6 +309,8 @@ select {
     calc(100% - 10px) 50%;
   background-repeat: no-repeat;
   background-size: 5px 5px;
+  padding-top: 0;
+  padding-bottom: 0;
   padding-right: 30px;
   color: var(--text);
   font: inherit;
@@ -316,6 +318,11 @@ select {
 }
 select:hover {
   border-color: var(--quiet);
+}
+/* In the one-row start form the fields are as tall as Start run beside them. */
+.wz-launch-form[data-compact] .fields input:not([type="checkbox"]),
+.wz-launch-form[data-compact] .fields select {
+  height: 38px;
 }
 
 /* ---- the words of status-word.ts that styles.css has no colour for ---- */

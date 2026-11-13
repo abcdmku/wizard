@@ -9,7 +9,7 @@ import { type ReactElement, useMemo, useState } from 'react'
 import type { RunDetail, WizardInfo } from '../wire'
 import { useBackend, useRun } from './backend'
 import { History } from './history'
-import { JsonView } from './json'
+import { CopyJson, JsonView } from './json'
 import { PendingList } from './pending'
 import { RunOutcome } from './result'
 import { RunHeader } from './run-header'
@@ -20,14 +20,21 @@ import { Tabs } from './tabs'
 
 type Tab = 'history' | 'data' | 'snapshot'
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
+/** Every status after which the run does nothing more. */
+const ENDED = new Set([...TERMINAL, 'compensated'])
 
-/** The steps whose undo hook made a call that waits for an answer. The graph rings them. */
+/**
+ * The steps whose undo hook made a call that waits for an answer. The graph rings them. A run
+ * that has ended rings nothing.
+ */
 const undoCallers = (run: RunDetail): readonly string[] =>
-  run.pending.flatMap((item) =>
-    item.kind === 'call' && item.undo === true && item.step !== undefined
-      ? [[...(item.path ?? []), item.step].join('/')]
-      : [],
-  )
+  ENDED.has(run.status)
+    ? []
+    : run.pending.flatMap((item) =>
+        item.kind === 'call' && item.undo === true && item.step !== undefined
+          ? [[...(item.path ?? []), item.step].join('/')]
+          : [],
+      )
 
 /**
  * One run: its header, its live graph with the chosen step's details right under it, what it
@@ -91,6 +98,7 @@ export function RunPage(props: {
             minimap={false}
             follow
             ended={TERMINAL.has(run.status)}
+            runStatus={run.status}
             autoHeight={{ min: 120, max: 480 }}
             attribution={false}
             wheelZoom={false}
@@ -123,9 +131,15 @@ export function RunPage(props: {
         {tab === 'history' && <History events={run.events} onStep={(key) => setSelected(key)} />}
         {tab === 'data' && (
           <div className="stack">
-            <h3>Input</h3>
+            <div className="json-head">
+              <h3>Input</h3>
+              <CopyJson value={run.input} />
+            </div>
             <JsonView value={run.input} />
-            <h3>Result</h3>
+            <div className="json-head">
+              <h3>Result</h3>
+              {run.result !== undefined && <CopyJson value={run.result} />}
+            </div>
             {run.result === undefined ? (
               <p className="quiet">The run has not finished.</p>
             ) : (
@@ -133,7 +147,17 @@ export function RunPage(props: {
             )}
           </div>
         )}
-        {tab === 'snapshot' && <JsonView value={run.snapshot} />}
+        {tab === 'snapshot' && (
+          <div className="stack">
+            <div className="json-head">
+              <p className="quiet">
+                The whole run as JSON. A store keeps this, and resuming from it continues the run.
+              </p>
+              <CopyJson value={run.snapshot} />
+            </div>
+            <JsonView value={run.snapshot} />
+          </div>
+        )}
       </Tabs>
     </>
   )

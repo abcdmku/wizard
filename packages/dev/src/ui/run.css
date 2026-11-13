@@ -64,6 +64,27 @@
   line-clamp: 2;
   overflow-wrap: anywhere;
 }
+/* On a phone the call or step name gets a line of its own under the badge and the attempt. */
+@container main (max-width: 560px) {
+  .need header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .need h3 {
+    flex-basis: 100%;
+    order: 2;
+  }
+}
+/* Each argument stays on one line, so a call wraps between arguments and never inside a string.
+   An argument wider than the card is cut with an ellipsis; the title holds the whole call. */
+.call-arg {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: bottom;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
 .note,
 .hint {
   font-size: 12.5px;
@@ -206,4 +227,22 @@ button.danger {
   .run-head[data-stuck] .run-actions > button:not(.more-button) {
     display: none;
   }
+}
+/* A heading or note with a Copy JSON button at its end. */
+.json-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.json-head p {
+  margin: 0;
+  font-size: 12.5px;
+}
+.copy-json {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
 }

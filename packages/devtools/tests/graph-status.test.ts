@@ -3,8 +3,11 @@
  */
 import type { ManifestStep } from '@openwizard/core/inspect'
 import { expect, it } from 'vitest'
+import { closedSteps } from '../src/graph/paths'
 import { statusWord } from '../src/graph/status-word'
 import { applyEdgeOverlay, type DevtoolsEdge } from '../src/graph/to-react-flow'
+import { formatMs, type ModelEdge } from '../src/layout/model'
+import type { StepStatusMap } from '../src/types'
 
 const step = (fields: Partial<ManifestStep> = {}): ManifestStep => ({
   id: 's',
@@ -91,7 +94,11 @@ const edge = (source: string, target: string): DevtoolsEdge => ({
 })
 
 it('marks the edges the run took and the ones it can no longer take', () => {
-  const edges = [edge('#entry', 'a'), edge('a', 'b'), edge('a', 'c'), edge('b', 'd')]
+  const routed = (source: string, target: string): DevtoolsEdge => ({
+    ...edge(source, target),
+    data: { kind: 'route', back: false },
+  })
+  const edges = [edge('#entry', 'a'), routed('a', 'b'), routed('a', 'c'), edge('b', 'd')]
   const overlay = {
     statuses: {
       a: { status: 'done' },
@@ -113,4 +120,103 @@ it('marks the edges the run took and the ones it can no longer take', () => {
       (e) => e.data?.path,
     ),
   ).toEqual([undefined, undefined, undefined, undefined])
+})
+
+const alt = (source: string, target: string, kind: 'timeout' | 'fallback', need = false) => ({
+  ...edge(source, target),
+  id: `${kind}:${source}->${target}`,
+  data: { kind, back: false, ...(need ? { need: true } : {}) },
+})
+const pathsOf = (edges: DevtoolsEdge[], statuses: StepStatusMap) =>
+  applyEdgeOverlay(edges, { statuses, current: null, selected: null }).map((e) => e.data?.path)
+
+it('draws a timeout or fallback line as taken once the run goes that way, and not taken otherwise', () => {
+  // incident: page -> ack, ack times out to escalate, resolved needs any of ack or escalate.
+  const edges = [edge('page', 'ack'), alt('ack', 'escalate', 'timeout'), edge('ack', 'resolved')]
+  const timedOut: StepStatusMap = {
+    page: { status: 'done' },
+    ack: { status: 'skipped', attempt: 1 },
+    escalate: { status: 'done' },
+    resolved: { status: 'active' },
+  }
+  expect(pathsOf(edges, timedOut)).toEqual(['taken', 'taken', 'untaken'])
+  // The wait was reached even when the snapshot keeps no attempt for it.
+  expect(pathsOf(edges, { ...timedOut, ack: { status: 'skipped' } })[0]).toBe('taken')
+  const acked: StepStatusMap = {
+    page: { status: 'done' },
+    ack: { status: 'done' },
+    escalate: { status: 'idle' },
+    resolved: { status: 'active' },
+  }
+  expect(pathsOf(edges, acked)).toEqual(['taken', 'untaken', 'taken'])
+  // A failed call that falls back: the fallback line is taken.
+  const fallback = [edge('#entry', 'live'), alt('live', 'list', 'fallback')]
+  const failed: StepStatusMap = {
+    live: { status: 'skipped', attempt: 1 },
+    list: { status: 'done' },
+  }
+  expect(pathsOf(fallback, failed)).toEqual(['taken', 'taken'])
+  // A timeout line that also carries a need is taken when the wait finishes in time.
+  const carried = [alt('decision', 'close', 'timeout', true)]
+  // The wait finished in time, so the run went along the need the line carries.
+  expect(pathsOf(carried, { decision: { status: 'done' }, close: { status: 'done' } })).toEqual([
+    'carried',
+  ])
+})
+
+const model = (source: string, target: string, kind: ModelEdge['kind'], label?: string) => ({
+  key: `${kind}:${source}->${target}`,
+  source,
+  target,
+  kind,
+  path: [],
+  ...(label === undefined ? {} : { label }),
+})
+
+it('finds the idle steps that can no longer start', () => {
+  const incident = [
+    model('ack', 'escalate', 'timeout', 'times out after 5m'),
+    model('ack', 'resolved', 'needs', 'any need: owner'),
+    model('escalate', 'resolved', 'needs', 'any need: owner'),
+  ]
+  const acked: StepStatusMap = {
+    ack: { status: 'done' },
+    escalate: { status: 'idle' },
+    resolved: { status: 'active' },
+  }
+  expect([...closedSteps(incident, acked)]).toEqual(['escalate'])
+  expect([...closedSteps(incident, { ...acked, ack: { status: 'active' } })]).toEqual([])
+  // A need it cannot run without failed, so it cannot start.
+  const deploy = [model('build', 'promote', 'needs'), model('health', 'promote', 'needs')]
+  const failed: StepStatusMap = {
+    build: { status: 'done' },
+    health: { status: 'failed' },
+    promote: { status: 'idle' },
+  }
+  expect([...closedSteps(deploy, failed)]).toEqual(['promote'])
+  // A timeout target with an optional need on the wait still runs when the wait finishes.
+  const wait = [
+    model('decision', 'close', 'timeout', 'times out after 48h'),
+    model('decision', 'close', 'needs', 'optional need: by'),
+  ]
+  const answered: StepStatusMap = { decision: { status: 'done' }, close: { status: 'idle' } }
+  expect([...closedSteps(wait, answered)]).toEqual([])
+  // A step runs without an optional need, so the need never closes the way in.
+  const optional = [model('a', 'b', 'needs', 'optional need: a')]
+  expect([...closedSteps(optional, { a: { status: 'skipped' }, b: { status: 'idle' } })]).toEqual(
+    [],
+  )
+  const word = (reason: 'closed' | 'undoing' | 'ended') =>
+    statusWord({ status: 'idle' }, step(), undefined, reason)
+  expect(word('closed')?.text).toBe('not run')
+  expect(word('undoing')?.title).toMatch(/undoing/)
+})
+
+it('prints a duration as whole hours under 72, else the largest whole unit', () => {
+  expect(
+    [5 * 60_000, 10 * 60_000, 2 * 3_600_000, 48 * 3_600_000, 72 * 3_600_000, 7 * 86_400_000].map(
+      formatMs,
+    ),
+  ).toEqual(['5m', '10m', '2h', '48h', '3d', '7d'])
+  expect([90 * 60_000, 1_500, 250].map(formatMs)).toEqual(['90m', '1.5s', '250ms'])
 })

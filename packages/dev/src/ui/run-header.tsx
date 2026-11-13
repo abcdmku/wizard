@@ -10,22 +10,13 @@ import {
 import type { RunDetail } from '../wire'
 import { Status } from './app'
 import { useBackend } from './backend'
-import { ago, clock, runTag } from './format'
+import { ago, clock, runTag, span } from './format'
 import { Go, useNav } from './nav'
+import { useRunClock } from './run-clock'
 
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
 /** How long the note after a restart stays. The fade in run.css lasts as long. */
 const NOTE_MS = 4000
-
-/** The wall clock, read again every few seconds so a relative time stays true. */
-function useNow(every = 10_000): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), every)
-    return () => clearInterval(timer)
-  }, [every])
-  return now
-}
 
 /**
  * Watches a marker placed right above the sticky header. Once the marker leaves the scroll
@@ -230,7 +221,8 @@ function OverflowMenu({ items }: { readonly items: readonly MenuItem[] }): React
 export function RunHeader({ run }: { readonly run: RunDetail }): ReactElement {
   const backend = useBackend()
   const nav = useNav()
-  const now = useNow()
+  // The run's clock, which runs ahead of the wall clock once a timer is skipped.
+  const { now, ahead } = useRunClock(run, 10_000)
   const live = !TERMINAL.has(run.status)
   const [edge, stuck] = useStuck()
   // A short note under the header after a restart, which fades on its own.
@@ -240,6 +232,12 @@ export function RunHeader({ run }: { readonly run: RunDetail }): ReactElement {
     const timer = setTimeout(() => setNote(undefined), NOTE_MS)
     return () => clearTimeout(timer)
   }, [note])
+  // The note is about the run as it was. Once the run moves to another status it is old news.
+  const [noteStatus, setNoteStatus] = useState(run.status)
+  if (noteStatus !== run.status) {
+    setNoteStatus(run.status)
+    if (note !== undefined && Date.now() - note.at > 600) setNote(undefined)
+  }
   const restart = async () => {
     const result = await backend.act(run.id, { type: 'restart' })
     setNote({
@@ -318,6 +316,14 @@ export function RunHeader({ run }: { readonly run: RunDetail }): ReactElement {
               {ago(now - run.createdAt)}
             </time>
           </span>
+          {ahead > 0 && (
+            <span
+              className="svc"
+              title={`You skipped timers, so this run's clock is ${span(ahead)} ahead`}
+            >
+              clock +{span(ahead)}
+            </span>
+          )}
           <span
             className="svc"
             title={

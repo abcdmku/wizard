@@ -1,7 +1,7 @@
 import { type ReactElement, useId, useState } from 'react'
 import type { ActionResult, Schema } from '../wire'
 import { pretty } from './format'
-import { type JsonDraft, JsonEditor } from './json'
+import { issueText, type JsonDraft, JsonEditor } from './json'
 
 interface Field {
   readonly name: string
@@ -48,7 +48,7 @@ export function fieldIssues(
   for (const issue of result.issues ?? []) {
     const name = issue.path?.[0]
     if (typeof name === 'string' && names.has(name) && !found.has(name))
-      found.set(name, issue.message)
+      found.set(name, issueText(issue))
   }
   return found
 }

@@ -41,6 +41,11 @@ export interface StepFacts {
   readonly person?: boolean
   /** The run has ended: done, failed or cancelled. */
   readonly ended?: boolean
+  /**
+   * The step can no longer start though the run goes on: the run is undoing, failed or halted,
+   * or the step is only the timeout or fallback target of a step that finished. See `notRunWhy`.
+   */
+  readonly closed?: boolean
   /** The step waits on the outside by design: a form, a sleep or an event wait. */
   readonly outside?: boolean
 }
@@ -52,7 +57,8 @@ export interface StepFacts {
  *
  * - A step that finished, failed or is being undone keeps its own word, even when its undo
  *   hook made the call a person answers.
- * - An idle step reads `blocked` while the run goes on and `not run` once it has ended.
+ * - An idle step reads `blocked` while it can still start and `not run` once the run has ended
+ *   or the step can no longer start (`closed`), as the graph says.
  * - A step a person must act on reads `waiting on you`, as the graph's attention ring says.
  */
 export function stepWord(
@@ -72,7 +78,7 @@ export function stepWord(
       return 'undone'
     case undefined:
     case 'idle':
-      if (facts.ended === true) return 'not run'
+      if (facts.ended === true || facts.closed === true) return 'not run'
       return facts.person === true ? 'waiting on you' : 'blocked'
   }
   if (phase === 'compensating') return 'undoing'
@@ -94,14 +100,18 @@ export function wordTone(word: string): string {
   return word.replaceAll(' ', '-')
 }
 
+/** The run statuses after which nothing waits on a person. */
+const OVER = new Set(['done', 'failed', 'cancelled', 'compensated'])
+
 /**
  * The keys of the steps that wait on a person: every step a form or an event card names
  * (`shipping/street` inside a child) and the step a service call card names. A call the server
  * could not place marks every root step whose phase is `running`, since in this UI a running
  * step is one blocked on a call you answer. A call from an undo hook marks nothing: that step
- * reads `undoing`.
+ * reads `undoing`. A run that has ended waits on no one, even when a call it made is still open.
  */
 export function attentionOf(run: RunDetail): readonly string[] {
+  if (OVER.has(run.status)) return []
   const keys = new Set<string>()
   let unplaced = false
   for (const item of run.pending) {

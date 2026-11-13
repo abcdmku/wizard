@@ -89,16 +89,19 @@ it('draws one line per pair of steps, keeping the control edge and a renamed nee
     path: [],
     ...(label === undefined ? {} : { label }),
   })
-  expect(drawnEdges([edge('needs', 'needs a'), edge('next')])).toEqual([edge('next')])
-  expect(drawnEdges([edge('route', 'route'), edge('needs', 'needs input')])).toEqual([
-    { ...edge('route'), label: 'needs input' },
+  expect(drawnEdges([edge('needs', 'need: a'), edge('next')])).toEqual([edge('next')])
+  expect(drawnEdges([edge('route', 'route'), edge('needs', 'need: input')])).toEqual([
+    { ...edge('route'), label: 'need: input' },
   ])
   // A timeout line that is also an optional need says both, so it is not read as timeout only.
-  expect(drawnEdges([edge('timeout', 'timeout 2d'), edge('needs', 'needs by (optional)')])).toEqual(
-    [{ ...edge('timeout'), label: 'needs by (optional) · timeout 2d' }],
-  )
+  expect(
+    drawnEdges([edge('timeout', 'times out after 2d'), edge('needs', 'optional need: by')]),
+  ).toEqual([{ ...edge('timeout'), label: 'optional need: by · times out after 2d' }])
+  expect(drawnEdges([edge('fallback', 'falls back'), edge('needs', 'need: x')])).toEqual([
+    { ...edge('fallback'), label: 'need: x · falls back' },
+  ])
   // A need on any one of several steps is marked on the step that joins them, not on the line.
-  expect(drawnEdges([edge('needs', 'needs owner (any)')])).toEqual([edge('needs')])
+  expect(drawnEdges([edge('needs', 'any need: owner')])).toEqual([edge('needs')])
 })
 
 it('lays a long, thin graph down the page in a narrow pane and across in a wide one', () => {

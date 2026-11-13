@@ -1,9 +1,11 @@
 import type { SnapshotLike } from '@openwizard/devtools'
-import { type ReactElement, type ReactNode, useEffect, useRef } from 'react'
+import { type KeyboardEvent, type ReactElement, type ReactNode, useEffect, useRef } from 'react'
 import type { RunDetail, WizardInfo } from '../wire'
 import { Status } from './app'
 import { ago, clock, duration, span } from './format'
 import { JsonView } from './json'
+import { notRunWhy } from './not-run'
+import { useRunClock } from './run-clock'
 import { attentionOf, stepWord } from './status-word'
 import {
   choiceOf,
@@ -14,9 +16,10 @@ import {
   recordOf,
   type StepRecordView,
   splitKey,
+  triesOf,
 } from './step-facts'
 
-const LIVE = new Set(['done', 'failed', 'cancelled'])
+const LIVE = new Set(['done', 'failed', 'cancelled', 'compensated'])
 
 const SKIPPED: Readonly<Record<string, string>> = {
   when: 'its when check returned false',
@@ -159,14 +162,40 @@ export function StepPanel(props: {
   const status = record?.status ?? 'idle'
   const outside =
     node?.kind === 'view' || node?.sleep !== undefined || (node?.waitsFor?.length ?? 0) > 0
-  const word = stepWord(status, run.phases[selected], { person, ended: !live, outside })
+  const why = status === 'idle' ? notRunWhy(run, props.wizard?.manifest, selected) : undefined
+  const word = stepWord(status, run.phases[selected], {
+    person,
+    ended: !live,
+    outside,
+    closed: why !== undefined,
+  })
+  const { now } = useRunClock(run)
+  const tries = triesOf(run.events, selected)
 
+  // What had focus when the step was chosen, so Escape can give focus back.
+  const opener = useRef<HTMLElement | null>(null)
   // biome-ignore lint/correctness/useExhaustiveDependencies: show the panel each time a step is chosen
   useEffect(() => {
-    if (box.current !== null) bringIntoView(box.current)
+    if (box.current === null) return
+    const active = (box.current.getRootNode() as Document | ShadowRoot).activeElement
+    if (active instanceof HTMLElement && !box.current.contains(active)) opener.current = active
+    bringIntoView(box.current)
   }, [selected])
+  // Escape closes the summary and puts focus on the step in the graph, or else on the opener.
+  const onKey = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return
+    event.preventDefault()
+    const scope = box.current?.closest('.main') ?? box.current?.parentElement
+    const step = scope?.querySelector<HTMLElement>(
+      `.react-flow__node[data-id="${CSS.escape(selected)}"]`,
+    )
+    const back = step?.tabIndex !== undefined && step.tabIndex >= 0 ? step : opener.current
+    props.onClose()
+    if (back?.isConnected === true) back.focus()
+  }
 
-  const started = status === 'idle' ? undefined : record?.enteredAt
+  // The latest attempt's start, so a retried step counts from the try that is running now.
+  const started = status === 'idle' ? undefined : (tries.last ?? record?.enteredAt)
   const ended = ['done', 'failed', 'skipped', 'cancelled', 'compensating', 'compensated'].includes(
     status,
   )
@@ -183,7 +212,12 @@ export function StepPanel(props: {
   const skipped = status === 'skipped'
 
   return (
-    <section ref={box} className="card step-panel" aria-labelledby="step-panel-title">
+    <section
+      ref={box}
+      className="card step-panel"
+      aria-labelledby="step-panel-title"
+      onKeyDown={onKey}
+    >
       <header>
         <h2 id="step-panel-title">
           <code>{label}</code>
@@ -221,7 +255,13 @@ export function StepPanel(props: {
             </dd>
           </>
         )}
-        {(started !== undefined || (live && !skipped)) && (
+        {word === 'not run' && why !== undefined && (
+          <>
+            <dt>Not run</dt>
+            <dd>{why}</dd>
+          </>
+        )}
+        {(started !== undefined || (live && !skipped && word !== 'not run')) && (
           <>
             <dt>Started</dt>
             <dd>
@@ -229,9 +269,16 @@ export function StepPanel(props: {
                 'Not yet'
               ) : (
                 <>
-                  <When at={started} now={run.now} />
+                  <When at={started} now={now} />
                   {ended === undefined && (
-                    <span className="quiet"> · {duration(run.now - started)} so far</span>
+                    <span className="quiet"> · {duration(now - started)} so far</span>
+                  )}
+                  {tries.count > 1 && tries.first !== undefined && (
+                    <span className="quiet">
+                      {' '}
+                      · tried {tries.count} times, first{' '}
+                      {now - tries.first < 1000 ? 'just now' : `${span(now - tries.first)} ago`}
+                    </span>
                   )}
                 </>
               )}
@@ -242,8 +289,11 @@ export function StepPanel(props: {
           <>
             <dt>Ended</dt>
             <dd>
-              <When at={ended} now={run.now} />
-              <span className="quiet"> · took {duration(ended - started)}</span>
+              <When at={ended} now={now} />
+              <span className="quiet">
+                {' '}
+                · took {duration(tries.took ?? Math.max(0, ended - started))}
+              </span>
             </dd>
           </>
         )}

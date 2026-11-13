@@ -197,6 +197,12 @@ type Pending = {
   readonly attempts?: number;
   /** True when the step's undo hook made the call, while the run undoes finished work. */
   readonly undo?: true;
+  /**
+   * For a call from one item of a mapped step (`each`): the item's index, from 0, and how
+   * many items the step runs. Left out when the dev server cannot tell.
+   */
+  readonly item?: number;
+  readonly items?: number;
 } | {
   readonly kind: 'failed';
   readonly step: string;

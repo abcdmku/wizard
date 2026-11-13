@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import type { WizardInfo } from '../wire'
-import { duration } from './outside'
+import { span } from './format'
 
 type Node = WizardInfo['manifest']['nodes'][number]
 
@@ -28,8 +28,8 @@ function tagsOf(node: Node): readonly string[] {
   if (node.each !== undefined) tags.push('once per item')
   for (const event of node.waitsFor ?? []) tags.push(`waits for ${event}`)
   if (node.sleep !== undefined)
-    tags.push(node.sleep === 'dynamic' ? 'sleeps, set at start' : `sleeps ${duration(node.sleep)}`)
-  if (node.timeout !== undefined) tags.push(`times out after ${duration(node.timeout)}`)
+    tags.push(node.sleep === 'dynamic' ? 'sleeps, set at start' : `sleeps ${span(node.sleep)}`)
+  if (node.timeout !== undefined) tags.push(`times out after ${span(node.timeout)}`)
   if (node.targets !== undefined) tags.push(`goes to ${node.targets.join(' or ')}`)
   if (node.retry !== undefined && node.retry.retries > 0)
     tags.push(

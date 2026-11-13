@@ -405,6 +405,12 @@ interface WizardGraphProps extends GraphInput {
    */
   readonly ended?: boolean;
   /**
+   * The run's status (`run.status`, such as `running`, `compensating` or `failed`). While the
+   * run is undoing, or once it has stopped, a step it never started shows `not run` instead of
+   * `blocked`, as `ended` does. Omit it to rely on `ended` alone.
+   */
+  readonly runStatus?: string;
+  /**
    * Show the small React Flow link in the corner (default `true`). Pass `false` only when you
    * credit React Flow elsewhere.
    */

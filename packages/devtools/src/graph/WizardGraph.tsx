@@ -6,7 +6,6 @@
 import { inspect, type Manifest } from '@openwizard/core/inspect'
 import {
   Background,
-  Controls,
   type EdgeTypes,
   MiniMap,
   type NodeMouseHandler,
@@ -25,14 +24,17 @@ import {
   useState,
 } from 'react'
 import type { LayoutDirection, LayoutEngine } from '../layout/elk'
+import { drawnLabels } from '../layout/merge'
 import type { DevtoolsTheme, GraphInput, GraphSelection, StepStatusMap } from '../types'
 import { chooseLayout, type GraphAutoHeight, type GraphDirection } from './direction'
 import { EdgeHints } from './EdgeHints'
-import { FIT_PADDING, Follow, MAX_FIT_ZOOM } from './Follow'
+import { GraphControls } from './Fit'
+import { FIT_PADDING, FitWhole, Follow, isNarrow, MAX_FIT_ZOOM, PAD, READABLE_ZOOM } from './Follow'
 import { GraphEdgeComponent } from './GraphEdge'
 import { definitionPath, instanceGraph } from './instances'
 import { Keyboard } from './Keyboard'
 import { MarkerNodeComponent } from './MarkerNode'
+import { closedSteps } from './paths'
 import { GroupNodeComponent, StepNodeComponent } from './StepNode'
 import {
   applyEdgeOverlay,
@@ -40,6 +42,7 @@ import {
   type DevtoolsEdge,
   type DevtoolsNode,
   type GraphOverlay,
+  type NotRunReason,
   toReactFlow,
 } from './to-react-flow'
 import { useGraphLayout } from './use-graph-layout'
@@ -98,6 +101,12 @@ export interface WizardGraphProps extends GraphInput {
    */
   readonly ended?: boolean
   /**
+   * The run's status (`run.status`, such as `running`, `compensating` or `failed`). While the
+   * run is undoing, or once it has stopped, a step it never started shows `not run` instead of
+   * `blocked`, as `ended` does. Omit it to rely on `ended` alone.
+   */
+  readonly runStatus?: string
+  /**
    * Show the small React Flow link in the corner (default `true`). Pass `false` only when you
    * credit React Flow elsewhere.
    */
@@ -118,6 +127,22 @@ const NODE_TYPES: NodeTypes = {
 }
 const EDGE_TYPES: EdgeTypes = { graph: GraphEdgeComponent }
 const EMPTY_STATUSES: StepStatusMap = {}
+/**
+ * In a narrow pane (a phone), the widest graph drawn at a readable size, in flow pixels, so a
+ * wider one is laid out again as narrow as it goes. Rounded so a small resize does not lay out.
+ */
+function readableWidth(paneWidth: number): number | undefined {
+  if (!isNarrow(paneWidth)) return undefined
+  return Math.floor((paneWidth - PAD.left - PAD.right) / READABLE_ZOOM / 16) * 16
+}
+
+/** Run statuses after which no step that has not started will start. */
+const STOPPED = new Set(['done', 'failed', 'cancelled', 'halted', 'compensated'])
+
+function stoppedBy(props: WizardGraphProps): Exclude<NotRunReason, 'closed'> | undefined {
+  if (props.runStatus === 'compensating') return 'undoing'
+  return props.ended === true || STOPPED.has(props.runStatus ?? '') ? 'ended' : undefined
+}
 const BOTH: readonly LayoutDirection[] = ['right', 'down']
 const RIGHT: readonly LayoutDirection[] = ['right']
 const DOWN: readonly LayoutDirection[] = ['down']
@@ -149,15 +174,23 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
   )
   const asked = props.direction ?? 'auto'
   const directions = asked === 'auto' ? BOTH : asked === 'down' ? DOWN : RIGHT
-  const { model, layouts, pending, error } = useGraphLayout(graph, props.layoutEngine, directions)
   const paneRef = useRef<HTMLDivElement>(null)
   const pane = usePaneSize(paneRef)
+  const { model, layouts, pending, error } = useGraphLayout(
+    graph,
+    props.layoutEngine,
+    directions,
+    readableWidth(pane.width),
+  )
   const roots = useMemo(
     () => new Set(model?.nodes.filter((n) => n.parent === undefined).map((n) => n.key)),
     [model],
   )
+  const labels = useMemo(() => drawnLabels(model?.edges ?? []), [model])
   const shape =
-    layouts === undefined ? undefined : chooseLayout(asked, layouts, pane, roots, props.autoHeight)
+    layouts === undefined
+      ? undefined
+      : chooseLayout(asked, layouts, pane, roots, props.autoHeight, labels)
   const direction = shape?.direction ?? 'right'
   const autoHeight = props.autoHeight !== undefined && props.autoHeight !== false
   const layout = layouts?.[direction]
@@ -168,15 +201,22 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
     () => (attentionKey === undefined ? undefined : new Set(attentionKey.split('\n'))),
     [attentionKey],
   )
+  const statuses = props.statuses ?? EMPTY_STATUSES
+  const stopped = stoppedBy(props)
+  const closed = useMemo(
+    () => (model === undefined ? undefined : closedSteps(model.edges, statuses)),
+    [model, statuses],
+  )
   const overlay: GraphOverlay = useMemo(
     () => ({
-      statuses: props.statuses ?? EMPTY_STATUSES,
+      statuses,
       current: props.activeStep ?? null,
       selected,
       ...(attention === undefined ? {} : { attention }),
-      ended: props.ended === true,
+      ...(stopped === undefined ? {} : { stopped }),
+      ...(closed === undefined ? {} : { closed }),
     }),
-    [props.statuses, props.activeStep, selected, attention, props.ended],
+    [statuses, props.activeStep, selected, attention, stopped, closed],
   )
   const [nodes, setNodes, onNodesChange] = useNodesState<DevtoolsNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<DevtoolsEdge>([])
@@ -299,19 +339,15 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
           proOptions={{ hideAttribution: props.attribution === false }}
           className="owd-canvas"
         >
-          {props.follow === true && (
+          {props.follow === true ? (
             <Follow statuses={overlay.statuses} direction={direction} revision={revision} />
+          ) : (
+            <FitWhole revision={revision} />
           )}
-          <Keyboard onSelect={onNodeKey} />
+          <Keyboard onSelect={onNodeKey} onClear={onPaneClick} />
           <WheelZoom />
           <Background gap={24} />
-          <Controls
-            showInteractive={false}
-            position="top-right"
-            orientation="horizontal"
-            className="owd-controls"
-            fitViewOptions={{ padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM }}
-          />
+          <GraphControls />
           {props.minimap !== false && <MiniMap pannable zoomable className="owd-minimap" />}
           <EdgeHints toolbar={toolbar} />
         </ReactFlow>

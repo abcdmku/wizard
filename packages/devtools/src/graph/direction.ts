@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 
-import type { LayoutDirection, LayoutResult } from '../layout/elk'
+import { type LayoutDirection, type LayoutResult, labelSize } from '../layout/elk'
 import { STEP_HEIGHT } from '../layout/model'
 import { fitZoom, isNarrow, MAX_FIT_ZOOM, PAD, READABLE_ZOOM } from './Follow'
 
@@ -17,6 +17,8 @@ import { fitZoom, isNarrow, MAX_FIT_ZOOM, PAD, READABLE_ZOOM } from './Follow'
  */
 export type GraphDirection = LayoutDirection | 'auto'
 
+const NO_LABELS: ReadonlyMap<string, string> = new Map()
+
 /** Right wins a multi-row graph only when it draws it clearly larger. */
 const MARGIN = 1.08
 
@@ -26,10 +28,14 @@ const TIE = 0.98
 /** A layout no taller than this, laid out right, is one row of cards (labels included). */
 const ONE_ROW = STEP_HEIGHT + 32
 
-/** The size of the root nodes (`roots`: keys of nodes outside any group) of a layout. */
-function extent(
+/**
+ * The size of a layout: its root nodes (`roots`: keys of nodes outside any group) and the edge
+ * labels (`labels`: the text of each drawn label by edge key), which can stick out past them.
+ */
+export function extent(
   layout: LayoutResult,
   roots: ReadonlySet<string>,
+  labels: ReadonlyMap<string, string> = NO_LABELS,
 ): { width: number; height: number } {
   let right = 0
   let bottom = 0
@@ -41,6 +47,15 @@ function extent(
     top = Math.min(top, p.y)
     right = Math.max(right, p.x + p.width)
     bottom = Math.max(bottom, p.y + p.height)
+  }
+  for (const [key, text] of labels) {
+    const at = layout.routes[key]?.label
+    if (at === undefined || left === Number.POSITIVE_INFINITY) continue
+    const size = labelSize(text)
+    left = Math.min(left, at.x - size.width / 2)
+    top = Math.min(top, at.y - size.height / 2)
+    right = Math.max(right, at.x + size.width / 2)
+    bottom = Math.max(bottom, at.y + size.height / 2)
   }
   return left === Number.POSITIVE_INFINITY
     ? { width: 0, height: 0 }
@@ -78,8 +93,9 @@ function sizeFor(
   roots: ReadonlySet<string>,
   pane: { readonly width: number; readonly height: number },
   range: { min: number; max: number } | undefined,
+  labels: ReadonlyMap<string, string> | undefined,
 ): { zoom: number; row: boolean; height?: number } {
-  const box = extent(layout, roots)
+  const box = extent(layout, roots, labels)
   const row = layout.direction === 'right' && box.height <= ONE_ROW
   if (range === undefined) return { zoom: Math.min(MAX_FIT_ZOOM, fitZoom(box, pane)), row }
   const across = Math.min(MAX_FIT_ZOOM, fitZoom(box, { width: pane.width, height: 1e6 }))
@@ -101,6 +117,7 @@ export function chooseLayout(
   pane: { readonly width: number; readonly height: number },
   roots: ReadonlySet<string>,
   autoHeight?: GraphAutoHeight,
+  labels?: ReadonlyMap<string, string>,
 ): GraphShape {
   const range = bounds(autoHeight)
   const measured = pane.width > 0 && (range !== undefined || pane.height > 0)
@@ -110,7 +127,7 @@ export function chooseLayout(
     return [
       {
         direction,
-        ...(measured ? sizeFor(layout, roots, pane, range) : { zoom: 0, row: false }),
+        ...(measured ? sizeFor(layout, roots, pane, range, labels) : { zoom: 0, row: false }),
       },
     ]
   })

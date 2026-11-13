@@ -14,6 +14,9 @@ export interface Caller {
   readonly attempt?: number
   /** True when the step's undo hook made the call. */
   readonly undo?: true
+  /** For one item of a mapped step: its index, from 0, and how many items the step has. */
+  readonly item?: number
+  readonly items?: number
 }
 
 /** The fields of a run event the tracker reads. */
@@ -23,6 +26,7 @@ interface Seen {
   readonly path?: readonly string[]
   readonly index?: number
   readonly attempt?: number
+  readonly items?: readonly unknown[]
 }
 
 interface Worker extends Caller {
@@ -70,6 +74,8 @@ export function createCallerTracker(): CallerTracker {
   let calls = new Map<string, Worker>()
   /** The step behind each open call, as the store reports it. */
   let named = new Map<string, Caller>()
+  /** How many items each mapped step started with, by its key. */
+  let counts = new Map<string, number>()
 
   const leave = (match: (worker: Worker) => boolean) => {
     ready = ready.filter((worker) => !match(worker))
@@ -81,14 +87,18 @@ export function createCallerTracker(): CallerTracker {
       const step = event.step
       if (step === undefined) return
       const path = event.path ?? []
+      if (event.type === 'step.eachStarted' && Array.isArray(event.items))
+        counts.set(keyOf(path, step), event.items.length)
       if (START.has(event.type)) {
         const index = event.type === 'step.eachItemStarted' ? event.index : undefined
         const key = keyOf(path, step, index)
         leave((worker) => worker.key === key)
+        const items = counts.get(keyOf(path, step))
         const worker: Worker = {
           key,
           path,
           step,
+          ...(index === undefined || items === undefined ? {} : { item: index, items }),
           ...(event.attempt === undefined ? {} : { attempt: event.attempt }),
           ...(event.type === 'step.compensationStarted' ? { undo: true as const } : {}),
         }
@@ -121,6 +131,7 @@ export function createCallerTracker(): CallerTracker {
       working = new Map()
       calls = new Map()
       named = new Map()
+      counts = new Map()
     },
   }
 }

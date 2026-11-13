@@ -39,18 +39,19 @@ it('draws data joins and fallback paths, and shows map and sleep facts in the in
   const view = render(<WizardGraph graph={graph} />)
   await waitFor(
     () =>
-      // A renamed need keeps its label; `needs doubled` on an edge from `doubled` would repeat it.
+      // A renamed need keeps its label; `need: doubled` on an edge from `doubled` would repeat it.
       expect(view.container.querySelector('.owd-edge-label[data-kind="needs"]')?.textContent).toBe(
-        'needs values',
+        'need: values',
       ),
     // The first layout can take longer than the default second on a slow CI host.
     { timeout: 10_000 },
   )
   expect(view.container.querySelector('.owd-edge-label[data-kind="fallback"]')?.textContent).toBe(
-    'fallback',
+    'falls back',
   )
-  // A card shows its kind and one fact; the rest is in its tooltip.
-  expect(screen.getByText('2 at a time')).toBeTruthy()
+  // A card shows its kind and one fact; the rest is in its tooltip. An `each` step keeps a
+  // third line, which stays while the run is live.
+  expect(screen.getByText('each · 2 at a time')).toBeTruthy()
   expect(screen.getByText('1m')).toBeTruthy()
   expect(screen.getByText('timer')).toBeTruthy()
 

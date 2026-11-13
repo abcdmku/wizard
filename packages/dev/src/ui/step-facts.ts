@@ -129,3 +129,42 @@ export function reasonText(reason: string): string {
       return reason
   }
 }
+
+/** The attempts of a step, from the run's events. */
+export interface Tries {
+  /** How many times the step started its work, across retries and a person's Retry. */
+  readonly count: number
+  /** When the first attempt started, on the run's clock. */
+  readonly first?: number
+  /** When the latest attempt started. */
+  readonly last?: number
+  /** How long the latest attempt took, from its `step.done` event, once the step is done. */
+  readonly took?: number
+}
+
+/** The attempts of the step `key`, read from `step.runStarted` and `step.done` events. */
+export function triesOf(events: readonly unknown[], key: string): Tries {
+  const { path, id } = splitKey(key)
+  const where = path.join('/')
+  let count = 0
+  let first: number | undefined
+  let last: number | undefined
+  let took: number | undefined
+  for (const item of events) {
+    const event = item as LooseEvent & { readonly at?: number; readonly durationMs?: number }
+    if (event.step !== id || (event.path ?? []).join('/') !== where) continue
+    if (event.type === 'step.runStarted' && typeof event.at === 'number') {
+      count += 1
+      first ??= event.at
+      last = event.at
+      took = undefined
+    } else if (event.type === 'step.done' && typeof event.durationMs === 'number')
+      took = event.durationMs
+  }
+  return {
+    count,
+    ...(first === undefined ? {} : { first }),
+    ...(last === undefined ? {} : { last }),
+    ...(took === undefined ? {} : { took }),
+  }
+}

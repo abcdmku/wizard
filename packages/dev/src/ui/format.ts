@@ -5,12 +5,27 @@ export function clock(at: number): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`
 }
 
+const UNITS: ReadonlyArray<readonly [number, string]> = [
+  [86_400_000, 'd'],
+  [3_600_000, 'h'],
+  [60_000, 'm'],
+  [1_000, 's'],
+]
+
 /**
- * `3s`, `4m`, `48h` or `5d`, for a span in milliseconds. Hours run up to 72, so a 48 hour
- * timeout reads `48h`, as a wizard declares it, and not `2d`.
+ * `1s`, `5m`, `48h` or `7d`, for a span in milliseconds: the one duration format of the portal,
+ * the same rule the graph follows. Whole hours under 72 read as hours, so a 48 hour timeout
+ * reads `48h`, as a wizard declares it. Any other whole span reads in its largest whole unit
+ * (`7d`, `90m`), and a span that is not whole is rounded to the largest unit that fits.
  */
 export function span(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000))
+  const whole = Math.max(0, Math.round(ms))
+  if (whole >= 3_600_000 && whole < 259_200_000 && whole % 3_600_000 === 0)
+    return `${whole / 3_600_000}h`
+  for (const [size, unit] of UNITS)
+    if (whole >= size && whole % size === 0) return `${whole / size}${unit}`
+  if (whole > 0 && whole < 1000) return `${whole}ms`
+  const seconds = Math.round(whole / 1000)
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`
   if (seconds < 259_200) return `${Math.round(seconds / 3600)}h`
@@ -49,9 +64,9 @@ export function literal(value: unknown): string {
   return line.length <= 60 ? line : JSON.stringify(value, null, 2)
 }
 
-/** `120 ms`, `1.4s`, or `span` for anything a minute or longer. */
+/** `120ms`, `1.4s`, or `span` for anything a minute or longer. For a time that was measured. */
 export function duration(ms: number): string {
-  if (ms < 1000) return `${Math.max(0, Math.round(ms))} ms`
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`
   if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`
   return span(ms)
 }

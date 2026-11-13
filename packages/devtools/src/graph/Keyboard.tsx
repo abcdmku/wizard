@@ -1,7 +1,7 @@
 /**
  * Keyboard use of the graph, rendered inside `<ReactFlow>`: a step that gets focus and is not
- * wholly in view is brought into view, Enter or Space selects the focused step, and the React
- * Flow attribution link stays visible but leaves the tab order.
+ * wholly in view is brought into view, Enter or Space selects the focused step, Escape clears the
+ * selection, and the React Flow attribution link stays visible but leaves the tab order.
  */
 
 import { useReactFlow, useStore } from '@xyflow/react'
@@ -28,7 +28,13 @@ function nodeIdOf(target: EventTarget | null): string | undefined {
   return target.dataset.id
 }
 
-export function Keyboard({ onSelect }: { readonly onSelect: (id: string) => void }): null {
+export function Keyboard({
+  onSelect,
+  onClear,
+}: {
+  readonly onSelect: (id: string) => void
+  readonly onClear: () => void
+}): null {
   const flow = useReactFlow()
   const dom = useStore((state) => state.domNode)
 
@@ -54,9 +60,13 @@ export function Keyboard({ onSelect }: { readonly onSelect: (id: string) => void
       void flow.setViewport({ x: x + dx, y: y + dy, zoom }, { duration: motion(200) })
     }
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return
       const id = nodeIdOf(event.target)
       if (id === undefined) return
+      if (event.key === 'Escape') {
+        onClear()
+        return
+      }
+      if (event.key !== 'Enter' && event.key !== ' ') return
       event.preventDefault()
       onSelect(id)
     }
@@ -66,6 +76,6 @@ export function Keyboard({ onSelect }: { readonly onSelect: (id: string) => void
       dom.removeEventListener('focusin', onFocus)
       dom.removeEventListener('keydown', onKey)
     }
-  }, [dom, flow, onSelect])
+  }, [dom, flow, onSelect, onClear])
   return null
 }

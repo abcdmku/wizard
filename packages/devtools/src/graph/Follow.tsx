@@ -13,6 +13,7 @@ import { type Node, useNodesInitialized, useReactFlow, useStore } from '@xyflow/
 import { useEffect } from 'react'
 import type { LayoutDirection } from '../layout/elk'
 import type { StepStatusMap } from '../types'
+import { useFitWhole, wholeBox } from './Fit'
 import { type Box, frameView } from './frame'
 import type { DevtoolsEdge, DevtoolsNode } from './to-react-flow'
 
@@ -81,6 +82,20 @@ function rootOf(id: string, byId: ReadonlyMap<string, Node>): string {
   return node?.id ?? id
 }
 
+/**
+ * Shows a graph that does not follow the run whole, labels included, each time it is laid out.
+ * Rendered inside `<ReactFlow>`.
+ */
+export function FitWhole({ revision }: { readonly revision: number }): null {
+  const ready = useNodesInitialized()
+  const fitWhole = useFitWhole()
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `revision` refits a new layout
+  useEffect(() => {
+    if (ready) fitWhole(0)
+  }, [ready, fitWhole, revision])
+  return null
+}
+
 /** Rendered inside `<ReactFlow>`. Moves the view when the layout or the focus changes. */
 export function Follow({
   statuses,
@@ -98,16 +113,17 @@ export function Follow({
   const height = useStore((state) => state.height)
   const count = useStore((state) => state.nodes.length)
   const focus = ready ? focusOf(flow.getNodes(), statuses).join('\n') : ''
+  const fitWhole = useFitWhole()
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `count` and `revision` move the view when the nodes change
   useEffect(() => {
     if (!ready || width === 0 || height === 0) return
     const pane = { width, height }
     const all = flow.getNodes()
-    const whole =
-      focus === '' || isNarrow(width) || fitZoom(flow.getNodesBounds(all), pane) >= READABLE_ZOOM
+    const box = wholeBox(flow.getNodesBounds(all), flow.getEdges())
+    const whole = focus === '' || isNarrow(width) || fitZoom(box, pane) >= READABLE_ZOOM
     if (whole) {
-      void flow.fitView({ padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM, duration: motion(200) })
+      fitWhole(200)
       return
     }
     const byId = new Map<string, Node>(all.map((node) => [node.id, node]))
@@ -157,6 +173,6 @@ export function Follow({
       },
       { duration: motion(250) },
     )
-  }, [flow, ready, width, height, count, focus, direction, revision])
+  }, [flow, fitWhole, ready, width, height, count, focus, direction, revision])
   return null
 }

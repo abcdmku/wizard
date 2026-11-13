@@ -1,7 +1,7 @@
 /**
  * What a compact step card says about a step that has no live status: a kind word (`form`,
- * `wait`, `timer`, `each`, `child`, `route`) and the one fact that tells most, plus the full
- * account for the card's tooltip.
+ * `wait`, `timer`, `each`, `child`, `route`) and the one fact that tells most, the third line
+ * some cards keep while the run is live, and the full account for the card's tooltip.
  *
  * @packageDocumentation
  */
@@ -28,8 +28,25 @@ export function mainFact(step: ManifestStep): string | undefined {
   }
   if (step.sleep !== undefined)
     return step.sleep === 'dynamic' ? 'set at start' : formatMs(step.sleep)
-  if (step.each !== undefined) return `${step.each.concurrency} at a time`
   return behaviour(step)[0]
+}
+
+/** How many characters of the third line fit on a card. */
+const SUB_FITS = 21
+
+/**
+ * The card's third line, which stays while the run is live: `each · 2 at a time` for a step
+ * that runs per item, and `any of a, b` for a step that starts when any one of them is done.
+ */
+export function subLine(step: ManifestStep, anyOf: readonly string[]): string | undefined {
+  const parts: string[] = []
+  if (step.each !== undefined) parts.push(`each · ${step.each.concurrency} at a time`)
+  if (anyOf.length > 0) {
+    // The names when they fit on the card, else how many; the tooltip names them all.
+    const named = `any of ${anyOf.join(', ')}`
+    parts.push(named.length <= SUB_FITS ? named : `any of ${anyOf.length} steps`)
+  }
+  return parts.length === 0 ? undefined : parts.join(' · ')
 }
 
 /** Facts that change how a step behaves when it fails or is undone. */

@@ -22,13 +22,17 @@ export function CallCard(props: {
   const panel = useId()
   const call = `deps.${item.name}(${item.args.map(literal).join(', ')})`
   const attempt = attemptText(item.attempt, item.attempts)
+  const which =
+    item.item === undefined || item.items === undefined
+      ? undefined
+      : `item ${item.item + 1} of ${item.items}`
   const left =
     item.attempt !== undefined && item.attempts !== undefined && item.attempt < item.attempts
   const caller = item.step === undefined ? undefined : stepLabel(item.path ?? [], item.step)
   return (
     <Card
       kind="service"
-      meta={attempt}
+      meta={[which, attempt].filter((part) => part !== undefined).join(' · ') || undefined}
       note={
         <>
           {caller === undefined ? (
@@ -48,8 +52,19 @@ export function CallCard(props: {
         </>
       }
       title={
-        <code title={`${item.name}(${item.args.map((arg) => JSON.stringify(arg)).join(', ')})`}>
-          {item.name}({item.args.map((arg) => brief(arg, 160)).join(', ')})
+        <code
+          className="call-head"
+          title={`${item.name}(${item.args.map((arg) => JSON.stringify(arg)).join(', ')})`}
+        >
+          <span className="call-arg">{item.name}(</span>
+          {item.args.map((arg, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: arguments keep their position
+            <span key={index} className="call-arg">
+              {brief(arg, 160)}
+              {index < item.args.length - 1 ? ', ' : ')'}
+            </span>
+          ))}
+          {item.args.length === 0 ? ')' : ''}
         </code>
       }
       code={`const reply = await ${call}\n// Return resolves this promise with the value.\n// Throw rejects it with an Error.`}
