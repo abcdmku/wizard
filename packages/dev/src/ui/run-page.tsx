@@ -17,6 +17,7 @@ import { useScheme, useScroll } from './scheme'
 import { attentionOf } from './status-word'
 import { StepPanel } from './step-panel'
 import { Tabs } from './tabs'
+import { runGraphHeight, WIDE } from './warm'
 
 type Tab = 'history' | 'data' | 'snapshot'
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
@@ -36,8 +37,24 @@ const undoCallers = (run: RunDetail): readonly string[] =>
           : [],
       )
 
-/** From this width the graph and the run's cards sit side by side. */
-const WIDE = 940
+/** How long a run may read `running` with nothing to show before the page shows it. */
+const CALM_MS = 180
+
+/**
+ * The run to draw. Answering a card leaves the run `running` with nothing waiting for a few
+ * milliseconds before the next card arrives. Drawing that moment empties the page and fills it
+ * again, so the last run stays on screen until the next card arrives or `CALM_MS` passes.
+ */
+function useCalm(run: RunDetail | null | undefined): RunDetail | null | undefined {
+  const [shown, setShown] = useState(run)
+  const passing = run?.status === 'running' && run.pending.length === 0 && shown?.id === run.id
+  useEffect(() => {
+    if (!passing) return setShown(run)
+    const timer = setTimeout(() => setShown(run), CALM_MS)
+    return () => clearTimeout(timer)
+  }, [run, passing])
+  return passing ? shown : run
+}
 
 /** A ref for the element to measure, and true while it is at least `WIDE` pixels across. */
 function useWide(): [(element: HTMLDivElement | null) => void, boolean] {
@@ -64,7 +81,7 @@ export function RunPage(props: {
 }): ReactElement {
   const backend = useBackend()
   const scheme = useScheme()
-  const run = useRun(props.id, props.version)
+  const run = useCalm(useRun(props.id, props.version))
   const [tab, setTab] = useState<Tab>('history')
   const [selected, setSelected] = useState<string | null>(null)
   const wizard = props.wizards.find((item) => item.name === run?.wizard)
@@ -121,7 +138,7 @@ export function RunPage(props: {
                 follow
                 ended={TERMINAL.has(run.status)}
                 runStatus={run.status}
-                autoHeight={wide ? { min: 220, max: 720 } : { min: 120, max: pinned ? 340 : 480 }}
+                autoHeight={runGraphHeight(wide, pinned)}
                 attribution={false}
                 wheelZoom={false}
                 theme={scheme}

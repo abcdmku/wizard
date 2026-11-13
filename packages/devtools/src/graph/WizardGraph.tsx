@@ -23,18 +23,19 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { LayoutDirection, LayoutEngine } from '../layout/elk'
+import type { LayoutEngine } from '../layout/elk'
 import { drawnLabels } from '../layout/merge'
 import type { DevtoolsTheme, GraphInput, GraphSelection, StepStatusMap } from '../types'
 import { chooseLayout, type GraphAutoHeight, type GraphDirection } from './direction'
 import { EdgeHints } from './EdgeHints'
 import { GraphControls } from './Fit'
-import { FIT_PADDING, FitWhole, Follow, isNarrow, MAX_FIT_ZOOM, PAD, READABLE_ZOOM } from './Follow'
+import { FIT_PADDING, FitWhole, Follow, MAX_FIT_ZOOM } from './Follow'
 import { GraphEdgeComponent } from './GraphEdge'
 import { definitionPath, instanceGraph } from './instances'
 import { Keyboard } from './Keyboard'
 import { MarkerNodeComponent } from './MarkerNode'
 import { closedSteps } from './paths'
+import { directionsFor, keepHeight, lastHeight, readableWidth } from './prepare'
 import { GroupNodeComponent, StepNodeComponent } from './StepNode'
 import {
   applyEdgeOverlay,
@@ -127,15 +128,6 @@ const NODE_TYPES: NodeTypes = {
 }
 const EDGE_TYPES: EdgeTypes = { graph: GraphEdgeComponent }
 const EMPTY_STATUSES: StepStatusMap = {}
-/**
- * In a narrow pane (a phone), the widest graph drawn at a readable size, in flow pixels, so a
- * wider one is laid out again as narrow as it goes. Rounded so a small resize does not lay out.
- */
-function readableWidth(paneWidth: number): number | undefined {
-  if (!isNarrow(paneWidth)) return undefined
-  return Math.floor((paneWidth - PAD.left - PAD.right) / READABLE_ZOOM / 16) * 16
-}
-
 /** Run statuses after which no step that has not started will start. */
 const STOPPED = new Set(['done', 'failed', 'cancelled', 'halted', 'compensated'])
 
@@ -143,9 +135,6 @@ function stoppedBy(props: WizardGraphProps): Exclude<NotRunReason, 'closed'> | u
   if (props.runStatus === 'compensating') return 'undoing'
   return props.ended === true || STOPPED.has(props.runStatus ?? '') ? 'ended' : undefined
 }
-const BOTH: readonly LayoutDirection[] = ['right', 'down']
-const RIGHT: readonly LayoutDirection[] = ['right']
-const DOWN: readonly LayoutDirection[] = ['down']
 /** The height of a graph that sets its own while its layout is worked out. */
 const PENDING_HEIGHT = 160
 /** How far the measured pane may be from the height asked for (`usePaneSize` rounds to 8px). */
@@ -173,7 +162,7 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
     [definition, stablePaths],
   )
   const asked = props.direction ?? 'auto'
-  const directions = asked === 'auto' ? BOTH : asked === 'down' ? DOWN : RIGHT
+  const directions = directionsFor(asked)
   const paneRef = useRef<HTMLDivElement>(null)
   const pane = usePaneSize(paneRef)
   const { model, layouts, pending, error } = useGraphLayout(
@@ -276,7 +265,10 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
 
   const theme = props.theme ?? 'system'
   const wheelZoom = props.wheelZoom !== false
-  const height = autoHeight ? (shape?.height ?? PENDING_HEIGHT) : undefined
+  if (autoHeight && shape?.height !== undefined) keepHeight(graph, props.autoHeight, shape.height)
+  const height = autoHeight
+    ? (shape?.height ?? lastHeight(graph, props.autoHeight) ?? PENDING_HEIGHT)
+    : undefined
   // React Flow needs a sized parent: wait until the pane has its size (with `autoHeight`, the
   // one the graph asked for), so the first view is not fitted to a pane about to change.
   const sized =

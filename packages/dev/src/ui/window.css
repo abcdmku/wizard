@@ -1,0 +1,74 @@
+/* The top bar as a window title bar: three working dots at its start, Full screen at its end. */
+.dots {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-right: 6px;
+}
+.dots button {
+  display: grid;
+  width: 12px;
+  height: 12px;
+  min-height: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #ff5f57;
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.2);
+  padding: 0;
+  cursor: pointer;
+}
+.dots button[data-dot="min"] {
+  background: #febc2e;
+}
+.dots button[data-dot="full"] {
+  background: #28c840;
+}
+.dots svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  opacity: 0;
+  stroke: rgb(0 0 0 / 0.62);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.3;
+}
+.dots:hover svg,
+.dots:focus-within svg {
+  opacity: 1;
+}
+.dots button:active {
+  filter: brightness(0.82);
+}
+.dots button:focus-visible {
+  outline: 2px solid var(--strong);
+  outline-offset: 2px;
+}
+.window-full {
+  flex: none;
+}
+
+/* A narrow host with window buttons keeps its top bar, on a row of its own above the chips. */
+@container frame (max-width: 880px) {
+  .shell:has(.topbar[data-window]) {
+    grid-template: "top" 44px "side" auto "main" minmax(0, 1fr) / minmax(0, 1fr);
+  }
+  .topbar[data-window] {
+    padding: 0 12px 0 14px;
+  }
+  .topbar[data-window] .brand,
+  .topbar[data-window] .tag,
+  .topbar[data-window] .entry {
+    display: inline;
+  }
+  .topbar[data-window] .spacer {
+    display: block;
+  }
+}
+@container frame (max-width: 560px) {
+  .topbar[data-window] .tag,
+  .topbar[data-window] .entry {
+    display: none;
+  }
+}

@@ -2,8 +2,11 @@ import { type ReactElement, useEffect, useState } from 'react'
 import { useBackend, useServer } from './backend'
 import { useNav } from './nav'
 import { RunPage } from './run-page'
+import { useScroll } from './scheme'
 import { Side } from './side'
 import { runWord, wordTone } from './status-word'
+import { useWarmGraphs } from './warm'
+import { FullButton, useWindow, WindowDots } from './window-bar'
 import { WizardPage } from './wizard-page'
 
 /**
@@ -42,6 +45,7 @@ export function App(): ReactElement {
   const { catalog, runs } = server
   const wizards = catalog?.wizards ?? []
   const first = wizards[0]
+  const main = useWarmGraphs(wizards, useScroll())
   // With nothing chosen, show the first wizard.
   useEffect(() => {
     if (route.page === 'home' && first !== undefined) nav.go({ page: 'wizard', name: first.name })
@@ -50,13 +54,19 @@ export function App(): ReactElement {
   const wizard =
     route.page === 'wizard' ? wizards.find((item) => item.name === route.name) : undefined
   const { reload } = backend
-  // The docs embed has neither, and in a narrow frame the bar then takes no room at all.
-  const tools = backend.place === 'server' || reload !== undefined
+  // With no tools and no window buttons, the bar takes no room in a narrow frame.
+  const controls = useWindow()
+  const tools = backend.place === 'server' || reload !== undefined || controls !== undefined
 
   return (
     <div className="shell">
       {/* The shell's own rules. They can move into the list in portal.tsx; the order does not matter. */}
-      <header className="topbar" data-tools={tools || undefined}>
+      <header
+        className="topbar"
+        data-tools={tools || undefined}
+        data-window={controls === undefined ? undefined : ''}
+      >
+        {controls !== undefined && <WindowDots controls={controls} />}
         <strong className="brand">OpenWizard</strong>
         <span className="tag">dev</span>
         <span className="quiet entry" title={catalog?.entry}>
@@ -79,11 +89,12 @@ export function App(): ReactElement {
             Reload
           </button>
         )}
+        {controls !== undefined && <FullButton controls={controls} />}
       </header>
 
       <Side wizards={wizards} runs={runs} route={route} now={now} />
 
-      <main className="main">
+      <main ref={main} className="main">
         {catalog?.error !== undefined && (
           <pre className="load-error" role="alert">
             {catalog.error}

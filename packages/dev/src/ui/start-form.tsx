@@ -1,6 +1,6 @@
 import { type ReactElement, useId, useState } from 'react'
 import type { ActionResult, Schema, Services, WizardInfo } from '../wire'
-import { useBackend } from './backend'
+import { primeRun, useBackend } from './backend'
 import { ValueEditor } from './fields'
 import { Refusal, useJsonDraft } from './json'
 import { useNav } from './nav'
@@ -95,7 +95,9 @@ export function StartForm({ wizard }: { readonly wizard: WizardInfo }): ReactEle
     const started = await backend.start({ wizard: wizard.name, input: draft.value, services })
     setBusy(false)
     setResult(started)
-    if (started.ok && started.id !== undefined) nav.go({ page: 'run', id: started.id })
+    if (!started.ok || started.id === undefined) return
+    await primeRun(backend, started.id)
+    nav.go({ page: 'run', id: started.id })
   }
 
   return (

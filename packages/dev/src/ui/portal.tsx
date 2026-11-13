@@ -12,6 +12,8 @@ import { type Scheme, SchemeContext, type Scroll, ScrollContext } from './scheme
 import chromeCss from './shell.css?inline'
 import shellCss from './styles.css?inline'
 import tablesCss from './tables.css?inline'
+import windowCss from './window.css?inline'
+import { WindowContext, type WindowControls } from './window-bar'
 import wizardCss from './wizard.css?inline'
 
 const CSS = [
@@ -24,6 +26,7 @@ const CSS = [
   tablesCss,
   wizardCss,
   graphThemeCss,
+  windowCss,
 ].join('\n')
 
 /** `light`, `dark`, or `system` to follow the device. */
@@ -56,6 +59,8 @@ export function DevPortal(props: {
   readonly theme?: PortalTheme
   /** `inside`: the UI fills its element and scrolls. `page`: it grows and the page scrolls. */
   readonly scroll?: Scroll
+  /** Shows three window buttons and Full screen in the top bar, wired to these. */
+  readonly controls?: WindowControls
   readonly className?: string
   readonly style?: CSSProperties
 }): ReactElement {
@@ -77,11 +82,13 @@ export function DevPortal(props: {
             <div className="frame" data-theme={scheme} data-scroll={props.scroll ?? 'inside'}>
               <SchemeContext.Provider value={scheme}>
                 <ScrollContext.Provider value={props.scroll ?? 'inside'}>
-                  <BackendProvider value={props.backend}>
-                    <NavProvider value={hash ?? memory}>
-                      <App />
-                    </NavProvider>
-                  </BackendProvider>
+                  <WindowContext.Provider value={props.controls}>
+                    <BackendProvider value={props.backend}>
+                      <NavProvider value={hash ?? memory}>
+                        <App />
+                      </NavProvider>
+                    </BackendProvider>
+                  </WindowContext.Provider>
                 </ScrollContext.Provider>
               </SchemeContext.Provider>
             </div>

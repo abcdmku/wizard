@@ -56,6 +56,8 @@ Read the [devtools reference](https://abcdmku.github.io/wizard/reference/devtool
 | `Placement` | interface | Box of a laid-out node: absolute at the root, relative to its group inside a child wizard. | [src](../../packages/devtools/src/layout/elk.ts#L20) |
 | `Placements` | type | Placements by model key. | [src](../../packages/devtools/src/layout/elk.ts#L31) |
 | `Point` | interface | A point in flow coordinates (absolute, the same space as the root placements). | [src](../../packages/devtools/src/layout/elk.ts#L78) |
+| `prepareGraph` | function | Lays a graph out before a `<WizardGraph>` shows it. A graph that was prepared opens at its | [src](../../packages/devtools/src/graph/prepare.ts#L76) |
+| `PrepareGraphOptions` | interface | What `prepareGraph` needs to know about the `<WizardGraph>` that will draw the graph: the | [src](../../packages/devtools/src/graph/prepare.ts#L63) |
 | `ProjectedState` | interface | A projected (`ClientState`) state as the devtools read it: `status`, `current`, the exposed | [src](../../packages/devtools/src/types.ts#L158) |
 | `ProjectedStep` | interface | The projected step facts a `ClientState` carries for every step (`ClientStepState` base) plus | [src](../../packages/devtools/src/types.ts#L139) |
 | `ReplayState` | type | A (typed-erased) run state as `replay` returns it. | [src](../../packages/devtools/src/timeline/replay-window.ts#L18) |
@@ -72,7 +74,7 @@ Read the [devtools reference](https://abcdmku.github.io/wizard/reference/devtool
 | `StepStatusMap` | type | Statuses keyed by step key (`stepKey(path, id)`: the step id for the root wizard, | [src](../../packages/devtools/src/types.ts#L51) |
 | `Timeline` | function | Time travel over a run's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any | [src](../../packages/devtools/src/timeline/Timeline.tsx#L52) |
 | `TimelineProps` | interface | `<Timeline>` props: the run `source`; `context` (the input `wizard.create` received) lets the | [src](../../packages/devtools/src/timeline/Timeline.tsx#L33) |
-| `WizardGraph` | function | The static graph of a wizard, laid out with ELK (layers running right or down, picked for the | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L161) |
-| `WizardGraphProps` | interface | `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L58) |
+| `WizardGraph` | function | The static graph of a wizard, laid out with ELK (layers running right or down, picked for the | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L150) |
+| `WizardGraphProps` | interface | `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L59) |
 
 <!-- exports:end -->
