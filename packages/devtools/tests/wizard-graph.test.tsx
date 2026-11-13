@@ -58,7 +58,9 @@ describe('<WizardGraph>', () => {
       'waiting on you',
     )
     expect(cardOf(container, 'ingest')?.dataset.status).toBe('idle')
-    expect(cardOf(container, 'ingest')?.querySelector('.owd-node-status')).toBeNull()
+    expect(cardOf(container, 'ingest')?.querySelector('.owd-node-status')?.textContent).toBe(
+      'blocked',
+    )
     expect(cardOf(container, 'gate')?.dataset.status).toBeUndefined()
 
     rerender(
@@ -127,5 +129,36 @@ describe('<WizardGraph>', () => {
     expect(seen.at(-1)).toEqual({ id: 'gate', path: [], key: 'gate' })
     const link = container.querySelector('.react-flow__attribution a')
     expect(link?.getAttribute('tabindex')).toBe('-1')
+  })
+
+  it('rings a step a person must answer while it is undoing, and says `not run` once the run ended', async () => {
+    const { container, rerender } = render(
+      <WizardGraph
+        graph={graph}
+        statuses={{ form: { status: 'compensating', phase: 'compensating' } }}
+        attention={['form']}
+      />,
+    )
+    await waitFor(() =>
+      expect(cardOf(container, 'form')?.querySelector('.owd-node-status')?.textContent).toBe(
+        'undoing',
+      ),
+    )
+    expect(cardOf(container, 'form')?.dataset.attention).toBe('true')
+    rerender(
+      <WizardGraph
+        graph={graph}
+        statuses={{ form: { status: 'compensated' }, ingest: { status: 'idle' } }}
+        ended
+        attribution={false}
+      />,
+    )
+    await waitFor(() =>
+      expect(cardOf(container, 'ingest')?.querySelector('.owd-node-status')?.textContent).toBe(
+        'not run',
+      ),
+    )
+    expect(cardOf(container, 'form')?.dataset.attention).toBeUndefined()
+    expect(container.querySelector('.react-flow__attribution')).toBeNull()
   })
 })

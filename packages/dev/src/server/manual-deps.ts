@@ -42,12 +42,22 @@ function printable(value: unknown): unknown {
   return walk(value)
 }
 
+/** Told when a call opens and when it is answered, before `onChange`. */
+export interface CallWatch {
+  called(id: string): void
+  settled(id: string): void
+}
+
 /**
  * Stand-in services for a run with no real ones. `deps.orders.find('o-1')` records a call named
  * `orders.find` and returns a promise the UI settles. `real` supplies the services that exist;
- * only the missing ones wait.
+ * only the missing ones wait. `watch` hears of each call as it opens and as it is answered.
  */
-export function createManualDeps(onChange: () => void, real: object = {}): ManualDeps {
+export function createManualDeps(
+  onChange: () => void,
+  real: object = {},
+  watch?: CallWatch,
+): ManualDeps {
   const open = new Map<string, Open>()
   let nextId = 1
 
@@ -55,6 +65,7 @@ export function createManualDeps(onChange: () => void, real: object = {}): Manua
     new Promise((settle, fail) => {
       const id = `call-${nextId++}`
       open.set(id, { id, name, args: args.map(printable), settle, fail })
+      watch?.called(id)
       onChange()
     })
 
@@ -78,7 +89,10 @@ export function createManualDeps(onChange: () => void, real: object = {}): Manua
 
   const take = (id: string): Open | undefined => {
     const entry = open.get(id)
-    if (entry !== undefined) open.delete(id)
+    if (entry !== undefined) {
+      open.delete(id)
+      watch?.settled(id)
+    }
     return entry
   }
 

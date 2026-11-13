@@ -6,10 +6,21 @@
 
 import { useReactFlow, useStore } from '@xyflow/react'
 import { useEffect } from 'react'
-import { motion } from './Follow'
+import { motion, PAD } from './Follow'
 
-/** Room kept between a focused step and the edge of the pane. */
-const MARGIN = 24
+/**
+ * Room kept between a focused step and the edge of the pane: less than the padding of a fitted
+ * graph, so a step that shows whole is never moved.
+ */
+const MARGIN = Math.min(PAD.left, PAD.right, PAD.bottom) - 4
+
+/** How far to move the view along one axis so `[start, end]` lies inside `[0, size]`. */
+export function overflow(start: number, end: number, size: number, margin: number): number {
+  if (end - start > size - 2 * margin) return margin - start
+  if (start < margin) return margin - start
+  if (end > size - margin) return size - margin - end
+  return 0
+}
 
 function nodeIdOf(target: EventTarget | null): string | undefined {
   if (!(target instanceof HTMLElement) || !target.classList.contains('react-flow__node'))
@@ -36,13 +47,11 @@ export function Keyboard({ onSelect }: { readonly onSelect: (id: string) => void
       const h = Math.min(node.measured.height ?? 0, height / zoom - 2 * MARGIN)
       const x0 = p.x * zoom + x
       const y0 = p.y * zoom + y
-      const inside =
-        x0 >= MARGIN &&
-        y0 >= MARGIN &&
-        x0 + w * zoom <= width - MARGIN &&
-        y0 + h * zoom <= height - MARGIN
-      if (inside) return
-      void flow.setCenter(p.x + w / 2, p.y + h / 2, { zoom, duration: motion(200) })
+      const dx = overflow(x0, x0 + w * zoom, width, MARGIN)
+      const dy = overflow(y0, y0 + h * zoom, height, MARGIN)
+      if (dx === 0 && dy === 0) return
+      // Move only by what is out of view, so the rest of the graph stays where it was.
+      void flow.setViewport({ x: x + dx, y: y + dy, zoom }, { duration: motion(200) })
     }
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Enter' && event.key !== ' ') return

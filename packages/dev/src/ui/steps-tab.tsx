@@ -56,9 +56,7 @@ export function Steps({ wizard }: { readonly wizard: WizardInfo }): ReactElement
               <span className="wz-role">{roleOf(node)}</span>
               {node.start === true && <span className="wz-role wz-first">starts first</span>}
             </div>
-            <p className={node.description === undefined ? 'quiet' : undefined}>
-              {node.description ?? 'No description.'}
-            </p>
+            {node.description !== undefined && <p>{node.description}</p>}
             {tags.length > 0 && (
               <ul className="wz-tags" aria-label="Needs and options">
                 {tags.map((tag) => (

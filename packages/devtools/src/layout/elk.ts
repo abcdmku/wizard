@@ -91,15 +91,15 @@ export interface EdgeRoute {
 }
 
 /** Height and padding of an edge label as the graph draws it, for the room ELK leaves. */
-const LABEL_HEIGHT = 16
-const LABEL_CHAR = 5.8
+const LABEL_HEIGHT = 20
+const LABEL_CHAR = 8
 const LABEL_PAD = 10
 
 function rootOptions(direction: LayoutDirection): Record<string, string> {
   return {
     'elk.algorithm': 'layered',
     'elk.direction': direction === 'down' ? 'DOWN' : 'RIGHT',
-    'elk.layered.spacing.nodeNodeBetweenLayers': direction === 'down' ? '32' : '40',
+    'elk.layered.spacing.nodeNodeBetweenLayers': direction === 'down' ? '28' : '40',
     'elk.spacing.nodeNode': direction === 'down' ? '24' : '18',
     'elk.spacing.edgeNode': '14',
     'elk.spacing.edgeEdge': '10',

@@ -44,6 +44,7 @@ import {
 } from './to-react-flow'
 import { useGraphLayout } from './use-graph-layout'
 import { usePaneSize } from './use-pane-size'
+import { WheelZoom } from './WheelZoom'
 
 /**
  * `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay
@@ -85,11 +86,22 @@ export interface WizardGraphProps extends GraphInput {
   readonly autoHeight?: GraphAutoHeight
   /**
    * Keys (`stepKey(path, id)`) of the steps that wait on a person, such as a form to fill in or a
-   * service call to answer by hand. Each of them shows `waiting on you`, whatever its engine
-   * status. When omitted, a form step that waits for input shows `waiting on you` and every
-   * other waiting step shows `waiting`.
+   * service call to answer by hand. Each of them shows `waiting on you` while it runs or waits,
+   * and a ring when it is undoing, done or failed, since those keep their own word. When
+   * omitted, a form step that waits for input shows `waiting on you` and every other waiting
+   * step shows `waiting`.
    */
   readonly attention?: readonly string[]
+  /**
+   * The run has ended (done, failed, cancelled or undone). A step it never started then shows
+   * `not run` instead of `blocked`. Default `false`.
+   */
+  readonly ended?: boolean
+  /**
+   * Show the small React Flow link in the corner (default `true`). Pass `false` only when you
+   * credit React Flow elsewhere.
+   */
+  readonly attribution?: boolean
   /**
    * Zoom with the mouse wheel (default `true`). Pass `false` for a graph inside a scrolling
    * page: the wheel then scrolls the page, and pinch or Ctrl with the wheel still zooms.
@@ -109,6 +121,10 @@ const EMPTY_STATUSES: StepStatusMap = {}
 const BOTH: readonly LayoutDirection[] = ['right', 'down']
 const RIGHT: readonly LayoutDirection[] = ['right']
 const DOWN: readonly LayoutDirection[] = ['down']
+/** The height of a graph that sets its own while its layout is worked out. */
+const PENDING_HEIGHT = 160
+/** How far the measured pane may be from the height asked for (`usePaneSize` rounds to 8px). */
+const SIZE_GRAIN = 8
 
 /**
  * The static graph of a wizard, laid out with ELK (layers running right or down, picked for the
@@ -158,8 +174,9 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
       current: props.activeStep ?? null,
       selected,
       ...(attention === undefined ? {} : { attention }),
+      ended: props.ended === true,
     }),
-    [props.statuses, props.activeStep, selected, attention],
+    [props.statuses, props.activeStep, selected, attention, props.ended],
   )
   const [nodes, setNodes, onNodesChange] = useNodesState<DevtoolsNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<DevtoolsEdge>([])
@@ -219,6 +236,14 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
 
   const theme = props.theme ?? 'system'
   const wheelZoom = props.wheelZoom !== false
+  const height = autoHeight ? (shape?.height ?? PENDING_HEIGHT) : undefined
+  // React Flow needs a sized parent: wait until the pane has its size (with `autoHeight`, the
+  // one the graph asked for), so the first view is not fitted to a pane about to change.
+  const sized =
+    pane.width > 0 &&
+    pane.height > 0 &&
+    (!autoHeight ||
+      (shape?.height !== undefined && Math.abs(pane.height - shape.height) <= SIZE_GRAIN))
   const toolbar = (
     <>
       <span className="owd-title">
@@ -249,48 +274,48 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
       data-theme={theme === 'system' ? undefined : theme}
       data-direction={direction}
       data-auto-height={autoHeight ? '' : undefined}
-      style={
-        autoHeight && shape?.height !== undefined
-          ? { ...props.style, height: shape.height }
-          : props.style
-      }
+      style={height === undefined ? props.style : { ...props.style, height }}
     >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
-        nodeTypes={NODE_TYPES}
-        edgeTypes={EDGE_TYPES}
-        colorMode={theme}
-        fitView
-        fitViewOptions={{ padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM }}
-        minZoom={0.1}
-        zoomOnScroll={wheelZoom}
-        preventScrolling={wheelZoom}
-        autoPanOnNodeFocus={false}
-        nodesConnectable={false}
-        elementsSelectable
-        deleteKeyCode={null}
-        className="owd-canvas"
-      >
-        {props.follow === true && (
-          <Follow statuses={overlay.statuses} direction={direction} revision={revision} />
-        )}
-        <Keyboard onSelect={onNodeKey} />
-        <Background gap={24} />
-        <Controls
-          showInteractive={false}
-          position="top-right"
-          orientation="horizontal"
-          className="owd-controls"
+      {sized && (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          nodeTypes={NODE_TYPES}
+          edgeTypes={EDGE_TYPES}
+          colorMode={theme}
+          fitView
           fitViewOptions={{ padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM }}
-        />
-        {props.minimap !== false && <MiniMap pannable zoomable className="owd-minimap" />}
-        <EdgeHints toolbar={toolbar} />
-      </ReactFlow>
+          minZoom={0.1}
+          zoomOnScroll={wheelZoom}
+          preventScrolling={wheelZoom}
+          autoPanOnNodeFocus={false}
+          nodesConnectable={false}
+          elementsSelectable
+          deleteKeyCode={null}
+          proOptions={{ hideAttribution: props.attribution === false }}
+          className="owd-canvas"
+        >
+          {props.follow === true && (
+            <Follow statuses={overlay.statuses} direction={direction} revision={revision} />
+          )}
+          <Keyboard onSelect={onNodeKey} />
+          <WheelZoom />
+          <Background gap={24} />
+          <Controls
+            showInteractive={false}
+            position="top-right"
+            orientation="horizontal"
+            className="owd-controls"
+            fitViewOptions={{ padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM }}
+          />
+          {props.minimap !== false && <MiniMap pannable zoomable className="owd-minimap" />}
+          <EdgeHints toolbar={toolbar} />
+        </ReactFlow>
+      )}
     </div>
   )
 }

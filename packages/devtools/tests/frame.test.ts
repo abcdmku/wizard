@@ -4,6 +4,7 @@
  */
 import { expect, it } from 'vitest'
 import { chooseLayout } from '../src/graph/direction'
+import { MAX_FIT_ZOOM, READABLE_ZOOM } from '../src/graph/Follow'
 import { type Box, frameView } from '../src/graph/frame'
 import type { LayoutResult } from '../src/layout/elk'
 import { pickHandles } from '../src/layout/handles'
@@ -92,6 +93,12 @@ it('draws one line per pair of steps, keeping the control edge and a renamed nee
   expect(drawnEdges([edge('route', 'route'), edge('needs', 'needs input')])).toEqual([
     { ...edge('route'), label: 'needs input' },
   ])
+  // A timeout line that is also an optional need says both, so it is not read as timeout only.
+  expect(drawnEdges([edge('timeout', 'timeout 2d'), edge('needs', 'needs by (optional)')])).toEqual(
+    [{ ...edge('timeout'), label: 'needs by (optional) · timeout 2d' }],
+  )
+  // A need on any one of several steps is marked on the step that joins them, not on the line.
+  expect(drawnEdges([edge('needs', 'needs owner (any)')])).toEqual([edge('needs')])
 })
 
 it('lays a long, thin graph down the page in a narrow pane and across in a wide one', () => {
@@ -121,13 +128,47 @@ it('with autoHeight, asks for the height that shows the whole graph, within its 
   })
   const roots = new Set(['a'])
   const short = { right: layout('right', 400, 46), down: layout('down', 160, 300) }
+  // A short chain gets only the room it needs: one row of cards at the largest zoom.
   expect(chooseLayout('auto', short, { width: 700, height: 0 }, roots, true)).toEqual({
     direction: 'right',
-    height: 200,
+    height: 120,
   })
+  expect(
+    chooseLayout('auto', short, { width: 700, height: 0 }, roots, { min: 60, max: 400 }),
+  ).toEqual({ direction: 'right', height: Math.round(46 * MAX_FIT_ZOOM + 64) })
   const tall = { right: layout('right', 1400, 300), down: layout('down', 360, 380) }
   const shape = chooseLayout('auto', tall, { width: 700, height: 0 }, roots, { min: 200, max: 600 })
-  expect(shape).toEqual({ direction: 'down', height: 380 + 64 })
+  expect(shape).toEqual({ direction: 'down', height: Math.round(380 * MAX_FIT_ZOOM + 64) })
+})
+
+it('lays out a graph of several rows down when both directions draw it as large', () => {
+  const layout = (direction: 'right' | 'down', width: number, height: number): LayoutResult => ({
+    direction,
+    placements: { a: { x: 0, y: 0, width, height } },
+    routes: {},
+    backEdges: new Set(),
+    isolated: new Set(),
+  })
+  const roots = new Set(['a'])
+  // Two parallel steps and a join: as large either way in a wide pane.
+  const join = { right: layout('right', 436, 122), down: layout('down', 360, 180) }
+  expect(chooseLayout('auto', join, { width: 700, height: 0 }, roots, true).direction).toBe('down')
+})
+
+it('shows the whole graph in a narrow pane, however small that draws it', () => {
+  const layout = (direction: 'right' | 'down', width: number, height: number): LayoutResult => ({
+    direction,
+    placements: { a: { x: 0, y: 0, width, height } },
+    routes: {},
+    backEdges: new Set(),
+    isolated: new Set(),
+  })
+  const roots = new Set(['a'])
+  const wide = { right: layout('right', 850, 170), down: layout('down', 490, 350) }
+  const shape = chooseLayout('auto', wide, { width: 310, height: 0 }, roots, { min: 120, max: 480 })
+  const zoom = (310 - 40) / 490
+  expect(zoom).toBeLessThan(READABLE_ZOOM)
+  expect(shape).toEqual({ direction: 'down', height: Math.round(350 * zoom + 64) })
 })
 
 it('keeps whole steps across the layers too, when a layer is wider than the pane', () => {

@@ -1,14 +1,24 @@
 import type { AnyWizardDefinition, RunEvent } from '@openwizard/core'
 import type { Action, ActionResult, RunDetail, RunSummary, Services, StartRequest } from '../wire'
+import { type CallerTracker, createCallerTracker } from './callers'
 import type { AnyRun } from './children'
 import { createDevClock, type DevClock } from './clock'
 import { createManualDeps, type ManualDeps } from './manual-deps'
-import { forPerson, pendingOf, timerOf } from './pending'
+import { forPerson, pendingOf, retryingOf, timerOf } from './pending'
 import { perform } from './perform'
 import type { Loaded, Registry } from './registry'
 
 /** How many events a run keeps for the history table. */
 const MAX_EVENTS = 5_000
+
+/** Run statuses after which nothing waits on a person. */
+const ENDED = new Set(['done', 'failed', 'cancelled'])
+
+/**
+ * The type of the event the store adds to a run's history when a person restarts it from its
+ * snapshot. The engine's own events never use the `dev.` prefix.
+ */
+export const RESTARTED = 'dev.restarted'
 
 /** One run the dev server holds in memory. */
 export interface Held {
@@ -20,6 +30,8 @@ export interface Held {
   readonly services: Services
   readonly clock: DevClock
   readonly manual: ManualDeps
+  /** Which step made each open service call. */
+  readonly callers: CallerTracker
   readonly events: RunEvent<AnyWizardDefinition>[]
   readonly createdAt: number
   updatedAt: number
@@ -57,15 +69,18 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
 
   const summary = (item: Held): RunSummary => {
     const current = registry().find(item.loaded.info.name)
+    const status = item.run.getState().status
     return {
       id: item.id,
       wizard: item.loaded.info.name,
-      status: item.run.getState().status,
+      status,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       services: item.services,
       stale: current?.info.manifest.fingerprint !== item.loaded.info.manifest.fingerprint,
-      waiting: pendingOf(item).filter(forPerson).length,
+      // A call left open when the run ended no longer counts: nothing can act on it.
+      waiting: ENDED.has(status) ? 0 : pendingOf(item).filter(forPerson).length,
+      retrying: !ENDED.has(status) && retryingOf(item),
     }
   }
 
@@ -95,7 +110,12 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
         onChange(item.id)
       }
       const clock = createDevClock(touch)
-      const manual = createManualDeps(touch, services === 'real' ? loaded.dev.deps : undefined)
+      const callers = createCallerTracker()
+      const manual = createManualDeps(
+        touch,
+        services === 'real' ? loaded.dev.deps : undefined,
+        callers,
+      )
       const options = { deps: manual.deps, clock, scheduler: clock }
       let run: AnyRun
       try {
@@ -108,6 +128,7 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
       const follow = (live: AnyRun) => [
         live.subscribe(touch),
         live.observe((event) => {
+          callers.observe(event as Parameters<CallerTracker['observe']>[0])
           events.push(event)
           if (events.length > MAX_EVENTS) events.shift()
           touch()
@@ -126,6 +147,7 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
         services,
         clock,
         manual,
+        callers,
         events,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -137,6 +159,14 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
           current.run.dispose()
           manual.dispose()
           clock.dispose()
+          callers.reset()
+          // The history keeps one line for the restart, where it happened in time.
+          const last = events[events.length - 1]
+          events.push({
+            type: RESTARTED,
+            seq: (last?.seq ?? 0) + 1,
+            at: clock.now(),
+          } as unknown as RunEvent<AnyWizardDefinition>)
           try {
             current.run = (loaded.dev.wizard.resume as unknown as Resume)(snapshot, options)
           } catch (error) {

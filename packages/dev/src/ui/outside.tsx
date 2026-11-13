@@ -15,6 +15,14 @@ const fields = (schema: Schema | undefined): string => {
   return names.length === 0 ? '' : `${names.length === 1 ? 'field' : 'fields'}: ${names.join(', ')}`
 }
 
+/** `Back office sends { by }`, or the fields alone when the dev config names no sender. */
+const sends = (from: string | undefined, schema: Schema | undefined): string => {
+  const properties = (schema as { properties?: Record<string, unknown> } | undefined)?.properties
+  const names = properties === undefined ? [] : Object.keys(properties)
+  if (from === undefined) return fields(schema)
+  return names.length === 0 ? `${from} sends it` : `${from} sends { ${names.join(', ')} }`
+}
+
 /** `5 min`, `48 h`, `1 s` or `250 ms`. */
 export const duration = (ms: number): string => {
   if (ms % 3_600_000 === 0) return `${ms / 3_600_000} h`
@@ -39,12 +47,7 @@ export function rowsOf(wizard: WizardInfo): readonly Row[] {
         origin?.source === 'webhook' ? 'webhook' : origin?.source === 'queue' ? 'queue' : 'event',
       name,
       steps: waiting.join(', '),
-      detail: [
-        origin?.from === undefined ? '' : `from ${origin.from}`,
-        fields(schemas.events[name]),
-      ]
-        .filter((part) => part !== '')
-        .join(' · '),
+      detail: sends(origin?.from, schemas.events[name]),
     })
   }
   for (const node of nodes) {

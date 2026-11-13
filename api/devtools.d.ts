@@ -343,7 +343,8 @@ declare function layoutGraph(model: GraphModel, engine?: LayoutEngine, options?:
 type GraphDirection = LayoutDirection | 'auto';
 /**
  * Lets `<WizardGraph>` set its own height to fit the graph, between `min` and `max` pixels.
- * `true` means 200 to 480, never more than 70% of the window.
+ * `true` means 120 to 480, never more than 70% of the window. A graph shorter than `max`
+ * gets only the height it needs, down to `min`.
  * @public
  */
 type GraphAutoHeight = boolean | {
@@ -392,11 +393,22 @@ interface WizardGraphProps extends GraphInput {
   readonly autoHeight?: GraphAutoHeight;
   /**
    * Keys (`stepKey(path, id)`) of the steps that wait on a person, such as a form to fill in or a
-   * service call to answer by hand. Each of them shows `waiting on you`, whatever its engine
-   * status. When omitted, a form step that waits for input shows `waiting on you` and every
-   * other waiting step shows `waiting`.
+   * service call to answer by hand. Each of them shows `waiting on you` while it runs or waits,
+   * and a ring when it is undoing, done or failed, since those keep their own word. When
+   * omitted, a form step that waits for input shows `waiting on you` and every other waiting
+   * step shows `waiting`.
    */
   readonly attention?: readonly string[];
+  /**
+   * The run has ended (done, failed, cancelled or undone). A step it never started then shows
+   * `not run` instead of `blocked`. Default `false`.
+   */
+  readonly ended?: boolean;
+  /**
+   * Show the small React Flow link in the corner (default `true`). Pass `false` only when you
+   * credit React Flow elsewhere.
+   */
+  readonly attribution?: boolean;
   /**
    * Zoom with the mouse wheel (default `true`). Pass `false` for a graph inside a scrolling
    * page: the wheel then scrolls the page, and pinch or Ctrl with the wheel still zooms.

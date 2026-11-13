@@ -12,8 +12,12 @@ export type LooseEvent = {
   readonly step?: string
 } & Readonly<Record<string, unknown>>
 
-/** How a row is marked: the colour of its dot. */
-export type Tone = 'good' | 'bad' | 'warn' | 'info' | 'plain'
+/**
+ * How a row is marked: the colour of its dot, the same colour the status words use. `good` is
+ * done, `bad` failed, `warn` waiting or retrying, `info` running, `undo` undoing or undone, and
+ * `plain` skipped, cancelled and everything else.
+ */
+export type Tone = 'good' | 'bad' | 'warn' | 'info' | 'undo' | 'plain'
 
 /** One row of the history: who it is about and what happened. */
 export interface Line {
@@ -39,7 +43,7 @@ const issues = (value: unknown): string =>
 const names = (value: unknown): string =>
   Array.isArray(value) ? value.join(', ') : (str(value) ?? 'nothing')
 
-/** `0.8s`, `12s`, `4m 05s` or `2h 03m`, for a span in milliseconds. */
+/** `0.8s`, `12s`, `4m 05s`, `48h 00m` or `3d 2h`, for a span in milliseconds. */
 export function elapsed(ms: number): string {
   const safe = Math.max(0, ms)
   if (safe < 10_000) return `${(safe / 1000).toFixed(1)}s`
@@ -47,7 +51,8 @@ export function elapsed(ms: number): string {
   if (seconds < 60) return `${seconds}s`
   const pad = (value: number) => String(value).padStart(2, '0')
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${pad(seconds % 60)}s`
-  if (seconds < 86_400)
+  // Hours run up to 72, so a 48 hour timeout reads `48h 00m`, as a wizard declares it.
+  if (seconds < 259_200)
     return `${Math.floor(seconds / 3600)}h ${pad(Math.floor(seconds / 60) % 60)}m`
   return `${Math.floor(seconds / 86_400)}d ${Math.floor(seconds / 3600) % 24}h`
 }
@@ -103,7 +108,10 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
     case 'run.started':
       return run(`Run started at ${str(e.start) ?? 'its first step'}`, 'info')
     case 'run.done':
-      return run('Run finished', 'good')
+      // A child's end shows once, as the line of the step that runs it: "shipping finished".
+      return owner === undefined
+        ? run('Run finished', 'good')
+        : { ...run('Run finished', 'good'), story: false }
     case 'run.failed':
       return run(`Run failed: ${message(e.error)}`, 'bad')
     case 'run.halted':
@@ -112,17 +120,19 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
         'bad',
       )
     case 'run.cancelled':
-      return run(`Run cancelled${str(e.reason) === undefined ? '' : `: ${str(e.reason)}`}`, 'bad')
+      return run(`Run cancelled${str(e.reason) === undefined ? '' : `: ${str(e.reason)}`}`, 'plain')
+    case 'dev.restarted':
+      return run('Restarted from snapshot: the run was stopped and resumed', 'info')
     case 'run.resumed':
       return run('Run resumed from its snapshot', 'info')
     case 'run.reset':
       return run('Run reset', 'info')
     case 'run.compensating':
-      return run(`Undoing finished steps: ${names(e.plan)}`, 'warn')
+      return run(`Undoing finished steps: ${names(e.plan)}`, 'undo')
     case 'run.compensated':
       return Array.isArray(e.failures) && e.failures.length > 0
         ? run(`Undo finished with failures: ${names(e.failures)}`, 'bad')
-        : run('Undo finished', 'good')
+        : run('Undo finished', 'undo')
     case 'step.entered':
       if (next !== undefined && (WORK.has(next.type) || settledAt(e, next))) return quiet('entered')
       return line('started waiting', 'warn')
@@ -153,7 +163,7 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
     case 'step.validationFailed':
       return line(`form refused${issues(e.issues)}`, 'bad')
     case 'step.cancelled':
-      return line('was cancelled', 'bad')
+      return line('was cancelled')
     case 'step.invalidated':
       return line('was reset and will run again', 'info')
     case 'step.guardEvaluated':
@@ -161,9 +171,9 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
         ? quiet(`${str(e.hook)} allowed`)
         : line(`was blocked by ${str(e.hook)}`, 'bad')
     case 'step.compensationStarted':
-      return line('is being undone', 'warn')
+      return line('is being undone', 'undo')
     case 'step.compensated':
-      return line('was undone', 'good')
+      return line('was undone', 'undo')
     case 'step.compensationFailed':
       return line(`could not be undone: ${message(e.error)}`, 'bad')
     case 'step.eachStarted':
@@ -177,7 +187,11 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
     case 'child.summary': {
       const summary = e.summary as { status?: unknown } | undefined
       const status = str(summary?.status) ?? 'changed'
-      return line(`child run ${status}`, status === 'done' ? 'good' : 'plain', status !== 'running')
+      return line(
+        `child run ${status}`,
+        status === 'done' ? 'good' : 'plain',
+        status !== 'running' && status !== 'done',
+      )
     }
     case 'event.delivered':
       return {

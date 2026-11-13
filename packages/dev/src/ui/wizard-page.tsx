@@ -35,7 +35,7 @@ function Runs({ runs }: { readonly runs: readonly RunSummary[] }): ReactElement 
             onClick={() => nav.go({ page: 'run', id: run.id })}
           >
             <td>
-              <Status status={run.status} waiting={run.waiting} />
+              <Status status={run.status} waiting={run.waiting} retrying={run.retrying} />
             </td>
             <td>
               <Go to={{ page: 'run', id: run.id }}>
@@ -132,6 +132,7 @@ export function WizardPage(props: {
           minimap={false}
           follow
           autoHeight
+          attribution={false}
           wheelZoom={false}
           theme={scheme}
         />

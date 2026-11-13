@@ -32,7 +32,7 @@ export function CallCard(props: {
       note={
         <>
           {caller === undefined ? (
-            'The run'
+            'A running step'
           ) : item.undo === true ? (
             <>
               The undo hook of <code>{caller}</code>
@@ -48,8 +48,8 @@ export function CallCard(props: {
         </>
       }
       title={
-        <code>
-          {item.name}({item.args.map((arg) => brief(arg, 40)).join(', ')})
+        <code title={`${item.name}(${item.args.map((arg) => JSON.stringify(arg)).join(', ')})`}>
+          {item.name}({item.args.map((arg) => brief(arg, 160)).join(', ')})
         </code>
       }
       code={`const reply = await ${call}\n// Return resolves this promise with the value.\n// Throw rejects it with an Error.`}

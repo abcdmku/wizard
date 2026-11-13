@@ -85,8 +85,7 @@ it('names the child run an event belongs to and tells a child status once', () =
     'shipping run started at street',
     'shipping child run waiting',
     'shipping / street form submitted',
-    'shipping run finished',
-    'shipping child run done',
+    // The child's end shows once, as the line of the step that runs it (step.done, not here).
     'Run finished',
   ])
 })
@@ -110,5 +109,23 @@ it('says a refused form once', () => {
   ])
   expect(told.filter((line) => line.story).map((line) => line.text)).toEqual([
     'form refused: Invalid email address',
+  ])
+})
+
+it('tells a child run finishing in one line and marks a restart where it happened', () => {
+  const told = lines([
+    event(1, 0, 'run.started', { start: 'shipping' }),
+    event(1, 10, 'run.done', { path: ['shipping'], output: {} }),
+    event(2, 10, 'child.summary', { step: 'shipping', summary: { status: 'done' } }),
+    event(3, 10, 'step.done', { step: 'shipping', output: {}, durationMs: 10 }),
+    event(4, 20, 'dev.restarted'),
+  ])
+  const story = told
+    .filter((line) => line.story)
+    .map((line) => [line.step?.join(' / '), line.text].filter(Boolean).join(' '))
+  expect(story).toEqual([
+    'Run started at shipping',
+    'shipping finished',
+    'Restarted from snapshot: the run was stopped and resumed',
   ])
 })

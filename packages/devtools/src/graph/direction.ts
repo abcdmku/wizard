@@ -1,12 +1,14 @@
 /**
- * Which way to lay a graph out in `auto` mode: the direction that draws it larger in the pane
- * it has, so a wide pane gets layers running right and a narrow or tall one layers running down.
+ * Which way to lay a graph out in `auto` mode. Layers run down unless running them right draws
+ * the graph clearly larger, or the graph is a single row (a short chain) that fits as well
+ * across, so wizards of the same shape look alike from page to page.
  *
  * @packageDocumentation
  */
 
 import type { LayoutDirection, LayoutResult } from '../layout/elk'
-import { fitZoom, MAX_FIT_ZOOM, PAD, READABLE_ZOOM } from './Follow'
+import { STEP_HEIGHT } from '../layout/model'
+import { fitZoom, isNarrow, MAX_FIT_ZOOM, PAD, READABLE_ZOOM } from './Follow'
 
 /**
  * Which way the layers of `<WizardGraph>` run: `right`, `down`, or `auto` to pick the one that
@@ -15,8 +17,14 @@ import { fitZoom, MAX_FIT_ZOOM, PAD, READABLE_ZOOM } from './Follow'
  */
 export type GraphDirection = LayoutDirection | 'auto'
 
-/** Down wins only when it draws the graph clearly larger, so a near tie keeps the usual right. */
+/** Right wins a multi-row graph only when it draws it clearly larger. */
 const MARGIN = 1.08
+
+/** Zooms this close count as the same: the pane height is rounded to whole pixels. */
+const TIE = 0.98
+
+/** A layout no taller than this, laid out right, is one row of cards (labels included). */
+const ONE_ROW = STEP_HEIGHT + 32
 
 /** The size of the root nodes (`roots`: keys of nodes outside any group) of a layout. */
 function extent(
@@ -41,7 +49,8 @@ function extent(
 
 /**
  * Lets `<WizardGraph>` set its own height to fit the graph, between `min` and `max` pixels.
- * `true` means 200 to 480, never more than 70% of the window.
+ * `true` means 120 to 480, never more than 70% of the window. A graph shorter than `max`
+ * gets only the height it needs, down to `min`.
  * @public
  */
 export type GraphAutoHeight = boolean | { readonly min: number; readonly max: number }
@@ -52,7 +61,7 @@ export interface GraphShape {
   readonly height?: number
 }
 
-const DEFAULT_HEIGHT = { min: 200, max: 480 } as const
+const DEFAULT_HEIGHT = { min: 120, max: 480 } as const
 const WINDOW_SHARE = 0.7
 
 function bounds(autoHeight: GraphAutoHeight | undefined): { min: number; max: number } | undefined {
@@ -69,16 +78,17 @@ function sizeFor(
   roots: ReadonlySet<string>,
   pane: { readonly width: number; readonly height: number },
   range: { min: number; max: number } | undefined,
-): { zoom: number; height?: number } {
+): { zoom: number; row: boolean; height?: number } {
   const box = extent(layout, roots)
-  if (range === undefined) return { zoom: Math.min(MAX_FIT_ZOOM, fitZoom(box, pane)) }
+  const row = layout.direction === 'right' && box.height <= ONE_ROW
+  if (range === undefined) return { zoom: Math.min(MAX_FIT_ZOOM, fitZoom(box, pane)), row }
   const across = Math.min(MAX_FIT_ZOOM, fitZoom(box, { width: pane.width, height: 1e6 }))
   const padY = PAD.top + PAD.bottom
-  // Too wide to read whole: the view will follow the run, so give it the height to show every
-  // layer at a readable size.
-  const drawn = Math.max(across, READABLE_ZOOM)
+  // Too wide to read whole in a wide pane: the view will follow the run, so give it the height
+  // to show every layer at a readable size. A narrow pane shows the whole graph however small.
+  const drawn = isNarrow(pane.width) ? across : Math.max(across, READABLE_ZOOM)
   const height = Math.round(Math.min(range.max, Math.max(range.min, box.height * drawn + padY)))
-  return { zoom: Math.min(across, fitZoom(box, { width: pane.width, height })), height }
+  return { zoom: Math.min(across, fitZoom(box, { width: pane.width, height })), row, height }
 }
 
 /**
@@ -97,14 +107,23 @@ export function chooseLayout(
   const options = (['right', 'down'] as const).flatMap((direction) => {
     const layout = layouts[direction]
     if (layout === undefined || (asked !== 'auto' && asked !== direction)) return []
-    return [{ direction, ...(measured ? sizeFor(layout, roots, pane, range) : { zoom: 0 }) }]
+    return [
+      {
+        direction,
+        ...(measured ? sizeFor(layout, roots, pane, range) : { zoom: 0, row: false }),
+      },
+    ]
   })
   const [right, down] = [
     options.find((o) => o.direction === 'right'),
     options.find((o) => o.direction === 'down'),
   ]
-  const pick =
-    right === undefined || (down !== undefined && down.zoom > right.zoom * MARGIN) ? down : right
+  const across =
+    right !== undefined &&
+    (down === undefined ||
+      right.zoom > down.zoom * MARGIN ||
+      (right.row && right.zoom >= down.zoom * TIE && right.zoom > 0))
+  const pick = across ? right : down
   if (pick === undefined) return { direction: asked === 'down' ? 'down' : 'right' }
   return pick.height === undefined
     ? { direction: pick.direction }

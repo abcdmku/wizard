@@ -14,7 +14,12 @@ import { type StatusWord, statusWord } from './status-word'
 import type { GroupNode, StepNode, StepNodeData } from './to-react-flow'
 
 function wordOf(data: StepNodeData): StatusWord | undefined {
-  return statusWord(data.live, data.step, data.attention)
+  return statusWord(data.live, data.step, data.attention, data.ended)
+}
+
+/** The host says a person must act, and the word does not already say so. */
+function ringOf(data: StepNodeData, word: StatusWord | undefined): 'true' | undefined {
+  return data.attention === true && word?.tone !== 'attention' ? 'true' : undefined
 }
 
 /** The tooltip: id, label, description, status and every fact. */
@@ -24,6 +29,8 @@ function tooltipOf(data: StepNodeData, word: StatusWord | undefined): string {
   if (step.description !== undefined) lines.push(step.description)
   if (word !== undefined)
     lines.push(word.attempt === undefined ? word.title : `${word.title}, ${word.attempt}`)
+  if (ringOf(data, word) !== undefined) lines.push('A person has to act on this step')
+  if (data.anyOf.length > 0) lines.push(`Starts when any one of ${data.anyOf.join(', ')} finishes`)
   lines.push(...allFacts(step))
   if (data.warnings.length > 0) lines.push(`Warnings: ${data.warnings.join(', ')}`)
   return lines.join('\n')
@@ -63,11 +70,15 @@ function Row({
           {word.text}
         </span>
         {word.attempt !== undefined && (
-          <span className="owd-node-fact owd-node-attempt">{word.attempt}</span>
+          <span className="owd-node-fact owd-node-attempt" title={word.attempt}>
+            {word.attempt.replace(/^attempt /, '')}
+          </span>
         )}
       </div>
     )
-  const kind = kindWord(data.step)
+  const named = kindWord(data.step)
+  // A kind that repeats the step id (a `route` step called `route`) says nothing new.
+  const kind = named === data.step.id ? undefined : named
   const fact = mainFact(data.step)
   if (kind === undefined && fact === undefined) return null
   return (
@@ -82,6 +93,16 @@ function Row({
   )
 }
 
+/** One small tag at a join's input: the step starts when any one of the steps it needs is done. */
+function Join({ data }: { readonly data: StepNodeData }): ReactElement | null {
+  if (data.anyOf.length === 0) return null
+  return (
+    <span className="owd-join" aria-hidden="true">
+      any of
+    </span>
+  )
+}
+
 function StepNodeView({ data }: NodeProps<StepNode>): ReactElement {
   const word = wordOf(data)
   return (
@@ -93,12 +114,14 @@ function StepNodeView({ data }: NodeProps<StepNode>): ReactElement {
         data-status={data.live?.status}
         data-phase={data.live?.phase}
         data-tone={word?.tone}
+        data-attention={ringOf(data, word)}
         data-current={data.current ? 'true' : undefined}
         data-selected={data.selected ? 'true' : undefined}
       >
         <Head data={data} />
         <Row data={data} word={word} />
       </div>
+      <Join data={data} />
     </>
   )
 }
@@ -113,6 +136,7 @@ function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
         data-status={data.live?.status}
         data-phase={data.live?.phase}
         data-tone={word?.tone}
+        data-attention={ringOf(data, word)}
         data-selected={data.selected ? 'true' : undefined}
       >
         <div className="owd-group-head" title={tooltipOf(data, word)}>
@@ -120,6 +144,7 @@ function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
           <Row data={data} word={word} />
         </div>
       </div>
+      <Join data={data} />
     </>
   )
 }

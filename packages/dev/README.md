@@ -49,8 +49,8 @@ Read the [dev server guide](https://abcdmku.github.io/wizard/guide/dev).
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `Action` | type | What the UI can ask a run to do. | [src](../../packages/dev/src/wire.ts#L189) |
-| `ActionResult` | interface | The answer to an action. `issues` lists what a schema refused. | [src](../../packages/dev/src/wire.ts#L210) |
+| `Action` | type | What the UI can ask a run to do. | [src](../../packages/dev/src/wire.ts#L195) |
+| `ActionResult` | interface | The answer to an action. `issues` lists what a schema refused. | [src](../../packages/dev/src/wire.ts#L216) |
 | `Catalog` | interface | Everything the dev server loaded from the entry file, and the error when loading failed. | [src](../../packages/dev/src/wire.ts#L42) |
 | `defineDev` | function | Declares what `openwizard dev` shows. Export the result as the default export of the entry | [src](../../packages/dev/src/config.ts#L99) |
 | `DevConfig` | interface | What `defineDev` takes: the wizards the dev server shows. | [src](../../packages/dev/src/config.ts#L49) |
@@ -61,11 +61,11 @@ Read the [dev server guide](https://abcdmku.github.io/wizard/guide/dev).
 | `EventSource` | interface | Where an event comes from in production, so the UI can say what the run is waiting for: a | [src](../../packages/dev/src/config.ts#L11) |
 | `NextTimer` | interface | The run's next timer and what it is for. `retry` is the delay before a failed step tries | [src](../../packages/dev/src/wire.ts#L118) |
 | `Pending` | type | Something a run waits for that the UI can supply. | [src](../../packages/dev/src/wire.ts#L59) |
-| `RunDetail` | interface | Everything the UI shows for one run. | [src](../../packages/dev/src/wire.ts#L163) |
+| `RunDetail` | interface | Everything the UI shows for one run. | [src](../../packages/dev/src/wire.ts#L165) |
 | `RunSummary` | interface | One row of the run list. | [src](../../packages/dev/src/wire.ts#L142) |
 | `Services` | type | Who answers a service call: the `deps` from the dev config, or the person at the UI. | [src](../../packages/dev/src/wire.ts#L53) |
 | `startDevServer` | function | Starts the dev server: loads the entry file, serves the browser UI and the API it uses, and | [src](../../packages/dev/src/server/server.ts#L55) |
-| `StartRequest` | interface | What `POST /api/runs` accepts. | [src](../../packages/dev/src/wire.ts#L220) |
+| `StartRequest` | interface | What `POST /api/runs` accepts. | [src](../../packages/dev/src/wire.ts#L226) |
 | `WizardInfo` | interface | One wizard the dev server loaded: what `inspect` knows about it, the page `toMarkdown` | [src](../../packages/dev/src/wire.ts#L20) |
 
 <!-- exports:end -->

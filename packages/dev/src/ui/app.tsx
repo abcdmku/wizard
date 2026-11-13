@@ -8,15 +8,18 @@ import { WizardPage } from './wizard-page'
 
 /**
  * A coloured dot and the status of a run in the run page's words (`runWord`). Pass `waiting`,
- * the number of things a person supplies, so a run stopped on you reads `waiting on you`. Pass
+ * the number of things a person supplies, so a run stopped on you reads `waiting on you`, and
+ * `retrying`, so a run waiting out a retry delay reads `retrying`. Pass
  * `word` to show a word from `stepWord` instead.
  */
 export function Status(props: {
   readonly status?: string
   readonly waiting?: number
+  /** True while a step waits out a retry delay (`RunSummary.retrying`). */
+  readonly retrying?: boolean
   readonly word?: string
 }): ReactElement {
-  const word = props.word ?? runWord(props.status ?? '', props.waiting ?? 0)
+  const word = props.word ?? runWord(props.status ?? '', props.waiting ?? 0, props.retrying)
   return (
     <span className="status" data-status={wordTone(word)}>
       {word}

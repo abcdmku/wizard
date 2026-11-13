@@ -7,6 +7,7 @@ import graphThemeCss from './graph-theme.css?inline'
 import { NavProvider, type Route, useHashNav, useMemoryNav } from './nav'
 import pageCss from './page.css?inline'
 import runCss from './run.css?inline'
+import runHeadCss from './run-head.css?inline'
 import { type Scheme, SchemeContext } from './scheme'
 import chromeCss from './shell.css?inline'
 import shellCss from './styles.css?inline'
@@ -18,6 +19,7 @@ const CSS = [
   shellCss,
   chromeCss,
   pageCss,
+  runHeadCss,
   runCss,
   tablesCss,
   wizardCss,

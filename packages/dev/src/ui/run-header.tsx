@@ -14,6 +14,8 @@ import { ago, clock, runTag } from './format'
 import { Go, useNav } from './nav'
 
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
+/** How long the note after a restart stays. The fade in run.css lasts as long. */
+const NOTE_MS = 4000
 
 /** The wall clock, read again every few seconds so a relative time stays true. */
 function useNow(every = 10_000): number {
@@ -231,6 +233,22 @@ export function RunHeader({ run }: { readonly run: RunDetail }): ReactElement {
   const now = useNow()
   const live = !TERMINAL.has(run.status)
   const [edge, stuck] = useStuck()
+  // A short note under the header after a restart, which fades on its own.
+  const [note, setNote] = useState<{ readonly text: string; readonly at: number }>()
+  useEffect(() => {
+    if (note === undefined) return
+    const timer = setTimeout(() => setNote(undefined), NOTE_MS)
+    return () => clearTimeout(timer)
+  }, [note])
+  const restart = async () => {
+    const result = await backend.act(run.id, { type: 'restart' })
+    setNote({
+      text: result.ok
+        ? 'Restarted from snapshot. The run was stopped and resumed.'
+        : `Restart failed: ${result.message ?? 'the run could not be resumed'}`,
+      at: Date.now(),
+    })
+  }
 
   const again = async () => {
     const started = await backend.start({
@@ -250,7 +268,7 @@ export function RunHeader({ run }: { readonly run: RunDetail }): ReactElement {
           {
             label: 'Restart from snapshot',
             hint: 'Stops the run and resumes it from its saved snapshot, as a restarted process would.',
-            run: () => void backend.act(run.id, { type: 'restart' }),
+            run: () => void restart(),
           },
           {
             label: 'Cancel run',
@@ -278,7 +296,7 @@ export function RunHeader({ run }: { readonly run: RunDetail }): ReactElement {
           <h1>
             <Go to={{ page: 'wizard', name: run.wizard }}>{run.wizard}</Go>
           </h1>
-          <Status status={run.status} waiting={run.waiting} />
+          <Status status={run.status} waiting={run.waiting} retrying={run.retrying} />
         </div>
         <div className="run-actions">
           <button
@@ -310,6 +328,9 @@ export function RunHeader({ run }: { readonly run: RunDetail }): ReactElement {
           >
             {run.services === 'manual' ? 'manual services' : 'configured services'}
           </span>
+        </p>
+        <p className="run-note" role="status">
+          {note !== undefined && <span key={note.at}>{note.text}</span>}
         </p>
       </header>
     </>

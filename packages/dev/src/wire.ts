@@ -91,8 +91,8 @@ export type Pending =
       /** The return value the editor starts with. */
       readonly example?: unknown
       /**
-       * The step that made the call and the path of its run, when exactly one step is running.
-       * Several steps running at once leave these out, since a call does not name its caller.
+       * The step that made the call and the path of its run. The dev server follows the run's
+       * events to tell which step a call came from; a call it cannot place leaves these out.
        */
       readonly step?: string
       readonly path?: readonly string[]
@@ -151,9 +151,11 @@ export interface RunSummary {
   /**
    * How many things the run waits for that a person supplies: forms, events, service calls
    * answered by hand and failed steps. A sleep or another timer fires on its own and is not
-   * counted.
+   * counted. Always 0 once the run is done, failed or cancelled.
    */
   readonly waiting: number
+  /** True while a step of the run, or of a child run, waits out a retry delay. */
+  readonly retrying: boolean
 }
 
 /**
@@ -172,6 +174,10 @@ export interface RunDetail extends RunSummary {
    */
   readonly reasons: Readonly<Record<string, readonly string[]>>
   readonly pending: readonly Pending[]
+  /**
+   * The run's events, oldest first. A restart from the snapshot adds one event of its own, with
+   * the type `dev.restarted`, where it happened.
+   */
   readonly events: readonly RunEvent<AnyWizardDefinition>[]
   readonly result?: RunResult<AnyWizardDefinition>
   /** The time the run reads, which moves ahead of the wall clock when a timer is skipped. */

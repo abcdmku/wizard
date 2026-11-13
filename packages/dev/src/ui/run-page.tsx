@@ -6,7 +6,7 @@ import {
   WizardGraph,
 } from '@openwizard/devtools'
 import { type ReactElement, useMemo, useState } from 'react'
-import type { WizardInfo } from '../wire'
+import type { RunDetail, WizardInfo } from '../wire'
 import { useBackend, useRun } from './backend'
 import { History } from './history'
 import { JsonView } from './json'
@@ -20,6 +20,14 @@ import { Tabs } from './tabs'
 
 type Tab = 'history' | 'data' | 'snapshot'
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
+
+/** The steps whose undo hook made a call that waits for an answer. The graph rings them. */
+const undoCallers = (run: RunDetail): readonly string[] =>
+  run.pending.flatMap((item) =>
+    item.kind === 'call' && item.undo === true && item.step !== undefined
+      ? [[...(item.path ?? []), item.step].join('/')]
+      : [],
+  )
 
 /**
  * One run: its header, its live graph with the chosen step's details right under it, what it
@@ -45,7 +53,7 @@ export function RunPage(props: {
     )
   }, [run])
   const attention = useMemo(
-    () => (run === null || run === undefined ? [] : attentionOf(run)),
+    () => (run === null || run === undefined ? [] : [...attentionOf(run), ...undoCallers(run)]),
     [run],
   )
 
@@ -82,7 +90,9 @@ export function RunPage(props: {
             attention={attention}
             minimap={false}
             follow
-            autoHeight={{ min: 200, max: 400 }}
+            ended={TERMINAL.has(run.status)}
+            autoHeight={{ min: 120, max: 480 }}
+            attribution={false}
             wheelZoom={false}
             theme={scheme}
           />

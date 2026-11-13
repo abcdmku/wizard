@@ -24,6 +24,8 @@ export interface GraphOverlay {
   readonly selected: string | null
   /** Keys of the steps that wait on a person, when the host says which. */
   readonly attention?: ReadonlySet<string>
+  /** The run has ended, so a step it never reached says `not run`. */
+  readonly ended?: boolean
 }
 
 export type StepNodeData = {
@@ -36,6 +38,10 @@ export type StepNodeData = {
   readonly selected: boolean
   /** The host says a person has to act on this step (`undefined` when it does not say). */
   readonly attention: boolean | undefined
+  /** The run has ended. */
+  readonly ended: boolean
+  /** The steps this one needs any one of (`needs: { x: { any: [a, b] } }`), by step id. */
+  readonly anyOf: readonly string[]
 }
 
 type MarkerNodeData = {
@@ -80,7 +86,16 @@ function stepData(
     current: overlay.current === node.key,
     selected: overlay.selected === node.key,
     attention: attentionOf(overlay, node.key),
+    ended: overlay.ended === true,
+    anyOf: anyOf(model, node.key),
   }
+}
+
+/** The ids of the steps a step joins with `any`, from the labels of the model's `needs` edges. */
+function anyOf(model: GraphModel, key: string): readonly string[] {
+  return model.edges
+    .filter((e) => e.target === key && e.kind === 'needs' && e.label?.endsWith('(any)') === true)
+    .map((e) => e.source.slice(e.source.lastIndexOf('/') + 1))
 }
 
 function attentionOf(overlay: GraphOverlay, key: string): boolean | undefined {
@@ -209,6 +224,7 @@ export function applyOverlay(
       current: overlay.current === node.id,
       selected: overlay.selected === node.id,
       attention: attentionOf(overlay, node.id),
+      ended: overlay.ended === true,
     }
     return { ...node, data }
   })

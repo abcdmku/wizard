@@ -92,6 +92,42 @@ export const upload = defineWizard(
     }),
 )
 
+interface DashboardDeps {
+  users: { find(userId: string): Promise<{ name: string }> }
+  orders: { list(userId: string): Promise<string[]> }
+  audit: { open(userId: string): Promise<string>; close(ticket: string): Promise<null> }
+}
+
+/** Two steps that call services at once, and a third that makes two calls in a row. */
+export const dashboard = defineWizard(
+  {
+    name: 'dashboard',
+    description: 'Loads a profile and orders at once, then writes an audit entry.',
+    context: z.object({ userId: z.string() }),
+    deps: boundary.trusted<DashboardDeps>(),
+  },
+  ({ step, steps }) => {
+    const profile = step({
+      description: 'Loads the profile.',
+      run: ({ context, deps }) => deps.users.find(context.userId),
+    })
+    const orders = step({
+      description: 'Lists the orders.',
+      run: ({ context, deps }) => deps.orders.list(context.userId),
+    })
+    const audit = step({
+      description: 'Opens an audit ticket and closes it.',
+      needs: { profile, orders },
+      run: async ({ context, deps }) => {
+        const ticket = await deps.audit.open(context.userId)
+        await deps.audit.close(ticket)
+        return ticket
+      },
+    })
+    return steps({ profile, orders, audit }, { start: ['profile', 'orders'] })
+  },
+)
+
 export default defineDev({
   wizards: [
     devWizard(refund, {
@@ -105,5 +141,6 @@ export default defineDev({
     }),
     devWizard(reminder, { deps: { mail: { send: async (to) => `sent to ${to}` } } }),
     devWizard(upload, { input: { fileId: 'f-1' } }),
+    devWizard(dashboard, { input: { userId: '7' } }),
   ],
 })

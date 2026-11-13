@@ -8,7 +8,12 @@ it('runs the wizards of a config in memory, with no server', async () => {
   expect(backend.reload).toBeUndefined()
   const catalog = await backend.catalog()
   expect(catalog.entry).toBe('fixture')
-  expect(catalog.wizards.map((wizard) => wizard.name)).toEqual(['refund', 'reminder', 'upload'])
+  expect(catalog.wizards.map((wizard) => wizard.name)).toEqual([
+    'refund',
+    'reminder',
+    'upload',
+    'dashboard',
+  ])
 
   const notices: (string | undefined)[] = []
   const stop = backend.subscribe(

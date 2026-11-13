@@ -21,13 +21,27 @@ const RANK: Readonly<Record<ModelEdgeKind, number>> = {
 
 /**
  * The label worth drawing. A dashed `route` line says it routes, and `needs request` on a line
- * that leaves `request` repeats the arrow, so only a renamed or partial need keeps one.
+ * that leaves `request` repeats the arrow, so only a renamed or optional need keeps one. A need
+ * on any one of several steps is marked once on the step that joins them (`any of`), not on
+ * each line into it.
  */
 function shownLabel(edge: ModelEdge): string | undefined {
   if (edge.kind === 'route') return undefined
   if (edge.kind !== 'needs' || edge.label === undefined) return edge.label
+  if (edge.label.endsWith('(any)')) return undefined
   const sourceId = edge.source.slice(edge.source.lastIndexOf('/') + 1)
   return edge.label === 'needs' || edge.label === `needs ${sourceId}` ? undefined : edge.label
+}
+
+/**
+ * The label of two edges drawn as one line. When both say something (`timeout 2d` and
+ * `needs decision (optional)`) the line says both, data first, so it does not read as the only
+ * way from one step to the other.
+ */
+function joined(win: string | undefined, lose: string | undefined, loseKind: ModelEdgeKind) {
+  if (win === undefined) return lose
+  if (lose === undefined || loseKind !== 'needs') return win
+  return `${lose} · ${win}`
 }
 
 function withLabel(edge: ModelEdge, label: string | undefined): ModelEdge {
@@ -38,8 +52,8 @@ function withLabel(edge: ModelEdge, label: string | undefined): ModelEdge {
 /**
  * One edge per pair of steps, each with the label it shows. The kept edge is the control edge
  * (`next`, `route`, `fallback`, `timeout`) when there is one; it takes the data edge's label
- * when it has none. Edges into one step with the same label (`needs approval (any)` from each
- * branch) say it once.
+ * when it has none, or says both labels when each has one. Edges into one step with the same
+ * label say it once.
  */
 export function drawnEdges(edges: readonly ModelEdge[]): ModelEdge[] {
   const out: ModelEdge[] = []
@@ -58,7 +72,7 @@ export function drawnEdges(edges: readonly ModelEdge[]): ModelEdge[] {
     const [win, lose] = RANK[edge.kind] < RANK[kept.kind] ? [edge, kept] : [kept, edge]
     const winLabel = win === edge ? label : kept.label
     const loseLabel = lose === edge ? label : kept.label
-    out[at] = withLabel(win, winLabel ?? loseLabel)
+    out[at] = withLabel(win, joined(winLabel, loseLabel, lose.kind))
   }
   const said = new Set<string>()
   return out.map((edge) => {

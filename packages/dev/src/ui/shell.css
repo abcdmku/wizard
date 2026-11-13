@@ -143,7 +143,8 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--warn) 12%, var(--surface));
   padding: 0 6px;
-  color: var(--warn);
+  /* Amber text on an amber tint: mixed toward --strong so it reads at 4.5:1 or more. */
+  color: color-mix(in srgb, var(--warn) 65%, var(--strong));
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;

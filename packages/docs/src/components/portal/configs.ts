@@ -120,7 +120,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       'Pick a wizard in the list.',
       'Press Start run.',
       'Answer what the run waits for: a form, an event, a service call or a timer.',
-      'Idea: In deploy, skip the 10 minute bake, then return 0.2 to metrics.errorRate. The canary is undone.',
+      'Idea: In deploy, skip the 10 minute bake, then return 0.2 to metrics.errorRate. The run calls cluster.rollback to undo the canary.',
       'Idea: In incident, skip the 5 minute timeout on ack. The page goes to the manager.',
     ],
   },
@@ -147,7 +147,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     [
       'The run stops at download, which called deps.reports.download. Press Return to answer it.',
       'announce starts because download named it in next. Its output is the result of the run.',
-      'Open History to see each step enter and finish, in order.',
+      'Open History to see each step start and finish, in order.',
     ],
   ),
   needs: one(
@@ -190,7 +190,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     [
       'The run waits at decision for the approved event. Press Send approved.',
       'Press New run, then Skip to it on the timer. 48 hours pass, decision is skipped and close runs.',
-      'Press New run and send a payload with no "by". The schema refuses it and the step keeps waiting.',
+      'Press New run. Clear by and press Send approved. The schema refuses the payload and the step keeps waiting.',
     ],
   ),
   'save-resume': one(

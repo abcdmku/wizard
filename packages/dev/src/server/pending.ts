@@ -9,6 +9,7 @@ interface Record_ {
   readonly kind?: string
   readonly status?: string
   readonly attempt?: number
+  readonly retryAt?: number
   readonly each?: { readonly keys: readonly string[] }
 }
 
@@ -120,7 +121,10 @@ export function timerOf(item: Held): NextTimer | undefined {
   }
 }
 
-/** The step that made a service call, when exactly one step runs work or undoes it. */
+/**
+ * The step that made a service call, when exactly one step runs work or undoes it. The fallback
+ * for a call the run's events could not name.
+ */
 function callerOf(item: Held) {
   const steps = running(scopesOf(item.run))
   const only = steps.length === 1 ? steps[0] : undefined
@@ -133,6 +137,29 @@ function callerOf(item: Held) {
     ...(only.record.attempt === undefined ? {} : { attempt: only.record.attempt }),
     ...(attempts === undefined ? {} : { attempts }),
   }
+}
+
+/** The step the run's events say made the call, with its attempt and retry policy. */
+function namedCaller(item: Held, id: string) {
+  const found = item.callers.of(id)
+  if (found === undefined) return undefined
+  if (found.undo === true) return { step: found.step, path: found.path, undo: true as const }
+  const attempts = attemptsOf(item, found.path, found.step)
+  return {
+    step: found.step,
+    path: found.path,
+    ...(found.attempt === undefined ? {} : { attempt: found.attempt }),
+    ...(attempts === undefined ? {} : { attempts }),
+  }
+}
+
+/** True when a step in any run of the tree waits out a retry delay. */
+export function retryingOf(item: Held): boolean {
+  return scopesOf(item.run).some(({ run }) =>
+    Object.values(run.getState().steps as Readonly<Record<string, Record_ | undefined>>).some(
+      (record) => record?.status === 'active' && record.retryAt !== undefined,
+    ),
+  )
 }
 
 /** True for what a person supplies. A sleep fires on its own, so it is not counted. */
@@ -149,9 +176,10 @@ export function pendingOf(item: Held): readonly Pending[] {
 
   const { examples } = item.loaded.info
   const calls = item.manual.pending()
-  const caller = calls.length > 0 ? callerOf(item) : {}
+  const only = calls.length > 0 ? callerOf(item) : {}
   for (const call of calls) {
     const example = examples.calls?.[call.name]
+    const caller = namedCaller(item, call.id) ?? only
     out.push({ kind: 'call', ...call, ...(example === undefined ? {} : { example }), ...caller })
   }
 

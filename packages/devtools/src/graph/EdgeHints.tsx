@@ -15,10 +15,10 @@ const SIDES = ['left', 'right', 'top', 'bottom'] as const
 const STEP = 0.6
 /** Only the head of a child wizard counts: the rest of it is its own steps. */
 const GROUP_HEAD = 40
-/** The width of a step name in flow pixels: the card's padding and 14px monospace letters. */
-const nameWidth = (id: string): number => 12 + id.length * 8.6
+/** The width of a step name in flow pixels: the card's padding and 16px monospace letters. */
+const nameWidth = (id: string): number => 12 + id.length * 9.8
 /** A step cut at the bottom keeps its name in view while this much of it shows (flow px). */
-const NAME_HEIGHT = 24
+const NAME_HEIGHT = 26
 
 const ARROW: Readonly<Record<Side, string>> = { left: '←', right: '→', top: '↑', bottom: '↓' }
 const WORD: Readonly<Record<Side, string>> = {

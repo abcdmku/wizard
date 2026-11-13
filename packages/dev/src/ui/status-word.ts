@@ -4,7 +4,10 @@
  * word from here and the run page never shows two words for one state.
  *
  * The vocabulary: `running`, `waiting on you`, `waiting`, `retrying`, `failed`, `halted`,
- * `undoing`, `undone`, `done`, `skipped`, `cancelled`, `blocked`.
+ * `undoing`, `undone`, `done`, `skipped`, `cancelled`, `not run`, `blocked`. Each word has one
+ * colour, set by `data-status` in the styles: running is `--info`; waiting on you, waiting and
+ * retrying `--warn`; failed and halted `--bad`; done `--good`; undoing and undone `--undo`;
+ * skipped, cancelled, not run and blocked `--quiet`.
  */
 
 import type { RunDetail } from '../wire'
@@ -12,9 +15,10 @@ import type { RunDetail } from '../wire'
 /**
  * The word for a run. `status` is the engine's run status and `waiting` the number of things
  * a person must supply (`RunSummary.waiting`). A live run with anything to supply reads
- * `waiting on you`; one that waits only on a timer reads `waiting`.
+ * `waiting on you`. Otherwise one with a step waiting out a retry delay (`retrying`, from
+ * `RunSummary.retrying`) reads `retrying`, and one that waits only on a timer reads `waiting`.
  */
-export function runWord(status: string, waiting: number): string {
+export function runWord(status: string, waiting: number, retrying = false): string {
   switch (status) {
     case 'done':
     case 'failed':
@@ -25,19 +29,37 @@ export function runWord(status: string, waiting: number): string {
       return 'undoing'
     case 'compensated':
       return 'undone'
-    case 'waiting':
-      return waiting > 0 ? 'waiting on you' : 'waiting'
-    default:
-      return waiting > 0 ? 'waiting on you' : 'running'
   }
+  if (waiting > 0) return 'waiting on you'
+  if (retrying) return 'retrying'
+  return status === 'waiting' ? 'waiting' : 'running'
+}
+
+/** What the run page knows about a step besides its status and phase. */
+export interface StepFacts {
+  /** The step waits on something a person here supplies: a form, an event or a service call. */
+  readonly person?: boolean
+  /** The run has ended: done, failed or cancelled. */
+  readonly ended?: boolean
+  /** The step waits on the outside by design: a form, a sleep or an event wait. */
+  readonly outside?: boolean
 }
 
 /**
- * The word for a step. `status` is its stored status (`idle`, `active`, `done` and so on) and
- * `phase` its live phase from `run.explain(step).phase`, when it has one. `person` is true when
- * the step waits on something a person here supplies: a form, an event or a service call.
+ * The word for a step, the same word the graph shows on its card. `status` is its stored status
+ * (`idle`, `active`, `done` and so on) and `phase` its live phase from `run.explain(step).phase`,
+ * which the server reports for steps of the root run only.
+ *
+ * - A step that finished, failed or is being undone keeps its own word, even when its undo
+ *   hook made the call a person answers.
+ * - An idle step reads `blocked` while the run goes on and `not run` once it has ended.
+ * - A step a person must act on reads `waiting on you`, as the graph's attention ring says.
  */
-export function stepWord(status: string | undefined, phase?: string, person = false): string {
+export function stepWord(
+  status: string | undefined,
+  phase?: string,
+  facts: StepFacts = {},
+): string {
   switch (status) {
     case 'done':
     case 'failed':
@@ -48,21 +70,22 @@ export function stepWord(status: string | undefined, phase?: string, person = fa
       return 'undoing'
     case 'compensated':
       return 'undone'
+    case undefined:
+    case 'idle':
+      if (facts.ended === true) return 'not run'
+      return facts.person === true ? 'waiting on you' : 'blocked'
   }
+  if (phase === 'compensating') return 'undoing'
+  if (facts.person === true) return 'waiting on you'
   switch (phase) {
     case 'retrying':
       return 'retrying'
-    case 'compensating':
-      return 'undoing'
-    case 'blocked':
-    case 'ready':
-      return 'blocked'
     case 'waiting':
-      return person ? 'waiting on you' : 'waiting'
+      return 'waiting'
     case undefined:
-      return status === 'active' ? (person ? 'waiting on you' : 'running') : 'blocked'
+      return facts.outside === true ? 'waiting' : 'running'
     default:
-      return person ? 'waiting on you' : 'running'
+      return 'running'
   }
 }
 
@@ -73,21 +96,22 @@ export function wordTone(word: string): string {
 
 /**
  * The keys of the steps that wait on a person: every step a form or an event card names
- * (`shipping/street` inside a child), the step a service call card names, and, when a service
- * call is pending, every root step whose phase is `running`, since in this UI a running step is
- * one blocked on a call you answer.
+ * (`shipping/street` inside a child) and the step a service call card names. A call the server
+ * could not place marks every root step whose phase is `running`, since in this UI a running
+ * step is one blocked on a call you answer. A call from an undo hook marks nothing: that step
+ * reads `undoing`.
  */
 export function attentionOf(run: RunDetail): readonly string[] {
   const keys = new Set<string>()
-  let calls = false
+  let unplaced = false
   for (const item of run.pending) {
     if (item.kind === 'view' || item.kind === 'event') keys.add([...item.path, item.step].join('/'))
     else if (item.kind === 'call') {
-      calls = true
-      if (item.step !== undefined) keys.add([...(item.path ?? []), item.step].join('/'))
+      if (item.step === undefined) unplaced = true
+      else if (item.undo !== true) keys.add([...(item.path ?? []), item.step].join('/'))
     }
   }
-  if (calls)
+  if (unplaced)
     for (const [key, phase] of Object.entries(run.phases)) if (phase === 'running') keys.add(key)
   return [...keys]
 }

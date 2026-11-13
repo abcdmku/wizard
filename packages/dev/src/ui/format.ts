@@ -5,12 +5,15 @@ export function clock(at: number): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`
 }
 
-/** `3s`, `4m`, `2h` or `5d`, for a span in milliseconds. */
+/**
+ * `3s`, `4m`, `48h` or `5d`, for a span in milliseconds. Hours run up to 72, so a 48 hour
+ * timeout reads `48h`, as a wizard declares it, and not `2d`.
+ */
 export function span(ms: number): string {
   const seconds = Math.max(0, Math.round(ms / 1000))
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`
-  if (seconds < 86_400) return `${Math.round(seconds / 3600)}h`
+  if (seconds < 259_200) return `${Math.round(seconds / 3600)}h`
   return `${Math.round(seconds / 86_400)}d`
 }
 

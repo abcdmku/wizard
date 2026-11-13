@@ -13,7 +13,7 @@ import { stepKey } from '../types'
 
 /** Rendered size of a step card: the id, then one row for the status or a fact. */
 export const STEP_WIDTH = 168
-export const STEP_HEIGHT = 46
+export const STEP_HEIGHT = 52
 /** Rendered size of an entry / dynamic-next marker. */
 const MARKER_SIZE = 20
 /** Room a group leaves for its one-line header and around its children. */
@@ -201,6 +201,8 @@ export function formatMs(ms: number): string {
     [60_000, 'm'],
     [1_000, 's'],
   ]
+  // Whole hours under three days read as hours, the way the dev UI prints a deadline: `48h`.
+  if (ms >= 86_400_000 && ms < 259_200_000 && ms % 3_600_000 === 0) return `${ms / 3_600_000}h`
   for (const [size, unit] of units) if (ms >= size && ms % size === 0) return `${ms / size}${unit}`
   return ms < 1_000 ? `${ms}ms` : `${Math.round(ms / 100) / 10}s`
 }

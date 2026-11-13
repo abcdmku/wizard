@@ -35,8 +35,8 @@ Read the [devtools reference](https://abcdmku.github.io/wizard/reference/devtool
 | `EdgeRoute` | interface | The line ELK routed for an edge, in absolute flow coordinates: right-angled bends that keep | [src](../../packages/devtools/src/layout/elk.ts#L88) |
 | `EventLog` | function | The event log of a run: `seq`, `at`, `type`, `step`, `path` and a one-line detail per event. | [src](../../packages/devtools/src/events/EventLog.tsx#L53) |
 | `EventLogProps` | interface | `<EventLog>` props: a live `source` (run) or a static `events` array; an optional `filter` | [src](../../packages/devtools/src/events/EventLog.tsx#L29) |
-| `GraphAutoHeight` | type | Lets `<WizardGraph>` set its own height to fit the graph, between `min` and `max` pixels. | [src](../../packages/devtools/src/graph/direction.ts#L47) |
-| `GraphDirection` | type | Which way the layers of `<WizardGraph>` run: `right`, `down`, or `auto` to pick the one that | [src](../../packages/devtools/src/graph/direction.ts#L16) |
+| `GraphAutoHeight` | type | Lets `<WizardGraph>` set its own height to fit the graph, between `min` and `max` pixels. | [src](../../packages/devtools/src/graph/direction.ts#L56) |
+| `GraphDirection` | type | Which way the layers of `<WizardGraph>` run: `right`, `down`, or `auto` to pick the one that | [src](../../packages/devtools/src/graph/direction.ts#L18) |
 | `GraphInput` | interface | The static graph the components draw: a ready `Manifest` (`inspect(wizard)`, plain JSON — a | [src](../../packages/devtools/src/types.ts#L186) |
 | `GraphModel` | interface | The drawable model of a `Manifest`: nodes (parents before children), edges and the warnings | [src](../../packages/devtools/src/layout/model.ts#L72) |
 | `GraphSelection` | interface | What a graph click reports: the step `id`, the run `path` of its wizard and the combined | [src](../../packages/devtools/src/types.ts#L59) |
@@ -72,7 +72,7 @@ Read the [devtools reference](https://abcdmku.github.io/wizard/reference/devtool
 | `StepStatusMap` | type | Statuses keyed by step key (`stepKey(path, id)`: the step id for the root wizard, | [src](../../packages/devtools/src/types.ts#L51) |
 | `Timeline` | function | Time travel over a run's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any | [src](../../packages/devtools/src/timeline/Timeline.tsx#L52) |
 | `TimelineProps` | interface | `<Timeline>` props: the run `source`; `context` (the input `wizard.create` received) lets the | [src](../../packages/devtools/src/timeline/Timeline.tsx#L33) |
-| `WizardGraph` | function | The static graph of a wizard, laid out with ELK (layers running right or down, picked for the | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L120) |
-| `WizardGraphProps` | interface | `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L54) |
+| `WizardGraph` | function | The static graph of a wizard, laid out with ELK (layers running right or down, picked for the | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L136) |
+| `WizardGraphProps` | interface | `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L55) |
 
 <!-- exports:end -->

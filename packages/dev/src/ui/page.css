@@ -346,7 +346,9 @@ select:hover {
 [data-status="cancelled"].dot,
 [data-status="cancelled"].status::before,
 [data-status="blocked"].dot,
-[data-status="blocked"].status::before {
+[data-status="blocked"].status::before,
+[data-status="not-run"].dot,
+[data-status="not-run"].status::before {
   background: transparent;
   box-shadow: inset 0 0 0 2px var(--quiet);
 }

@@ -1,8 +1,12 @@
 /**
- * Keeps a graph readable. A graph that fits at a readable size is shown whole. A larger one is
- * drawn at a readable size around the steps that matter now: the ones running, waiting or
- * failed, or the ones that start the wizard when no run is shown. The view then holds whole
- * layers only, so no step is cut in half at an edge.
+ * Keeps a graph readable. A graph that fits at a readable size is shown whole, and so is every
+ * graph in a narrow pane, such as a phone, where cutting steps off would hide the branches. A
+ * larger one in a wide pane is drawn at a readable size around the steps that matter now: the
+ * ones running, waiting or failed, or the ones that start the wizard when no run is shown. The
+ * view then holds whole layers only, so no step is cut in half at an edge.
+ *
+ * Which of the two a graph gets depends only on the layout and the pane, never on the run, so a
+ * graph shown whole stays whole as the run moves on.
  */
 
 import { type Node, useNodesInitialized, useReactFlow, useStore } from '@xyflow/react'
@@ -17,13 +21,21 @@ export const FIT_PADDING = { top: '44px', right: '20px', bottom: '20px', left: '
 export const PAD = { top: 44, right: 20, bottom: 20, left: 20 } as const
 
 /**
- * Below this zoom the name of a step is too small to read. Step ids are drawn at 14px, so at
- * this zoom they are 11px on screen.
+ * Below this zoom the name of a step is too small to read. Step ids, status words and edge
+ * labels are drawn at 16px, so at this zoom they are 11.2px on screen.
  */
-export const READABLE_ZOOM = 0.79
+export const READABLE_ZOOM = 0.7
 
-/** The largest zoom a fitted graph is drawn at. */
-export const MAX_FIT_ZOOM = 1
+/** The largest zoom a fitted graph is drawn at: 16px text shows at 13.6px. */
+export const MAX_FIT_ZOOM = 0.85
+
+/** A pane narrower than this (a phone) always shows the whole graph. */
+export const NARROW_PANE = 560
+
+/** True for a pane too narrow to follow a run around a graph: it shows the whole graph. */
+export function isNarrow(width: number): boolean {
+  return width > 0 && width < NARROW_PANE
+}
 
 const LIVE = new Set(['active', 'failed', 'compensating'])
 
@@ -92,7 +104,9 @@ export function Follow({
     if (!ready || width === 0 || height === 0) return
     const pane = { width, height }
     const all = flow.getNodes()
-    if (focus === '' || fitZoom(flow.getNodesBounds(all), pane) >= READABLE_ZOOM) {
+    const whole =
+      focus === '' || isNarrow(width) || fitZoom(flow.getNodesBounds(all), pane) >= READABLE_ZOOM
+    if (whole) {
       void flow.fitView({ padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM, duration: motion(200) })
       return
     }

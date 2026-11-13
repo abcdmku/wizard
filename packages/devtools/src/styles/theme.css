@@ -307,6 +307,24 @@
   opacity: 0.6;
 }
 
+/* The input of a step that needs any one of several steps. */
+.owd-join {
+  position: absolute;
+  top: -21px;
+  left: 6px;
+  z-index: 1;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--owd-border);
+  background: var(--owd-surface);
+  color: var(--owd-subtle);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* ---- graph toolbar and zoom controls (the cards and edges are in graph.css) ---- */
 .owd-toolbar {
   display: flex;

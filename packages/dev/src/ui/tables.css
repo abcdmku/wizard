@@ -220,6 +220,9 @@ td.history-time {
 .tone[data-tone="info"] {
   background: var(--info);
 }
+.tone[data-tone="undo"] {
+  background: var(--undo);
+}
 tr[data-story="false"] > td {
   color: var(--quiet);
 }

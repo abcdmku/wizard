@@ -2,10 +2,11 @@ import type { SnapshotLike } from '@openwizard/devtools'
 import { type ReactElement, type ReactNode, useEffect, useRef } from 'react'
 import type { RunDetail, WizardInfo } from '../wire'
 import { Status } from './app'
-import { ago, brief, clock, duration, span } from './format'
+import { ago, clock, duration, span } from './format'
 import { JsonView } from './json'
 import { attentionOf, stepWord } from './status-word'
 import {
+  choiceOf,
   kindOf,
   type ManifestNode,
   nodeOf,
@@ -18,13 +19,19 @@ import {
 const LIVE = new Set(['done', 'failed', 'cancelled'])
 
 const SKIPPED: Readonly<Record<string, string>> = {
-  when: 'its `when` check returned false',
-  command: 'someone skipped it',
+  when: 'its when check returned false',
+  command: 'someone skipped it by hand',
   'not-taken': 'the route chose another step',
   'needs-skipped': 'a step it needs was skipped',
-  fallback: 'a fallback took over',
+  fallback: 'it failed and its fallback took over',
   timeout: 'its wait timed out',
 }
+
+/** True when two stored values hold the same JSON. */
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
+
+/** `the route chose another step` as `The route chose another step.` */
+const sentence = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}.`
 
 /** A time on the run's clock: how long ago, with the exact time on hover. */
 function When({ at, now }: { readonly at: number; readonly now: number }): ReactElement {
@@ -71,9 +78,24 @@ function holdOf(run: RunDetail, key: string, word: string, node?: ManifestNode):
     return `Its retry delay. It tries again in ${span(timer.at - run.now)}.`
   if (word === 'waiting on you' || word === 'running' || word === 'undoing') {
     const calls = run.pending.filter((item) => item.kind === 'call')
-    const own = calls.filter((call) => call.step === id || call.step === undefined)
+    const own = calls.filter(
+      (call) =>
+        call.step === undefined ||
+        (call.step === id && (call.path ?? []).join('/') === path.join('/')),
+    )
     if (own.length > 0)
-      return `A reply to ${own.map((call) => `${call.name}(${brief(call.args, 40).slice(1, -1)})`).join(', ')}.`
+      return (
+        <>
+          A reply to{' '}
+          {own.map((call, index) => (
+            <span key={call.id}>
+              {index === 0 ? '' : ' and '}
+              <code>{call.name}</code>
+            </span>
+          ))}{' '}
+          under Waiting for you.
+        </>
+      )
   }
   if (word === 'blocked') {
     const reasons = run.reasons[key] ?? []
@@ -135,8 +157,9 @@ export function StepPanel(props: {
   const person = attentionOf(run).includes(selected)
   const live = !LIVE.has(run.status)
   const status = record?.status ?? 'idle'
-  const word =
-    status === 'idle' && !live ? undefined : stepWord(status, run.phases[selected], person)
+  const outside =
+    node?.kind === 'view' || node?.sleep !== undefined || (node?.waitsFor?.length ?? 0) > 0
+  const word = stepWord(status, run.phases[selected], { person, ended: !live, outside })
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: show the panel each time a step is chosen
   useEffect(() => {
@@ -151,8 +174,13 @@ export function StepPanel(props: {
     : undefined
   const attempts = node?.retry === undefined ? undefined : node.retry.retries + 1
   const attempt = record?.attempt ?? 0
-  const hold = word === undefined ? null : holdOf(run, selected, word, node ?? undefined)
+  const hold = holdOf(run, selected, word, node ?? undefined)
   const label = selected.split('/').join(' / ')
+  const chose = node?.dynamicNext === true ? choiceOf(run.events, selected) : undefined
+  // A form's output is the input it accepted: one block, unless the two differ.
+  const submitted =
+    record?.input !== undefined && record.output !== undefined && same(record.input, record.output)
+  const skipped = status === 'skipped'
 
   return (
     <section ref={box} className="card step-panel" aria-labelledby="step-panel-title">
@@ -160,7 +188,7 @@ export function StepPanel(props: {
         <h2 id="step-panel-title">
           <code>{label}</code>
         </h2>
-        {word !== undefined && <Status word={word} />}
+        <Status word={word} />
         <button type="button" className="close" onClick={props.onClose} aria-label="Close step">
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <path d="M4 4l8 8M12 4l-8 8" />
@@ -183,31 +211,52 @@ export function StepPanel(props: {
             </dd>
           </>
         )}
-        <dt>Started</dt>
-        <dd>
-          {started === undefined ? (
-            live ? (
-              'Not yet'
-            ) : (
-              'Never'
-            )
-          ) : (
-            <>
-              <When at={started} now={run.now} />
-              {ended === undefined && (
-                <span className="quiet"> · {duration(run.now - started)} so far</span>
+        {skipped && (
+          <>
+            <dt>Skipped</dt>
+            <dd>
+              {record?.skipReason === undefined
+                ? 'The run did not need it.'
+                : sentence(SKIPPED[record.skipReason] ?? record.skipReason)}
+            </dd>
+          </>
+        )}
+        {(started !== undefined || (live && !skipped)) && (
+          <>
+            <dt>Started</dt>
+            <dd>
+              {started === undefined ? (
+                'Not yet'
+              ) : (
+                <>
+                  <When at={started} now={run.now} />
+                  {ended === undefined && (
+                    <span className="quiet"> · {duration(run.now - started)} so far</span>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </dd>
-        {ended !== undefined && (
+            </dd>
+          </>
+        )}
+        {ended !== undefined && started !== undefined && (
           <>
             <dt>Ended</dt>
             <dd>
               <When at={ended} now={run.now} />
-              {started !== undefined && (
-                <span className="quiet"> · took {duration(ended - started)}</span>
-              )}
+              <span className="quiet"> · took {duration(ended - started)}</span>
+            </dd>
+          </>
+        )}
+        {chose !== undefined && chose.length > 0 && (
+          <>
+            <dt>Chose</dt>
+            <dd>
+              {chose.map((target, index) => (
+                <span key={target}>
+                  {index === 0 ? '' : ', '}
+                  <code>{target}</code>
+                </span>
+              ))}
             </dd>
           </>
         )}
@@ -217,27 +266,30 @@ export function StepPanel(props: {
             <dd>{hold}</dd>
           </>
         )}
-        {status === 'skipped' && record?.skipReason !== undefined && (
-          <>
-            <dt>Skipped because</dt>
-            <dd>{SKIPPED[record.skipReason] ?? record.skipReason}</dd>
-          </>
-        )}
       </dl>
       {record?.error !== undefined && (
         <p className="failure">{record.error.message ?? 'The step failed without a message.'}</p>
       )}
-      {record?.input !== undefined && (
+      {submitted ? (
         <div className="stack">
-          <h3>Input</h3>
-          <JsonView value={record.input} />
+          <h3>Submitted</h3>
+          <JsonView value={record?.output} />
         </div>
-      )}
-      {record?.output !== undefined && (
-        <div className="stack">
-          <h3>Output</h3>
-          <JsonView value={record.output} />
-        </div>
+      ) : (
+        <>
+          {record?.input !== undefined && (
+            <div className="stack">
+              <h3>Input</h3>
+              <JsonView value={record.input} />
+            </div>
+          )}
+          {record?.output !== undefined && (
+            <div className="stack">
+              <h3>Output</h3>
+              <JsonView value={record.output} />
+            </div>
+          )}
+        </>
       )}
       {record === undefined ? (
         <p className="quiet">This step has no stored state yet.</p>

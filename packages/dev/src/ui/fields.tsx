@@ -154,7 +154,11 @@ export function ValueEditor(props: {
                 {...invalid}
                 autoComplete="off"
                 value={typeof current === 'string' ? current : ''}
-                onChange={(event) => set(field.name, event.target.value)}
+                // An empty field leaves the key out, so a required string is missing and the
+                // schema refuses it. "Edit as JSON" sends an empty string on purpose.
+                onChange={(event) =>
+                  set(field.name, event.target.value === '' ? undefined : event.target.value)
+                }
               />
             )}
             {issue !== undefined && (

@@ -39,10 +39,20 @@ it('names every live status in a word', () => {
     'undoing',
     'undone',
   ])
-  expect(statusWord({ status: 'idle', phase: 'ready' }, step())).toBeUndefined()
   expect(statusWord(undefined, step())).toBeUndefined()
-  expect(statusWord({ status: 'idle', phase: 'blocked' }, step())?.text).toBe('blocked')
   expect(statusWord({ status: 'active', phase: 'validating' }, step())?.text).toBe('running')
+})
+
+it('says `blocked` for every step a live run has not started, and `not run` once it ended', () => {
+  for (const live of [
+    { status: 'idle' },
+    { status: 'idle', phase: 'ready' },
+    { status: 'idle', phase: 'blocked' },
+  ] as const) {
+    expect(statusWord(live, step())?.text).toBe('blocked')
+    expect(statusWord(live, step(), undefined, true)?.text).toBe('not run')
+  }
+  expect(statusWord({ status: 'done' }, step(), undefined, true)?.text).toBe('done')
 })
 
 it('says `waiting on you` for the steps the host names, and `waiting` for the rest', () => {
@@ -54,6 +64,13 @@ it('says `waiting on you` for the steps the host names, and `waiting` for the re
     'waiting on you',
   )
   expect(statusWord(undefined, step(), true)?.tone).toBe('attention')
+})
+
+it('says `undoing` for a step that is undoing, even when a person has to answer it', () => {
+  const undoing = { status: 'compensating', phase: 'compensating' } as const
+  expect(statusWord(undoing, step(), true)?.text).toBe('undoing')
+  expect(statusWord({ status: 'failed' }, step(), true)?.text).toBe('failed')
+  expect(statusWord({ status: 'idle' }, step(), true)?.text).toBe('waiting on you')
 })
 
 it('counts attempts against the retries a step allows', () => {

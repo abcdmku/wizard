@@ -59,7 +59,7 @@ function EventCard(props: {
   const origin = chosen?.origin
   const kind: OutsideKind =
     origin?.source === 'webhook' ? 'webhook' : origin?.source === 'queue' ? 'queue' : 'event'
-  const sender = origin?.from === undefined ? '' : ` Sent by ${origin.from}.`
+  const sender = origin?.from === undefined ? '' : ` Sent by: ${origin.from}.`
   const [draft, setDraft] = useJsonDraft(
     chosen?.example ?? exampleOf(chosen?.schema),
     `${run.id}:${item.step}:${name}`,

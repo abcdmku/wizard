@@ -14,7 +14,7 @@ function RunLink(props: {
   readonly now: number
 }) {
   const { run } = props
-  const word = runWord(run.status, run.waiting)
+  const word = runWord(run.status, run.waiting, run.retrying)
   return (
     <Go className="nav-item nav-run" to={{ page: 'run', id: run.id }} current={props.active}>
       <span className="dot" data-status={wordTone(word)} aria-hidden="true" />

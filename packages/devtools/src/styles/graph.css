@@ -6,6 +6,10 @@
   min-height: 240px;
   background: var(--owd-bg);
 }
+/* A graph that sets its own height may be shorter: a chain of two steps needs little room. */
+.owd-graph[data-auto-height] {
+  min-height: 0;
+}
 .owd-graph .react-flow {
   --xy-background-color: var(--owd-bg);
   --xy-background-pattern-dots-color: var(--owd-border);
@@ -27,7 +31,8 @@
 }
 
 /* ---- what lies outside the view: a fade on that side and a button that moves the view ---- */
-.owd-fade {
+.owd-fade,
+.owd-cover {
   position: absolute;
   z-index: 5;
   pointer-events: none;
@@ -53,11 +58,6 @@
   background: linear-gradient(to top, var(--owd-bg), transparent);
 }
 /* A step cut by the edge is covered, fading in from the edge, so no name shows in half. */
-.owd-cover {
-  position: absolute;
-  z-index: 5;
-  pointer-events: none;
-}
 .owd-cover[data-side="left"] {
   background: linear-gradient(to left, transparent, var(--owd-bg) 16px);
 }
@@ -118,7 +118,7 @@
   justify-content: center;
   gap: 3px;
   width: 168px;
-  height: 46px;
+  height: 52px;
   padding: 0 9px;
   border-radius: 8px;
   border: 1.5px solid var(--owd-border);
@@ -137,13 +137,15 @@
 }
 .owd-node-card[data-tone="skipped"],
 .owd-node-card[data-tone="cancelled"],
-.owd-node-card[data-tone="blocked"] {
+.owd-node-card[data-tone="blocked"],
+.owd-node-card[data-tone="not-run"] {
   border-style: dashed;
   background: var(--owd-surface);
   box-shadow: none;
 }
 .owd-node-card[data-tone="skipped"] > *,
-.owd-node-card[data-tone="cancelled"] > * {
+.owd-node-card[data-tone="cancelled"] > *,
+.owd-node-card[data-tone="not-run"] > * {
   opacity: 0.75;
 }
 .owd-node-card[data-tone="failed"],
@@ -155,10 +157,13 @@
     var(--owd-shadow),
     0 0 0 3px color-mix(in srgb, var(--owd-tone) 28%, transparent);
 }
-.owd-node-card[data-selected="true"],
-.owd-group[data-selected="true"] {
-  outline: 2px solid var(--owd-accent);
-  outline-offset: 2px;
+/* A person has to act on a step whose word says something else, such as `undoing`. */
+.owd-node-card[data-attention="true"],
+.owd-group[data-attention="true"] {
+  box-shadow:
+    var(--owd-shadow),
+    0 0 0 2px var(--owd-surface),
+    0 0 0 4px var(--owd-warn);
 }
 .owd-node-head {
   display: flex;
@@ -169,8 +174,8 @@
 .owd-node-id {
   font-family: var(--owd-mono);
   font-weight: 650;
-  font-size: 14px;
-  line-height: 18px;
+  font-size: 16px;
+  line-height: 19px;
   letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -195,7 +200,7 @@
   align-items: center;
   gap: 5px;
   min-width: 0;
-  height: 17px;
+  height: 20px;
   overflow: hidden;
 }
 
@@ -204,32 +209,34 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
-  height: 17px;
-  padding: 0 6px 0 5px;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px 0 6px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--owd-tone) 15%, var(--owd-surface));
   color: color-mix(in srgb, var(--owd-tone) 65%, var(--owd-text));
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
 .owd-node-status .owd-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   background: var(--owd-tone);
 }
 .owd-node-status[data-tone="waiting"] .owd-status-dot,
-.owd-node-status[data-tone="blocked"] .owd-status-dot {
+.owd-node-status[data-tone="blocked"] .owd-status-dot,
+.owd-node-status[data-tone="not-run"] .owd-status-dot {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--owd-tone);
 }
-.owd [data-tone="running"],
-.owd [data-tone="waiting"] {
+/* One colour per word: running is blue; waiting, waiting on you and retrying are amber. */
+.owd [data-tone="running"] {
   --owd-tone: var(--owd-accent);
 }
 .owd [data-tone="attention"],
+.owd [data-tone="waiting"],
 .owd [data-tone="retrying"] {
   --owd-tone: var(--owd-warn);
 }
@@ -241,7 +248,8 @@
 }
 .owd [data-tone="skipped"],
 .owd [data-tone="cancelled"],
-.owd [data-tone="blocked"] {
+.owd [data-tone="blocked"],
+.owd [data-tone="not-run"] {
   --owd-tone: var(--owd-subtle);
 }
 .owd [data-tone="undoing"],
@@ -258,12 +266,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--owd-subtle);
-  font-size: 12px;
-  line-height: 17px;
-}
-.owd-node-attempt {
-  font-size: 11px;
-  letter-spacing: -0.01em;
+  font-size: 15px;
+  line-height: 20px;
 }
 .owd-kind {
   flex: none;
@@ -271,9 +275,9 @@
   border-radius: 5px;
   border: 1px solid color-mix(in srgb, var(--owd-subtle) 55%, transparent);
   color: var(--owd-subtle);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 15px;
+  line-height: 18px;
   white-space: nowrap;
 }
 .owd-graph .react-flow__node-group {
@@ -299,17 +303,17 @@
   background: color-mix(in srgb, var(--owd-tone) 5%, transparent);
 }
 .owd-group[data-tone="skipped"],
-.owd-group[data-tone="cancelled"] {
+.owd-group[data-tone="cancelled"],
+.owd-group[data-tone="not-run"] {
   border-style: dashed;
-}
-.owd-graph .react-flow__node.selected .owd-node-card,
-.owd-graph .react-flow__node.selected .owd-group {
-  outline: 2px solid var(--owd-accent);
-  outline-offset: 2px;
 }
 .owd-graph .react-flow__node:focus-visible {
   outline: none;
 }
+.owd-node-card[data-selected="true"],
+.owd-group[data-selected="true"],
+.owd-graph .react-flow__node.selected .owd-node-card,
+.owd-graph .react-flow__node.selected .owd-group,
 .owd-graph .react-flow__node:focus-visible .owd-node-card,
 .owd-graph .react-flow__node:focus-visible .owd-group {
   outline: 2px solid var(--owd-accent);
@@ -377,8 +381,8 @@
   background: var(--owd-bg);
   color: var(--owd-subtle);
   font-family: var(--owd-font);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 16px;
+  line-height: 20px;
   white-space: nowrap;
 }
 .owd-edge-label[data-path="untaken"] {

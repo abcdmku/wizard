@@ -44,6 +44,7 @@ it('lists the wizards of the entry file with their graph, page and starting inpu
     ['refund', false],
     ['reminder', true],
     ['upload', false],
+    ['dashboard', false],
   ])
   const [refund, reminder] = catalog.wizards
   expect(refund?.exampleInput).toEqual({ orderId: 'o-2' })
@@ -197,6 +198,45 @@ it('names the next timer, counts only what a person supplies and numbers each at
     attempt: 2,
     attempts: 3,
   })
+})
+
+it('names the step behind each of two calls made at once and of two calls in a row', async () => {
+  const id = await start('dashboard', { userId: '7' })
+  const calls = () =>
+    detail(id).then((run) => run.pending.flatMap((item) => (item.kind === 'call' ? [item] : [])))
+  const first = await calls()
+  expect(first.map((call) => [call.name, call.step])).toEqual([
+    ['users.find', 'profile'],
+    ['orders.list', 'orders'],
+  ])
+  // Answer the second call first: the first keeps its step.
+  await act(id, { type: 'resolve', id: first[1]?.id as string, value: ['o-1'] })
+  expect((await calls()).map((call) => [call.name, call.step])).toEqual([['users.find', 'profile']])
+  await act(id, { type: 'resolve', id: first[0]?.id as string, value: { name: 'Ada' } })
+  await new Promise((done) => setTimeout(done, 10))
+  const open = await calls()
+  expect(open.map((call) => [call.name, call.step])).toEqual([['audit.open', 'audit']])
+  await act(id, { type: 'resolve', id: open[0]?.id as string, value: 't-1' })
+  await new Promise((done) => setTimeout(done, 10))
+  expect((await calls()).map((call) => [call.name, call.step])).toEqual([['audit.close', 'audit']])
+})
+
+it('counts nothing to do once a run is cancelled, even with a call left open', async () => {
+  const id = await start('dashboard', { userId: '8' })
+  expect((await detail(id)).waiting).toBe(2)
+  expect(await act(id, { type: 'cancel' })).toEqual({ ok: true })
+  const run = await detail(id)
+  expect(run.status).toBe('cancelled')
+  expect(run.waiting).toBe(0)
+  const listed = (await get<RunSummary[]>('/api/runs')).find((item) => item.id === id)
+  expect(listed?.waiting).toBe(0)
+})
+
+it('adds one history line when a run restarts from its snapshot', async () => {
+  const id = await start('refund', { orderId: 'o-7' })
+  expect(await act(id, { type: 'restart' })).toEqual({ ok: true })
+  const types = (await detail(id)).events.map((event) => event.type as string)
+  expect(types.filter((type) => type === 'dev.restarted')).toHaveLength(1)
 })
 
 it('removes a run', async () => {

@@ -65,18 +65,43 @@ export function recordOf(snapshot: SnapshotLike, key: string): StepRecordView | 
   return node?.state.steps[id] as StepRecordView | undefined
 }
 
-/** What a step does, in a few words, from its manifest entry. */
+/** What a step does, as a verb phrase, from its manifest entry. */
 export function kindOf(node: ManifestNode | undefined): string | undefined {
   if (node === undefined) return undefined
-  if (node.kind === 'view') return 'Form'
+  if (node.kind === 'view') return 'Collects a form'
   if (node.kind === 'child')
-    return node.child === undefined ? 'Child run' : `Runs the wizard ${node.child.name}`
+    return node.child === undefined
+      ? 'Runs a child wizard'
+      : `Runs a child wizard (${node.child.name})`
   if (node.waitsFor !== undefined && node.waitsFor.length > 0)
-    return `Waits for ${node.waitsFor.join(' or ')}`
+    return `Waits for an event (${node.waitsFor.join(' or ')})`
   if (node.sleep !== undefined) return 'Sleeps'
-  if (node.dynamicNext === true) return 'Chooses the next step'
+  if (node.dynamicNext === true) return 'Chooses a branch'
   if (node.each !== undefined) return 'Runs work per item'
   return 'Runs work'
+}
+
+/** The fields of a run event the step panel reads. */
+interface LooseEvent {
+  readonly type: string
+  readonly step?: string
+  readonly path?: readonly string[]
+  readonly next?: unknown
+}
+
+/** The steps a routing step chose the last time it finished, from the run's events. */
+export function choiceOf(events: readonly unknown[], key: string): readonly string[] | undefined {
+  const { path, id } = splitKey(key)
+  for (let index = events.length - 1; index >= 0; index--) {
+    const event = events[index] as LooseEvent
+    if (event.type !== 'step.done' || event.step !== id) continue
+    if ((event.path ?? []).join('/') !== path.join('/')) continue
+    const next = event.next
+    if (typeof next === 'string') return [next]
+    if (Array.isArray(next)) return next.filter((item): item is string => typeof item === 'string')
+    return undefined
+  }
+  return undefined
 }
 
 /**

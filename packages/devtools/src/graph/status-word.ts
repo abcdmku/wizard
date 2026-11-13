@@ -3,7 +3,10 @@
  * person reads; the tone picks the tint and border, so colour is never the only signal.
  *
  * The words are a fixed set: `running`, `waiting on you`, `waiting`, `retrying`, `failed`,
- * `undoing`, `undone`, `done`, `skipped`, `cancelled` and `blocked`.
+ * `undoing`, `undone`, `done`, `skipped`, `cancelled`, `blocked` and `not run`.
+ *
+ * What a step is doing comes first. A step that is undoing says `undoing` even when a person has
+ * to answer it; the card then shows that with its attention ring, not with its word.
  *
  * @packageDocumentation
  */
@@ -24,6 +27,7 @@ export type StatusTone =
   | 'undoing'
   | 'undone'
   | 'blocked'
+  | 'not-run'
 
 /** What a step card shows for its live status, or `undefined` for an idle step. */
 export interface StatusWord {
@@ -105,16 +109,33 @@ function active(live: StepStatusInfo, step: ManifestStep, attention: Attention):
   }
 }
 
+const BLOCKED: StatusWord = {
+  tone: 'blocked',
+  text: 'blocked',
+  title: 'Not started: it waits for the steps before it or the steps it needs',
+}
+const NOT_RUN: StatusWord = {
+  tone: 'not-run',
+  text: 'not run',
+  title: 'The run ended before this step started',
+}
+
+/** Statuses that say what a step is doing or did, which a person's turn does not replace. */
+const OWN_WORD = new Set(['done', 'failed', 'skipped', 'cancelled', 'compensating', 'compensated'])
+
 /**
  * The status word for a step's live facts, or `undefined` when there is nothing to say.
- * `attention` true makes it `waiting on you`, whatever the engine says.
+ * `attention` true makes a live or idle step `waiting on you`; a step that finished, failed or
+ * is undoing keeps its own word. An idle step says `blocked` while the run goes on and `not run`
+ * once the run has `ended`.
  */
 export function statusWord(
   live: StepStatusInfo | undefined,
   step: ManifestStep,
   attention?: Attention,
+  ended = false,
 ): StatusWord | undefined {
-  if (attention === true) return ON_YOU
+  if (attention === true && (live === undefined || !OWN_WORD.has(live.status))) return ON_YOU
   if (live === undefined) return undefined
   switch (live.status) {
     case 'active':
@@ -139,9 +160,7 @@ export function statusWord(
     case 'compensated':
       return { tone: 'undone', text: 'undone', title: 'Its undo hook has run' }
     case 'idle':
-      return live.phase === 'blocked'
-        ? { tone: 'blocked', text: 'blocked', title: 'Waiting for the steps it needs' }
-        : undefined
+      return ended ? NOT_RUN : BLOCKED
     default:
       return undefined
   }
