@@ -8,7 +8,7 @@ import { NavProvider, type Route, useHashNav, useMemoryNav } from './nav'
 import pageCss from './page.css?inline'
 import runCss from './run.css?inline'
 import runHeadCss from './run-head.css?inline'
-import { type Scheme, SchemeContext } from './scheme'
+import { type Scheme, SchemeContext, type Scroll, ScrollContext } from './scheme'
 import chromeCss from './shell.css?inline'
 import shellCss from './styles.css?inline'
 import tablesCss from './tables.css?inline'
@@ -43,9 +43,10 @@ function useResolved(theme: PortalTheme): Scheme {
 
 /**
  * The dev UI as one element. It draws inside a shadow root, so its styles and the page's
- * styles cannot touch each other. Give the element a height: the UI fills it and scrolls
- * inside. `nav="hash"` keeps the route in the address bar and suits a page of its own.
- * `nav="memory"` suits a page that has other content.
+ * styles cannot touch each other. With `scroll="inside"` (the default) give the element a
+ * height: the UI fills it and scrolls inside. With `scroll="page"` the UI is as tall as its
+ * content and the page around it scrolls. `nav="hash"` keeps the route in the address bar and
+ * suits a page of its own. `nav="memory"` suits a page that has other content.
  */
 export function DevPortal(props: {
   readonly backend: Backend
@@ -53,6 +54,8 @@ export function DevPortal(props: {
   /** With `nav="memory"`, the wizard or run the UI opens on. */
   readonly open?: Route
   readonly theme?: PortalTheme
+  /** `inside`: the UI fills its element and scrolls. `page`: it grows and the page scrolls. */
+  readonly scroll?: Scroll
   readonly className?: string
   readonly style?: CSSProperties
 }): ReactElement {
@@ -71,13 +74,15 @@ export function DevPortal(props: {
         createPortal(
           <>
             <style>{CSS}</style>
-            <div className="frame" data-theme={scheme}>
+            <div className="frame" data-theme={scheme} data-scroll={props.scroll ?? 'inside'}>
               <SchemeContext.Provider value={scheme}>
-                <BackendProvider value={props.backend}>
-                  <NavProvider value={hash ?? memory}>
-                    <App />
-                  </NavProvider>
-                </BackendProvider>
+                <ScrollContext.Provider value={props.scroll ?? 'inside'}>
+                  <BackendProvider value={props.backend}>
+                    <NavProvider value={hash ?? memory}>
+                      <App />
+                    </NavProvider>
+                  </BackendProvider>
+                </ScrollContext.Provider>
               </SchemeContext.Provider>
             </div>
           </>,

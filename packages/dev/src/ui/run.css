@@ -1,4 +1,36 @@
 /* The run page: what it waits for, and how it ended. */
+/* With room, the graph stays in view on the left while the cards beside it scroll. */
+.run-cols[data-wide] {
+  display: grid;
+  grid-template-columns: minmax(0, 9fr) minmax(0, 11fr);
+  align-items: start;
+  gap: 20px;
+  margin-top: 18px;
+}
+.run-cols[data-wide] .run-graph {
+  position: sticky;
+  top: 62px;
+}
+.frame[data-scroll="page"] .run-cols[data-wide] .run-graph {
+  top: calc(var(--ow-dev-top, 0px) + 12px);
+}
+/* Stacked in a page that scrolls: the graph stays under the page's header while the cards pass
+   below it, so a reader answers a card and sees the graph change. */
+.frame[data-scroll="page"] .run-cols:not([data-wide]) .run-graph {
+  position: sticky;
+  z-index: 3;
+  top: var(--ow-dev-top, 0px);
+  margin: 0 -16px;
+  background: var(--bg);
+  padding: 0 16px 12px;
+}
+.frame[data-scroll="page"] .run-cols:not([data-wide]) .run-graph:empty {
+  display: none;
+}
+.run-cols[data-wide] .graph,
+.run-cols[data-wide] .run-detail > :first-child {
+  margin-top: 0;
+}
 .need-meta {
   flex: none;
   margin-left: auto;

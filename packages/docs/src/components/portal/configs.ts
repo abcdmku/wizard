@@ -19,13 +19,11 @@ import { upload } from '../../../snippets/learn/retry'
 import { report } from '../../../snippets/learn/steps'
 import { approval } from '../../../snippets/learn/wait'
 
-/** One portal: the file its wizards come from, what the UI loads and what to try. */
+/** One portal: the file its wizards come from, and what the UI loads. */
 export interface PortalSpec {
   /** Shown in the top bar, where the dev server shows its entry file. */
   readonly file: string
   readonly config: DevConfig
-  /** What a reader does to see the point of the page, in order. */
-  readonly tries: readonly string[]
   /** False to open on the wizard, so the reader picks the input. A run starts otherwise. */
   readonly autostart?: false
 }
@@ -33,12 +31,10 @@ export interface PortalSpec {
 const one = (
   file: string,
   wizard: DevConfig['wizards'][number],
-  tries: readonly string[],
   autostart?: false,
 ): PortalSpec => ({
   file,
   config: defineDev({ wizards: [wizard] }),
-  tries,
   ...(autostart === false ? { autostart } : {}),
 })
 
@@ -116,39 +112,19 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     file: 'home/openwizard.dev.ts',
     config: home,
     autostart: false,
-    tries: [
-      'Pick a wizard in the list.',
-      'Press Start run.',
-      'Answer what the run waits for: a form, an event, a service call or a timer.',
-      'Idea: In deploy, skip the 10 minute bake, then return 0.2 to metrics.errorRate. The run calls cluster.rollback to undo the canary.',
-      'Idea: In incident, skip the 5 minute timeout on ack. The page goes to the manager.',
-    ],
   },
   dev: {
     file: 'dev/openwizard.dev.ts',
     config: devConfig,
     autostart: false,
-    tries: [
-      'Press Start run. orders.find is a configured service, so the order step answers on its own.',
-      'Press Submit form, then Send refund.approved: the webhook the manager step waits for.',
-      'Return payments.refund, or press Make it throw, then Throw. pay tries again.',
-    ],
   },
-  refund: one('agents/refund.ts', refundWizard, [
-    'Press Return on orders.find, then Submit form. A refund of 900 goes to a manager.',
-    'Press Send refund.approved, then Return on payments.refund.',
-  ]),
+  refund: one('agents/refund.ts', refundWizard),
   steps: one(
     'learn/steps.ts',
     devWizard(report, {
       input: { reportId: 'r-1' },
       examples: { calls: { 'reports.download': { pages: 3 } } },
     }),
-    [
-      'The run stops at download, which called deps.reports.download. Press Return to answer it.',
-      'announce starts because download named it in next. Its output is the result of the run.',
-      'Open History to see each step start and finish, in order.',
-    ],
   ),
   needs: one(
     'learn/needs.ts',
@@ -161,46 +137,19 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
         },
       },
     }),
-    [
-      'profile and orders both run, because both start the wizard. Return one of the two calls.',
-      'summary stays blocked. It starts only when both have finished.',
-      'Return the other call, then click summary in the graph to see the output it built from both.',
-    ],
   ),
   forms: one(
     'learn/form.ts',
     devWizard(signup, { examples: { forms: { contact: { email: 'not-an-email' } } } }),
-    [
-      'Submit the form as it is. The schema refuses the email and the run stays on contact.',
-      'Enter a real address and submit again. welcome reads it through needs.',
-    ],
   ),
-  branch: one(
-    'learn/branch.ts',
-    devWizard(delivery, { input: { speed: 'express' } }),
-    [
-      'Start a run with speed express. choose starts express and skips standard.',
-      'Open delivery in the list, pick standard and press Start run. The other branch runs and label still gets a value.',
-    ],
-    false,
-  ),
+  branch: one('learn/branch.ts', devWizard(delivery, { input: { speed: 'express' } }), false),
   wait: one(
     'learn/wait.ts',
     devWizard(approval, { examples: { events: { approved: { by: 'Grace' } } } }),
-    [
-      'The run waits at decision for the approved event. Press Send approved.',
-      'Press New run, then Skip to it on the timer. 48 hours pass, decision is skipped and close runs.',
-      'Press New run. Clear by and press Send approved. The schema refuses the payload and the step keeps waiting.',
-    ],
   ),
   'save-resume': one(
     'learn/form.ts',
     devWizard(signup, { examples: { forms: { contact: { email: 'ada@example.com' } } } }),
-    [
-      'Open the Snapshot tab. That JSON is the whole run, and it is what a store keeps.',
-      'Open More and press Restart from snapshot. The run is rebuilt from that JSON and the form still waits.',
-      'Submit the form. The resumed run finishes.',
-    ],
   ),
   children: one(
     'learn/children.ts',
@@ -208,11 +157,6 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       input: { country: 'NL' },
       examples: { forms: { street: { street: 'Keizersgracht 1' } } },
     }),
-    [
-      'shipping is a whole wizard running as one step. Its form shows as "shipping / street".',
-      'Submit it. The output of the child becomes the output of shipping, and confirm reads it.',
-      'Open Snapshot. The child run is stored inside the parent.',
-    ],
   ),
   retry: one(
     'learn/retry.ts',
@@ -220,11 +164,6 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       input: { fileId: 'f-1' },
       examples: { calls: { 'storage.save': { url: '/files/f-1' } } },
     }),
-    [
-      'Press Make it throw, then Throw, on storage.save. The step goes to "retrying" and a one second timer starts.',
-      'The call comes back with the same idempotency key. Throw twice more and the run halts.',
-      'Press Retry on the failed step, then Return.',
-    ],
   ),
   fallback: one(
     'learn/fallback.ts',
@@ -232,10 +171,6 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       input: { sku: 'sku-1', listPrice: 10 },
       examples: { calls: { 'live.price': 12 } },
     }),
-    [
-      'Press Make it throw, then Throw, on live.price. The run does not halt. live is skipped and list starts.',
-      'quote reads the list price. Press New run, then Return, to see it read the live price.',
-    ],
   ),
   compensate: one(
     'learn/compensate.ts',
@@ -249,10 +184,5 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
         },
       },
     }),
-    [
-      'Return flights.book. The flight is booked.',
-      'Press Make it throw, then Throw, on hotels.book. The run calls flights.cancel with the reference you returned.',
-      'Return flights.cancel. The run ends as failed, with the flight undone.',
-    ],
   ),
 }
