@@ -94,8 +94,15 @@ export function Portal({ name }: { readonly name: string }) {
         style={top === undefined ? undefined : ({ '--ow-dev-top': `${top}px` } as CSSProperties)}
       >
         <figcaption className="portal-bar">
-          <span>
-            The UI of <code>openwizard dev</code>, running in this page
+          {/* The three window buttons of a desktop app. They are a picture, not controls. */}
+          <span className="portal-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className="portal-title">
+            <code>openwizard dev</code>
+            <span className="portal-title-note">, running in this page</span>
           </span>
           <button
             type="button"
