@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import type { Backend } from '../../../../dev/src/ui/backend'
 import { localBackend } from '../../../../dev/src/ui/local'
 import type { Route } from '../../../../dev/src/ui/nav'
@@ -28,6 +28,31 @@ function useHeaderHeight(): number | undefined {
   return height
 }
 
+/** How long the loading cover waits for the first graph before it lifts anyway. */
+const COVER_MS = 2500
+
+/**
+ * True once the UI inside the figure has drawn its first graph. Until then the loading cover
+ * stays over it, so a reader sees one change, from the cover to the whole UI, and none of the
+ * half-built frames between.
+ */
+function useDrawn(figure: RefObject<HTMLElement | null>, ready: unknown): boolean {
+  const [drawn, setDrawn] = useState(false)
+  useEffect(() => {
+    setDrawn(false)
+    if (ready === undefined) return
+    const started = performance.now()
+    let frame = requestAnimationFrame(function look() {
+      const root = figure.current?.querySelector('.portal-host')?.shadowRoot
+      if (root?.querySelector('.react-flow__node') || performance.now() - started > COVER_MS)
+        return setDrawn(true)
+      frame = requestAnimationFrame(look)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [figure, ready])
+  return drawn
+}
+
 /**
  * The dev UI of `openwizard dev`, running in the page as a window. It is the same UI and the
  * same run store the dev server uses, with the wizards its page shows. A run is already started.
@@ -45,6 +70,7 @@ export function Portal({ name }: { readonly name: string }) {
   const win = usePortalWindow(figure)
   const { state, full, epoch, toggleFull, minimize, close } = win
   const top = useHeaderHeight()
+  const drawn = useDrawn(figure, ready)
   const controls = useMemo<WindowControls>(
     () => ({ full, onClose: close, onMinimize: minimize, onFull: toggleFull }),
     [full, close, minimize, toggleFull],
@@ -97,8 +123,8 @@ export function Portal({ name }: { readonly name: string }) {
           hidden={state === 'min'}
           style={top === undefined ? undefined : ({ '--ow-dev-top': `${top}px` } as CSSProperties)}
         >
-          <div className="portal-frame">
-            {ready ? (
+          <div className="portal-frame" data-loading={drawn ? undefined : ''}>
+            {ready && (
               <DevPortal
                 backend={ready.backend}
                 nav="memory"
@@ -108,7 +134,8 @@ export function Portal({ name }: { readonly name: string }) {
                 className="portal-host"
                 {...(ready.open === undefined ? {} : { open: ready.open })}
               />
-            ) : (
+            )}
+            {!drawn && (
               <div className="portal-loading" role="status">
                 <div className="portal-loading-bar" />
                 <div className="portal-loading-body">

@@ -9,7 +9,7 @@ import {
 } from 'react'
 import type { RunDetail } from '../wire'
 import { Status } from './app'
-import { useBackend } from './backend'
+import { primeRun, useBackend } from './backend'
 import { ago, clock, runTag, span } from './format'
 import { Go, useNav } from './nav'
 import { useRunClock } from './run-clock'
@@ -254,7 +254,9 @@ export function RunHeader({ run }: { readonly run: RunDetail }): ReactElement {
       input: run.input,
       services: run.services,
     })
-    if (started.ok && started.id !== undefined) nav.go({ page: 'run', id: started.id })
+    if (!started.ok || started.id === undefined) return
+    await primeRun(backend, started.id)
+    nav.go({ page: 'run', id: started.id })
   }
   const remove = async () => {
     await backend.remove(run.id)

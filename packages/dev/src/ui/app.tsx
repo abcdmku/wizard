@@ -2,8 +2,10 @@ import { type ReactElement, useEffect, useState } from 'react'
 import { useBackend, useServer } from './backend'
 import { useNav } from './nav'
 import { RunPage } from './run-page'
+import { useScroll } from './scheme'
 import { Side } from './side'
 import { runWord, wordTone } from './status-word'
+import { useWarmGraphs } from './warm'
 import { FullButton, useWindow, WindowDots } from './window-bar'
 import { WizardPage } from './wizard-page'
 
@@ -43,6 +45,7 @@ export function App(): ReactElement {
   const { catalog, runs } = server
   const wizards = catalog?.wizards ?? []
   const first = wizards[0]
+  const main = useWarmGraphs(wizards, useScroll())
   // With nothing chosen, show the first wizard.
   useEffect(() => {
     if (route.page === 'home' && first !== undefined) nav.go({ page: 'wizard', name: first.name })
@@ -91,7 +94,7 @@ export function App(): ReactElement {
 
       <Side wizards={wizards} runs={runs} route={route} now={now} />
 
-      <main className="main">
+      <main ref={main} className="main">
         {catalog?.error !== undefined && (
           <pre className="load-error" role="alert">
             {catalog.error}

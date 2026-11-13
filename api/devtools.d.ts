@@ -432,6 +432,26 @@ interface WizardGraphProps extends GraphInput {
  */
 declare function WizardGraph(props: WizardGraphProps): ReactElement;
 //#endregion
+//#region src/graph/prepare.d.ts
+/**
+ * What `prepareGraph` needs to know about the `<WizardGraph>` that will draw the graph: the
+ * width of its element in pixels, and the `autoHeight` and `direction` props it will be given.
+ * @public
+ */
+interface PrepareGraphOptions {
+  readonly width: number;
+  readonly autoHeight?: GraphAutoHeight;
+  readonly direction?: GraphDirection;
+}
+/**
+ * Lays a graph out before a `<WizardGraph>` shows it. A graph that was prepared opens at its
+ * final height with its steps in place, where one that was not opens empty and grows a moment
+ * later. Call it with `inspect(wizard)` and the width and props the component will have. It uses
+ * the default layout engine, and resolves when the layout is ready.
+ * @public
+ */
+declare function prepareGraph(graph: Manifest, options: PrepareGraphOptions): Promise<void>;
+//#endregion
 //#region src/events/EventLog.d.ts
 /**
  * `<EventLog>` props: a live `source` (run) or a static `events` array; an optional `filter`
@@ -585,5 +605,5 @@ declare function overlayOf(source: DevtoolsSource, snapshot: unknown): {
   readonly childPaths: readonly (readonly string[])[];
 };
 //#endregion
-export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, type EdgeRoute, EventLog, type EventLogProps, type GraphAutoHeight, type GraphDirection, type GraphInput, type GraphModel, type GraphSelection, type LayoutDirection, type LayoutEngine, type LayoutOptions, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type Point, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type RunSource, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, WizardGraph, type WizardGraphProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isProjectedState, isRunSource, layoutGraph, overlayOf, runPhaseReader, stepKey };
+export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, type EdgeRoute, EventLog, type EventLogProps, type GraphAutoHeight, type GraphDirection, type GraphInput, type GraphModel, type GraphSelection, type LayoutDirection, type LayoutEngine, type LayoutOptions, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type Point, type PrepareGraphOptions, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type RunSource, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, WizardGraph, type WizardGraphProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isProjectedState, isRunSource, layoutGraph, overlayOf, prepareGraph, runPhaseReader, stepKey };
 //# sourceMappingURL=index.d.ts.map

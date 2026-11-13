@@ -88,10 +88,38 @@
 
 /* In the page the UI is as tall as its content: the page scrolls and nothing scrolls inside. */
 .portal-frame {
+  position: relative;
   min-height: 360px;
 }
+/* Until the UI has drawn its first graph, the cover lies over it and the frame holds a height
+   near the one it will have, so the page below moves once. */
+.portal-frame[data-loading] {
+  min-height: 640px;
+  overflow: hidden;
+}
 .portal-loading {
-  min-height: 360px;
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+}
+.portal-host {
+  animation: portal-in 0.18s ease-out;
+}
+.portal-frame[data-loading] .portal-host {
+  visibility: hidden;
+  animation: none;
+}
+@keyframes portal-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes portal-in {
+    from {
+      opacity: 1;
+    }
+  }
 }
 
 /* Full screen: the whole window, where the UI scrolls inside as it does under openwizard dev. */

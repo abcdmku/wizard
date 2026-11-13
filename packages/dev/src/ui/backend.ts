@@ -72,14 +72,32 @@ export function useServer(): {
   return { catalog, runs, connected, version: (id) => versions[id] ?? 0, refresh }
 }
 
+/** The last detail fetched for each run, so a run that was open before opens at once. */
+const details = new WeakMap<Backend, Map<string, RunDetail>>()
+
+function keep(backend: Backend, id: string, detail: RunDetail | undefined): void {
+  const known = details.get(backend) ?? new Map<string, RunDetail>()
+  details.set(backend, known)
+  if (detail === undefined) known.delete(id)
+  else known.set(id, detail)
+}
+
+/** Fetches a run before its page opens, so the page does not open on a loading line. */
+export async function primeRun(backend: Backend, id: string): Promise<void> {
+  keep(backend, id, await backend.run(id))
+}
+
 /** The detail of one run, refetched whenever `version` changes. `null` when the run is gone. */
 export function useRun(id: string, version: number): RunDetail | null | undefined {
   const backend = useBackend()
-  const [detail, setDetail] = useState<RunDetail | null>()
+  const [detail, setDetail] = useState<RunDetail | null | undefined>(() =>
+    details.get(backend)?.get(id),
+  )
   useEffect(() => {
     let live = true
     void version
     void backend.run(id).then((value) => {
+      keep(backend, id, value)
       if (live) setDetail(value ?? null)
     })
     return () => {
