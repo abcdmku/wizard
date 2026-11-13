@@ -9,8 +9,9 @@
 
 import type { ManifestStep } from '@openwizard/core/inspect'
 import type { Edge, Node } from '@xyflow/react'
-import type { LayoutResult, Placement } from '../layout/elk'
+import type { EdgeRoute, LayoutResult, Placement, Point } from '../layout/elk'
 import { pickHandles } from '../layout/handles'
+import { drawnEdges } from '../layout/merge'
 import type { GraphModel, ModelEdge, ModelEdgeKind, ModelNode } from '../layout/model'
 import type { StepStatusInfo, StepStatusMap } from '../types'
 
@@ -21,6 +22,8 @@ export interface GraphOverlay {
   readonly current: string | null
   /** Key of the selected step. */
   readonly selected: string | null
+  /** Keys of the steps that wait on a person, when the host says which. */
+  readonly attention?: ReadonlySet<string>
 }
 
 export type StepNodeData = {
@@ -31,6 +34,8 @@ export type StepNodeData = {
   readonly live: StepStatusInfo | undefined
   readonly current: boolean
   readonly selected: boolean
+  /** The host says a person has to act on this step (`undefined` when it does not say). */
+  readonly attention: boolean | undefined
 }
 
 type MarkerNodeData = {
@@ -45,6 +50,10 @@ type GraphEdgeData = {
   readonly back: boolean
   /** With a live run: the run went this way (`taken`) or cannot any more (`untaken`). */
   readonly path?: EdgePathState
+  /** The line ELK routed, drawn while both ends stay where the layout put them. */
+  readonly route?: EdgeRoute
+  /** Where the layout put both ends (absolute), to tell when a card was dragged. */
+  readonly ends?: { readonly source: Point; readonly target: Point }
 }
 
 /** Whether the run went along an edge, from the statuses at both ends. */
@@ -70,7 +79,12 @@ function stepData(
     live: overlay.statuses[node.key],
     current: overlay.current === node.key,
     selected: overlay.selected === node.key,
+    attention: attentionOf(overlay, node.key),
   }
+}
+
+function attentionOf(overlay: GraphOverlay, key: string): boolean | undefined {
+  return overlay.attention === undefined ? undefined : overlay.attention.has(key)
 }
 
 function toNode(
@@ -115,31 +129,35 @@ function toNode(
   return { ...base, type: 'step', data, width: place.width, height: place.height, draggable: true }
 }
 
-/**
- * The label worth drawing. `needs request` on an edge that leaves `request` repeats what the
- * arrow already shows, so only a renamed or partial need (`needs approval (any)`) keeps one.
- */
-function edgeLabel(edge: ModelEdge): string | undefined {
-  if (edge.kind !== 'needs' || edge.label === undefined) return edge.label
-  const sourceId = edge.source.slice(edge.source.lastIndexOf('/') + 1)
-  return edge.label === 'needs' || edge.label === `needs ${sourceId}` ? undefined : edge.label
+/** Absolute positions: placements inside a group are relative to it. */
+function absolute(model: GraphModel, layout: LayoutResult): Map<string, Point> {
+  const at = new Map<string, Point>()
+  for (const node of model.nodes) {
+    const p = layout.placements[node.key]
+    if (p === undefined) continue
+    const parent = node.parent === undefined ? undefined : at.get(node.parent)
+    at.set(node.key, parent === undefined ? p : { x: parent.x + p.x, y: parent.y + p.y })
+  }
+  return at
 }
 
 function toEdge(
   edge: ModelEdge,
   layout: LayoutResult,
-  said: Set<string>,
+  at: ReadonlyMap<string, Point>,
 ): DevtoolsEdge | undefined {
   const source = layout.placements[edge.source]
   const target = layout.placements[edge.target]
+  const sourceAt = at.get(edge.source)
+  const targetAt = at.get(edge.target)
   if (source === undefined || target === undefined) return undefined
-  const handles = pickHandles(source, target)
-  let label = edgeLabel(edge)
-  if (label !== undefined) {
-    const once = `${edge.target}\n${edge.kind}\n${label}`
-    if (said.has(once)) label = undefined
-    else said.add(once)
-  }
+  if (sourceAt === undefined || targetAt === undefined) return undefined
+  const handles = pickHandles(
+    { ...source, ...sourceAt },
+    { ...target, ...targetAt },
+    layout.direction,
+  )
+  const route = layout.routes[edge.key]
   return {
     id: edge.key,
     source: edge.source,
@@ -149,8 +167,9 @@ function toEdge(
     type: 'graph',
     data: {
       kind: edge.kind,
-      ...(label === undefined ? {} : { label }),
+      ...(edge.label === undefined ? {} : { label: edge.label }),
       back: layout.backEdges.has(edge.key),
+      ...(route === undefined ? {} : { route, ends: { source: sourceAt, target: targetAt } }),
     },
     focusable: false,
     deletable: false,
@@ -169,10 +188,9 @@ export function toReactFlow(
     if (place !== undefined) nodes.push(toNode(node, place, model, overlay))
   }
   const edges: DevtoolsEdge[] = []
-  // Edges into one step with the same label (`needs approval (any)` from each branch) say it once.
-  const said = new Set<string>()
-  for (const edge of model.edges) {
-    const e = toEdge(edge, layout, said)
+  const at = absolute(model, layout)
+  for (const edge of drawnEdges(model.edges)) {
+    const e = toEdge(edge, layout, at)
     if (e !== undefined) edges.push(e)
   }
   return { nodes, edges: applyEdgeOverlay(edges, overlay) }
@@ -190,6 +208,7 @@ export function applyOverlay(
       live: overlay.statuses[node.id],
       current: overlay.current === node.id,
       selected: overlay.selected === node.id,
+      attention: attentionOf(overlay, node.id),
     }
     return { ...node, data }
   })
@@ -220,13 +239,8 @@ export function applyEdgeOverlay(
     if (edge.data === undefined) return edge
     const path = pathState(edge, overlay.statuses)
     if (path === edge.data.path) return edge
-    const { kind, label, back } = edge.data
-    const data: GraphEdgeData = {
-      kind,
-      back,
-      ...(label === undefined ? {} : { label }),
-      ...(path === undefined ? {} : { path }),
-    }
+    const { path: _old, ...rest } = edge.data
+    const data: GraphEdgeData = path === undefined ? rest : { ...rest, path }
     return { ...edge, data }
   })
 }

@@ -43,6 +43,7 @@ it('lists the wizards of the entry file with their graph, page and starting inpu
   expect(catalog.wizards.map((wizard) => [wizard.name, wizard.hasDeps])).toEqual([
     ['refund', false],
     ['reminder', true],
+    ['upload', false],
   ])
   const [refund, reminder] = catalog.wizards
   expect(refund?.exampleInput).toEqual({ orderId: 'o-2' })
@@ -169,6 +170,33 @@ it('skips a sleep and runs the next step with real services', async () => {
   await new Promise((done) => setTimeout(done, 20))
   run = await detail(id)
   expect(run.result).toMatchObject({ status: 'done', output: 'sent to ada@example.com' })
+})
+
+it('names the next timer, counts only what a person supplies and numbers each attempt', async () => {
+  const sleeping = await detail(await start('reminder', { to: 'ada@example.com' }))
+  expect(sleeping.waiting).toBe(0)
+  expect(sleeping.timer).toMatchObject({ purpose: 'sleep', step: 'pause', path: [] })
+
+  const id = await start('upload', { fileId: 'f-1' })
+  let run = await detail(id)
+  expect(run.waiting).toBe(1)
+  const first = run.pending.find((item) => item.kind === 'call') as { id: string }
+  expect(first).toMatchObject({ step: 'save', path: [], attempt: 1, attempts: 3 })
+
+  await act(id, { type: 'reject', id: first.id, message: 'Storage is down' })
+  run = await detail(id)
+  expect(run.waiting).toBe(0)
+  expect(run.phases.save).toBe('retrying')
+  expect(run.timer).toMatchObject({ purpose: 'retry', step: 'save', attempt: 2, attempts: 3 })
+
+  await act(id, { type: 'skipTimer' })
+  await new Promise((done) => setTimeout(done, 20))
+  run = await detail(id)
+  expect(run.pending.find((item) => item.kind === 'call')).toMatchObject({
+    step: 'save',
+    attempt: 2,
+    attempts: 3,
+  })
 })
 
 it('removes a run', async () => {

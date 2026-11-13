@@ -19,8 +19,85 @@
   --xy-controls-button-border-color: var(--owd-border);
   --xy-attribution-background-color: transparent;
 }
+.owd-graph .react-flow__attribution {
+  opacity: 0.6;
+}
 .owd-graph .react-flow__attribution a {
   color: var(--owd-subtle);
+}
+
+/* ---- what lies outside the view: a fade on that side and a button that moves the view ---- */
+.owd-fade {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}
+.owd-fade[data-side="left"] {
+  inset: 0 auto 0 0;
+  width: 28px;
+  background: linear-gradient(to right, var(--owd-bg), transparent);
+}
+.owd-fade[data-side="right"] {
+  inset: 0 0 0 auto;
+  width: 28px;
+  background: linear-gradient(to left, var(--owd-bg), transparent);
+}
+.owd-fade[data-side="top"] {
+  inset: 0 0 auto 0;
+  height: 28px;
+  background: linear-gradient(to bottom, var(--owd-bg), transparent);
+}
+.owd-fade[data-side="bottom"] {
+  inset: auto 0 0 0;
+  height: 28px;
+  background: linear-gradient(to top, var(--owd-bg), transparent);
+}
+/* A step cut by the edge is covered, fading in from the edge, so no name shows in half. */
+.owd-cover {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}
+.owd-cover[data-side="left"] {
+  background: linear-gradient(to left, transparent, var(--owd-bg) 16px);
+}
+.owd-cover[data-side="right"] {
+  background: linear-gradient(to right, transparent, var(--owd-bg) 16px);
+}
+.owd-cover[data-side="top"] {
+  background: linear-gradient(to top, transparent, var(--owd-bg) 12px);
+}
+.owd-cover[data-side="bottom"] {
+  background: linear-gradient(to bottom, transparent, var(--owd-bg) 12px);
+}
+.owd-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--owd-border);
+  background: var(--owd-surface);
+  color: var(--owd-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.owd-more:hover {
+  background: var(--owd-muted);
+}
+.owd-more:focus-visible {
+  outline: 2px solid var(--owd-accent);
+  outline-offset: 1px;
+}
+.owd-more-right {
+  position: absolute;
+  z-index: 5;
+  top: 10px;
+  right: 98px;
 }
 .owd-graph .react-flow__handle {
   width: 6px;
@@ -38,11 +115,12 @@
   --owd-tone: var(--owd-border);
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  width: 200px;
-  height: 72px;
-  padding: 9px 10px;
-  border-radius: 10px;
+  justify-content: center;
+  gap: 3px;
+  width: 168px;
+  height: 46px;
+  padding: 0 9px;
+  border-radius: 8px;
   border: 1.5px solid var(--owd-border);
   background: var(--owd-surface);
   color: var(--owd-text);
@@ -52,28 +130,30 @@
 }
 .owd-node-card[data-tone],
 .owd-group[data-tone] {
-  border-color: color-mix(in srgb, var(--owd-tone) 75%, var(--owd-border));
+  border-color: color-mix(in srgb, var(--owd-tone) 70%, var(--owd-border));
 }
 .owd-node-card[data-tone] {
-  background: color-mix(in srgb, var(--owd-tone) 9%, var(--owd-surface));
+  background: color-mix(in srgb, var(--owd-tone) 8%, var(--owd-surface));
 }
 .owd-node-card[data-tone="skipped"],
-.owd-node-card[data-tone="cancelled"] {
+.owd-node-card[data-tone="cancelled"],
+.owd-node-card[data-tone="blocked"] {
   border-style: dashed;
   background: var(--owd-surface);
   box-shadow: none;
 }
 .owd-node-card[data-tone="skipped"] > *,
 .owd-node-card[data-tone="cancelled"] > * {
-  opacity: 0.7;
+  opacity: 0.75;
 }
-.owd-node-card[data-tone="failed"] {
+.owd-node-card[data-tone="failed"],
+.owd-node-card[data-tone="attention"] {
   border-width: 2px;
 }
 .owd-node-card[data-current="true"] {
   box-shadow:
     var(--owd-shadow),
-    0 0 0 3px color-mix(in srgb, var(--owd-tone) 30%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--owd-tone) 28%, transparent);
 }
 .owd-node-card[data-selected="true"],
 .owd-group[data-selected="true"] {
@@ -88,13 +168,35 @@
 }
 .owd-node-id {
   font-family: var(--owd-mono);
-  font-weight: 700;
-  font-size: 12.5px;
+  font-weight: 650;
+  font-size: 14px;
+  line-height: 18px;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
   flex: 1 1 auto;
+}
+.owd-node-warning {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--owd-warn) 18%, var(--owd-surface));
+  color: color-mix(in srgb, var(--owd-warn) 70%, var(--owd-text));
+  font-size: 11px;
+  font-weight: 700;
+}
+.owd-node-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 17px;
+  overflow: hidden;
 }
 
 /* The status word: a dot and a word in the tone of the status. The word carries the meaning. */
@@ -102,14 +204,15 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 5px;
-  padding: 2px 7px 2px 6px;
+  gap: 4px;
+  height: 17px;
+  padding: 0 6px 0 5px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--owd-tone) 16%, var(--owd-surface));
-  color: color-mix(in srgb, var(--owd-tone) 72%, var(--owd-text));
-  font-size: 11px;
+  background: color-mix(in srgb, var(--owd-tone) 15%, var(--owd-surface));
+  color: color-mix(in srgb, var(--owd-tone) 65%, var(--owd-text));
+  font-size: 12px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1;
   white-space: nowrap;
 }
 .owd-node-status .owd-status-dot {
@@ -117,10 +220,16 @@
   height: 7px;
   background: var(--owd-tone);
 }
-.owd [data-tone="running"] {
+.owd-node-status[data-tone="waiting"] .owd-status-dot,
+.owd-node-status[data-tone="blocked"] .owd-status-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--owd-tone);
+}
+.owd [data-tone="running"],
+.owd [data-tone="waiting"] {
   --owd-tone: var(--owd-accent);
 }
-.owd [data-tone="waiting"],
+.owd [data-tone="attention"],
 .owd [data-tone="retrying"] {
   --owd-tone: var(--owd-warn);
 }
@@ -131,60 +240,41 @@
   --owd-tone: var(--owd-danger);
 }
 .owd [data-tone="skipped"],
-.owd [data-tone="cancelled"] {
+.owd [data-tone="cancelled"],
+.owd [data-tone="blocked"] {
   --owd-tone: var(--owd-subtle);
 }
 .owd [data-tone="undoing"],
 .owd [data-tone="undone"] {
   --owd-tone: var(--owd-accent-2);
 }
-.owd-warning {
-  border-color: var(--owd-warn);
-  color: var(--owd-warn);
-  background: color-mix(in srgb, var(--owd-warn) 12%, transparent);
+.owd-node-card[data-tone="waiting"] {
+  background: var(--owd-surface);
 }
-.owd-node-flags {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  overflow: hidden;
-}
-.owd-node-label {
+.owd-node-fact {
   flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--owd-subtle);
+  font-size: 12px;
+  line-height: 17px;
+}
+.owd-node-attempt {
   font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
+  letter-spacing: -0.01em;
 }
-.owd-flag {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 10.5px;
-  line-height: 1.2;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--owd-subtle) 11%, transparent);
-  color: var(--owd-subtle);
-  white-space: nowrap;
-}
-.owd-flag.owd-kind,
-.owd-flag-more {
+.owd-kind {
   flex: none;
-}
-.owd-flag.owd-kind {
-  font-weight: 600;
-  background: transparent;
-  border: 1px solid currentColor;
   padding: 0 5px;
-}
-.owd-flag-more {
-  background: transparent;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--owd-subtle) 55%, transparent);
+  color: var(--owd-subtle);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+  white-space: nowrap;
 }
 .owd-graph .react-flow__node-group {
   padding: 0;
@@ -227,21 +317,22 @@
 }
 .owd-group-head {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 9px 12px;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--owd-tone) 30%, var(--owd-border));
   border-radius: 13px 13px 0 0;
   background: color-mix(in srgb, var(--owd-surface) 85%, transparent);
 }
 .owd-marker {
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 8px;
   font-weight: 700;
   border: 1.5px solid var(--owd-subtle);
   background: var(--owd-surface);
@@ -281,63 +372,19 @@
 .owd-edge-label {
   position: absolute;
   pointer-events: all;
-  padding: 1px 5px;
+  padding: 0 5px;
   border-radius: 4px;
   background: var(--owd-bg);
   color: var(--owd-subtle);
   font-family: var(--owd-font);
-  font-size: 10.5px;
-  line-height: 1.3;
+  font-size: 11px;
+  line-height: 16px;
   white-space: nowrap;
 }
 .owd-edge-label[data-path="untaken"] {
   color: color-mix(in srgb, var(--owd-subtle) 55%, var(--owd-bg));
 }
 
-/* ---- toolbar and controls ---- */
-.owd-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 8px;
-  border: 1px solid var(--owd-border);
-  background: var(--owd-surface);
-  color: var(--owd-text);
-}
-.owd-graph .react-flow__panel {
-  margin: 10px;
-}
-.owd-graph .react-flow__controls {
-  overflow: hidden;
-  border: 1px solid var(--owd-border);
-  border-radius: 7px;
-  box-shadow: none;
-}
-.owd-graph .react-flow__controls-button {
-  width: 26px;
-  height: 24px;
-  min-width: 0;
-  margin: 0;
-  padding: 5px;
-  border: none;
-  border-radius: 0;
-  font: inherit;
-}
-.owd-graph
-  .react-flow__controls.horizontal
-  .react-flow__controls-button
-  + .react-flow__controls-button {
-  border-left: 1px solid var(--owd-border);
-}
-.owd-graph .react-flow__controls-button svg {
-  max-width: 11px;
-  max-height: 11px;
-}
-.owd-graph .react-flow__controls-button:focus-visible {
-  outline: 2px solid var(--owd-accent);
-  outline-offset: -2px;
-}
 .owd-minimap {
   border: 1px solid var(--owd-border);
   border-radius: 8px;

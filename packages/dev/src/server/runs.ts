@@ -3,7 +3,7 @@ import type { Action, ActionResult, RunDetail, RunSummary, Services, StartReques
 import type { AnyRun } from './children'
 import { createDevClock, type DevClock } from './clock'
 import { createManualDeps, type ManualDeps } from './manual-deps'
-import { pendingOf } from './pending'
+import { forPerson, pendingOf, timerOf } from './pending'
 import { perform } from './perform'
 import type { Loaded, Registry } from './registry'
 
@@ -65,18 +65,21 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
       updatedAt: item.updatedAt,
       services: item.services,
       stale: current?.info.manifest.fingerprint !== item.loaded.info.manifest.fingerprint,
-      waiting: pendingOf(item).length,
+      waiting: pendingOf(item).filter(forPerson).length,
     }
   }
 
-  const phases = (item: Held): Record<string, string> => {
-    const out: Record<string, string> = {}
+  /** `run.explain` of each root step: its live phase and the reasons it has not started. */
+  const explain = (item: Held) => {
+    const phases: Record<string, string> = {}
+    const reasons: Record<string, readonly string[]> = {}
     for (const node of item.loaded.info.manifest.nodes) {
       if (node.path.length > 0) continue
-      const phase = item.run.explain(node.id).phase
-      if (phase !== undefined) out[node.id] = phase
+      const facts = item.run.explain(node.id)
+      if (facts.phase !== undefined) phases[node.id] = facts.phase
+      if (facts.reasons.length > 0) reasons[node.id] = facts.reasons
     }
-    return out
+    return { phases, reasons }
   }
 
   return {
@@ -156,16 +159,18 @@ export function createRunStore(registry: () => Registry, onChange: (id: string) 
       if (item === undefined) return undefined
       const result = item.run.result()
       const nextTimer = item.clock.next()
+      const timer = timerOf(item)
       return {
         ...summary(item),
         input: item.input,
         snapshot: item.run.getSnapshot(),
-        phases: phases(item),
+        ...explain(item),
         pending: pendingOf(item),
         events: [...item.events],
         ...(result === undefined ? {} : { result }),
         now: item.clock.now(),
         ...(nextTimer === undefined ? {} : { nextTimer }),
+        ...(timer === undefined ? {} : { timer }),
       }
     },
     async act(id, action) {

@@ -1,12 +1,15 @@
-import { type ReactElement, useState } from 'react'
+import type { Manifest } from '@openwizard/core/inspect'
+import { type ReactElement, useEffect, useState } from 'react'
 import { exampleOf } from '../server/example'
 import type { Pending, RunDetail } from '../wire'
 import { CallCard } from './call-card'
 import { fieldIssues, restOf, ValueEditor } from './fields'
-import { brief, stepLabel } from './format'
+import { literal, stepLabel } from './format'
 import { Refusal, useJsonDraft } from './json'
 import { MEANING, type OutsideKind } from './kind'
 import { advanceCode, Card, Deadline, scope, useAction } from './need'
+import { nodeOf } from './step-facts'
+import { TimerCard } from './timer-card'
 
 function ViewCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kind: 'view' }> }) {
   const [draft, setDraft] = useJsonDraft(
@@ -20,7 +23,7 @@ function ViewCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kind
     <Card
       kind="form"
       title={<code>{stepLabel(item.path, item.step)}</code>}
-      code={`await ${at}.setInput('${item.step}', ${brief(draft.value, 60)})\nawait ${at}.next()`}
+      code={`await ${at}.setInput('${item.step}', ${literal(draft.value)})\nawait ${at}.next()`}
     >
       <ValueEditor
         schema={item.schema}
@@ -56,7 +59,7 @@ function EventCard(props: {
   const origin = chosen?.origin
   const kind: OutsideKind =
     origin?.source === 'webhook' ? 'webhook' : origin?.source === 'queue' ? 'queue' : 'event'
-  const sender = origin?.from === undefined ? '' : ` Sender: ${origin.from}.`
+  const sender = origin?.from === undefined ? '' : ` Sent by ${origin.from}.`
   const [draft, setDraft] = useJsonDraft(
     chosen?.example ?? exampleOf(chosen?.schema),
     `${run.id}:${item.step}:${name}`,
@@ -68,7 +71,7 @@ function EventCard(props: {
       kind={kind}
       title={<code>{stepLabel(item.path, item.step)}</code>}
       note={`${MEANING[kind]}${sender} Here you send it.`}
-      code={`await run.send('${name}', ${brief(draft.value, 60)})`}
+      code={`await run.send('${name}', ${literal(draft.value)})`}
     >
       {item.events.length > 1 && (
         <label className="field">
@@ -111,13 +114,19 @@ function EventCard(props: {
   )
 }
 
-function SleepCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kind: 'sleep' }> }) {
+function SleepCard(props: {
+  run: RunDetail
+  item: Extract<Pending, { kind: 'sleep' }>
+  manifest: Manifest | undefined
+}) {
+  const { run, item } = props
+  const sleep = nodeOf(props.manifest, [...item.path, item.step].join('/'))?.sleep
   return (
     <Card
       kind="timer"
       title={<code>{stepLabel(item.path, item.step)}</code>}
-      note="The step sleeps until a set time, then the run goes on."
-      code={advanceCode(item.deadline - run.now)}
+      note="The step sleeps until a set time, then the run goes on by itself."
+      code={advanceCode(item.deadline - run.now, typeof sleep === 'number' ? sleep : undefined)}
     >
       <Deadline
         run={run.id}
@@ -126,20 +135,6 @@ function SleepCard({ run, item }: { run: RunDetail; item: Extract<Pending, { kin
         verb="Wakes"
         effect="the step wakes now"
       />
-    </Card>
-  )
-}
-
-/** A timer no card owns: a retry delay, or the timeout of a step that runs work. */
-function TimerCard({ run, at }: { run: RunDetail; at: number }): ReactElement {
-  return (
-    <Card
-      kind="timer"
-      title="Next timer"
-      note="Nothing above waits on it, so it is a retry delay or the timeout of a running step."
-      code={advanceCode(at - run.now)}
-    >
-      <Deadline run={run.id} left={at - run.now} next verb="Fires" effect="it fires now" />
     </Card>
   )
 }
@@ -193,18 +188,42 @@ const ownsTimer = (run: RunDetail): boolean =>
     (item) => (item.kind === 'event' || item.kind === 'sleep') && item.deadline === run.nextTimer,
   )
 
+/** True after `ms` of `on` in a row, so a moment between two actions does not flash. */
+function useSettled(on: boolean, ms = 700): boolean {
+  const [settled, setSettled] = useState(false)
+  useEffect(() => {
+    if (!on) {
+      setSettled(false)
+      return
+    }
+    const timer = setTimeout(() => setSettled(true), ms)
+    return () => clearTimeout(timer)
+  }, [on, ms])
+  return settled
+}
+
 /**
- * Everything a live run waits for, each with the control that supplies it, or a note that the
- * run is working. It stays mounted while the run lives, so choices such as an open throw panel
- * outlast a moment with nothing to do.
+ * Everything a live run waits for. "Waiting for you" holds what a person supplies, each with
+ * the control that supplies it; its count is `run.waiting`, the number the run list shows.
+ * "Timers" holds sleeps and the next timer, which fire by themselves and can be skipped. With
+ * neither, a note says the run is working, after a short pause so it does not flash between
+ * two actions. The list stays mounted while the run lives, so choices such as an open throw
+ * panel outlast a moment with nothing to do.
  */
-export function PendingList({ run }: { readonly run: RunDetail }): ReactElement {
+export function PendingList(props: {
+  readonly run: RunDetail
+  readonly manifest: Manifest | undefined
+}): ReactElement | null {
+  const { run } = props
   // Service names whose "Make it throw" panel is open, kept across calls to the same service.
   const [throwing, setThrowing] = useState<ReadonlySet<string>>(() => new Set())
-  const owned = ownsTimer(run)
-  const count = run.pending.length + (run.nextTimer !== undefined && !owned ? 1 : 0)
-  if (count === 0)
-    return (
+  const forYou = run.pending.filter((item) => item.kind !== 'sleep')
+  const sleeps = run.pending.filter((item) => item.kind === 'sleep')
+  const loose = run.nextTimer !== undefined && !ownsTimer(run)
+  const idle = forYou.length === 0 && sleeps.length === 0 && !loose
+  const working = useSettled(idle)
+  if (idle)
+    return working ? (
       <div className="working" role="status">
         <span className="pulse" aria-hidden="true" />
         <div>
@@ -214,34 +233,55 @@ export function PendingList({ run }: { readonly run: RunDetail }): ReactElement 
           </p>
         </div>
       </div>
-    )
+    ) : null
   return (
-    <section className="needs" aria-labelledby="needs-title">
-      <h2 className="section" id="needs-title">
-        Waiting for you <span className="count-pill">{count}</span>
-      </h2>
-      {run.pending.map((item) => {
-        const key = keyOf(item)
-        if (item.kind === 'view') return <ViewCard key={key} run={run} item={item} />
-        if (item.kind === 'event') return <EventCard key={key} run={run} item={item} />
-        if (item.kind === 'sleep') return <SleepCard key={key} run={run} item={item} />
-        if (item.kind === 'failed') return <FailedCard key={key} run={run} item={item} />
-        return (
-          <CallCard
-            key={key}
-            run={run}
-            item={item}
-            throwing={throwing.has(item.name)}
-            onThrowing={(open) => {
-              const next = new Set(throwing)
-              if (open) next.add(item.name)
-              else next.delete(item.name)
-              setThrowing(next)
-            }}
-          />
-        )
-      })}
-      {run.nextTimer !== undefined && !owned && <TimerCard run={run} at={run.nextTimer} />}
-    </section>
+    <>
+      {forYou.length > 0 && (
+        <section className="needs" aria-labelledby="needs-title">
+          <h2 className="section" id="needs-title">
+            Waiting for you <span className="count-pill">{run.waiting}</span>
+          </h2>
+          {forYou.map((item) => {
+            const key = keyOf(item)
+            if (item.kind === 'view') return <ViewCard key={key} run={run} item={item} />
+            if (item.kind === 'event') return <EventCard key={key} run={run} item={item} />
+            if (item.kind === 'failed') return <FailedCard key={key} run={run} item={item} />
+            if (item.kind !== 'call') return null
+            return (
+              <CallCard
+                key={key}
+                run={run}
+                item={item}
+                throwing={throwing.has(item.name)}
+                onThrowing={(open) => {
+                  const next = new Set(throwing)
+                  if (open) next.add(item.name)
+                  else next.delete(item.name)
+                  setThrowing(next)
+                }}
+              />
+            )
+          })}
+        </section>
+      )}
+      {(sleeps.length > 0 || loose) && (
+        <section className="needs timers" aria-labelledby="timers-title">
+          <h2 className="section" id="timers-title">
+            Timers{' '}
+            <span className="quiet section-note">
+              They fire by themselves. Skip one to move the run's clock.
+            </span>
+          </h2>
+          {sleeps.map((item) =>
+            item.kind === 'sleep' ? (
+              <SleepCard key={keyOf(item)} run={run} item={item} manifest={props.manifest} />
+            ) : null,
+          )}
+          {loose && run.nextTimer !== undefined && (
+            <TimerCard run={run} at={run.nextTimer} manifest={props.manifest} />
+          )}
+        </section>
+      )}
+    </>
   )
 }

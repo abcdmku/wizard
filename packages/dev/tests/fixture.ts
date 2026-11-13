@@ -74,6 +74,24 @@ export const reminder = defineWizard(
   },
 )
 
+/** An upload whose one step calls a service and tries three times. */
+export const upload = defineWizard(
+  {
+    name: 'upload',
+    description: 'Saves a file, trying again after a failure.',
+    context: z.object({ fileId: z.string() }),
+    deps: boundary.trusted<{ storage: { save(fileId: string): Promise<{ url: string }> } }>(),
+  },
+  ({ step, steps }) =>
+    steps({
+      save: step({
+        description: 'Saves the file.',
+        run: ({ context, deps }) => deps.storage.save(context.fileId),
+        retry: { retries: 2, backoff: 1_000 },
+      }),
+    }),
+)
+
 export default defineDev({
   wizards: [
     devWizard(refund, {
@@ -86,5 +104,6 @@ export default defineDev({
       },
     }),
     devWizard(reminder, { deps: { mail: { send: async (to) => `sent to ${to}` } } }),
+    devWizard(upload, { input: { fileId: 'f-1' } }),
   ],
 })

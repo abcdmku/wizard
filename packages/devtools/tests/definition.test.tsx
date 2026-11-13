@@ -49,8 +49,10 @@ it('draws data joins and fallback paths, and shows map and sleep facts in the in
   expect(view.container.querySelector('.owd-edge-label[data-kind="fallback"]')?.textContent).toBe(
     'fallback',
   )
-  expect(screen.getByText('each (2 concurrent)')).toBeTruthy()
-  expect(screen.getByText('sleep 1m')).toBeTruthy()
+  // A card shows its kind and one fact; the rest is in its tooltip.
+  expect(screen.getByText('2 at a time')).toBeTruthy()
+  expect(screen.getByText('1m')).toBeTruthy()
+  expect(screen.getByText('timer')).toBeTruthy()
 
   view.rerender(<StepInspector source={run} step="doubled" graph={graph} />)
   expect(fact(view.container, 'each')).toBe('{"concurrency":2}')

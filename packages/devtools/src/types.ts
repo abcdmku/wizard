@@ -38,6 +38,8 @@ export type StepPhase = NonNullable<Explanation['phase']>
 export interface StepStatusInfo {
   readonly status: StepStatus
   readonly phase?: StepPhase
+  /** The current attempt (1 on the first run) when the snapshot records one. */
+  readonly attempt?: number
 }
 
 /**

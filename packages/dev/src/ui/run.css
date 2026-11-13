@@ -1,10 +1,40 @@
 /* The run page: its header, what it waits for, and how it ended. page.css imports it. */
-/* ---- run header ---- */
+/* ---- run header: sticky at the top of the scroll area, compact once stuck ---- */
+.run-edge {
+  display: block;
+  height: 1px;
+  margin-bottom: -1px;
+}
 .run-head {
+  /* The padding of .main, which the header covers so it reaches the edges once stuck. */
+  --pad: 24px;
+  --pad-top: 22px;
+  position: sticky;
+  z-index: 5;
+  top: calc(-1 * var(--pad-top));
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px 12px;
+  max-width: calc(1180px + 2 * var(--pad));
+  margin: -12px calc(-1 * var(--pad)) 0;
+  border-bottom: 1px solid transparent;
+  background: var(--bg);
+  padding: 12px var(--pad) 10px;
+}
+@container frame (max-width: 880px) {
+  .run-head {
+    --pad: 16px;
+    --pad-top: 16px;
+  }
+}
+.svc {
+  border-radius: 999px;
+  background: var(--soft);
+  padding: 0 8px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: help;
 }
 .run-title {
   display: flex;
@@ -55,6 +85,16 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+.run-head[data-stuck] {
+  border-bottom-color: var(--line);
+  padding-block: 8px;
+}
+.run-head[data-stuck] .run-title h1 {
+  font-size: 16px;
+}
+.run-head[data-stuck] .run-meta {
+  display: none;
 }
 button svg,
 .deadline svg,
@@ -139,6 +179,35 @@ button svg,
 .menu button[data-danger] span {
   color: var(--bad);
 }
+.menu-question {
+  padding: 8px 10px 4px;
+  color: var(--strong);
+  font-weight: 600;
+}
+.menu-answers {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.menu-answers button {
+  flex: none;
+  font-weight: 600;
+}
+.need-meta {
+  flex: none;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--soft);
+  padding: 0 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.section-note {
+  margin-left: 10px;
+  font-size: 12.5px;
+  font-weight: 400;
+}
 
 /* ---- waiting for you ---- */
 .section .count-pill {
@@ -184,9 +253,7 @@ button svg,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.note {
-  font-size: 12.5px;
-}
+.note,
 .hint {
   font-size: 12.5px;
 }
@@ -267,95 +334,65 @@ button.danger {
   align-self: start;
 }
 
-/* ---- working and the outcome ---- */
-.working {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-top: 18px;
-  border: 1px dashed var(--line);
-  border-radius: 10px;
-  padding: 16px;
-}
-.working p:first-child {
-  color: var(--strong);
-  font-weight: 600;
-}
-.working .quiet {
-  font-size: 13px;
-}
-.pulse {
-  width: 10px;
-  height: 10px;
-  flex: none;
-  margin-top: 6px;
-  border-radius: 50%;
-  background: var(--info);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--info) 45%, transparent);
-  animation: pulse 1.6s ease-out infinite;
-}
-@keyframes pulse {
-  to {
-    box-shadow: 0 0 0 8px transparent;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pulse {
-    animation: none;
-  }
-}
-.outcome {
-  --hue: var(--quiet);
+/* ---- the chosen step, right under the graph ---- */
+.step-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 18px;
-  border-color: color-mix(in srgb, var(--hue) 40%, var(--line));
+  margin-top: 12px;
 }
-.outcome[data-status="done"] {
-  --hue: var(--good);
-}
-.outcome[data-status="failed"] {
-  --hue: var(--bad);
-}
-.outcome header {
+.step-panel header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
 }
-.card.outcome h2 {
+.card.step-panel h2 {
+  min-width: 0;
   margin: 0;
-  color: var(--hue);
-  font-size: 16px;
+  overflow-wrap: anywhere;
 }
-.outcome header .quiet {
-  font-size: 13px;
-}
-.outcome-mark {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: none;
+.step-panel .close {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
   place-items: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--hue) 14%, transparent);
-  color: var(--hue);
+  padding: 0;
 }
-.outcome-mark svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 2;
-}
-.outcome-error {
-  color: var(--bad);
-  font-family: var(--mono);
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
   font-size: 13px;
 }
-.outcome summary {
+.facts dt {
+  color: var(--quiet);
+}
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.raw summary {
   color: var(--quiet);
   font-size: 13px;
   cursor: pointer;
 }
-.outcome details .json {
+.raw .json {
   margin-top: 8px;
+}
+.run-head[data-stuck] {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.run-head .status,
+.step-panel .status {
+  flex: none;
+  white-space: nowrap;
+}
+/* On a phone the stuck header keeps the name, the status and More on one line. */
+@container main (max-width: 560px) {
+  .run-head[data-stuck] .run-actions > button:not(.more-button) {
+    display: none;
+  }
 }

@@ -203,3 +203,150 @@ textarea[aria-invalid="true"] {
   height: 32px;
   margin-bottom: 10px;
 }
+
+/* ---- working and the outcome ---- */
+.working {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+.working p:first-child {
+  color: var(--strong);
+  font-weight: 600;
+}
+.working .quiet {
+  font-size: 13px;
+}
+.pulse {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--info);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--info) 45%, transparent);
+  animation: pulse 1.6s ease-out infinite;
+}
+@keyframes pulse {
+  to {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
+.outcome {
+  --hue: var(--quiet);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+  border-color: color-mix(in srgb, var(--hue) 40%, var(--line));
+}
+.outcome[data-status="done"] {
+  --hue: var(--good);
+}
+.outcome[data-status="failed"] {
+  --hue: var(--bad);
+}
+.outcome header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.card.outcome h2 {
+  margin: 0;
+  color: var(--hue);
+  font-size: 16px;
+}
+.outcome header .quiet {
+  font-size: 13px;
+}
+.outcome-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hue) 14%, transparent);
+  color: var(--hue);
+}
+.outcome-mark svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+.outcome-error {
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.outcome summary {
+  color: var(--quiet);
+  font-size: 13px;
+  cursor: pointer;
+}
+.outcome details .json {
+  margin-top: 8px;
+}
+
+/* A select drawn like an input, with its own arrow in both themes. */
+select {
+  height: 32px;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--quiet) 50%),
+    linear-gradient(135deg, var(--quiet) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 5px 5px;
+  padding-right: 30px;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+select:hover {
+  border-color: var(--quiet);
+}
+
+/* ---- the words of status-word.ts that styles.css has no colour for ---- */
+[data-status="waiting-on-you"].status {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--warn);
+}
+[data-status="waiting-on-you"].dot,
+[data-status="waiting-on-you"].status::before,
+[data-status="retrying"].dot,
+[data-status="retrying"].status::before {
+  background: var(--warn);
+}
+[data-status="undoing"].dot,
+[data-status="undoing"].status::before,
+[data-status="undone"].dot,
+[data-status="undone"].status::before {
+  background: var(--undo);
+}
+[data-status="waiting"].dot,
+[data-status="waiting"].status::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--warn);
+}
+[data-status="skipped"].dot,
+[data-status="skipped"].status::before,
+[data-status="cancelled"].dot,
+[data-status="cancelled"].status::before,
+[data-status="blocked"].dot,
+[data-status="blocked"].status::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--quiet);
+}

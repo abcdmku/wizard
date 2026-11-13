@@ -11,7 +11,6 @@ import {
   MiniMap,
   type NodeMouseHandler,
   type NodeTypes,
-  Panel,
   ReactFlow,
   useEdgesState,
   useNodesState,
@@ -25,11 +24,14 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { LayoutEngine } from '../layout/elk'
+import type { LayoutDirection, LayoutEngine } from '../layout/elk'
 import type { DevtoolsTheme, GraphInput, GraphSelection, StepStatusMap } from '../types'
-import { FIT_PADDING, Follow } from './Follow'
+import { chooseLayout, type GraphAutoHeight, type GraphDirection } from './direction'
+import { EdgeHints } from './EdgeHints'
+import { FIT_PADDING, Follow, MAX_FIT_ZOOM } from './Follow'
 import { GraphEdgeComponent } from './GraphEdge'
 import { definitionPath, instanceGraph } from './instances'
+import { Keyboard } from './Keyboard'
 import { MarkerNodeComponent } from './MarkerNode'
 import { GroupNodeComponent, StepNodeComponent } from './StepNode'
 import {
@@ -41,6 +43,7 @@ import {
   toReactFlow,
 } from './to-react-flow'
 import { useGraphLayout } from './use-graph-layout'
+import { usePaneSize } from './use-pane-size'
 
 /**
  * `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay
@@ -68,6 +71,30 @@ export interface WizardGraphProps extends GraphInput {
   readonly follow?: boolean
   /** Show the minimap (default `true`). */
   readonly minimap?: boolean
+  /**
+   * Which way the layers run: `right` (first step on the left), `down` (first step on top), or
+   * `auto` (default) to pick the one that draws the graph larger in its pane, so a narrow pane
+   * gets a top-to-bottom graph.
+   */
+  readonly direction?: GraphDirection
+  /**
+   * Let the graph set its own height to show the whole wizard at a readable size: `true` for
+   * 200 to 480 pixels (at most 70% of the window), or `{ min, max }`. The width still comes
+   * from the container. Omit it to fill the container's height.
+   */
+  readonly autoHeight?: GraphAutoHeight
+  /**
+   * Keys (`stepKey(path, id)`) of the steps that wait on a person, such as a form to fill in or a
+   * service call to answer by hand. Each of them shows `waiting on you`, whatever its engine
+   * status. When omitted, a form step that waits for input shows `waiting on you` and every
+   * other waiting step shows `waiting`.
+   */
+  readonly attention?: readonly string[]
+  /**
+   * Zoom with the mouse wheel (default `true`). Pass `false` for a graph inside a scrolling
+   * page: the wheel then scrolls the page, and pinch or Ctrl with the wheel still zooms.
+   */
+  readonly wheelZoom?: boolean
   readonly className?: string
   readonly style?: CSSProperties
 }
@@ -79,12 +106,15 @@ const NODE_TYPES: NodeTypes = {
 }
 const EDGE_TYPES: EdgeTypes = { graph: GraphEdgeComponent }
 const EMPTY_STATUSES: StepStatusMap = {}
+const BOTH: readonly LayoutDirection[] = ['right', 'down']
+const RIGHT: readonly LayoutDirection[] = ['right']
+const DOWN: readonly LayoutDirection[] = ['down']
 
 /**
- * The static graph of a wizard, laid out with ELK (left → right layers; cycles broken for the
- * layout and drawn as U-turns; nodes no edge touches parked in a right-hand column; child wizards
- * as group nodes) with the live overlay when `statuses` / `activeStep` are given. Click a step
- * to select it (`onSelect`), the pane to clear.
+ * The static graph of a wizard, laid out with ELK (layers running right or down, picked for the
+ * pane by default; cycles broken for the layout and drawn as U-turns; child wizards as group
+ * nodes) with the live overlay when `statuses` / `activeStep` are given. Click a step, or focus
+ * it and press Enter, to select it (`onSelect`); click the pane to clear.
  * @public
  */
 export function WizardGraph(props: WizardGraphProps): ReactElement {
@@ -101,16 +131,35 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
     () => (definition === undefined ? undefined : instanceGraph(definition, stablePaths)),
     [definition, stablePaths],
   )
-  const { model, layout, pending, error } = useGraphLayout(graph, props.layoutEngine)
+  const asked = props.direction ?? 'auto'
+  const directions = asked === 'auto' ? BOTH : asked === 'down' ? DOWN : RIGHT
+  const { model, layouts, pending, error } = useGraphLayout(graph, props.layoutEngine, directions)
+  const paneRef = useRef<HTMLDivElement>(null)
+  const pane = usePaneSize(paneRef)
+  const roots = useMemo(
+    () => new Set(model?.nodes.filter((n) => n.parent === undefined).map((n) => n.key)),
+    [model],
+  )
+  const shape =
+    layouts === undefined ? undefined : chooseLayout(asked, layouts, pane, roots, props.autoHeight)
+  const direction = shape?.direction ?? 'right'
+  const autoHeight = props.autoHeight !== undefined && props.autoHeight !== false
+  const layout = layouts?.[direction]
   const [ownSelected, setOwnSelected] = useState<string | null>(null)
   const selected = props.selected === undefined ? ownSelected : props.selected
+  const attentionKey = props.attention?.join('\n')
+  const attention = useMemo(
+    () => (attentionKey === undefined ? undefined : new Set(attentionKey.split('\n'))),
+    [attentionKey],
+  )
   const overlay: GraphOverlay = useMemo(
     () => ({
       statuses: props.statuses ?? EMPTY_STATUSES,
       current: props.activeStep ?? null,
       selected,
+      ...(attention === undefined ? {} : { attention }),
     }),
-    [props.statuses, props.activeStep, selected],
+    [props.statuses, props.activeStep, selected, attention],
   )
   const [nodes, setNodes, onNodesChange] = useNodesState<DevtoolsNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<DevtoolsEdge>([])
@@ -119,11 +168,13 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
 
   // A new layout replaces everything (seeded with the latest overlay); an overlay change only
   // refreshes `data`, so positions the user dragged stay.
+  const [revision, setRevision] = useState(0)
   useEffect(() => {
     if (model === undefined || layout === undefined) return
     const built = toReactFlow(model, layout, latestOverlay.current)
     setNodes(built.nodes)
     setEdges(built.edges)
+    setRevision((n) => n + 1)
   }, [model, layout, setNodes, setEdges])
   useEffect(() => {
     setNodes((current) => applyOverlay(current, overlay))
@@ -138,8 +189,10 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
     },
     [onSelect],
   )
-  const onNodeClick: NodeMouseHandler<DevtoolsNode> = useCallback(
-    (_event, node) => {
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
+  const selectNode = useCallback(
+    (node: DevtoolsNode) => {
       if (node.type === 'marker') return
       if (
         stablePaths.length > 0 &&
@@ -151,16 +204,56 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
     },
     [definition, stablePaths, select],
   )
+  const onNodeClick: NodeMouseHandler<DevtoolsNode> = useCallback(
+    (_event, node) => selectNode(node),
+    [selectNode],
+  )
+  const onNodeKey = useCallback(
+    (id: string) => {
+      const node = nodesRef.current.find((n) => n.id === id)
+      if (node !== undefined) selectNode(node)
+    },
+    [selectNode],
+  )
   const onPaneClick = useCallback(() => select(null), [select])
 
   const theme = props.theme ?? 'system'
+  const wheelZoom = props.wheelZoom !== false
+  const toolbar = (
+    <>
+      <span className="owd-title">
+        {graph === undefined ? 'no wizard' : `${graph.name} v${graph.version}`}
+      </span>
+      {graph !== undefined && graph.warnings.length > 0 && (
+        <span
+          className="owd-badge owd-badge-warn"
+          title={graph.warnings.map((w) => w.message).join('\n')}
+        >
+          {graph.warnings.length} warning{graph.warnings.length === 1 ? '' : 's'}
+        </span>
+      )}
+      {pending && <span className="owd-badge">Laying out</span>}
+      {error !== undefined && (
+        <span className="owd-badge owd-badge-danger" title={error}>
+          Layout failed
+        </span>
+      )}
+    </>
+  )
   return (
     <div
+      ref={paneRef}
       className={
         props.className === undefined ? 'owd owd-graph' : `owd owd-graph ${props.className}`
       }
       data-theme={theme === 'system' ? undefined : theme}
-      style={props.style}
+      data-direction={direction}
+      data-auto-height={autoHeight ? '' : undefined}
+      style={
+        autoHeight && shape?.height !== undefined
+          ? { ...props.style, height: shape.height }
+          : props.style
+      }
     >
       <ReactFlow
         nodes={nodes}
@@ -173,43 +266,30 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
         edgeTypes={EDGE_TYPES}
         colorMode={theme}
         fitView
-        fitViewOptions={{ padding: FIT_PADDING }}
+        fitViewOptions={{ padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM }}
         minZoom={0.1}
+        zoomOnScroll={wheelZoom}
+        preventScrolling={wheelZoom}
+        autoPanOnNodeFocus={false}
         nodesConnectable={false}
         elementsSelectable
         deleteKeyCode={null}
         className="owd-canvas"
       >
-        {props.follow === true && <Follow statuses={overlay.statuses} />}
+        {props.follow === true && (
+          <Follow statuses={overlay.statuses} direction={direction} revision={revision} />
+        )}
+        <Keyboard onSelect={onNodeKey} />
         <Background gap={24} />
         <Controls
           showInteractive={false}
           position="top-right"
           orientation="horizontal"
           className="owd-controls"
+          fitViewOptions={{ padding: FIT_PADDING, maxZoom: MAX_FIT_ZOOM }}
         />
         {props.minimap !== false && <MiniMap pannable zoomable className="owd-minimap" />}
-        <Panel position="top-left">
-          <div className="owd-toolbar">
-            <span className="owd-title">
-              {graph === undefined ? 'no wizard' : `${graph.name} v${graph.version}`}
-            </span>
-            {graph !== undefined && graph.warnings.length > 0 && (
-              <span
-                className="owd-badge owd-badge-warn"
-                title={graph.warnings.map((w) => w.message).join('\n')}
-              >
-                ⚠ {graph.warnings.length} warning{graph.warnings.length === 1 ? '' : 's'}
-              </span>
-            )}
-            {pending && <span className="owd-badge">layout…</span>}
-            {error !== undefined && (
-              <span className="owd-badge owd-badge-danger" title={error}>
-                layout failed
-              </span>
-            )}
-          </div>
-        </Panel>
+        <EdgeHints toolbar={toolbar} />
       </ReactFlow>
     </div>
   )

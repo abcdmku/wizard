@@ -11,6 +11,7 @@
 export { Devtools, type DevtoolsProps } from './devtools/Devtools'
 export type { DockPosition } from './devtools/use-resize'
 export { WizardGraph, type WizardGraphProps } from './graph/WizardGraph'
+export type { GraphAutoHeight, GraphDirection } from './graph/direction'
 export { EventLog, type EventLogProps } from './events/EventLog'
 export { StepInspector, type StepInspectorProps } from './inspector/StepInspector'
 export { Timeline, type TimelineProps } from './timeline/Timeline'
@@ -23,11 +24,15 @@ export {
 // ---- layout (for custom renderers / tests) ---------------------------------------------------
 export {
   bundledElk,
+  type EdgeRoute,
+  type LayoutDirection,
   type LayoutEngine,
+  type LayoutOptions,
   type LayoutResult,
   layoutGraph,
   type Placement,
   type Placements,
+  type Point,
 } from './layout/elk'
 export {
   buildGraphModel,

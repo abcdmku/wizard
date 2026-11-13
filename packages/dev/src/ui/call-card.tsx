@@ -1,8 +1,9 @@
 import { type ReactElement, useId, useState } from 'react'
 import type { Pending, RunDetail } from '../wire'
-import { brief } from './format'
+import { brief, literal, stepLabel } from './format'
 import { JsonEditor, Refusal, useJsonDraft } from './json'
 import { Card, useAction } from './need'
+import { attemptText } from './timer-card'
 
 /**
  * A service call the person answers. Return is the main action. Throwing sits behind a toggle
@@ -19,11 +20,33 @@ export function CallCard(props: {
   const [message, setMessage] = useState('Service unavailable')
   const [result, busy, send] = useAction(run.id)
   const panel = useId()
-  const call = `deps.${item.name}(${item.args.map((arg) => brief(arg, 40)).join(', ')})`
+  const call = `deps.${item.name}(${item.args.map(literal).join(', ')})`
+  const attempt = attemptText(item.attempt, item.attempts)
+  const left =
+    item.attempt !== undefined && item.attempts !== undefined && item.attempt < item.attempts
+  const caller = item.step === undefined ? undefined : stepLabel(item.path ?? [], item.step)
   return (
     <Card
       kind="service"
-      note="The run called this service and waits for the reply. You are the service."
+      meta={attempt}
+      note={
+        <>
+          {caller === undefined ? (
+            'The run'
+          ) : item.undo === true ? (
+            <>
+              The undo hook of <code>{caller}</code>
+            </>
+          ) : (
+            <code>{caller}</code>
+          )}{' '}
+          called this service and waits for the reply. You are the service.
+          {attempt !== undefined &&
+            (left
+              ? ' Throwing fails this attempt, and the step tries again.'
+              : ' This is the last attempt. Throwing fails the step.')}
+        </>
+      }
       title={
         <code>
           {item.name}({item.args.map((arg) => brief(arg, 40)).join(', ')})

@@ -11,13 +11,13 @@
 import type { Manifest, ManifestEdge, ManifestStep } from '@openwizard/core/inspect'
 import { stepKey } from '../types'
 
-/** Rendered size of a step card. */
-const STEP_WIDTH = 200
-export const STEP_HEIGHT = 72
+/** Rendered size of a step card: the id, then one row for the status or a fact. */
+export const STEP_WIDTH = 168
+export const STEP_HEIGHT = 46
 /** Rendered size of an entry / dynamic-next marker. */
-const MARKER_SIZE = 28
-/** Room a group leaves for its header and around its children. */
-export const GROUP_PADDING = { top: 60, right: 24, bottom: 24, left: 24 } as const
+const MARKER_SIZE = 20
+/** Room a group leaves for its one-line header and around its children. */
+export const GROUP_PADDING = { top: 44, right: 14, bottom: 14, left: 14 } as const
 
 /**
  * Kind of a drawable node: a step card, a group (a `child` step containing its child wizard), a

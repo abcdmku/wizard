@@ -23,7 +23,7 @@
   background: #0a0a0a;
 }
 
-/* What to do in the UI below, as a short numbered checklist. */
+/* What to do in the UI below: numbered steps that wrap in reading order, then ideas to try. */
 .portal-tries {
   display: flex;
   align-items: flex-start;
@@ -47,22 +47,36 @@
   line-height: 19px;
   white-space: nowrap;
 }
-.portal-tries ol {
-  display: grid;
+/* The one-line toggle is for a phone only. */
+.portal-tries-toggle {
+  display: none;
+}
+.portal-tries-body {
+  display: flex;
   flex: 1;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
-  gap: 4px 20px;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
+}
+.portal-tries ol,
+.portal-tries ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.portal-tries ol {
   counter-reset: try;
 }
-.portal-tries ol li {
+.portal-tries li {
   display: flex;
-  gap: 8px;
+  gap: 7px;
   margin: 0;
   padding: 0;
+}
+.portal-tries ol li {
   counter-increment: try;
 }
 .portal-tries ol li::before {
@@ -78,6 +92,29 @@
   font-weight: 600;
   line-height: 17px;
   text-align: center;
+}
+.portal-ideas {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px 12px;
+  color: var(--portal-quiet);
+}
+.portal-ideas ul {
+  flex-direction: column;
+}
+.portal-ideas-label {
+  color: var(--portal-text);
+  font-weight: 600;
+}
+.portal-tries ul li::before {
+  content: "";
+  flex: none;
+  width: 4px;
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 /* Tall enough for the graph and the first card that waits, short enough to fit the window. */
@@ -118,7 +155,53 @@
   .portal-tries {
     flex-direction: column;
     gap: 8px;
-    padding: 10px 14px;
+    padding: 0;
+  }
+  .portal-tries-label {
+    display: none;
+  }
+  .portal-tries-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 40px;
+    border: 0;
+    background: none;
+    padding: 0 14px;
+    color: var(--portal-strong);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+  .portal-tries-toggle::after {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin-left: auto;
+    border-right: 1.5px solid var(--portal-quiet);
+    border-bottom: 1.5px solid var(--portal-quiet);
+    transform: translateY(-2px) rotate(45deg);
+  }
+  .portal-tries-toggle[aria-expanded="true"]::after {
+    transform: translateY(2px) rotate(225deg);
+  }
+  .portal-tries-toggle:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -3px;
+  }
+  .portal-tries:not([data-open]) .portal-tries-body {
+    display: none;
+  }
+  .portal-tries-body {
+    padding: 0 14px 12px;
+  }
+  .portal-tries ol {
+    flex-direction: column;
+  }
+  .portal-ideas {
+    grid-template-columns: minmax(0, 1fr);
   }
   .portal-frame {
     height: 78dvh;

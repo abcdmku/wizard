@@ -36,6 +36,23 @@ export function brief(value: unknown, max = 90): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
 
+/**
+ * A value as a JavaScript literal for an "In code" block: one line when it is short, indented
+ * JSON when it is not. Nothing is cut, so the code stays valid.
+ */
+export function literal(value: unknown): string {
+  const line = JSON.stringify(value)
+  if (line === undefined) return 'undefined'
+  return line.length <= 60 ? line : JSON.stringify(value, null, 2)
+}
+
+/** `120 ms`, `1.4s`, or `span` for anything a minute or longer. */
+export function duration(ms: number): string {
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))} ms`
+  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`
+  return span(ms)
+}
+
 /** `shipping / street` for a step inside a child run. */
 export const stepLabel = (path: readonly string[], step: string): string =>
   [...path, step].join(' / ')

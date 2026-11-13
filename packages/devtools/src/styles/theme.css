@@ -306,3 +306,48 @@
 .owd-step-chip[data-status="idle"] {
   opacity: 0.6;
 }
+
+/* ---- graph toolbar and zoom controls (the cards and edges are in graph.css) ---- */
+.owd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--owd-border);
+  background: var(--owd-surface);
+  color: var(--owd-text);
+}
+.owd-graph .react-flow__panel {
+  margin: 10px;
+}
+.owd-graph .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--owd-border);
+  border-radius: 7px;
+  box-shadow: none;
+}
+.owd-graph .react-flow__controls-button {
+  width: 26px;
+  height: 24px;
+  min-width: 0;
+  margin: 0;
+  padding: 5px;
+  border: none;
+  border-radius: 0;
+  font: inherit;
+}
+.owd-graph
+  .react-flow__controls.horizontal
+  .react-flow__controls-button
+  + .react-flow__controls-button {
+  border-left: 1px solid var(--owd-border);
+}
+.owd-graph .react-flow__controls-button svg {
+  max-width: 11px;
+  max-height: 11px;
+}
+.owd-graph .react-flow__controls-button:focus-visible {
+  outline: 2px solid var(--owd-accent);
+  outline-offset: -2px;
+}

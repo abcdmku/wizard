@@ -51,10 +51,6 @@
   margin: 0;
   font-size: 16px;
 }
-.wz-launch header p {
-  margin-top: 2px;
-  font-size: 13px;
-}
 .wz-launch-form {
   display: flex;
   flex-direction: column;
@@ -350,6 +346,10 @@ button.wz-go {
 .wz-doc-head p {
   flex: 1 1 260px;
   color: var(--quiet);
+}
+.wz-launch header p {
+  margin-top: 2px;
+  font-size: 13px;
 }
 .wz-markdown {
   overflow: auto;

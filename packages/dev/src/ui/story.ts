@@ -92,7 +92,12 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
     story,
   })
   const quiet = (text: string): Line => ({ step, text, tone: 'plain', story: false })
-  const run = (text: string, tone: Tone): Line => ({ text, tone, story: true })
+  // A child's own run events carry the path of the step that runs it: "shipping run finished".
+  const owner = event.path !== undefined && event.path.length > 0 ? event.path : undefined
+  const run = (text: string, tone: Tone): Line =>
+    owner === undefined
+      ? { text, tone, story: true }
+      : { step: owner, text: `${text.charAt(0).toLowerCase()}${text.slice(1)}`, tone, story: true }
   const e = event
   switch (e.type) {
     case 'run.started':
@@ -194,9 +199,12 @@ export function narrate(event: LooseEvent, next: LooseEvent | undefined): Line {
     case 'event.handlerFailed':
       return line(`The ${str(e.event)} handler failed: ${message(e.error)}`, 'bad')
     case 'transition.rejected':
-      return line(`Next was refused: ${str(e.reason)}${issues(e.issues)}`, 'bad')
+      // A refused form already has its own line, "form refused".
+      return str(e.reason) === 'validation'
+        ? quiet(`next was refused${issues(e.issues)}`)
+        : line(`next was refused: ${str(e.reason)}${issues(e.issues)}`, 'bad')
     case 'transition.failed':
-      return line(`Next failed: ${message(e.error)}`, 'bad')
+      return line(`next failed: ${message(e.error)}`, 'bad')
     case 'command.rejected':
       return line(`A command was refused: ${str(e.reason)}`, 'bad')
     case 'persist.failed':
@@ -228,6 +236,29 @@ export function lines(events: readonly LooseEvent[]): readonly Line[] {
     const key = event.step === undefined ? undefined : [...(event.path ?? []), event.step].join('/')
     out[index] = narrate(event, key === undefined ? undefined : after.get(key))
     if (key !== undefined) after.set(key, event)
+  }
+  // A child reports its status after each of its events. Only a change of status tells the story.
+  const last = new Map<string, string>()
+  events.forEach((event, index) => {
+    if (event.type !== 'child.summary') return
+    const key = [...(event.path ?? []), event.step ?? ''].join('/')
+    const line = out[index] as Line
+    if (last.get(key) === line.text) out[index] = { ...line, story: false }
+    last.set(key, line.text)
+  })
+  return out
+}
+
+/** Rows in a row that say the same thing, as one row and how many times it was said. */
+export function collapse<T>(
+  rows: readonly T[],
+  say: (row: T) => string,
+): { row: T; times: number }[] {
+  const out: { row: T; times: number }[] = []
+  for (const row of rows) {
+    const previous = out[out.length - 1]
+    if (previous !== undefined && say(previous.row) === say(row)) previous.times++
+    else out.push({ row, times: 1 })
   }
   return out
 }

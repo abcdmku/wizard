@@ -79,6 +79,11 @@ textarea {
   font: inherit;
   color: inherit;
 }
+/* Thin scrollbars that follow the theme, in light and in dark. */
+.frame,
+.frame * {
+  scrollbar-color: color-mix(in srgb, var(--text) 24%, transparent) transparent;
+}
 /* Buttons inside the graph keep React Flow's own look. */
 button:not(:where(.react-flow *)) {
   display: inline-flex;
@@ -152,6 +157,7 @@ textarea:focus-visible {
 }
 ::selection {
   background: color-mix(in srgb, var(--info) 28%, transparent);
+  color: var(--strong);
 }
 .quiet {
   color: var(--quiet);
@@ -294,8 +300,20 @@ textarea:focus-visible {
   background: var(--bad);
 }
 [data-status="waiting"].dot,
-[data-status="waiting"].status::before {
+[data-status="waiting"].status::before,
+[data-status="waiting-on-you"].dot,
+[data-status="waiting-on-you"].status::before,
+[data-status="retrying"].dot,
+[data-status="retrying"].status::before {
   background: var(--warn);
+}
+[data-status="undoing"].dot,
+[data-status="undoing"].status::before,
+[data-status="undone"].dot,
+[data-status="undone"].status::before,
+[data-status="compensating"].dot,
+[data-status="compensating"].status::before {
+  background: var(--undo);
 }
 [data-status="running"].dot,
 [data-status="running"].status::before,

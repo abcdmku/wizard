@@ -30,7 +30,7 @@ it('names every live status in a word', () => {
   ).map(([live, s]) => statusWord(live, s)?.text)
   expect(words).toEqual([
     'running',
-    'waiting',
+    'waiting on you',
     'retrying',
     'waiting',
     'done',
@@ -41,6 +41,28 @@ it('names every live status in a word', () => {
   ])
   expect(statusWord({ status: 'idle', phase: 'ready' }, step())).toBeUndefined()
   expect(statusWord(undefined, step())).toBeUndefined()
+  expect(statusWord({ status: 'idle', phase: 'blocked' }, step())?.text).toBe('blocked')
+  expect(statusWord({ status: 'active', phase: 'validating' }, step())?.text).toBe('running')
+})
+
+it('says `waiting on you` for the steps the host names, and `waiting` for the rest', () => {
+  const form = step({ kind: 'view' })
+  const waits = { status: 'active', phase: 'waiting' } as const
+  expect(statusWord(waits, form, true)?.text).toBe('waiting on you')
+  expect(statusWord(waits, form, false)?.text).toBe('waiting')
+  expect(statusWord({ status: 'active', phase: 'running' }, step(), true)?.text).toBe(
+    'waiting on you',
+  )
+  expect(statusWord(undefined, step(), true)?.tone).toBe('attention')
+})
+
+it('counts attempts against the retries a step allows', () => {
+  const retries = step({ retry: { retries: 2 } as NonNullable<ManifestStep['retry']> })
+  // While it waits to retry, the counter still holds the attempt that failed.
+  const retrying = statusWord({ status: 'active', phase: 'retrying', attempt: 1 }, retries)
+  expect([retrying?.text, retrying?.attempt]).toEqual(['retrying', 'attempt 2 of 3'])
+  expect(statusWord({ status: 'failed', attempt: 3 }, retries)?.attempt).toBe('attempt 3 of 3')
+  expect(statusWord({ status: 'failed', attempt: 1 }, step())?.attempt).toBeUndefined()
 })
 
 const edge = (source: string, target: string): DevtoolsEdge => ({

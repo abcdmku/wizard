@@ -6,6 +6,8 @@ import { inspect } from '@openwizard/core/inspect'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WizardGraph } from '../src/graph/WizardGraph'
+import { drawnEdges } from '../src/layout/merge'
+import { buildGraphModel } from '../src/layout/model'
 import type { GraphSelection } from '../src/types'
 import { pipeline } from './fixture'
 
@@ -28,7 +30,10 @@ describe('<WizardGraph>', () => {
     // Routing targets are explicit, so the graph has only entry markers.
     expect(container.querySelectorAll('.owd-marker[data-variant="entry"]').length).toBe(2)
     expect(container.querySelectorAll('.owd-marker[data-variant="dynamic"]').length).toBe(0)
-    expect(container.querySelectorAll('.react-flow__edge').length).toBe(graph.edges.length)
+    // Two edges between the same pair of steps are drawn as one line.
+    expect(container.querySelectorAll('.react-flow__edge').length).toBe(
+      drawnEdges(buildGraphModel(graph).edges).length,
+    )
     if (graph.warnings.length > 0)
       expect(container.querySelector('.owd-badge-warn')?.textContent).toContain(
         String(graph.warnings.length),
@@ -50,7 +55,7 @@ describe('<WizardGraph>', () => {
     ).toBe('waiting')
     // The status is a word on the card, not only a colour.
     expect(cardOf(container, 'form')?.querySelector('.owd-node-status')?.textContent).toBe(
-      'waiting',
+      'waiting on you',
     )
     expect(cardOf(container, 'ingest')?.dataset.status).toBe('idle')
     expect(cardOf(container, 'ingest')?.querySelector('.owd-node-status')).toBeNull()
@@ -96,5 +101,31 @@ describe('<WizardGraph>', () => {
     if (pane === null) throw new Error('no pane')
     fireEvent.click(pane)
     expect(seen.at(-1)).toBeNull()
+  })
+
+  it('shows `waiting on you` on the steps named in `attention`, and selects a focused step with Enter', async () => {
+    const seen: Array<GraphSelection | null> = []
+    const { container } = render(
+      <WizardGraph
+        graph={graph}
+        statuses={{ form: { status: 'active', phase: 'waiting' }, ingest: { status: 'active' } }}
+        attention={['ingest']}
+        onSelect={(s) => seen.push(s)}
+      />,
+    )
+    await waitFor(() =>
+      expect(cardOf(container, 'ingest')?.querySelector('.owd-node-status')?.textContent).toBe(
+        'waiting on you',
+      ),
+    )
+    expect(cardOf(container, 'form')?.querySelector('.owd-node-status')?.textContent).toBe(
+      'waiting',
+    )
+    const node = cardOf(container, 'gate')?.closest<HTMLElement>('.react-flow__node')
+    if (node === null || node === undefined) throw new Error('no node')
+    fireEvent.keyDown(node, { key: 'Enter' })
+    expect(seen.at(-1)).toEqual({ id: 'gate', path: [], key: 'gate' })
+    const link = container.querySelector('.react-flow__attribution a')
+    expect(link?.getAttribute('tabindex')).toBe('-1')
   })
 })

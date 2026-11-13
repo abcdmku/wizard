@@ -1,5 +1,5 @@
 import { WizardGraph } from '@openwizard/devtools'
-import { type KeyboardEvent, type ReactElement, useEffect, useId, useState } from 'react'
+import { type ReactElement, useEffect, useState } from 'react'
 import type { RunSummary, WizardInfo } from '../wire'
 import { Status } from './app'
 import { clock, runTag } from './format'
@@ -9,6 +9,7 @@ import { Schemas } from './schemas-tab'
 import { useScheme } from './scheme'
 import { StartForm } from './start-form'
 import { Steps } from './steps-tab'
+import { Tabs } from './tabs'
 
 type Tab = 'steps' | 'outside' | 'schemas' | 'docs' | 'runs'
 
@@ -34,7 +35,7 @@ function Runs({ runs }: { readonly runs: readonly RunSummary[] }): ReactElement 
             onClick={() => nav.go({ page: 'run', id: run.id })}
           >
             <td>
-              <Status status={run.status} />
+              <Status status={run.status} waiting={run.waiting} />
             </td>
             <td>
               <Go to={{ page: 'run', id: run.id }}>
@@ -103,26 +104,8 @@ export function WizardPage(props: {
 }): ReactElement {
   const { wizard, runs } = props
   const scheme = useScheme()
-  const id = useId()
   const [tab, setTab] = useState<Tab>('steps')
   const { nodes, warnings } = wizard.manifest
-  const tabs: readonly [Tab, string][] = [
-    ['steps', `Steps (${nodes.length})`],
-    ['outside', `Outside the run (${rowsOf(wizard).length})`],
-    ['schemas', 'Schemas'],
-    ['docs', 'Generated page'],
-    ['runs', `Runs (${runs.length})`],
-  ]
-  const onKey = (event: KeyboardEvent) => {
-    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-    if (step === 0) return
-    const index = tabs.findIndex(([value]) => value === tab)
-    const next = tabs[(index + step + tabs.length) % tabs.length]
-    if (next === undefined) return
-    setTab(next[0])
-    const list = event.currentTarget as HTMLElement
-    list.querySelector<HTMLElement>(`#${CSS.escape(`${id}-${next[0]}`)}`)?.focus()
-  }
   return (
     <>
       <div className="title">
@@ -144,38 +127,36 @@ export function WizardPage(props: {
       )}
 
       <section className="card graph" aria-label="Steps">
-        <WizardGraph graph={wizard.manifest} minimap={false} follow theme={scheme} />
+        <WizardGraph
+          graph={wizard.manifest}
+          minimap={false}
+          follow
+          autoHeight
+          wheelZoom={false}
+          theme={scheme}
+        />
       </section>
       <StartForm wizard={wizard} />
 
-      <div className="tabs" role="tablist" aria-label="About this wizard" onKeyDown={onKey}>
-        {tabs.map(([value, label]) => (
-          <button
-            key={value}
-            id={`${id}-${value}`}
-            type="button"
-            role="tab"
-            aria-selected={tab === value}
-            aria-controls={`${id}-panel`}
-            tabIndex={tab === value ? 0 : -1}
-            onClick={() => setTab(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <section
-        className="card wz-panel"
-        id={`${id}-panel`}
-        role="tabpanel"
-        aria-labelledby={`${id}-${tab}`}
+      <Tabs
+        label="About this wizard"
+        selected={tab}
+        onSelect={setTab}
+        panelClass="wz-panel"
+        tabs={[
+          { id: 'steps', label: 'Steps', count: nodes.length },
+          { id: 'outside', label: 'Outside the run', count: rowsOf(wizard).length },
+          { id: 'schemas', label: 'Schemas' },
+          { id: 'docs', label: 'Generated page' },
+          { id: 'runs', label: 'Runs', count: runs.length },
+        ]}
       >
         {tab === 'steps' && <Steps wizard={wizard} />}
         {tab === 'outside' && <Outside wizard={wizard} />}
         {tab === 'schemas' && <Schemas wizard={wizard} />}
         {tab === 'docs' && <GeneratedPage markdown={wizard.markdown} />}
         {tab === 'runs' && <Runs runs={runs} />}
-      </section>
+      </Tabs>
     </>
   )
 }

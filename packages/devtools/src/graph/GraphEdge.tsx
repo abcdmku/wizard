@@ -1,15 +1,23 @@
 /**
- * The one edge component: shape from `edgePath`, dash and width by edge kind (`next` solid,
+ * The one edge component: the route ELK laid out (`routePath`), or a shape from `edgePath` once a
+ * card was dragged, dash and width by edge kind (`next` solid,
  * `route` dashed, `needs` solid, `fallback` dashed, `timeout` dotted, `start` thin, `dynamic`
  * dashed to the `?` port), an arrow head per edge and a label when the model gave one. The
  * colour comes from CSS (`--owd-edge-stroke`, set by kind and by `data-path`), so a path the
  * run took stands out from one it did not.
  */
 
-import { BaseEdge, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react'
+import {
+  BaseEdge,
+  EdgeLabelRenderer,
+  type EdgeProps,
+  type InternalNode,
+  useInternalNode,
+} from '@xyflow/react'
 import { memo, type ReactElement } from 'react'
+import type { Point } from '../layout/elk'
 import type { ModelEdgeKind } from '../layout/model'
-import { edgePath } from './edge-path'
+import { edgePath, routePath } from './edge-path'
 import type { DevtoolsEdge } from './to-react-flow'
 
 const STYLE: Readonly<Record<ModelEdgeKind, { readonly width: number; readonly dash?: string }>> = {
@@ -22,21 +30,38 @@ const STYLE: Readonly<Record<ModelEdgeKind, { readonly width: number; readonly d
   dynamic: { width: 1.25, dash: '4 4' },
 }
 
+const MOVED = 0.5
+
+/** True while a node sits where the layout put it (it was not dragged). */
+function still(node: InternalNode | undefined, at: Point | undefined): boolean {
+  if (node === undefined || at === undefined) return false
+  const p = node.internals.positionAbsolute
+  return Math.abs(p.x - at.x) < MOVED && Math.abs(p.y - at.y) < MOVED
+}
+
 function GraphEdgeView(props: EdgeProps<DevtoolsEdge>): ReactElement {
   const kind = props.data?.kind ?? 'next'
   const taken = props.data?.path
   const style = STYLE[kind]
-  const { path, labelX, labelY } = edgePath({
-    sourceX: props.sourceX,
-    sourceY: props.sourceY,
-    targetX: props.targetX,
-    targetY: props.targetY,
-    sourcePosition: props.sourcePosition,
-    targetPosition: props.targetPosition,
-    selfLoop: props.source === props.target,
-    forward: props.source < props.target,
-    bulge: kind === 'needs',
-  })
+  const sourceNode = useInternalNode(props.source)
+  const targetNode = useInternalNode(props.target)
+  const route = props.data?.route
+  const ends = props.data?.ends
+  const routed =
+    route !== undefined && still(sourceNode, ends?.source) && still(targetNode, ends?.target)
+  const { path, labelX, labelY } = routed
+    ? routePath(route.points, route.label)
+    : edgePath({
+        sourceX: props.sourceX,
+        sourceY: props.sourceY,
+        targetX: props.targetX,
+        targetY: props.targetY,
+        sourcePosition: props.sourcePosition,
+        targetPosition: props.targetPosition,
+        selfLoop: props.source === props.target,
+        forward: props.source < props.target,
+        bulge: kind === 'needs',
+      })
   const markerId = `owd-arrow-${props.id}`
   const label = props.data?.label
   const width = taken === 'taken' ? style.width + 0.5 : style.width
@@ -46,7 +71,7 @@ function GraphEdgeView(props: EdgeProps<DevtoolsEdge>): ReactElement {
         <marker
           id={markerId}
           viewBox="0 0 10 10"
-          refX="7"
+          refX="9"
           refY="5"
           markerWidth="6"
           markerHeight="6"

@@ -46,8 +46,8 @@
   border: 0;
   background: none;
 }
-/* The title repeats the page heading. The warning and layout badges stay. */
-.owd-graph .react-flow__panel.top.left:not(:has(.owd-badge)) {
+/* The title repeats the page heading. The warning and layout badges and the "3 steps" buttons stay. */
+.owd-graph .react-flow__panel.top.left:not(:has(.owd-badge, .owd-more)) {
   display: none;
 }
 
@@ -68,5 +68,36 @@
 .owd-graph .react-flow__attribution {
   margin: 0;
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: 9px;
+  opacity: 0.55;
+}
+.owd-graph .owd-more {
+  height: 24px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+/* Room for the whole graph. The cards are compact and the layers run down in a narrow pane,
+   so a narrow pane gets a taller card. Overrides the fixed height in page.css. */
+.card.graph {
+  height: clamp(300px, 50vh, 460px);
+}
+@container main (max-width: 560px) {
+  .card.graph {
+    height: clamp(340px, 62vh, 520px);
+  }
+}
+/* With `autoHeight` the graph sets its own height to fit the wizard. */
+.card.graph:has(> .owd-graph[data-auto-height]) {
+  height: auto;
+}
+
+/* Dark: tints are quieter, so a waiting or failed step does not glare. */
+.frame[data-theme="dark"] .owd-node-card[data-tone] {
+  border-color: color-mix(in srgb, var(--owd-tone) 50%, var(--owd-border));
+  background: color-mix(in srgb, var(--owd-tone) 7%, var(--owd-surface));
+}
+.frame[data-theme="dark"] .owd-node-status {
+  background: color-mix(in srgb, var(--owd-tone) 14%, var(--owd-surface));
+  color: color-mix(in srgb, var(--owd-tone) 70%, var(--owd-text));
 }

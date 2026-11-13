@@ -11,7 +11,8 @@ interface Row {
 
 const fields = (schema: Schema | undefined): string => {
   const properties = (schema as { properties?: Record<string, unknown> } | undefined)?.properties
-  return properties === undefined ? '' : Object.keys(properties).join(', ')
+  const names = properties === undefined ? [] : Object.keys(properties)
+  return names.length === 0 ? '' : `${names.length === 1 ? 'field' : 'fields'}: ${names.join(', ')}`
 }
 
 /** `5 min`, `48 h`, `1 s` or `250 ms`. */
@@ -106,8 +107,9 @@ export function Outside({ wizard }: { readonly wizard: WizardInfo }): ReactEleme
         </dl>
       )}
       <p className="wz-hint">
-        A run lists each service call when a step makes it, and waits for your answer unless the dev
-        config supplies that service.
+        {wizard.services.length === 0
+          ? 'Service calls show up on the run page when a step makes them, and you answer each one there.'
+          : 'Calls to other services show up on the run page when a step makes them, and you answer each one there.'}
       </p>
     </div>
   )

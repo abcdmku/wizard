@@ -117,10 +117,11 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     config: home,
     autostart: false,
     tries: [
-      'Pick a wizard in the list. Each one does a different job.',
-      'Press Start run. You play every person and system it waits for.',
-      'In deploy, return 0.2 at the health check. The canary is undone.',
-      'In incident, skip the 5 minute timer. The page goes to the manager.',
+      'Pick a wizard in the list.',
+      'Press Start run.',
+      'Answer what the run waits for: a form, an event, a service call or a timer.',
+      'Idea: In deploy, skip the 10 minute bake, then return 0.2 to metrics.errorRate. The canary is undone.',
+      'Idea: In incident, skip the 5 minute timeout on ack. The page goes to the manager.',
     ],
   },
   dev: {
@@ -128,14 +129,14 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     config: devConfig,
     autostart: false,
     tries: [
-      'Start a refund. The order lookup uses a configured service, so it answers on its own.',
-      'Submit the form, then send the webhook the manager step waits for.',
-      'Answer payments.refund yourself, or make it throw and retry the step.',
+      'Press Start run. orders.find is a configured service, so the order step answers on its own.',
+      'Press Submit form, then Send refund.approved: the webhook the manager step waits for.',
+      'Return payments.refund, or press Make it throw, then Throw. pay tries again.',
     ],
   },
   refund: one('agents/refund.ts', refundWizard, [
-    'Return the order, then submit the form. A refund of 900 goes to a manager.',
-    'Send refund.approved, then return the payment.',
+    'Press Return on orders.find, then Submit form. A refund of 900 goes to a manager.',
+    'Press Send refund.approved, then Return on payments.refund.',
   ]),
   steps: one(
     'learn/steps.ts',
@@ -162,7 +163,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     }),
     [
       'profile and orders both run, because both start the wizard. Return one of the two calls.',
-      'summary still says "waiting for needs". It starts only when both have finished.',
+      'summary stays blocked. It starts only when both have finished.',
       'Return the other call, then click summary in the graph to see the output it built from both.',
     ],
   ),
@@ -179,7 +180,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     devWizard(delivery, { input: { speed: 'express' } }),
     [
       'Start a run with speed express. choose starts express and skips standard.',
-      'Open delivery again, pick standard and start. The other branch runs and label still gets a value.',
+      'Open delivery in the list, pick standard and press Start run. The other branch runs and label still gets a value.',
     ],
     false,
   ),
@@ -188,8 +189,8 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     devWizard(approval, { examples: { events: { approved: { by: 'Grace' } } } }),
     [
       'The run waits at decision for the approved event. Press Send approved.',
-      'Press Start again, then "Skip to it" on the timer. 48 hours pass, decision is skipped, close runs.',
-      'Start again and send a payload with no "by". The schema refuses it and the step keeps waiting.',
+      'Press New run, then Skip to it on the timer. 48 hours pass, decision is skipped and close runs.',
+      'Press New run and send a payload with no "by". The schema refuses it and the step keeps waiting.',
     ],
   ),
   'save-resume': one(
@@ -197,7 +198,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     devWizard(signup, { examples: { forms: { contact: { email: 'ada@example.com' } } } }),
     [
       'Open the Snapshot tab. That JSON is the whole run, and it is what a store keeps.',
-      'Open More and press "Stop and resume". The run is rebuilt from that JSON and the form still waits.',
+      'Open More and press Restart from snapshot. The run is rebuilt from that JSON and the form still waits.',
       'Submit the form. The resumed run finishes.',
     ],
   ),
@@ -233,7 +234,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     }),
     [
       'Press Make it throw, then Throw, on live.price. The run does not halt. live is skipped and list starts.',
-      'quote reads the list price. Start again and press Return to see it read the live price.',
+      'quote reads the list price. Press New run, then Return, to see it read the live price.',
     ],
   ),
   compensate: one(

@@ -6,7 +6,7 @@ import {
   WizardGraph,
 } from '@openwizard/devtools'
 import { type ReactElement, useMemo, useState } from 'react'
-import type { RunDetail, WizardInfo } from '../wire'
+import type { WizardInfo } from '../wire'
 import { useBackend, useRun } from './backend'
 import { History } from './history'
 import { JsonView } from './json'
@@ -14,52 +14,17 @@ import { PendingList } from './pending'
 import { RunOutcome } from './result'
 import { RunHeader } from './run-header'
 import { useScheme } from './scheme'
+import { attentionOf } from './status-word'
+import { StepPanel } from './step-panel'
 import { Tabs } from './tabs'
 
-type Tab = 'history' | 'step' | 'data' | 'snapshot'
+type Tab = 'history' | 'data' | 'snapshot'
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
 
-/** The stored record of a step, found by its key in the snapshot of the run or of a child. */
-function recordOf(snapshot: SnapshotLike, key: string): unknown {
-  const parts = key.split('/')
-  const id = parts.pop() as string
-  let node: SnapshotLike | undefined = snapshot
-  for (let index = 0; index < parts.length && node !== undefined; index++) {
-    const step = parts[index] as string
-    const next: string | undefined = parts[index + 1]
-    const mapped: string | undefined = Object.keys(node.children).find((address) =>
-      address.includes(`/${encodeURIComponent(step)}/${next}/`),
-    )
-    if (node.children[step] === undefined && mapped !== undefined) {
-      node = node.children[mapped]
-      index += 1
-    } else node = node.children[step]
-  }
-  return node?.state.steps[id]
-}
-
-function StepPanel({ run, selected }: { run: RunDetail; selected: string | null }): ReactElement {
-  if (selected === null)
-    return <p className="quiet">Click a step in the graph or in the history.</p>
-  const record = recordOf(run.snapshot as SnapshotLike, selected)
-  return (
-    <div className="stack">
-      <h3>
-        <code>{selected.replaceAll('/', ' / ')}</code>
-        {run.phases[selected] !== undefined && (
-          <span className="quiet"> {run.phases[selected]}</span>
-        )}
-      </h3>
-      {record === undefined ? (
-        <p className="quiet">This step has no stored state.</p>
-      ) : (
-        <JsonView value={record} />
-      )}
-    </div>
-  )
-}
-
-/** One run: what it waits for, its live graph, its history and its data. */
+/**
+ * One run: its header, its live graph with the chosen step's details right under it, what it
+ * waits for, how it ended, and its history and data.
+ */
 export function RunPage(props: {
   readonly id: string
   readonly version: number
@@ -79,6 +44,10 @@ export function RunPage(props: {
       path.length === 0 ? (phases[stepKey(path, id)] as StepPhase | undefined) : undefined,
     )
   }, [run])
+  const attention = useMemo(
+    () => (run === null || run === undefined ? [] : attentionOf(run)),
+    [run],
+  )
 
   if (run === undefined) return <p className="quiet">Loading…</p>
   if (run === null || overlay === undefined)
@@ -89,17 +58,15 @@ export function RunPage(props: {
       </p>
     )
 
-  const select = (key: string | null) => {
-    setSelected(key)
-    if (key !== null) setTab('step')
-  }
+  // Choosing the step that is already open closes it.
+  const select = (key: string | null) => setSelected((open) => (key === open ? null : key))
   return (
     <>
       <RunHeader run={run} />
       {run.stale && (
         <p className="warning">
-          The wizard changed after this run started. This run keeps the old definition. Start again
-          to use the new one.
+          The wizard changed after this run started. This run keeps the old definition. Start a new
+          run to use the new one.
         </p>
       )}
 
@@ -112,14 +79,25 @@ export function RunPage(props: {
             activeStep={overlay.current}
             selected={selected}
             onSelect={(selection) => select(selection?.key ?? null)}
+            attention={attention}
             minimap={false}
             follow
+            autoHeight={{ min: 200, max: 400 }}
+            wheelZoom={false}
             theme={scheme}
           />
         </section>
       )}
+      {selected !== null && (
+        <StepPanel
+          run={run}
+          wizard={wizard}
+          selected={selected}
+          onClose={() => setSelected(null)}
+        />
+      )}
 
-      {!TERMINAL.has(run.status) && <PendingList run={run} />}
+      {!TERMINAL.has(run.status) && <PendingList run={run} manifest={wizard?.manifest} />}
       <RunOutcome run={run} />
 
       <Tabs
@@ -128,13 +106,11 @@ export function RunPage(props: {
         onSelect={setTab}
         tabs={[
           { id: 'history', label: 'History', count: run.events.length },
-          { id: 'step', label: 'Step' },
           { id: 'data', label: 'Input and result' },
           { id: 'snapshot', label: 'Snapshot' },
         ]}
       >
-        {tab === 'history' && <History events={run.events} onStep={select} />}
-        {tab === 'step' && <StepPanel run={run} selected={selected} />}
+        {tab === 'history' && <History events={run.events} onStep={(key) => setSelected(key)} />}
         {tab === 'data' && (
           <div className="stack">
             <h3>Input</h3>

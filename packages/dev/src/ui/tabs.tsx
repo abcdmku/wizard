@@ -1,4 +1,29 @@
-import { type KeyboardEvent, type ReactElement, type ReactNode, useId, useRef } from 'react'
+import {
+  type KeyboardEvent,
+  type ReactElement,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+} from 'react'
+
+/**
+ * Scrolls `box` just enough to show `item`, sideways or down. Unlike `scrollIntoView` it never
+ * moves the page around `box`, which matters when the UI sits inside a docs page.
+ */
+export function reveal(box: HTMLElement, item: HTMLElement): void {
+  const outer = box.getBoundingClientRect()
+  const inner = item.getBoundingClientRect()
+  const pad = 24
+  if (box.scrollWidth > box.clientWidth) {
+    if (inner.left < outer.left + pad) box.scrollLeft -= outer.left + pad - inner.left
+    else if (inner.right > outer.right - pad) box.scrollLeft += inner.right - outer.right + pad
+  }
+  if (box.scrollHeight > box.clientHeight) {
+    if (inner.top < outer.top) box.scrollTop -= outer.top - inner.top
+    else if (inner.bottom > outer.bottom) box.scrollTop += inner.bottom - outer.bottom
+  }
+}
 
 /** One tab: its id, its label and an optional count shown beside the label. */
 export interface TabItem<T extends string> {
@@ -17,6 +42,8 @@ export function Tabs<T extends string>(props: {
   readonly tabs: readonly TabItem<T>[]
   readonly selected: T
   readonly onSelect: (id: T) => void
+  /** Classes for the panel besides `card tab-panel`. */
+  readonly panelClass?: string
   /** The selected tab's content. */
   readonly children: ReactNode
 }): ReactElement {
@@ -29,8 +56,13 @@ export function Tabs<T extends string>(props: {
     props.onSelect(id)
     const tab = list.current?.querySelector<HTMLButtonElement>(`[data-tab="${id}"]`)
     tab?.focus()
-    tab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }
+  // Keep the selected tab in view when the row scrolls sideways, as it does on a phone.
+  useEffect(() => {
+    const box = list.current
+    const tab = box?.querySelector<HTMLElement>(`[data-tab="${props.selected}"]`)
+    if (box && tab) reveal(box, tab)
+  }, [props.selected])
   const onKey = (event: KeyboardEvent) => {
     const index = props.tabs.findIndex((tab) => tab.id === props.selected)
     const last = props.tabs.length - 1
@@ -79,7 +111,7 @@ export function Tabs<T extends string>(props: {
       </div>
       <section
         id={panelId}
-        className="card tab-panel"
+        className={`card tab-panel${props.panelClass === undefined ? '' : ` ${props.panelClass}`}`}
         role="tabpanel"
         aria-labelledby={tabId(props.selected)}
       >

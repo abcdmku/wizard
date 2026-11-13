@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { Backend } from '../../../../dev/src/ui/backend'
 import { localBackend } from '../../../../dev/src/ui/local'
 import type { Route } from '../../../../dev/src/ui/nav'
@@ -9,6 +9,53 @@ import { portals } from './configs'
 interface Ready {
   readonly backend: Backend
   readonly open?: Route
+}
+
+/** A `tries` line that starts with this is an idea to try, listed after the numbered steps. */
+const IDEA = 'Idea: '
+
+/**
+ * What to do in the UI below: numbered steps in reading order, then ideas to try. On a phone it
+ * folds to one line that opens on a tap.
+ */
+function Tries({ tries }: { readonly tries: readonly string[] }) {
+  const id = useId()
+  const [open, setOpen] = useState(false)
+  const steps = tries.filter((line) => !line.startsWith(IDEA))
+  const ideas = tries.filter((line) => line.startsWith(IDEA)).map((line) => line.slice(IDEA.length))
+  const count = `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}`
+  return (
+    <figcaption className="portal-tries" data-open={open || undefined}>
+      <span className="portal-tries-label">Try it</span>
+      <button
+        type="button"
+        className="portal-tries-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen(!open)}
+      >
+        Try it: {count}
+        {ideas.length > 0 && ` and ${ideas.length} ${ideas.length === 1 ? 'idea' : 'ideas'}`}
+      </button>
+      <div className="portal-tries-body" id={id}>
+        <ol>
+          {steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        {ideas.length > 0 && (
+          <div className="portal-ideas">
+            <span className="portal-ideas-label">Things to try</span>
+            <ul>
+              {ideas.map((idea) => (
+                <li key={idea}>{idea}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </figcaption>
+  )
 }
 
 /**
@@ -44,14 +91,7 @@ export function Portal({ name }: { readonly name: string }) {
   }, [spec])
   return (
     <figure className="portal not-prose" data-portal={name}>
-      <figcaption className="portal-tries">
-        <span className="portal-tries-label">Try it</span>
-        <ol>
-          {spec.tries.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-      </figcaption>
+      <Tries tries={spec.tries} />
       <div className="portal-frame">
         {ready ? (
           <DevPortal

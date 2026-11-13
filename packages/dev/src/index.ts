@@ -18,6 +18,7 @@ export type {
   Action,
   ActionResult,
   Catalog,
+  NextTimer,
   Pending,
   RunDetail,
   RunSummary,

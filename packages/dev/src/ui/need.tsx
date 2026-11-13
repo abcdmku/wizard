@@ -26,7 +26,9 @@ export function useAction(
 export function Card(props: {
   readonly kind: OutsideKind
   readonly title: ReactNode
-  readonly note?: string
+  readonly note?: ReactNode
+  /** Short facts beside the badge, such as the attempt. */
+  readonly meta?: ReactNode
   readonly code?: string
   readonly children: ReactNode
 }): ReactElement {
@@ -36,6 +38,7 @@ export function Card(props: {
         <header>
           <Kind kind={props.kind} />
           <h3>{props.title}</h3>
+          {props.meta !== undefined && <span className="need-meta">{props.meta}</span>}
         </header>
         <p className="quiet note">{props.note ?? MEANING[props.kind]}</p>
         {props.children}
@@ -60,9 +63,19 @@ export const scope = (path: readonly string[]): string =>
     'run',
   )
 
-/** How a test moves time to a deadline `ms` away. */
-export const advanceCode = (ms: number): string =>
-  `// scheduler: createTestScheduler() from @openwizard/core/testing\nscheduler.advance(${Math.max(0, Math.round(ms))})`
+/** `600_000`: a number as a JavaScript literal with its thousands marked. */
+const grouped = (value: number): string => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '_')
+
+/**
+ * How a test moves time to a deadline `left` ms away. `full` is the timer's declared duration,
+ * which a test advances from the moment the timer was set. Without it the time left is rounded
+ * up to a whole second (a tenth under one second), so a deadline read a few milliseconds late still fires.
+ */
+export const advanceCode = (left: number, full?: number): string => {
+  const unit = left >= 1000 ? 1000 : 100
+  const ms = full ?? Math.max(0, Math.ceil(left / unit) * unit)
+  return `// scheduler: createTestScheduler() from @openwizard/core/testing\nscheduler.advance(${grouped(ms)})`
+}
 
 /**
  * A deadline and, when it is the next timer of the run, the button that moves the run's clock

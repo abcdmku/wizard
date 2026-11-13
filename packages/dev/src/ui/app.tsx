@@ -3,13 +3,23 @@ import { useBackend, useServer } from './backend'
 import { useNav } from './nav'
 import { RunPage } from './run-page'
 import { Side } from './side'
+import { runWord, wordTone } from './status-word'
 import { WizardPage } from './wizard-page'
 
-/** A coloured dot and the status of a run. */
-export function Status({ status }: { readonly status: string }): ReactElement {
+/**
+ * A coloured dot and the status of a run in the run page's words (`runWord`). Pass `waiting`,
+ * the number of things a person supplies, so a run stopped on you reads `waiting on you`. Pass
+ * `word` to show a word from `stepWord` instead.
+ */
+export function Status(props: {
+  readonly status?: string
+  readonly waiting?: number
+  readonly word?: string
+}): ReactElement {
+  const word = props.word ?? runWord(props.status ?? '', props.waiting ?? 0)
   return (
-    <span className="status" data-status={status}>
-      {status}
+    <span className="status" data-status={wordTone(word)}>
+      {word}
     </span>
   )
 }

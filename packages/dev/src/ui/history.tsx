@@ -2,7 +2,7 @@ import type { AnyWizardDefinition, RunEvent } from '@openwizard/core'
 import { Fragment, type ReactElement, useMemo, useState } from 'react'
 import { clock } from './format'
 import { JsonView } from './json'
-import { elapsed, type Line, type LooseEvent, lines } from './story'
+import { collapse, elapsed, type Line, type LooseEvent, lines } from './story'
 
 type Row = { readonly event: LooseEvent; readonly line: Line; readonly key: string }
 
@@ -39,6 +39,9 @@ export function History(props: {
       .toLowerCase()
       .includes(needle)
   const shown = rows.filter((row) => (all || row.line.story) && matches(row))
+  // The same sentence twice in a row reads as one row, marked with how many times it happened.
+  const said = (row: Row) => `${row.line.step?.join('/') ?? ''} ${row.line.text}`
+  const grouped = all ? shown.map((row) => ({ row, times: 1 })) : collapse(shown, said)
   const hidden = all ? 0 : rows.filter((row) => !row.line.story && matches(row)).length
 
   return (
@@ -79,7 +82,7 @@ export function History(props: {
             </tr>
           </thead>
           <tbody>
-            {shown.map(({ event, line, key }) => {
+            {grouped.map(({ row: { event, line, key }, times }) => {
               const expanded = open === key
               const toggle = () => setOpen(expanded ? null : key)
               return (
@@ -113,6 +116,11 @@ export function History(props: {
                             </>
                           )}
                           {line.text}
+                          {times > 1 && (
+                            <span className="history-times" title={`${times} events in a row`}>
+                              {times} times
+                            </span>
+                          )}
                           {all && !line.text.startsWith(event.type) && (
                             <code className="history-type">{event.type}</code>
                           )}
