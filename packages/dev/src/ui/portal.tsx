@@ -3,13 +3,15 @@ import { type CSSProperties, type ReactElement, useEffect, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { App } from './app'
 import { type Backend, BackendProvider } from './backend'
+import graphThemeCss from './graph-theme.css?inline'
 import { NavProvider, type Route, useHashNav, useMemoryNav } from './nav'
 import pageCss from './page.css?inline'
 import { type Scheme, SchemeContext } from './scheme'
 import shellCss from './styles.css?inline'
 import tablesCss from './tables.css?inline'
+import wizardCss from './wizard.css?inline'
 
-const CSS = [devtoolsCss, shellCss, pageCss, tablesCss].join('\n')
+const CSS = [devtoolsCss, shellCss, pageCss, tablesCss, wizardCss, graphThemeCss].join('\n')
 
 /** `light`, `dark`, or `system` to follow the device. */
 export type PortalTheme = 'light' | 'dark' | 'system'
