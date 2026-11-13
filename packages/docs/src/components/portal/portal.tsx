@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useId, useRef, useState } from 'react'
+import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import type { Backend } from '../../../../dev/src/ui/backend'
 import { localBackend } from '../../../../dev/src/ui/local'
 import type { Route } from '../../../../dev/src/ui/nav'
@@ -11,93 +11,49 @@ interface Ready {
   readonly open?: Route
 }
 
-/** A `tries` line that starts with this is an idea to try, listed after the numbered steps. */
-const IDEA = 'Idea: '
-
 /**
- * What to do in the UI below: numbered steps in reading order, then ideas to try. On a phone it
- * folds to one line that opens on a tap.
+ * Whether the portal fills the window. While it does, the page behind does not scroll and
+ * Escape leaves. `slot` keeps the portal's place in the page so the text does not jump.
  */
-function Tries({ tries }: { readonly tries: readonly string[] }) {
-  const id = useId()
-  const [open, setOpen] = useState(false)
-  const steps = tries.filter((line) => !line.startsWith(IDEA))
-  const ideas = tries.filter((line) => line.startsWith(IDEA)).map((line) => line.slice(IDEA.length))
-  const count = `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}`
-  return (
-    <figcaption className="portal-tries" data-open={open || undefined}>
-      <span className="portal-tries-label">Try it</span>
-      <button
-        type="button"
-        className="portal-tries-toggle"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen(!open)}
-      >
-        Try it: {count}
-        {ideas.length > 0 && ` and ${ideas.length} ${ideas.length === 1 ? 'idea' : 'ideas'}`}
-      </button>
-      <div className="portal-tries-body" id={id}>
-        <ol>
-          {steps.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-        {ideas.length > 0 && (
-          <div className="portal-ideas">
-            <span className="portal-ideas-label">Things to try</span>
-            <ul>
-              {ideas.map((idea) => (
-                <li key={idea}>{idea}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </figcaption>
-  )
+function useFull(): { full: boolean; hold: number | undefined; toggle: (height: number) => void } {
+  const [hold, setHold] = useState<number>()
+  const full = hold !== undefined
+  useEffect(() => {
+    if (!full) return
+    const before = document.documentElement.style.overflow
+    document.documentElement.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) setHold(undefined)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.documentElement.style.overflow = before
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [full])
+  return { full, hold, toggle: (height) => setHold(full ? undefined : height) }
 }
 
-/** Pixels per line when a wheel reports lines, as Firefox can. */
-const LINE = 16
-
-/**
- * The wheel scrolls the page, not the UI, until the whole portal is in view: a reader who
- * scrolls past it is not caught while it is half on screen. Once its top meets the site header
- * (scrolling down) or its bottom meets the window's edge (scrolling up), the wheel scrolls the UI
- * inside, and the page again when the UI reaches its end.
- */
-function usePageFirstWheel(figure: RefObject<HTMLElement | null>): void {
+/** The height of the site header, which the UI pins its graph under. It differs on a phone. */
+function useHeaderHeight(): number | undefined {
+  const [height, setHeight] = useState<number>()
   useEffect(() => {
-    const box = figure.current
-    if (box === null) return
-    const onWheel = (event: WheelEvent) => {
-      if (
-        event.defaultPrevented ||
-        event.ctrlKey ||
-        Math.abs(event.deltaX) > Math.abs(event.deltaY)
-      )
-        return
-      const delta = event.deltaMode === 1 ? event.deltaY * LINE : event.deltaY
-      const top = document.querySelector('.site-header')?.getBoundingClientRect().bottom ?? 0
-      const rect = box.getBoundingClientRect()
-      let page = 0
-      if (delta > 0 && rect.top > top + 1) page = Math.min(delta, rect.top - top)
-      else if (delta < 0 && rect.bottom < window.innerHeight - 1)
-        page = Math.max(delta, rect.bottom - window.innerHeight)
-      if (page === 0) return
-      event.preventDefault()
-      window.scrollBy({ top: page, behavior: 'instant' })
-    }
-    box.addEventListener('wheel', onWheel, { passive: false })
-    return () => box.removeEventListener('wheel', onWheel)
-  }, [figure])
+    const header = document.querySelector('.site-header')
+    if (header === null || typeof ResizeObserver === 'undefined') return
+    const read = () => setHeight(Math.round(header.getBoundingClientRect().height))
+    const watch = new ResizeObserver(read)
+    watch.observe(header)
+    read()
+    return () => watch.disconnect()
+  }, [])
+  return height
 }
 
 /**
  * The dev UI of `openwizard dev`, running in the page. It is the same UI and the same run
- * store the dev server uses, with the wizards its page shows. A run is already started, and
- * the list above the UI says what to do in it to see the point of the page.
+ * store the dev server uses, with the wizards its page shows. A run is already started. In the page the UI
+ * is as tall as its content, so only the page scrolls. "Full screen" gives it the whole window,
+ * where it lays out as it does under `openwizard dev`, and the run carries over.
  */
 export function Portal({ name }: { readonly name: string }) {
   const spec = portals[name]
@@ -105,7 +61,8 @@ export function Portal({ name }: { readonly name: string }) {
   const { resolvedTheme } = useTheme()
   const [ready, setReady] = useState<Ready>()
   const figure = useRef<HTMLElement>(null)
-  usePageFirstWheel(figure)
+  const { full, hold, toggle } = useFull()
+  const top = useHeaderHeight()
   // Runs exist in the browser only, so nothing is created while the page is prerendered.
   useEffect(() => {
     let live = true
@@ -128,26 +85,47 @@ export function Portal({ name }: { readonly name: string }) {
     }
   }, [spec])
   return (
-    <figure ref={figure} className="portal not-prose" data-portal={name}>
-      <Tries tries={spec.tries} />
-      <div className="portal-frame">
-        {ready ? (
-          <DevPortal
-            backend={ready.backend}
-            nav="memory"
-            theme={resolvedTheme}
-            className="portal-host"
-            {...(ready.open === undefined ? {} : { open: ready.open })}
-          />
-        ) : (
-          <div className="portal-loading" role="status">
-            <div className="portal-loading-bar" />
-            <div className="portal-loading-body">
-              <span>Loading the dev UI</span>
+    <div className="portal-slot" style={hold === undefined ? undefined : { minHeight: hold }}>
+      <figure
+        ref={figure}
+        className="portal not-prose"
+        data-portal={name}
+        data-full={full || undefined}
+        style={top === undefined ? undefined : ({ '--ow-dev-top': `${top}px` } as CSSProperties)}
+      >
+        <figcaption className="portal-bar">
+          <span>
+            The UI of <code>openwizard dev</code>, running in this page
+          </span>
+          <button
+            type="button"
+            className="portal-full"
+            aria-pressed={full}
+            onClick={() => toggle(figure.current?.offsetHeight ?? 0)}
+          >
+            {full ? 'Exit full screen' : 'Full screen'}
+          </button>
+        </figcaption>
+        <div className="portal-frame">
+          {ready ? (
+            <DevPortal
+              backend={ready.backend}
+              nav="memory"
+              theme={resolvedTheme}
+              scroll={full ? 'inside' : 'page'}
+              className="portal-host"
+              {...(ready.open === undefined ? {} : { open: ready.open })}
+            />
+          ) : (
+            <div className="portal-loading" role="status">
+              <div className="portal-loading-bar" />
+              <div className="portal-loading-body">
+                <span>Loading the dev UI</span>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </figure>
+          )}
+        </div>
+      </figure>
+    </div>
   )
 }

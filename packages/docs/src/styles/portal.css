@@ -3,13 +3,16 @@
   /* The UI draws in a shadow root. These two variables are how it gets the site's fonts. */
   --ow-dev-font: var(--font-sans);
   --ow-dev-mono: var(--font-mono);
+  /* Where the UI pins its graph: right under the site header. */
+  --ow-dev-top: 58px;
   --portal-line: #d4d4d4;
   --portal-strip: #f5f5f5;
   --portal-text: #404040;
   --portal-strong: #0a0a0a;
   --portal-quiet: #6b6b6b;
   margin: 1.75rem 0;
-  overflow: hidden;
+  /* Clips to the rounded corners without becoming a scroll area. */
+  overflow: clip;
   border: 1px solid var(--portal-line);
   border-radius: 12px;
   background: #fafafa;
@@ -23,106 +26,75 @@
   background: #0a0a0a;
 }
 
-/* What to do in the UI below: numbered steps that wrap in reading order, then ideas to try. */
-.portal-tries {
+/* Says what the frame is, with the full screen button at its end. */
+.portal-bar {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border-bottom: 1px solid var(--portal-line);
   background: var(--portal-strip);
-  padding: 10px 16px;
-  color: var(--portal-text);
-  font-size: 13px;
-  line-height: 1.45;
-}
-.portal-tries-label {
-  flex: none;
-  border: 1px solid var(--portal-line);
-  border-radius: 999px;
-  background: var(--portal-strong);
-  padding: 0 9px;
-  color: var(--portal-strip);
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 19px;
-  white-space: nowrap;
-}
-/* The one-line toggle is for a phone only. */
-.portal-tries-toggle {
-  display: none;
-}
-.portal-tries-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-.portal-tries ol,
-.portal-tries ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 22px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.portal-tries ol {
-  counter-reset: try;
-}
-.portal-tries li {
-  display: flex;
-  gap: 7px;
-  margin: 0;
-  padding: 0;
-}
-.portal-tries ol li {
-  counter-increment: try;
-}
-.portal-tries ol li::before {
-  content: counter(try);
-  flex: none;
-  width: 19px;
-  height: 19px;
-  border: 1px solid var(--portal-line);
-  border-radius: 50%;
+  padding: 7px 12px 7px 16px;
   color: var(--portal-quiet);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  line-height: 17px;
-  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.4;
 }
-.portal-ideas {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  gap: 2px 12px;
-  color: var(--portal-quiet);
-}
-.portal-ideas ul {
-  flex-direction: column;
-}
-.portal-ideas-label {
+.portal-bar code {
   color: var(--portal-text);
-  font-weight: 600;
-}
-.portal-tries ul li::before {
-  content: "";
-  flex: none;
-  width: 4px;
-  height: 4px;
-  margin-top: 8px;
-  border-radius: 50%;
-  background: currentColor;
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
-/* Tall enough for the graph and the first card that waits, short enough to fit the window. */
-.portal-frame {
-  height: clamp(560px, calc(100dvh - 160px), 800px);
+/* Full screen, or back. */
+.portal-full {
+  flex: none;
+  border: 1px solid var(--portal-line);
+  border-radius: 7px;
+  background: transparent;
+  padding: 2px 10px;
+  color: var(--portal-strong);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.portal-host {
-  height: 100%;
+.portal-full:hover {
+  background: color-mix(in srgb, var(--portal-strong) 7%, transparent);
+}
+.portal-full:focus-visible {
+  outline: 2px solid var(--portal-strong);
+  outline-offset: 2px;
+}
+
+/* In the page the UI is as tall as its content: the page scrolls and nothing scrolls inside. */
+.portal-frame {
+  min-height: 360px;
+}
+.portal-loading {
+  min-height: 360px;
+}
+
+/* Full screen: the whole window, where the UI scrolls inside as it does under openwizard dev. */
+.portal.portal[data-full] {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.portal[data-full] .portal-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.portal[data-full] .portal-host {
+  position: absolute;
+  inset: 0;
 }
 
 /* The same outline the UI draws, so the page does not jump when it loads. */
@@ -150,61 +122,4 @@
 
 .landing-section .portal {
   margin: 20px 0 0;
-}
-@media (max-width: 640px) {
-  .portal-tries {
-    flex-direction: column;
-    gap: 8px;
-    padding: 0;
-  }
-  .portal-tries-label {
-    display: none;
-  }
-  .portal-tries-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 40px;
-    border: 0;
-    background: none;
-    padding: 0 14px;
-    color: var(--portal-strong);
-    font: inherit;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-  }
-  .portal-tries-toggle::after {
-    content: "";
-    width: 7px;
-    height: 7px;
-    margin-left: auto;
-    border-right: 1.5px solid var(--portal-quiet);
-    border-bottom: 1.5px solid var(--portal-quiet);
-    transform: translateY(-2px) rotate(45deg);
-  }
-  .portal-tries-toggle[aria-expanded="true"]::after {
-    transform: translateY(2px) rotate(225deg);
-  }
-  .portal-tries-toggle:focus-visible {
-    outline: 2px solid currentColor;
-    outline-offset: -3px;
-  }
-  .portal-tries:not([data-open]) .portal-tries-body {
-    display: none;
-  }
-  .portal-tries-body {
-    padding: 0 14px 12px;
-  }
-  .portal-tries ol {
-    flex-direction: column;
-  }
-  .portal-ideas {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .portal-frame {
-    height: 78dvh;
-    min-height: 520px;
-  }
 }

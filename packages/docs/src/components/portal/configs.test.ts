@@ -68,9 +68,3 @@ it.each(wizards)(
     expect(await press(backend, started.id as string)).toBe(name === 'forms' ? 'refused' : 'done')
   },
 )
-
-it('every portal says what to try', () => {
-  for (const [name, spec] of Object.entries(portals)) {
-    expect(spec.tries.length, name).toBeGreaterThan(1)
-  }
-})

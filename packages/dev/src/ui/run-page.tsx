@@ -5,7 +5,7 @@ import {
   stepKey,
   WizardGraph,
 } from '@openwizard/devtools'
-import { type ReactElement, useMemo, useState } from 'react'
+import { type ReactElement, useEffect, useMemo, useState } from 'react'
 import type { RunDetail, WizardInfo } from '../wire'
 import { useBackend, useRun } from './backend'
 import { History } from './history'
@@ -13,7 +13,7 @@ import { CopyJson, JsonView } from './json'
 import { PendingList } from './pending'
 import { RunOutcome } from './result'
 import { RunHeader } from './run-header'
-import { useScheme } from './scheme'
+import { useScheme, useScroll } from './scheme'
 import { attentionOf } from './status-word'
 import { StepPanel } from './step-panel'
 import { Tabs } from './tabs'
@@ -36,9 +36,26 @@ const undoCallers = (run: RunDetail): readonly string[] =>
           : [],
       )
 
+/** From this width the graph and the run's cards sit side by side. */
+const WIDE = 940
+
+/** A ref for the element to measure, and true while it is at least `WIDE` pixels across. */
+function useWide(): [(element: HTMLDivElement | null) => void, boolean] {
+  const [box, setBox] = useState<HTMLDivElement | null>(null)
+  const [wide, setWide] = useState(false)
+  useEffect(() => {
+    if (box === null || typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(() => setWide(box.clientWidth >= WIDE))
+    watch.observe(box)
+    return () => watch.disconnect()
+  }, [box])
+  return [setBox, wide]
+}
+
 /**
- * One run: its header, its live graph with the chosen step's details right under it, what it
- * waits for, how it ended, and its history and data.
+ * One run: its header, its live graph, the chosen step's details, what it waits for, how it
+ * ended, and its history and data. In a wide frame the graph stays on the left and the rest
+ * scrolls beside it. In a narrow one they stack.
  */
 export function RunPage(props: {
   readonly id: string
@@ -51,6 +68,9 @@ export function RunPage(props: {
   const [tab, setTab] = useState<Tab>('history')
   const [selected, setSelected] = useState<string | null>(null)
   const wizard = props.wizards.find((item) => item.name === run?.wizard)
+  const [cols, wide] = useWide()
+  // Stacked in a page, the graph stays in view above the cards, so it keeps to a short pane.
+  const pinned = useScroll() === 'page' && !wide
 
   const overlay = useMemo(() => {
     if (run === null || run === undefined) return undefined
@@ -85,80 +105,89 @@ export function RunPage(props: {
         </p>
       )}
 
-      {wizard !== undefined && (
-        <section className="card graph" aria-label="Steps">
-          <WizardGraph
-            graph={wizard.manifest}
-            statuses={overlay.statuses}
-            childPaths={overlay.childPaths}
-            activeStep={overlay.current}
-            selected={selected}
-            onSelect={(selection) => select(selection?.key ?? null)}
-            attention={attention}
-            minimap={false}
-            follow
-            ended={TERMINAL.has(run.status)}
-            runStatus={run.status}
-            autoHeight={{ min: 120, max: 480 }}
-            attribution={false}
-            wheelZoom={false}
-            theme={scheme}
-          />
-        </section>
-      )}
-      {selected !== null && (
-        <StepPanel
-          run={run}
-          wizard={wizard}
-          selected={selected}
-          onClose={() => setSelected(null)}
-        />
-      )}
+      <div ref={cols} className="run-cols" data-wide={wide || undefined}>
+        <div className="run-graph">
+          {wizard !== undefined && (
+            <section className="card graph" aria-label="Steps">
+              <WizardGraph
+                graph={wizard.manifest}
+                statuses={overlay.statuses}
+                childPaths={overlay.childPaths}
+                activeStep={overlay.current}
+                selected={selected}
+                onSelect={(selection) => select(selection?.key ?? null)}
+                attention={attention}
+                minimap={false}
+                follow
+                ended={TERMINAL.has(run.status)}
+                runStatus={run.status}
+                autoHeight={wide ? { min: 220, max: 720 } : { min: 120, max: pinned ? 340 : 480 }}
+                attribution={false}
+                wheelZoom={false}
+                theme={scheme}
+              />
+            </section>
+          )}
+        </div>
+        <div className="run-detail">
+          {selected !== null && (
+            <StepPanel
+              run={run}
+              wizard={wizard}
+              selected={selected}
+              onClose={() => setSelected(null)}
+            />
+          )}
 
-      {!TERMINAL.has(run.status) && <PendingList run={run} manifest={wizard?.manifest} />}
-      <RunOutcome run={run} />
+          {!TERMINAL.has(run.status) && <PendingList run={run} manifest={wizard?.manifest} />}
+          <RunOutcome run={run} />
 
-      <Tabs
-        label="Run details"
-        selected={tab}
-        onSelect={setTab}
-        tabs={[
-          { id: 'history', label: 'History', count: run.events.length },
-          { id: 'data', label: 'Input and result' },
-          { id: 'snapshot', label: 'Snapshot' },
-        ]}
-      >
-        {tab === 'history' && <History events={run.events} onStep={(key) => setSelected(key)} />}
-        {tab === 'data' && (
-          <div className="stack">
-            <div className="json-head">
-              <h3>Input</h3>
-              <CopyJson value={run.input} />
-            </div>
-            <JsonView value={run.input} />
-            <div className="json-head">
-              <h3>Result</h3>
-              {run.result !== undefined && <CopyJson value={run.result} />}
-            </div>
-            {run.result === undefined ? (
-              <p className="quiet">The run has not finished.</p>
-            ) : (
-              <JsonView value={run.result} />
+          <Tabs
+            label="Run details"
+            selected={tab}
+            onSelect={setTab}
+            tabs={[
+              { id: 'history', label: 'History', count: run.events.length },
+              { id: 'data', label: 'Input and result' },
+              { id: 'snapshot', label: 'Snapshot' },
+            ]}
+          >
+            {tab === 'history' && (
+              <History events={run.events} onStep={(key) => setSelected(key)} />
             )}
-          </div>
-        )}
-        {tab === 'snapshot' && (
-          <div className="stack">
-            <div className="json-head">
-              <p className="quiet">
-                The whole run as JSON. A store keeps this, and resuming from it continues the run.
-              </p>
-              <CopyJson value={run.snapshot} />
-            </div>
-            <JsonView value={run.snapshot} />
-          </div>
-        )}
-      </Tabs>
+            {tab === 'data' && (
+              <div className="stack">
+                <div className="json-head">
+                  <h3>Input</h3>
+                  <CopyJson value={run.input} />
+                </div>
+                <JsonView value={run.input} />
+                <div className="json-head">
+                  <h3>Result</h3>
+                  {run.result !== undefined && <CopyJson value={run.result} />}
+                </div>
+                {run.result === undefined ? (
+                  <p className="quiet">The run has not finished.</p>
+                ) : (
+                  <JsonView value={run.result} />
+                )}
+              </div>
+            )}
+            {tab === 'snapshot' && (
+              <div className="stack">
+                <div className="json-head">
+                  <p className="quiet">
+                    The whole run as JSON. A store keeps this, and resuming from it continues the
+                    run.
+                  </p>
+                  <CopyJson value={run.snapshot} />
+                </div>
+                <JsonView value={run.snapshot} />
+              </div>
+            )}
+          </Tabs>
+        </div>
+      </div>
     </>
   )
 }

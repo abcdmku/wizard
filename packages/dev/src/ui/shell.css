@@ -166,6 +166,34 @@
   max-width: 1180px;
 }
 
+/* The page scrolls, not the UI: everything is as tall as its content and nothing sticks. */
+.frame[data-scroll="page"],
+.frame[data-scroll="page"] .shell {
+  height: auto;
+}
+.frame[data-scroll="page"] .main {
+  overflow: visible;
+  padding-bottom: 24px;
+  scrollbar-gutter: auto;
+}
+.frame[data-scroll="page"] .run-head,
+.frame[data-scroll="page"] .history-bar {
+  position: static;
+}
+/* The list of wizards and runs stays in view beside a long page. */
+@container frame (min-width: 881px) {
+  .frame[data-scroll="page"] .side {
+    position: sticky;
+    top: var(--ow-dev-top, 0px);
+    align-self: start;
+    max-height: calc(100dvh - var(--ow-dev-top, 0px));
+    border-right: 0;
+  }
+  .frame[data-scroll="page"] .main {
+    border-left: 1px solid var(--line);
+  }
+}
+
 /* A narrow host: the wizards and runs become one row of chips, and the top bar shrinks to its
    tools beside them, or goes when there are none (the docs embed). */
 @container frame (max-width: 880px) {
