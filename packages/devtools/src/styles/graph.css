@@ -6,6 +6,10 @@
   min-height: 240px;
   background: var(--owd-bg);
 }
+/* A graph that sets its own height may be shorter: a chain of two steps needs little room. */
+.owd-graph[data-auto-height] {
+  min-height: 0;
+}
 .owd-graph .react-flow {
   --xy-background-color: var(--owd-bg);
   --xy-background-pattern-dots-color: var(--owd-border);
@@ -19,8 +23,81 @@
   --xy-controls-button-border-color: var(--owd-border);
   --xy-attribution-background-color: transparent;
 }
+.owd-graph .react-flow__attribution {
+  opacity: 0.6;
+}
 .owd-graph .react-flow__attribution a {
   color: var(--owd-subtle);
+}
+
+/* ---- what lies outside the view: a fade on that side and a button that moves the view ---- */
+.owd-fade,
+.owd-cover {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}
+.owd-fade[data-side="left"] {
+  inset: 0 auto 0 0;
+  width: 28px;
+  background: linear-gradient(to right, var(--owd-bg), transparent);
+}
+.owd-fade[data-side="right"] {
+  inset: 0 0 0 auto;
+  width: 28px;
+  background: linear-gradient(to left, var(--owd-bg), transparent);
+}
+.owd-fade[data-side="top"] {
+  inset: 0 0 auto 0;
+  height: 28px;
+  background: linear-gradient(to bottom, var(--owd-bg), transparent);
+}
+.owd-fade[data-side="bottom"] {
+  inset: auto 0 0 0;
+  height: 28px;
+  background: linear-gradient(to top, var(--owd-bg), transparent);
+}
+/* A step cut by the edge is covered, fading in from the edge, so no name shows in half. */
+.owd-cover[data-side="left"] {
+  background: linear-gradient(to left, transparent, var(--owd-bg) 16px);
+}
+.owd-cover[data-side="right"] {
+  background: linear-gradient(to right, transparent, var(--owd-bg) 16px);
+}
+.owd-cover[data-side="top"] {
+  background: linear-gradient(to top, transparent, var(--owd-bg) 12px);
+}
+.owd-cover[data-side="bottom"] {
+  background: linear-gradient(to bottom, transparent, var(--owd-bg) 12px);
+}
+.owd-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--owd-border);
+  background: var(--owd-surface);
+  color: var(--owd-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.owd-more:hover {
+  background: var(--owd-muted);
+}
+.owd-more:focus-visible {
+  outline: 2px solid var(--owd-accent);
+  outline-offset: 1px;
+}
+.owd-more-right {
+  position: absolute;
+  z-index: 5;
+  top: 10px;
+  right: 98px;
 }
 .owd-graph .react-flow__handle {
   width: 6px;
@@ -35,172 +112,283 @@
   font-family: var(--owd-font);
 }
 .owd-node-card {
-  width: 200px;
-  height: 72px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1.5px solid
-    color-mix(in srgb, var(--owd-status, var(--owd-border)) 60%, var(--owd-border));
+  --owd-tone: var(--owd-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: 168px;
+  height: 52px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1.5px solid var(--owd-border);
   background: var(--owd-surface);
   color: var(--owd-text);
   box-shadow: var(--owd-shadow);
   overflow: hidden;
   cursor: pointer;
 }
-.owd-node-card[data-status="idle"] {
-  border-color: var(--owd-border);
+.owd-node-card[data-tone],
+.owd-group[data-tone] {
+  border-color: color-mix(in srgb, var(--owd-tone) 70%, var(--owd-border));
 }
-.owd-node-card[data-status="skipped"] {
+.owd-node-card[data-tone] {
+  background: color-mix(in srgb, var(--owd-tone) 8%, var(--owd-surface));
+}
+.owd-node-card[data-tone="skipped"],
+.owd-node-card[data-tone="cancelled"],
+.owd-node-card[data-tone="blocked"],
+.owd-node-card[data-tone="not-run"] {
   border-style: dashed;
+  background: var(--owd-surface);
+  box-shadow: none;
+}
+.owd-node-card[data-tone="skipped"] > *,
+.owd-node-card[data-tone="cancelled"] > *,
+.owd-node-card[data-tone="not-run"] > * {
   opacity: 0.75;
+}
+.owd-node-card[data-tone="failed"],
+.owd-node-card[data-tone="attention"] {
+  border-width: 2px;
 }
 .owd-node-card[data-current="true"] {
   box-shadow:
     var(--owd-shadow),
-    0 0 0 3px color-mix(in srgb, var(--owd-accent) 45%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--owd-tone) 28%, transparent);
 }
-.owd-node-card[data-selected="true"],
-.owd-group[data-selected="true"] {
-  outline: 2px solid var(--owd-accent);
-  outline-offset: 1px;
+/* A person has to act on a step whose word says something else, such as `undoing`. */
+.owd-node-card[data-attention="true"],
+.owd-group[data-attention="true"] {
+  box-shadow:
+    var(--owd-shadow),
+    0 0 0 2px var(--owd-surface),
+    0 0 0 4px var(--owd-warn);
 }
 .owd-node-head {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
 }
 .owd-node-id {
   font-family: var(--owd-mono);
-  font-weight: 700;
-  font-size: 12px;
+  font-weight: 650;
+  font-size: 16px;
+  line-height: 19px;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
   flex: 1 1 auto;
 }
-.owd-node-head .owd-status-dot {
-  margin-left: auto;
-}
-.owd-start {
-  border-color: var(--owd-success);
-  color: var(--owd-success);
-}
-.owd-warning {
-  border-color: var(--owd-warn);
-  color: var(--owd-warn);
-  background: color-mix(in srgb, var(--owd-warn) 12%, transparent);
-}
-.owd-node-flags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-  overflow: hidden;
-  max-height: 32px;
-}
-.owd-node-label {
-  color: var(--owd-subtle);
+.owd-node-warning {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--owd-warn) 18%, var(--owd-surface));
+  color: color-mix(in srgb, var(--owd-warn) 70%, var(--owd-text));
   font-size: 11px;
+  font-weight: 700;
+}
+.owd-node-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 20px;
+  overflow: hidden;
+}
+
+/* The status word: a dot and a word in the tone of the status. The word carries the meaning. */
+.owd-node-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--owd-tone) 15%, var(--owd-surface));
+  color: color-mix(in srgb, var(--owd-tone) 65%, var(--owd-text));
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.owd-node-status .owd-status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--owd-tone);
+}
+.owd-node-status[data-tone="waiting"] .owd-status-dot,
+.owd-node-status[data-tone="blocked"] .owd-status-dot,
+.owd-node-status[data-tone="not-run"] .owd-status-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--owd-tone);
+}
+/* One colour per word: running is blue; waiting, waiting on you and retrying are amber. */
+.owd [data-tone="running"] {
+  --owd-tone: var(--owd-accent);
+}
+.owd [data-tone="attention"],
+.owd [data-tone="waiting"],
+.owd [data-tone="retrying"] {
+  --owd-tone: var(--owd-warn);
+}
+.owd [data-tone="done"] {
+  --owd-tone: var(--owd-success);
+}
+.owd [data-tone="failed"] {
+  --owd-tone: var(--owd-danger);
+}
+.owd [data-tone="skipped"],
+.owd [data-tone="cancelled"],
+.owd [data-tone="blocked"],
+.owd [data-tone="not-run"] {
+  --owd-tone: var(--owd-subtle);
+}
+.owd [data-tone="undoing"],
+.owd [data-tone="undone"] {
+  --owd-tone: var(--owd-accent-2);
+}
+.owd-node-card[data-tone="waiting"] {
+  background: var(--owd-surface);
+}
+.owd-node-fact {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
-}
-.owd-flag {
-  font-size: 10px;
-  line-height: 1;
-  padding: 2px 5px;
-  border-radius: 5px;
-  border: 1px solid var(--owd-border);
-  background: var(--owd-muted);
   color: var(--owd-subtle);
+  font-size: 15px;
+  line-height: 20px;
+}
+.owd-kind {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--owd-subtle) 55%, transparent);
+  color: var(--owd-subtle);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 18px;
   white-space: nowrap;
 }
-.owd-flag-more {
-  border-style: dashed;
+.owd-graph .react-flow__node-group {
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  text-align: left;
 }
 .owd-group {
+  --owd-tone: var(--owd-edge);
   width: 100%;
   height: 100%;
   border-radius: 14px;
-  border: 1.5px dashed var(--owd-edge);
-  background: color-mix(in srgb, var(--owd-edge) 6%, transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--owd-edge) 60%, var(--owd-border));
+  background: color-mix(in srgb, var(--owd-edge) 5%, transparent);
   color: var(--owd-text);
 }
-.owd-group[data-status="active"] {
+.owd-group[data-tone] {
   border-style: solid;
+  background: color-mix(in srgb, var(--owd-tone) 5%, transparent);
 }
-.owd-group[data-status="done"] {
-  border-color: var(--owd-success);
+.owd-group[data-tone="skipped"],
+.owd-group[data-tone="cancelled"],
+.owd-group[data-tone="not-run"] {
+  border-style: dashed;
 }
-.owd-group[data-status="failed"] {
-  border-color: var(--owd-danger);
+.owd-graph .react-flow__node:focus-visible {
+  outline: none;
 }
+.owd-node-card[data-selected="true"],
+.owd-group[data-selected="true"],
 .owd-graph .react-flow__node.selected .owd-node-card,
-.owd-graph .react-flow__node.selected .owd-group {
+.owd-graph .react-flow__node.selected .owd-group,
+.owd-graph .react-flow__node:focus-visible .owd-node-card,
+.owd-graph .react-flow__node:focus-visible .owd-group {
   outline: 2px solid var(--owd-accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 .owd-group-head {
-  padding: 8px 12px;
-  border-bottom: 1px dashed var(--owd-border);
-  background: color-mix(in srgb, var(--owd-surface) 80%, transparent);
-  border-radius: 14px 14px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--owd-tone) 30%, var(--owd-border));
+  border-radius: 13px 13px 0 0;
+  background: color-mix(in srgb, var(--owd-surface) 85%, transparent);
 }
 .owd-marker {
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 8px;
   font-weight: 700;
   border: 1.5px solid var(--owd-subtle);
   background: var(--owd-surface);
   color: var(--owd-subtle);
 }
 .owd-marker[data-variant="entry"] {
-  border-color: var(--owd-success);
-  color: var(--owd-success);
   padding-left: 2px;
 }
 .owd-marker[data-variant="dynamic"] {
   border-style: dashed;
 }
+
+/* ---- edges: colour by kind, then by whether the run went that way ---- */
+.owd-edge-group {
+  --owd-edge-stroke: var(--owd-edge);
+}
+.owd-edge-group[data-kind="needs"] {
+  --owd-edge-stroke: var(--owd-success);
+}
+.owd-edge-group[data-kind="fallback"],
+.owd-edge-group[data-kind="timeout"] {
+  --owd-edge-stroke: var(--owd-accent-2);
+}
+.owd-edge-group[data-kind="start"],
+.owd-edge-group[data-kind="dynamic"] {
+  --owd-edge-stroke: var(--owd-subtle);
+}
+.owd-edge-group[data-path="taken"] {
+  --owd-edge-stroke: var(--owd-text);
+}
+.owd-edge-group[data-path="untaken"] {
+  opacity: 0.35;
+}
+.owd-edge-arrow {
+  fill: var(--owd-edge-stroke);
+}
 .owd-edge-label {
   position: absolute;
   pointer-events: all;
-  padding: 1px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--owd-border);
-  background: var(--owd-surface);
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--owd-bg);
   color: var(--owd-subtle);
   font-family: var(--owd-font);
-  font-size: 10px;
+  font-size: 16px;
+  line-height: 20px;
   white-space: nowrap;
 }
-.owd-edge-label[data-kind="needs"] {
-  color: var(--owd-success);
-  border-color: var(--owd-success);
+.owd-edge-label[data-path="untaken"] {
+  color: color-mix(in srgb, var(--owd-subtle) 55%, var(--owd-bg));
 }
-.owd-edge-label[data-kind="timeout"],
-.owd-edge-label[data-kind="fallback"] {
-  color: var(--owd-accent-2);
-  border-color: var(--owd-accent-2);
-}
-.owd-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 8px;
-  border: 1px solid var(--owd-border);
-  background: var(--owd-surface);
-  color: var(--owd-text);
-}
+
 .owd-minimap {
   border: 1px solid var(--owd-border);
   border-radius: 8px;

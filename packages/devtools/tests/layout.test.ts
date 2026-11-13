@@ -35,15 +35,15 @@ describe('buildGraphModel', () => {
     expect(edge('next:ingest->normalize')?.kind).toBe('next')
     expect(edge('needs:normalize->gate')).toMatchObject({
       kind: 'needs',
-      label: 'needs normalize',
+      label: 'need: normalize',
     })
     expect(edge('needs:enrich->gate')).toMatchObject({
       kind: 'needs',
-      label: 'needs enrich (optional)',
+      label: 'optional need: enrich',
     })
     expect(edge('timeout:awaitPayment->rejected')).toMatchObject({
       kind: 'timeout',
-      label: 'timeout 15m',
+      label: 'times out after 15m',
     })
     expect(node('gate#dyn')).toBeUndefined()
     expect(edge('route:gate->awaitPayment')).toMatchObject({
@@ -56,7 +56,7 @@ describe('buildGraphModel', () => {
     expect(edge('needs:pack/count->pack/packed')).toMatchObject({
       parent: 'pack',
       kind: 'needs',
-      label: 'needs count',
+      label: 'need: count',
     })
     expect(edge(`start:${entryKey(['pack'])}->pack/count`)?.parent).toBe('pack')
   })

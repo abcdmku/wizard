@@ -1,0 +1,105 @@
+/* ---- the graph inside the dev UI: colours, controls and title ---- */
+
+/* The devtools palette, mapped onto the portal tokens so the graph reads as part of the page.
+   `[data-theme]` matches the specificity of the devtools dark-scheme rule. */
+.frame .owd.owd-graph,
+.frame .owd.owd-graph[data-theme] {
+  --owd-bg: var(--bg);
+  --owd-surface: var(--surface);
+  --owd-muted: var(--soft);
+  --owd-border: var(--line);
+  --owd-text: var(--text);
+  --owd-subtle: var(--quiet);
+  --owd-accent: var(--info);
+  --owd-accent-2: var(--undo);
+  --owd-success: var(--good);
+  --owd-warn: var(--warn);
+  --owd-danger: var(--bad);
+  --owd-edge: var(--quiet);
+  --owd-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  --owd-font: inherit;
+  --owd-mono: var(--mono);
+  border-radius: inherit;
+}
+/* No card shadow in dark mode. It must still be a shadow, not `none`, because the attention and
+   current-step rings list it first in a `box-shadow`, and `none` there drops the whole rule. */
+.frame[data-theme="dark"] .owd.owd-graph {
+  --owd-shadow: 0 0 #0000;
+}
+
+/* Edges stay grey until the run takes them. A data edge is lighter than a control edge. */
+.frame .owd-graph .owd-edge-group[data-kind="needs"] {
+  --owd-edge-stroke: color-mix(in srgb, var(--quiet) 55%, var(--line));
+}
+.frame .owd-graph .owd-edge-group[data-kind="start"],
+.frame .owd-graph .owd-edge-group[data-kind="dynamic"] {
+  --owd-edge-stroke: color-mix(in srgb, var(--quiet) 70%, var(--line));
+}
+.frame .owd-graph .owd-edge-group[data-path="taken"] {
+  --owd-edge-stroke: var(--text);
+}
+
+/* The page heading already names the wizard. Warnings and layout errors stay. */
+.owd-graph .owd-toolbar .owd-title {
+  display: none;
+}
+.owd-graph .owd-toolbar {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+/* The title repeats the page heading. The warning and layout badges and the "3 steps" buttons stay. */
+.owd-graph .react-flow__panel.top.left:not(:has(.owd-badge, .owd-more)) {
+  display: none;
+}
+
+/* The portal styles every button as a 32px form button. The zoom controls are small icons. */
+.owd-graph .react-flow__controls-button {
+  height: 24px;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--quiet);
+}
+.owd-graph .react-flow__controls-button:hover:not(:disabled) {
+  background: var(--soft);
+  color: var(--text);
+}
+.owd-graph .react-flow__controls-button svg {
+  fill: currentColor;
+}
+.owd-graph .react-flow__attribution {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 9px;
+  opacity: 0.55;
+}
+.owd-graph .owd-more {
+  height: 24px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+/* Room for the whole graph. The cards are compact and the layers run down in a narrow pane,
+   so a narrow pane gets a taller card. Overrides the fixed height in page.css. */
+.card.graph {
+  height: clamp(300px, 50vh, 460px);
+}
+@container main (max-width: 560px) {
+  .card.graph {
+    height: clamp(340px, 62vh, 520px);
+  }
+}
+/* With `autoHeight` the graph sets its own height to fit the wizard. */
+.card.graph:has(> .owd-graph[data-auto-height]) {
+  height: auto;
+}
+
+/* Dark: tints are quieter, so a waiting or failed step does not glare. */
+.frame[data-theme="dark"] .owd-node-card[data-tone] {
+  border-color: color-mix(in srgb, var(--owd-tone) 50%, var(--owd-border));
+  background: color-mix(in srgb, var(--owd-tone) 7%, var(--owd-surface));
+}
+.frame[data-theme="dark"] .owd-node-status {
+  background: color-mix(in srgb, var(--owd-tone) 14%, var(--owd-surface));
+  color: color-mix(in srgb, var(--owd-tone) 70%, var(--owd-text));
+}

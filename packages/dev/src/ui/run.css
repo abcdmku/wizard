@@ -1,0 +1,248 @@
+/* The run page: what it waits for, and how it ended. */
+.need-meta {
+  flex: none;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--soft);
+  padding: 0 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.section-note {
+  margin-left: 10px;
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+/* ---- waiting for you ---- */
+.section .count-pill {
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--soft);
+  padding: 1px 8px;
+  color: var(--quiet);
+  font-size: 12px;
+}
+.needs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.needs .section {
+  margin-bottom: 0;
+}
+.need {
+  display: grid;
+  gap: 14px;
+}
+@container main (min-width: 760px) {
+  .need {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 38%);
+    gap: 24px;
+  }
+}
+.need-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+.need header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* A long call wraps to a second line instead of losing its arguments. */
+.need h3 {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+/* On a phone the call or step name gets a line of its own under the badge and the attempt. */
+@container main (max-width: 560px) {
+  .need header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .need h3 {
+    flex-basis: 100%;
+    order: 2;
+  }
+}
+/* Each argument stays on one line, so a call wraps between arguments and never inside a string.
+   An argument wider than the card is cut with an ellipsis; the title holds the whole call. */
+.call-arg {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: bottom;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+.note,
+.hint {
+  font-size: 12.5px;
+}
+.failure {
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bad) 9%, transparent);
+  padding: 8px 10px;
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+button.danger {
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+  color: var(--bad);
+  font-weight: 600;
+}
+.throw {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 10px;
+}
+.throw input {
+  height: 32px;
+}
+.deadline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.deadline svg {
+  color: var(--warn);
+}
+.deadline p {
+  flex: 1 1 220px;
+}
+.deadline .problem {
+  flex-basis: 100%;
+}
+
+/* The call that does in code what the controls do. */
+.incode {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 10px 12px;
+}
+.incode figcaption {
+  color: var(--quiet);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.incode pre {
+  overflow-x: auto;
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.incode code {
+  font-size: inherit;
+}
+.need[data-kind] .incode {
+  align-self: start;
+}
+
+/* ---- the chosen step, right under the graph ---- */
+.step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.step-panel header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.card.step-panel h2 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.step-panel .close {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  place-items: center;
+  padding: 0;
+}
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+.facts dt {
+  color: var(--quiet);
+}
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.raw summary {
+  color: var(--quiet);
+  font-size: 13px;
+  cursor: pointer;
+}
+.raw .json {
+  margin-top: 8px;
+}
+.run-head[data-stuck] {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.run-head .status,
+.step-panel .status {
+  flex: none;
+  white-space: nowrap;
+}
+/* On a phone the stuck header keeps the name, the status and More on one line. */
+@container main (max-width: 560px) {
+  .run-head[data-stuck] .run-actions > button:not(.more-button) {
+    display: none;
+  }
+}
+/* A heading or note with a Copy JSON button at its end. */
+.json-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.json-head p {
+  margin: 0;
+  font-size: 12.5px;
+}
+.copy-json {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}

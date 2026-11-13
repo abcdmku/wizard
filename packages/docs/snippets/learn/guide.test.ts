@@ -67,7 +67,7 @@ it('forms: accepts a valid draft and refuses an invalid one', async () => {
 })
 
 it('branch: runs the chosen target and skips the other', async () => {
-  expect(await runDelivery()).toMatchObject({ status: 'done', output: 'Arrives in next day' })
+  expect(await runDelivery()).toMatchObject({ status: 'done', output: 'Arrives the next day' })
 
   const run = delivery.create({ speed: 'standard' })
   await run.start()

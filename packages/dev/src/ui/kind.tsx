@@ -24,6 +24,17 @@ export const MEANING: Readonly<Record<OutsideKind, string>> = {
   failed: 'A step threw and the run stopped.',
 }
 
+/**
+ * Who sends an event in production and how, as the first sentence of its card:
+ * `Back office posts this to a signed webhook route.` A plain event is sent by your code,
+ * whoever the dev config names.
+ */
+export function sentBy(kind: 'webhook' | 'queue' | 'event', from?: string): string {
+  if (kind === 'webhook') return `${from ?? 'Another system'} posts this to a signed webhook route.`
+  if (kind === 'queue') return `${from ?? 'Another system'} puts this on a queue.`
+  return 'Your code sends this.'
+}
+
 const PATHS: Readonly<Record<OutsideKind, string>> = {
   // A pencil on a page.
   form: 'M3 13h10M4.5 10.5l.5-2.5 5.5-5.5 2 2L7 10z',

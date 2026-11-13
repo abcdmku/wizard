@@ -1,0 +1,400 @@
+/* ---- the wizard page ---- */
+
+/* Warnings from inspect(). */
+.wz-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.wz-warnings li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warn) 9%, var(--surface));
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 13px;
+}
+.wz-warnings svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.wz-warnings code {
+  margin-right: 4px;
+  color: var(--strong);
+  font-weight: 650;
+}
+
+/* Start a run: the next step on this page, so it carries more weight than the cards around it. */
+.wz-launch {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+  border-color: color-mix(in srgb, var(--strong) 28%, var(--line));
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--strong) 6%, transparent);
+  padding: 18px 20px;
+}
+.wz-launch header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.wz-launch-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.wz-input {
+  width: 100%;
+  max-width: 640px;
+}
+.wz-launch-form[data-compact] {
+  flex-flow: row wrap;
+  align-items: flex-end;
+}
+.wz-launch-form[data-compact] .wz-input {
+  flex: 1 1 280px;
+  max-width: 520px;
+}
+/* In the compact form the button lines up with the last field, not with "Edit as JSON". */
+.wz-launch-form[data-compact] .wz-go {
+  margin-bottom: 26px;
+}
+button.wz-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 18px 0 14px;
+  font-size: 14px;
+}
+.wz-go svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.wz-hint {
+  color: var(--quiet);
+  font-size: 12.5px;
+}
+.wz-hint code,
+.wz-doc-head code {
+  color: var(--text);
+}
+
+/* Who answers service calls: two options, each with what it means. */
+.wz-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.wz-services legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--quiet);
+  font-size: 12px;
+  font-weight: 600;
+}
+.wz-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wz-option:has(input:checked) {
+  border-color: var(--strong);
+  background: var(--soft);
+}
+.wz-option input {
+  margin: 3px 0 0;
+}
+.wz-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.wz-option strong {
+  color: var(--strong);
+  font-weight: 600;
+}
+.wz-option .quiet {
+  font-size: 12.5px;
+}
+
+.wz-panel {
+  padding: 4px 16px 16px;
+}
+.wz-panel > p,
+.wz-panel > .stack {
+  padding-top: 12px;
+}
+.wz-sr {
+  position: absolute;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Steps: one block per step, with needs and options as quiet tags. */
+.wz-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wz-steps > li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+.wz-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.wz-step-name {
+  overflow-wrap: anywhere;
+  color: var(--strong);
+  font-size: 13px;
+  font-weight: 650;
+}
+.wz-role {
+  border-radius: 999px;
+  background: var(--soft);
+  padding: 0 8px;
+  color: var(--quiet);
+  font-size: 11.5px;
+  line-height: 19px;
+}
+.wz-first {
+  border: 1px solid var(--line);
+  background: none;
+  line-height: 17px;
+}
+.wz-steps p {
+  max-width: 60rem;
+  font-size: 13.5px;
+}
+.wz-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.wz-tags li {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0 6px;
+  color: var(--quiet);
+  font-size: 11.5px;
+  line-height: 19px;
+}
+
+/* Outside the run: one line per dependency. */
+.wz-deps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wz-deps li {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr) minmax(0, auto);
+  align-items: baseline;
+  gap: 4px 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 9px 0;
+  font-size: 13px;
+}
+.wz-deps li:last-child,
+.wz-schema:last-child,
+.wz-steps > li:last-child {
+  border-bottom: 0;
+}
+.wz-deps .kind {
+  justify-self: start;
+}
+.wz-dep-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+.wz-dep-main code {
+  overflow-wrap: anywhere;
+  color: var(--strong);
+}
+.wz-dep-step code {
+  color: var(--text);
+}
+.wz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 2px 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  font-size: 12.5px;
+}
+.wz-legend div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wz-legend dd {
+  margin: 0;
+  color: var(--quiet);
+}
+
+/* Schemas: the fields first, the JSON Schema on request. */
+.wz-schemas {
+  display: flex;
+  flex-direction: column;
+}
+.wz-schema {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+.wz-schema h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.wz-fields {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wz-fields li {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(90px, 1fr) minmax(0, 2fr);
+  align-items: baseline;
+  gap: 2px 12px;
+  border-top: 1px solid var(--line);
+  padding: 6px 0;
+  font-size: 13px;
+}
+.wz-fields li:first-child {
+  border-top: 0;
+}
+.wz-field-name {
+  overflow-wrap: anywhere;
+  color: var(--strong);
+}
+.wz-field-type {
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.wz-field-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 12.5px;
+}
+.wz-required {
+  color: var(--text);
+  font-weight: 600;
+}
+.wz-raw summary {
+  width: max-content;
+  color: var(--quiet);
+  font-size: 12px;
+  cursor: pointer;
+}
+.wz-raw[open] summary {
+  margin-bottom: 6px;
+}
+
+/* Generated page: the Markdown source, as it would be pasted. */
+.wz-doc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  font-size: 13px;
+}
+.wz-doc-head p {
+  flex: 1 1 260px;
+  color: var(--quiet);
+}
+.wz-launch header p {
+  margin-top: 2px;
+  font-size: 13px;
+}
+.wz-markdown {
+  overflow: auto;
+  max-height: 520px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.wz-runs td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.wz-runs a:not(:hover) {
+  text-decoration: none;
+}
+
+@container main (max-width: 560px) {
+  .wz-launch {
+    padding: 16px;
+  }
+  .wz-launch-form[data-compact] .wz-go {
+    margin-bottom: 0;
+  }
+  .wz-deps li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .wz-fields li {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  }
+  .wz-field-notes {
+    grid-column: 1 / -1;
+  }
+  .wz-legend {
+    flex-direction: column;
+  }
+  .wz-runs th:nth-child(3),
+  .wz-runs td:nth-child(3) {
+    display: none;
+  }
+}

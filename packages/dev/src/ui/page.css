@@ -19,10 +19,6 @@
   color: var(--quiet);
   font-size: 15px;
 }
-.meta {
-  margin-top: 6px;
-  font-size: 12.5px;
-}
 .section {
   margin: 22px 0 10px;
   color: var(--strong);
@@ -68,10 +64,6 @@
   width: 100%;
   height: 100%;
 }
-.result,
-.working {
-  margin-top: 16px;
-}
 .start {
   display: flex;
   margin-top: 18px;
@@ -83,12 +75,6 @@
 }
 .start button.primary {
   align-self: flex-start;
-}
-.result[data-status="done"] {
-  border-color: var(--good);
-}
-.result[data-status="failed"] {
-  border-color: var(--bad);
 }
 .stack {
   display: flex;
@@ -129,13 +115,24 @@ textarea {
   font-size: 12.5px;
   line-height: 1.55;
 }
-textarea[aria-invalid="true"] {
-  border-color: var(--bad);
-}
 .row input {
   flex: 1;
   min-width: 120px;
   height: 32px;
+}
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.choice label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 .fields {
   display: flex;
@@ -158,14 +155,28 @@ textarea[aria-invalid="true"] {
   align-items: center;
   gap: 10px;
 }
-.fields .field > span:first-child {
+.fields .field > label {
   overflow: hidden;
+  font-size: 13px;
   color: var(--text);
   font-family: var(--mono);
   font-weight: 400;
   text-overflow: ellipsis;
 }
+.fields .field .issue {
+  grid-column: 2;
+  margin-top: -6px;
+  color: var(--bad);
+  font-size: 12.5px;
+}
+.fields [aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--bad);
+}
 .fields .field[data-type="boolean"] input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
   justify-self: start;
 }
 .fields input:not([type="checkbox"]),
@@ -178,20 +189,6 @@ textarea[aria-invalid="true"] {
   color: var(--quiet);
   font-family: inherit;
   font-size: 12px;
-}
-.choice {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  border: 0;
-  padding: 0;
-  font-size: 13px;
-}
-.choice label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
 }
 .problem {
   color: var(--bad);
@@ -207,64 +204,158 @@ textarea[aria-invalid="true"] {
   margin-bottom: 10px;
 }
 
-/* ---- waiting for you ---- */
-.needs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  align-items: start;
+/* ---- working and the outcome ---- */
+.working {
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
-}
-.need {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.note {
-  font-size: 12.5px;
-}
-.need header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.need h3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.need button.primary {
-  align-self: flex-start;
-}
-.timer {
-  display: flex;
-  grid-column: 1 / -1;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  margin-top: 18px;
   border: 1px dashed var(--line);
   border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
+  padding: 16px;
 }
-
-/* The call that does in code what a button does here. */
-.incode {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-  color: var(--quiet);
-  font-size: 12px;
-}
-.incode span {
-  flex: none;
+.working p:first-child {
+  color: var(--strong);
   font-weight: 600;
 }
-.incode code {
-  overflow-wrap: anywhere;
+.working .quiet {
+  font-size: 13px;
+}
+.pulse {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--info);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--info) 45%, transparent);
+  animation: pulse 1.6s ease-out infinite;
+}
+@keyframes pulse {
+  to {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
+.outcome {
+  --hue: var(--quiet);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+  border-color: color-mix(in srgb, var(--hue) 40%, var(--line));
+}
+.outcome[data-status="done"] {
+  --hue: var(--good);
+}
+.outcome[data-status="failed"] {
+  --hue: var(--bad);
+}
+.outcome header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.card.outcome h2 {
+  margin: 0;
+  color: var(--hue);
+  font-size: 16px;
+}
+.outcome header .quiet {
+  font-size: 13px;
+}
+.outcome-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hue) 14%, transparent);
+  color: var(--hue);
+}
+.outcome-mark svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+.outcome-error {
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.outcome summary {
+  color: var(--quiet);
+  font-size: 13px;
+  cursor: pointer;
+}
+.outcome details .json {
+  margin-top: 8px;
+}
+
+/* A select drawn like an input, with its own arrow in both themes. */
+select {
+  height: 32px;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--quiet) 50%),
+    linear-gradient(135deg, var(--quiet) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 5px 5px;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-right: 30px;
   color: var(--text);
-  font-size: 12px;
-  white-space: pre-wrap;
+  font: inherit;
+  cursor: pointer;
+}
+select:hover {
+  border-color: var(--quiet);
+}
+/* In the one-row start form the fields are as tall as Start run beside them. */
+.wz-launch-form[data-compact] .fields input:not([type="checkbox"]),
+.wz-launch-form[data-compact] .fields select {
+  height: 38px;
+}
+
+/* ---- the words of status-word.ts that styles.css has no colour for ---- */
+[data-status="waiting-on-you"].status {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--warn);
+}
+[data-status="waiting-on-you"].dot,
+[data-status="waiting-on-you"].status::before,
+[data-status="retrying"].dot,
+[data-status="retrying"].status::before {
+  background: var(--warn);
+}
+[data-status="undoing"].dot,
+[data-status="undoing"].status::before,
+[data-status="undone"].dot,
+[data-status="undone"].status::before {
+  background: var(--undo);
+}
+[data-status="waiting"].dot,
+[data-status="waiting"].status::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--warn);
+}
+[data-status="skipped"].dot,
+[data-status="skipped"].status::before,
+[data-status="cancelled"].dot,
+[data-status="cancelled"].status::before,
+[data-status="blocked"].dot,
+[data-status="blocked"].status::before,
+[data-status="not-run"].dot,
+[data-status="not-run"].status::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--quiet);
 }

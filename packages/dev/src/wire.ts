@@ -90,12 +90,56 @@ export type Pending =
       readonly args: readonly unknown[]
       /** The return value the editor starts with. */
       readonly example?: unknown
+      /**
+       * The step that made the call and the path of its run. The dev server follows the run's
+       * events to tell which step a call came from; a call it cannot place leaves these out.
+       */
+      readonly step?: string
+      readonly path?: readonly string[]
+      /** Which attempt of that step this is, from 1, and how many its retry policy allows. */
+      readonly attempt?: number
+      readonly attempts?: number
+      /** True when the step's undo hook made the call, while the run undoes finished work. */
+      readonly undo?: true
+      /**
+       * For a call from one item of a mapped step (`each`): the item's index, from 0, and how
+       * many items the step runs. Left out when the dev server cannot tell.
+       */
+      readonly item?: number
+      readonly items?: number
     }
   | {
       readonly kind: 'failed'
       readonly step: string
       readonly error?: unknown
     }
+
+/**
+ * The run's next timer and what it is for. `retry` is the delay before a failed step tries
+ * again, `timeout` the run timeout of a step that is working, `waitTimeout` the timeout of an
+ * event wait, `undoTimeout` the timeout of an undo hook that is working and `sleep` the end of a
+ * sleep. `unknown` when the dev server cannot tell.
+ * @public
+ */
+export interface NextTimer {
+  readonly at: number
+  readonly purpose:
+    | 'retry'
+    | 'timeout'
+    | 'undoTimeout'
+    | 'waitTimeout'
+    | 'sleep'
+    | 'inboxTtl'
+    | 'compensationGrace'
+    | 'unknown'
+  /** The step the timer belongs to, and the path of its run (`[]` for the root). */
+  readonly step?: string
+  readonly path: readonly string[]
+  /** For `retry`, the attempt the timer starts. For `timeout`, the attempt that is running. */
+  readonly attempt?: number
+  /** How many attempts the step's retry policy allows in all. */
+  readonly attempts?: number
+}
 
 /**
  * One row of the run list.
@@ -110,8 +154,14 @@ export interface RunSummary {
   readonly services: Services
   /** The wizard was reloaded with a different definition after this run started. */
   readonly stale: boolean
-  /** How many things the run waits for. */
+  /**
+   * How many things the run waits for that a person supplies: forms, events, service calls
+   * answered by hand and failed steps. A sleep or another timer fires on its own and is not
+   * counted. Always 0 once the run is done, failed or cancelled.
+   */
   readonly waiting: number
+  /** True while a step of the run, or of a child run, waits out a retry delay. */
+  readonly retrying: boolean
 }
 
 /**
@@ -124,13 +174,24 @@ export interface RunDetail extends RunSummary {
   readonly snapshot: unknown
   /** `run.explain(step).phase` for each step of the root wizard. */
   readonly phases: Readonly<Record<string, string>>
+  /**
+   * `run.explain(step).reasons` for each step of the root wizard that has any, such as
+   * `deps-unmet:order`.
+   */
+  readonly reasons: Readonly<Record<string, readonly string[]>>
   readonly pending: readonly Pending[]
+  /**
+   * The run's events, oldest first. A restart from the snapshot adds one event of its own, with
+   * the type `dev.restarted`, where it happened.
+   */
   readonly events: readonly RunEvent<AnyWizardDefinition>[]
   readonly result?: RunResult<AnyWizardDefinition>
   /** The time the run reads, which moves ahead of the wall clock when a timer is skipped. */
   readonly now: number
   /** When the next timer fires, by the run's clock. */
   readonly nextTimer?: number
+  /** What the next timer is for, when the run has one. */
+  readonly timer?: NextTimer
 }
 
 /**

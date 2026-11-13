@@ -1,0 +1,251 @@
+/* The run page's header: its title, status, actions, the More menu and the note after a restart. */
+/* ---- run header: sticky at the top of the scroll area, compact once stuck ---- */
+.run-edge {
+  display: block;
+  height: 1px;
+  margin-bottom: -1px;
+}
+.run-head {
+  /* The padding of .main, which the header covers so it reaches the edges once stuck. */
+  --pad: 24px;
+  --pad-top: 22px;
+  position: sticky;
+  z-index: 5;
+  top: calc(-1 * var(--pad-top));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+  max-width: calc(1180px + 2 * var(--pad));
+  margin: -12px calc(-1 * var(--pad)) 0;
+  border-bottom: 1px solid transparent;
+  background: var(--bg);
+  padding: 12px var(--pad) 10px;
+}
+@container frame (max-width: 880px) {
+  .run-head {
+    --pad: 16px;
+    --pad-top: 16px;
+  }
+}
+.svc {
+  border-radius: 999px;
+  background: var(--soft);
+  padding: 0 8px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: help;
+}
+.run-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.run-title h1 {
+  overflow: hidden;
+  color: var(--strong);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-title h1 a {
+  text-decoration: none;
+}
+.run-actions {
+  display: flex;
+  gap: 8px;
+}
+@container main (max-width: 560px) {
+  .run-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .run-actions {
+    position: relative;
+  }
+  .run-actions .more {
+    position: static;
+  }
+  .run-actions .menu {
+    right: auto;
+    left: 0;
+  }
+  /* Once stuck, More sits at the right edge, so its menu opens toward the left. */
+  .run-head[data-stuck] .run-actions .menu {
+    right: 0;
+    left: auto;
+  }
+}
+.run-meta {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  color: var(--quiet);
+  font-size: 13px;
+}
+.run-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.run-head[data-stuck] {
+  border-bottom-color: var(--line);
+  padding-block: 8px;
+}
+.run-head[data-stuck] .run-title h1 {
+  font-size: 16px;
+}
+.run-head[data-stuck] .run-meta {
+  display: none;
+}
+button svg,
+.deadline svg,
+.outcome-mark svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.copy-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 7px;
+  color: var(--text);
+}
+.copy-id code {
+  font-size: 12px;
+}
+.copy-id .copied:empty {
+  display: none;
+}
+.copy-id .copied {
+  color: var(--good);
+  font-size: 12px;
+}
+.more {
+  position: relative;
+}
+.more-button,
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.more-button[aria-expanded="true"] svg,
+.toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  width: min(300px, 80vw);
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 4px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+}
+.menu button {
+  display: flex;
+  height: auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 0;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: normal;
+}
+.menu button:focus-visible {
+  outline-offset: -2px;
+}
+.menu button:hover,
+.menu button:focus {
+  background: var(--soft);
+}
+.menu small {
+  color: var(--quiet);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.menu button[data-danger] span {
+  color: var(--bad);
+}
+.menu-question {
+  padding: 8px 10px 4px;
+  color: var(--strong);
+  font-weight: 600;
+}
+.menu-answers {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.menu-answers button {
+  flex: none;
+  font-weight: 600;
+}
+
+/*
+ * The note after a restart. It takes no room, so nothing moves: at the end of the meta line in a
+ * wide frame, and just under the header when the header is stuck or one column wide.
+ */
+.run-note {
+  position: absolute;
+  right: var(--pad);
+  bottom: 7px;
+  margin: 0;
+  pointer-events: none;
+}
+.run-head[data-stuck] .run-note {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+@container main (max-width: 560px) {
+  .run-note {
+    top: calc(100% + 6px);
+    bottom: auto;
+    left: var(--pad);
+  }
+}
+.run-note > span {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--text) 10%, transparent);
+  padding: 4px 10px;
+  color: var(--strong);
+  font-size: 12.5px;
+  animation: run-note 4s ease both;
+}
+@keyframes run-note {
+  0% {
+    opacity: 0;
+  }
+  6%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .run-note > span {
+    animation: none;
+  }
+}

@@ -7,6 +7,27 @@ export function JsonView({ value }: { readonly value: unknown }): ReactElement {
   return <pre className="json">{pretty(value)}</pre>
 }
 
+/** A button that copies a value as pretty JSON, and says so for a moment. */
+export function CopyJson({ value }: { readonly value: unknown }): ReactElement {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 1600)
+    return () => clearTimeout(timer)
+  }, [copied])
+  const copy = () => {
+    void navigator.clipboard
+      ?.writeText(pretty(value))
+      .then(() => setCopied(true))
+      .catch(() => undefined)
+  }
+  return (
+    <button type="button" className="copy-json" onClick={copy}>
+      <span aria-live="polite">{copied ? 'Copied' : 'Copy JSON'}</span>
+    </button>
+  )
+}
+
 /** What a JSON editor holds: the text, and the value when the text parses. */
 export interface JsonDraft {
   readonly text: string
@@ -56,6 +77,19 @@ export function JsonEditor(props: {
   )
 }
 
+/**
+ * What a schema issue says, in words a person reads: a value the schema expected and did not
+ * get reads `by is required`, by the issue's path. Any other issue keeps the validator's message.
+ */
+export function issueText(issue: {
+  readonly message: string
+  readonly path?: readonly unknown[]
+}): string {
+  if (!/expected .+, received undefined/i.test(issue.message)) return issue.message
+  const name = issue.path?.map(String).join('.') ?? ''
+  return name === '' ? 'A value is required' : `${name} is required`
+}
+
 /** What a refused action said: the message and each issue with the field it is about. */
 export function Refusal({
   result,
@@ -71,10 +105,16 @@ export function Refusal({
         <ul>
           {result.issues.map((issue) => (
             <li key={`${issue.path?.join('.')}:${issue.message}`}>
-              {issue.path !== undefined && issue.path.length > 0 && (
-                <code>{issue.path.map(String).join('.')}</code>
-              )}{' '}
-              {issue.message}
+              {issueText(issue).endsWith(' is required') ? (
+                issueText(issue)
+              ) : (
+                <>
+                  {issue.path !== undefined && issue.path.length > 0 && (
+                    <code>{issue.path.map(String).join('.')}</code>
+                  )}{' '}
+                  {issue.message}
+                </>
+              )}
             </li>
           ))}
         </ul>

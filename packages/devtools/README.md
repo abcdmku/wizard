@@ -23,50 +23,56 @@ Read the [devtools reference](https://abcdmku.github.io/wizard/reference/devtool
 
 | Export | Kind | Summary | Source |
 |---|---|---|---|
-| `buildGraphModel` | function | Build the drawable model of a `Manifest` (`inspect(wizard)`): one entry marker per wizard, a card | [src](../../packages/devtools/src/layout/model.ts#L96) |
-| `bundledElk` | function | The bundled elkjs engine (no worker) — loaded once, lazily, so importing the package stays | [src](../../packages/devtools/src/layout/elk.ts#L84) |
+| `buildGraphModel` | function | Build the drawable model of a `Manifest` (`inspect(wizard)`): one entry marker per wizard, a card | [src](../../packages/devtools/src/layout/model.ts#L98) |
+| `bundledElk` | function | The bundled elkjs engine (no worker) — loaded once, lazily, so importing the package stays | [src](../../packages/devtools/src/layout/elk.ts#L147) |
 | `collectStatuses` | function | Flatten a run snapshot (`getSnapshot()`: state + children, recursively) or a projected | [src](../../packages/devtools/src/status.ts#L40) |
 | `createReplayWindow` | function | Create the replay window of a run: the base is the run's state when `attach()` runs (or | [src](../../packages/devtools/src/timeline/replay-window.ts#L65) |
 | `Devtools` | function | The composite devtools panel: the wizard graph with the live overlay (and the time-travelled | [src](../../packages/devtools/src/devtools/Devtools.tsx#L59) |
 | `DevtoolsProps` | interface | `<Devtools>` props: the `source` (a `Run` or a `Mirror`), the graph (`wizard` / `graph`; a | [src](../../packages/devtools/src/devtools/Devtools.tsx#L32) |
-| `DevtoolsSource` | type | What the components accept as `source`: a live `Run` or a `Mirror`. | [src](../../packages/devtools/src/types.ts#L121) |
+| `DevtoolsSource` | type | What the components accept as `source`: a live `Run` or a `Mirror`. | [src](../../packages/devtools/src/types.ts#L123) |
 | `DevtoolsTheme` | type | Colour scheme of the devtools: `'system'` follows `prefers-color-scheme`, the others force it | [src](../../packages/devtools/src/types.ts#L25) |
 | `DockPosition` | type | Where the `<Devtools>` panel docks. | [src](../../packages/devtools/src/devtools/use-resize.ts#L12) |
+| `EdgeRoute` | interface | The line ELK routed for an edge, in absolute flow coordinates: right-angled bends that keep | [src](../../packages/devtools/src/layout/elk.ts#L88) |
 | `EventLog` | function | The event log of a run: `seq`, `at`, `type`, `step`, `path` and a one-line detail per event. | [src](../../packages/devtools/src/events/EventLog.tsx#L53) |
 | `EventLogProps` | interface | `<EventLog>` props: a live `source` (run) or a static `events` array; an optional `filter` | [src](../../packages/devtools/src/events/EventLog.tsx#L29) |
-| `GraphInput` | interface | The static graph the components draw: a ready `Manifest` (`inspect(wizard)`, plain JSON — a | [src](../../packages/devtools/src/types.ts#L184) |
-| `GraphModel` | interface | The drawable model of a `Manifest`: nodes (parents before children), edges and the warnings | [src](../../packages/devtools/src/layout/model.ts#L72) |
-| `GraphSelection` | interface | What a graph click reports: the step `id`, the run `path` of its wizard and the combined | [src](../../packages/devtools/src/types.ts#L57) |
-| `isProjectedState` | function | True when a Mirror's projected value looks like a `ClientState` (an `expose` projection): | [src](../../packages/devtools/src/types.ts#L172) |
-| `isRunSource` | function | True for a `RunSource` (it has `getState` / `log` / `explain`); false for a Mirror (which | [src](../../packages/devtools/src/types.ts#L128) |
-| `LayoutEngine` | interface | What runs the layout: anything with ELK's `layout(graph)` — the bundled elkjs (default), a | [src](../../packages/devtools/src/layout/elk.ts#L37) |
-| `layoutGraph` | function | Lay a graph model out with ELK (layered, left → right, 150 px between layers, splines, network | [src](../../packages/devtools/src/layout/elk.ts#L99) |
-| `LayoutResult` | interface | What `layoutGraph` returns: the placements, the edges left out of the layered layout (drawn | [src](../../packages/devtools/src/layout/elk.ts#L46) |
-| `MirrorSource` | interface | The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies | [src](../../packages/devtools/src/types.ts#L108) |
-| `ModelEdge` | interface | One drawable edge between two model keys, with labels for routing, joins and alternate paths. | [src](../../packages/devtools/src/layout/model.ts#L56) |
-| `ModelEdgeKind` | type | Kind of a drawable edge: the `Manifest` kinds (`route` = a declared target of a dynamic | [src](../../packages/devtools/src/layout/model.ts#L34) |
-| `ModelNode` | interface | One drawable node. `key` is unique across nesting levels (`stepKey(path, id)`, `#entry` / | [src](../../packages/devtools/src/layout/model.ts#L41) |
-| `ModelNodeKind` | type | Kind of a drawable node: a step card, a group (a `child` step containing its child wizard), a | [src](../../packages/devtools/src/layout/model.ts#L27) |
-| `overlayOf` | function | The live overlay of a source for one of its snapshots (`source.getSnapshot()`): statuses (with | [src](../../packages/devtools/src/status.ts#L142) |
-| `Placement` | interface | Box of a laid-out node: absolute at the root, relative to its group inside a child wizard. | [src](../../packages/devtools/src/layout/elk.ts#L19) |
-| `Placements` | type | Placements by model key. | [src](../../packages/devtools/src/layout/elk.ts#L30) |
-| `ProjectedState` | interface | A projected (`ClientState`) state as the devtools read it: `status`, `current`, the exposed | [src](../../packages/devtools/src/types.ts#L156) |
-| `ProjectedStep` | interface | The projected step facts a `ClientState` carries for every step (`ClientStepState` base) plus | [src](../../packages/devtools/src/types.ts#L137) |
+| `GraphAutoHeight` | type | Lets `<WizardGraph>` set its own height to fit the graph, between `min` and `max` pixels. | [src](../../packages/devtools/src/graph/direction.ts#L71) |
+| `GraphDirection` | type | Which way the layers of `<WizardGraph>` run: `right`, `down`, or `auto` to pick the one that | [src](../../packages/devtools/src/graph/direction.ts#L18) |
+| `GraphInput` | interface | The static graph the components draw: a ready `Manifest` (`inspect(wizard)`, plain JSON — a | [src](../../packages/devtools/src/types.ts#L186) |
+| `GraphModel` | interface | The drawable model of a `Manifest`: nodes (parents before children), edges and the warnings | [src](../../packages/devtools/src/layout/model.ts#L74) |
+| `GraphSelection` | interface | What a graph click reports: the step `id`, the run `path` of its wizard and the combined | [src](../../packages/devtools/src/types.ts#L59) |
+| `isProjectedState` | function | True when a Mirror's projected value looks like a `ClientState` (an `expose` projection): | [src](../../packages/devtools/src/types.ts#L174) |
+| `isRunSource` | function | True for a `RunSource` (it has `getState` / `log` / `explain`); false for a Mirror (which | [src](../../packages/devtools/src/types.ts#L130) |
+| `LayoutDirection` | type | Which way the layers run: `right` puts the first step on the left, `down` puts it on top. | [src](../../packages/devtools/src/layout/elk.ts#L63) |
+| `LayoutEngine` | interface | What runs the layout: anything with ELK's `layout(graph)` — the bundled elkjs (default), a | [src](../../packages/devtools/src/layout/elk.ts#L38) |
+| `layoutGraph` | function | Lay a graph model out with ELK (layered, `options.direction` right or down, right-angled edge | [src](../../packages/devtools/src/layout/elk.ts#L162) |
+| `LayoutOptions` | interface | Options for `layoutGraph`. | [src](../../packages/devtools/src/layout/elk.ts#L69) |
+| `LayoutResult` | interface | What `layoutGraph` returns: the placements, the edges left out of the layered layout (drawn | [src](../../packages/devtools/src/layout/elk.ts#L47) |
+| `MirrorSource` | interface | The structural view of a `Mirror` the devtools read (`Mirror<P>` of any projection satisfies | [src](../../packages/devtools/src/types.ts#L110) |
+| `ModelEdge` | interface | One drawable edge between two model keys, with labels for routing, joins and alternate paths. | [src](../../packages/devtools/src/layout/model.ts#L58) |
+| `ModelEdgeKind` | type | Kind of a drawable edge: the `Manifest` kinds (`route` = a declared target of a dynamic | [src](../../packages/devtools/src/layout/model.ts#L36) |
+| `ModelNode` | interface | One drawable node. `key` is unique across nesting levels (`stepKey(path, id)`, `#entry` / | [src](../../packages/devtools/src/layout/model.ts#L43) |
+| `ModelNodeKind` | type | Kind of a drawable node: a step card, a group (a `child` step containing its child wizard), a | [src](../../packages/devtools/src/layout/model.ts#L29) |
+| `overlayOf` | function | The live overlay of a source for one of its snapshots (`source.getSnapshot()`): statuses (with | [src](../../packages/devtools/src/status.ts#L150) |
+| `Placement` | interface | Box of a laid-out node: absolute at the root, relative to its group inside a child wizard. | [src](../../packages/devtools/src/layout/elk.ts#L20) |
+| `Placements` | type | Placements by model key. | [src](../../packages/devtools/src/layout/elk.ts#L31) |
+| `Point` | interface | A point in flow coordinates (absolute, the same space as the root placements). | [src](../../packages/devtools/src/layout/elk.ts#L78) |
+| `ProjectedState` | interface | A projected (`ClientState`) state as the devtools read it: `status`, `current`, the exposed | [src](../../packages/devtools/src/types.ts#L158) |
+| `ProjectedStep` | interface | The projected step facts a `ClientState` carries for every step (`ClientStepState` base) plus | [src](../../packages/devtools/src/types.ts#L139) |
 | `ReplayState` | type | A (typed-erased) run state as `replay` returns it. | [src](../../packages/devtools/src/timeline/replay-window.ts#L18) |
 | `ReplayWindow` | interface | The replay window: a base state and the root events since it (`latest` = the newest seq). | [src](../../packages/devtools/src/timeline/replay-window.ts#L24) |
 | `ReplayWindowStore` | interface | A live replay window over a run (`createReplayWindow`): subscribe to it, `attach()` it to | [src](../../packages/devtools/src/timeline/replay-window.ts#L38) |
-| `runPhaseReader` | function | The phase reader for a live run: `explain(id).phase` on the run for root steps and on | [src](../../packages/devtools/src/status.ts#L112) |
-| `RunSource` | interface | The structural view of a `Run` the devtools read (`Run<F>` of any wizard satisfies it): | [src](../../packages/devtools/src/types.ts#L88) |
-| `SnapshotLike` | interface | A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by | [src](../../packages/devtools/src/types.ts#L77) |
+| `runPhaseReader` | function | The phase reader for a live run: `explain(id).phase` on the run for root steps and on | [src](../../packages/devtools/src/status.ts#L120) |
+| `RunSource` | interface | The structural view of a `Run` the devtools read (`Run<F>` of any wizard satisfies it): | [src](../../packages/devtools/src/types.ts#L90) |
+| `SnapshotLike` | interface | A run snapshot as the devtools walk it: the (typed-erased) state plus the live children by | [src](../../packages/devtools/src/types.ts#L79) |
 | `StepInspector` | function | The record of a step (status, attempt, error, input / output), why it is where it is | [src](../../packages/devtools/src/inspector/StepInspector.tsx#L52) |
 | `StepInspectorProps` | interface | `<StepInspector>` props: the `source` (run or Mirror), the `step` id and the run `path` | [src](../../packages/devtools/src/inspector/StepInspector.tsx#L21) |
-| `stepKey` | function | The key of a step in a `StepStatusMap` / graph selection: `[...path, id].join('/')` — the bare | [src](../../packages/devtools/src/types.ts#L68) |
+| `stepKey` | function | The key of a step in a `StepStatusMap` / graph selection: `[...path, id].join('/')` — the bare | [src](../../packages/devtools/src/types.ts#L70) |
 | `StepPhase` | type | Live phase of a step as `run.explain(step).phase` / `ClientStepState.phase` report it | [src](../../packages/devtools/src/types.ts#L32) |
 | `StepStatusInfo` | interface | Live facts of one step for the graph overlay: its stored `status` and, when known, its `phase`. | [src](../../packages/devtools/src/types.ts#L38) |
-| `StepStatusMap` | type | Statuses keyed by step key (`stepKey(path, id)`: the step id for the root wizard, | [src](../../packages/devtools/src/types.ts#L49) |
+| `StepStatusMap` | type | Statuses keyed by step key (`stepKey(path, id)`: the step id for the root wizard, | [src](../../packages/devtools/src/types.ts#L51) |
 | `Timeline` | function | Time travel over a run's events: a `seq` slider (and ◀ / ▶ buttons) shows the state at any | [src](../../packages/devtools/src/timeline/Timeline.tsx#L52) |
 | `TimelineProps` | interface | `<Timeline>` props: the run `source`; `context` (the input `wizard.create` received) lets the | [src](../../packages/devtools/src/timeline/Timeline.tsx#L33) |
-| `WizardGraph` | function | The static graph of a wizard, laid out with ELK (left → right layers; cycles broken for the | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L89) |
-| `WizardGraphProps` | interface | `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L50) |
+| `WizardGraph` | function | The static graph of a wizard, laid out with ELK (layers running right or down, picked for the | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L161) |
+| `WizardGraphProps` | interface | `<WizardGraph>` props: the graph (`graph` from `inspect(wizard)`, or `wizard`), the live overlay | [src](../../packages/devtools/src/graph/WizardGraph.tsx#L58) |
 
 <!-- exports:end -->

@@ -43,6 +43,8 @@ it('lists the wizards of the entry file with their graph, page and starting inpu
   expect(catalog.wizards.map((wizard) => [wizard.name, wizard.hasDeps])).toEqual([
     ['refund', false],
     ['reminder', true],
+    ['upload', false],
+    ['dashboard', false],
   ])
   const [refund, reminder] = catalog.wizards
   expect(refund?.exampleInput).toEqual({ orderId: 'o-2' })
@@ -169,6 +171,72 @@ it('skips a sleep and runs the next step with real services', async () => {
   await new Promise((done) => setTimeout(done, 20))
   run = await detail(id)
   expect(run.result).toMatchObject({ status: 'done', output: 'sent to ada@example.com' })
+})
+
+it('names the next timer, counts only what a person supplies and numbers each attempt', async () => {
+  const sleeping = await detail(await start('reminder', { to: 'ada@example.com' }))
+  expect(sleeping.waiting).toBe(0)
+  expect(sleeping.timer).toMatchObject({ purpose: 'sleep', step: 'pause', path: [] })
+
+  const id = await start('upload', { fileId: 'f-1' })
+  let run = await detail(id)
+  expect(run.waiting).toBe(1)
+  const first = run.pending.find((item) => item.kind === 'call') as { id: string }
+  expect(first).toMatchObject({ step: 'save', path: [], attempt: 1, attempts: 3 })
+
+  await act(id, { type: 'reject', id: first.id, message: 'Storage is down' })
+  run = await detail(id)
+  expect(run.waiting).toBe(0)
+  expect(run.phases.save).toBe('retrying')
+  expect(run.timer).toMatchObject({ purpose: 'retry', step: 'save', attempt: 2, attempts: 3 })
+
+  await act(id, { type: 'skipTimer' })
+  await new Promise((done) => setTimeout(done, 20))
+  run = await detail(id)
+  expect(run.pending.find((item) => item.kind === 'call')).toMatchObject({
+    step: 'save',
+    attempt: 2,
+    attempts: 3,
+  })
+})
+
+it('names the step behind each of two calls made at once and of two calls in a row', async () => {
+  const id = await start('dashboard', { userId: '7' })
+  const calls = () =>
+    detail(id).then((run) => run.pending.flatMap((item) => (item.kind === 'call' ? [item] : [])))
+  const first = await calls()
+  expect(first.map((call) => [call.name, call.step])).toEqual([
+    ['users.find', 'profile'],
+    ['orders.list', 'orders'],
+  ])
+  // Answer the second call first: the first keeps its step.
+  await act(id, { type: 'resolve', id: first[1]?.id as string, value: ['o-1'] })
+  expect((await calls()).map((call) => [call.name, call.step])).toEqual([['users.find', 'profile']])
+  await act(id, { type: 'resolve', id: first[0]?.id as string, value: { name: 'Ada' } })
+  await new Promise((done) => setTimeout(done, 10))
+  const open = await calls()
+  expect(open.map((call) => [call.name, call.step])).toEqual([['audit.open', 'audit']])
+  await act(id, { type: 'resolve', id: open[0]?.id as string, value: 't-1' })
+  await new Promise((done) => setTimeout(done, 10))
+  expect((await calls()).map((call) => [call.name, call.step])).toEqual([['audit.close', 'audit']])
+})
+
+it('counts nothing to do once a run is cancelled, even with a call left open', async () => {
+  const id = await start('dashboard', { userId: '8' })
+  expect((await detail(id)).waiting).toBe(2)
+  expect(await act(id, { type: 'cancel' })).toEqual({ ok: true })
+  const run = await detail(id)
+  expect(run.status).toBe('cancelled')
+  expect(run.waiting).toBe(0)
+  const listed = (await get<RunSummary[]>('/api/runs')).find((item) => item.id === id)
+  expect(listed?.waiting).toBe(0)
+})
+
+it('adds one history line when a run restarts from its snapshot', async () => {
+  const id = await start('refund', { orderId: 'o-7' })
+  expect(await act(id, { type: 'restart' })).toEqual({ ok: true })
+  const types = (await detail(id)).events.map((event) => event.type as string)
+  expect(types.filter((type) => type === 'dev.restarted')).toHaveLength(1)
 })
 
 it('removes a run', async () => {

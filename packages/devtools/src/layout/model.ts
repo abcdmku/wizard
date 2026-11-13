@@ -11,13 +11,15 @@
 import type { Manifest, ManifestEdge, ManifestStep } from '@openwizard/core/inspect'
 import { stepKey } from '../types'
 
-/** Rendered size of a step card. */
-const STEP_WIDTH = 200
-export const STEP_HEIGHT = 72
+/** Rendered size of a step card: the id, then one row for the status or a fact. */
+export const STEP_WIDTH = 168
+export const STEP_HEIGHT = 52
+/** Extra height of a card with a third line: the steps it joins (`any of a, b`) or `each`. */
+export const SUB_LINE = 18
 /** Rendered size of an entry / dynamic-next marker. */
-const MARKER_SIZE = 28
-/** Room a group leaves for its header and around its children. */
-export const GROUP_PADDING = { top: 60, right: 24, bottom: 24, left: 24 } as const
+const MARKER_SIZE = 20
+/** Room a group leaves for its one-line header and around its children. */
+export const GROUP_PADDING = { top: 44, right: 14, bottom: 14, left: 14 } as const
 
 /**
  * Kind of a drawable node: a step card, a group (a `child` step containing its child wizard), a
@@ -145,6 +147,14 @@ export function buildGraphModel(graph: Manifest): GraphModel {
     }
   }
   const byKey = new Map(graph.nodes.map((n) => [stepKey(n.path, n.id), n]))
+  const joins = new Set(
+    graph.edges
+      .filter((e) => e.kind === 'needs' && e.mode === 'any')
+      .map((e) => stepKey(e.path, e.to)),
+  )
+  for (const [i, node] of nodes.entries())
+    if (node.kind === 'step' && (joins.has(node.key) || node.step?.each !== undefined))
+      nodes[i] = { ...node, height: STEP_HEIGHT + SUB_LINE }
   const used = new Set<string>()
   for (const edge of graph.edges) {
     const parent = parentOf(edge.path)
@@ -181,19 +191,25 @@ function edgeLabel(edge: ManifestEdge, source: ManifestStep | undefined): string
     case 'route':
       return 'route'
     case 'needs': {
-      const mode = edge.mode === undefined || edge.mode === 'all' ? '' : ` (${edge.mode})`
-      return `needs${edge.alias === undefined ? '' : ` ${edge.alias}`}${mode}`
+      const mode = edge.mode === undefined || edge.mode === 'all' ? '' : `${edge.mode} `
+      return `${mode}need${edge.alias === undefined ? '' : `: ${edge.alias}`}`
     }
     case 'fallback':
-      return 'fallback'
+      return 'falls back'
     case 'timeout':
-      return source?.timeout === undefined ? 'timeout' : `timeout ${formatMs(source.timeout)}`
+      return source?.timeout === undefined
+        ? 'times out'
+        : `times out after ${formatMs(source.timeout)}`
     default:
       return undefined
   }
 }
 
-/** `250ms`, `15s`, `15m`, `2h`, `1d` — the largest unit that divides evenly, else seconds. */
+/**
+ * A duration as the graph and the dev UI print it, with no space before the unit: whole hours
+ * under 72 read as hours (`2h`, `48h`), anything else as the largest unit that divides it
+ * evenly (`7d`, `90m`, `15s`, `250ms`), else tenths of a second (`1.5s`).
+ */
 export function formatMs(ms: number): string {
   const units: ReadonlyArray<readonly [number, string]> = [
     [86_400_000, 'd'],
@@ -201,6 +217,7 @@ export function formatMs(ms: number): string {
     [60_000, 'm'],
     [1_000, 's'],
   ]
+  if (ms >= 86_400_000 && ms < 259_200_000 && ms % 3_600_000 === 0) return `${ms / 3_600_000}h`
   for (const [size, unit] of units) if (ms >= size && ms % size === 0) return `${ms / size}${unit}`
   return ms < 1_000 ? `${ms}ms` : `${Math.round(ms / 100) / 10}s`
 }

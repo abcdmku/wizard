@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import type { Schema, WizardInfo } from '../wire'
+import { span } from './format'
 import { Kind, MEANING, type OutsideKind } from './kind'
 
 interface Row {
@@ -11,23 +12,26 @@ interface Row {
 
 const fields = (schema: Schema | undefined): string => {
   const properties = (schema as { properties?: Record<string, unknown> } | undefined)?.properties
-  return properties === undefined ? '' : Object.keys(properties).join(', ')
+  const names = properties === undefined ? [] : Object.keys(properties)
+  return names.length === 0 ? '' : `${names.length === 1 ? 'field' : 'fields'}: ${names.join(', ')}`
 }
 
-const duration = (ms: number): string => {
-  if (ms % 3_600_000 === 0) return `${ms / 3_600_000} h`
-  if (ms % 60_000 === 0) return `${ms / 60_000} min`
-  return ms % 1000 === 0 ? `${ms / 1000} s` : `${ms} ms`
+/** `Back office sends { by }`, or the fields alone when the dev config names no sender. */
+const sends = (from: string | undefined, schema: Schema | undefined): string => {
+  const properties = (schema as { properties?: Record<string, unknown> } | undefined)?.properties
+  const names = properties === undefined ? [] : Object.keys(properties)
+  if (from === undefined) return fields(schema)
+  return names.length === 0 ? `${from} sends it` : `${from} sends { ${names.join(', ')} }`
 }
 
 /** Every dependency of a wizard on something outside the run, read from its manifest. */
-function rowsOf(wizard: WizardInfo): readonly Row[] {
+export function rowsOf(wizard: WizardInfo): readonly Row[] {
   const { nodes, schemas } = wizard.manifest
   const label = (node: (typeof nodes)[number]) => [...node.path, node.id].join(' / ')
   const rows: Row[] = []
   for (const node of nodes) {
     if (node.kind === 'view')
-      rows.push({ kind: 'form', name: label(node), steps: label(node), detail: fields(node.input) })
+      rows.push({ kind: 'form', name: label(node), steps: '', detail: fields(node.input) })
   }
   for (const name of Object.keys(schemas.events)) {
     const origin = wizard.events[name]
@@ -37,88 +41,73 @@ function rowsOf(wizard: WizardInfo): readonly Row[] {
         origin?.source === 'webhook' ? 'webhook' : origin?.source === 'queue' ? 'queue' : 'event',
       name,
       steps: waiting.join(', '),
-      detail: [
-        origin?.from === undefined ? '' : `from ${origin.from}`,
-        fields(schemas.events[name]),
-      ]
-        .filter((part) => part !== '')
-        .join(' · '),
+      detail: sends(origin?.from, schemas.events[name]),
     })
   }
   for (const node of nodes) {
     if (node.sleep !== undefined)
       rows.push({
         kind: 'timer',
-        name: 'sleep',
+        name: node.sleep === 'dynamic' ? 'sleep' : `sleep ${span(node.sleep)}`,
         steps: label(node),
-        detail: node.sleep === 'dynamic' ? 'set when the step starts' : duration(node.sleep),
+        detail: node.sleep === 'dynamic' ? 'length set when the step starts' : '',
       })
     if (node.timeout !== undefined)
       rows.push({
         kind: 'timer',
-        name: 'timeout',
+        name: `timeout ${span(node.timeout)}`,
         steps: label(node),
-        detail: duration(node.timeout),
+        detail: '',
       })
   }
   for (const name of wizard.services)
-    rows.push({ kind: 'service', name, steps: '', detail: 'configured in the dev config' })
+    rows.push({ kind: 'service', name, steps: '', detail: 'answered by the dev config' })
   return rows
 }
 
 /** What a wizard needs from outside the run, with a badge that tells the kinds apart. */
 export function Outside({ wizard }: { readonly wizard: WizardInfo }): ReactElement {
   const rows = rowsOf(wizard)
-  const kinds = [...new Set(rows.map((row) => row.kind))].filter((kind) => kind !== 'service')
+  const kinds = [...new Set(rows.map((row) => row.kind))]
   return (
     <div className="stack">
       {rows.length === 0 ? (
-        <p className="quiet">This wizard waits for nothing outside the run.</p>
+        <p>This wizard needs no form, event or timer. Only its service calls reach outside.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Kind</th>
-              <th>Name</th>
-              <th>Step that waits</th>
-              <th>Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={`${row.kind}:${row.name}:${row.steps}`}>
-                <td>
-                  <Kind kind={row.kind} />
-                </td>
-                <td>
-                  <code>{row.name}</code>
-                </td>
-                <td>{row.steps}</td>
-                <td>{row.detail}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ul className="wz-deps">
+          {rows.map((row) => (
+            <li key={`${row.kind}:${row.name}:${row.steps}`}>
+              <Kind kind={row.kind} />
+              <span className="wz-dep-main">
+                <code>{row.name}</code>
+                {row.detail !== '' && <span className="quiet">{row.detail}</span>}
+              </span>
+              {row.steps !== '' && (
+                <span className="wz-dep-step quiet">
+                  at <code>{row.steps}</code>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
-      <dl className="legend">
-        {kinds.map((kind) => (
-          <div key={kind}>
-            <dt>
-              <Kind kind={kind} />
-            </dt>
-            <dd>{MEANING[kind]}</dd>
-          </div>
-        ))}
-        <div>
-          <dt>
-            <Kind kind="service" />
-          </dt>
-          <dd>
-            A step's code decides which services it calls, so they are not listed until a run makes
-            the call. A service the dev config leaves out waits for your answer.
-          </dd>
-        </div>
-      </dl>
+      {kinds.length > 0 && (
+        <dl className="wz-legend">
+          {kinds.map((kind) => (
+            <div key={kind}>
+              <dt>
+                <Kind kind={kind} />
+              </dt>
+              <dd>{MEANING[kind]}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <p className="wz-hint">
+        {wizard.services.length === 0
+          ? 'Service calls show up on the run page when a step makes them, and you answer each one there.'
+          : 'Calls to other services show up on the run page when a step makes them, and you answer each one there.'}
+      </p>
     </div>
   )
 }

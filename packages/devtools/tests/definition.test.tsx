@@ -24,7 +24,7 @@ const wizard = defineWizard(
     return steps(
       {
         doubled,
-        join: step({ needs: { doubled }, run: ({ needs }) => needs.doubled.length }),
+        join: step({ needs: { values: doubled }, run: ({ needs }) => needs.values.length }),
         recover: step({ run: () => 0 }),
         delay: step({ sleep: '1m', next: 'join' }),
       },
@@ -39,17 +39,21 @@ it('draws data joins and fallback paths, and shows map and sleep facts in the in
   const view = render(<WizardGraph graph={graph} />)
   await waitFor(
     () =>
+      // A renamed need keeps its label; `need: doubled` on an edge from `doubled` would repeat it.
       expect(view.container.querySelector('.owd-edge-label[data-kind="needs"]')?.textContent).toBe(
-        'needs doubled',
+        'need: values',
       ),
     // The first layout can take longer than the default second on a slow CI host.
     { timeout: 10_000 },
   )
   expect(view.container.querySelector('.owd-edge-label[data-kind="fallback"]')?.textContent).toBe(
-    'fallback',
+    'falls back',
   )
-  expect(screen.getByText('each (2 concurrent)')).toBeTruthy()
-  expect(screen.getByText('sleep 1m')).toBeTruthy()
+  // A card shows its kind and one fact; the rest is in its tooltip. An `each` step keeps a
+  // third line, which stays while the run is live.
+  expect(screen.getByText('each · 2 at a time')).toBeTruthy()
+  expect(screen.getByText('1m')).toBeTruthy()
+  expect(screen.getByText('timer')).toBeTruthy()
 
   view.rerender(<StepInspector source={run} step="doubled" graph={graph} />)
   expect(fact(view.container, 'each')).toBe('{"concurrency":2}')
@@ -57,6 +61,6 @@ it('draws data joins and fallback paths, and shows map and sleep facts in the in
   view.rerender(<StepInspector source={run} step="delay" graph={graph} />)
   expect(fact(view.container, 'sleep')).toBe('1m')
   view.rerender(<StepInspector source={run} step="join" graph={graph} />)
-  expect(fact(view.container, 'needs')).toBe('{"doubled":{"kind":"all","steps":["doubled"]}}')
+  expect(fact(view.container, 'needs')).toBe('{"values":{"kind":"all","steps":["doubled"]}}')
   run.dispose()
 }, 15_000)

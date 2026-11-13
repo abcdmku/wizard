@@ -22,6 +22,8 @@ type StepPhase = NonNullable<Explanation['phase']>;
 interface StepStatusInfo {
   readonly status: StepStatus;
   readonly phase?: StepPhase;
+  /** The current attempt (1 on the first run) when the snapshot records one. */
+  readonly attempt?: number;
 }
 /**
  * Statuses keyed by step key (`stepKey(path, id)`: the step id for the root wizard,
@@ -278,10 +280,44 @@ interface LayoutEngine {
  */
 interface LayoutResult {
   readonly placements: Placements;
+  /** Which way the layers run. */
+  readonly direction: LayoutDirection;
+  /** The routed line of every edge ELK laid out, by edge key. */
+  readonly routes: Readonly<Record<string, EdgeRoute>>;
   /** Edges left out of the layered layout (drawn as U-turns / self-loops). */
   readonly backEdges: ReadonlySet<string>;
   /** Root nodes parked in the isolated column. */
   readonly isolated: ReadonlySet<string>;
+}
+/**
+ * Which way the layers run: `right` puts the first step on the left, `down` puts it on top.
+ * @public
+ */
+type LayoutDirection = 'right' | 'down';
+/**
+ * Options for `layoutGraph`.
+ * @public
+ */
+interface LayoutOptions {
+  /** Which way the layers run (default `right`). */
+  readonly direction?: LayoutDirection;
+}
+/**
+ * A point in flow coordinates (absolute, the same space as the root placements).
+ * @public
+ */
+interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+/**
+ * The line ELK routed for an edge, in absolute flow coordinates: right-angled bends that keep
+ * clear of the cards, and the centre of the edge's label when it has one.
+ * @public
+ */
+interface EdgeRoute {
+  readonly points: readonly Point[];
+  readonly label?: Point;
 }
 /**
  * The bundled elkjs engine (no worker) — loaded once, lazily, so importing the package stays
@@ -290,13 +326,31 @@ interface LayoutResult {
  */
 declare function bundledElk(): Promise<LayoutEngine>;
 /**
- * Lay a graph model out with ELK (layered, left → right, 150 px between layers, splines, network
- * simplex): back edges are removed first so the algorithm sees a DAG, groups are compound nodes,
- * root nodes no edge touches are parked in a right-hand column. Resolves to a placement for
- * every node.
+ * Lay a graph model out with ELK (layered, `options.direction` right or down, right-angled edge
+ * routes): back edges are removed first so the algorithm sees a DAG, groups are compound nodes,
+ * root nodes no edge touches are parked after the rest. Resolves to a placement for every node
+ * and a route for every edge ELK laid out.
  * @public
  */
-declare function layoutGraph(model: GraphModel, engine?: LayoutEngine): Promise<LayoutResult>;
+declare function layoutGraph(model: GraphModel, engine?: LayoutEngine, options?: LayoutOptions): Promise<LayoutResult>;
+//#endregion
+//#region src/graph/direction.d.ts
+/**
+ * Which way the layers of `<WizardGraph>` run: `right`, `down`, or `auto` to pick the one that
+ * draws the graph larger in its pane.
+ * @public
+ */
+type GraphDirection = LayoutDirection | 'auto';
+/**
+ * Lets `<WizardGraph>` set its own height to fit the graph, between `min` and `max` pixels.
+ * `true` means 120 to 480, never more than 70% of the window. A graph shorter than `max`
+ * gets only the height it needs, down to `min`.
+ * @public
+ */
+type GraphAutoHeight = boolean | {
+  readonly min: number;
+  readonly max: number;
+};
 //#endregion
 //#region src/graph/WizardGraph.d.ts
 /**
@@ -325,14 +379,55 @@ interface WizardGraphProps extends GraphInput {
   readonly follow?: boolean;
   /** Show the minimap (default `true`). */
   readonly minimap?: boolean;
+  /**
+   * Which way the layers run: `right` (first step on the left), `down` (first step on top), or
+   * `auto` (default) to pick the one that draws the graph larger in its pane, so a narrow pane
+   * gets a top-to-bottom graph.
+   */
+  readonly direction?: GraphDirection;
+  /**
+   * Let the graph set its own height to show the whole wizard at a readable size: `true` for
+   * 200 to 480 pixels (at most 70% of the window), or `{ min, max }`. The width still comes
+   * from the container. Omit it to fill the container's height.
+   */
+  readonly autoHeight?: GraphAutoHeight;
+  /**
+   * Keys (`stepKey(path, id)`) of the steps that wait on a person, such as a form to fill in or a
+   * service call to answer by hand. Each of them shows `waiting on you` while it runs or waits,
+   * and a ring when it is undoing, done or failed, since those keep their own word. When
+   * omitted, a form step that waits for input shows `waiting on you` and every other waiting
+   * step shows `waiting`.
+   */
+  readonly attention?: readonly string[];
+  /**
+   * The run has ended (done, failed, cancelled or undone). A step it never started then shows
+   * `not run` instead of `blocked`. Default `false`.
+   */
+  readonly ended?: boolean;
+  /**
+   * The run's status (`run.status`, such as `running`, `compensating` or `failed`). While the
+   * run is undoing, or once it has stopped, a step it never started shows `not run` instead of
+   * `blocked`, as `ended` does. Omit it to rely on `ended` alone.
+   */
+  readonly runStatus?: string;
+  /**
+   * Show the small React Flow link in the corner (default `true`). Pass `false` only when you
+   * credit React Flow elsewhere.
+   */
+  readonly attribution?: boolean;
+  /**
+   * Zoom with the mouse wheel (default `true`). Pass `false` for a graph inside a scrolling
+   * page: the wheel then scrolls the page, and pinch or Ctrl with the wheel still zooms.
+   */
+  readonly wheelZoom?: boolean;
   readonly className?: string;
   readonly style?: CSSProperties;
 }
 /**
- * The static graph of a wizard, laid out with ELK (left → right layers; cycles broken for the
- * layout and drawn as U-turns; nodes no edge touches parked in a right-hand column; child wizards
- * as group nodes) with the live overlay when `statuses` / `activeStep` are given. Click a step
- * to select it (`onSelect`), the pane to clear.
+ * The static graph of a wizard, laid out with ELK (layers running right or down, picked for the
+ * pane by default; cycles broken for the layout and drawn as U-turns; child wizards as group
+ * nodes) with the live overlay when `statuses` / `activeStep` are given. Click a step, or focus
+ * it and press Enter, to select it (`onSelect`); click the pane to clear.
  * @public
  */
 declare function WizardGraph(props: WizardGraphProps): ReactElement;
@@ -490,5 +585,5 @@ declare function overlayOf(source: DevtoolsSource, snapshot: unknown): {
   readonly childPaths: readonly (readonly string[])[];
 };
 //#endregion
-export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, EventLog, type EventLogProps, type GraphInput, type GraphModel, type GraphSelection, type LayoutEngine, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type RunSource, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, WizardGraph, type WizardGraphProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isProjectedState, isRunSource, layoutGraph, overlayOf, runPhaseReader, stepKey };
+export { Devtools, type DevtoolsProps, type DevtoolsSource, type DevtoolsTheme, type DockPosition, type EdgeRoute, EventLog, type EventLogProps, type GraphAutoHeight, type GraphDirection, type GraphInput, type GraphModel, type GraphSelection, type LayoutDirection, type LayoutEngine, type LayoutOptions, type LayoutResult, type MirrorSource, type ModelEdge, type ModelEdgeKind, type ModelNode, type ModelNodeKind, type Placement, type Placements, type Point, type ProjectedState, type ProjectedStep, type ReplayState, type ReplayWindow, type ReplayWindowStore, type RunSource, type SnapshotLike, StepInspector, type StepInspectorProps, type StepPhase, type StepStatusInfo, type StepStatusMap, Timeline, type TimelineProps, WizardGraph, type WizardGraphProps, buildGraphModel, bundledElk, collectStatuses, createReplayWindow, isProjectedState, isRunSource, layoutGraph, overlayOf, runPhaseReader, stepKey };
 //# sourceMappingURL=index.d.ts.map

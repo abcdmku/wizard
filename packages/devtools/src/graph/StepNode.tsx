@@ -1,105 +1,132 @@
 /**
- * The step card (`type: 'step'`) and the child wizard container (`type: 'group'`): id + kind chip,
- * a warnings badge, the authored hooks / `needs` / `timeout` as flag chips, and the live
- * overlay — `data-status` / `data-phase` colour the ring, `data-current` marks the cursor view.
+ * The step card (`type: 'step'`) and the child wizard container (`type: 'group'`). A card is
+ * compact: the step id, then one row with its live status word, or with its kind (`form`,
+ * `wait`, ...) and the one fact that tells most when it has no status, and for a join or an
+ * `each` step a third line that stays while the run is live. Everything else is in
+ * the card's tooltip. `data-tone` tints the card for the status, `data-current` marks the
+ * cursor view.
  */
 
 import type { NodeProps } from '@xyflow/react'
 import { memo, type ReactElement } from 'react'
-import { formatMs } from '../layout/model'
+import { allFacts, kindWord, mainFact, subLine } from './card-facts'
 import { Handles } from './Handles'
+import { type StatusWord, statusWord } from './status-word'
 import type { GroupNode, StepNode, StepNodeData } from './to-react-flow'
 
-const MAX_FLAGS = 4
+function wordOf(data: StepNodeData): StatusWord | undefined {
+  return statusWord(data.live, data.step, data.attention, data.notRun)
+}
 
-function flagsOf(data: StepNodeData): string[] {
+/** The host says a person must act, and the word does not already say so. */
+function ringOf(data: StepNodeData, word: StatusWord | undefined): 'true' | undefined {
+  return data.attention === true && word?.tone !== 'attention' ? 'true' : undefined
+}
+
+/** The tooltip: id, label, description, status and every fact. */
+function tooltipOf(data: StepNodeData, word: StatusWord | undefined): string {
   const { step } = data
-  const flags: string[] = []
-  if (step.needs !== undefined) flags.push(`needs ${Object.keys(step.needs).join(', ')}`)
-  if (step.each !== undefined) flags.push(`each (${step.each.concurrency} concurrent)`)
-  if (step.sleep !== undefined)
-    flags.push(step.sleep === 'dynamic' ? 'sleep (dynamic)' : `sleep ${formatMs(step.sleep)}`)
-  if (step.fallback !== undefined) flags.push(`fallback ${step.fallback}`)
-  if (step.timeout !== undefined) flags.push(`timeout ${formatMs(step.timeout)}`)
-  if (step.dynamicNext === true) flags.push('dynamic next')
-  for (const hook of step.hooks)
-    if (hook !== 'run' && hook !== 'each' && hook !== 'sleep') flags.push(hook)
-  return flags
+  const lines = [step.label === undefined ? step.id : `${step.id}: ${step.label}`]
+  if (step.description !== undefined) lines.push(step.description)
+  if (word !== undefined)
+    lines.push(word.attempt === undefined ? word.title : `${word.title}, ${word.attempt}`)
+  if (ringOf(data, word) !== undefined) lines.push('A person has to act on this step')
+  if (data.anyOf.length > 0) lines.push(`Starts when any one of ${data.anyOf.join(', ')} finishes`)
+  lines.push(...allFacts(step))
+  if (data.warnings.length > 0) lines.push(`Warnings: ${data.warnings.join(', ')}`)
+  return lines.join('\n')
 }
 
 function Head({ data }: { readonly data: StepNodeData }): ReactElement {
-  const { step, live, warnings } = data
+  const { step, warnings } = data
   return (
     <div className="owd-node-head">
-      <span className="owd-node-id" title={data.nodeKey}>
-        {step.id}
-      </span>
-      <span className="owd-chip owd-kind" data-kind={step.kind}>
-        {step.kind}
-      </span>
-      {step.start === true && (
-        <span className="owd-chip owd-start" title="entry point">
-          start
-        </span>
-      )}
+      <span className="owd-node-id">{step.id}</span>
       {warnings.length > 0 && (
-        <span className="owd-chip owd-warning" title={warnings.join(', ')}>
-          ⚠ {warnings.length}
+        <span className="owd-node-warning" role="img" aria-label={`${warnings.length} warning`}>
+          !
         </span>
-      )}
-      {live !== undefined && (
-        <span
-          className="owd-status-dot"
-          data-status={live.status}
-          data-phase={live.phase}
-          title={live.phase ?? live.status}
-        />
       )}
     </div>
   )
 }
 
-function Flags({ data }: { readonly data: StepNodeData }): ReactElement | null {
-  const flags = flagsOf(data)
-  if (flags.length === 0 && data.step.label === undefined) return null
-  const shown = flags.slice(0, MAX_FLAGS)
-  const rest = flags.length - shown.length
-  return (
-    <div className="owd-node-flags">
-      {data.step.label !== undefined && <span className="owd-node-label">{data.step.label}</span>}
-      {shown.map((flag) => (
-        <span key={flag} className="owd-flag">
-          {flag}
+function Row({
+  data,
+  word,
+}: {
+  readonly data: StepNodeData
+  readonly word: StatusWord | undefined
+}): ReactElement | null {
+  if (word !== undefined)
+    return (
+      <div className="owd-node-row">
+        <span className="owd-node-status" data-tone={word.tone}>
+          <span
+            className="owd-status-dot"
+            data-status={data.live?.status}
+            data-phase={data.live?.phase}
+            aria-hidden="true"
+          />
+          {word.text}
         </span>
-      ))}
-      {rest > 0 && (
-        <span className="owd-flag owd-flag-more" title={flags.slice(MAX_FLAGS).join(', ')}>
-          +{rest}
+        {word.attempt !== undefined && (
+          <span className="owd-node-fact owd-node-attempt" title={word.attempt}>
+            {word.attempt.replace(/^attempt /, '')}
+          </span>
+        )}
+      </div>
+    )
+  const named = kindWord(data.step)
+  // A kind that repeats the step id (a `route` step called `route`) says nothing new, and the
+  // third line of an `each` step already says `each`.
+  const kind = named === data.step.id || named === 'each' ? undefined : named
+  const fact = mainFact(data.step)
+  if (kind === undefined && fact === undefined) return null
+  return (
+    <div className="owd-node-row">
+      {kind !== undefined && (
+        <span className="owd-kind" data-kind={kind}>
+          {kind}
         </span>
       )}
+      {fact !== undefined && <span className="owd-node-fact">{fact}</span>}
     </div>
   )
+}
+
+/** The third line: `each · 2 at a time`, `any of a, b`. It stays while the run is live. */
+function Sub({ data }: { readonly data: StepNodeData }): ReactElement | null {
+  const text = subLine(data.step, data.anyOf)
+  if (text === undefined) return null
+  return <div className="owd-node-sub">{text}</div>
 }
 
 function StepNodeView({ data }: NodeProps<StepNode>): ReactElement {
+  const word = wordOf(data)
   return (
     <>
       <Handles />
       <div
         className="owd-node-card"
+        title={tooltipOf(data, word)}
         data-status={data.live?.status}
         data-phase={data.live?.phase}
+        data-tone={word?.tone}
+        data-attention={ringOf(data, word)}
         data-current={data.current ? 'true' : undefined}
         data-selected={data.selected ? 'true' : undefined}
       >
         <Head data={data} />
-        <Flags data={data} />
+        <Row data={data} word={word} />
+        <Sub data={data} />
       </div>
     </>
   )
 }
 
 function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
+  const word = wordOf(data)
   return (
     <>
       <Handles />
@@ -107,11 +134,14 @@ function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
         className="owd-group"
         data-status={data.live?.status}
         data-phase={data.live?.phase}
+        data-tone={word?.tone}
+        data-attention={ringOf(data, word)}
         data-selected={data.selected ? 'true' : undefined}
       >
-        <div className="owd-group-head">
+        <div className="owd-group-head" title={tooltipOf(data, word)}>
           <Head data={data} />
-          <Flags data={data} />
+          <Row data={data} word={word} />
+          <Sub data={data} />
         </div>
       </div>
     </>

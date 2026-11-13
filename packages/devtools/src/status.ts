@@ -51,6 +51,19 @@ export function collectStatuses(
   return acc
 }
 
+/** One step's facts. An attempt of 0 (never run) is left out. */
+function info(
+  status: StepStatus,
+  phase: StepPhase | undefined,
+  attempt: number | undefined,
+): StepStatusInfo {
+  return {
+    status,
+    ...(phase === undefined ? {} : { phase }),
+    ...(attempt === undefined || attempt < 1 ? {} : { attempt }),
+  }
+}
+
 function walkSnapshot(
   snapshot: SnapshotLike,
   path: readonly string[],
@@ -61,9 +74,7 @@ function walkSnapshot(
   for (const id of Object.keys(state.steps)) {
     const record = state.steps[id]
     if (record === undefined) continue
-    const phase = phaseOf?.(path, id)
-    acc.statuses[stepKey(path, id)] =
-      phase === undefined ? { status: record.status } : { status: record.status, phase }
+    acc.statuses[stepKey(path, id)] = info(record.status, phaseOf?.(path, id), record.attempt)
   }
   if (state.current !== null) acc.current = stepKey(path, state.current)
   for (const child of snapshotChildren(snapshot)) {
@@ -81,10 +92,7 @@ function walkProjected(state: ProjectedState, path: readonly string[], acc: Coll
   for (const id of Object.keys(state.steps)) {
     const step = state.steps[id]
     if (step === undefined) continue
-    acc.statuses[stepKey(path, id)] =
-      step.phase === undefined
-        ? { status: step.status }
-        : { status: step.status, phase: step.phase }
+    acc.statuses[stepKey(path, id)] = info(step.status, step.phase, step.attempt)
     if (isProjectedState(step.child)) {
       const childPath = [...path, id]
       acc.childPaths.push(childPath)

@@ -1,7 +1,8 @@
 /**
- * SVG paths for the three edge shapes: a self-loop drawn beside the node, a wide U-turn between
- * two handles on the same side (backwards edges), and the plain bezier otherwise. Returns the
- * path plus the label anchor.
+ * SVG paths for the edge shapes: the right-angled route ELK laid out (with rounded corners), a
+ * self-loop drawn beside the node, a wide U-turn between two handles on the same side (backwards
+ * edges), and the plain bezier when there is no route (a card was dragged). Returns the path plus
+ * the label anchor.
  *
  * @packageDocumentation
  */
@@ -34,10 +35,7 @@ const U_DEPTH = 48
 
 export function edgePath(g: EdgeGeometry): EdgePath {
   if (g.selfLoop) return selfLoop(g)
-  const sameSide = g.sourcePosition === g.targetPosition
-  if (sameSide && (g.sourcePosition === Position.Top || g.sourcePosition === Position.Bottom)) {
-    return uTurn(g)
-  }
+  if (g.sourcePosition === g.targetPosition) return uTurn(g)
   const vertical =
     g.sourcePosition === Position.Top ||
     g.sourcePosition === Position.Bottom ||
@@ -69,17 +67,79 @@ function selfLoop(g: EdgeGeometry): EdgePath {
   return { path, labelX: x + LOOP_SIZE / 2, labelY: y - LOOP_SIZE / 2 }
 }
 
-/** A wide U below (bottom–bottom) or above (top–top) the cards, entering/leaving at an angle. */
+/**
+ * A wide U beside the cards on the side both handles share (below, above, left or right),
+ * entering and leaving at a slight angle.
+ */
 function uTurn(g: EdgeGeometry): EdgePath {
-  const below = g.sourcePosition === Position.Bottom
-  const sign = below ? 1 : -1
-  const distance = Math.abs(g.targetX - g.sourceX)
-  const lean = distance * 0.05 * (g.targetX > g.sourceX ? 1 : -1)
-  const c1x = g.sourceX + lean
-  const c2x = g.targetX - lean
-  const c1y = g.sourceY + sign * U_DEPTH
-  const c2y = g.targetY + sign * U_DEPTH
-  const path = `M ${g.sourceX},${g.sourceY} C ${c1x},${c1y} ${c2x},${c2y} ${g.targetX},${g.targetY}`
-  const midY = (g.sourceY + g.targetY) / 2
-  return { path, labelX: (g.sourceX + g.targetX) / 2, labelY: midY + sign * U_DEPTH * 0.75 }
+  const side = g.sourcePosition
+  const vertical = side === Position.Top || side === Position.Bottom
+  const sign = side === Position.Bottom || side === Position.Right ? 1 : -1
+  // Work along `a` (the line the cards share) and `b` (out of the cards), then map back.
+  const [sa, sb, ta, tb] = vertical
+    ? [g.sourceX, g.sourceY, g.targetX, g.targetY]
+    : [g.sourceY, g.sourceX, g.targetY, g.targetX]
+  const lean = Math.abs(ta - sa) * 0.05 * (ta > sa ? 1 : -1)
+  const pt = (a: number, b: number): string => (vertical ? `${a},${b}` : `${b},${a}`)
+  const path = `M ${pt(sa, sb)} C ${pt(sa + lean, sb + sign * U_DEPTH)} ${pt(ta - lean, tb + sign * U_DEPTH)} ${pt(ta, tb)}`
+  const labelA = (sa + ta) / 2
+  const labelB = (sb + tb) / 2 + sign * U_DEPTH * 0.75
+  return vertical
+    ? { path, labelX: labelA, labelY: labelB }
+    : { path, labelX: labelB, labelY: labelA }
+}
+
+const CORNER = 8
+
+/** A polyline through `points` with each bend rounded off; the label sits at `label` or midway. */
+export function routePath(
+  points: readonly { readonly x: number; readonly y: number }[],
+  label?: { readonly x: number; readonly y: number },
+): EdgePath {
+  const first = points[0]
+  if (first === undefined) return { path: '', labelX: 0, labelY: 0 }
+  let path = `M ${first.x},${first.y}`
+  for (let i = 1; i < points.length; i++) {
+    const p = points[i]
+    if (p === undefined) continue
+    const prev = points[i - 1] ?? p
+    const next = points[i + 1]
+    if (next === undefined) {
+      path += ` L ${p.x},${p.y}`
+      continue
+    }
+    const r = Math.min(CORNER, dist(prev, p) / 2, dist(p, next) / 2)
+    const a = toward(p, prev, r)
+    const b = toward(p, next, r)
+    path += ` L ${a.x},${a.y} Q ${p.x},${p.y} ${b.x},${b.y}`
+  }
+  // ELK leaves room for the label beside the line, clear of cards and other labels.
+  const mid = label ?? midpoint(points)
+  return { path, labelX: mid.x, labelY: mid.y }
+}
+
+type Pt = { readonly x: number; readonly y: number }
+
+function dist(a: Pt, b: Pt): number {
+  return Math.hypot(b.x - a.x, b.y - a.y)
+}
+
+function toward(from: Pt, to: Pt, r: number): Pt {
+  const d = dist(from, to) || 1
+  return { x: from.x + ((to.x - from.x) * r) / d, y: from.y + ((to.y - from.y) * r) / d }
+}
+
+/** The point halfway along the polyline. */
+function midpoint(points: readonly Pt[]): Pt {
+  let total = 0
+  for (let i = 1; i < points.length; i++) total += dist(points[i - 1] as Pt, points[i] as Pt)
+  let left = total / 2
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1] as Pt
+    const b = points[i] as Pt
+    const d = dist(a, b)
+    if (d >= left) return toward(a, b, left)
+    left -= d
+  }
+  return points[0] ?? { x: 0, y: 0 }
 }
