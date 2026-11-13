@@ -71,6 +71,11 @@
     right: auto;
     left: 0;
   }
+  /* Once stuck, More sits at the right edge, so its menu opens toward the left. */
+  .run-head[data-stuck] .run-actions .menu {
+    right: 0;
+    left: auto;
+  }
 }
 .run-meta {
   display: flex;

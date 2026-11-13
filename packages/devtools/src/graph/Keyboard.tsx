@@ -64,6 +64,12 @@ export function Keyboard({
       if (id === undefined) return
       if (event.key === 'Escape') {
         onClear()
+        // Clearing the selection redraws the step, which drops focus. Put it back on the step.
+        const again = () =>
+          dom
+            .querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
+            ?.focus({ preventScroll: true })
+        requestAnimationFrame(() => requestAnimationFrame(again))
         return
       }
       if (event.key !== 'Enter' && event.key !== ' ') return

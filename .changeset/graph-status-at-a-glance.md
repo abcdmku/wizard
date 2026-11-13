@@ -1,5 +1,5 @@
 ---
-"@openwizard/devtools": patch
+"@openwizard/devtools": minor
 "@openwizard/dev": patch
 ---
 
