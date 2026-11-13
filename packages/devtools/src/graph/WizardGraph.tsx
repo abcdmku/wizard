@@ -27,12 +27,13 @@ import {
 } from 'react'
 import type { LayoutEngine } from '../layout/elk'
 import type { DevtoolsTheme, GraphInput, GraphSelection, StepStatusMap } from '../types'
-import { Follow } from './Follow'
+import { FIT_PADDING, Follow } from './Follow'
 import { GraphEdgeComponent } from './GraphEdge'
 import { definitionPath, instanceGraph } from './instances'
 import { MarkerNodeComponent } from './MarkerNode'
 import { GroupNodeComponent, StepNodeComponent } from './StepNode'
 import {
+  applyEdgeOverlay,
   applyOverlay,
   type DevtoolsEdge,
   type DevtoolsNode,
@@ -126,7 +127,8 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
   }, [model, layout, setNodes, setEdges])
   useEffect(() => {
     setNodes((current) => applyOverlay(current, overlay))
-  }, [overlay, setNodes])
+    setEdges((current) => applyEdgeOverlay(current, overlay))
+  }, [overlay, setNodes, setEdges])
 
   const { onSelect } = props
   const select = useCallback(
@@ -171,7 +173,7 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
         edgeTypes={EDGE_TYPES}
         colorMode={theme}
         fitView
-        fitViewOptions={{ padding: 0.06 }}
+        fitViewOptions={{ padding: FIT_PADDING }}
         minZoom={0.1}
         nodesConnectable={false}
         elementsSelectable
@@ -180,7 +182,12 @@ export function WizardGraph(props: WizardGraphProps): ReactElement {
       >
         {props.follow === true && <Follow statuses={overlay.statuses} />}
         <Background gap={24} />
-        <Controls showInteractive={false} />
+        <Controls
+          showInteractive={false}
+          position="top-right"
+          orientation="horizontal"
+          className="owd-controls"
+        />
         {props.minimap !== false && <MiniMap pannable zoomable className="owd-minimap" />}
         <Panel position="top-left">
           <div className="owd-toolbar">

@@ -14,6 +14,9 @@ export function span(ms: number): string {
   return `${Math.round(seconds / 86_400)}d`
 }
 
+/** `just now`, or `4m ago`, for a time `ms` in the past. */
+export const ago = (ms: number): string => (ms < 45_000 ? 'just now' : `${span(ms)} ago`)
+
 /** The last eight characters of a run id, which is enough to tell runs apart in a list. */
 export const shortId = (id: string): string => (id.length > 10 ? `…${id.slice(-8)}` : id)
 
@@ -36,3 +39,13 @@ export function brief(value: unknown, max = 90): string {
 /** `shipping / street` for a step inside a child run. */
 export const stepLabel = (path: readonly string[], step: string): string =>
   [...path, step].join(' / ')
+
+/**
+ * Four characters that tell runs apart. A run id is `wiz_<8 random><time>_<n>`, so the first
+ * four random characters are both distinct and easy to find in the full id. Other ids keep
+ * their last six characters.
+ */
+export function runTag(id: string): string {
+  const random = /^[a-z]+_([a-z0-9]{4})[a-z0-9]*_[a-z0-9]+$/i.exec(id)?.[1]
+  return random ?? (id.length > 6 ? id.slice(-6) : id)
+}

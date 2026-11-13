@@ -9,6 +9,10 @@ import { useEffect } from 'react'
 import type { StepStatusMap } from '../types'
 import type { DevtoolsEdge, DevtoolsNode } from './to-react-flow'
 
+/** Room around the steps when the whole graph is fitted. The top leaves room for the controls. */
+export const FIT_PADDING = { top: '44px', right: '20px', bottom: '24px', left: '20px' } as const
+const PAD = { top: 44, right: 20, bottom: 24, left: 20 } as const
+
 /** Below this zoom the name of a step is too small to read. */
 export const READABLE_ZOOM = 0.8
 
@@ -46,30 +50,48 @@ export function Follow({ statuses }: { readonly statuses: StepStatusMap }): null
   // biome-ignore lint/correctness/useExhaustiveDependencies: `count` moves the view when a child run adds nodes
   useEffect(() => {
     if (!ready || width === 0 || height === 0) return
+    const roomX = width - PAD.left - PAD.right
+    const roomY = height - PAD.top - PAD.bottom
+    const fits = (box: { width: number; height: number }) =>
+      Math.min(roomX / (box.width || 1), roomY / (box.height || 1)) >= READABLE_ZOOM
     const all = flow.getNodes()
-    const bounds = flow.getNodesBounds(all)
-    const whole = Math.min(width / (bounds.width || 1), height / (bounds.height || 1)) * 0.94
-    if (whole >= READABLE_ZOOM || focus === '') {
-      void flow.fitView({ padding: 0.06, maxZoom: 1.25, duration: 200 })
+    if (focus === '' || fits(flow.getNodesBounds(all))) {
+      void flow.fitView({ padding: FIT_PADDING, maxZoom: 1.25, duration: 200 })
       return
     }
     const ids = new Set(focus.split('\n'))
     const focused = all.filter((node) => ids.has(node.id))
-    // The steps the focus leads to come along when they fit, so the view shows where the run goes.
+    // The steps the focus leads to come along when they fit, so the view shows where the run
+    // goes, and so does the child wizard a focused step sits in, so its name stays in sight.
+    // With room to spare, the steps that led to the focus come too.
     const near = new Set(ids)
-    for (const edge of flow.getEdges()) if (ids.has(edge.source)) near.add(edge.target)
+    const before = new Set(ids)
+    for (const edge of flow.getEdges()) {
+      if (ids.has(edge.source)) near.add(edge.target)
+      if (ids.has(edge.target)) before.add(edge.source)
+    }
+    const parents = new Set(focused.map((node) => node.parentId))
+    const wide = all.filter(
+      (node) => near.has(node.id) || before.has(node.id) || parents.has(node.id),
+    )
     const around = all.filter((node) => near.has(node.id))
-    const wide = flow.getNodesBounds(around)
-    if (Math.min(width / wide.width, height / wide.height) * 0.9 >= READABLE_ZOOM) {
-      void flow.fitView({ nodes: around, padding: 0.08, maxZoom: 1, duration: 250 })
+    const framed = all.filter((node) => near.has(node.id) || parents.has(node.id))
+    const inner = all.filter((node) => ids.has(node.id) || parents.has(node.id))
+    for (const nodes of [wide, framed, inner, around, focused]) {
+      if (!fits(flow.getNodesBounds(nodes))) continue
+      void flow.fitView({ nodes, padding: FIT_PADDING, maxZoom: 1, duration: 250 })
       return
     }
     // Too wide even so: the focus goes to the left edge and what follows runs off to the right.
+    // A focus taller than the view keeps its top in sight rather than cutting both ends.
     const at = flow.getNodesBounds(focused)
+    const tall = at.height * READABLE_ZOOM > roomY
     void flow.setViewport(
       {
-        x: 28 - at.x * READABLE_ZOOM,
-        y: height / 2 - (at.y + at.height / 2) * READABLE_ZOOM,
+        x: PAD.left + 8 - at.x * READABLE_ZOOM,
+        y: tall
+          ? PAD.top - at.y * READABLE_ZOOM
+          : PAD.top + roomY / 2 - (at.y + at.height / 2) * READABLE_ZOOM,
         zoom: READABLE_ZOOM,
       },
       { duration: 250 },

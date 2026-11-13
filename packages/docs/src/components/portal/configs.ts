@@ -117,10 +117,10 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     config: home,
     autostart: false,
     tries: [
-      'Pick a wizard in the list. Each one is a different job: a refund, a research agent, a new hire, an incident and a deploy.',
-      'Press Start run. You play every person and every system the run waits for.',
-      'In deploy, return an error rate of 0.2 at the health check. The run undoes the canary.',
-      'In incident, skip the five minute timer where it waits for an answer. The page goes to the manager.',
+      'Pick a wizard in the list. Each one does a different job.',
+      'Press Start run. You play every person and system it waits for.',
+      'In deploy, return 0.2 at the health check. The canary is undone.',
+      'In incident, skip the 5 minute timer. The page goes to the manager.',
     ],
   },
   dev: {
@@ -144,7 +144,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       examples: { calls: { 'reports.download': { pages: 3 } } },
     }),
     [
-      'The run stopped at download, where the step called deps.reports.download. Press Return to be that service.',
+      'The run stops at download, which called deps.reports.download. Press Return to answer it.',
       'announce starts because download named it in next. Its output is the result of the run.',
       'Open History to see each step enter and finish, in order.',
     ],
@@ -179,7 +179,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     devWizard(delivery, { input: { speed: 'express' } }),
     [
       'Start a run with speed express. choose starts express and skips standard.',
-      'Go back to delivery in the list, pick standard and start another run. The other branch runs, and label still gets a value.',
+      'Open delivery again, pick standard and start. The other branch runs and label still gets a value.',
     ],
     false,
   ),
@@ -188,7 +188,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     devWizard(approval, { examples: { events: { approved: { by: 'Grace' } } } }),
     [
       'The run waits at decision for the approved event. Press Send approved.',
-      'Press Start again, then "Skip to it" on the timer. That is 48 hours passing. decision is skipped and close still runs.',
+      'Press Start again, then "Skip to it" on the timer. 48 hours pass, decision is skipped, close runs.',
       'Start again and send a payload with no "by". The schema refuses it and the step keeps waiting.',
     ],
   ),
@@ -197,7 +197,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     devWizard(signup, { examples: { forms: { contact: { email: 'ada@example.com' } } } }),
     [
       'Open the Snapshot tab. That JSON is the whole run, and it is what a store keeps.',
-      'Press "Stop and resume". The run is disposed and built again from that JSON, and the form still waits.',
+      'Open More and press "Stop and resume". The run is rebuilt from that JSON and the form still waits.',
       'Submit the form. The resumed run finishes.',
     ],
   ),
@@ -220,8 +220,8 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       examples: { calls: { 'storage.save': { url: '/files/f-1' } } },
     }),
     [
-      'Press Throw on storage.save. The step goes to "retrying" and a one second timer starts.',
-      'The call comes back with the same idempotency key. Throw twice more to use up the retries. The run halts.',
+      'Press Make it throw, then Throw, on storage.save. The step goes to "retrying" and a one second timer starts.',
+      'The call comes back with the same idempotency key. Throw twice more and the run halts.',
       'Press Retry on the failed step, then Return.',
     ],
   ),
@@ -232,7 +232,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
       examples: { calls: { 'live.price': 12 } },
     }),
     [
-      'Press Throw on live.price. The run does not halt. live is skipped and list starts.',
+      'Press Make it throw, then Throw, on live.price. The run does not halt. live is skipped and list starts.',
       'quote reads the list price. Start again and press Return to see it read the live price.',
     ],
   ),
@@ -250,7 +250,7 @@ export const portals: Readonly<Record<string, PortalSpec>> = {
     }),
     [
       'Return flights.book. The flight is booked.',
-      'Press Throw on hotels.book. The run calls flights.cancel with the reference you returned.',
+      'Press Make it throw, then Throw, on hotels.book. The run calls flights.cancel with the reference you returned.',
       'Return flights.cancel. The run ends as failed, with the flight undone.',
     ],
   ),

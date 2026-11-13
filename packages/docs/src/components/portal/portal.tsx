@@ -45,7 +45,7 @@ export function Portal({ name }: { readonly name: string }) {
   return (
     <figure className="portal not-prose" data-portal={name}>
       <figcaption className="portal-tries">
-        <span>Try it</span>
+        <span className="portal-tries-label">Try it</span>
         <ol>
           {spec.tries.map((step) => (
             <li key={step}>{step}</li>
@@ -62,7 +62,12 @@ export function Portal({ name }: { readonly name: string }) {
             {...(ready.open === undefined ? {} : { open: ready.open })}
           />
         ) : (
-          <p className="portal-loading">Loading the dev UI.</p>
+          <div className="portal-loading" role="status">
+            <div className="portal-loading-bar" />
+            <div className="portal-loading-body">
+              <span>Loading the dev UI</span>
+            </div>
+          </div>
         )}
       </div>
     </figure>

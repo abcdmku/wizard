@@ -1,0 +1,361 @@
+/* The run page: its header, what it waits for, and how it ended. page.css imports it. */
+/* ---- run header ---- */
+.run-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+}
+.run-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.run-title h1 {
+  overflow: hidden;
+  color: var(--strong);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-title h1 a {
+  text-decoration: none;
+}
+.run-actions {
+  display: flex;
+  gap: 8px;
+}
+@container main (max-width: 560px) {
+  .run-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .run-actions {
+    position: relative;
+  }
+  .run-actions .more {
+    position: static;
+  }
+  .run-actions .menu {
+    right: auto;
+    left: 0;
+  }
+}
+.run-meta {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  color: var(--quiet);
+  font-size: 13px;
+}
+.run-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+button svg,
+.deadline svg,
+.outcome-mark svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.copy-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 7px;
+  color: var(--text);
+}
+.copy-id code {
+  font-size: 12px;
+}
+.copy-id .copied:empty {
+  display: none;
+}
+.copy-id .copied {
+  color: var(--good);
+  font-size: 12px;
+}
+.more {
+  position: relative;
+}
+.more-button,
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.more-button[aria-expanded="true"] svg,
+.toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  width: min(300px, 80vw);
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 4px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+}
+.menu button {
+  display: flex;
+  height: auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 0;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: normal;
+}
+.menu button:focus-visible {
+  outline-offset: -2px;
+}
+.menu button:hover,
+.menu button:focus {
+  background: var(--soft);
+}
+.menu small {
+  color: var(--quiet);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.menu button[data-danger] span {
+  color: var(--bad);
+}
+
+/* ---- waiting for you ---- */
+.section .count-pill {
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--soft);
+  padding: 1px 8px;
+  color: var(--quiet);
+  font-size: 12px;
+}
+.needs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.needs .section {
+  margin-bottom: 0;
+}
+.need {
+  display: grid;
+  gap: 14px;
+}
+@container main (min-width: 760px) {
+  .need {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 38%);
+    gap: 24px;
+  }
+}
+.need-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+.need header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.need h3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note {
+  font-size: 12.5px;
+}
+.hint {
+  font-size: 12.5px;
+}
+.failure {
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bad) 9%, transparent);
+  padding: 8px 10px;
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+button.danger {
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+  color: var(--bad);
+  font-weight: 600;
+}
+.throw {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 10px;
+}
+.throw input {
+  height: 32px;
+}
+.deadline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.deadline svg {
+  color: var(--warn);
+}
+.deadline p {
+  flex: 1 1 220px;
+}
+.deadline .problem {
+  flex-basis: 100%;
+}
+
+/* The call that does in code what the controls do. */
+.incode {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 10px 12px;
+}
+.incode figcaption {
+  color: var(--quiet);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.incode pre {
+  overflow-x: auto;
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.incode code {
+  font-size: inherit;
+}
+.need[data-kind] .incode {
+  align-self: start;
+}
+
+/* ---- working and the outcome ---- */
+.working {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+.working p:first-child {
+  color: var(--strong);
+  font-weight: 600;
+}
+.working .quiet {
+  font-size: 13px;
+}
+.pulse {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--info);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--info) 45%, transparent);
+  animation: pulse 1.6s ease-out infinite;
+}
+@keyframes pulse {
+  to {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
+.outcome {
+  --hue: var(--quiet);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+  border-color: color-mix(in srgb, var(--hue) 40%, var(--line));
+}
+.outcome[data-status="done"] {
+  --hue: var(--good);
+}
+.outcome[data-status="failed"] {
+  --hue: var(--bad);
+}
+.outcome header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.card.outcome h2 {
+  margin: 0;
+  color: var(--hue);
+  font-size: 16px;
+}
+.outcome header .quiet {
+  font-size: 13px;
+}
+.outcome-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hue) 14%, transparent);
+  color: var(--hue);
+}
+.outcome-mark svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+.outcome-error {
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.outcome summary {
+  color: var(--quiet);
+  font-size: 13px;
+  cursor: pointer;
+}
+.outcome details .json {
+  margin-top: 8px;
+}

@@ -7,14 +7,14 @@ import {
 } from '@openwizard/devtools'
 import { type ReactElement, useMemo, useState } from 'react'
 import type { RunDetail, WizardInfo } from '../wire'
-import { Status } from './app'
 import { useBackend, useRun } from './backend'
-import { clock } from './format'
 import { History } from './history'
 import { JsonView } from './json'
-import { Go, useNav } from './nav'
 import { PendingList } from './pending'
+import { RunOutcome } from './result'
+import { RunHeader } from './run-header'
 import { useScheme } from './scheme'
+import { Tabs } from './tabs'
 
 type Tab = 'history' | 'step' | 'data' | 'snapshot'
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
@@ -66,7 +66,6 @@ export function RunPage(props: {
   readonly wizards: readonly WizardInfo[]
 }): ReactElement {
   const backend = useBackend()
-  const nav = useNav()
   const scheme = useScheme()
   const run = useRun(props.id, props.version)
   const [tab, setTab] = useState<Tab>('history')
@@ -94,58 +93,9 @@ export function RunPage(props: {
     setSelected(key)
     if (key !== null) setTab('step')
   }
-  const again = async () => {
-    const started = await backend.start({
-      wizard: run.wizard,
-      input: run.input,
-      services: run.services,
-    })
-    if (started.ok && started.id !== undefined) nav.go({ page: 'run', id: started.id })
-  }
-  const remove = async () => {
-    await backend.remove(run.id)
-    nav.go({ page: 'wizard', name: run.wizard })
-  }
-  const tabs: readonly [Tab, string][] = [
-    ['history', `History (${run.events.length})`],
-    ['step', 'Step'],
-    ['data', 'Input and result'],
-    ['snapshot', 'Snapshot'],
-  ]
-
   return (
     <>
-      <div className="title">
-        <h1>
-          <Go to={{ page: 'wizard', name: run.wizard }}>{run.wizard}</Go>
-        </h1>
-        <Status status={run.status} />
-        <span className="spacer" />
-        {!TERMINAL.has(run.status) && (
-          <>
-            <button
-              type="button"
-              title="Disposes the run and resumes it from its snapshot, as a restarted process would."
-              onClick={() => void backend.act(run.id, { type: 'restart' })}
-            >
-              Stop and resume
-            </button>
-            <button type="button" onClick={() => void backend.act(run.id, { type: 'cancel' })}>
-              Cancel
-            </button>
-          </>
-        )}
-        <button type="button" onClick={() => void again()}>
-          Start again
-        </button>
-        <button type="button" onClick={() => void remove()}>
-          Remove
-        </button>
-      </div>
-      <p className="quiet meta">
-        <code>{run.id}</code> · started {clock(run.createdAt)} ·{' '}
-        {run.services === 'manual' ? 'you answer service calls' : 'configured services'}
-      </p>
+      <RunHeader run={run} />
       {run.stale && (
         <p className="warning">
           The wizard changed after this run started. This run keeps the old definition. Start again
@@ -169,37 +119,20 @@ export function RunPage(props: {
         </section>
       )}
 
-      {run.pending.length > 0 || run.nextTimer !== undefined ? (
-        <>
-          <h2 className="section">Waiting for you</h2>
-          <PendingList run={run} />
-        </>
-      ) : (
-        !TERMINAL.has(run.status) && (
-          <p className="quiet working">Nothing is waiting for you. The run is working.</p>
-        )
-      )}
-      {run.result !== undefined && (
-        <section className="card result" data-status={run.result.status}>
-          <h2>Result</h2>
-          <JsonView value={run.result} />
-        </section>
-      )}
+      {!TERMINAL.has(run.status) && <PendingList run={run} />}
+      <RunOutcome run={run} />
 
-      <div className="tabs" role="tablist">
-        {tabs.map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <section className="card">
+      <Tabs
+        label="Run details"
+        selected={tab}
+        onSelect={setTab}
+        tabs={[
+          { id: 'history', label: 'History', count: run.events.length },
+          { id: 'step', label: 'Step' },
+          { id: 'data', label: 'Input and result' },
+          { id: 'snapshot', label: 'Snapshot' },
+        ]}
+      >
         {tab === 'history' && <History events={run.events} onStep={select} />}
         {tab === 'step' && <StepPanel run={run} selected={selected} />}
         {tab === 'data' && (
@@ -215,7 +148,7 @@ export function RunPage(props: {
           </div>
         )}
         {tab === 'snapshot' && <JsonView value={run.snapshot} />}
-      </section>
+      </Tabs>
     </>
   )
 }

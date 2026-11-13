@@ -1,0 +1,265 @@
+/* ---- shell ---- */
+.shell {
+  display: grid;
+  grid-template: "top top" 48px "side main" minmax(0, 1fr) / 240px minmax(0, 1fr);
+  height: 100%;
+}
+.topbar {
+  display: flex;
+  grid-area: top;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0 16px;
+}
+.topbar .brand {
+  color: var(--strong);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.topbar .entry {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+}
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--quiet);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.live::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 18%, transparent);
+}
+.live[data-on="false"]::before {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 18%, transparent);
+}
+.side {
+  grid-area: side;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  padding: 6px 10px 20px;
+  scrollbar-width: thin;
+}
+.side h2 {
+  padding: 14px 8px 6px;
+  color: var(--quiet);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  border-radius: 7px;
+  padding: 5px 8px;
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+  transition: background-color 0.12s;
+}
+.nav-item + .nav-item {
+  margin-top: 1px;
+}
+.nav-item:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.nav-item[aria-current="page"] {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--strong);
+}
+.nav-item:focus-visible {
+  outline-offset: -2px;
+}
+.nav-main {
+  display: grid;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+.nav-name {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-item[aria-current="page"] .nav-name {
+  font-weight: 600;
+}
+.nav-run {
+  align-items: flex-start;
+}
+.nav-run .dot {
+  margin-top: 6px;
+}
+.run-tag,
+.nav-age {
+  color: var(--quiet);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+.run-tag {
+  font-family: var(--mono);
+}
+.nav-age {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.nav-run .nav-age {
+  line-height: 19.5px;
+}
+.nav-sub {
+  color: var(--quiet);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.nav-todo {
+  color: var(--warn);
+  font-weight: 600;
+}
+.side .side-empty {
+  padding: 2px 8px;
+  color: var(--quiet);
+  font-size: 13px;
+}
+.count {
+  flex: none;
+  border-radius: 9px;
+  background: var(--warn);
+  padding: 0 7px;
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  white-space: nowrap;
+}
+.main {
+  grid-area: main;
+  container: main / inline-size;
+  overflow-y: auto;
+  padding: 22px 24px 48px;
+  scrollbar-gutter: stable;
+}
+.main > * {
+  max-width: 1180px;
+}
+
+/* A narrow host: the wizards and runs become one row of chips, and the top bar shrinks to its
+   tools beside them, or goes when there are none (the docs embed). */
+@container frame (max-width: 880px) {
+  .shell {
+    grid-template: "side top" auto "main main" minmax(0, 1fr) / minmax(0, 1fr) auto;
+  }
+  .topbar {
+    gap: 8px;
+    padding: 0 12px 0 4px;
+  }
+  .topbar:not([data-tools]),
+  .topbar .brand,
+  .topbar .tag,
+  .topbar .entry,
+  .topbar .spacer {
+    display: none;
+  }
+  .live-text {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+  .side {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow: auto hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 7px 12px;
+    scrollbar-width: none;
+  }
+  .side-group {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+  }
+  .side-group[data-empty] {
+    display: none;
+  }
+  .side-group + .side-group::before {
+    content: "";
+    width: 1px;
+    height: 18px;
+    margin-right: 10px;
+    background: var(--line);
+  }
+  .side h2 {
+    padding: 0 6px 0 0;
+  }
+  .nav-item {
+    flex: none;
+    min-height: 30px;
+    border-radius: 999px;
+    padding: 4px 10px;
+  }
+  .nav-item + .nav-item {
+    margin-top: 0;
+  }
+  .nav-item[aria-current="page"] {
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .nav-run {
+    align-items: center;
+  }
+  .nav-run .dot {
+    margin-top: 0;
+  }
+  .nav-age {
+    display: none;
+  }
+  .nav-sub {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+  .count {
+    display: none;
+  }
+  .side .count {
+    display: inline-block;
+  }
+  .main {
+    padding: 16px 16px 40px;
+  }
+}
+/* On a phone the chips need the room; a status dot already marks a run. */
+@container frame (max-width: 560px) {
+  .side h2 {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+}

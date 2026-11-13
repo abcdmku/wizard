@@ -6,12 +6,23 @@ import { type Backend, BackendProvider } from './backend'
 import graphThemeCss from './graph-theme.css?inline'
 import { NavProvider, type Route, useHashNav, useMemoryNav } from './nav'
 import pageCss from './page.css?inline'
+import runCss from './run.css?inline'
 import { type Scheme, SchemeContext } from './scheme'
+import chromeCss from './shell.css?inline'
 import shellCss from './styles.css?inline'
 import tablesCss from './tables.css?inline'
 import wizardCss from './wizard.css?inline'
 
-const CSS = [devtoolsCss, shellCss, pageCss, tablesCss, wizardCss, graphThemeCss].join('\n')
+const CSS = [
+  devtoolsCss,
+  shellCss,
+  chromeCss,
+  pageCss,
+  runCss,
+  tablesCss,
+  wizardCss,
+  graphThemeCss,
+].join('\n')
 
 /** `light`, `dark`, or `system` to follow the device. */
 export type PortalTheme = 'light' | 'dark' | 'system'

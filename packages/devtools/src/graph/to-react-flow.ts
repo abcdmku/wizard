@@ -43,7 +43,12 @@ type GraphEdgeData = {
   readonly label?: string
   /** Left out of the layered layout (drawn as a U-turn / self-loop). */
   readonly back: boolean
+  /** With a live run: the run went this way (`taken`) or cannot any more (`untaken`). */
+  readonly path?: EdgePathState
 }
+
+/** Whether the run went along an edge, from the statuses at both ends. */
+export type EdgePathState = 'taken' | 'untaken'
 
 export type StepNode = Node<StepNodeData, 'step'>
 export type GroupNode = Node<StepNodeData, 'group'>
@@ -110,11 +115,31 @@ function toNode(
   return { ...base, type: 'step', data, width: place.width, height: place.height, draggable: true }
 }
 
-function toEdge(edge: ModelEdge, layout: LayoutResult): DevtoolsEdge | undefined {
+/**
+ * The label worth drawing. `needs request` on an edge that leaves `request` repeats what the
+ * arrow already shows, so only a renamed or partial need (`needs approval (any)`) keeps one.
+ */
+function edgeLabel(edge: ModelEdge): string | undefined {
+  if (edge.kind !== 'needs' || edge.label === undefined) return edge.label
+  const sourceId = edge.source.slice(edge.source.lastIndexOf('/') + 1)
+  return edge.label === 'needs' || edge.label === `needs ${sourceId}` ? undefined : edge.label
+}
+
+function toEdge(
+  edge: ModelEdge,
+  layout: LayoutResult,
+  said: Set<string>,
+): DevtoolsEdge | undefined {
   const source = layout.placements[edge.source]
   const target = layout.placements[edge.target]
   if (source === undefined || target === undefined) return undefined
   const handles = pickHandles(source, target)
+  let label = edgeLabel(edge)
+  if (label !== undefined) {
+    const once = `${edge.target}\n${edge.kind}\n${label}`
+    if (said.has(once)) label = undefined
+    else said.add(once)
+  }
   return {
     id: edge.key,
     source: edge.source,
@@ -124,7 +149,7 @@ function toEdge(edge: ModelEdge, layout: LayoutResult): DevtoolsEdge | undefined
     type: 'graph',
     data: {
       kind: edge.kind,
-      ...(edge.label === undefined ? {} : { label: edge.label }),
+      ...(label === undefined ? {} : { label }),
       back: layout.backEdges.has(edge.key),
     },
     focusable: false,
@@ -144,11 +169,13 @@ export function toReactFlow(
     if (place !== undefined) nodes.push(toNode(node, place, model, overlay))
   }
   const edges: DevtoolsEdge[] = []
+  // Edges into one step with the same label (`needs approval (any)` from each branch) say it once.
+  const said = new Set<string>()
   for (const edge of model.edges) {
-    const e = toEdge(edge, layout)
+    const e = toEdge(edge, layout, said)
     if (e !== undefined) edges.push(e)
   }
-  return { nodes, edges }
+  return { nodes, edges: applyEdgeOverlay(edges, overlay) }
 }
 
 /** Refresh the live overlay in `data` only — positions (dragged or not) are kept. */
@@ -165,5 +192,41 @@ export function applyOverlay(
       selected: overlay.selected === node.id,
     }
     return { ...node, data }
+  })
+}
+
+/** Statuses that mean the run reached a step. */
+const REACHED = new Set(['active', 'done', 'failed', 'compensating', 'compensated', 'cancelled'])
+
+function pathState(
+  edge: DevtoolsEdge,
+  statuses: GraphOverlay['statuses'],
+): EdgePathState | undefined {
+  const target = statuses[edge.target]?.status
+  if (target === undefined) return undefined
+  const source = edge.source.endsWith('#entry') ? 'done' : statuses[edge.source]?.status
+  if (source === 'skipped' || target === 'skipped') return 'untaken'
+  if (source !== undefined && source !== 'idle' && source !== 'active' && REACHED.has(target))
+    return 'taken'
+  return undefined
+}
+
+/** Mark each edge the run took or can no longer take. Positions and handles are kept. */
+export function applyEdgeOverlay(
+  edges: readonly DevtoolsEdge[],
+  overlay: GraphOverlay,
+): DevtoolsEdge[] {
+  return edges.map((edge) => {
+    if (edge.data === undefined) return edge
+    const path = pathState(edge, overlay.statuses)
+    if (path === edge.data.path) return edge
+    const { kind, label, back } = edge.data
+    const data: GraphEdgeData = {
+      kind,
+      back,
+      ...(label === undefined ? {} : { label }),
+      ...(path === undefined ? {} : { path }),
+    }
+    return { ...edge, data }
   })
 }

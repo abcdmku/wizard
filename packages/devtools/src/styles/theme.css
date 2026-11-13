@@ -285,6 +285,11 @@
 .owd-status-dot[data-phase="compensating"] {
   animation: owd-pulse 1.1s ease-in-out infinite;
 }
+@media (prefers-reduced-motion: reduce) {
+  .owd-status-dot[data-phase] {
+    animation: none;
+  }
+}
 @keyframes owd-pulse {
   0%,
   100% {

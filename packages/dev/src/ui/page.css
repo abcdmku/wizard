@@ -19,10 +19,6 @@
   color: var(--quiet);
   font-size: 15px;
 }
-.meta {
-  margin-top: 6px;
-  font-size: 12.5px;
-}
 .section {
   margin: 22px 0 10px;
   color: var(--strong);
@@ -68,10 +64,6 @@
   width: 100%;
   height: 100%;
 }
-.result,
-.working {
-  margin-top: 16px;
-}
 .start {
   display: flex;
   margin-top: 18px;
@@ -83,12 +75,6 @@
 }
 .start button.primary {
   align-self: flex-start;
-}
-.result[data-status="done"] {
-  border-color: var(--good);
-}
-.result[data-status="failed"] {
-  border-color: var(--bad);
 }
 .stack {
   display: flex;
@@ -129,13 +115,24 @@ textarea {
   font-size: 12.5px;
   line-height: 1.55;
 }
-textarea[aria-invalid="true"] {
-  border-color: var(--bad);
-}
 .row input {
   flex: 1;
   min-width: 120px;
   height: 32px;
+}
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.choice label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 .fields {
   display: flex;
@@ -158,14 +155,28 @@ textarea[aria-invalid="true"] {
   align-items: center;
   gap: 10px;
 }
-.fields .field > span:first-child {
+.fields .field > label {
   overflow: hidden;
+  font-size: 13px;
   color: var(--text);
   font-family: var(--mono);
   font-weight: 400;
   text-overflow: ellipsis;
 }
+.fields .field .issue {
+  grid-column: 2;
+  margin-top: -6px;
+  color: var(--bad);
+  font-size: 12.5px;
+}
+.fields [aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--bad);
+}
 .fields .field[data-type="boolean"] input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
   justify-self: start;
 }
 .fields input:not([type="checkbox"]),
@@ -179,20 +190,6 @@ textarea[aria-invalid="true"] {
   font-family: inherit;
   font-size: 12px;
 }
-.choice {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  border: 0;
-  padding: 0;
-  font-size: 13px;
-}
-.choice label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
 .problem {
   color: var(--bad);
   font-size: 13px;
@@ -205,66 +202,4 @@ textarea[aria-invalid="true"] {
   max-width: 280px;
   height: 32px;
   margin-bottom: 10px;
-}
-
-/* ---- waiting for you ---- */
-.needs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  align-items: start;
-  gap: 12px;
-}
-.need {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.note {
-  font-size: 12.5px;
-}
-.need header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.need h3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.need button.primary {
-  align-self: flex-start;
-}
-.timer {
-  display: flex;
-  grid-column: 1 / -1;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  border: 1px dashed var(--line);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
-}
-
-/* The call that does in code what a button does here. */
-.incode {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-  color: var(--quiet);
-  font-size: 12px;
-}
-.incode span {
-  flex: none;
-  font-weight: 600;
-}
-.incode code {
-  overflow-wrap: anywhere;
-  color: var(--text);
-  font-size: 12px;
-  white-space: pre-wrap;
 }

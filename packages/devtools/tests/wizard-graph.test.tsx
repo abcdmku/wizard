@@ -48,7 +48,12 @@ describe('<WizardGraph>', () => {
     expect(
       cardOf(container, 'form')?.querySelector('.owd-status-dot')?.getAttribute('data-phase'),
     ).toBe('waiting')
+    // The status is a word on the card, not only a colour.
+    expect(cardOf(container, 'form')?.querySelector('.owd-node-status')?.textContent).toBe(
+      'waiting',
+    )
     expect(cardOf(container, 'ingest')?.dataset.status).toBe('idle')
+    expect(cardOf(container, 'ingest')?.querySelector('.owd-node-status')).toBeNull()
     expect(cardOf(container, 'gate')?.dataset.status).toBeUndefined()
 
     rerender(
@@ -66,6 +71,12 @@ describe('<WizardGraph>', () => {
     expect(cardOf(container, 'form')?.dataset.status).toBe('done')
     expect(cardOf(container, 'form')?.dataset.current).toBeUndefined()
     expect(cardOf(container, 'count')?.dataset.status).toBe('done')
+    expect(cardOf(container, 'form')?.querySelector('.owd-node-status')?.textContent).toBe('done')
+    expect(cardOf(container, 'ingest')?.dataset.tone).toBe('running')
+    // The edge from the finished form to the running ingest is the path the run took.
+    await waitFor(() =>
+      expect(container.querySelector('.react-flow__edge [data-path="taken"]')).not.toBeNull(),
+    )
   })
 
   it('reports a click as { id, path, key } (nested steps carry their path) and the pane click clears it', async () => {

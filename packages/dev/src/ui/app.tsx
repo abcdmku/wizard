@@ -1,9 +1,8 @@
 import { type ReactElement, useEffect, useState } from 'react'
-import type { RunSummary } from '../wire'
 import { useBackend, useServer } from './backend'
-import { shortId, span } from './format'
-import { Go, useNav } from './nav'
+import { useNav } from './nav'
 import { RunPage } from './run-page'
+import { Side } from './side'
 import { WizardPage } from './wizard-page'
 
 /** A coloured dot and the status of a run. */
@@ -12,28 +11,6 @@ export function Status({ status }: { readonly status: string }): ReactElement {
     <span className="status" data-status={status}>
       {status}
     </span>
-  )
-}
-
-function RunLink(props: {
-  readonly run: RunSummary
-  readonly active: boolean
-  readonly now: number
-}) {
-  const { run } = props
-  return (
-    <Go className="nav-item" to={{ page: 'run', id: run.id }} current={props.active}>
-      <span className="dot" data-status={run.status} />
-      <span className="nav-main">
-        {run.wizard} <span className="quiet">{shortId(run.id)}</span>
-      </span>
-      {run.waiting > 0 && (
-        <span className="count" title="Waiting for you">
-          {run.waiting}
-        </span>
-      )}
-      <span className="quiet">{span(props.now - run.createdAt)}</span>
-    </Go>
   )
 }
 
@@ -60,55 +37,38 @@ export function App(): ReactElement {
   const wizard =
     route.page === 'wizard' ? wizards.find((item) => item.name === route.name) : undefined
   const { reload } = backend
+  // The docs embed has neither, and in a narrow frame the bar then takes no room at all.
+  const tools = backend.place === 'server' || reload !== undefined
 
   return (
     <div className="shell">
-      <header className="top">
-        <strong>OpenWizard</strong>
+      {/* The shell's own rules. They can move into the list in portal.tsx; the order does not matter. */}
+      <header className="topbar" data-tools={tools || undefined}>
+        <strong className="brand">OpenWizard</strong>
         <span className="tag">dev</span>
         <span className="quiet entry" title={catalog?.entry}>
           {catalog?.entry.split(/[/\\]/).slice(-2).join('/')}
         </span>
         <span className="spacer" />
         {backend.place === 'server' && (
-          <span className="quiet">
-            {server.connected ? 'Watching for changes' : 'Reconnecting…'}
+          <span className="live" data-on={server.connected} role="status">
+            <span className="live-text">
+              {server.connected ? 'Watching for changes' : 'Reconnecting…'}
+            </span>
           </span>
         )}
         {reload !== undefined && (
-          <button type="button" onClick={() => void reload().then(server.refresh)}>
+          <button
+            type="button"
+            title="Load the wizard files again"
+            onClick={() => void reload().then(server.refresh)}
+          >
             Reload
           </button>
         )}
       </header>
 
-      <nav className="side" aria-label="Wizards and runs">
-        <h2>Wizards</h2>
-        {wizards.map((item) => (
-          <Go
-            key={item.name}
-            className="nav-item"
-            to={{ page: 'wizard', name: item.name }}
-            current={route.page === 'wizard' && route.name === item.name}
-          >
-            <span className="nav-main">{item.name}</span>
-            <span className="quiet">
-              {item.manifest.nodes.filter((node) => node.path.length === 0).length} steps
-            </span>
-          </Go>
-        ))}
-        {wizards.length === 0 && <p className="quiet pad">No wizard loaded.</p>}
-        <h2>Runs</h2>
-        {runs.map((run) => (
-          <RunLink
-            key={run.id}
-            run={run}
-            now={now}
-            active={route.page === 'run' && route.id === run.id}
-          />
-        ))}
-        {runs.length === 0 && <p className="quiet pad">None yet.</p>}
-      </nav>
+      <Side wizards={wizards} runs={runs} route={route} now={now} />
 
       <main className="main">
         {catalog?.error !== undefined && (

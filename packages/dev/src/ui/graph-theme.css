@@ -1,1 +1,72 @@
 /* ---- the graph inside the dev UI: colours, controls and title ---- */
+
+/* The devtools palette, mapped onto the portal tokens so the graph reads as part of the page.
+   `[data-theme]` matches the specificity of the devtools dark-scheme rule. */
+.frame .owd.owd-graph,
+.frame .owd.owd-graph[data-theme] {
+  --owd-bg: var(--bg);
+  --owd-surface: var(--surface);
+  --owd-muted: var(--soft);
+  --owd-border: var(--line);
+  --owd-text: var(--text);
+  --owd-subtle: var(--quiet);
+  --owd-accent: var(--info);
+  --owd-accent-2: var(--undo);
+  --owd-success: var(--good);
+  --owd-warn: var(--warn);
+  --owd-danger: var(--bad);
+  --owd-edge: var(--quiet);
+  --owd-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  --owd-font: inherit;
+  --owd-mono: var(--mono);
+  border-radius: inherit;
+}
+.frame[data-theme="dark"] .owd.owd-graph {
+  --owd-shadow: none;
+}
+
+/* Edges stay grey until the run takes them. A data edge is lighter than a control edge. */
+.frame .owd-graph .owd-edge-group[data-kind="needs"] {
+  --owd-edge-stroke: color-mix(in srgb, var(--quiet) 55%, var(--line));
+}
+.frame .owd-graph .owd-edge-group[data-kind="start"],
+.frame .owd-graph .owd-edge-group[data-kind="dynamic"] {
+  --owd-edge-stroke: color-mix(in srgb, var(--quiet) 70%, var(--line));
+}
+.frame .owd-graph .owd-edge-group[data-path="taken"] {
+  --owd-edge-stroke: var(--text);
+}
+
+/* The page heading already names the wizard. Warnings and layout errors stay. */
+.owd-graph .owd-toolbar .owd-title {
+  display: none;
+}
+.owd-graph .owd-toolbar {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+/* The title repeats the page heading. The warning and layout badges stay. */
+.owd-graph .react-flow__panel.top.left:not(:has(.owd-badge)) {
+  display: none;
+}
+
+/* The portal styles every button as a 32px form button. The zoom controls are small icons. */
+.owd-graph .react-flow__controls-button {
+  height: 24px;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--quiet);
+}
+.owd-graph .react-flow__controls-button:hover:not(:disabled) {
+  background: var(--soft);
+  color: var(--text);
+}
+.owd-graph .react-flow__controls-button svg {
+  fill: currentColor;
+}
+.owd-graph .react-flow__attribution {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 10px;
+}

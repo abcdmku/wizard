@@ -1,31 +1,82 @@
-/* ---- tabs and tables ---- */
+/* ---- tabs: an underline bar that scrolls sideways when it does not fit ---- */
 .tabs {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   overflow-x: auto;
-  margin: 22px 0 -1px;
+  margin: 28px 0 12px;
+  box-shadow: inset 0 -1px 0 var(--line);
+  scrollbar-width: none;
 }
-.tabs button {
+.tabs [role="tab"] {
   flex: none;
-}
-.tabs button {
-  height: 34px;
-  border-color: transparent;
-  border-radius: 7px 7px 0 0;
+  height: 38px;
+  border: 0;
+  border-radius: 6px 6px 0 0;
   background: none;
+  padding: 0 10px;
   color: var(--quiet);
+  box-shadow: inset 0 -2px 0 transparent;
 }
-.tabs button[aria-selected="true"] {
-  border-color: var(--line);
-  border-bottom-color: var(--surface);
-  background: var(--surface);
+.tabs [role="tab"]:hover:not(:disabled) {
+  border: 0;
+  background: none;
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--line);
+}
+.tabs [role="tab"][aria-selected="true"] {
   color: var(--strong);
-  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--strong);
+}
+.tabs [role="tab"]:focus-visible {
+  outline-offset: -2px;
+}
+.tab-count {
+  border-radius: 999px;
+  background: var(--soft);
+  padding: 0 6px;
+  color: var(--quiet);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
 }
 .tabs + .card {
-  border-top-left-radius: 0;
   overflow-x: auto;
 }
+/* The history's bar sticks to the top of the scrolling page, which a scrolling card would stop. */
+.tabs + .card:has(> .history) {
+  overflow: visible;
+}
+/* A fade shows there is more to scroll to, in browsers with scroll-driven animations. */
+@supports (animation-timeline: scroll()) {
+  .tabs,
+  .side {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 var(--fade-start, 0px),
+      #000 calc(100% - var(--fade-end, 0px)),
+      transparent
+    );
+    animation: edge-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+@keyframes edge-fade {
+  0% {
+    --fade-start: 0px;
+    --fade-end: 28px;
+  }
+  10%,
+  90% {
+    --fade-start: 28px;
+    --fade-end: 28px;
+  }
+  100% {
+    --fade-start: 28px;
+    --fade-end: 0px;
+  }
+}
+
+/* ---- tables ---- */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -50,30 +101,8 @@ tr:last-child > td {
 tr.clickable {
   cursor: pointer;
 }
-tr.clickable:hover {
-  background: var(--soft);
-}
-.history td:nth-child(-n + 2) {
-  color: var(--quiet);
-  font-family: var(--mono);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.event {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-[data-family="run"] .event {
-  color: var(--info);
-}
-.detail {
-  overflow: hidden;
-  max-width: 360px;
-  font-family: var(--mono);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+tr.clickable:hover > td {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 .json {
   overflow-x: auto;
@@ -86,41 +115,148 @@ tr.clickable:hover {
   overflow-wrap: anywhere;
 }
 
-/* A narrow host: the wizards and runs become one row above the page. */
-@container frame (max-width: 880px) {
-  .shell {
-    grid-template: 44px auto minmax(0, 1fr) / minmax(0, 1fr);
-  }
-  .side {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    overflow: auto hidden;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    padding: 6px 12px;
-  }
-  .side h2 {
-    flex: none;
-    padding: 0 4px 0 8px;
-  }
-  .side h2:first-child {
-    padding-left: 0;
-  }
-  .nav-item {
-    flex: none;
-  }
-  .nav-main {
-    overflow: visible;
-  }
-  .pad {
-    flex: none;
-    padding: 0 4px;
-  }
-  .main {
-    padding: 16px 16px 40px;
-  }
-  .top .entry {
-    display: none;
-  }
+/* ---- history ---- */
+.history-bar {
+  position: sticky;
+  top: -22px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: -16px -16px 4px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 10px 10px 0 0;
+  background: var(--surface);
+  padding: 12px 16px;
+}
+.history-bar .history-filter {
+  flex: 1 1 200px;
+  max-width: 300px;
+  height: 32px;
+}
+.segmented {
+  display: inline-flex;
+  flex: none;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 2px;
+}
+.segmented button {
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  padding: 0 10px;
+  color: var(--quiet);
+  font-size: 13px;
+}
+.segmented button:hover:not(:disabled) {
+  border: 0;
+  background: none;
+  color: var(--text);
+}
+.segmented button[aria-pressed="true"],
+.segmented button[aria-pressed="true"]:hover {
+  background: var(--surface);
+  color: var(--strong);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.history-count {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.history-table thead {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+}
+.history-table td {
+  padding: 8px 8px;
+}
+td.history-time {
+  width: 1%;
+  padding-left: 0;
+  color: var(--quiet);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 19.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.history-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+.history-line button.link {
+  color: var(--strong);
+  font-weight: 500;
+}
+.tone {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--quiet) 45%, transparent);
+}
+.tone[data-tone="good"] {
+  background: var(--good);
+}
+.tone[data-tone="bad"] {
+  background: var(--bad);
+}
+.tone[data-tone="warn"] {
+  background: var(--warn);
+}
+.tone[data-tone="info"] {
+  background: var(--info);
+}
+tr[data-story="false"] > td {
+  color: var(--quiet);
+}
+.history-type {
+  margin-left: 8px;
+  color: var(--quiet);
+  font-size: 11.5px;
+}
+td.history-open {
+  width: 1%;
+  padding: 4px 0;
+}
+button.chevron {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--quiet);
+}
+button.chevron::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+button.chevron[aria-expanded="true"]::before {
+  transform: translateY(2px) rotate(225deg);
+}
+tr[data-open] > td {
+  border-bottom: 0;
+}
+.history-json > td {
+  padding: 0 0 12px;
+}
+.history-empty {
+  padding: 16px 0 4px;
 }

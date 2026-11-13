@@ -35,57 +35,108 @@
   font-family: var(--owd-font);
 }
 .owd-node-card {
+  --owd-tone: var(--owd-border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
   width: 200px;
   height: 72px;
-  padding: 8px 10px;
+  padding: 9px 10px;
   border-radius: 10px;
-  border: 1.5px solid
-    color-mix(in srgb, var(--owd-status, var(--owd-border)) 60%, var(--owd-border));
+  border: 1.5px solid var(--owd-border);
   background: var(--owd-surface);
   color: var(--owd-text);
   box-shadow: var(--owd-shadow);
   overflow: hidden;
   cursor: pointer;
 }
-.owd-node-card[data-status="idle"] {
-  border-color: var(--owd-border);
+.owd-node-card[data-tone],
+.owd-group[data-tone] {
+  border-color: color-mix(in srgb, var(--owd-tone) 75%, var(--owd-border));
 }
-.owd-node-card[data-status="skipped"] {
+.owd-node-card[data-tone] {
+  background: color-mix(in srgb, var(--owd-tone) 9%, var(--owd-surface));
+}
+.owd-node-card[data-tone="skipped"],
+.owd-node-card[data-tone="cancelled"] {
   border-style: dashed;
-  opacity: 0.75;
+  background: var(--owd-surface);
+  box-shadow: none;
+}
+.owd-node-card[data-tone="skipped"] > *,
+.owd-node-card[data-tone="cancelled"] > * {
+  opacity: 0.7;
+}
+.owd-node-card[data-tone="failed"] {
+  border-width: 2px;
 }
 .owd-node-card[data-current="true"] {
   box-shadow:
     var(--owd-shadow),
-    0 0 0 3px color-mix(in srgb, var(--owd-accent) 45%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--owd-tone) 30%, transparent);
 }
 .owd-node-card[data-selected="true"],
 .owd-group[data-selected="true"] {
   outline: 2px solid var(--owd-accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 .owd-node-head {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
 }
 .owd-node-id {
   font-family: var(--owd-mono);
   font-weight: 700;
-  font-size: 12px;
+  font-size: 12.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
   flex: 1 1 auto;
 }
-.owd-node-head .owd-status-dot {
-  margin-left: auto;
+
+/* The status word: a dot and a word in the tone of the status. The word carries the meaning. */
+.owd-node-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--owd-tone) 16%, var(--owd-surface));
+  color: color-mix(in srgb, var(--owd-tone) 72%, var(--owd-text));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
 }
-.owd-start {
-  border-color: var(--owd-success);
-  color: var(--owd-success);
+.owd-node-status .owd-status-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--owd-tone);
+}
+.owd [data-tone="running"] {
+  --owd-tone: var(--owd-accent);
+}
+.owd [data-tone="waiting"],
+.owd [data-tone="retrying"] {
+  --owd-tone: var(--owd-warn);
+}
+.owd [data-tone="done"] {
+  --owd-tone: var(--owd-success);
+}
+.owd [data-tone="failed"] {
+  --owd-tone: var(--owd-danger);
+}
+.owd [data-tone="skipped"],
+.owd [data-tone="cancelled"] {
+  --owd-tone: var(--owd-subtle);
+}
+.owd [data-tone="undoing"],
+.owd [data-tone="undone"] {
+  --owd-tone: var(--owd-accent-2);
 }
 .owd-warning {
   border-color: var(--owd-warn);
@@ -94,13 +145,14 @@
 }
 .owd-node-flags {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
-  margin-top: 6px;
+  min-width: 0;
   overflow: hidden;
-  max-height: 32px;
 }
 .owd-node-label {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--owd-subtle);
   font-size: 11px;
   overflow: hidden;
@@ -109,45 +161,78 @@
   max-width: 100%;
 }
 .owd-flag {
-  font-size: 10px;
-  line-height: 1;
-  padding: 2px 5px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
+  line-height: 1.2;
+  padding: 1px 6px;
   border-radius: 5px;
-  border: 1px solid var(--owd-border);
-  background: var(--owd-muted);
+  background: color-mix(in srgb, var(--owd-subtle) 11%, transparent);
   color: var(--owd-subtle);
   white-space: nowrap;
 }
+.owd-flag.owd-kind,
 .owd-flag-more {
-  border-style: dashed;
+  flex: none;
+}
+.owd-flag.owd-kind {
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid currentColor;
+  padding: 0 5px;
+}
+.owd-flag-more {
+  background: transparent;
+}
+.owd-graph .react-flow__node-group {
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  text-align: left;
 }
 .owd-group {
+  --owd-tone: var(--owd-edge);
   width: 100%;
   height: 100%;
   border-radius: 14px;
-  border: 1.5px dashed var(--owd-edge);
-  background: color-mix(in srgb, var(--owd-edge) 6%, transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--owd-edge) 60%, var(--owd-border));
+  background: color-mix(in srgb, var(--owd-edge) 5%, transparent);
   color: var(--owd-text);
 }
-.owd-group[data-status="active"] {
+.owd-group[data-tone] {
   border-style: solid;
+  background: color-mix(in srgb, var(--owd-tone) 5%, transparent);
 }
-.owd-group[data-status="done"] {
-  border-color: var(--owd-success);
-}
-.owd-group[data-status="failed"] {
-  border-color: var(--owd-danger);
+.owd-group[data-tone="skipped"],
+.owd-group[data-tone="cancelled"] {
+  border-style: dashed;
 }
 .owd-graph .react-flow__node.selected .owd-node-card,
 .owd-graph .react-flow__node.selected .owd-group {
   outline: 2px solid var(--owd-accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
+}
+.owd-graph .react-flow__node:focus-visible {
+  outline: none;
+}
+.owd-graph .react-flow__node:focus-visible .owd-node-card,
+.owd-graph .react-flow__node:focus-visible .owd-group {
+  outline: 2px solid var(--owd-accent);
+  outline-offset: 2px;
 }
 .owd-group-head {
-  padding: 8px 12px;
-  border-bottom: 1px dashed var(--owd-border);
-  background: color-mix(in srgb, var(--owd-surface) 80%, transparent);
-  border-radius: 14px 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--owd-tone) 30%, var(--owd-border));
+  border-radius: 13px 13px 0 0;
+  background: color-mix(in srgb, var(--owd-surface) 85%, transparent);
 }
 .owd-marker {
   width: 28px;
@@ -156,41 +241,60 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   border: 1.5px solid var(--owd-subtle);
   background: var(--owd-surface);
   color: var(--owd-subtle);
 }
 .owd-marker[data-variant="entry"] {
-  border-color: var(--owd-success);
-  color: var(--owd-success);
   padding-left: 2px;
 }
 .owd-marker[data-variant="dynamic"] {
   border-style: dashed;
 }
+
+/* ---- edges: colour by kind, then by whether the run went that way ---- */
+.owd-edge-group {
+  --owd-edge-stroke: var(--owd-edge);
+}
+.owd-edge-group[data-kind="needs"] {
+  --owd-edge-stroke: var(--owd-success);
+}
+.owd-edge-group[data-kind="fallback"],
+.owd-edge-group[data-kind="timeout"] {
+  --owd-edge-stroke: var(--owd-accent-2);
+}
+.owd-edge-group[data-kind="start"],
+.owd-edge-group[data-kind="dynamic"] {
+  --owd-edge-stroke: var(--owd-subtle);
+}
+.owd-edge-group[data-path="taken"] {
+  --owd-edge-stroke: var(--owd-text);
+}
+.owd-edge-group[data-path="untaken"] {
+  opacity: 0.35;
+}
+.owd-edge-arrow {
+  fill: var(--owd-edge-stroke);
+}
 .owd-edge-label {
   position: absolute;
   pointer-events: all;
-  padding: 1px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--owd-border);
-  background: var(--owd-surface);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--owd-bg);
   color: var(--owd-subtle);
   font-family: var(--owd-font);
-  font-size: 10px;
+  font-size: 10.5px;
+  line-height: 1.3;
   white-space: nowrap;
 }
-.owd-edge-label[data-kind="needs"] {
-  color: var(--owd-success);
-  border-color: var(--owd-success);
+.owd-edge-label[data-path="untaken"] {
+  color: color-mix(in srgb, var(--owd-subtle) 55%, var(--owd-bg));
 }
-.owd-edge-label[data-kind="timeout"],
-.owd-edge-label[data-kind="fallback"] {
-  color: var(--owd-accent-2);
-  border-color: var(--owd-accent-2);
-}
+
+/* ---- toolbar and controls ---- */
 .owd-toolbar {
   display: flex;
   align-items: center;
@@ -200,6 +304,39 @@
   border: 1px solid var(--owd-border);
   background: var(--owd-surface);
   color: var(--owd-text);
+}
+.owd-graph .react-flow__panel {
+  margin: 10px;
+}
+.owd-graph .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--owd-border);
+  border-radius: 7px;
+  box-shadow: none;
+}
+.owd-graph .react-flow__controls-button {
+  width: 26px;
+  height: 24px;
+  min-width: 0;
+  margin: 0;
+  padding: 5px;
+  border: none;
+  border-radius: 0;
+  font: inherit;
+}
+.owd-graph
+  .react-flow__controls.horizontal
+  .react-flow__controls-button
+  + .react-flow__controls-button {
+  border-left: 1px solid var(--owd-border);
+}
+.owd-graph .react-flow__controls-button svg {
+  max-width: 11px;
+  max-height: 11px;
+}
+.owd-graph .react-flow__controls-button:focus-visible {
+  outline: 2px solid var(--owd-accent);
+  outline-offset: -2px;
 }
 .owd-minimap {
   border: 1px solid var(--owd-border);
